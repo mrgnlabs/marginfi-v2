@@ -1,7 +1,9 @@
-use crate::{set_if_some, MarginfiResult};
+use crate::{math_error, set_if_some, MarginfiResult, check};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
+
+use super::marginfi_account::Balance;
 
 #[account(zero_copy)]
 #[repr(packed)]
@@ -92,8 +94,8 @@ pub struct Bank {
 
     pub config: BankConfig,
 
-    pub total_borrows: u64,
-    pub total_deposits: u64,
+    pub total_borrow_shares: I80F48,
+    pub total_deposit_shares: I80F48,
 }
 
 impl Bank {
@@ -107,15 +109,66 @@ impl Bank {
     ) {
         *self = Bank {
             mint: mint_pk,
-            deposit_share_value: I80F48_ONE,
-            liability_share_value: I80F48_ONE,
+            deposit_share_value: I80F48::ONE,
+            liability_share_value: I80F48::ONE,
             liquidity_vault,
             insurance_vault,
             fee_vault,
             config,
-            total_borrows: 0,
-            total_deposits: 0,
+            total_borrow_shares: I80F48::ZERO,
+            total_deposit_shares: I80F48::ZERO,
         }
+    }
+
+    pub fn get_liability_value(&self, shares: I80F48) -> MarginfiResult<I80F48> {
+        Ok(shares
+            .checked_mul(self.liability_share_value)
+            .ok_or_else(math_error!())?)
+    }
+
+    pub fn get_deposit_value(&self, shares: I80F48) -> MarginfiResult<I80F48> {
+        Ok(shares
+            .checked_mul(self.deposit_share_value)
+            .ok_or_else(math_error!())?)
+    }
+
+    pub fn get_liability_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
+        Ok(value
+            .checked_div(self.liability_share_value)
+            .ok_or_else(math_error!())?)
+    }
+
+    pub fn get_deposit_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
+        Ok(value
+            .checked_div(self.deposit_share_value)
+            .ok_or_else(math_error!())?)
+    }
+
+    pub fn change_deposit_shares(&mut self, shares: I80F48) -> MarginfiResult {
+        self.total_deposit_shares = self
+            .total_deposit_shares
+            .checked_add(shares)
+            .ok_or_else(math_error!())?;
+
+        if shares.is_positive() {
+            let total_shares_value = self
+                .get_deposit_value(self.total_deposit_shares.into())?;
+            let max_deposit_capacity = self
+                .get_deposit_value(self.config.reserve_max_capacity.into())?;
+
+            check!(total_shares_value < max_deposit_capacity, crate::prelude::MarginfiError::BankDepositCapacityExceeded)
+        }
+
+        
+        Ok(())
+    }
+
+    pub fn change_liability_shares(&mut self, shares: I80F48) -> MarginfiResult {
+        self.total_borrow_shares = self
+            .total_borrow_shares
+            .checked_add(shares)
+            .ok_or_else(math_error!())?;
+        Ok(())
     }
 }
 
@@ -132,4 +185,21 @@ pub struct BankConfig {
 
     pub pyth_oracle: Pubkey,
     pub switchboard_oracle: Pubkey,
+}
+
+#[zero_copy]
+pub struct WrappedI80F48 {
+    pub value: i128,
+}
+
+impl From<I80F48> for WrappedI80F48 {
+    fn from(i: I80F48) -> Self {
+        Self { value: i.to_bits() }
+    }
+}
+
+impl From<WrappedI80F48> for I80F48 {
+    fn from(w: WrappedI80F48) -> Self {
+        Self::from_bits(w.value)
+    }
 }

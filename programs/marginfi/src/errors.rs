@@ -4,6 +4,12 @@ use anchor_lang::prelude::*;
 pub enum MarginfiError {
     #[msg("Math error")]
     MathError,
+    #[msg("Invalid bank index")]
+    BankNotFound,
+    #[msg("Lending account balance not found")]
+    LendingAccountBalanceNotFound,
+    #[msg("Bank deposit capacity exceeded")]
+    BankDepositCapacityExceeded
 }
 
 impl From<MarginfiError> for ProgramError {
