@@ -1,7 +1,7 @@
 use crate::{state::marginfi_group::MarginfiGroup, MarginfiResult};
 use anchor_lang::prelude::*;
 
-pub fn process(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
+pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_init()?;
 
     let InitializeMarginfiGroup { admin, .. } = ctx.accounts;
