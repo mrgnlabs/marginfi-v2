@@ -9,7 +9,11 @@ pub enum MarginfiError {
     #[msg("Lending account balance not found")]
     LendingAccountBalanceNotFound,
     #[msg("Bank deposit capacity exceeded")]
-    BankDepositCapacityExceeded
+    BankDepositCapacityExceeded,
+    #[msg("Invalid transfer")]
+    InvalidTransfer,
+    #[msg("Invalid Pyth account")]
+    InvalidPythAccount
 }
 
 impl From<MarginfiError> for ProgramError {

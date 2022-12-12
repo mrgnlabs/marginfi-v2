@@ -1,19 +1,25 @@
-use std::cmp::{max, min};
-
-use anchor_lang::prelude::*;
-use fixed::types::I80F48;
-
+use super::marginfi_group::{Bank, LendingPool, MarginfiGroup, WrappedI80F48};
 use crate::{
-    math_error,
+    check, math_error,
     prelude::{MarginfiError, MarginfiResult},
 };
-
-use super::marginfi_group::{Bank, LendingPool, WrappedI80F48};
+use anchor_lang::prelude::*;
+use anchor_spl::token::{transfer, Transfer};
+use core::slice::SlicePattern;
+use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
+use pyth_sdk_solana::{state::PriceAccount, Price, PriceFeed};
+use std::{
+    alloc::Global,
+    cmp::{max, min},
+    collections::{hash_map::RandomState, BTreeSet, HashMap},
+};
 
 #[account(zero_copy)]
 pub struct MarginfiAccount {
     pub group: Pubkey,
     pub owner: Pubkey,
+    pub lending_account: LendingAccount,
 }
 
 impl MarginfiAccount {
@@ -21,6 +27,161 @@ impl MarginfiAccount {
     pub fn initialize(&mut self, group: Pubkey, owner: Pubkey) {
         self.owner = owner;
         self.group = group;
+    }
+}
+
+const EXP_10_I80F48: [I80F48; 15] = [
+    I80F48!(1),
+    I80F48!(10),
+    I80F48!(100),
+    I80F48!(1_000),
+    I80F48!(10_000),
+    I80F48!(100_000),
+    I80F48!(1_000_000),
+    I80F48!(10_000_000),
+    I80F48!(100_000_000),
+    I80F48!(1_000_000_000),
+    I80F48!(10_000_000_000),
+    I80F48!(100_000_000_000),
+    I80F48!(1_000_000_000_000),
+    I80F48!(10_000_000_000_000),
+    I80F48!(100_000_000_000_000),
+];
+
+const EXPONENT: i32 = 6;
+
+/// Convert a price `price.price` with decimal exponent `price.expo` to an I80F48 representation with exponent 6.
+pub fn pyht_price_to_i80f48(price: &Price) -> MarginfiResult<I80F48> {
+    let pyth_price = price.price;
+    let pyth_expo = price.expo;
+
+    let expo_delta = EXPONENT - pyth_expo;
+    let expo_scale = EXP_10_I80F48[expo_delta.abs() as usize];
+
+    let mut price = I80F48::from_num(pyth_price);
+
+    let price = if expo_delta < 0 {
+        price.checked_div(expo_scale).ok_or_else(math_error!())?
+    } else {
+        price.checked_mul(expo_scale).ok_or_else(math_error!())?
+    };
+
+    Ok(price)
+}
+
+pub enum WeightType {
+    Initial,
+    Maintenance,
+}
+
+pub struct BankAccountWithPriceFeed<'a> {
+    bank: &'a Bank,
+    price_feed: PriceFeed,
+    balance: &'a Balance,
+}
+
+impl<'a> BankAccountWithPriceFeed<'a> {
+    pub fn get_deposits_and_liabilities(
+        &self,
+        weight_type: WeightType,
+    ) -> MarginfiResult<(I80F48, I80F48)> {
+        // TODO: Expire price, and check confidence interval
+        let price = self.price_feed.get_price_unchecked();
+
+        let deposits = self
+            .bank
+            .get_deposit_value(self.balance.deposit_shares.into())?;
+        let liabilities = self
+            .bank
+            .get_deposit_value(self.balance.liability_shares.into())?;
+
+        let (deposit_weight, liability_weight) = self.bank.config.get_weights(weight_type);
+
+        Ok((
+            {
+                let weighted_deposits = deposits
+                    .checked_mul(deposit_weight)
+                    .ok_or_else(math_error!())?;
+
+                weighted_deposits
+                    .checked_mul(I80F48::from_num(price.price))
+                    .ok_or_else(math_error!())?
+                    .checked_div(EXP_10_I80F48[price.expo.abs() as usize])
+                    .ok_or_else(math_error!())?
+            },
+            {
+                let weighted_liabilities = liabilities
+                    .checked_mul(liability_weight)
+                    .ok_or_else(math_error!())?;
+
+                weighted_liabilities
+                    .checked_mul(I80F48::from_num(price.price))
+                    .ok_or_else(math_error!())?
+                    .checked_div(EXP_10_I80F48[price.expo.abs() as usize])
+                    .ok_or_else(math_error!())?
+            },
+        ))
+    }
+}
+
+pub struct PyhtHelper {}
+
+impl PyhtHelper {
+    pub fn get<'a>(
+        lending_account: &'a LendingAccount,
+        lending_pool: &'a LendingPool,
+        pyth_accounts: &[AccountInfo],
+    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
+        let pyth_accounts: HashMap<Pubkey, &AccountInfo, RandomState> =
+            HashMap::from_iter(pyth_accounts.iter().map(|a| (a.key(), a)));
+
+        lending_account
+            .balances
+            .iter()
+            .map(|balance| {
+                let bank = lending_pool
+                    .banks
+                    .get(balance.bank_index as usize)
+                    .expect("Bank not found");
+                let pyth_account = pyth_accounts
+                    .get(&bank.config.pyth_oracle)
+                    .expect("Pyth oracle not found");
+
+                let pyth_data = pyth_account.try_borrow_data()?;
+                let price_account = bytemuck::try_from_bytes::<PriceAccount>(&pyth_data.as_ref())
+                    .expect("Invalid pyth data");
+                let price_feed = price_account.to_price_feed(pyth_account.key);
+
+                Ok(BankAccountWithPriceFeed {
+                    bank,
+                    price_feed,
+                    balance,
+                })
+            })
+            .collect::<Result<Vec<_>>>()
+    }
+}
+
+pub enum RiskRequirementType {
+    Initial,
+    Maintenance,
+}
+
+pub struct RiskEngine<'a> {
+    margin_group: &'a MarginfiGroup,
+    lending_pool: &'a MarginfiAccount,
+}
+
+impl<'a> RiskEngine<'a> {
+    pub fn new(margin_group: &MarginfiGroup, lending_pool: &MarginfiAccount) -> Self {
+        Self {
+            margin_group,
+            lending_pool,
+        }
+    }
+
+    pub fn check_account_health(requirement_type: RiskRequirementType) -> MarginfiResult {
+        Ok(())
     }
 }
 
@@ -58,26 +219,33 @@ impl Balance {
     }
 }
 
+enum TransferType {
+    Deposit,
+    Withdraw,
+}
+
 pub struct BankAccountWrapper<'a> {
     pub balance: &'a mut Balance,
     pub bank: &'a mut Bank,
 }
 
 impl<'a> BankAccountWrapper<'a> {
-    pub fn create_account_wrapper(
-        bank_index: u8,
+    pub fn create_from_mint(
+        mint: Pubkey,
         lending_pool: &'a mut LendingPool,
         lending_account: &'a mut LendingAccount,
     ) -> MarginfiResult<BankAccountWrapper<'a>> {
-        let bank = lending_pool
+        let (bank_index, bank) = lending_pool
             .banks
-            .get_mut(bank_index as usize)
-            .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceNotFound))?;
+            .iter_mut()
+            .enumerate()
+            .find(|(_, b)| b.mint == mint)
+            .ok_or_else(|| error!(MarginfiError::BankNotFound))?;
 
         let balance = lending_account
             .balances
             .iter_mut()
-            .find(|b| b.bank_index == bank_index)
+            .find(|b| b.bank_index as usize == bank_index)
             .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceNotFound))?;
 
         Ok(Self { balance, bank })
@@ -115,7 +283,7 @@ impl<'a> BankAccountWrapper<'a> {
         Ok(())
     }
 
-    pub fn borrow(&mut self, amount: u64) -> MarginfiResult {
+    pub fn withdraw(&mut self, amount: u64) -> MarginfiResult {
         let balance = self.balance;
         let bank = self.bank;
 
@@ -145,5 +313,33 @@ impl<'a> BankAccountWrapper<'a> {
         bank.change_liability_shares(liability_shares_delta)?;
 
         Ok(())
+    }
+
+    pub fn deposit_transfer(
+        &self,
+        amount: u64,
+        accounts: Transfer,
+        program: AccountInfo,
+    ) -> MarginfiResult {
+        check!(
+            accounts.to.key.eq(&self.bank.liquidity_vault),
+            MarginfiError::InvalidTransfer
+        );
+
+        transfer(CpiContext::new(program, accounts), amount)
+    }
+
+    pub fn withdraw_transfer(
+        &self,
+        amount: u64,
+        accounts: Transfer,
+        program: AccountInfo,
+    ) -> MarginfiResult {
+        check!(
+            accounts.from.key.eq(&self.bank.liquidity_vault),
+            MarginfiError::InvalidTransfer
+        );
+
+        transfer(CpiContext::new(program, accounts), amount)
     }
 }

@@ -1,9 +1,9 @@
-use crate::{math_error, set_if_some, MarginfiResult, check};
+use crate::{check, math_error, set_if_some, MarginfiResult};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 
-use super::marginfi_account::Balance;
+use super::marginfi_account::WeightType;
 
 #[account(zero_copy)]
 #[repr(packed)]
@@ -151,15 +151,16 @@ impl Bank {
             .ok_or_else(math_error!())?;
 
         if shares.is_positive() {
-            let total_shares_value = self
-                .get_deposit_value(self.total_deposit_shares.into())?;
-            let max_deposit_capacity = self
-                .get_deposit_value(self.config.reserve_max_capacity.into())?;
+            let total_shares_value = self.get_deposit_value(self.total_deposit_shares.into())?;
+            let max_deposit_capacity =
+                self.get_deposit_value(self.config.reserve_max_capacity.into())?;
 
-            check!(total_shares_value < max_deposit_capacity, crate::prelude::MarginfiError::BankDepositCapacityExceeded)
+            check!(
+                total_shares_value < max_deposit_capacity,
+                crate::prelude::MarginfiError::BankDepositCapacityExceeded
+            )
         }
 
-        
         Ok(())
     }
 
@@ -178,13 +179,27 @@ impl Bank {
 )]
 #[zero_copy]
 #[derive(Default)]
+/// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
-    pub collateral_weight: I80F48,
-    pub liability_weight: I80F48,
+    pub deposit_weight_init: I80F48,
+    pub deposit_weight_maint: I80F48,
+
+    pub liability_weight_init: I80F48,
+    pub liability_weight_maint: I80F48,
+
     pub reserve_max_capacity: u64,
 
     pub pyth_oracle: Pubkey,
     pub switchboard_oracle: Pubkey,
+}
+
+impl BankConfig {
+    pub fn get_weights(&self, weight_type: WeightType) -> (I80F48, I80F48) {
+        match weight_type {
+            WeightType::Initial => (self.deposit_weight_init, self.liability_weight_init),
+            WeightType::Maintenance => (self.deposit_weight_maint, self.liability_weight_maint),
+        }
+    }
 }
 
 #[zero_copy]
