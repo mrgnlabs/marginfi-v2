@@ -51,7 +51,7 @@ const EXP_10_I80F48: [I80F48; 15] = [
 const EXPONENT: i32 = 6;
 
 /// Convert a price `price.price` with decimal exponent `price.expo` to an I80F48 representation with exponent 6.
-pub fn pyht_price_to_i80f48(price: &Price) -> MarginfiResult<I80F48> {
+pub fn pyth_price_to_i80f48(price: &Price) -> MarginfiResult<I80F48> {
     let pyth_price = price.price;
     let pyth_expo = price.expo;
 
