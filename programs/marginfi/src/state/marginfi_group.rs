@@ -1,7 +1,7 @@
 use crate::{check, math_error, set_if_some, MarginfiResult};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
-use fixed_macro::types::I80F48;
+
 
 use super::marginfi_account::WeightType;
 
