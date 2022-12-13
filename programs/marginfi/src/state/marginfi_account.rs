@@ -124,9 +124,9 @@ impl<'a> BankAccountWithPriceFeed<'a> {
     }
 }
 
-pub struct PyhtHelper {}
+pub struct PythHelper {}
 
-impl PyhtHelper {
+impl PythHelper {
     pub fn get<'a>(
         lending_account: &'a LendingAccount,
         lending_pool: &'a LendingPool,

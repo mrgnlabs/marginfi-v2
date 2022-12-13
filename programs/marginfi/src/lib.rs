@@ -30,13 +30,13 @@ assert_cfg!(
 /// Admin instructions:
 /// - `initialize_marginfi_group` - Initializes a new marginfi group.
 /// - `configure_marginfi_group` - Configures a marginfi group.
-/// - `lending_pool_add_reserve` - Adds a reserve to a lending pool.
-/// - `lending_pool_configure_reserve` - Configures a reserve in a lending pool.
+/// - `lending_pool_add_bank` - Adds a bank to a lending pool.
+/// - `lending_pool_configure_bank` - Configures a bank in a lending pool.
 /// 
 /// User instructions:
 /// - `create_margin_account` - Creates a new margin account.
-/// - `lending_pool_deposit` - Deposits liquidity into a reserve.
-/// - `lending_pool_withdraw` - Withdraws liquidity from a reserve.
+/// - `lending_pool_deposit` - Deposits liquidity into a bank.
+/// - `lending_pool_withdraw` - Withdraws liquidity from a bank.
 /// - `liquidate` - Liquidates a margin account.
 /// 
 /// Operational instructions:

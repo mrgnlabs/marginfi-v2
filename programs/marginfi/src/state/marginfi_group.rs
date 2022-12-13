@@ -153,7 +153,7 @@ impl Bank {
         if shares.is_positive() {
             let total_shares_value = self.get_deposit_value(self.total_deposit_shares.into())?;
             let max_deposit_capacity =
-                self.get_deposit_value(self.config.reserve_max_capacity.into())?;
+                self.get_deposit_value(self.config.max_capacity.into())?;
 
             check!(
                 total_shares_value < max_deposit_capacity,
@@ -187,10 +187,9 @@ pub struct BankConfig {
     pub liability_weight_init: I80F48,
     pub liability_weight_maint: I80F48,
 
-    pub reserve_max_capacity: u64,
+    pub max_capacity: u64,
 
     pub pyth_oracle: Pubkey,
-    pub switchboard_oracle: Pubkey,
 }
 
 impl BankConfig {
