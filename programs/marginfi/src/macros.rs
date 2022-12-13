@@ -37,7 +37,7 @@ macro_rules! math_error {
 macro_rules! set_if_some {
     ($attr: expr, $val: expr) => {
         if let Some(val) = $val {
-            anchor_lang::prelude::msg!("Setting {} to {}", stringify!($attr), val);
+            anchor_lang::prelude::msg!("Setting {} to {:?}", stringify!($attr), val);
             $attr = val.into()
         }
     };

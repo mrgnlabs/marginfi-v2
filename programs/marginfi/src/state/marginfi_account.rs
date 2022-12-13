@@ -95,7 +95,10 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 let bank = lending_pool
                     .banks
                     .get(balance.bank_index as usize)
-                    .expect("Bank not found");
+                    .unwrap()
+                    .as_ref()
+                    .unwrap();
+
                 let pyth_account = pyth_accounts
                     .get(&bank.config.pyth_oracle)
                     .expect("Pyth oracle not found");
@@ -289,7 +292,8 @@ impl<'a> BankAccountWrapper<'a> {
             .banks
             .iter_mut()
             .enumerate()
-            .find(|(_, b)| b.mint == mint)
+            .filter(|(_, b)| b.is_some())
+            .find(|(_, b)| b.unwrap().mint == mint)
             .ok_or_else(|| error!(MarginfiError::BankNotFound))?;
 
         let balance_index = lending_account
@@ -317,7 +321,10 @@ impl<'a> BankAccountWrapper<'a> {
         .as_mut()
         .unwrap();
 
-        Ok(Self { balance, bank })
+        Ok(Self {
+            balance,
+            bank: bank.as_mut().unwrap(),
+        })
     }
 
     pub fn deposit(&mut self, amount: u64) -> MarginfiResult {

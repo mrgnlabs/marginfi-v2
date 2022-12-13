@@ -44,7 +44,6 @@ pub struct GroupConfig {
 }
 
 const MAX_LENDING_POOL_RESERVES: usize = 128;
-const I80F48_ONE: I80F48 = I80F48!(1);
 
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -52,26 +51,30 @@ const I80F48_ONE: I80F48 = I80F48!(1);
 )]
 #[zero_copy]
 pub struct LendingPool {
-    pub banks: [Bank; MAX_LENDING_POOL_RESERVES],
+    pub banks: [Option<Bank>; MAX_LENDING_POOL_RESERVES],
 }
 
 impl Default for LendingPool {
     fn default() -> Self {
         Self {
-            banks: [Bank::default(); MAX_LENDING_POOL_RESERVES],
+            banks: [None; MAX_LENDING_POOL_RESERVES],
         }
     }
 }
 
 impl LendingPool {
     pub fn get_bank(&self, mint_pk: &Pubkey) -> Option<&Bank> {
-        self.banks.iter().find(|reserve| reserve.mint.eq(mint_pk))
+        self.banks
+            .iter()
+            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint.eq(mint_pk))
+            .map(|reserve| reserve.as_ref().unwrap())
     }
 
     pub fn get_bank_mut(&mut self, mint_pk: &Pubkey) -> Option<&mut Bank> {
         self.banks
             .iter_mut()
-            .find(|reserve| reserve.mint.eq(mint_pk))
+            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint.eq(mint_pk))
+            .map(|reserve| reserve.as_mut().unwrap())
     }
 }
 
@@ -98,15 +101,14 @@ pub struct Bank {
 }
 
 impl Bank {
-    pub fn initialize(
-        &mut self,
+    pub fn new(
         config: BankConfig,
         mint_pk: Pubkey,
         liquidity_vault: Pubkey,
         insurance_vault: Pubkey,
         fee_vault: Pubkey,
-    ) {
-        *self = Bank {
+    ) -> Bank {
+        Bank {
             mint: mint_pk,
             deposit_share_value: I80F48::ONE,
             liability_share_value: I80F48::ONE,
@@ -169,6 +171,25 @@ impl Bank {
             .ok_or_else(math_error!())?;
         Ok(())
     }
+
+    pub fn configure(&mut self, config: BankConfigOpt) -> MarginfiResult {
+        set_if_some!(self.config.deposit_weight_init, config.deposit_weight_init);
+        set_if_some!(
+            self.config.deposit_weight_maint,
+            config.deposit_weight_maint
+        );
+        set_if_some!(
+            self.config.liability_weight_init,
+            config.liability_weight_init
+        );
+        set_if_some!(
+            self.config.liability_weight_maint,
+            config.liability_weight_maint
+        );
+        set_if_some!(self.config.max_capacity, config.max_capacity);
+        set_if_some!(self.config.pyth_oracle, config.pyth_oracle);
+        Ok(())
+    }
 }
 
 #[cfg_attr(
@@ -176,14 +197,14 @@ impl Bank {
     derive(Debug, PartialEq, Eq)
 )]
 #[zero_copy]
-#[derive(Default)]
+#[derive(Default, AnchorDeserialize, AnchorSerialize)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
-    pub deposit_weight_init: I80F48,
-    pub deposit_weight_maint: I80F48,
+    pub deposit_weight_init: WrappedI80F48,
+    pub deposit_weight_maint: WrappedI80F48,
 
-    pub liability_weight_init: I80F48,
-    pub liability_weight_maint: I80F48,
+    pub liability_weight_init: WrappedI80F48,
+    pub liability_weight_maint: WrappedI80F48,
 
     pub max_capacity: u64,
 
@@ -193,13 +214,21 @@ pub struct BankConfig {
 impl BankConfig {
     pub fn get_weights(&self, weight_type: WeightType) -> (I80F48, I80F48) {
         match weight_type {
-            WeightType::Initial => (self.deposit_weight_init, self.liability_weight_init),
-            WeightType::Maintenance => (self.deposit_weight_maint, self.liability_weight_maint),
+            WeightType::Initial => (
+                self.deposit_weight_init.into(),
+                self.liability_weight_init.into(),
+            ),
+            WeightType::Maintenance => (
+                self.deposit_weight_maint.into(),
+                self.liability_weight_maint.into(),
+            ),
         }
     }
 }
 
 #[zero_copy]
+#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
+#[derive(Debug, Default, AnchorDeserialize, AnchorSerialize)]
 pub struct WrappedI80F48 {
     pub value: i128,
 }
@@ -214,4 +243,17 @@ impl From<WrappedI80F48> for I80F48 {
     fn from(w: WrappedI80F48) -> Self {
         Self::from_bits(w.value)
     }
+}
+
+#[derive(AnchorDeserialize, AnchorSerialize)]
+pub struct BankConfigOpt {
+    pub deposit_weight_init: Option<WrappedI80F48>,
+    pub deposit_weight_maint: Option<WrappedI80F48>,
+
+    pub liability_weight_init: Option<WrappedI80F48>,
+    pub liability_weight_maint: Option<WrappedI80F48>,
+
+    pub max_capacity: Option<u64>,
+
+    pub pyth_oracle: Option<Pubkey>,
 }

@@ -32,10 +32,11 @@ pub struct CreateMarginfiAccount<'info> {
 }
 
 ///
-/// Deposit into a bank
+/// Deposit into a bank account
 /// 1. Add collateral to the margin accounts lending account
+///     - Create a bank account if it doesn't exist for the deposited asset
 /// 2. Transfer collateral from signer to bank liquidity vault
-pub fn lending_pool_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiResult {
+pub fn bank_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiResult {
     let LendingPoolDeposit {
         marginfi_group,
         marginfi_account,
@@ -85,7 +86,14 @@ pub struct LendingPoolDeposit<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-pub fn lending_pool_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> MarginfiResult {
+/// Withdraw from a bank account, if the user has deposits in the bank account withdraw those,
+/// otherwise borrow from the bank if the user has sufficient collateral.
+///
+/// 1. Remove collateral from the margin accounts lending account
+///     - Create a bank account if it doesn't exist for the deposited asset
+/// 2. Transfer collateral from bank liquidity vault to signer
+/// 3. Verify that the users account is in a healthy state
+pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> MarginfiResult {
     let LendingPoolWithdraw {
         marginfi_group,
         marginfi_account,
@@ -99,13 +107,10 @@ pub fn lending_pool_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> 
     let mut marginfi_group = marginfi_group.load_mut()?;
     let mut marginfi_account = marginfi_account.load_mut()?;
 
-    let lending_pool = &mut marginfi_group.lending_pool;
-    let lending_account = &mut marginfi_account.lending_account;
-
     let mut bank_account = BankAccountWrapper::find_by_mint_or_create(
         asset_mint.key(),
-        lending_pool,
-        lending_account,
+        &mut marginfi_group.lending_pool,
+        &mut marginfi_account.lending_account,
     )?;
 
     bank_account.withdraw(amount)?;

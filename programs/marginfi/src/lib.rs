@@ -7,6 +7,7 @@ pub mod state;
 use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
+use state::marginfi_group::{BankConfig, BankConfigOpt};
 use static_assertions::assert_cfg;
 
 #[cfg(feature = "mainnet-beta")] // mainnet
@@ -50,8 +51,39 @@ pub mod marginfi {
         marginfi_group::initialize(ctx)
     }
 
-    // // User instructions
-    // pub fn create_margin_account(ctx: Context<CreateMarginfiAccount>) -> MarginfiResult {
-    //     margin_account::create(ctx)
-    // }
+    pub fn configure_marginfi_group(
+        ctx: Context<ConfigureMarginfiGroup>,
+        config: GroupConfig,
+    ) -> MarginfiResult {
+        marginfi_group::configure(ctx, config)
+    }
+
+    pub fn lending_pool_add_bank(
+        ctx: Context<LendingPoolAddBank>,
+        bank_index: u8,
+        bank_config: BankConfig,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_add_bank(ctx, bank_index, bank_config)
+    }
+
+    pub fn lending_pool_configure_bank(
+        ctx: Context<LendingPoolConfigureBank>,
+        bank_index: u8,
+        bank_config_opt: BankConfigOpt,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_configure_bank(ctx, bank_index, bank_config_opt)
+    }
+
+    // User instructions
+    pub fn create_margin_account(ctx: Context<CreateMarginfiAccount>) -> MarginfiResult {
+        marginfi_account::create(ctx)
+    }
+
+    pub fn bank_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiResult {
+        marginfi_account::bank_deposit(ctx, amount)
+    }
+
+    pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> MarginfiResult {
+        marginfi_account::bank_withdraw(ctx, amount)
+    }
 }

@@ -18,6 +18,8 @@ pub enum MarginfiError {
     BadAccountHealth,
     #[msg("Lending account balance slots are full")]
     LendingAccountBalanceSlotsFull,
+    #[msg("Bank already exists")]
+    BankAlreadyExists,
 }
 
 impl From<MarginfiError> for ProgramError {
