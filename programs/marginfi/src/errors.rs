@@ -13,7 +13,11 @@ pub enum MarginfiError {
     #[msg("Invalid transfer")]
     InvalidTransfer,
     #[msg("Invalid Pyth account")]
-    InvalidPythAccount
+    InvalidPythAccount,
+    #[msg("Bad account health")]
+    BadAccountHealth,
+    #[msg("Lending account balance slots are full")]
+    LendingAccountBalanceSlotsFull,
 }
 
 impl From<MarginfiError> for ProgramError {

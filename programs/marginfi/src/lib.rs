@@ -25,20 +25,20 @@ assert_cfg!(
     "Test feature must be disabled for a mainnet release"
 );
 /// Marginfi v2 program entrypoint.
-/// 
+///
 /// Instructions:
 /// Admin instructions:
 /// - `initialize_marginfi_group` - Initializes a new marginfi group.
 /// - `configure_marginfi_group` - Configures a marginfi group.
 /// - `lending_pool_add_bank` - Adds a bank to a lending pool.
 /// - `lending_pool_configure_bank` - Configures a bank in a lending pool.
-/// 
+///
 /// User instructions:
 /// - `create_margin_account` - Creates a new margin account.
 /// - `lending_pool_deposit` - Deposits liquidity into a bank.
 /// - `lending_pool_withdraw` - Withdraws liquidity from a bank.
 /// - `liquidate` - Liquidates a margin account.
-/// 
+///
 /// Operational instructions:
 /// - `accrue_interest` - Accrues interest for a reserve.
 
@@ -50,9 +50,8 @@ pub mod marginfi {
         marginfi_group::initialize(ctx)
     }
 
-
-    // User instructions
-    pub fn create_margin_account(ctx: Context<CreateMarginfiAccount>) -> MarginfiResult {
-        margin_account::create(ctx)
-    }
+    // // User instructions
+    // pub fn create_margin_account(ctx: Context<CreateMarginfiAccount>) -> MarginfiResult {
+    //     margin_account::create(ctx)
+    // }
 }

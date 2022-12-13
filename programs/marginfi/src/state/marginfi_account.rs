@@ -5,14 +5,14 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
-use core::slice::SlicePattern;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use pyth_sdk_solana::{state::PriceAccount, Price, PriceFeed};
 use std::{
-    alloc::Global,
     cmp::{max, min},
     collections::{hash_map::RandomState, BTreeSet, HashMap},
+    ops::DerefMut,
+    ptr::read_unaligned,
 };
 
 #[account(zero_copy)]
@@ -81,7 +81,42 @@ pub struct BankAccountWithPriceFeed<'a> {
 }
 
 impl<'a> BankAccountWithPriceFeed<'a> {
-    pub fn get_deposits_and_liabilities(
+    pub fn load(
+        lending_account: &'a LendingAccount,
+        lending_pool: &'a LendingPool,
+        pyth_accounts: &[AccountInfo],
+    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
+        let pyth_accounts: HashMap<Pubkey, &AccountInfo, RandomState> =
+            HashMap::from_iter(pyth_accounts.iter().map(|a| (a.key(), a)));
+
+        lending_account
+            .balances
+            .iter()
+            .filter_map(|b| b.as_ref())
+            .map(|balance| {
+                let bank = lending_pool
+                    .banks
+                    .get(balance.bank_index as usize)
+                    .expect("Bank not found");
+                let pyth_account = pyth_accounts
+                    .get(&bank.config.pyth_oracle)
+                    .expect("Pyth oracle not found");
+
+                let pyth_data = pyth_account.try_borrow_data()?;
+                let price_account = bytemuck::try_from_bytes::<PriceAccount>(&pyth_data.as_ref())
+                    .expect("Invalid pyth data");
+                let price_feed = price_account.to_price_feed(pyth_account.key);
+
+                Ok(BankAccountWithPriceFeed {
+                    bank,
+                    price_feed,
+                    balance,
+                })
+            })
+            .collect::<Result<Vec<_>>>()
+    }
+
+    pub fn get_weighted_assets_and_liabilities(
         &self,
         weight_type: WeightType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
@@ -124,63 +159,70 @@ impl<'a> BankAccountWithPriceFeed<'a> {
     }
 }
 
-pub struct PythHelper {}
-
-impl PythHelper {
-    pub fn get<'a>(
-        lending_account: &'a LendingAccount,
-        lending_pool: &'a LendingPool,
-        pyth_accounts: &[AccountInfo],
-    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
-        let pyth_accounts: HashMap<Pubkey, &AccountInfo, RandomState> =
-            HashMap::from_iter(pyth_accounts.iter().map(|a| (a.key(), a)));
-
-        lending_account
-            .balances
-            .iter()
-            .map(|balance| {
-                let bank = lending_pool
-                    .banks
-                    .get(balance.bank_index as usize)
-                    .expect("Bank not found");
-                let pyth_account = pyth_accounts
-                    .get(&bank.config.pyth_oracle)
-                    .expect("Pyth oracle not found");
-
-                let pyth_data = pyth_account.try_borrow_data()?;
-                let price_account = bytemuck::try_from_bytes::<PriceAccount>(&pyth_data.as_ref())
-                    .expect("Invalid pyth data");
-                let price_feed = price_account.to_price_feed(pyth_account.key);
-
-                Ok(BankAccountWithPriceFeed {
-                    bank,
-                    price_feed,
-                    balance,
-                })
-            })
-            .collect::<Result<Vec<_>>>()
-    }
-}
-
 pub enum RiskRequirementType {
     Initial,
     Maintenance,
 }
 
+impl RiskRequirementType {
+    pub fn to_weight_type(&self) -> WeightType {
+        match self {
+            RiskRequirementType::Initial => WeightType::Initial,
+            RiskRequirementType::Maintenance => WeightType::Maintenance,
+        }
+    }
+}
+
 pub struct RiskEngine<'a> {
     margin_group: &'a MarginfiGroup,
-    lending_pool: &'a MarginfiAccount,
+    marginfi_account: &'a MarginfiAccount,
+    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
 }
 
 impl<'a> RiskEngine<'a> {
-    pub fn new(margin_group: &MarginfiGroup, lending_pool: &MarginfiAccount) -> Self {
-        Self {
+    pub fn new(
+        margin_group: &'a MarginfiGroup,
+        marginfi_account: &'a MarginfiAccount,
+        oracle_ais: &[AccountInfo],
+    ) -> MarginfiResult<Self> {
+        let lending_pool = unsafe {
+            std::ptr::addr_of!(margin_group.lending_pool)
+                .as_ref()
+                .unwrap()
+        };
+
+        let bank_accounts_with_price = BankAccountWithPriceFeed::load(
+            &marginfi_account.lending_account,
+            &lending_pool,
+            oracle_ais,
+        )?;
+
+        Ok(Self {
             margin_group,
-            lending_pool,
-        }
+            marginfi_account,
+            bank_accounts_with_price: bank_accounts_with_price,
+        })
     }
 
-    pub fn check_account_health(requirement_type: RiskRequirementType) -> MarginfiResult {
+    pub fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
+        let (total_weighted_assets, total_weighted_liabilities) = self
+            .bank_accounts_with_price
+            .iter()
+            .map(|a| a.get_weighted_assets_and_liabilities(requirement_type.to_weight_type()))
+            .try_fold((I80F48::ZERO, I80F48::ZERO), |(ta, tl), res| {
+                let (assets, liabilities) = res?;
+                let total_assets_sum = ta.checked_add(assets).ok_or_else(math_error!())?;
+                let total_liabilities_sum =
+                    tl.checked_add(liabilities).ok_or_else(math_error!())?;
+
+                Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
+            })?;
+
+        check!(
+            total_weighted_assets > total_weighted_liabilities,
+            MarginfiError::BadAccountHealth
+        );
+
         Ok(())
     }
 }
@@ -189,7 +231,17 @@ const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 #[zero_copy]
 pub struct LendingAccount {
-    pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES],
+    pub balances: [Option<Balance>; MAX_LENDING_ACCOUNT_BALANCES],
+}
+
+impl LendingAccount {
+    pub fn get_first_empty_balance(&self) -> Option<usize> {
+        self.balances.iter().position(|b| b.is_none())
+    }
+
+    pub fn get_active_balances_iter(&self) -> impl Iterator<Item = &Balance> {
+        self.balances.iter().filter_map(|b| b.as_ref())
+    }
 }
 
 #[zero_copy]
@@ -230,7 +282,7 @@ pub struct BankAccountWrapper<'a> {
 }
 
 impl<'a> BankAccountWrapper<'a> {
-    pub fn create_from_mint(
+    pub fn find_by_mint_or_create<'b>(
         mint: Pubkey,
         lending_pool: &'a mut LendingPool,
         lending_account: &'a mut LendingAccount,
@@ -242,22 +294,40 @@ impl<'a> BankAccountWrapper<'a> {
             .find(|(_, b)| b.mint == mint)
             .ok_or_else(|| error!(MarginfiError::BankNotFound))?;
 
-        let balance = lending_account
-            .balances
-            .iter_mut()
-            .find(|b| b.bank_index as usize == bank_index)
-            .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceNotFound))?;
+        let balance_index = lending_account
+            .get_active_balances_iter()
+            .position(|b| b.bank_index as usize == bank_index);
+
+        let balance = if let Some(index) = balance_index {
+            lending_account
+                .balances
+                .get_mut(index)
+                .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceNotFound))?
+        } else {
+            let empty_index = lending_account
+                .get_first_empty_balance()
+                .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
+
+            lending_account.balances[empty_index] = Some(Balance {
+                bank_index: bank_index as u8,
+                deposit_shares: I80F48::ZERO.into(),
+                liability_shares: I80F48::ZERO.into(),
+            });
+
+            lending_account.balances.get_mut(empty_index).unwrap()
+        }
+        .as_mut()
+        .unwrap();
 
         Ok(Self { balance, bank })
     }
 
     pub fn deposit(&mut self, amount: u64) -> MarginfiResult {
-        let balance = self.balance;
-        let bank = self.bank;
+        let balance = &mut self.balance;
+        let bank = &mut self.bank;
 
         let amount = I80F48::from_num(amount);
 
-        let deposit_shares: I80F48 = balance.deposit_shares.into();
         let liability_shares: I80F48 = balance.liability_shares.into();
 
         let liability_value = bank.get_liability_value(liability_shares)?;
@@ -284,13 +354,12 @@ impl<'a> BankAccountWrapper<'a> {
     }
 
     pub fn withdraw(&mut self, amount: u64) -> MarginfiResult {
-        let balance = self.balance;
-        let bank = self.bank;
+        let balance = &mut self.balance;
+        let bank = &mut self.bank;
 
         let amount = I80F48::from_num(amount);
 
         let deposit_shares: I80F48 = balance.deposit_shares.into();
-        let liability_shares: I80F48 = balance.liability_shares.into();
 
         let deposit_value = bank.get_deposit_value(deposit_shares)?;
 
@@ -315,11 +384,11 @@ impl<'a> BankAccountWrapper<'a> {
         Ok(())
     }
 
-    pub fn deposit_transfer(
+    pub fn deposit_transfer<'b: 'c, 'c: 'b>(
         &self,
         amount: u64,
-        accounts: Transfer,
-        program: AccountInfo,
+        accounts: Transfer<'b>,
+        program: AccountInfo<'c>,
     ) -> MarginfiResult {
         check!(
             accounts.to.key.eq(&self.bank.liquidity_vault),
@@ -329,11 +398,11 @@ impl<'a> BankAccountWrapper<'a> {
         transfer(CpiContext::new(program, accounts), amount)
     }
 
-    pub fn withdraw_transfer(
+    pub fn withdraw_transfer<'b: 'c, 'c: 'b>(
         &self,
         amount: u64,
-        accounts: Transfer,
-        program: AccountInfo,
+        accounts: Transfer<'b>,
+        program: AccountInfo<'c>,
     ) -> MarginfiResult {
         check!(
             accounts.from.key.eq(&self.bank.liquidity_vault),

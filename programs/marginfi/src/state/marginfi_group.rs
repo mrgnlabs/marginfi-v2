@@ -1,3 +1,5 @@
+use std::ptr;
+
 use crate::{check, math_error, set_if_some, MarginfiResult};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
@@ -6,15 +8,14 @@ use fixed_macro::types::I80F48;
 use super::marginfi_account::WeightType;
 
 #[account(zero_copy)]
-#[repr(packed)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq)
 )]
 #[derive(Default)]
 pub struct MarginfiGroup {
-    pub admin: Pubkey,
     pub lending_pool: LendingPool,
+    pub admin: Pubkey,
 }
 
 impl MarginfiGroup {
@@ -152,8 +153,7 @@ impl Bank {
 
         if shares.is_positive() {
             let total_shares_value = self.get_deposit_value(self.total_deposit_shares.into())?;
-            let max_deposit_capacity =
-                self.get_deposit_value(self.config.max_capacity.into())?;
+            let max_deposit_capacity = self.get_deposit_value(self.config.max_capacity.into())?;
 
             check!(
                 total_shares_value < max_deposit_capacity,

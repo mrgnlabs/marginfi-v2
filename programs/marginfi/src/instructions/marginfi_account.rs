@@ -1,8 +1,8 @@
 use crate::{
     check,
-    prelude::MarginfiResult,
+    prelude::{MarginfiError, MarginfiResult},
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType},
         marginfi_group::MarginfiGroup,
     },
 };
@@ -47,10 +47,10 @@ pub fn lending_pool_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> Ma
         token_program,
     } = ctx.accounts;
 
-    let marginfi_group = marginfi_group.load_mut()?;
-    let marginfi_account = marginfi_account.load_mut()?;
+    let mut marginfi_group = marginfi_group.load_mut()?;
+    let mut marginfi_account = marginfi_account.load_mut()?;
 
-    let bank_account = BankAccountWrapper::create_from_mint(
+    let mut bank_account = BankAccountWrapper::find_by_mint_or_create(
         asset_mint.key(),
         &mut marginfi_group.lending_pool,
         &mut marginfi_account.lending_account,
@@ -65,7 +65,7 @@ pub fn lending_pool_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> Ma
             authority: signer.to_account_info(),
         },
         token_program.to_account_info(),
-    );
+    )?;
 
     Ok(())
 }
@@ -97,13 +97,16 @@ pub fn lending_pool_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> 
         token_program,
     } = ctx.accounts;
 
-    let marginfi_group = marginfi_group.load_mut()?;
-    let marginfi_account = marginfi_account.load_mut()?;
+    let mut marginfi_group = marginfi_group.load_mut()?;
+    let mut marginfi_account = marginfi_account.load_mut()?;
 
-    let bank_account = BankAccountWrapper::create_from_mint(
+    let lending_pool = &mut marginfi_group.lending_pool;
+    let lending_account = &mut marginfi_account.lending_account;
+
+    let mut bank_account = BankAccountWrapper::find_by_mint_or_create(
         asset_mint.key(),
-        &mut marginfi_group.lending_pool,
-        &mut marginfi_account.lending_account,
+        lending_pool,
+        lending_account,
     )?;
 
     bank_account.withdraw(amount)?;
@@ -115,11 +118,12 @@ pub fn lending_pool_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> 
             authority: signer.to_account_info(),
         },
         token_program.to_account_info(),
-    );
+    )?;
 
-    drop(bank_account);
-
-    // Check account health, if below threshold fail transaction
+    // // Check account health, if below threshold fail transaction
+    // // Assuming `ctx.remaining_accounts` holds only oracle accounts
+    let risk_engine = RiskEngine::new(&marginfi_group, &marginfi_account, ctx.remaining_accounts)?;
+    risk_engine.check_account_health(RiskRequirementType::Initial)?;
 
     Ok(())
 }
