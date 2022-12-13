@@ -1,13 +1,12 @@
 use crate::{
-    check,
-    prelude::{MarginfiError, MarginfiResult},
+    prelude::MarginfiResult,
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType},
         marginfi_group::MarginfiGroup,
     },
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 
 pub fn create(ctx: Context<CreateMarginfiAccount>) -> MarginfiResult {
     let margin_account = &mut ctx.accounts.marginfi_account.load_init()?;

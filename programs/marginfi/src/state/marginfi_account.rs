@@ -10,9 +10,7 @@ use fixed_macro::types::I80F48;
 use pyth_sdk_solana::{state::PriceAccount, Price, PriceFeed};
 use std::{
     cmp::{max, min},
-    collections::{hash_map::RandomState, BTreeSet, HashMap},
-    ops::DerefMut,
-    ptr::read_unaligned,
+    collections::{hash_map::RandomState, HashMap},
 };
 
 #[account(zero_copy)]
@@ -56,9 +54,9 @@ pub fn pyth_price_to_i80f48(price: &Price) -> MarginfiResult<I80F48> {
     let pyth_expo = price.expo;
 
     let expo_delta = EXPONENT - pyth_expo;
-    let expo_scale = EXP_10_I80F48[expo_delta.abs() as usize];
+    let expo_scale = EXP_10_I80F48[expo_delta.unsigned_abs() as usize];
 
-    let mut price = I80F48::from_num(pyth_price);
+    let price = I80F48::from_num(pyth_price);
 
     let price = if expo_delta < 0 {
         price.checked_div(expo_scale).ok_or_else(math_error!())?
@@ -103,7 +101,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                     .expect("Pyth oracle not found");
 
                 let pyth_data = pyth_account.try_borrow_data()?;
-                let price_account = bytemuck::try_from_bytes::<PriceAccount>(&pyth_data.as_ref())
+                let price_account = bytemuck::try_from_bytes::<PriceAccount>(pyth_data.as_ref())
                     .expect("Invalid pyth data");
                 let price_feed = price_account.to_price_feed(pyth_account.key);
 
@@ -141,7 +139,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 weighted_deposits
                     .checked_mul(I80F48::from_num(price.price))
                     .ok_or_else(math_error!())?
-                    .checked_div(EXP_10_I80F48[price.expo.abs() as usize])
+                    .checked_div(EXP_10_I80F48[price.expo.unsigned_abs() as usize])
                     .ok_or_else(math_error!())?
             },
             {
@@ -152,7 +150,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 weighted_liabilities
                     .checked_mul(I80F48::from_num(price.price))
                     .ok_or_else(math_error!())?
-                    .checked_div(EXP_10_I80F48[price.expo.abs() as usize])
+                    .checked_div(EXP_10_I80F48[price.expo.unsigned_abs() as usize])
                     .ok_or_else(math_error!())?
             },
         ))
@@ -193,14 +191,14 @@ impl<'a> RiskEngine<'a> {
 
         let bank_accounts_with_price = BankAccountWithPriceFeed::load(
             &marginfi_account.lending_account,
-            &lending_pool,
+            lending_pool,
             oracle_ais,
         )?;
 
         Ok(Self {
             margin_group,
             marginfi_account,
-            bank_accounts_with_price: bank_accounts_with_price,
+            bank_accounts_with_price,
         })
     }
 

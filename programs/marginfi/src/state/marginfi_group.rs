@@ -1,5 +1,3 @@
-use std::ptr;
-
 use crate::{check, math_error, set_if_some, MarginfiResult};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
@@ -152,7 +150,7 @@ impl Bank {
             .ok_or_else(math_error!())?;
 
         if shares.is_positive() {
-            let total_shares_value = self.get_deposit_value(self.total_deposit_shares.into())?;
+            let total_shares_value = self.get_deposit_value(self.total_deposit_shares)?;
             let max_deposit_capacity = self.get_deposit_value(self.config.max_capacity.into())?;
 
             check!(
