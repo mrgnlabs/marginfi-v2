@@ -175,8 +175,6 @@ impl RiskRequirementType {
 }
 
 pub struct RiskEngine<'a> {
-    margin_group: &'a MarginfiGroup,
-    marginfi_account: &'a MarginfiAccount,
     bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
 }
 
@@ -186,21 +184,13 @@ impl<'a> RiskEngine<'a> {
         marginfi_account: &'a MarginfiAccount,
         oracle_ais: &[AccountInfo],
     ) -> MarginfiResult<Self> {
-        let lending_pool = unsafe {
-            std::ptr::addr_of!(margin_group.lending_pool)
-                .as_ref()
-                .unwrap()
-        };
-
         let bank_accounts_with_price = BankAccountWithPriceFeed::load(
             &marginfi_account.lending_account,
-            lending_pool,
+            &margin_group.lending_pool,
             oracle_ais,
         )?;
 
         Ok(Self {
-            margin_group,
-            marginfi_account,
             bank_accounts_with_price,
         })
     }

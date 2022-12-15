@@ -3,6 +3,7 @@ pub mod instructions;
 pub mod macros;
 pub mod prelude;
 pub mod state;
+pub mod constants;
 
 use anchor_lang::prelude::*;
 use instructions::*;
@@ -59,7 +60,7 @@ pub mod marginfi {
 
     pub fn lending_pool_add_bank(
         ctx: Context<LendingPoolAddBank>,
-        bank_index: u8,
+        bank_index: u16,
         bank_config: BankConfig,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_add_bank(ctx, bank_index, bank_config)

@@ -19,7 +19,7 @@ pub struct TestFixture {
 
 impl TestFixture {
     pub async fn new(ix_arg: Option<GroupConfig>) -> TestFixture {
-        let program = ProgramTest::new("marginfi", marginfi::ID, None);
+        let program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
         let context = Rc::new(RefCell::new(program.start_with_context().await));
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 

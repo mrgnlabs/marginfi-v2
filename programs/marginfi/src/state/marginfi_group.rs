@@ -1,7 +1,9 @@
-use crate::{check, math_error, set_if_some, MarginfiResult};
+use crate::{
+    check, constants::PYTH_ID, math_error, prelude::MarginfiError, set_if_some, MarginfiResult,
+};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
-
+use pyth_sdk_solana::{load_price_feed_from_account_info, state::load_price_account, PriceFeed};
 
 use super::marginfi_account::WeightType;
 
@@ -76,6 +78,13 @@ impl LendingPool {
             .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint.eq(mint_pk))
             .map(|reserve| reserve.as_mut().unwrap())
     }
+}
+
+pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
+    check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidPythAccount);
+    let price_feed =
+        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidPythAccount)?;
+    Ok(price_feed)
 }
 
 #[cfg_attr(

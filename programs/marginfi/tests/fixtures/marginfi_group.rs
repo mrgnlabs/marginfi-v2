@@ -3,7 +3,13 @@
 
 use crate::fixtures::{spl::*, utils::*};
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
-use marginfi::{prelude::MarginfiGroup, state::marginfi_group::GroupConfig};
+use anchor_spl::token;
+use anyhow::Result;
+use marginfi::{
+    constants::*,
+    prelude::MarginfiGroup,
+    state::marginfi_group::{BankConfig, GroupConfig},
+};
 use solana_program::sysvar;
 use solana_program_test::*;
 use solana_sdk::{
@@ -13,8 +19,8 @@ use solana_sdk::{
 use std::{
     cell::{RefCell, RefMut},
     convert::TryInto,
+    mem,
     rc::Rc,
-    result::Result,
 };
 
 pub struct MarginfiGroupFixture {
@@ -72,8 +78,56 @@ impl MarginfiGroupFixture {
         tester_group
     }
 
+    pub async fn try_lending_pool_add_bank(
+        &self,
+        bank_asset_mint: Pubkey,
+        bank_index: u16,
+        bank_config: BankConfig,
+    ) -> Result<()> {
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolAddBank {
+                marginfi_group: self.key,
+                admin: ctx.payer.pubkey(),
+                asset_mint: bank_asset_mint,
+                liquidity_vault_authority: self
+                    .get_vault_pda(LIQUIDITY_VAULT_AUTHORITY_SEED, bank_asset_mint)
+                    .0,
+                liquidity_vault: self.get_vault_pda(LIQUIDITY_VAULT_SEED, bank_asset_mint).0,
+                insurance_vault_authority: self
+                    .get_vault_pda(INSURANCE_VAULT_AUTHORITY_SEED, bank_asset_mint)
+                    .0,
+                insurance_vault: self.get_vault_pda(INSURANCE_VAULT_SEED, bank_asset_mint).0,
+                fee_vault_authority: self
+                    .get_vault_pda(FEE_VAULT_AUTHORITY_SEED, bank_asset_mint)
+                    .0,
+                fee_vault: self.get_vault_pda(FEE_VAULT_SEED, bank_asset_mint).0,
+                rent: sysvar::rent::id(),
+                token_program: token::ID,
+                system_program: system_program::id(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolAddBank {
+                bank_index,
+                bank_config,
+            }
+            .data(),
+        };
+
+        Ok(())
+    }
+
+    pub fn get_vault_pda(&self, seed: &[u8], asset_mint: Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[seed, asset_mint.as_ref(), self.key.as_ref()],
+            &marginfi::id(),
+        )
+    }
+
     pub fn get_size() -> usize {
-        8 + bytemuck::bytes_of(&marginfi::state::marginfi_group::MarginfiGroup::default()).len()
+        8 + mem::size_of::<MarginfiGroup>()
     }
 
     pub async fn load(&self) -> marginfi::state::marginfi_group::MarginfiGroup {

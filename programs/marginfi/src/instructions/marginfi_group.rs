@@ -1,11 +1,18 @@
 use crate::{
     check,
+    constants::{
+        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+    },
     prelude::MarginfiError,
-    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, GroupConfig, MarginfiGroup},
+    state::marginfi_group::{
+        load_pyth_price_feed, Bank, BankConfig, BankConfigOpt, GroupConfig, MarginfiGroup,
+    },
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, TokenAccount};
+use anchor_spl::token::{Mint, Token, TokenAccount};
+use pyth_sdk_solana::state::PriceAccount;
 
 pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_init()?;
@@ -50,7 +57,7 @@ pub struct ConfigureMarginfiGroup<'info> {
 /// Add a bank to the lending pool
 pub fn lending_pool_add_bank(
     ctx: Context<LendingPoolAddBank>,
-    bank_index: u8,
+    bank_index: u16,
     bank_config: BankConfig,
 ) -> MarginfiResult {
     let LendingPoolAddBank {
@@ -59,6 +66,7 @@ pub fn lending_pool_add_bank(
         insurance_vault,
         fee_vault,
         marginfi_group,
+        pyth_oracle,
         ..
     } = ctx.accounts;
 
@@ -69,6 +77,8 @@ pub fn lending_pool_add_bank(
         MarginfiError::BankAlreadyExists
     );
 
+    load_pyth_price_feed(&pyth_oracle)?;
+    
     let bank = Bank::new(
         bank_config,
         asset_mint.key(),
@@ -82,19 +92,88 @@ pub fn lending_pool_add_bank(
     Ok(())
 }
 
-//. TODO: Add security checks
 #[derive(Accounts)]
+#[instruction(bank_index: u16, bank_config: BankConfig)]
 pub struct LendingPoolAddBank<'info> {
     #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
     #[account(
+        mut,
         address = marginfi_group.load()?.admin,
     )]
     pub admin: Signer<'info>,
     pub asset_mint: Account<'info, Mint>,
+    #[account(
+        seeds = [
+            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            asset_mint.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump
+    )]
+    pub liquidity_vault_authority: UncheckedAccount<'info>,
+    #[account(
+        init,
+        payer = admin,
+        token::mint = asset_mint,
+        token::authority = liquidity_vault_authority,
+        seeds = [
+            LIQUIDITY_VAULT_SEED,
+            asset_mint.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump,
+    )]
     pub liquidity_vault: Account<'info, TokenAccount>,
+    #[account(
+        seeds = [
+            INSURANCE_VAULT_AUTHORITY_SEED,
+            asset_mint.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump
+    )]
+    pub insurance_vault_authority: UncheckedAccount<'info>,
+    #[account(
+        init,
+        payer = admin,
+        token::mint = asset_mint,
+        token::authority = insurance_vault_authority,
+        seeds = [
+            INSURANCE_VAULT_SEED,
+            asset_mint.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump,
+    )]
     pub insurance_vault: Account<'info, TokenAccount>,
+    #[account(
+        seeds = [
+            FEE_VAULT_AUTHORITY_SEED,
+            asset_mint.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump
+    )]
+    pub fee_vault_authority: UncheckedAccount<'info>,
+    #[account(
+        init,
+        payer = admin,
+        token::mint = asset_mint,
+        token::authority = fee_vault_authority,
+        seeds = [
+            FEE_VAULT_SEED,
+            asset_mint.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump,
+    )]
     pub fee_vault: Account<'info, TokenAccount>,
+    #[account(address = bank_config.pyth_oracle)]
+    pub pyth_oracle: AccountInfo<'info>,
+    pub rent: Sysvar<'info, Rent>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 pub fn lending_pool_configure_bank(
