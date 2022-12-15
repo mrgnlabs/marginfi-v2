@@ -78,7 +78,7 @@ pub fn lending_pool_add_bank(
     );
 
     load_pyth_price_feed(&pyth_oracle)?;
-    
+
     let bank = Bank::new(
         bank_config,
         asset_mint.key(),
@@ -190,6 +190,15 @@ pub fn lending_pool_configure_bank(
         .expect("Bank index out of bounds")
         .ok_or(MarginfiError::BankNotFound)?;
 
+    if let Some(pyth_oracle) = bank_config.pyth_oracle {
+        check!(
+            pyth_oracle == ctx.accounts.pyth_oracle.key(),
+            MarginfiError::InvalidPythAccount
+        );
+
+        load_pyth_price_feed(&ctx.accounts.pyth_oracle)?;
+    }
+
     bank.configure(bank_config)?;
 
     Ok(())
@@ -203,4 +212,6 @@ pub struct LendingPoolConfigureBank<'info> {
         address = marginfi_group.load()?.admin,
     )]
     pub admin: Signer<'info>,
+    /// Set only if pyth oracle is being changed otherwise can be a random account.
+    pub pyth_oracle: UncheckedAccount<'info>,
 }

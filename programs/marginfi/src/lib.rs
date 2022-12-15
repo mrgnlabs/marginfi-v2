@@ -1,9 +1,9 @@
+pub mod constants;
 pub mod errors;
 pub mod instructions;
 pub mod macros;
 pub mod prelude;
 pub mod state;
-pub mod constants;
 
 use anchor_lang::prelude::*;
 use instructions::*;

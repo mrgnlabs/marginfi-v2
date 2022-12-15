@@ -1,4 +1,5 @@
 use crate::{
+    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     prelude::MarginfiResult,
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType},
@@ -72,16 +73,34 @@ pub fn bank_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiRe
 
 #[derive(Accounts)]
 pub struct LendingPoolDeposit<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        address = marginfi_account.load()?.group
+    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
     #[account(mut)]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-    #[account(mut)]
+    #[account(
+        mut,
+        address = marginfi_account.load()?.owner,
+    )]
     pub signer: Signer<'info>,
     pub asset_mint: Account<'info, Mint>,
-    #[account(mut)]
+    #[account(
+        mut,
+        token::mint = asset_mint,
+    )]
     pub signer_token_account: Account<'info, TokenAccount>,
-    #[account(mut)]
+    /// TODO: Store bump on-chain
+    #[account(
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_SEED,
+            asset_mint.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump,
+    )]
     pub bank_liquidity_vault: Account<'info, TokenAccount>,
     pub token_program: Program<'info, Token>,
 }
@@ -95,16 +114,17 @@ pub struct LendingPoolDeposit<'info> {
 /// 3. Verify that the users account is in a healthy state
 pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> MarginfiResult {
     let LendingPoolWithdraw {
-        marginfi_group,
+        marginfi_group: marginfi_group_loader,
         marginfi_account,
         signer,
         asset_mint,
         signer_token_account,
         bank_liquidity_vault,
         token_program,
+        ..
     } = ctx.accounts;
 
-    let mut marginfi_group = marginfi_group.load_mut()?;
+    let mut marginfi_group = marginfi_group_loader.load_mut()?;
     let mut marginfi_account = marginfi_account.load_mut()?;
 
     let mut bank_account = BankAccountWrapper::find_by_mint_or_create(
@@ -122,6 +142,12 @@ pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> Marginfi
             authority: signer.to_account_info(),
         },
         token_program.to_account_info(),
+        &[&[
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_ref(),
+            asset_mint.key().as_ref(),
+            marginfi_group_loader.key().as_ref(),
+            &[*ctx.bumps.get("bank_liquidity_vault_authority").unwrap()],
+        ]],
     )?;
 
     // // Check account health, if below threshold fail transaction
@@ -134,16 +160,40 @@ pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> Marginfi
 
 #[derive(Accounts)]
 pub struct LendingPoolWithdraw<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        address = marginfi_account.load()?.group
+    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
     #[account(mut)]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-    #[account(mut)]
+    #[account(
+        mut,
+        address = marginfi_account.load()?.owner,
+    )]
     pub signer: Signer<'info>,
     pub asset_mint: Account<'info, Mint>,
     #[account(mut)]
     pub signer_token_account: Account<'info, TokenAccount>,
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            asset_mint.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub bank_liquidity_vault_authority: AccountInfo<'info>,
+    #[account(
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_SEED,
+            asset_mint.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump,
+    )]
     pub bank_liquidity_vault: Account<'info, TokenAccount>,
     pub token_program: Program<'info, Token>,
 }

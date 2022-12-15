@@ -107,6 +107,7 @@ impl MarginfiGroupFixture {
                 rent: sysvar::rent::id(),
                 token_program: token::ID,
                 system_program: system_program::id(),
+                pyth_oracle: bank_config.pyth_oracle,
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingPoolAddBank {
@@ -115,6 +116,49 @@ impl MarginfiGroupFixture {
             }
             .data(),
         };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_lending_pool_configure_bank(
+        &self,
+        bank_index: u16,
+        bank_config: BankConfig,
+    ) -> Result<()> {
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolConfigureBank {
+                marginfi_group: self.key,
+                admin: ctx.payer.pubkey(),
+                pyth_oracle: bank_config.pyth_oracle,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolConfigureBank {
+                bank_index,
+                bank_config,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
 
         Ok(())
     }

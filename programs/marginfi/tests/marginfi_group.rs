@@ -31,7 +31,7 @@ async fn success_add_bank() {
     .await;
 
     let bank_asset_mint_fixture = MintFixture::new(test_f.context).await;
-    
+
     let res = test_f
         .marginfi_group
         .try_lending_pool_add_bank(bank_asset_mint_fixture.key, 0, BankConfig::default())

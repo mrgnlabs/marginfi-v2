@@ -1,6 +1,8 @@
 use super::marginfi_group::{Bank, LendingPool, MarginfiGroup, WrappedI80F48};
 use crate::{
-    check, math_error,
+    check,
+    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    math_error,
     prelude::{MarginfiError, MarginfiResult},
 };
 use anchor_lang::prelude::*;
@@ -263,8 +265,8 @@ impl Balance {
 }
 
 pub struct BankAccountWrapper<'a> {
-    pub balance: &'a mut Balance,
-    pub bank: &'a mut Bank,
+    balance: &'a mut Balance,
+    bank: &'a mut Bank,
 }
 
 impl<'a> BankAccountWrapper<'a> {
@@ -396,12 +398,16 @@ impl<'a> BankAccountWrapper<'a> {
         amount: u64,
         accounts: Transfer<'b>,
         program: AccountInfo<'c>,
+        signer_seeds: &[&[&[u8]]],
     ) -> MarginfiResult {
         check!(
             accounts.from.key.eq(&self.bank.liquidity_vault),
             MarginfiError::InvalidTransfer
         );
 
-        transfer(CpiContext::new(program, accounts), amount)
+        transfer(
+            CpiContext::new_with_signer(program, accounts, signer_seeds),
+            amount,
+        )
     }
 }
