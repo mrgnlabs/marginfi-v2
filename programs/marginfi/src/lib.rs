@@ -68,14 +68,14 @@ pub mod marginfi {
 
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
-        bank_index: u8,
+        bank_index: u16,
         bank_config_opt: BankConfigOpt,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_configure_bank(ctx, bank_index, bank_config_opt)
     }
 
     // User instructions
-    pub fn create_margin_account(ctx: Context<CreateMarginfiAccount>) -> MarginfiResult {
+    pub fn initialize_marginfi_account(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
         marginfi_account::create(ctx)
     }
 

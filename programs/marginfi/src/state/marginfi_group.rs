@@ -33,10 +33,7 @@ impl MarginfiGroup {
     /// Both margin requirements are initially set to 100% and should be configured before use.
     #[allow(clippy::too_many_arguments)]
     pub fn set_initial_configuration(&mut self, admin_pk: Pubkey) {
-        *self = MarginfiGroup {
-            admin: admin_pk,
-            ..Default::default()
-        };
+        self.admin = admin_pk;
     }
 }
 

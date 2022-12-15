@@ -12,7 +12,6 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use pyth_sdk_solana::state::PriceAccount;
 
 pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_init()?;
@@ -102,7 +101,7 @@ pub struct LendingPoolAddBank<'info> {
         address = marginfi_group.load()?.admin,
     )]
     pub admin: Signer<'info>,
-    pub asset_mint: Account<'info, Mint>,
+    pub asset_mint: Box<Account<'info, Mint>>,
     #[account(
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED,
@@ -111,6 +110,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump
     )]
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     pub liquidity_vault_authority: UncheckedAccount<'info>,
     #[account(
         init,
@@ -124,7 +124,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump,
     )]
-    pub liquidity_vault: Account<'info, TokenAccount>,
+    pub liquidity_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         seeds = [
             INSURANCE_VAULT_AUTHORITY_SEED,
@@ -133,6 +133,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump
     )]
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     pub insurance_vault_authority: UncheckedAccount<'info>,
     #[account(
         init,
@@ -146,7 +147,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump,
     )]
-    pub insurance_vault: Account<'info, TokenAccount>,
+    pub insurance_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         seeds = [
             FEE_VAULT_AUTHORITY_SEED,
@@ -155,6 +156,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump
     )]
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     pub fee_vault_authority: UncheckedAccount<'info>,
     #[account(
         init,
@@ -168,8 +170,9 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump,
     )]
-    pub fee_vault: Account<'info, TokenAccount>,
+    pub fee_vault: Box<Account<'info, TokenAccount>>,
     #[account(address = bank_config.pyth_oracle)]
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     pub pyth_oracle: AccountInfo<'info>,
     pub rent: Sysvar<'info, Rent>,
     pub token_program: Program<'info, Token>,
@@ -178,7 +181,7 @@ pub struct LendingPoolAddBank<'info> {
 
 pub fn lending_pool_configure_bank(
     ctx: Context<LendingPoolConfigureBank>,
-    bank_index: u8,
+    bank_index: u16,
     bank_config: BankConfigOpt,
 ) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_mut()?;
@@ -213,5 +216,6 @@ pub struct LendingPoolConfigureBank<'info> {
     )]
     pub admin: Signer<'info>,
     /// Set only if pyth oracle is being changed otherwise can be a random account.
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     pub pyth_oracle: UncheckedAccount<'info>,
 }

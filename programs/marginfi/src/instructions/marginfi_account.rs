@@ -9,9 +9,9 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 
-pub fn create(ctx: Context<CreateMarginfiAccount>) -> MarginfiResult {
+pub fn create(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
     let margin_account = &mut ctx.accounts.marginfi_account.load_init()?;
-    let CreateMarginfiAccount {
+    let InitializeMarginfiAccount {
         signer,
         marginfi_group,
         ..
@@ -23,7 +23,7 @@ pub fn create(ctx: Context<CreateMarginfiAccount>) -> MarginfiResult {
 }
 
 #[derive(Accounts)]
-pub struct CreateMarginfiAccount<'info> {
+pub struct InitializeMarginfiAccount<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
     #[account(zero)]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
@@ -184,6 +184,7 @@ pub struct LendingPoolWithdraw<'info> {
         ],
         bump,
     )]
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     pub bank_liquidity_vault_authority: AccountInfo<'info>,
     #[account(
         mut,

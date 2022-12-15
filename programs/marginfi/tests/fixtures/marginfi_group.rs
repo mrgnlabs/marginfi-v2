@@ -8,7 +8,7 @@ use anyhow::Result;
 use marginfi::{
     constants::*,
     prelude::MarginfiGroup,
-    state::marginfi_group::{BankConfig, GroupConfig},
+    state::marginfi_group::{BankConfig, GroupConfig, BankConfigOpt},
 };
 use solana_program::sysvar;
 use solana_program_test::*;
@@ -132,7 +132,7 @@ impl MarginfiGroupFixture {
     pub async fn try_lending_pool_configure_bank(
         &self,
         bank_index: u16,
-        bank_config: BankConfig,
+        bank_config_opt: BankConfigOpt,
     ) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
 
@@ -141,12 +141,12 @@ impl MarginfiGroupFixture {
             accounts: marginfi::accounts::LendingPoolConfigureBank {
                 marginfi_group: self.key,
                 admin: ctx.payer.pubkey(),
-                pyth_oracle: bank_config.pyth_oracle,
+                pyth_oracle: bank_config_opt.pyth_oracle.unwrap_or_default(),
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingPoolConfigureBank {
                 bank_index,
-                bank_config,
+                bank_config_opt: todo!(), 
             }
             .data(),
         };
