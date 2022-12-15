@@ -42,7 +42,6 @@ assert_cfg!(
 ///
 /// Operational instructions:
 /// - `accrue_interest` - Accrues interest for a reserve.
-
 #[program]
 pub mod marginfi {
     use super::*;

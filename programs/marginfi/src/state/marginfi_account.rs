@@ -272,11 +272,6 @@ impl Balance {
     }
 }
 
-enum TransferType {
-    Deposit,
-    Withdraw,
-}
-
 pub struct BankAccountWrapper<'a> {
     pub balance: &'a mut Balance,
     pub bank: &'a mut Bank,
@@ -288,6 +283,7 @@ impl<'a> BankAccountWrapper<'a> {
         lending_pool: &'a mut LendingPool,
         lending_account: &'a mut LendingAccount,
     ) -> MarginfiResult<BankAccountWrapper<'a>> {
+        // Find the bank by asset mint pk
         let (bank_index, bank) = lending_pool
             .banks
             .iter_mut()
@@ -296,6 +292,8 @@ impl<'a> BankAccountWrapper<'a> {
             .find(|(_, b)| b.unwrap().mint == mint)
             .ok_or_else(|| error!(MarginfiError::BankNotFound))?;
 
+        // Find the user lending account balance by `bank_index`.
+        // The balance account might not exist.
         let balance_index = lending_account
             .get_active_balances_iter()
             .position(|b| b.bank_index as usize == bank_index);
