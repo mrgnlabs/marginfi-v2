@@ -1,7 +1,14 @@
 use std::collections::HashMap;
 
 use crate::{
-    check, constants::PYTH_ID, math_error, prelude::MarginfiError, set_if_some, MarginfiResult,
+    check,
+    constants::{
+        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED, PYTH_ID,
+    },
+    math_error,
+    prelude::MarginfiError,
+    set_if_some, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
@@ -277,4 +284,29 @@ pub struct BankConfigOpt {
     pub max_capacity: Option<u64>,
 
     pub pyth_oracle: Option<Pubkey>,
+}
+
+#[derive(Debug)]
+pub enum BankVaultType {
+    Liquidity,
+    Insurance,
+    Fee,
+}
+
+impl BankVaultType {
+    pub fn get_seed(self) -> &'static [u8] {
+        match self {
+            BankVaultType::Liquidity => LIQUIDITY_VAULT_SEED,
+            BankVaultType::Insurance => INSURANCE_VAULT_SEED,
+            BankVaultType::Fee => FEE_VAULT_SEED,
+        }
+    }
+
+    pub fn get_authority_seed(self) -> &'static [u8] {
+        match self {
+            BankVaultType::Liquidity => LIQUIDITY_VAULT_AUTHORITY_SEED,
+            BankVaultType::Insurance => INSURANCE_VAULT_AUTHORITY_SEED,
+            BankVaultType::Fee => FEE_VAULT_AUTHORITY_SEED,
+        }
+    }
 }

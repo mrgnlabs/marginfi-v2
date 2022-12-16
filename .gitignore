@@ -24,3 +24,4 @@ target
 node_modules
 .idea/
 test-ledger/
+*.profraw

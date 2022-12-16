@@ -8,7 +8,7 @@ use anyhow::Result;
 use marginfi::{
     constants::*,
     prelude::MarginfiGroup,
-    state::marginfi_group::{BankConfig, BankConfigOpt, GroupConfig},
+    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
 };
 use solana_program::sysvar;
 use solana_program_test::*;
@@ -83,9 +83,10 @@ impl MarginfiGroupFixture {
         bank_asset_mint: Pubkey,
         bank_index: u16,
         bank_config: BankConfig,
-    ) -> Result<()> {
+    ) -> Result<(), BanksClientError> {
         let mut ctx = self.ctx.borrow_mut();
 
+        let rent = ctx.banks_client.get_rent().await.unwrap();
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolAddBank {
@@ -93,17 +94,23 @@ impl MarginfiGroupFixture {
                 admin: ctx.payer.pubkey(),
                 asset_mint: bank_asset_mint,
                 liquidity_vault_authority: self
-                    .get_vault_pda(LIQUIDITY_VAULT_AUTHORITY_SEED, bank_asset_mint)
+                    .find_bank_vault_authority_pda(&bank_asset_mint, BankVaultType::Liquidity)
                     .0,
-                liquidity_vault: self.get_vault_pda(LIQUIDITY_VAULT_SEED, bank_asset_mint).0,
+                liquidity_vault: self
+                    .find_bank_vault_pda(&bank_asset_mint, BankVaultType::Liquidity)
+                    .0,
                 insurance_vault_authority: self
-                    .get_vault_pda(INSURANCE_VAULT_AUTHORITY_SEED, bank_asset_mint)
+                    .find_bank_vault_authority_pda(&bank_asset_mint, BankVaultType::Insurance)
                     .0,
-                insurance_vault: self.get_vault_pda(INSURANCE_VAULT_SEED, bank_asset_mint).0,
+                insurance_vault: self
+                    .find_bank_vault_pda(&bank_asset_mint, BankVaultType::Insurance)
+                    .0,
                 fee_vault_authority: self
-                    .get_vault_pda(FEE_VAULT_AUTHORITY_SEED, bank_asset_mint)
+                    .find_bank_vault_authority_pda(&bank_asset_mint, BankVaultType::Fee)
                     .0,
-                fee_vault: self.get_vault_pda(FEE_VAULT_SEED, bank_asset_mint).0,
+                fee_vault: self
+                    .find_bank_vault_pda(&bank_asset_mint, BankVaultType::Fee)
+                    .0,
                 rent: sysvar::rent::id(),
                 token_program: token::ID,
                 system_program: system_program::id(),
@@ -163,9 +170,39 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
-    pub fn get_vault_pda(&self, seed: &[u8], asset_mint: Pubkey) -> (Pubkey, u8) {
+    // pub fn get_vault_pda(&self, seed: &[u8], asset_mint: Pubkey) -> (Pubkey, u8) {
+    //     Pubkey::find_program_address(
+    //         &[seed, asset_mint.as_ref(), self.key.as_ref()],
+    //         &marginfi::id(),
+    //     )
+    // }
+
+    pub fn find_bank_vault_pda(
+        &self,
+        asset_mint: &Pubkey,
+        vault_type: BankVaultType,
+    ) -> (Pubkey, u8) {
         Pubkey::find_program_address(
-            &[seed, asset_mint.as_ref(), self.key.as_ref()],
+            &[
+                vault_type.get_seed(),
+                &asset_mint.to_bytes(),
+                self.key.as_ref(),
+            ],
+            &marginfi::id(),
+        )
+    }
+
+    pub fn find_bank_vault_authority_pda(
+        &self,
+        asset_mint: &Pubkey,
+        vault_type: BankVaultType,
+    ) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                vault_type.get_authority_seed(),
+                &asset_mint.to_bytes(),
+                self.key.as_ref(),
+            ],
             &marginfi::id(),
         )
     }

@@ -5,10 +5,14 @@ use crate::fixtures::{marginfi_group::*, spl::*, utils::*};
 use anchor_lang::prelude::*;
 use bincode::deserialize;
 
-use marginfi::state::marginfi_group::GroupConfig;
+use lazy_static::lazy_static;
+use marginfi::{
+    constants::PYTH_ID,
+    state::marginfi_group::{BankConfig, GroupConfig},
+};
 use solana_program::sysvar;
 use solana_program_test::*;
-use solana_sdk::signer::Signer;
+use solana_sdk::{pubkey, signer::Signer};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct TestFixture {
@@ -17,9 +21,32 @@ pub struct TestFixture {
     pub collateral_mint: MintFixture,
 }
 
+pub const PYTH_USDC_FEED: Pubkey = pubkey!("PythUsdcPrice111111111111111111111111111111");
+pub const PYTH_SOL_FEED: Pubkey = pubkey!("PythSo1Price1111111111111111111111111111111");
+pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111111111111111");
+
+lazy_static! {
+    pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
+        pyth_oracle: PYTH_USDC_FEED,
+        ..BankConfig::default()
+    };
+}
+
 impl TestFixture {
     pub async fn new(ix_arg: Option<GroupConfig>) -> TestFixture {
-        let program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
+        let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
+        program.add_account_with_file_data(
+            PYTH_USDC_FEED,
+            1_000_000,
+            PYTH_ID,
+            "accounts/pyth_usdc_feed.bin",
+        );
+        program.add_account_with_file_data(
+            PYTH_SOL_FEED,
+            1_000_000,
+            PYTH_ID,
+            "accounts/pyth_sol_feed.bin",
+        );
         let context = Rc::new(RefCell::new(program.start_with_context().await));
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 

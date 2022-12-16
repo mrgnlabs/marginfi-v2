@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 use anchor_lang::prelude::*;
+use marginfi::{prelude::MarginfiError, state::marginfi_group::BankVaultType};
 use solana_program::instruction::Instruction;
 use solana_program_test::*;
 use std::{cell::RefCell, rc::Rc};
@@ -13,6 +14,36 @@ pub const RUST_LOG_DEFAULT: &str = "solana_rbpf::vm=info,\
              solana_runtime::system_instruction_processor=info,\
              solana_program_test=info,\
              solana_bpf_loader_program=debug";
+
+pub fn find_bank_vault_pda(
+    marginfi_group_pk: &Pubkey,
+    asset_mint: &Pubkey,
+    vault_type: BankVaultType,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            vault_type.get_seed(),
+            &asset_mint.to_bytes(),
+            &marginfi_group_pk.to_bytes(),
+        ],
+        &marginfi::id(),
+    )
+}
+
+pub fn find_bank_vault_authority_pda(
+    marginfi_group_pk: &Pubkey,
+    asset_mint: &Pubkey,
+    vault_type: BankVaultType,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            vault_type.get_authority_seed(),
+            &asset_mint.to_bytes(),
+            &marginfi_group_pk.to_bytes(),
+        ],
+        &marginfi::id(),
+    )
+}
 
 pub async fn load_and_deserialize<T: AccountDeserialize>(
     ctx: Rc<RefCell<ProgramTestContext>>,
@@ -61,7 +92,9 @@ macro_rules! assert_custom_error {
 macro_rules! assert_program_error {
     ($error:expr, $matcher:expr) => {
         match $error {
-            TransportError::TransactionError(TransactionError::InstructionError(_, x)) => {
+            solana_sdk::transport::TransportError::TransactionError(
+                solana_sdk::transaction::InstructionError(_, x),
+            ) => {
                 assert_eq!(x, $matcher)
             }
             _ => assert!(false),
