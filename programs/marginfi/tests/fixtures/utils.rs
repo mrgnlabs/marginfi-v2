@@ -5,6 +5,7 @@ use anchor_lang::prelude::*;
 use marginfi::{prelude::MarginfiError, state::marginfi_group::BankVaultType};
 use solana_program::instruction::Instruction;
 use solana_program_test::*;
+use solana_sdk::signature::Keypair;
 use std::{cell::RefCell, rc::Rc};
 
 pub const MS_PER_SLOT: u64 = 400;
@@ -130,12 +131,20 @@ macro_rules! assert_eq_noise {
 
 #[macro_export]
 macro_rules! native {
-    ($val: expr) => {
+    ($val: expr, "USDC") => {
         $val * 10_u64.pow(6)
     };
 
-    ($val: expr, f64) => {
+    ($val: expr, "USDC", f64) => {
         (($val) * 10_u64.pow(6) as f64) as u64
+    };
+
+    ($val: expr, "SOL") => {
+        $val * 10_u64.pow(9)
+    };
+
+    ($val: expr, "SOL", f64) => {
+        (($val) * 10_u64.pow(9) as f64) as u64
     };
 }
 
@@ -144,4 +153,8 @@ macro_rules! f_native {
     ($val: expr) => {
         I80F48::from_num($val * 10_u64.pow(6))
     };
+}
+
+pub fn clone_keypair(keypair: &Keypair) -> Keypair {
+    Keypair::from_bytes(&keypair.to_bytes()).unwrap()
 }

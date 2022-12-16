@@ -2,9 +2,7 @@ use super::marginfi_group::{
     load_pyth_price_feed, Bank, LendingPool, MarginfiGroup, WrappedI80F48,
 };
 use crate::{
-    check,
-    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
-    math_error,
+    check, math_error,
     prelude::{MarginfiError, MarginfiResult},
 };
 use anchor_lang::prelude::*;

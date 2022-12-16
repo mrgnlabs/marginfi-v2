@@ -24,44 +24,46 @@ pub struct MintFixture {
 impl MintFixture {
     pub async fn new(ctx: Rc<RefCell<ProgramTestContext>>) -> MintFixture {
         let ctx_ref = Rc::clone(&ctx);
-        let mut ctx = ctx.borrow_mut();
-
         let keypair = Keypair::new();
-        let rent = ctx.banks_client.get_rent().await.unwrap();
+        let mint = {
+            let mut ctx = ctx.borrow_mut();
 
-        let init_account_ix = create_account(
-            &ctx.payer.pubkey(),
-            &keypair.pubkey(),
-            rent.minimum_balance(Mint::LEN),
-            Mint::LEN as u64,
-            &spl_token::id(),
-        );
-        let init_mint_ix = initialize_mint(
-            &spl_token::id(),
-            &keypair.pubkey(),
-            &ctx.payer.pubkey(),
-            None,
-            6,
-        )
-        .unwrap();
+            let rent = ctx.banks_client.get_rent().await.unwrap();
 
-        let tx = Transaction::new_signed_with_payer(
-            &[init_account_ix, init_mint_ix],
-            Some(&ctx.payer.pubkey()),
-            &[&ctx.payer, &keypair],
-            ctx.last_blockhash,
-        );
-
-        ctx.banks_client.process_transaction(tx).await.unwrap();
-
-        let mint_account = ctx
-            .banks_client
-            .get_account(keypair.pubkey())
-            .await
-            .unwrap()
+            let init_account_ix = create_account(
+                &ctx.payer.pubkey(),
+                &keypair.pubkey(),
+                rent.minimum_balance(Mint::LEN),
+                Mint::LEN as u64,
+                &spl_token::id(),
+            );
+            let init_mint_ix = initialize_mint(
+                &spl_token::id(),
+                &keypair.pubkey(),
+                &ctx.payer.pubkey(),
+                None,
+                6,
+            )
             .unwrap();
 
-        let mint = Mint::try_deserialize(&mut mint_account.data.as_slice()).unwrap();
+            let tx = Transaction::new_signed_with_payer(
+                &[init_account_ix, init_mint_ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer, &keypair],
+                ctx.last_blockhash,
+            );
+
+            ctx.banks_client.process_transaction(tx).await.unwrap();
+
+            let mint_account = ctx
+                .banks_client
+                .get_account(keypair.pubkey())
+                .await
+                .unwrap()
+                .unwrap();
+
+            Mint::try_deserialize(&mut mint_account.data.as_slice()).unwrap()
+        };
 
         MintFixture {
             ctx: ctx_ref,
@@ -185,20 +187,23 @@ impl TokenAccountFixture {
         keypair: &Keypair,
     ) -> TokenAccountFixture {
         let ctx_ref = ctx.clone();
-        let mut ctx = ctx.borrow_mut();
 
-        let rent = ctx.banks_client.get_rent().await.unwrap();
-        let instructions =
-            Self::create_ixs(rent, mint_pk, &ctx.payer.pubkey(), owner_pk, keypair).await;
+        {
+            let mut ctx = ctx.borrow_mut();
 
-        let tx = Transaction::new_signed_with_payer(
-            &instructions,
-            Some(&ctx.payer.pubkey()),
-            &[&ctx.payer, keypair],
-            ctx.last_blockhash,
-        );
+            let rent = ctx.banks_client.get_rent().await.unwrap();
+            let instructions =
+                Self::create_ixs(rent, mint_pk, &ctx.payer.pubkey(), owner_pk, keypair).await;
 
-        ctx.banks_client.process_transaction(tx).await.unwrap();
+            let tx = Transaction::new_signed_with_payer(
+                &instructions,
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer, keypair],
+                ctx.last_blockhash,
+            );
+
+            ctx.banks_client.process_transaction(tx).await.unwrap();
+        }
 
         TokenAccountFixture {
             ctx: ctx_ref.clone(),

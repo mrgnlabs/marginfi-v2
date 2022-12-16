@@ -16,7 +16,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
 
-pub fn create(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
+pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
     let margin_account = &mut ctx.accounts.marginfi_account.load_init()?;
     let InitializeMarginfiAccount {
         signer,
@@ -44,8 +44,8 @@ pub struct InitializeMarginfiAccount<'info> {
 /// 1. Add collateral to the margin accounts lending account
 ///     - Create a bank account if it doesn't exist for the deposited asset
 /// 2. Transfer collateral from signer to bank liquidity vault
-pub fn bank_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiResult {
-    let LendingPoolDeposit {
+pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
+    let BankDeposit {
         marginfi_group,
         marginfi_account,
         signer,
@@ -79,7 +79,7 @@ pub fn bank_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiRe
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolDeposit<'info> {
+pub struct BankDeposit<'info> {
     #[account(
         mut,
         address = marginfi_account.load()?.group
@@ -119,8 +119,8 @@ pub struct LendingPoolDeposit<'info> {
 ///     - Create a bank account if it doesn't exist for the deposited asset
 /// 2. Transfer collateral from bank liquidity vault to signer
 /// 3. Verify that the users account is in a healthy state
-pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> MarginfiResult {
-    let LendingPoolWithdraw {
+pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult {
+    let BankWithdraw {
         marginfi_group: marginfi_group_loader,
         marginfi_account,
         signer,
@@ -166,7 +166,7 @@ pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> Marginfi
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolWithdraw<'info> {
+pub struct BankWithdraw<'info> {
     #[account(
         mut,
         address = marginfi_account.load()?.group
