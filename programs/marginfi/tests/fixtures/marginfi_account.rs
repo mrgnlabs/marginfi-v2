@@ -6,7 +6,7 @@ use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, mem, rc::Rc};
 
-use super::prelude::{find_bank_vault_pda, load_and_deserialize, TokenAccountFixture};
+use super::prelude::{find_bank_vault_pda, load_and_deserialize};
 
 #[derive(Default, Clone)]
 pub struct MarginfiAccountConfig {}
@@ -66,46 +66,41 @@ impl MarginfiAccountFixture {
     pub async fn try_bank_deposit(
         &self,
         bank_asset_mint: Pubkey,
+        funding_account: Pubkey,
         amount: u64,
     ) -> Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
 
-        let owner = self.ctx.borrow().payer.pubkey();
-        let token_account_f =
-            TokenAccountFixture::new(self.ctx.clone(), &bank_asset_mint, &owner).await;
+        let mut ctx = self.ctx.borrow_mut();
 
-        {
-            let mut ctx = self.ctx.borrow_mut();
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::BankDeposit {
+                marginfi_group: marginfi_account.group,
+                marginfi_account: self.key,
+                signer: ctx.payer.pubkey(),
+                asset_mint: bank_asset_mint,
+                signer_token_account: funding_account,
+                bank_liquidity_vault: find_bank_vault_pda(
+                    &marginfi_account.group,
+                    &bank_asset_mint,
+                    BankVaultType::Liquidity,
+                )
+                .0,
+                token_program: token::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::BankDeposit { amount }.data(),
+        };
 
-            let ix = Instruction {
-                program_id: marginfi::id(),
-                accounts: marginfi::accounts::BankDeposit {
-                    marginfi_group: marginfi_account.group,
-                    marginfi_account: self.key,
-                    signer: ctx.payer.pubkey(),
-                    asset_mint: bank_asset_mint,
-                    signer_token_account: token_account_f.key,
-                    bank_liquidity_vault: find_bank_vault_pda(
-                        &marginfi_account.group,
-                        &bank_asset_mint,
-                        BankVaultType::Liquidity,
-                    )
-                    .0,
-                    token_program: token::ID,
-                }
-                .to_account_metas(Some(true)),
-                data: marginfi::instruction::BankDeposit { amount }.data(),
-            };
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
 
-            let tx = Transaction::new_signed_with_payer(
-                &[ix],
-                Some(&ctx.payer.pubkey().clone()),
-                &[&ctx.payer],
-                ctx.last_blockhash,
-            );
-
-            ctx.banks_client.process_transaction(tx).await?;
-        }
+        ctx.banks_client.process_transaction(tx).await?;
 
         Ok(())
     }

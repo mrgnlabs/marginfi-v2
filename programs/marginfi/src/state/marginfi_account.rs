@@ -246,6 +246,23 @@ pub struct LendingAccount {
 }
 
 impl LendingAccount {
+    pub fn get_balance(&self, mint_pk: &Pubkey, banks: &[Option<Bank>]) -> Option<&Balance> {
+        self.balances
+            .iter()
+            .find(|balance| match balance {
+                Some(balance) => {
+                    let bank = banks[balance.bank_index as usize];
+
+                    match bank {
+                        Some(bank) => bank.mint.eq(mint_pk),
+                        None => false,
+                    }
+                }
+                None => false,
+            })
+            .map(|balance| balance.as_ref().unwrap())
+    }
+
     pub fn get_first_empty_balance(&self) -> Option<usize> {
         self.balances.iter().position(|b| b.is_none())
     }

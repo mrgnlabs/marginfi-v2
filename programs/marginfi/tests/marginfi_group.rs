@@ -105,10 +105,10 @@ async fn success_add_bank() {
     let marginfi_group = test_f.marginfi_group.load().await;
 
     // Check bank is active
-    assert!(!marginfi_group
+    assert!(marginfi_group
         .lending_pool
         .get_bank(&bank_asset_mint_fixture.key)
-        .is_none());
+        .is_some());
     assert_eq!(
         marginfi_group
             .lending_pool

@@ -85,22 +85,25 @@ impl MintFixture {
         self.mint = Mint::try_deserialize(&mut mint_account.data.as_slice()).unwrap();
     }
 
-    pub async fn mint_to(
-        &mut self,
-        ctx: Rc<RefCell<ProgramTestContext>>,
-        dest: &Pubkey,
-        amount: u64,
-    ) {
-        let mut ctx = ctx.borrow_mut();
-        let mint_to_ix = self.make_mint_to_ix(dest, amount);
-        let tx = Transaction::new_signed_with_payer(
-            &[mint_to_ix],
-            Some(&ctx.payer.pubkey()),
-            &[&ctx.payer],
-            ctx.last_blockhash,
-        );
+    pub async fn mint_to(&mut self, dest: &Pubkey, amount: u64) {
+        let tx = {
+            let ctx = self.ctx.borrow();
+            let mint_to_ix = self.make_mint_to_ix(dest, amount);
+            Transaction::new_signed_with_payer(
+                &[mint_to_ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
+                ctx.last_blockhash,
+            )
+        };
 
-        ctx.banks_client.process_transaction(tx).await.unwrap();
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await
+            .unwrap();
+
         self.reload().await
     }
 

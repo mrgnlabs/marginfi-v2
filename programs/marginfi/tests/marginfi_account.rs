@@ -5,7 +5,10 @@ mod fixtures;
 
 use anchor_lang::{AccountDeserialize, InstructionData, ToAccountMetas};
 use fixtures::prelude::*;
-use marginfi::state::marginfi_account::MarginfiAccount;
+use marginfi::{
+    prelude::MarginfiError,
+    state::{marginfi_account::MarginfiAccount, marginfi_group::BankConfig},
+};
 use pretty_assertions::assert_eq;
 use solana_program::{
     instruction::Instruction,
@@ -75,6 +78,11 @@ async fn success_create_marginfi_account() {
     // Check basic properties
     assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
     assert_eq!(marginfi_account.owner, test_f.payer());
+    assert!(marginfi_account
+        .lending_account
+        .balances
+        .iter()
+        .all(|bank| bank.is_none()));
 }
 
 #[tokio::test]
@@ -83,7 +91,7 @@ async fn success_deposit() {
     let test_f = TestFixture::new(None).await;
 
     // Setup sample bank
-    let bank_asset_mint_f = MintFixture::new(test_f.context.clone()).await;
+    let mut bank_asset_mint_f = MintFixture::new(test_f.context.clone()).await;
 
     let sample_bank_index = 8;
     let res = test_f
@@ -98,9 +106,93 @@ async fn success_deposit() {
 
     let marginfi_account_f = test_f.create_marginfi_account().await;
 
+    let owner = test_f.context.borrow().payer.pubkey();
+    let token_account_f =
+        TokenAccountFixture::new(test_f.context.clone(), &bank_asset_mint_f.key, &owner).await;
+
+    bank_asset_mint_f
+        .mint_to(&token_account_f.key, native!(1_000, "USDC"))
+        .await;
+
     let res = marginfi_account_f
-        .try_bank_deposit(bank_asset_mint_f.key, native!(1_000, "USDC"))
+        .try_bank_deposit(
+            bank_asset_mint_f.key,
+            token_account_f.key,
+            native!(1_000, "USDC"),
+        )
         .await;
 
     assert!(res.is_ok());
+
+    let marginfi_account = marginfi_account_f.load().await;
+    let marginfi_group = test_f.marginfi_group.load().await;
+
+    // Check balance is active
+    assert!(marginfi_account
+        .lending_account
+        .get_balance(&bank_asset_mint_f.key, &marginfi_group.lending_pool.banks)
+        .is_some());
+    assert_eq!(
+        marginfi_account
+            .lending_account
+            .get_active_balances_iter()
+            .collect::<Vec<_>>()
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn failure_deposit_cpacity_exceeded() {
+    // Setup test executor with non-admin payer
+    let test_f = TestFixture::new(None).await;
+
+    // Setup sample bank
+    let mut bank_asset_mint_f = MintFixture::new(test_f.context.clone()).await;
+
+    let sample_bank_index = 8;
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            bank_asset_mint_f.key,
+            sample_bank_index,
+            BankConfig {
+                pyth_oracle: PYTH_USDC_FEED,
+                max_capacity: native!(100, "USDC"),
+                ..Default::default()
+            },
+        )
+        .await;
+    assert!(res.is_ok());
+
+    // Fund user account
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let owner = test_f.context.borrow().payer.pubkey();
+    let token_account_f =
+        TokenAccountFixture::new(test_f.context.clone(), &bank_asset_mint_f.key, &owner).await;
+
+    bank_asset_mint_f
+        .mint_to(&token_account_f.key, native!(1_000, "USDC"))
+        .await;
+
+    // Make lawful deposit
+    let res = marginfi_account_f
+        .try_bank_deposit(
+            bank_asset_mint_f.key,
+            token_account_f.key,
+            native!(99, "USDC"),
+        )
+        .await;
+    assert!(res.is_ok());
+
+    // Make unlawful deposit
+    let res = marginfi_account_f
+        .try_bank_deposit(
+            bank_asset_mint_f.key,
+            token_account_f.key,
+            native!(101, "USDC"),
+        )
+        .await;
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BankDepositCapacityExceeded);
 }
