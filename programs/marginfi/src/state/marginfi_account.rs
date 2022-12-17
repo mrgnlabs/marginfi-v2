@@ -125,7 +125,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             .bank
             .get_deposit_value(self.balance.liability_shares.into())?;
 
-        let (deposit_weight, liability_weight) = self.bank.config.get_weights(weight_type);
+        let (deposit_weight, liability_weight) = self.bank.config.get_weights(weight_type); // TODO: asset-specific weights
 
         Ok((
             calc_asset_value(deposits_qt, &price, Some(deposit_weight))?,

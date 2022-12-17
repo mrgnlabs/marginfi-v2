@@ -90,6 +90,23 @@ macro_rules! assert_custom_error {
 }
 
 #[macro_export]
+macro_rules! assert_anchor_error {
+    ($error:expr, $matcher:expr) => {
+        match $error {
+            solana_program_test::BanksClientError::TransactionError(
+                solana_sdk::transaction::TransactionError::InstructionError(
+                    _,
+                    solana_program::instruction::InstructionError::Custom(n),
+                ),
+            ) => {
+                assert_eq!(n, $matcher as u32)
+            }
+            _ => assert!(false),
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! assert_program_error {
     ($error:expr, $matcher:expr) => {
         match $error {

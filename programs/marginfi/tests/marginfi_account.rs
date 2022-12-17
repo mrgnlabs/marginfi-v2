@@ -3,18 +3,14 @@
 
 mod fixtures;
 
-use anchor_lang::{AccountDeserialize, InstructionData, ToAccountMetas};
+use anchor_lang::{prelude::ErrorCode, AccountDeserialize, InstructionData, ToAccountMetas};
 use fixtures::prelude::*;
 use marginfi::{
     prelude::MarginfiError,
     state::{marginfi_account::MarginfiAccount, marginfi_group::BankConfig},
 };
 use pretty_assertions::assert_eq;
-use solana_program::{
-    instruction::Instruction,
-    system_instruction::{self},
-    system_program,
-};
+use solana_program::{instruction::Instruction, system_instruction, system_program};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 
@@ -143,7 +139,7 @@ async fn success_deposit() {
 }
 
 #[tokio::test]
-async fn failure_deposit_cpacity_exceeded() {
+async fn failure_deposit_capacity_exceeded() {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
 
@@ -195,4 +191,49 @@ async fn failure_deposit_cpacity_exceeded() {
         )
         .await;
     assert_custom_error!(res.unwrap_err(), MarginfiError::BankDepositCapacityExceeded);
+}
+
+#[tokio::test]
+async fn failure_deposit_bank_not_found() {
+    // Setup test executor with non-admin payer
+    let test_f = TestFixture::new(None).await;
+
+    // Setup sample bank
+    let bank_asset_mint_usdc_f = MintFixture::new(test_f.context.clone()).await;
+    let mut bank_asset_mint_sol_f = MintFixture::new(test_f.context.clone()).await;
+
+    let sample_bank_index = 8;
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            bank_asset_mint_usdc_f.key,
+            sample_bank_index,
+            BankConfig {
+                pyth_oracle: PYTH_USDC_FEED,
+                max_capacity: native!(100, "USDC"),
+                ..Default::default()
+            },
+        )
+        .await;
+    assert!(res.is_ok());
+
+    // Fund user account
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let owner = test_f.context.borrow().payer.pubkey();
+    let token_account_f =
+        TokenAccountFixture::new(test_f.context.clone(), &bank_asset_mint_sol_f.key, &owner).await;
+
+    bank_asset_mint_sol_f
+        .mint_to(&token_account_f.key, native!(1_000, "SOL"))
+        .await;
+
+    let res = marginfi_account_f
+        .try_bank_deposit(
+            bank_asset_mint_sol_f.key,
+            token_account_f.key,
+            native!(1, "SOL"),
+        )
+        .await;
+    assert_anchor_error!(res.unwrap_err(), ErrorCode::AccountNotInitialized);
 }
