@@ -12,7 +12,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
-use pyth_sdk_solana::{load_price_feed_from_account_info, state::load_price_account, PriceFeed};
+use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 
 use super::marginfi_account::WeightType;
 

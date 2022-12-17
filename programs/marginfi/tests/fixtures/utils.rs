@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use anchor_lang::prelude::*;
-use marginfi::{prelude::MarginfiError, state::marginfi_group::BankVaultType};
+use marginfi::state::marginfi_group::BankVaultType;
 use solana_program::instruction::Instruction;
 use solana_program_test::*;
 use solana_sdk::signature::Keypair;

@@ -15,10 +15,10 @@ use marginfi::{
 };
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
-use solana_sdk::{pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
+use solana_sdk::{pubkey, signature::Keypair, signer::Signer};
 use std::{cell::RefCell, rc::Rc};
 
-use super::marginfi_account::{MarginfiAccountConfig, MarginfiAccountFixture};
+use super::marginfi_account::MarginfiAccountFixture;
 
 pub struct TestFixture {
     pub context: Rc<RefCell<ProgramTestContext>>,
