@@ -136,13 +136,13 @@ impl Bank {
         }
     }
 
-    pub fn get_liability_value(&self, shares: I80F48) -> MarginfiResult<I80F48> {
+    pub fn get_liability_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
             .checked_mul(self.liability_share_value)
             .ok_or_else(math_error!())?)
     }
 
-    pub fn get_deposit_value(&self, shares: I80F48) -> MarginfiResult<I80F48> {
+    pub fn get_deposit_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
             .checked_mul(self.deposit_share_value)
             .ok_or_else(math_error!())?)
@@ -167,8 +167,8 @@ impl Bank {
             .ok_or_else(math_error!())?;
 
         if shares.is_positive() {
-            let total_shares_value = self.get_deposit_value(self.total_deposit_shares)?;
-            let max_deposit_capacity = self.get_deposit_value(self.config.max_capacity.into())?;
+            let total_shares_value = self.get_deposit_amount(self.total_deposit_shares)?;
+            let max_deposit_capacity = self.get_deposit_amount(self.config.max_capacity.into())?;
 
             check!(
                 total_shares_value < max_deposit_capacity,

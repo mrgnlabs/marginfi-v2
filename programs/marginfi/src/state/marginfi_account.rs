@@ -111,7 +111,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             .collect::<Result<Vec<_>>>()
     }
 
-    pub fn get_weighted_assets_and_liabilities(
+    pub fn get_weighted_assets_and_liabilities_values(
         &self,
         weight_type: WeightType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
@@ -120,10 +120,10 @@ impl<'a> BankAccountWithPriceFeed<'a> {
 
         let deposits_qt = self
             .bank
-            .get_deposit_value(self.balance.deposit_shares.into())?;
+            .get_deposit_amount(self.balance.deposit_shares.into())?;
         let liabilities_qt = self
             .bank
-            .get_deposit_value(self.balance.liability_shares.into())?;
+            .get_deposit_amount(self.balance.liability_shares.into())?;
 
         let (deposit_weight, liability_weight) = self.bank.config.get_weights(weight_type); // TODO: asset-specific weights
 
@@ -219,7 +219,9 @@ impl<'a> RiskEngine<'a> {
         let (total_weighted_assets, total_weighted_liabilities) = self
             .bank_accounts_with_price
             .iter()
-            .map(|a| a.get_weighted_assets_and_liabilities(requirement_type.to_weight_type()))
+            .map(|a| {
+                a.get_weighted_assets_and_liabilities_values(requirement_type.to_weight_type())
+            })
             .try_fold((I80F48::ZERO, I80F48::ZERO), |(ta, tl), res| {
                 let (assets, liabilities) = res?;
                 let total_assets_sum = ta.checked_add(assets).ok_or_else(math_error!())?;
@@ -327,7 +329,7 @@ impl<'a> BankAccountWrapper<'a> {
 
         let balance = if let Some(index) = balance_index {
             lending_account
-                .balances
+                .balances // active_balances?
                 .get_mut(index)
                 .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceNotFound))?
         } else {
@@ -401,7 +403,7 @@ impl<'a> BankAccountWrapper<'a> {
 
         let liability_shares: I80F48 = balance.liability_shares.into();
 
-        let liability_value = bank.get_liability_value(liability_shares)?;
+        let liability_value = bank.get_liability_amount(liability_shares)?;
 
         let (deposit_value_delta, liability_replay_value_delta) = (
             max(
@@ -441,7 +443,7 @@ impl<'a> BankAccountWrapper<'a> {
 
         let deposit_shares: I80F48 = balance.deposit_shares.into();
 
-        let deposit_value = bank.get_deposit_value(deposit_shares)?;
+        let deposit_value = bank.get_deposit_amount(deposit_shares)?;
 
         let (deposit_remove_value_delta, liability_value_delta) = (
             min(deposit_value, amount),
