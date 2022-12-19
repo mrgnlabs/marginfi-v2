@@ -8,7 +8,7 @@ use anyhow::Result;
 use marginfi::{
     constants::*,
     prelude::MarginfiGroup,
-    state::marginfi_group::{BankConfig, GroupConfig, BankConfigOpt},
+    state::marginfi_group::{BankConfig, BankConfigOpt, GroupConfig},
 };
 use solana_program::sysvar;
 use solana_program_test::*;
@@ -146,7 +146,7 @@ impl MarginfiGroupFixture {
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingPoolConfigureBank {
                 bank_index,
-                bank_config_opt: todo!(), 
+                bank_config_opt: todo!(),
             }
             .data(),
         };

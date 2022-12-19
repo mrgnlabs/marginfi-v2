@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     check, constants::PYTH_ID, math_error, prelude::MarginfiError, set_if_some, MarginfiResult,
 };
@@ -62,14 +64,14 @@ impl Default for LendingPool {
 }
 
 impl LendingPool {
-    pub fn get_bank(&self, mint_pk: &Pubkey) -> Option<&Bank> {
+    pub fn find_bank_by_mint(&self, mint_pk: &Pubkey) -> Option<&Bank> {
         self.banks
             .iter()
             .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint.eq(mint_pk))
             .map(|reserve| reserve.as_ref().unwrap())
     }
 
-    pub fn get_bank_mut(&mut self, mint_pk: &Pubkey) -> Option<&mut Bank> {
+    pub fn find_bank_by_mint_mut(&mut self, mint_pk: &Pubkey) -> Option<&mut Bank> {
         self.banks
             .iter_mut()
             .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint.eq(mint_pk))
@@ -195,6 +197,19 @@ impl Bank {
         set_if_some!(self.config.max_capacity, config.max_capacity);
         set_if_some!(self.config.pyth_oracle, config.pyth_oracle);
         Ok(())
+    }
+
+    #[inline]
+    pub fn load_price_feed(
+        &self,
+        pyth_account_map: &HashMap<Pubkey, &AccountInfo>,
+    ) -> MarginfiResult<PriceFeed> {
+        let pyth_account = pyth_account_map
+            .get(&self.config.pyth_oracle)
+            .ok_or_else(|| MarginfiError::MissingPythAccount)?;
+
+        Ok(load_price_feed_from_account_info(pyth_account)
+            .map_err(|_| MarginfiError::InvalidPythAccount)?)
     }
 }
 
