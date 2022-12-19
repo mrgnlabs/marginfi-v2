@@ -81,6 +81,7 @@ pub fn lending_pool_add_bank(
     let bank = Bank::new(
         bank_config,
         asset_mint.key(),
+        asset_mint.decimals,
         liquidity_vault.key(),
         insurance_vault.key(),
         fee_vault.key(),

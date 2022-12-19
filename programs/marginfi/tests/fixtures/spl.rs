@@ -22,7 +22,10 @@ pub struct MintFixture {
 }
 
 impl MintFixture {
-    pub async fn new(ctx: Rc<RefCell<ProgramTestContext>>) -> MintFixture {
+    pub async fn new(
+        ctx: Rc<RefCell<ProgramTestContext>>,
+        mint_decimals: Option<u8>,
+    ) -> MintFixture {
         let ctx_ref = Rc::clone(&ctx);
         let keypair = Keypair::new();
         let mint = {
@@ -42,7 +45,7 @@ impl MintFixture {
                 &keypair.pubkey(),
                 &ctx.payer.pubkey(),
                 None,
-                6,
+                mint_decimals.unwrap_or(6),
             )
             .unwrap();
 
@@ -223,6 +226,12 @@ impl TokenAccountFixture {
     ) -> TokenAccountFixture {
         let keypair = Keypair::new();
         TokenAccountFixture::new_with_keypair(ctx, mint_pk, owner_pk, &keypair).await
+    }
+
+    pub async fn balance(&self) -> u64 {
+        let token_account: TokenAccount = get_and_deserialize(self.ctx.clone(), self.key).await;
+
+        token_account.amount
     }
 }
 

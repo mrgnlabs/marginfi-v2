@@ -128,8 +128,18 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         let (deposit_weight, liability_weight) = self.bank.config.get_weights(weight_type); // TODO: asset-specific weights
 
         Ok((
-            calc_asset_value(deposits_qt, &price, Some(deposit_weight))?,
-            calc_asset_value(liabilities_qt, &price, Some(liability_weight))?,
+            calc_asset_value(
+                deposits_qt,
+                self.bank.mint_decimals,
+                &price,
+                Some(deposit_weight),
+            )?,
+            calc_asset_value(
+                liabilities_qt,
+                self.bank.mint_decimals,
+                &price,
+                Some(liability_weight),
+            )?,
         ))
     }
 }
@@ -145,6 +155,7 @@ pub fn create_pyth_account_map<'a, 'info>(
 #[inline]
 pub fn calc_asset_value(
     asset_qt: I80F48,
+    asset_decimals: u8,
     pyth_price: &Price,
     weight: Option<I80F48>,
 ) -> MarginfiResult<I80F48> {
@@ -152,7 +163,11 @@ pub fn calc_asset_value(
     let scaling_factor = EXP_10_I80F48[pyth_price.expo.unsigned_abs() as usize];
 
     let weighted_asset_qt = if let Some(weight) = weight {
-        asset_qt.checked_mul(weight).unwrap()
+        asset_qt
+            .checked_div(EXP_10_I80F48[asset_decimals as usize])
+            .ok_or_else(math_error!())?
+            .checked_mul(weight)
+            .unwrap()
     } else {
         asset_qt
     };
@@ -231,6 +246,11 @@ impl<'a> RiskEngine<'a> {
                 Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
             })?;
 
+        println!(
+            "assets {} - liabs: {}",
+            total_weighted_assets, total_weighted_liabilities
+        );
+
         check!(
             total_weighted_assets > total_weighted_liabilities,
             MarginfiError::BadAccountHealth
@@ -256,7 +276,7 @@ impl LendingAccount {
                     let bank = banks[balance.bank_index as usize];
 
                     match bank {
-                        Some(bank) => bank.mint.eq(mint_pk),
+                        Some(bank) => bank.mint_pk.eq(mint_pk),
                         None => false,
                     }
                 }
@@ -318,7 +338,7 @@ impl<'a> BankAccountWrapper<'a> {
             .iter_mut()
             .enumerate()
             .filter(|(_, b)| b.is_some())
-            .find(|(_, b)| b.unwrap().mint == mint)
+            .find(|(_, b)| b.unwrap().mint_pk == mint)
             .ok_or_else(|| error!(MarginfiError::BankNotFound))?;
 
         // Find the user lending account balance by `bank_index`.

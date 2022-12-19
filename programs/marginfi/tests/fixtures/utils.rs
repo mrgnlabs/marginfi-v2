@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use anchor_lang::prelude::*;
-use marginfi::state::marginfi_group::BankVaultType;
+use marginfi::{bank_authority_seed, bank_seed, state::marginfi_group::BankVaultType};
 use solana_program::instruction::Instruction;
 use solana_program_test::*;
 use solana_sdk::signature::Keypair;
@@ -22,11 +22,7 @@ pub fn find_bank_vault_pda(
     vault_type: BankVaultType,
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(
-        &[
-            vault_type.get_seed(),
-            &asset_mint.to_bytes(),
-            &marginfi_group_pk.to_bytes(),
-        ],
+        bank_seed!(vault_type, asset_mint, marginfi_group_pk),
         &marginfi::id(),
     )
 }
@@ -37,11 +33,7 @@ pub fn find_bank_vault_authority_pda(
     vault_type: BankVaultType,
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(
-        &[
-            vault_type.get_authority_seed(),
-            &asset_mint.to_bytes(),
-            &marginfi_group_pk.to_bytes(),
-        ],
+        bank_authority_seed!(vault_type, asset_mint, marginfi_group_pk),
         &marginfi::id(),
     )
 }

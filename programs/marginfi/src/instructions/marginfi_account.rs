@@ -1,4 +1,5 @@
 use crate::{
+    bank_signer,
     constants::{
         INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
         LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
@@ -9,7 +10,7 @@ use crate::{
             calc_asset_qty, calc_asset_value, create_pyth_account_map, BankAccountWrapper,
             MarginfiAccount, RiskEngine, RiskRequirementType,
         },
-        marginfi_group::MarginfiGroup,
+        marginfi_group::{BankVaultType, MarginfiGroup},
     },
 };
 use anchor_lang::prelude::*;
@@ -123,11 +124,11 @@ pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult 
     let BankWithdraw {
         marginfi_group: marginfi_group_loader,
         marginfi_account,
-        signer,
         asset_mint,
-        signer_token_account,
+        destination_token_account,
         bank_liquidity_vault,
         token_program,
+        bank_liquidity_vault_authority,
         ..
     } = ctx.accounts;
 
@@ -145,16 +146,16 @@ pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult 
         amount,
         Transfer {
             from: bank_liquidity_vault.to_account_info(),
-            to: signer_token_account.to_account_info(),
-            authority: signer.to_account_info(),
+            to: destination_token_account.to_account_info(),
+            authority: bank_liquidity_vault_authority.to_account_info(),
         },
         token_program.to_account_info(),
-        &[&[
-            LIQUIDITY_VAULT_AUTHORITY_SEED.as_ref(),
-            asset_mint.key().as_ref(),
-            marginfi_group_loader.key().as_ref(),
-            &[*ctx.bumps.get("bank_liquidity_vault_authority").unwrap()],
-        ]],
+        bank_signer!(
+            BankVaultType::Liquidity,
+            asset_mint.key(),
+            marginfi_group_loader.key(),
+            *ctx.bumps.get("bank_liquidity_vault_authority").unwrap()
+        ),
     )?;
 
     // // Check account health, if below threshold fail transaction
@@ -181,7 +182,7 @@ pub struct BankWithdraw<'info> {
     pub signer: Signer<'info>,
     pub asset_mint: Account<'info, Mint>,
     #[account(mut)]
-    pub signer_token_account: Account<'info, TokenAccount>,
+    pub destination_token_account: Account<'info, TokenAccount>,
     #[account(
         mut,
         seeds = [
@@ -269,7 +270,7 @@ pub fn lending_account_liquidate(
         asset_pf.get_price_unchecked()
     };
 
-    let (liab_price, liab_mint) = {
+    let (liab_price, liab_mint, liab_mint_decimals) = {
         let liab_bank = marginfi_group
             .lending_pool
             .banks
@@ -280,7 +281,11 @@ pub fn lending_account_liquidate(
 
         let liab_pf = liab_bank.load_price_feed(&pyth_account_map)?;
         // TODO: Check price expiration and confidence
-        (liab_pf.get_price_unchecked(), liab_bank.mint)
+        (
+            liab_pf.get_price_unchecked(),
+            liab_bank.mint_pk,
+            liab_bank.mint_decimals,
+        )
     };
 
     let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
@@ -288,7 +293,12 @@ pub fn lending_account_liquidate(
 
     // Quantity of liability to be paid off by liquidator
     let liab_qty = calc_asset_qty(
-        calc_asset_value(asset_qty_final, &asset_price, Some(final_discount))?,
+        calc_asset_value(
+            asset_qty_final,
+            liab_mint_decimals,
+            &asset_price,
+            Some(final_discount),
+        )?,
         &liab_price,
     )?;
 
@@ -394,7 +404,7 @@ pub struct LendingAccountLiquidate<'info> {
         mut,
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED,
-            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint.as_ref(),
+            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint_pk.as_ref(),
             marginfi_group.key().as_ref()
         ],
         bump
@@ -404,7 +414,7 @@ pub struct LendingAccountLiquidate<'info> {
         mut,
         seeds = [
             LIQUIDITY_VAULT_SEED,
-            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint.as_ref(),
+            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint_pk.as_ref(),
             marginfi_group.key().as_ref()
         ],
         bump
@@ -414,7 +424,7 @@ pub struct LendingAccountLiquidate<'info> {
         mut,
         seeds = [
             INSURANCE_VAULT_SEED,
-            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint.as_ref(),
+            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint_pk.as_ref(),
             marginfi_group.key().as_ref()
         ],
         bump

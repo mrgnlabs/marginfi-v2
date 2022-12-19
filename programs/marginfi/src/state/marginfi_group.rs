@@ -74,14 +74,14 @@ impl LendingPool {
     pub fn find_bank_by_mint(&self, mint_pk: &Pubkey) -> Option<&Bank> {
         self.banks
             .iter()
-            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint.eq(mint_pk))
+            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint_pk.eq(mint_pk))
             .map(|reserve| reserve.as_ref().unwrap())
     }
 
     pub fn find_bank_by_mint_mut(&mut self, mint_pk: &Pubkey) -> Option<&mut Bank> {
         self.banks
             .iter_mut()
-            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint.eq(mint_pk))
+            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint_pk.eq(mint_pk))
             .map(|reserve| reserve.as_mut().unwrap())
     }
 }
@@ -100,7 +100,8 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
 #[zero_copy]
 #[derive(Default)]
 pub struct Bank {
-    pub mint: Pubkey,
+    pub mint_pk: Pubkey,
+    pub mint_decimals: u8,
 
     pub deposit_share_value: I80F48,
     pub liability_share_value: I80F48,
@@ -119,12 +120,14 @@ impl Bank {
     pub fn new(
         config: BankConfig,
         mint_pk: Pubkey,
+        mint_decimals: u8,
         liquidity_vault: Pubkey,
         insurance_vault: Pubkey,
         fee_vault: Pubkey,
     ) -> Bank {
         Bank {
-            mint: mint_pk,
+            mint_pk,
+            mint_decimals,
             deposit_share_value: I80F48::ONE,
             liability_share_value: I80F48::ONE,
             liquidity_vault,
@@ -225,7 +228,7 @@ impl Bank {
     derive(Debug, PartialEq, Eq)
 )]
 #[zero_copy]
-#[derive(Default, AnchorDeserialize, AnchorSerialize)]
+#[derive(AnchorDeserialize, AnchorSerialize)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub deposit_weight_init: WrappedI80F48,
@@ -237,6 +240,19 @@ pub struct BankConfig {
     pub max_capacity: u64,
 
     pub pyth_oracle: Pubkey,
+}
+
+impl Default for BankConfig {
+    fn default() -> Self {
+        Self {
+            deposit_weight_init: I80F48::ZERO.into(),
+            deposit_weight_maint: I80F48::ZERO.into(),
+            liability_weight_init: I80F48::ONE.into(),
+            liability_weight_maint: I80F48::ONE.into(),
+            max_capacity: 0,
+            pyth_oracle: Default::default(),
+        }
+    }
 }
 
 impl BankConfig {
@@ -286,7 +302,7 @@ pub struct BankConfigOpt {
     pub pyth_oracle: Option<Pubkey>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BankVaultType {
     Liquidity,
     Insurance,

@@ -8,6 +8,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use bincode::deserialize;
 
+use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
 use marginfi::{
     constants::PYTH_ID,
@@ -31,9 +32,15 @@ pub const PYTH_SOL_FEED: Pubkey = pubkey!("PythSo1Price1111111111111111111111111
 pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111111111111111");
 
 lazy_static! {
-    pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
+    pub static ref DEFAULT_USDC_TEST_BANK_CONFIG: BankConfig = BankConfig {
         pyth_oracle: PYTH_USDC_FEED,
         max_capacity: native!(1_000_000, "USDC"),
+        deposit_weight_init: I80F48!(1).into(),
+        ..BankConfig::default()
+    };
+    pub static ref DEFAULT_SOL_TEST_BANK_CONFIG: BankConfig = BankConfig {
+        pyth_oracle: PYTH_SOL_FEED,
+        max_capacity: native!(1_000, "SOL"),
         ..BankConfig::default()
     };
 }
@@ -56,7 +63,7 @@ impl TestFixture {
         let context = Rc::new(RefCell::new(program.start_with_context().await));
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 
-        let mint = MintFixture::new(Rc::clone(&context)).await;
+        let mint = MintFixture::new(Rc::clone(&context), None).await;
         let tester_group = MarginfiGroupFixture::new(
             Rc::clone(&context),
             &mint.key,
