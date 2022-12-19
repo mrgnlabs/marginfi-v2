@@ -2,10 +2,13 @@
 #![allow(dead_code)]
 
 use anchor_lang::prelude::*;
-use marginfi::{bank_authority_seed, bank_seed, state::marginfi_group::BankVaultType};
+use marginfi::{
+    bank_authority_seed, bank_seed, constants::PYTH_ID, state::marginfi_group::BankVaultType,
+};
+use pyth_sdk_solana::state::{AccountType, PriceAccount, PriceInfo, PriceStatus, MAGIC, VERSION_2};
 use solana_program::instruction::Instruction;
 use solana_program_test::*;
-use solana_sdk::signature::Keypair;
+use solana_sdk::{account::Account, signature::Keypair};
 use std::{cell::RefCell, rc::Rc};
 
 pub const MS_PER_SLOT: u64 = 400;
@@ -61,6 +64,31 @@ where
         program_id: marginfi::id(),
         accounts: accounts.to_account_metas(Some(true)),
         data: ix_data,
+    }
+}
+
+pub fn craft_pyth_price_account(ui_price: i64, mint_decimals: i32) -> Account {
+    let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
+    Account {
+        lamports: 1_000_000,
+        data: bytemuck::bytes_of(&PriceAccount {
+            agg: PriceInfo {
+                conf: 0,
+                price: native_price,
+                status: PriceStatus::Trading,
+                ..Default::default()
+            },
+            expo: mint_decimals,
+            prev_price: native_price,
+            magic: MAGIC,
+            ver: VERSION_2,
+            atype: AccountType::Price as u32,
+            ..Default::default()
+        })
+        .to_vec(),
+        owner: PYTH_ID,
+        executable: false,
+        rent_epoch: 361,
     }
 }
 

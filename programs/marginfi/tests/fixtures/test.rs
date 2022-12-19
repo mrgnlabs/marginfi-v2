@@ -10,10 +10,7 @@ use bincode::deserialize;
 
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
-use marginfi::{
-    constants::PYTH_ID,
-    state::marginfi_group::{BankConfig, GroupConfig},
-};
+use marginfi::state::marginfi_group::{BankConfig, GroupConfig};
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
 use solana_sdk::{pubkey, signature::Keypair, signer::Signer};
@@ -48,18 +45,10 @@ lazy_static! {
 impl TestFixture {
     pub async fn new(ix_arg: Option<GroupConfig>) -> TestFixture {
         let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
-        program.add_account_with_file_data(
-            PYTH_USDC_FEED,
-            1_000_000,
-            PYTH_ID,
-            "accounts/pyth_usdc_feed.bin",
-        );
-        program.add_account_with_file_data(
-            PYTH_SOL_FEED,
-            1_000_000,
-            PYTH_ID,
-            "accounts/pyth_sol_feed.bin",
-        );
+
+        program.add_account(PYTH_SOL_FEED, craft_pyth_price_account(10, 9));
+        program.add_account(PYTH_USDC_FEED, craft_pyth_price_account(1, 6));
+
         let context = Rc::new(RefCell::new(program.start_with_context().await));
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 
