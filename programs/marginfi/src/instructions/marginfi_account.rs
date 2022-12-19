@@ -7,7 +7,7 @@ use crate::{
     prelude::MarginfiResult,
     state::{
         marginfi_account::{
-            calc_asset_qty, calc_asset_value, create_pyth_account_map, BankAccountWrapper,
+            calc_asset_quantity, calc_asset_value, create_pyth_account_map, BankAccountWrapper,
             MarginfiAccount, RiskEngine, RiskRequirementType,
         },
         marginfi_group::{BankVaultType, MarginfiGroup},
@@ -66,7 +66,7 @@ pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
     )?;
 
     bank_account.account_deposit(I80F48::from_num(amount))?;
-    bank_account.deposit_transfer(
+    bank_account.deposit_spl_transfer(
         amount,
         Transfer {
             from: signer_token_account.to_account_info(),
@@ -243,7 +243,7 @@ pub struct BankWithdraw<'info> {
 pub fn lending_account_liquidate(
     ctx: Context<LendingAccountLiquidate>,
     asset_bank_index: u16,
-    asset_qty_final: u64,
+    asset_quantity_final: u64,
     liab_bank_index: u16,
 ) -> MarginfiResult {
     let LendingAccountLiquidate {
@@ -255,7 +255,7 @@ pub fn lending_account_liquidate(
 
     let marginfi_group = &mut marginfi_group_loader.load_mut()?;
     let pyth_account_map = create_pyth_account_map(ctx.remaining_accounts)?;
-    let asset_qty_final = I80F48::from_num(asset_qty_final);
+    let asset_quantity_final = I80F48::from_num(asset_quantity_final);
 
     let asset_price = {
         let asset_bank = marginfi_group
@@ -270,7 +270,7 @@ pub fn lending_account_liquidate(
         asset_pf.get_price_unchecked()
     };
 
-    let (liab_price, liab_mint, liab_mint_decimals) = {
+    let (liab_price, liab_mint) = {
         let liab_bank = marginfi_group
             .lending_pool
             .banks
@@ -279,34 +279,25 @@ pub fn lending_account_liquidate(
             .as_ref()
             .unwrap();
 
-        let liab_pf = liab_bank.load_price_feed(&pyth_account_map)?;
+        let liab_price_feed = liab_bank.load_price_feed(&pyth_account_map)?;
         // TODO: Check price expiration and confidence
-        (
-            liab_pf.get_price_unchecked(),
-            liab_bank.mint_pk,
-            liab_bank.mint_decimals,
-        )
+        (liab_price_feed.get_price_unchecked(), liab_bank.mint_pk)
     };
 
     let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
     let liquidator_discount = I80F48::ONE - LIQUIDATION_LIQUIDATOR_FEE;
 
     // Quantity of liability to be paid off by liquidator
-    let liab_qty = calc_asset_qty(
-        calc_asset_value(
-            asset_qty_final,
-            liab_mint_decimals,
-            &asset_price,
-            Some(final_discount),
-        )?,
+    let liab_quantity = calc_asset_quantity(
+        calc_asset_value(asset_quantity_final, &asset_price, Some(final_discount))?,
         &liab_price,
     )?;
 
     // Quantity of collateral to be received by liquidator
-    let asset_qty_liq = (asset_qty_final * final_discount) / liquidator_discount;
+    let asset_quantity_liq = (asset_quantity_final * final_discount) / liquidator_discount;
 
     // Accounting changes
-    let insurance_fund_fee = (asset_qty_final - asset_qty_liq).to_num();
+    let insurance_fund_fee = (asset_quantity_final - asset_quantity_liq).to_num();
 
     let mut liquidator_marginfi_account = liquidator_marginfi_account.load_mut()?;
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account.load_mut()?;
@@ -318,17 +309,17 @@ pub fn lending_account_liquidate(
             &mut marginfi_group.lending_pool,
             &mut liquidator_marginfi_account.lending_account,
         )?,
-        liab_qty,
+        liab_quantity,
     )?;
 
-    // Liquidator receives `asset_qty_liq` amount of collateral
+    // Liquidator receives `asset_quantity_liq` amount of collateral
     BankAccountWrapper::account_deposit(
         &mut BankAccountWrapper::find_or_create(
             asset_bank_index,
             &mut marginfi_group.lending_pool,
             &mut liquidator_marginfi_account.lending_account,
         )?,
-        asset_qty_liq,
+        asset_quantity_liq,
     )?;
 
     // Liquidatee receives liability payment
@@ -338,17 +329,17 @@ pub fn lending_account_liquidate(
             &mut marginfi_group.lending_pool,
             &mut liquidatee_marginfi_account.lending_account,
         )?,
-        liab_qty,
+        liab_quantity,
     )?;
 
-    // Liquidatee pays off `asset_qty_final` amount of collateral
+    // Liquidatee pays off `asset_quantity_final` amount of collateral
     BankAccountWrapper::account_withdraw(
         &mut BankAccountWrapper::find_or_create(
             asset_bank_index,
             &mut marginfi_group.lending_pool,
             &mut liquidatee_marginfi_account.lending_account,
         )?,
-        asset_qty_final,
+        asset_quantity_final,
     )?;
 
     // SPL transfer

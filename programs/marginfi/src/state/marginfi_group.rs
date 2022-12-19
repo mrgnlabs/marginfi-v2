@@ -101,7 +101,6 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
 #[derive(Default)]
 pub struct Bank {
     pub mint_pk: Pubkey,
-    pub mint_decimals: u8,
 
     pub deposit_share_value: I80F48,
     pub liability_share_value: I80F48,
@@ -120,14 +119,12 @@ impl Bank {
     pub fn new(
         config: BankConfig,
         mint_pk: Pubkey,
-        mint_decimals: u8,
         liquidity_vault: Pubkey,
         insurance_vault: Pubkey,
         fee_vault: Pubkey,
     ) -> Bank {
         Bank {
             mint_pk,
-            mint_decimals,
             deposit_share_value: I80F48::ONE,
             liability_share_value: I80F48::ONE,
             liquidity_vault,

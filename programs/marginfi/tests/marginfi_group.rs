@@ -107,7 +107,7 @@ async fn success_add_bank() -> anyhow::Result<()> {
     // Check bank is active
     assert!(marginfi_group
         .lending_pool
-        .get_bank(&bank_asset_mint_fixture.key)
+        .find_bank_by_mint(&bank_asset_mint_fixture.key)
         .is_some());
     assert_eq!(
         marginfi_group
