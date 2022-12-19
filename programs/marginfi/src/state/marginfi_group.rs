@@ -1,11 +1,18 @@
 use std::collections::HashMap;
 
 use crate::{
-    check, constants::PYTH_ID, math_error, prelude::MarginfiError, set_if_some, MarginfiResult,
+    check,
+    constants::{
+        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED, PYTH_ID,
+    },
+    math_error,
+    prelude::MarginfiError,
+    set_if_some, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
-use pyth_sdk_solana::{load_price_feed_from_account_info, state::load_price_account, PriceFeed};
+use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 
 use super::marginfi_account::WeightType;
 
@@ -67,14 +74,14 @@ impl LendingPool {
     pub fn find_bank_by_mint(&self, mint_pk: &Pubkey) -> Option<&Bank> {
         self.banks
             .iter()
-            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint.eq(mint_pk))
+            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint_pk.eq(mint_pk))
             .map(|reserve| reserve.as_ref().unwrap())
     }
 
     pub fn find_bank_by_mint_mut(&mut self, mint_pk: &Pubkey) -> Option<&mut Bank> {
         self.banks
             .iter_mut()
-            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint.eq(mint_pk))
+            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint_pk.eq(mint_pk))
             .map(|reserve| reserve.as_mut().unwrap())
     }
 }
@@ -93,7 +100,7 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
 #[zero_copy]
 #[derive(Default)]
 pub struct Bank {
-    pub mint: Pubkey,
+    pub mint_pk: Pubkey,
 
     pub deposit_share_value: I80F48,
     pub liability_share_value: I80F48,
@@ -117,7 +124,7 @@ impl Bank {
         fee_vault: Pubkey,
     ) -> Bank {
         Bank {
-            mint: mint_pk,
+            mint_pk,
             deposit_share_value: I80F48::ONE,
             liability_share_value: I80F48::ONE,
             liquidity_vault,
@@ -129,13 +136,13 @@ impl Bank {
         }
     }
 
-    pub fn get_liability_value(&self, shares: I80F48) -> MarginfiResult<I80F48> {
+    pub fn get_liability_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
             .checked_mul(self.liability_share_value)
             .ok_or_else(math_error!())?)
     }
 
-    pub fn get_deposit_value(&self, shares: I80F48) -> MarginfiResult<I80F48> {
+    pub fn get_deposit_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
             .checked_mul(self.deposit_share_value)
             .ok_or_else(math_error!())?)
@@ -160,8 +167,8 @@ impl Bank {
             .ok_or_else(math_error!())?;
 
         if shares.is_positive() {
-            let total_shares_value = self.get_deposit_value(self.total_deposit_shares)?;
-            let max_deposit_capacity = self.get_deposit_value(self.config.max_capacity.into())?;
+            let total_shares_value = self.get_deposit_amount(self.total_deposit_shares)?;
+            let max_deposit_capacity = self.get_deposit_amount(self.config.max_capacity.into())?;
 
             check!(
                 total_shares_value < max_deposit_capacity,
@@ -218,7 +225,7 @@ impl Bank {
     derive(Debug, PartialEq, Eq)
 )]
 #[zero_copy]
-#[derive(Default, AnchorDeserialize, AnchorSerialize)]
+#[derive(AnchorDeserialize, AnchorSerialize)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub deposit_weight_init: WrappedI80F48,
@@ -230,6 +237,19 @@ pub struct BankConfig {
     pub max_capacity: u64,
 
     pub pyth_oracle: Pubkey,
+}
+
+impl Default for BankConfig {
+    fn default() -> Self {
+        Self {
+            deposit_weight_init: I80F48::ZERO.into(),
+            deposit_weight_maint: I80F48::ZERO.into(),
+            liability_weight_init: I80F48::ONE.into(),
+            liability_weight_maint: I80F48::ONE.into(),
+            max_capacity: 0,
+            pyth_oracle: Default::default(),
+        }
+    }
 }
 
 impl BankConfig {
@@ -277,4 +297,29 @@ pub struct BankConfigOpt {
     pub max_capacity: Option<u64>,
 
     pub pyth_oracle: Option<Pubkey>,
+}
+
+#[derive(Debug, Clone)]
+pub enum BankVaultType {
+    Liquidity,
+    Insurance,
+    Fee,
+}
+
+impl BankVaultType {
+    pub fn get_seed(self) -> &'static [u8] {
+        match self {
+            BankVaultType::Liquidity => LIQUIDITY_VAULT_SEED,
+            BankVaultType::Insurance => INSURANCE_VAULT_SEED,
+            BankVaultType::Fee => FEE_VAULT_SEED,
+        }
+    }
+
+    pub fn get_authority_seed(self) -> &'static [u8] {
+        match self {
+            BankVaultType::Liquidity => LIQUIDITY_VAULT_AUTHORITY_SEED,
+            BankVaultType::Insurance => INSURANCE_VAULT_AUTHORITY_SEED,
+            BankVaultType::Fee => FEE_VAULT_AUTHORITY_SEED,
+        }
+    }
 }

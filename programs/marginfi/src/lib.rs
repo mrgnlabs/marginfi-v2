@@ -76,14 +76,14 @@ pub mod marginfi {
 
     // User instructions
     pub fn initialize_marginfi_account(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
-        marginfi_account::create(ctx)
+        marginfi_account::initialize(ctx)
     }
 
-    pub fn bank_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiResult {
+    pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
         marginfi_account::bank_deposit(ctx, amount)
     }
 
-    pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> MarginfiResult {
+    pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult {
         marginfi_account::bank_withdraw(ctx, amount)
     }
 

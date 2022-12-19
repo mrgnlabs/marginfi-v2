@@ -1,20 +1,16 @@
-use super::marginfi_group::{
-    load_pyth_price_feed, Bank, LendingPool, MarginfiGroup, WrappedI80F48,
-};
+use super::marginfi_group::{Bank, LendingPool, MarginfiGroup, WrappedI80F48};
 use crate::{
-    check,
-    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
-    math_error,
+    check, math_error,
     prelude::{MarginfiError, MarginfiResult},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use pyth_sdk_solana::{state::PriceAccount, Price, PriceFeed};
+use pyth_sdk_solana::{Price, PriceFeed};
 use std::{
     cmp::{max, min},
-    collections::{hash_map::RandomState, HashMap},
+    collections::HashMap,
 };
 
 #[account(zero_copy)]
@@ -113,7 +109,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             .collect::<Result<Vec<_>>>()
     }
 
-    pub fn get_weighted_assets_and_liabilities(
+    pub fn calc_weighted_assets_and_liabilities_values(
         &self,
         weight_type: WeightType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
@@ -122,12 +118,11 @@ impl<'a> BankAccountWithPriceFeed<'a> {
 
         let deposits_qt = self
             .bank
-            .get_deposit_value(self.balance.deposit_shares.into())?;
+            .get_deposit_amount(self.balance.deposit_shares.into())?;
         let liabilities_qt = self
             .bank
-            .get_deposit_value(self.balance.liability_shares.into())?;
-
-        let (deposit_weight, liability_weight) = self.bank.config.get_weights(weight_type);
+            .get_deposit_amount(self.balance.liability_shares.into())?;
+        let (deposit_weight, liability_weight) = self.bank.config.get_weights(weight_type); // TODO: asset-specific weights
 
         Ok((
             calc_asset_value(deposits_qt, &price, Some(deposit_weight))?,
@@ -146,7 +141,7 @@ pub fn create_pyth_account_map<'a, 'info>(
 
 #[inline]
 pub fn calc_asset_value(
-    asset_qt: I80F48,
+    asset_quantity: I80F48,
     pyth_price: &Price,
     weight: Option<I80F48>,
 ) -> MarginfiResult<I80F48> {
@@ -154,9 +149,9 @@ pub fn calc_asset_value(
     let scaling_factor = EXP_10_I80F48[pyth_price.expo.unsigned_abs() as usize];
 
     let weighted_asset_qt = if let Some(weight) = weight {
-        asset_qt.checked_mul(weight).unwrap()
+        asset_quantity.checked_mul(weight).unwrap()
     } else {
-        asset_qt
+        asset_quantity
     };
 
     let asset_value = weighted_asset_qt
@@ -169,7 +164,7 @@ pub fn calc_asset_value(
 }
 
 #[inline]
-pub fn calc_asset_qty(asset_value: I80F48, pyth_price: &Price) -> MarginfiResult<I80F48> {
+pub fn calc_asset_quantity(asset_value: I80F48, pyth_price: &Price) -> MarginfiResult<I80F48> {
     let price = pyth_price_to_i80f48(pyth_price)?;
     let scaling_factor = EXP_10_I80F48[pyth_price.expo.unsigned_abs() as usize];
 
@@ -221,7 +216,9 @@ impl<'a> RiskEngine<'a> {
         let (total_weighted_assets, total_weighted_liabilities) = self
             .bank_accounts_with_price
             .iter()
-            .map(|a| a.get_weighted_assets_and_liabilities(requirement_type.to_weight_type()))
+            .map(|a| {
+                a.calc_weighted_assets_and_liabilities_values(requirement_type.to_weight_type())
+            })
             .try_fold((I80F48::ZERO, I80F48::ZERO), |(ta, tl), res| {
                 let (assets, liabilities) = res?;
                 let total_assets_sum = ta.checked_add(assets).ok_or_else(math_error!())?;
@@ -230,6 +227,11 @@ impl<'a> RiskEngine<'a> {
 
                 Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
             })?;
+
+        println!(
+            "assets {} - liabs: {}",
+            total_weighted_assets, total_weighted_liabilities
+        );
 
         check!(
             total_weighted_assets > total_weighted_liabilities,
@@ -248,6 +250,23 @@ pub struct LendingAccount {
 }
 
 impl LendingAccount {
+    pub fn get_balance(&self, mint_pk: &Pubkey, banks: &[Option<Bank>]) -> Option<&Balance> {
+        self.balances
+            .iter()
+            .find(|balance| match balance {
+                Some(balance) => {
+                    let bank = banks[balance.bank_index as usize];
+
+                    match bank {
+                        Some(bank) => bank.mint_pk.eq(mint_pk),
+                        None => false,
+                    }
+                }
+                None => false,
+            })
+            .map(|balance| balance.as_ref().unwrap())
+    }
+
     pub fn get_first_empty_balance(&self) -> Option<usize> {
         self.balances.iter().position(|b| b.is_none())
     }
@@ -301,7 +320,7 @@ impl<'a> BankAccountWrapper<'a> {
             .iter_mut()
             .enumerate()
             .filter(|(_, b)| b.is_some())
-            .find(|(_, b)| b.unwrap().mint == mint)
+            .find(|(_, b)| b.unwrap().mint_pk == mint)
             .ok_or_else(|| error!(MarginfiError::BankNotFound))?;
 
         // Find the user lending account balance by `bank_index`.
@@ -312,7 +331,7 @@ impl<'a> BankAccountWrapper<'a> {
 
         let balance = if let Some(index) = balance_index {
             lending_account
-                .balances
+                .balances // active_balances?
                 .get_mut(index)
                 .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceNotFound))?
         } else {
@@ -386,7 +405,7 @@ impl<'a> BankAccountWrapper<'a> {
 
         let liability_shares: I80F48 = balance.liability_shares.into();
 
-        let liability_value = bank.get_liability_value(liability_shares)?;
+        let liability_value = bank.get_liability_amount(liability_shares)?;
 
         let (deposit_value_delta, liability_replay_value_delta) = (
             max(
@@ -426,7 +445,7 @@ impl<'a> BankAccountWrapper<'a> {
 
         let deposit_shares: I80F48 = balance.deposit_shares.into();
 
-        let deposit_value = bank.get_deposit_value(deposit_shares)?;
+        let deposit_value = bank.get_deposit_amount(deposit_shares)?;
 
         let (deposit_remove_value_delta, liability_value_delta) = (
             min(deposit_value, amount),
@@ -454,7 +473,7 @@ impl<'a> BankAccountWrapper<'a> {
         Ok(())
     }
 
-    pub fn deposit_transfer<'b: 'c, 'c: 'b>(
+    pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
         &self,
         amount: u64,
         accounts: Transfer<'b>,

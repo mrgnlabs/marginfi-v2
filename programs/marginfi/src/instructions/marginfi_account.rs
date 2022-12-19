@@ -1,4 +1,5 @@
 use crate::{
+    bank_signer,
     constants::{
         INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
         LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
@@ -6,17 +7,17 @@ use crate::{
     prelude::MarginfiResult,
     state::{
         marginfi_account::{
-            calc_asset_qty, calc_asset_value, create_pyth_account_map, BankAccountWrapper,
+            calc_asset_quantity, calc_asset_value, create_pyth_account_map, BankAccountWrapper,
             MarginfiAccount, RiskEngine, RiskRequirementType,
         },
-        marginfi_group::MarginfiGroup,
+        marginfi_group::{BankVaultType, MarginfiGroup},
     },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
 
-pub fn create(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
+pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
     let margin_account = &mut ctx.accounts.marginfi_account.load_init()?;
     let InitializeMarginfiAccount {
         signer,
@@ -44,8 +45,8 @@ pub struct InitializeMarginfiAccount<'info> {
 /// 1. Add collateral to the margin accounts lending account
 ///     - Create a bank account if it doesn't exist for the deposited asset
 /// 2. Transfer collateral from signer to bank liquidity vault
-pub fn bank_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiResult {
-    let LendingPoolDeposit {
+pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
+    let BankDeposit {
         marginfi_group,
         marginfi_account,
         signer,
@@ -65,7 +66,7 @@ pub fn bank_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiRe
     )?;
 
     bank_account.account_deposit(I80F48::from_num(amount))?;
-    bank_account.deposit_transfer(
+    bank_account.deposit_spl_transfer(
         amount,
         Transfer {
             from: signer_token_account.to_account_info(),
@@ -79,7 +80,7 @@ pub fn bank_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiRe
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolDeposit<'info> {
+pub struct BankDeposit<'info> {
     #[account(
         mut,
         address = marginfi_account.load()?.group
@@ -119,15 +120,15 @@ pub struct LendingPoolDeposit<'info> {
 ///     - Create a bank account if it doesn't exist for the deposited asset
 /// 2. Transfer collateral from bank liquidity vault to signer
 /// 3. Verify that the users account is in a healthy state
-pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> MarginfiResult {
-    let LendingPoolWithdraw {
+pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult {
+    let BankWithdraw {
         marginfi_group: marginfi_group_loader,
         marginfi_account,
-        signer,
         asset_mint,
-        signer_token_account,
+        destination_token_account,
         bank_liquidity_vault,
         token_program,
+        bank_liquidity_vault_authority,
         ..
     } = ctx.accounts;
 
@@ -145,16 +146,16 @@ pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> Marginfi
         amount,
         Transfer {
             from: bank_liquidity_vault.to_account_info(),
-            to: signer_token_account.to_account_info(),
-            authority: signer.to_account_info(),
+            to: destination_token_account.to_account_info(),
+            authority: bank_liquidity_vault_authority.to_account_info(),
         },
         token_program.to_account_info(),
-        &[&[
-            LIQUIDITY_VAULT_AUTHORITY_SEED.as_ref(),
-            asset_mint.key().as_ref(),
-            marginfi_group_loader.key().as_ref(),
-            &[*ctx.bumps.get("bank_liquidity_vault_authority").unwrap()],
-        ]],
+        bank_signer!(
+            BankVaultType::Liquidity,
+            asset_mint.key(),
+            marginfi_group_loader.key(),
+            *ctx.bumps.get("bank_liquidity_vault_authority").unwrap()
+        ),
     )?;
 
     // // Check account health, if below threshold fail transaction
@@ -166,7 +167,7 @@ pub fn bank_withdraw(ctx: Context<LendingPoolWithdraw>, amount: u64) -> Marginfi
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolWithdraw<'info> {
+pub struct BankWithdraw<'info> {
     #[account(
         mut,
         address = marginfi_account.load()?.group
@@ -181,7 +182,7 @@ pub struct LendingPoolWithdraw<'info> {
     pub signer: Signer<'info>,
     pub asset_mint: Account<'info, Mint>,
     #[account(mut)]
-    pub signer_token_account: Account<'info, TokenAccount>,
+    pub destination_token_account: Account<'info, TokenAccount>,
     #[account(
         mut,
         seeds = [
@@ -242,7 +243,7 @@ pub struct LendingPoolWithdraw<'info> {
 pub fn lending_account_liquidate(
     ctx: Context<LendingAccountLiquidate>,
     asset_bank_index: u16,
-    asset_qty_final: u64,
+    asset_quantity_final: u64,
     liab_bank_index: u16,
 ) -> MarginfiResult {
     let LendingAccountLiquidate {
@@ -254,7 +255,7 @@ pub fn lending_account_liquidate(
 
     let marginfi_group = &mut marginfi_group_loader.load_mut()?;
     let pyth_account_map = create_pyth_account_map(ctx.remaining_accounts)?;
-    let asset_qty_final = I80F48::from_num(asset_qty_final);
+    let asset_quantity_final = I80F48::from_num(asset_quantity_final);
 
     let asset_price = {
         let asset_bank = marginfi_group
@@ -278,25 +279,25 @@ pub fn lending_account_liquidate(
             .as_ref()
             .unwrap();
 
-        let liab_pf = liab_bank.load_price_feed(&pyth_account_map)?;
+        let liab_price_feed = liab_bank.load_price_feed(&pyth_account_map)?;
         // TODO: Check price expiration and confidence
-        (liab_pf.get_price_unchecked(), liab_bank.mint)
+        (liab_price_feed.get_price_unchecked(), liab_bank.mint_pk)
     };
 
     let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
     let liquidator_discount = I80F48::ONE - LIQUIDATION_LIQUIDATOR_FEE;
 
     // Quantity of liability to be paid off by liquidator
-    let liab_qty = calc_asset_qty(
-        calc_asset_value(asset_qty_final, &asset_price, Some(final_discount))?,
+    let liab_quantity = calc_asset_quantity(
+        calc_asset_value(asset_quantity_final, &asset_price, Some(final_discount))?,
         &liab_price,
     )?;
 
     // Quantity of collateral to be received by liquidator
-    let asset_qty_liq = (asset_qty_final * final_discount) / liquidator_discount;
+    let asset_quantity_liq = (asset_quantity_final * final_discount) / liquidator_discount;
 
     // Accounting changes
-    let insurance_fund_fee = (asset_qty_final - asset_qty_liq).to_num();
+    let insurance_fund_fee = (asset_quantity_final - asset_quantity_liq).to_num();
 
     let mut liquidator_marginfi_account = liquidator_marginfi_account.load_mut()?;
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account.load_mut()?;
@@ -308,17 +309,17 @@ pub fn lending_account_liquidate(
             &mut marginfi_group.lending_pool,
             &mut liquidator_marginfi_account.lending_account,
         )?,
-        liab_qty,
+        liab_quantity,
     )?;
 
-    // Liquidator receives `asset_qty_liq` amount of collateral
+    // Liquidator receives `asset_quantity_liq` amount of collateral
     BankAccountWrapper::account_deposit(
         &mut BankAccountWrapper::find_or_create(
             asset_bank_index,
             &mut marginfi_group.lending_pool,
             &mut liquidator_marginfi_account.lending_account,
         )?,
-        asset_qty_liq,
+        asset_quantity_liq,
     )?;
 
     // Liquidatee receives liability payment
@@ -328,17 +329,17 @@ pub fn lending_account_liquidate(
             &mut marginfi_group.lending_pool,
             &mut liquidatee_marginfi_account.lending_account,
         )?,
-        liab_qty,
+        liab_quantity,
     )?;
 
-    // Liquidatee pays off `asset_qty_final` amount of collateral
+    // Liquidatee pays off `asset_quantity_final` amount of collateral
     BankAccountWrapper::account_withdraw(
         &mut BankAccountWrapper::find_or_create(
             asset_bank_index,
             &mut marginfi_group.lending_pool,
             &mut liquidatee_marginfi_account.lending_account,
         )?,
-        asset_qty_final,
+        asset_quantity_final,
     )?;
 
     // SPL transfer
@@ -394,7 +395,7 @@ pub struct LendingAccountLiquidate<'info> {
         mut,
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED,
-            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint.as_ref(),
+            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint_pk.as_ref(),
             marginfi_group.key().as_ref()
         ],
         bump
@@ -404,7 +405,7 @@ pub struct LendingAccountLiquidate<'info> {
         mut,
         seeds = [
             LIQUIDITY_VAULT_SEED,
-            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint.as_ref(),
+            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint_pk.as_ref(),
             marginfi_group.key().as_ref()
         ],
         bump
@@ -414,7 +415,7 @@ pub struct LendingAccountLiquidate<'info> {
         mut,
         seeds = [
             INSURANCE_VAULT_SEED,
-            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint.as_ref(),
+            marginfi_group.load()?.lending_pool.banks[asset_bank_index as usize].unwrap().mint_pk.as_ref(),
             marginfi_group.key().as_ref()
         ],
         bump
