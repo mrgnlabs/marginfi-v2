@@ -413,10 +413,10 @@ fn calc_interest_rate_accrual_state_changes(
         interest_rate_config.calc_interest_rate(utilization_rate)?;
 
     Some((
-        accrue_interest_for_period(lending_apr, time_delta, deposit_share_value)?,
-        accrue_interest_for_period(borrowing_apr, time_delta, liability_share_value)?,
-        accrue_interest_for_period(group_fee_apr, time_delta, total_liabilities)?,
-        accrue_interest_for_period(insurance_fee_apr, time_delta, total_liabilities)?,
+        calc_accrued_interest_payment_per_period(lending_apr, time_delta, deposit_share_value)?,
+        calc_accrued_interest_payment_per_period(borrowing_apr, time_delta, liability_share_value)?,
+        calc_interest_payment_for_period(group_fee_apr, time_delta, total_liabilities)?,
+        calc_interest_payment_for_period(insurance_fee_apr, time_delta, total_liabilities)?,
     ))
 }
 
@@ -428,7 +428,11 @@ fn calc_fee_rate(base_rate: I80F48, rate_fees: I80F48, fixed_fees: I80F48) -> Op
     base_rate.checked_mul(rate_fees)?.checked_add(fixed_fees)
 }
 
-fn accrue_interest_for_period(apr: I80F48, time_delta: u64, value: I80F48) -> Option<I80F48> {
+fn calc_accrued_interest_payment_per_period(
+    apr: I80F48,
+    time_delta: u64,
+    value: I80F48,
+) -> Option<I80F48> {
     let ir_per_second = apr.checked_div(SECONDS_PER_YEAR)?;
     let new_value = value.checked_mul(
         I80F48::ONE
@@ -437,6 +441,14 @@ fn accrue_interest_for_period(apr: I80F48, time_delta: u64, value: I80F48) -> Op
     )?;
 
     Some(new_value)
+}
+
+fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48) -> Option<I80F48> {
+    let ir_per_second = apr.checked_div(SECONDS_PER_YEAR)?;
+    let interest_payment = value
+        .checked_mul(ir_per_second)?
+        .checked_mul(time_delta.into())?;
+    Some(interest_payment)
 }
 
 #[cfg_attr(
