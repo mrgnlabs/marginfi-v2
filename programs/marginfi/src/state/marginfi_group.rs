@@ -117,6 +117,9 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
 #[derive(Default)]
 pub struct InterestRateConfig {
     // Curve Params
+    pub optimal_utilization_rate: WrappedI80F48,
+    pub plateau_interest_rate: WrappedI80F48,
+    pub max_interest_rate: WrappedI80F48,
 
     // Fees
     pub insurance_fee_fixed_apr: WrappedI80F48,
@@ -128,6 +131,8 @@ pub struct InterestRateConfig {
 impl InterestRateConfig {
     /// Return interest rate charged to borrowers and to depositors.
     /// Rate is denominated in APR (0-).
+    ///
+    /// Return (`lending_rate`, `borrowing_rate`, `group_fees_apr`, `insurance_fees_apr`)
     pub fn calc_interest_rate(
         &self,
         utilization_ratio: I80F48,
@@ -169,9 +174,25 @@ impl InterestRateConfig {
         ))
     }
 
-    /// TODO: Settle on a curve
-    fn interest_rate_curve(&self, _ur: I80F48) -> Option<I80F48> {
-        unimplemented!()
+    /// Piecewise linear interest rate function.
+    /// The curves approaches the `plateau_interest_rate` as the utilization ratio approaches the `optimal_utilization_rate`,
+    /// once the utilization ratio exceeds the `optimal_utilization_rate`, the curve approaches the `max_interest_rate`.
+    ///
+    /// To be clear we don't particularly appreciate the piecewise linear nature of this "curve", but it is what it is.
+    #[inline]
+    fn interest_rate_curve(&self, ur: I80F48) -> Option<I80F48> {
+        let optimal_ur = self.optimal_utilization_rate.into();
+        let plateu_ur = self.plateau_interest_rate.into();
+        let max_ur: I80F48 = self.max_interest_rate.into();
+
+        if ur <= optimal_ur {
+            ur.checked_div(optimal_ur)?.checked_mul(plateu_ur)
+        } else {
+            (optimal_ur - ur)
+                .checked_div(I80F48::ONE - optimal_ur)?
+                .checked_mul(max_ur - plateu_ur)?
+                .checked_add(plateu_ur)
+        }
     }
 }
 
@@ -654,5 +675,25 @@ mod tests {
             I80F48!(1_000_000.0038),
             I80F48!(0.001)
         );
+    }
+
+    #[test]
+    /// ur: 0
+    /// protocol_fixed_fee: 0.01
+    fn ir_config_calc_interest_rate_pff_01() {
+        let config = InterestRateConfig {
+            optimal_utilization_rate: I80F48!(0.6).into(),
+            plateau_interest_rate: I80F48!(0.40).into(),
+            protocol_fixed_fee_apr: I80F48!(0.01).into(),
+            ..Default::default()
+        };
+
+        let (lending_apr, borrow_apr, group_fees_apr, insurance_apr) =
+            config.calc_interest_rate(I80F48!(0)).unwrap();
+
+        assert_eq_with_tolerance!(lending_apr, I80F48!(0), I80F48!(0.001));
+        assert_eq_with_tolerance!(borrow_apr, I80F48!(0.01), I80F48!(0.001));
+        assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
+        assert_eq_with_tolerance!(insurance_apr, I80F48!(0), I80F48!(0.001));
     }
 }
