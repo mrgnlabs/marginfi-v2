@@ -1,5 +1,5 @@
 use crate::{
-    bank_seed, bank_signer, check,
+    bank_signer, check,
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
@@ -77,7 +77,7 @@ pub fn lending_pool_add_bank(
         MarginfiError::BankAlreadyExists
     );
 
-    load_pyth_price_feed(&pyth_oracle)?;
+    load_pyth_price_feed(pyth_oracle)?;
 
     let bank = Bank::new(
         bank_config,
@@ -234,7 +234,7 @@ pub fn interest(ctx: Context<Interest>, bank_index: u16) -> MarginfiResult {
 
     let clock = Clock::get()?;
     let mut marginfi_group = marginfi_group_loader.load_mut()?;
-    let mut bank = marginfi_group
+    let bank = marginfi_group
         .lending_pool
         .get_initialized_bank_mut(bank_index)?;
 

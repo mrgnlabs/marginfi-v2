@@ -4,7 +4,7 @@ use crate::{
     prelude::{MarginfiError, MarginfiResult},
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, Transfer};
+use anchor_spl::token::{Transfer};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use pyth_sdk_solana::{Price, PriceFeed};

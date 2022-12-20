@@ -170,7 +170,7 @@ impl InterestRateConfig {
     }
 
     /// TODO: Settle on a curve
-    fn interest_rate_curve(&self, ur: I80F48) -> Option<I80F48> {
+    fn interest_rate_curve(&self, _ur: I80F48) -> Option<I80F48> {
         unimplemented!()
     }
 }
@@ -301,7 +301,7 @@ impl Bank {
     ) -> MarginfiResult<PriceFeed> {
         let pyth_account = pyth_account_map
             .get(&self.config.pyth_oracle)
-            .ok_or_else(|| MarginfiError::MissingPythAccount)?;
+            .ok_or(MarginfiError::MissingPythAccount)?;
 
         Ok(load_price_feed_from_account_info(pyth_account)
             .map_err(|_| MarginfiError::InvalidPythAccount)?)
@@ -325,13 +325,13 @@ impl Bank {
             total_deposits,
             total_liabilities,
             &self.interest_rate_config,
-            self.deposit_share_value.into(),
-            self.liability_share_value.into(),
+            self.deposit_share_value,
+            self.liability_share_value,
         )
         .ok_or_else(math_error!())?;
 
-        self.deposit_share_value = deposit_share_value.into();
-        self.liability_share_value = liability_share_value.into();
+        self.deposit_share_value = deposit_share_value;
+        self.liability_share_value = liability_share_value;
         self.last_update = clock.unix_timestamp;
 
         Ok((
