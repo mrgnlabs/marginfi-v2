@@ -127,23 +127,46 @@ pub struct InterestRateConfig {
 
 impl InterestRateConfig {
     /// Return interest rate charged to borrowers and to depositors.
-    pub fn calc_interest_rate(&self, utilization_ratio: I80F48) -> Option<(I80F48, I80F48)> {
+    /// Rate is denominated in APR (0-).
+    pub fn calc_interest_rate(
+        &self,
+        utilization_ratio: I80F48,
+    ) -> Option<(I80F48, I80F48, I80F48, I80F48)> {
         let protocol_ir_fee = I80F48::from(self.protocol_ir_fee);
         let insurance_ir_fee = I80F48::from(self.insurance_ir_fee);
 
         let protocol_fixed_fee_apr = I80F48::from(self.protocol_fixed_fee_apr);
         let insurance_fee_fixed_apr = I80F48::from(self.insurance_fee_fixed_apr);
 
-        let total_ir_fee = protocol_ir_fee + insurance_ir_fee;
+        let rate_fee = protocol_ir_fee + insurance_ir_fee;
         let total_fixed_fee_apr = protocol_fixed_fee_apr + insurance_fee_fixed_apr;
 
-        let ir = self.interest_rate_curve(utilization_ratio)?;
-        let lending_ir = ir;
-        let borrowing_ir = ir
-            .checked_mul(I80F48::ONE.checked_add(total_ir_fee)?)?
+        let base_rate = self.interest_rate_curve(utilization_ratio)?;
+
+        let lending_rate = base_rate.checked_mul(utilization_ratio)?;
+
+        let borrowing_rate = base_rate
+            .checked_mul(I80F48::ONE.checked_add(rate_fee)?)?
             .checked_add(total_fixed_fee_apr)?;
 
-        Some((lending_ir, borrowing_ir))
+        let group_fees_apr = calc_fee_rate(
+            base_rate,
+            self.protocol_ir_fee.into(),
+            self.protocol_fixed_fee_apr.into(),
+        )?;
+
+        let insurance_fees_apr = calc_fee_rate(
+            base_rate,
+            self.insurance_ir_fee.into(),
+            self.insurance_fee_fixed_apr.into(),
+        )?;
+
+        Some((
+            lending_rate,
+            borrowing_rate,
+            group_fees_apr,
+            insurance_fees_apr,
+        ))
     }
 
     /// TODO: Settle on a curve
@@ -291,50 +314,30 @@ impl Bank {
 
         let total_deposits = self.get_deposit_amount(self.total_deposit_shares)?;
         let total_liabilities = self.get_liability_amount(self.total_borrow_shares)?;
-        let utilization_rate = {
-            total_deposits
-                .checked_div(total_liabilities)
-                .ok_or_else(math_error!())?
-        };
 
-        let (borrowing_apr, depositing_apr) = self
-            .interest_rate_config
-            .calc_interest_rate(utilization_rate)
-            .ok_or_else(math_error!())?;
+        let (
+            deposit_share_value,
+            liability_share_value,
+            group_fees_collected,
+            insurance_fees_collected,
+        ) = calc_interest_rate_accrual_state_changes(
+            time_delta,
+            total_deposits,
+            total_liabilities,
+            &self.interest_rate_config,
+            self.deposit_share_value.into(),
+            self.liability_share_value.into(),
+        )
+        .ok_or_else(math_error!())?;
 
-        self.deposit_share_value =
-            accrue_interest(depositing_apr, time_delta, self.deposit_share_value.into())?.into();
-        self.liability_share_value =
-            accrue_interest(borrowing_apr, time_delta, self.liability_share_value.into())?.into();
+        self.deposit_share_value = deposit_share_value.into();
+        self.liability_share_value = liability_share_value.into();
+        self.last_update = clock.unix_timestamp;
 
-        let total_group_fees = {
-            let group_dynamic_fee: I80F48 = self.interest_rate_config.protocol_ir_fee.into();
-            let group_fixed_fee: I80F48 = self.interest_rate_config.protocol_fixed_fee_apr.into();
-
-            let group_fee_apr = borrowing_apr
-                .checked_mul(group_dynamic_fee)
-                .ok_or_else(math_error!())?
-                .checked_add(group_fixed_fee)
-                .ok_or_else(math_error!())?;
-
-            accrue_interest(group_fee_apr, time_delta, total_liabilities)?
-        };
-
-        let total_protocol_fees = {
-            let protocol_dynamic_fee: I80F48 = self.interest_rate_config.protocol_ir_fee.into();
-            let protocol_fixed_fee: I80F48 =
-                self.interest_rate_config.protocol_fixed_fee_apr.into();
-
-            let protocol_fee_apr = borrowing_apr
-                .checked_mul(protocol_dynamic_fee)
-                .ok_or_else(math_error!())?
-                .checked_add(protocol_fixed_fee)
-                .ok_or_else(math_error!())?;
-
-            accrue_interest(protocol_fee_apr, time_delta, total_group_fees)?
-        };
-
-        Ok((total_group_fees.to_num(), total_protocol_fees.to_num()))
+        Ok((
+            group_fees_collected.to_num(),
+            insurance_fees_collected.to_num(),
+        ))
     }
 
     pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
@@ -370,19 +373,70 @@ impl Bank {
     }
 }
 
-fn accrue_interest(apr: I80F48, time_delta: u64, value: I80F48) -> MarginfiResult<I80F48> {
-    let ir_per_second = apr
-        .checked_div(SECONDS_PER_YEAR)
-        .ok_or_else(math_error!())?;
-    let new_value = value
-        .checked_mul(
-            ir_per_second
-                .checked_mul(time_delta.into())
-                .ok_or_else(math_error!())?,
-        )
-        .ok_or_else(math_error!())?;
+/// We use a simple interest rate model that auto settles the accrued interest into the lending account balances.
+/// The plan is to move to a compound interest model in the future.
+///
+/// Simple interest rate model:
+/// - `P` - principal
+/// - `i` - interest rate (per second)
+/// - `t` - time (in seconds)
+///
+/// `P_t = P_0 * (1 + i) * t`
+///
+/// We use two interest rates, one for lending and one for borrowing.
+///
+/// Lending interest rate:
+/// - `i_l` - lending interest rate
+/// - `i` - base interest rate
+/// - `ur` - utilization rate
+///
+/// `i_l` = `i` * `ur`
+///
+/// Borrowing interest rate:
+/// - `i_b` - borrowing interest rate
+/// - `i` - base interest rate
+/// - `f_i` - interest rate fee
+/// - `f_f` - fixed fee
+///
+/// `i_b = i * (1 + f_i) + f_f`
+///
+fn calc_interest_rate_accrual_state_changes(
+    time_delta: u64,
+    total_deposits: I80F48,
+    total_liabilities: I80F48,
+    interest_rate_config: &InterestRateConfig,
+    deposit_share_value: I80F48,
+    liability_share_value: I80F48,
+) -> Option<(I80F48, I80F48, I80F48, I80F48)> {
+    let utilization_rate = total_liabilities.checked_div(total_deposits)?;
+    let (borrowing_apr, lending_apr, group_fee_apr, insurance_fee_apr) =
+        interest_rate_config.calc_interest_rate(utilization_rate)?;
 
-    Ok(new_value)
+    Some((
+        accrue_interest_for_period(lending_apr, time_delta, deposit_share_value)?,
+        accrue_interest_for_period(borrowing_apr, time_delta, liability_share_value)?,
+        accrue_interest_for_period(group_fee_apr, time_delta, total_liabilities)?,
+        accrue_interest_for_period(insurance_fee_apr, time_delta, total_liabilities)?,
+    ))
+}
+
+/// Calculates the fee rate for a given base rate and fees specified.
+/// The returned rate is only the fee rate without the base rate.
+///
+/// Used for calculating the fees charged to the borrowers.
+fn calc_fee_rate(base_rate: I80F48, rate_fees: I80F48, fixed_fees: I80F48) -> Option<I80F48> {
+    base_rate.checked_mul(rate_fees)?.checked_add(fixed_fees)
+}
+
+fn accrue_interest_for_period(apr: I80F48, time_delta: u64, value: I80F48) -> Option<I80F48> {
+    let ir_per_second = apr.checked_div(SECONDS_PER_YEAR)?;
+    let new_value = value.checked_mul(
+        I80F48::ONE
+            .checked_add(ir_per_second)?
+            .checked_mul(time_delta.into())?,
+    )?;
+
+    Some(new_value)
 }
 
 #[cfg_attr(
