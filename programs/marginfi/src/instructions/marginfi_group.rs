@@ -1,17 +1,18 @@
 use crate::{
-    check,
+    bank_seed, bank_signer, check,
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     prelude::MarginfiError,
     state::marginfi_group::{
-        load_pyth_price_feed, Bank, BankConfig, BankConfigOpt, GroupConfig, MarginfiGroup,
+        load_pyth_price_feed, Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig,
+        MarginfiGroup,
     },
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount};
+use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 
 pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_init()?;
@@ -84,6 +85,7 @@ pub fn lending_pool_add_bank(
         liquidity_vault.key(),
         insurance_vault.key(),
         fee_vault.key(),
+        Clock::get()?.unix_timestamp,
     );
 
     marginfi_group.lending_pool.banks[bank_index as usize] = Some(bank);
@@ -218,4 +220,111 @@ pub struct LendingPoolConfigureBank<'info> {
     /// Set only if pyth oracle is being changed otherwise can be a random account.
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     pub pyth_oracle: UncheckedAccount<'info>,
+}
+
+pub fn interest(ctx: Context<Interest>, bank_index: u16) -> MarginfiResult {
+    let Interest {
+        liquidity_vault_authority,
+        insurance_vault,
+        fee_vault,
+        token_program,
+        marginfi_group: marginfi_group_loader,
+        liquidity_vault,
+    } = &ctx.accounts;
+
+    let clock = Clock::get()?;
+    let mut marginfi_group = marginfi_group_loader.load_mut()?;
+    let mut bank = marginfi_group
+        .lending_pool
+        .get_initialized_bank_mut(bank_index)?;
+
+    let (protocol_fee, insurance_fee) = bank.accrue_interest(&clock)?;
+
+    let liq_vault_bump = *ctx.bumps.get("bank_liquidity_vault_authority").unwrap();
+
+    bank.withdraw_spl_transfer(
+        protocol_fee,
+        Transfer {
+            from: liquidity_vault.to_account_info(),
+            to: fee_vault.to_account_info(),
+            authority: liquidity_vault_authority.to_account_info(),
+        },
+        token_program.to_account_info(),
+        bank_signer!(
+            BankVaultType::Liquidity,
+            bank.mint_pk.key(),
+            marginfi_group_loader.key(),
+            liq_vault_bump
+        ),
+    )?;
+
+    bank.withdraw_spl_transfer(
+        insurance_fee,
+        Transfer {
+            from: liquidity_vault.to_account_info(),
+            to: insurance_vault.to_account_info(),
+            authority: liquidity_vault_authority.to_account_info(),
+        },
+        token_program.to_account_info(),
+        bank_signer!(
+            BankVaultType::Liquidity,
+            bank.mint_pk.key(),
+            marginfi_group_loader.key(),
+            liq_vault_bump
+        ),
+    )?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+#[instruction(bank_index: u16)]
+pub struct Interest<'info> {
+    #[account(mut)]
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    #[account(
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump
+    )]
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    pub liquidity_vault_authority: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_SEED,
+            marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump
+    )]
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    pub liquidity_vault: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [
+            INSURANCE_VAULT_SEED,
+            marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump
+    )]
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    pub insurance_vault: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [
+            FEE_VAULT_SEED,
+            marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
+            marginfi_group.key().as_ref(),
+        ],
+        bump
+    )]
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    pub fee_vault: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
 }

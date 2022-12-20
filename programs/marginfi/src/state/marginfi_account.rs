@@ -479,12 +479,7 @@ impl<'a> BankAccountWrapper<'a> {
         accounts: Transfer<'b>,
         program: AccountInfo<'c>,
     ) -> MarginfiResult {
-        check!(
-            accounts.to.key.eq(&self.bank.liquidity_vault),
-            MarginfiError::InvalidTransfer
-        );
-
-        transfer(CpiContext::new(program, accounts), amount)
+        self.bank.deposit_spl_transfer(amount, accounts, program)
     }
 
     pub fn withdraw_spl_transfer<'b: 'c, 'c: 'b>(
@@ -494,14 +489,7 @@ impl<'a> BankAccountWrapper<'a> {
         program: AccountInfo<'c>,
         signer_seeds: &[&[&[u8]]],
     ) -> MarginfiResult {
-        check!(
-            accounts.from.key.eq(&self.bank.liquidity_vault),
-            MarginfiError::InvalidTransfer
-        );
-
-        transfer(
-            CpiContext::new_with_signer(program, accounts, signer_seeds),
-            amount,
-        )
+        self.bank
+            .withdraw_spl_transfer(amount, accounts, program, signer_seeds)
     }
 }
