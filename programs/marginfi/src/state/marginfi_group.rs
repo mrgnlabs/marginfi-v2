@@ -187,16 +187,16 @@ impl InterestRateConfig {
     #[inline]
     fn interest_rate_curve(&self, ur: I80F48) -> Option<I80F48> {
         let optimal_ur = self.optimal_utilization_rate.into();
-        let plateau_ur = self.plateau_interest_rate.into();
-        let max_ur: I80F48 = self.max_interest_rate.into();
+        let plateau_ir = self.plateau_interest_rate.into();
+        let max_ir: I80F48 = self.max_interest_rate.into();
 
         if ur <= optimal_ur {
-            ur.checked_div(optimal_ur)?.checked_mul(plateau_ur)
+            ur.checked_div(optimal_ur)?.checked_mul(plateau_ir)
         } else {
             (ur - optimal_ur)
                 .checked_div(I80F48::ONE - optimal_ur)?
-                .checked_mul(max_ur - plateau_ur)?
-                .checked_add(plateau_ur)
+                .checked_mul(max_ir - plateau_ir)?
+                .checked_add(plateau_ir)
         }
     }
 }
