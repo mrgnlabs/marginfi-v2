@@ -45,6 +45,8 @@ assert_cfg!(
 /// - `accrue_interest` - Accrues interest for a reserve.
 #[program]
 pub mod marginfi {
+    use crate::instruction::BankAccrueInterest;
+
     use super::*;
 
     pub fn initialize_marginfi_group(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
@@ -99,5 +101,13 @@ pub mod marginfi {
             asset_amount,
             liab_bank_index,
         )
+    }
+
+    // Operational instructions
+    pub fn bank_accrue_interest(
+        ctx: Context<LendingPoolBankAccrueInterest>,
+        bank_index: u16,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_bank_accrue_interest(ctx, bank_index)
     }
 }

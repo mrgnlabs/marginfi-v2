@@ -222,8 +222,11 @@ pub struct LendingPoolConfigureBank<'info> {
     pub pyth_oracle: UncheckedAccount<'info>,
 }
 
-pub fn interest(ctx: Context<Interest>, bank_index: u16) -> MarginfiResult {
-    let Interest {
+pub fn lending_pool_bank_accrue_interest(
+    ctx: Context<LendingPoolBankAccrueInterest>,
+    bank_index: u16,
+) -> MarginfiResult {
+    let LendingPoolBankAccrueInterest {
         liquidity_vault_authority,
         insurance_vault,
         fee_vault,
@@ -240,7 +243,9 @@ pub fn interest(ctx: Context<Interest>, bank_index: u16) -> MarginfiResult {
 
     let (protocol_fee, insurance_fee) = bank.accrue_interest(&clock)?;
 
-    let liq_vault_bump = *ctx.bumps.get("bank_liquidity_vault_authority").unwrap();
+    let liq_vault_bump = *ctx.bumps.get("liquidity_vault_authority").unwrap();
+
+    msg!("Protocol fee: {}", protocol_fee);
 
     bank.withdraw_spl_transfer(
         protocol_fee,
@@ -257,6 +262,8 @@ pub fn interest(ctx: Context<Interest>, bank_index: u16) -> MarginfiResult {
             liq_vault_bump
         ),
     )?;
+
+    msg!("Insurance fee: {}", insurance_fee);
 
     bank.withdraw_spl_transfer(
         insurance_fee,
@@ -279,7 +286,7 @@ pub fn interest(ctx: Context<Interest>, bank_index: u16) -> MarginfiResult {
 
 #[derive(Accounts)]
 #[instruction(bank_index: u16)]
-pub struct Interest<'info> {
+pub struct LendingPoolBankAccrueInterest<'info> {
     #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
     #[account(

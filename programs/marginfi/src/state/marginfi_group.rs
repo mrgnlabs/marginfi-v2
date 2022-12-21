@@ -114,7 +114,7 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     derive(Debug, PartialEq, Eq)
 )]
 #[zero_copy]
-#[derive(Default)]
+#[derive(Default, AnchorDeserialize, AnchorSerialize)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -148,8 +148,11 @@ impl InterestRateConfig {
 
         let base_rate = self.interest_rate_curve(utilization_ratio)?;
 
+        // Lending rate is adjusted for utilization ratio to symmetrize payments between borrowers and depositors.
         let lending_rate = base_rate.checked_mul(utilization_ratio)?;
 
+        // Borrowing rate is adjusted for fees.
+        // borrowing_rate = base_rate + base_rate * rate_fee + total_fixed_fee_apr
         let borrowing_rate = base_rate
             .checked_mul(I80F48::ONE.checked_add(rate_fee)?)?
             .checked_add(total_fixed_fee_apr)?;
@@ -223,7 +226,6 @@ pub struct Bank {
     pub total_deposit_shares: I80F48,
 
     pub last_update: i64,
-    pub interest_rate_config: InterestRateConfig,
 }
 
 impl Bank {
@@ -246,7 +248,6 @@ impl Bank {
             total_borrow_shares: I80F48::ZERO,
             total_deposit_shares: I80F48::ZERO,
             last_update: current_timestamp,
-            interest_rate_config: InterestRateConfig::default(),
         }
     }
 
@@ -352,7 +353,7 @@ impl Bank {
             time_delta,
             total_deposits,
             total_liabilities,
-            &self.interest_rate_config,
+            &self.config.interest_rate_config,
             self.deposit_share_value,
             self.liability_share_value,
         )
@@ -437,8 +438,17 @@ fn calc_interest_rate_accrual_state_changes(
     liability_share_value: I80F48,
 ) -> Option<(I80F48, I80F48, I80F48, I80F48)> {
     let utilization_rate = total_liabilities.checked_div(total_deposits)?;
-    let (borrowing_apr, lending_apr, group_fee_apr, insurance_fee_apr) =
+    let (lending_apr, borrowing_apr, group_fee_apr, insurance_fee_apr) =
         interest_rate_config.calc_interest_rate(utilization_rate)?;
+
+    msg!(
+        "Accruing interest for {} seconds. Utilization rate: {}. Lending APR: {}. Borrowing APR: {}. Group fee APR: {}. Insurance fee APR: {}",
+        time_delta,
+        utilization_rate,
+        lending_apr,
+        borrowing_apr,
+        group_fee_apr,
+        insurance_fee_apr);
 
     Some((
         calc_accrued_interest_payment_per_period(lending_apr, time_delta, deposit_share_value)?,
@@ -497,6 +507,7 @@ pub struct BankConfig {
     pub max_capacity: u64,
 
     pub pyth_oracle: Pubkey,
+    pub interest_rate_config: InterestRateConfig,
 }
 
 impl Default for BankConfig {
@@ -508,6 +519,7 @@ impl Default for BankConfig {
             liability_weight_maint: I80F48::ONE.into(),
             max_capacity: 0,
             pyth_oracle: Default::default(),
+            interest_rate_config: Default::default(),
         }
     }
 }

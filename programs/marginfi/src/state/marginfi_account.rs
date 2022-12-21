@@ -4,7 +4,7 @@ use crate::{
     prelude::{MarginfiError, MarginfiResult},
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Transfer};
+use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use pyth_sdk_solana::{Price, PriceFeed};
@@ -228,9 +228,10 @@ impl<'a> RiskEngine<'a> {
                 Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
             })?;
 
-        println!(
+        msg!(
             "assets {} - liabs: {}",
-            total_weighted_assets, total_weighted_liabilities
+            total_weighted_assets,
+            total_weighted_liabilities
         );
 
         check!(

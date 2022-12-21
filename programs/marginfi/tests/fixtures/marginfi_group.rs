@@ -35,7 +35,6 @@ impl MarginfiGroupFixture {
         config_arg: GroupConfig,
     ) -> MarginfiGroupFixture {
         let ctx_ref = ctx.clone();
-
         let group_key = Keypair::new();
 
         {
@@ -156,6 +155,41 @@ impl MarginfiGroupFixture {
                 bank_config_opt: todo!(),
             }
             .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_accrue_interest(&self, asset_mint: &Pubkey, bank_index: u16) -> Result<()> {
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolBankAccrueInterest {
+                marginfi_group: self.key,
+                liquidity_vault_authority: self
+                    .find_bank_vault_authority_pda(asset_mint, BankVaultType::Liquidity)
+                    .0,
+                liquidity_vault: self
+                    .find_bank_vault_pda(asset_mint, BankVaultType::Liquidity)
+                    .0,
+                insurance_vault: self
+                    .find_bank_vault_pda(asset_mint, BankVaultType::Insurance)
+                    .0,
+                fee_vault: self.find_bank_vault_pda(asset_mint, BankVaultType::Fee).0,
+                token_program: token::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::BankAccrueInterest { bank_index }.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(

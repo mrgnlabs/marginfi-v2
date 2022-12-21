@@ -3,17 +3,24 @@
 
 mod fixtures;
 
-use anchor_lang::{InstructionData, ToAccountMetas};
+use anchor_lang::{
+    prelude::{AccountInfo, Clock},
+    InstructionData, ToAccountMetas,
+};
+use anchor_spl::token::{self, accessor};
+use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
 use marginfi::{
     prelude::{MarginfiError, MarginfiGroup},
-    state::marginfi_group::BankConfig,
+    state::marginfi_group::{BankConfig, InterestRateConfig},
 };
 use pretty_assertions::assert_eq;
 use solana_program::{
     instruction::Instruction,
+    program_pack::Pack,
     system_instruction::{self, SystemError},
-    system_program,
+    system_program, sysvar,
 };
 use solana_program_test::*;
 use solana_sdk::{
@@ -178,6 +185,214 @@ async fn failure_add_bank_already_exists() -> anyhow::Result<()> {
         res.unwrap_err().unwrap(),
         TransactionError::InstructionError(0, SystemError::AccountAlreadyInUse.into())
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            0,
+            BankConfig {
+                interest_rate_config: InterestRateConfig {
+                    optimal_utilization_rate: I80F48!(0.9).into(),
+                    plateau_interest_rate: I80F48!(1).into(),
+                    ..Default::default()
+                },
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            1,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100, "USDC"))
+        .await;
+    lender_account
+        .try_bank_deposit(usdc_mint_fixture.key, funding_account, native!(100, "USDC"))
+        .await?;
+
+    let borrower_account = test_f.create_marginfi_account().await;
+    let funding_account = sol_mint_fixture
+        .create_and_mint_to(native!(1000, "SOL"))
+        .await;
+    borrower_account
+        .try_bank_deposit(sol_mint_fixture.key, funding_account, native!(999, "SOL"))
+        .await?;
+
+    let destination_account = usdc_mint_fixture.create_and_mint_to(0).await;
+    borrower_account
+        .try_bank_withdraw(
+            usdc_mint_fixture.key,
+            destination_account,
+            native!(90, "USDC"),
+        )
+        .await?;
+
+    {
+        let mut ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 year
+        clock.unix_timestamp += 365 * 24 * 60 * 60;
+        ctx.set_sysvar(&clock);
+    }
+
+    test_f
+        .marginfi_group
+        .try_accrue_interest(&usdc_mint_fixture.key, 0)
+        .await?;
+
+    let borrower_mfi_account = borrower_account.load().await;
+    let borrower_bank_account = borrower_mfi_account.lending_account.balances[1].unwrap();
+    let marginfi_group = test_f.marginfi_group.load().await;
+    let bank = marginfi_group.lending_pool.banks[0].unwrap();
+    let liabilities = bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
+
+    let lender_mfi_account = lender_account.load().await;
+    let lender_bank_account = lender_mfi_account.lending_account.balances[0].unwrap();
+    let deposits = bank.get_deposit_amount(lender_bank_account.deposit_shares.into())?;
+
+    assert_eq_noise!(
+        liabilities,
+        I80F48::from(native!(180, "USDC")),
+        I80F48!(100)
+    );
+    assert_eq_noise!(deposits, I80F48::from(native!(190, "USDC")), I80F48!(100));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            0,
+            BankConfig {
+                interest_rate_config: InterestRateConfig {
+                    optimal_utilization_rate: I80F48!(0.9).into(),
+                    plateau_interest_rate: I80F48!(1).into(),
+                    protocol_fixed_fee_apr: I80F48!(0.01).into(),
+                    insurance_fee_fixed_apr: I80F48!(0.01).into(),
+                    ..Default::default()
+                },
+                max_capacity: native!(1_000_000_000, "USDC").into(),
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            1,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                max_capacity: native!(200_000_000, "SOL").into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000_000, "USDC"))
+        .await;
+    lender_account
+        .try_bank_deposit(
+            usdc_mint_fixture.key,
+            funding_account,
+            native!(100_000_000, "USDC"),
+        )
+        .await?;
+
+    let borrower_account = test_f.create_marginfi_account().await;
+    let funding_account = sol_mint_fixture
+        .create_and_mint_to(native!(10_000_000, "SOL"))
+        .await;
+    borrower_account
+        .try_bank_deposit(
+            sol_mint_fixture.key,
+            funding_account,
+            native!(10_000_000, "SOL"),
+        )
+        .await?;
+
+    let destination_account = usdc_mint_fixture.create_and_mint_to(0).await;
+    borrower_account
+        .try_bank_withdraw(
+            usdc_mint_fixture.key,
+            destination_account,
+            native!(90_000_000, "USDC"),
+        )
+        .await?;
+
+    {
+        let mut ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 year
+        clock.unix_timestamp += 60;
+        ctx.set_sysvar(&clock);
+    }
+
+    test_f
+        .marginfi_group
+        .try_accrue_interest(&usdc_mint_fixture.key, 0)
+        .await?;
+
+    let borrower_mfi_account = borrower_account.load().await;
+    let borrower_bank_account = borrower_mfi_account.lending_account.balances[1].unwrap();
+    let marginfi_group = test_f.marginfi_group.load().await;
+    let bank = marginfi_group.lending_pool.banks[0].unwrap();
+    let liabilities = bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
+
+    let lender_mfi_account = lender_account.load().await;
+    let lender_bank_account = lender_mfi_account.lending_account.balances[0].unwrap();
+    let deposits = bank.get_deposit_amount(lender_bank_account.deposit_shares.into())?;
+
+    assert_eq_noise!(liabilities, I80F48!(90000174657530), I80F48!(10));
+    assert_eq_noise!(deposits, I80F48!(100000171232862), I80F48!(10));
+
+    let mut ctx = test_f.context.borrow_mut();
+    let protocol_fees = ctx.banks_client.get_account(bank.fee_vault).await?.unwrap();
+    let insurance_fees = ctx
+        .banks_client
+        .get_account(bank.insurance_vault)
+        .await?
+        .unwrap();
+
+    let protocol_fees =
+        token::spl_token::state::Account::unpack_from_slice(protocol_fees.data.as_slice())?;
+    let insurance_fees =
+        token::spl_token::state::Account::unpack_from_slice(insurance_fees.data.as_slice())?;
+
+    assert_eq!(protocol_fees.amount, 1712326);
+    assert_eq!(insurance_fees.amount, 1712326);
 
     Ok(())
 }
