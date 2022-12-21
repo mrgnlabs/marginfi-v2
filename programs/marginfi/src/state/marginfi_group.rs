@@ -166,6 +166,11 @@ impl InterestRateConfig {
             self.insurance_fee_fixed_apr.into(),
         )?;
 
+        assert!(lending_rate >= I80F48::ZERO);
+        assert!(borrowing_rate >= I80F48::ZERO);
+        assert!(group_fees_apr >= I80F48::ZERO);
+        assert!(insurance_fees_apr >= I80F48::ZERO);
+
         Some((
             lending_rate,
             borrowing_rate,
@@ -182,16 +187,16 @@ impl InterestRateConfig {
     #[inline]
     fn interest_rate_curve(&self, ur: I80F48) -> Option<I80F48> {
         let optimal_ur = self.optimal_utilization_rate.into();
-        let plateu_ur = self.plateau_interest_rate.into();
+        let plateau_ur = self.plateau_interest_rate.into();
         let max_ur: I80F48 = self.max_interest_rate.into();
 
         if ur <= optimal_ur {
-            ur.checked_div(optimal_ur)?.checked_mul(plateu_ur)
+            ur.checked_div(optimal_ur)?.checked_mul(plateau_ur)
         } else {
-            (optimal_ur - ur)
+            (ur - optimal_ur)
                 .checked_div(I80F48::ONE - optimal_ur)?
-                .checked_mul(max_ur - plateu_ur)?
-                .checked_add(plateu_ur)
+                .checked_mul(max_ur - plateau_ur)?
+                .checked_add(plateau_ur)
         }
     }
 }
@@ -697,5 +702,54 @@ mod tests {
         assert_eq_with_tolerance!(borrow_apr, I80F48!(0.01), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
         assert_eq_with_tolerance!(insurance_apr, I80F48!(0), I80F48!(0.001));
+    }
+
+    #[test]
+    /// ur: 0.5
+    /// protocol_fixed_fee: 0.01
+    /// optimal_utilization_rate: 0.5
+    /// plateau_interest_rate: 0.4
+    fn ir_config_calc_interest_rate_pff_01_ur_05() {
+        let config = InterestRateConfig {
+            optimal_utilization_rate: I80F48!(0.5).into(),
+            plateau_interest_rate: I80F48!(0.4).into(),
+            protocol_fixed_fee_apr: I80F48!(0.01).into(),
+            insurance_ir_fee: I80F48!(0.1).into(),
+            ..Default::default()
+        };
+
+        let (lending_apr, borrow_apr, group_fees_apr, insurance_apr) =
+            config.calc_interest_rate(I80F48!(0.5)).unwrap();
+
+        assert_eq_with_tolerance!(lending_apr, I80F48!(0.2), I80F48!(0.001));
+        assert_eq_with_tolerance!(borrow_apr, I80F48!(0.45), I80F48!(0.001));
+        assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
+        assert_eq_with_tolerance!(insurance_apr, I80F48!(0.04), I80F48!(0.001));
+    }
+
+    /// ur: 0.8
+    /// protocol_fixed_fee: 0.01
+    /// optimal_utilization_rate: 0.5
+    /// plateau_interest_rate: 0.4
+    /// max_interest_rate: 3
+    /// insurance_ir_fee: 0.1
+    #[test]
+    fn ir_config_calc_interest_rate_pff_01_ur_08() {
+        let config = InterestRateConfig {
+            optimal_utilization_rate: I80F48!(0.4).into(),
+            plateau_interest_rate: I80F48!(0.4).into(),
+            protocol_fixed_fee_apr: I80F48!(0.01).into(),
+            max_interest_rate: I80F48!(3).into(),
+            insurance_ir_fee: I80F48!(0.1).into(),
+            ..Default::default()
+        };
+
+        let (lending_apr, borrow_apr, group_fees_apr, insurance_apr) =
+            config.calc_interest_rate(I80F48!(0.7)).unwrap();
+
+        assert_eq_with_tolerance!(lending_apr, I80F48!(1.19), I80F48!(0.001));
+        assert_eq_with_tolerance!(borrow_apr, I80F48!(1.88), I80F48!(0.001));
+        assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
+        assert_eq_with_tolerance!(insurance_apr, I80F48!(0.17), I80F48!(0.001));
     }
 }
