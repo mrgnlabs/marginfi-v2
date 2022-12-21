@@ -67,11 +67,12 @@ where
     }
 }
 
-pub fn craft_pyth_price_account(ui_price: i64, mint_decimals: i32) -> Account {
+pub fn craft_pyth_price_account(mint: Pubkey, ui_price: i64, mint_decimals: i32) -> Account {
     let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
     Account {
         lamports: 1_000_000,
         data: bytemuck::bytes_of(&PriceAccount {
+            prod: mint,
             agg: PriceInfo {
                 conf: 0,
                 price: native_price,

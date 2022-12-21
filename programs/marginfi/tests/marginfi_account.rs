@@ -85,7 +85,7 @@ async fn success_deposit() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
 
     // Setup sample bank
-    let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None).await;
+    let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
 
     let sample_bank_index = 8;
     test_f
@@ -138,7 +138,7 @@ async fn failure_deposit_capacity_exceeded() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
 
     // Setup sample bank
-    let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None).await;
+    let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
 
     let sample_bank_index = 8;
     test_f
@@ -186,8 +186,8 @@ async fn failure_deposit_bank_not_found() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
 
     // Setup sample bank
-    let usdc_mint_f = MintFixture::new(test_f.context.clone(), None).await;
-    let mut sol_mint_f = MintFixture::new(test_f.context.clone(), Some(9)).await;
+    let usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
+    let mut sol_mint_f = MintFixture::new(test_f.context.clone(), None, Some(9)).await;
 
     let sample_bank_index = 8;
     test_f
@@ -225,58 +225,60 @@ async fn failure_deposit_bank_not_found() -> anyhow::Result<()> {
 #[tokio::test]
 async fn success_borrow() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
-    let test_f = TestFixture::new(None).await;
-
-    // Setup sample bank
-    let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None).await;
-    let mut sol_mint_f = MintFixture::new(test_f.context.clone(), Some(9)).await;
+    let mut test_f = TestFixture::new(None).await;
 
     test_f
         .marginfi_group
-        .try_lending_pool_add_bank(usdc_mint_f.key, 0, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .try_lending_pool_add_bank(test_f.usdc_mint.key, 0, *DEFAULT_USDC_TEST_BANK_CONFIG)
         .await?;
     test_f
         .marginfi_group
-        .try_lending_pool_add_bank(sol_mint_f.key, 1, *DEFAULT_SOL_TEST_BANK_CONFIG)
+        .try_lending_pool_add_bank(test_f.sol_mint.key, 1, *DEFAULT_SOL_TEST_BANK_CONFIG)
         .await?;
 
     let marginfi_account_f = test_f.create_marginfi_account().await;
 
     let owner = test_f.context.borrow().payer.pubkey();
     let usdc_token_account_f =
-        TokenAccountFixture::new(test_f.context.clone(), &usdc_mint_f.key, &owner).await;
+        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint.key, &owner).await;
     let sol_token_account_f =
-        TokenAccountFixture::new(test_f.context.clone(), &sol_mint_f.key, &owner).await;
+        TokenAccountFixture::new(test_f.context.clone(), &test_f.sol_mint.key, &owner).await;
 
-    usdc_mint_f
+    test_f
+        .usdc_mint
         .mint_to(&usdc_token_account_f.key, native!(1_000, "USDC"))
         .await;
     let liquidity_vault = find_bank_vault_pda(
         &test_f.marginfi_group.key,
-        &sol_mint_f.key,
+        &test_f.sol_mint.key,
         BankVaultType::Liquidity,
     );
 
-    sol_mint_f
+    test_f
+        .sol_mint
         .mint_to(&liquidity_vault.0, native!(1_000_000, "SOL"))
         .await;
 
     marginfi_account_f
         .try_bank_deposit(
-            usdc_mint_f.key,
+            test_f.usdc_mint.key,
             usdc_token_account_f.key,
             native!(1_000, "USDC"),
         )
         .await?;
 
     let res = marginfi_account_f
-        .try_bank_withdraw(sol_mint_f.key, sol_token_account_f.key, native!(1, "SOL"))
+        .try_bank_withdraw(
+            test_f.sol_mint.key,
+            sol_token_account_f.key,
+            native!(2, "SOL"),
+        )
         .await;
     assert!(res.is_ok());
 
     // Check token balances are correct
     assert_eq!(usdc_token_account_f.balance().await, native!(0, "USDC"));
-    assert_eq!(sol_token_account_f.balance().await, native!(1, "SOL"));
+    assert_eq!(sol_token_account_f.balance().await, native!(2, "SOL"));
 
     // TODO: check health is sane
 
@@ -289,8 +291,8 @@ async fn failure_borrow_not_enough_collateral() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
 
     // Setup sample bank
-    let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None).await;
-    let mut sol_mint_f = MintFixture::new(test_f.context.clone(), Some(9)).await;
+    let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
+    let mut sol_mint_f = MintFixture::new(test_f.context.clone(), None, Some(9)).await;
 
     test_f
         .marginfi_group

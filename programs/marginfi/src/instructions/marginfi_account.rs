@@ -16,6 +16,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
+use std::cell::RefMut;
 
 pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
     let margin_account = &mut ctx.accounts.marginfi_account.load_init()?;
@@ -253,7 +254,7 @@ pub fn lending_account_liquidate(
         ..
     } = ctx.accounts;
 
-    let marginfi_group = &mut marginfi_group_loader.load_mut()?;
+    let marginfi_group: &mut RefMut<MarginfiGroup> = &mut marginfi_group_loader.load_mut()?;
     let pyth_account_map = create_pyth_account_map(ctx.remaining_accounts)?;
     let asset_quantity_final = I80F48::from_num(asset_quantity_final);
 
@@ -299,8 +300,10 @@ pub fn lending_account_liquidate(
     // Accounting changes
     let insurance_fund_fee = (asset_quantity_final - asset_quantity_liq).to_num();
 
-    let mut liquidator_marginfi_account = liquidator_marginfi_account.load_mut()?;
-    let mut liquidatee_marginfi_account = liquidatee_marginfi_account.load_mut()?;
+    let mut liquidator_marginfi_account: RefMut<MarginfiAccount> =
+        liquidator_marginfi_account.load_mut()?;
+    let mut liquidatee_marginfi_account: RefMut<MarginfiAccount> =
+        liquidatee_marginfi_account.load_mut()?;
 
     // Liquidator pays off liability
     BankAccountWrapper::account_borrow(

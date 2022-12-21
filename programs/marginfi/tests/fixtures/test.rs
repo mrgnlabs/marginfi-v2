@@ -21,7 +21,8 @@ use super::marginfi_account::MarginfiAccountFixture;
 pub struct TestFixture {
     pub context: Rc<RefCell<ProgramTestContext>>,
     pub marginfi_group: MarginfiGroupFixture,
-    pub collateral_mint: MintFixture,
+    pub usdc_mint: MintFixture,
+    pub sol_mint: MintFixture,
 }
 
 pub const PYTH_USDC_FEED: Pubkey = pubkey!("PythUsdcPrice111111111111111111111111111111");
@@ -46,16 +47,27 @@ impl TestFixture {
     pub async fn new(ix_arg: Option<GroupConfig>) -> TestFixture {
         let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
 
-        program.add_account(PYTH_SOL_FEED, craft_pyth_price_account(10, 9));
-        program.add_account(PYTH_USDC_FEED, craft_pyth_price_account(1, 6));
+        let usdc_keypair = Keypair::new();
+        let sol_keypair = Keypair::new();
+
+        program.add_account(
+            PYTH_USDC_FEED,
+            craft_pyth_price_account(usdc_keypair.pubkey(), 1, 6),
+        );
+        program.add_account(
+            PYTH_SOL_FEED,
+            craft_pyth_price_account(sol_keypair.pubkey(), 10, 9),
+        );
 
         let context = Rc::new(RefCell::new(program.start_with_context().await));
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 
-        let mint = MintFixture::new(Rc::clone(&context), None).await;
+        let usdc_mint_f = MintFixture::new(Rc::clone(&context), Some(usdc_keypair), None).await;
+        let sol_mint_f = MintFixture::new(Rc::clone(&context), Some(sol_keypair), Some(9)).await;
+
         let tester_group = MarginfiGroupFixture::new(
             Rc::clone(&context),
-            &mint.key,
+            &usdc_mint_f.key,
             ix_arg.unwrap_or(GroupConfig { admin: None }),
         )
         .await;
@@ -63,7 +75,8 @@ impl TestFixture {
         TestFixture {
             context: Rc::clone(&context),
             marginfi_group: tester_group,
-            collateral_mint: mint,
+            usdc_mint: usdc_mint_f,
+            sol_mint: sol_mint_f,
         }
     }
 

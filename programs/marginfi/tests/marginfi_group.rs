@@ -89,7 +89,7 @@ async fn success_add_bank() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
 
-    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None).await;
+    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
     let new_bank_index = 0;
     let res = test_f
@@ -128,7 +128,7 @@ async fn failure_add_bank_fake_pyth_feed() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
 
-    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None).await;
+    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
     let new_bank_index = 0;
     let res = test_f
@@ -153,7 +153,7 @@ async fn failure_add_bank_already_exists() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
 
-    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None).await;
+    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
     let new_bank_index = 0;
     test_f

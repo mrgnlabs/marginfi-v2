@@ -46,14 +46,14 @@ const EXP_10_I80F48: [I80F48; 15] = [
     I80F48!(100_000_000_000_000),
 ];
 
-const EXPONENT: i32 = 6;
+const USDC_EXPONENT: i32 = 6;
 
 /// Convert a price `price.price` with decimal exponent `price.expo` to an I80F48 representation with exponent 6.
 pub fn pyth_price_to_i80f48(price: &Price) -> MarginfiResult<I80F48> {
     let pyth_price = price.price;
     let pyth_expo = price.expo;
 
-    let expo_delta = EXPONENT - pyth_expo;
+    let expo_delta = USDC_EXPONENT - pyth_expo;
     let expo_scale = EXP_10_I80F48[expo_delta.unsigned_abs() as usize];
 
     let price = I80F48::from_num(pyth_price);

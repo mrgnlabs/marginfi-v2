@@ -324,6 +324,8 @@ impl Bank {
             .get(&self.config.pyth_oracle)
             .ok_or(MarginfiError::MissingPythAccount)?;
 
+        // TODO: Check for correct Pyth product
+
         Ok(load_price_feed_from_account_info(pyth_account)
             .map_err(|_| MarginfiError::InvalidPythAccount)?)
     }
