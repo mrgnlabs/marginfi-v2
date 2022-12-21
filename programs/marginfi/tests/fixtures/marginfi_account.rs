@@ -164,6 +164,78 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
+    pub async fn try_liquidate(
+        &self,
+        liquidatee_pk: Pubkey,
+        asset_mint: Pubkey,
+        asset_bank_index: u16,
+        asset_amount: u64,
+        liab_bank_index: u16,
+    ) -> anyhow::Result<()> {
+        let marginfi_account = self.load().await;
+        let mut ctx = self.ctx.borrow_mut();
+
+        let mut ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingAccountLiquidate {
+                marginfi_group: marginfi_account.group,
+                liquidator_marginfi_account: self.key,
+                signer: ctx.payer.pubkey(),
+                liquidatee_marginfi_account: liquidatee_pk,
+                bank_liquidity_vault_authority: find_bank_vault_authority_pda(
+                    &marginfi_account.group,
+                    &asset_mint,
+                    BankVaultType::Liquidity,
+                )
+                .0,
+                bank_liquidity_vault: find_bank_vault_pda(
+                    &marginfi_account.group,
+                    &asset_mint,
+                    BankVaultType::Liquidity,
+                )
+                .0,
+                bank_insurance_vault: find_bank_vault_pda(
+                    &marginfi_account.group,
+                    &asset_mint,
+                    BankVaultType::Insurance,
+                )
+                .0,
+                token_program: token::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::Liquidate {
+                asset_bank_index,
+                asset_amount,
+                liab_bank_index,
+            }
+            .data(),
+        };
+
+        ix.accounts.extend_from_slice(&[
+            AccountMeta {
+                pubkey: PYTH_USDC_FEED,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: PYTH_SOL_FEED,
+                is_signer: false,
+                is_writable: false,
+            },
+        ]);
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
     pub async fn load(&self) -> MarginfiAccount {
         load_and_deserialize::<MarginfiAccount>(self.ctx.clone(), &self.key).await
     }

@@ -5,6 +5,7 @@ mod fixtures;
 
 use crate::fixtures::marginfi_account::MarginfiAccountFixture;
 use anchor_lang::{prelude::ErrorCode, InstructionData, ToAccountMetas};
+use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
 use marginfi::{
     prelude::MarginfiError,
@@ -340,3 +341,64 @@ async fn failure_borrow_not_enough_collateral() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn liquidation_successful() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    // Setup sample bank
+    let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
+    let mut sol_mint_f = MintFixture::new(test_f.context.clone(), None, Some(9)).await;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_f.key,
+            0,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_f.key,
+            1,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let depositor = test_f.create_marginfi_account().await;
+    let deposit_account = usdc_mint_f.create_and_mint_to(native!(100, "USDC")).await;
+    depositor
+        .try_bank_deposit(usdc_mint_f.key, deposit_account, native!(100, "USDC"))
+        .await?;
+
+    let borrower = test_f.create_marginfi_account().await;
+    let borrower_sol_account = sol_mint_f.create_and_mint_to(native!(100, "SOL")).await;
+    let borrower_usdc_account = usdc_mint_f.create_and_mint_to(0).await;
+    borrower
+        .try_bank_deposit(sol_mint_f.key, borrower_sol_account, native!(100, "SOL"))
+        .await?;
+    borrower
+        .try_bank_withdraw(usdc_mint_f.key, borrower_usdc_account, native!(100, "USDC"))
+        .await?;
+
+    depositor
+        .try_liquidate(borrower.key, sol_mint_f.key, 1, native!(1, "SOL"), 2)
+        .await?;
+
+    Ok(())
+}
+#[tokio::test]
+async fn liquidation_failed_liquidatee_not_unhealthy() {}
+#[tokio::test]
+async fn liquidation_failed_liquidation_too_severe() {}
+#[tokio::test]
+async fn liquidation_failed_liquidator_no_collateral() {}
+#[tokio::test]
+async fn liquidation_failed_liquidatee_too_much_collateral_liquidated() {}
