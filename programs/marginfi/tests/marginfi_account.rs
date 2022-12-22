@@ -389,7 +389,7 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         .await?;
 
     depositor
-        .try_liquidate(borrower.key, sol_mint_f.key, 1, native!(1, "SOL"), 2)
+        .try_liquidate(borrower.key, sol_mint_f.key, 1, native!(1, "SOL"), 0)
         .await?;
 
     Ok(())

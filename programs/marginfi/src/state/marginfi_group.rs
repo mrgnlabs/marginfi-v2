@@ -380,6 +380,14 @@ impl Bank {
             MarginfiError::InvalidTransfer
         );
 
+        msg!(
+            "deposit_spl_transfer: amount: {} from {} to {}, auth {}",
+            amount,
+            accounts.from.key,
+            accounts.to.key,
+            accounts.authority.key
+        );
+
         transfer(CpiContext::new(program, accounts), amount)
     }
 
@@ -393,6 +401,14 @@ impl Bank {
         check!(
             accounts.from.key.eq(&self.liquidity_vault),
             MarginfiError::InvalidTransfer
+        );
+
+        msg!(
+            "withdraw_spl_transfer: amount: {} from {} to {}, auth {}",
+            amount,
+            accounts.from.key,
+            accounts.to.key,
+            accounts.authority.key
         );
 
         transfer(

@@ -213,20 +213,8 @@ impl<'a> RiskEngine<'a> {
     }
 
     pub fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
-        let (total_weighted_assets, total_weighted_liabilities) = self
-            .bank_accounts_with_price
-            .iter()
-            .map(|a| {
-                a.calc_weighted_assets_and_liabilities_values(requirement_type.to_weight_type())
-            })
-            .try_fold((I80F48::ZERO, I80F48::ZERO), |(ta, tl), res| {
-                let (assets, liabilities) = res?;
-                let total_assets_sum = ta.checked_add(assets).ok_or_else(math_error!())?;
-                let total_liabilities_sum =
-                    tl.checked_add(liabilities).ok_or_else(math_error!())?;
-
-                Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
-            })?;
+        let (total_weighted_assets, total_weighted_liabilities) =
+            self.get_account_health_components(requirement_type)?;
 
         msg!(
             "assets {} - liabs: {}",
@@ -240,6 +228,48 @@ impl<'a> RiskEngine<'a> {
         );
 
         Ok(())
+    }
+
+    /// Check that the account is at most at the maintenance requirement level post liquidation.
+    /// This check is used to ensure two things in the liquidation process:
+    /// 1. Liquidatee account was below the maintenance requirement level before liquidation (as health can only increase, because liquidations always pay down liabilities)
+    /// 2. Liquidator didn't liquidate too many assets that would result in unnecessary loss for the liquidatee.
+    pub fn check_post_liquidation_account_health(&self) -> MarginfiResult {
+        let (total_weighted_assets, total_weighted_liabilities) =
+            self.get_account_health_components(RiskRequirementType::Maintenance)?;
+
+        msg!(
+            "assets {} - liabs: {}",
+            total_weighted_assets,
+            total_weighted_liabilities
+        );
+
+        check!(
+            total_weighted_assets <= total_weighted_liabilities,
+            MarginfiError::BadAccountHealth
+        );
+
+        Ok(())
+    }
+
+    pub fn get_account_health_components(
+        &self,
+        requirement_type: RiskRequirementType,
+    ) -> MarginfiResult<(I80F48, I80F48)> {
+        Ok(self
+            .bank_accounts_with_price
+            .iter()
+            .map(|a| {
+                a.calc_weighted_assets_and_liabilities_values(requirement_type.to_weight_type())
+            })
+            .try_fold((I80F48::ZERO, I80F48::ZERO), |(ta, tl), res| {
+                let (assets, liabilities) = res?;
+                let total_assets_sum = ta.checked_add(assets).ok_or_else(math_error!())?;
+                let total_liabilities_sum =
+                    tl.checked_add(liabilities).ok_or_else(math_error!())?;
+
+                Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
+            })?)
     }
 }
 
@@ -404,6 +434,8 @@ impl<'a> BankAccountWrapper<'a> {
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
+        msg!("Account debiting: {} to {}", amount, bank.mint_pk);
+
         let liability_shares: I80F48 = balance.liability_shares.into();
 
         let liability_value = bank.get_liability_amount(liability_shares)?;
@@ -441,6 +473,12 @@ impl<'a> BankAccountWrapper<'a> {
     }
 
     fn account_credit_asset(&mut self, amount: I80F48, allow_borrow: bool) -> MarginfiResult {
+        msg!(
+            "Account crediting: {} of {} (borrow: {})",
+            amount,
+            self.bank.mint_pk,
+            allow_borrow
+        );
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
