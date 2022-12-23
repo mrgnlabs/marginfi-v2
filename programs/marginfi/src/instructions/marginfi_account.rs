@@ -406,9 +406,9 @@ pub fn lending_account_liquidate(
     // Risk checks
     // Verify liquidatee liquidation post health
     RiskEngine::check_post_liquidation_account_health(&RiskEngine::new(
-        &marginfi_group,
+        marginfi_group,
         &liquidatee_marginfi_account,
-        &ctx.remaining_accounts,
+        ctx.remaining_accounts,
     )?)?;
 
     sol_log_compute_units();
@@ -416,9 +416,9 @@ pub fn lending_account_liquidate(
     // Verify liquidator account health
     RiskEngine::check_account_health(
         &RiskEngine::new(
-            &marginfi_group,
+            marginfi_group,
             &liquidator_marginfi_account,
-            &ctx.remaining_accounts,
+            ctx.remaining_accounts,
         )?,
         RiskRequirementType::Initial,
     )?;

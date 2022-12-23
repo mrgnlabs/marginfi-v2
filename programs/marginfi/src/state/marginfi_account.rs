@@ -10,7 +10,7 @@ use fixed_macro::types::I80F48;
 use pyth_sdk_solana::{Price, PriceFeed};
 use std::{
     cmp::{max, min},
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
 };
 
 #[account(zero_copy)]
