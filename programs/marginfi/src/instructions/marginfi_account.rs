@@ -16,6 +16,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
+use solana_program::log::sol_log_compute_units;
 use std::cell::RefMut;
 
 pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
@@ -226,11 +227,11 @@ pub struct BankWithdraw<'info> {
 /// The liquidator invokes this instruction with `q_a` as input (the total amount of collateral to be liquidated).
 /// This is done because `q_a` is the most bounded variable in this process, as if the `q_a` is larger than what the liquidatee has, the instruction will fail.
 /// The liquidator can observe how much collateral the liquidatee has, and ensures that the liquidatee will have enough collateral regardless of price action.
-/// 
+///
 /// Fees:
 /// The liquidator fee is charged in the conversion between the market value of the collateral being liquidated and the liability being covered by the liquidator.
 /// The value of the liability is discounted by the liquidation fee.
-/// 
+///
 /// The insurance fee is taken from the difference between liability being paid by the liquidator and the liability being received by the liquidatee.
 /// This difference is deposited into the insurance fund.
 ///
@@ -291,6 +292,8 @@ pub fn lending_account_liquidate(
         (liab_price_feed.get_price_unchecked(), liab_bank.mint_pk)
     };
 
+    sol_log_compute_units();
+
     let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
     let liquidator_discount = I80F48::ONE - LIQUIDATION_LIQUIDATOR_FEE;
 
@@ -309,7 +312,7 @@ pub fn lending_account_liquidate(
     // Accounting changes
 
     // Insurance fund fee
-    let insurance_fund_fee = liab_quantity_liquidator - liab_quantity_liquidator;
+    let insurance_fund_fee = liab_quantity_liquidator - liab_quantity_final;
 
     assert!(
         insurance_fund_fee >= I80F48::ZERO,
@@ -327,6 +330,8 @@ pub fn lending_account_liquidate(
         insurance_fund_fee
     );
 
+    sol_log_compute_units();
+
     // Liquidator pays off liability
     BankAccountWrapper::account_borrow(
         &mut BankAccountWrapper::find_or_create(
@@ -337,7 +342,7 @@ pub fn lending_account_liquidate(
         liab_quantity_liquidator,
     )?;
 
-    // Liquidator receives `asset_quantity_liq` amount of collateral
+    // Liquidator receives `asset_quantity` amount of collateral
     BankAccountWrapper::account_deposit(
         &mut BankAccountWrapper::find_or_create(
             asset_bank_index,
@@ -357,7 +362,7 @@ pub fn lending_account_liquidate(
         liab_quantity_final,
     )?;
 
-    // Liquidatee pays off `asset_quantity_final` amount of collateral
+    // Liquidatee pays off `asset_quantity` amount of collateral
     BankAccountWrapper::account_withdraw(
         &mut BankAccountWrapper::find_or_create(
             asset_bank_index,
@@ -367,11 +372,14 @@ pub fn lending_account_liquidate(
         asset_quantity,
     )?;
 
+    sol_log_compute_units();
+    msg!("Balance: {}", ctx.accounts.bank_liquidity_vault.amount);
+
     // SPL transfer
     // Insurance fund receives fee
     BankAccountWrapper::withdraw_spl_transfer(
         &BankAccountWrapper::find_or_create(
-            asset_bank_index,
+            liab_bank_index,
             &mut marginfi_group.lending_pool,
             &mut liquidatee_marginfi_account.lending_account,
         )?,
@@ -393,6 +401,8 @@ pub fn lending_account_liquidate(
         ]],
     )?;
 
+    sol_log_compute_units();
+
     // Risk checks
     // Verify liquidatee liquidation post health
     RiskEngine::check_post_liquidation_account_health(&RiskEngine::new(
@@ -400,6 +410,8 @@ pub fn lending_account_liquidate(
         &liquidatee_marginfi_account,
         &ctx.remaining_accounts,
     )?)?;
+
+    sol_log_compute_units();
 
     // Verify liquidator account health
     RiskEngine::check_account_health(
@@ -411,11 +423,13 @@ pub fn lending_account_liquidate(
         RiskRequirementType::Initial,
     )?;
 
+    sol_log_compute_units();
+
     Ok(())
 }
 
 #[derive(Accounts)]
-#[instruction(asset_bank_index: u16, liab_bank_index: u16)]
+#[instruction(asset_bank_index: u16, asset_quantity: u64, liab_bank_index: u16)]
 pub struct LendingAccountLiquidate<'info> {
     #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
@@ -453,7 +467,7 @@ pub struct LendingAccountLiquidate<'info> {
         ],
         bump
     )]
-    pub bank_liquidity_vault: AccountInfo<'info>,
+    pub bank_liquidity_vault: Account<'info, TokenAccount>,
     #[account(
         mut,
         seeds = [

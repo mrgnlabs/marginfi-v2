@@ -4,7 +4,10 @@ use anchor_spl::token;
 use marginfi::state::{marginfi_account::MarginfiAccount, marginfi_group::BankVaultType};
 use solana_program::{instruction::Instruction, system_instruction};
 use solana_program_test::{BanksClientError, ProgramTestContext};
-use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+use solana_sdk::{
+    compute_budget::ComputeBudgetInstruction, signature::Keypair, signer::Signer,
+    transaction::Transaction,
+};
 use std::{cell::RefCell, mem, rc::Rc};
 
 #[derive(Default, Clone)]
@@ -167,10 +170,10 @@ impl MarginfiAccountFixture {
     pub async fn try_liquidate(
         &self,
         liquidatee_pk: Pubkey,
-        asset_mint: Pubkey,
         asset_bank_index: u16,
         asset_amount: u64,
         liab_bank_index: u16,
+        liab_mint: Pubkey,
     ) -> anyhow::Result<()> {
         let marginfi_account = self.load().await;
         let mut ctx = self.ctx.borrow_mut();
@@ -184,19 +187,19 @@ impl MarginfiAccountFixture {
                 liquidatee_marginfi_account: liquidatee_pk,
                 bank_liquidity_vault_authority: find_bank_vault_authority_pda(
                     &marginfi_account.group,
-                    &asset_mint,
+                    &liab_mint,
                     BankVaultType::Liquidity,
                 )
                 .0,
                 bank_liquidity_vault: find_bank_vault_pda(
                     &marginfi_account.group,
-                    &asset_mint,
+                    &liab_mint,
                     BankVaultType::Liquidity,
                 )
                 .0,
                 bank_insurance_vault: find_bank_vault_pda(
                     &marginfi_account.group,
-                    &asset_mint,
+                    &liab_mint,
                     BankVaultType::Insurance,
                 )
                 .0,
@@ -224,8 +227,10 @@ impl MarginfiAccountFixture {
             },
         ]);
 
+        let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
+
         let tx = Transaction::new_signed_with_payer(
-            &[ix],
+            &[ix, compute_budget_ix],
             Some(&ctx.payer.pubkey().clone()),
             &[&ctx.payer],
             ctx.last_blockhash,

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::{
     check,
@@ -324,7 +324,7 @@ impl Bank {
     #[inline]
     pub fn load_price_feed(
         &self,
-        pyth_account_map: &HashMap<Pubkey, &AccountInfo>,
+        pyth_account_map: &BTreeMap<Pubkey, &AccountInfo>,
     ) -> MarginfiResult<PriceFeed> {
         let pyth_account = pyth_account_map
             .get(&self.config.pyth_oracle)

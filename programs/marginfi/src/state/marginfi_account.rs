@@ -10,7 +10,7 @@ use fixed_macro::types::I80F48;
 use pyth_sdk_solana::{Price, PriceFeed};
 use std::{
     cmp::{max, min},
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
 };
 
 #[account(zero_copy)]
@@ -133,8 +133,8 @@ impl<'a> BankAccountWithPriceFeed<'a> {
 
 pub fn create_pyth_account_map<'a, 'info>(
     pyth_accounts: &'a [AccountInfo<'info>],
-) -> MarginfiResult<HashMap<Pubkey, &'a AccountInfo<'info>>> {
-    Ok(HashMap::from_iter(
+) -> MarginfiResult<BTreeMap<Pubkey, &'a AccountInfo<'info>>> {
+    Ok(BTreeMap::from_iter(
         pyth_accounts.iter().map(|a| (a.key(), a)),
     ))
 }

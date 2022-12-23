@@ -5,6 +5,7 @@ mod fixtures;
 
 use crate::fixtures::marginfi_account::MarginfiAccountFixture;
 use anchor_lang::{prelude::ErrorCode, InstructionData, ToAccountMetas};
+use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
 use marginfi::{
@@ -15,7 +16,9 @@ use marginfi::{
     },
 };
 use pretty_assertions::assert_eq;
-use solana_program::{instruction::Instruction, system_instruction, system_program};
+use solana_program::{
+    instruction::Instruction, program_pack::Pack, system_instruction, system_program,
+};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 
@@ -347,8 +350,8 @@ async fn liquidation_successful() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
 
     // Setup sample bank
-    let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
-    let mut sol_mint_f = MintFixture::new(test_f.context.clone(), None, Some(9)).await;
+    let usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_f = MintFixture::new(test_f.context.clone(), None, Some(9)).await;
 
     test_f
         .marginfi_group
@@ -373,9 +376,9 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         .await?;
 
     let depositor = test_f.create_marginfi_account().await;
-    let deposit_account = usdc_mint_f.create_and_mint_to(native!(100, "USDC")).await;
+    let deposit_account = usdc_mint_f.create_and_mint_to(native!(200, "USDC")).await;
     depositor
-        .try_bank_deposit(usdc_mint_f.key, deposit_account, native!(100, "USDC"))
+        .try_bank_deposit(usdc_mint_f.key, deposit_account, native!(200, "USDC"))
         .await?;
 
     let borrower = test_f.create_marginfi_account().await;
@@ -389,8 +392,87 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         .await?;
 
     depositor
-        .try_liquidate(borrower.key, sol_mint_f.key, 1, native!(1, "SOL"), 0)
+        .try_liquidate(borrower.key, 1, native!(1, "SOL"), 0, usdc_mint_f.key)
         .await?;
+
+    // Checks
+    let margin_group = test_f.marginfi_group.load().await;
+
+    let sol_bank = margin_group.lending_pool.banks[1].unwrap();
+    let usdc_bank = margin_group.lending_pool.banks[0].unwrap();
+
+    let depositor_ma = depositor.load().await;
+    let borrower_ma = borrower.load().await;
+
+    // Depositors should have 1 SOL
+    assert_eq!(
+        sol_bank
+            .get_deposit_amount(
+                depositor_ma.lending_account.balances[1]
+                    .unwrap()
+                    .deposit_shares
+                    .into()
+            )
+            .unwrap(),
+        I80F48::from(native!(1, "SOL"))
+    );
+
+    // Depositors should have 190.25 USDC
+    assert_eq_noise!(
+        usdc_bank
+            .get_deposit_amount(
+                depositor_ma.lending_account.balances[0]
+                    .unwrap()
+                    .deposit_shares
+                    .into()
+            )
+            .unwrap(),
+        I80F48::from(native!(190.25, "USDC", f64)),
+        native!(0.00001, "USDC", f64)
+    );
+
+    // Borrower should have 99 SOL
+    assert_eq!(
+        sol_bank
+            .get_deposit_amount(
+                borrower_ma.lending_account.balances[0]
+                    .unwrap()
+                    .deposit_shares
+                    .into()
+            )
+            .unwrap(),
+        I80F48::from(native!(99, "SOL"))
+    );
+
+    // Borrower should have 90.50 USDC
+    assert_eq_noise!(
+        usdc_bank
+            .get_liability_amount(
+                borrower_ma.lending_account.balances[1]
+                    .unwrap()
+                    .liability_shares
+                    .into()
+            )
+            .unwrap(),
+        I80F48::from(native!(90.50, "USDC", f64)),
+        native!(0.00001, "USDC", f64)
+    );
+
+    // Check insurance fund fee
+    let mut ctx = test_f.context.borrow_mut();
+    let insurance_fund = ctx
+        .banks_client
+        .get_account(usdc_bank.insurance_vault)
+        .await?
+        .unwrap();
+    let token_account =
+        anchor_spl::token::spl_token::state::Account::unpack_from_slice(&insurance_fund.data)?;
+
+    assert_eq_noise!(
+        token_account.amount as i64,
+        native!(0.25, "USDC", f64) as i64,
+        1
+    );
 
     Ok(())
 }
