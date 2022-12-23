@@ -3,11 +3,8 @@
 
 mod fixtures;
 
-use anchor_lang::{
-    prelude::{AccountInfo, Clock},
-    InstructionData, ToAccountMetas,
-};
-use anchor_spl::token::{self, accessor};
+use anchor_lang::{prelude::Clock, InstructionData, ToAccountMetas};
+use anchor_spl::token::{self};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
@@ -20,7 +17,7 @@ use solana_program::{
     instruction::Instruction,
     program_pack::Pack,
     system_instruction::{self, SystemError},
-    system_program, sysvar,
+    system_program,
 };
 use solana_program_test::*;
 use solana_sdk::{

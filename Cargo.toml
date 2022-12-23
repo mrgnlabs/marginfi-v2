@@ -1,5 +1,5 @@
 [workspace]
-members = ["programs/*"]
+members = ["programs/*", "client"]
 
 [profile.release]
 overflow-checks = true

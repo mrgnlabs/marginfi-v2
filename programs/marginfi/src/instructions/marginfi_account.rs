@@ -105,7 +105,7 @@ pub struct BankDeposit<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             asset_mint.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -188,7 +188,7 @@ pub struct BankWithdraw<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             asset_mint.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -199,7 +199,7 @@ pub struct BankWithdraw<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             asset_mint.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -451,7 +451,7 @@ pub struct LendingAccountLiquidate<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             marginfi_group.load()?.lending_pool.banks[liab_bank_index as usize].unwrap().mint_pk.as_ref(),
             marginfi_group.key().as_ref()
         ],
@@ -461,7 +461,7 @@ pub struct LendingAccountLiquidate<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             marginfi_group.load()?.lending_pool.banks[liab_bank_index as usize].unwrap().mint_pk.as_ref(),
             marginfi_group.key().as_ref()
         ],
@@ -471,7 +471,7 @@ pub struct LendingAccountLiquidate<'info> {
     #[account(
         mut,
         seeds = [
-            INSURANCE_VAULT_SEED,
+            INSURANCE_VAULT_SEED.as_bytes(),
             marginfi_group.load()?.lending_pool.banks[liab_bank_index as usize].unwrap().mint_pk.as_ref(),
             marginfi_group.key().as_ref()
         ],
