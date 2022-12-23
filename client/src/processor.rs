@@ -112,7 +112,7 @@ pub fn create_profile(
     commitment: Option<CommitmentLevel>,
     marginfi_group: Option<Pubkey>,
 ) -> Result<()> {
-    let bb_config_dir = get_cli_config_dir();
+    let cli_config_dir = get_cli_config_dir();
     let profile = Profile::new(
         name,
         cluster,
@@ -122,26 +122,26 @@ pub fn create_profile(
         commitment,
         marginfi_group,
     );
-    if !bb_config_dir.exists() {
-        fs::create_dir(&bb_config_dir)?;
+    if !cli_config_dir.exists() {
+        fs::create_dir(&cli_config_dir)?;
 
-        let bb_config_file = bb_config_dir.join("config.json");
+        let cli_config_file = cli_config_dir.join("config.json");
 
         fs::write(
-            &bb_config_file,
+            &cli_config_file,
             serde_json::to_string(&CliConfig {
                 profile_name: profile.name.clone(),
             })?,
         )?;
     }
 
-    let bb_profiles_dir = bb_config_dir.join("profiles");
+    let cli_profiles_dir = cli_config_dir.join("profiles");
 
-    if !bb_profiles_dir.exists() {
-        fs::create_dir(&bb_profiles_dir)?;
+    if !cli_profiles_dir.exists() {
+        fs::create_dir(&cli_profiles_dir)?;
     }
 
-    let profile_file = bb_profiles_dir.join(profile.name.clone() + ".json");
+    let profile_file = cli_profiles_dir.join(profile.name.clone() + ".json");
     if profile_file.exists() {
         return Err(anyhow!("Profile {} already exists", profile.name));
     }
@@ -160,14 +160,14 @@ pub fn show_profile() -> Result<()> {
 }
 
 pub fn set_profile(name: String) -> Result<()> {
-    let bb_config_dir = get_cli_config_dir();
-    let bb_config_file = bb_config_dir.join("config.json");
+    let cli_config_dir = get_cli_config_dir();
+    let cli_config_file = cli_config_dir.join("config.json");
 
-    if !bb_config_file.exists() {
+    if !cli_config_file.exists() {
         return Err(anyhow!("Profiles not configured, run `bb profile set`"));
     }
 
-    let profile_file = bb_config_dir
+    let profile_file = cli_config_dir
         .join("profiles")
         .join(format!("{}.json", name));
 
@@ -175,25 +175,25 @@ pub fn set_profile(name: String) -> Result<()> {
         return Err(anyhow!("Profile {} does not exist", name));
     }
 
-    let bb_config = fs::read_to_string(&bb_config_file)?;
-    let mut bb_config: CliConfig = serde_json::from_str(&bb_config)?;
+    let cli_config = fs::read_to_string(&cli_config_file)?;
+    let mut cli_config: CliConfig = serde_json::from_str(&cli_config)?;
 
-    bb_config.profile_name = name;
+    cli_config.profile_name = name;
 
-    fs::write(&bb_config_file, serde_json::to_string(&bb_config)?)?;
+    fs::write(&cli_config_file, serde_json::to_string(&cli_config)?)?;
 
     Ok(())
 }
 
 pub fn list_profiles() -> Result<()> {
-    let bb_config_dir = get_cli_config_dir();
-    let bb_profiles_dir = bb_config_dir.join("profiles");
+    let cli_config_dir = get_cli_config_dir();
+    let cli_profiles_dir = cli_config_dir.join("profiles");
 
-    if !bb_profiles_dir.exists() {
+    if !cli_profiles_dir.exists() {
         return Err(anyhow!("Profiles not configured, run `bb profile set`"));
     }
 
-    let mut profiles = fs::read_dir(&bb_profiles_dir)?
+    let mut profiles = fs::read_dir(&cli_profiles_dir)?
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
         .collect::<Vec<String>>();
 
@@ -201,10 +201,11 @@ pub fn list_profiles() -> Result<()> {
         println!("No profiles exist");
     }
 
-    let bb_config =
-        serde_json::from_str::<CliConfig>(&fs::read_to_string(bb_config_dir.join("config.json"))?)?;
+    let cli_config = serde_json::from_str::<CliConfig>(&fs::read_to_string(
+        cli_config_dir.join("config.json"),
+    )?)?;
 
-    println!("Current profile: {}", bb_config.profile_name);
+    println!("Current profile: {}", cli_config.profile_name);
 
     profiles.sort();
 
