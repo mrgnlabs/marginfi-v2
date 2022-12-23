@@ -24,6 +24,8 @@ pub enum MarginfiError {
     BankAlreadyExists,
     #[msg("Borrowing not allowed")]
     BorrowingNotAllowed,
+    #[msg("Illegal post liquidation state, account is either not unhealthy or liquidation was too big")]
+    AccountIllegalPostLiquidationState,
 }
 
 impl From<MarginfiError> for ProgramError {

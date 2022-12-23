@@ -146,7 +146,7 @@ macro_rules! assert_eq_noise {
     ($a:expr, $b:expr, $tolerance:expr) => {
         let diff = ($a - $b).abs();
         assert!(
-            diff < $tolerance,
+            diff <= $tolerance,
             "Difference between {} and {} larger than {} tolerated",
             $a,
             $b,

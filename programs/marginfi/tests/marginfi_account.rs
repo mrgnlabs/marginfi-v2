@@ -477,10 +477,203 @@ async fn liquidation_successful() -> anyhow::Result<()> {
     Ok(())
 }
 #[tokio::test]
-async fn liquidation_failed_liquidatee_not_unhealthy() {}
+async fn liquidation_failed_liquidatee_not_unhealthy() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    // Setup sample bank
+    let usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_f = MintFixture::new(test_f.context.clone(), None, Some(9)).await;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_f.key,
+            0,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_f.key,
+            1,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                deposit_weight_maint: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let depositor = test_f.create_marginfi_account().await;
+    let deposit_account = usdc_mint_f.create_and_mint_to(native!(200, "USDC")).await;
+    depositor
+        .try_bank_deposit(usdc_mint_f.key, deposit_account, native!(200, "USDC"))
+        .await?;
+
+    let borrower = test_f.create_marginfi_account().await;
+    let borrower_sol_account = sol_mint_f.create_and_mint_to(native!(100, "SOL")).await;
+    let borrower_usdc_account = usdc_mint_f.create_and_mint_to(0).await;
+    borrower
+        .try_bank_deposit(sol_mint_f.key, borrower_sol_account, native!(100, "SOL"))
+        .await?;
+    borrower
+        .try_bank_withdraw(usdc_mint_f.key, borrower_usdc_account, native!(100, "USDC"))
+        .await?;
+
+    let res = depositor
+        .try_liquidate(borrower.key, 1, native!(1, "SOL"), 0, usdc_mint_f.key)
+        .await;
+
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::AccountIllegalPostLiquidationState
+    );
+
+    Ok(())
+}
 #[tokio::test]
-async fn liquidation_failed_liquidation_too_severe() {}
+async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    // Setup sample bank
+    let usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_f = MintFixture::new(test_f.context.clone(), None, Some(9)).await;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_f.key,
+            0,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                deposit_weight_maint: I80F48!(1).into(),
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_f.key,
+            1,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                deposit_weight_maint: I80F48!(0.5).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let depositor = test_f.create_marginfi_account().await;
+    let deposit_account = usdc_mint_f.create_and_mint_to(native!(200, "USDC")).await;
+    depositor
+        .try_bank_deposit(usdc_mint_f.key, deposit_account, native!(200, "USDC"))
+        .await?;
+
+    let borrower = test_f.create_marginfi_account().await;
+    let borrower_sol_account = sol_mint_f.create_and_mint_to(native!(100, "SOL")).await;
+    let borrower_usdc_account = usdc_mint_f.create_and_mint_to(0).await;
+    borrower
+        .try_bank_deposit(sol_mint_f.key, borrower_sol_account, native!(10, "SOL"))
+        .await?;
+    borrower
+        .try_bank_withdraw(usdc_mint_f.key, borrower_usdc_account, native!(60, "USDC"))
+        .await?;
+
+    let res = depositor
+        .try_liquidate(borrower.key, 1, native!(10, "SOL"), 0, usdc_mint_f.key)
+        .await;
+
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::AccountIllegalPostLiquidationState
+    );
+
+    let res = depositor
+        .try_liquidate(borrower.key, 1, native!(1, "SOL"), 0, usdc_mint_f.key)
+        .await;
+
+    assert!(res.is_ok());
+
+    Ok(())
+}
 #[tokio::test]
-async fn liquidation_failed_liquidator_no_collateral() {}
-#[tokio::test]
-async fn liquidation_failed_liquidatee_too_much_collateral_liquidated() {}
+async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    // Setup sample bank
+    let usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_f = MintFixture::new(test_f.context.clone(), None, Some(9)).await;
+    let sol_2_mint_f = MintFixture::new(test_f.context.clone(), None, Some(9)).await;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_f.key,
+            0,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_f.key,
+            1,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+    test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_2_mint_f.key,
+            2,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let depositor = test_f.create_marginfi_account().await;
+    let deposit_account = usdc_mint_f.create_and_mint_to(native!(200, "USDC")).await;
+    depositor
+        .try_bank_deposit(usdc_mint_f.key, deposit_account, native!(200, "USDC"))
+        .await?;
+
+    let borrower = test_f.create_marginfi_account().await;
+    let borrower_sol_account = sol_mint_f.create_and_mint_to(native!(100, "SOL")).await;
+    let borrower_sol_2_account = sol_2_mint_f.create_and_mint_to(native!(100, "SOL")).await;
+    let borrower_usdc_account = usdc_mint_f.create_and_mint_to(0).await;
+    borrower
+        .try_bank_deposit(sol_mint_f.key, borrower_sol_account, native!(10, "SOL"))
+        .await?;
+    borrower
+        .try_bank_deposit(sol_2_mint_f.key, borrower_sol_2_account, native!(1, "SOL"))
+        .await?;
+
+    borrower
+        .try_bank_withdraw(usdc_mint_f.key, borrower_usdc_account, native!(60, "USDC"))
+        .await?;
+
+    let res = depositor
+        .try_liquidate(borrower.key, 2, native!(2, "SOL"), 0, usdc_mint_f.key)
+        .await;
+
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BorrowingNotAllowed);
+
+    let res = depositor
+        .try_liquidate(borrower.key, 2, native!(1, "SOL"), 0, usdc_mint_f.key)
+        .await;
+
+    assert!(res.is_ok());
+    Ok(())
+}

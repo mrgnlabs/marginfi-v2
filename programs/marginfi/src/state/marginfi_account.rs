@@ -239,14 +239,14 @@ impl<'a> RiskEngine<'a> {
             self.get_account_health_components(RiskRequirementType::Maintenance)?;
 
         msg!(
-            "assets {} - liabs: {}",
+            "post_liq: assets {} - liabs: {}",
             total_weighted_assets,
             total_weighted_liabilities
         );
 
         check!(
             total_weighted_assets <= total_weighted_liabilities,
-            MarginfiError::BadAccountHealth
+            MarginfiError::AccountIllegalPostLiquidationState
         );
 
         Ok(())
@@ -262,14 +262,19 @@ impl<'a> RiskEngine<'a> {
             .map(|a| {
                 a.calc_weighted_assets_and_liabilities_values(requirement_type.to_weight_type())
             })
-            .try_fold((I80F48::ZERO, I80F48::ZERO), |(ta, tl), res| {
-                let (assets, liabilities) = res?;
-                let total_assets_sum = ta.checked_add(assets).ok_or_else(math_error!())?;
-                let total_liabilities_sum =
-                    tl.checked_add(liabilities).ok_or_else(math_error!())?;
+            .try_fold(
+                (I80F48::ZERO, I80F48::ZERO),
+                |(total_assets, total_liabilities), res| {
+                    let (assets, liabilities) = res?;
+                    let total_assets_sum =
+                        total_assets.checked_add(assets).ok_or_else(math_error!())?;
+                    let total_liabilities_sum = total_liabilities
+                        .checked_add(liabilities)
+                        .ok_or_else(math_error!())?;
 
-                Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
-            })?)
+                    Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
+                },
+            )?)
     }
 }
 

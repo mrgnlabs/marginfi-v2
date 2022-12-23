@@ -174,7 +174,7 @@ impl MarginfiAccountFixture {
         asset_amount: u64,
         liab_bank_index: u16,
         liab_mint: Pubkey,
-    ) -> anyhow::Result<()> {
+    ) -> std::result::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
         let mut ctx = self.ctx.borrow_mut();
 
@@ -236,9 +236,7 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
-
-        Ok(())
+        ctx.banks_client.process_transaction(tx).await
     }
 
     pub async fn load(&self) -> MarginfiAccount {
