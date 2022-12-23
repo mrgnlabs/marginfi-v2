@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    profile::{get_cli_config_dir, load_profile, BBConfig, Profile},
+    profile::{get_cli_config_dir, load_profile, CliConfig, Profile},
     utils::process_transaction,
 };
 use anchor_client::Cluster;
@@ -81,12 +81,6 @@ pub fn group_create(config: Config, profile: Profile, admin: Option<Pubkey>) -> 
     ixs.append(&mut init_marginfi_group_ix);
 
     let signers = vec![&config.payer, &marginfi_group_keypair];
-    println!(
-        "{:?}, {:?}",
-        config.payer.pubkey(),
-        marginfi_group_keypair.pubkey()
-    );
-    println!("{:?}", ixs);
     let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
         &ixs,
         Some(&config.payer.pubkey()),
@@ -135,7 +129,7 @@ pub fn create_profile(
 
         fs::write(
             &bb_config_file,
-            serde_json::to_string(&BBConfig {
+            serde_json::to_string(&CliConfig {
                 profile_name: profile.name.clone(),
             })?,
         )?;
@@ -182,7 +176,7 @@ pub fn set_profile(name: String) -> Result<()> {
     }
 
     let bb_config = fs::read_to_string(&bb_config_file)?;
-    let mut bb_config: BBConfig = serde_json::from_str(&bb_config)?;
+    let mut bb_config: CliConfig = serde_json::from_str(&bb_config)?;
 
     bb_config.profile_name = name;
 
@@ -208,7 +202,7 @@ pub fn list_profiles() -> Result<()> {
     }
 
     let bb_config =
-        serde_json::from_str::<BBConfig>(&fs::read_to_string(bb_config_dir.join("config.json"))?)?;
+        serde_json::from_str::<CliConfig>(&fs::read_to_string(bb_config_dir.join("config.json"))?)?;
 
     println!("Current profile: {}", bb_config.profile_name);
 

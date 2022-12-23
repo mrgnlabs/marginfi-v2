@@ -106,7 +106,7 @@ pub struct LendingPoolAddBank<'info> {
     pub asset_mint: Box<Account<'info, Mint>>,
     #[account(
         seeds = [
-            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             asset_mint.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -120,7 +120,7 @@ pub struct LendingPoolAddBank<'info> {
         token::mint = asset_mint,
         token::authority = liquidity_vault_authority,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             asset_mint.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -129,7 +129,7 @@ pub struct LendingPoolAddBank<'info> {
     pub liquidity_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         seeds = [
-            INSURANCE_VAULT_AUTHORITY_SEED,
+            INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
             asset_mint.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -143,7 +143,7 @@ pub struct LendingPoolAddBank<'info> {
         token::mint = asset_mint,
         token::authority = insurance_vault_authority,
         seeds = [
-            INSURANCE_VAULT_SEED,
+            INSURANCE_VAULT_SEED.as_bytes(),
             asset_mint.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -152,7 +152,7 @@ pub struct LendingPoolAddBank<'info> {
     pub insurance_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         seeds = [
-            FEE_VAULT_AUTHORITY_SEED,
+            FEE_VAULT_AUTHORITY_SEED.as_bytes(),
             asset_mint.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -166,7 +166,7 @@ pub struct LendingPoolAddBank<'info> {
         token::mint = asset_mint,
         token::authority = fee_vault_authority,
         seeds = [
-            FEE_VAULT_SEED,
+            FEE_VAULT_SEED.as_bytes(),
             asset_mint.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -292,7 +292,7 @@ pub struct LendingPoolBankAccrueInterest<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -303,7 +303,7 @@ pub struct LendingPoolBankAccrueInterest<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -314,7 +314,7 @@ pub struct LendingPoolBankAccrueInterest<'info> {
     #[account(
         mut,
         seeds = [
-            INSURANCE_VAULT_SEED,
+            INSURANCE_VAULT_SEED.as_bytes(),
             marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
@@ -325,7 +325,7 @@ pub struct LendingPoolBankAccrueInterest<'info> {
     #[account(
         mut,
         seeds = [
-            FEE_VAULT_SEED,
+            FEE_VAULT_SEED.as_bytes(),
             marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],

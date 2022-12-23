@@ -25,7 +25,7 @@ pub struct Profile {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct BBConfig {
+pub struct CliConfig {
     pub profile_name: String,
 }
 
@@ -104,9 +104,9 @@ impl Profile {
 
     pub fn set_marginfi_group(&mut self, address: Pubkey) -> Result<()> {
         self.marginfi_group = Some(address);
-        let bb_config_dir = get_cli_config_dir();
-        let bb_profiles_dir = bb_config_dir.join("profiles");
-        let profile_file = bb_profiles_dir.join(self.name.clone() + ".json");
+        let cli_config_dir = get_cli_config_dir();
+        let cli_profiles_dir = cli_config_dir.join("profiles");
+        let profile_file = cli_profiles_dir.join(self.name.clone() + ".json");
 
         fs::write(&profile_file, serde_json::to_string(&self)?)?;
 
@@ -123,7 +123,7 @@ pub fn load_profile() -> Result<Profile> {
     }
 
     let cli_config = fs::read_to_string(&cli_config_file)?;
-    let cli_config: BBConfig = serde_json::from_str(&cli_config)?;
+    let cli_config: CliConfig = serde_json::from_str(&cli_config)?;
 
     let profile_file = cli_config_dir
         .join("profiles")

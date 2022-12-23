@@ -601,6 +601,7 @@ impl BankVaultType {
             BankVaultType::Insurance => INSURANCE_VAULT_SEED,
             BankVaultType::Fee => FEE_VAULT_SEED,
         }
+        .as_bytes()
     }
 
     pub fn get_authority_seed(self) -> &'static [u8] {
@@ -609,6 +610,7 @@ impl BankVaultType {
             BankVaultType::Insurance => INSURANCE_VAULT_AUTHORITY_SEED,
             BankVaultType::Fee => FEE_VAULT_AUTHORITY_SEED,
         }
+        .as_bytes()
     }
 }
 

@@ -17,6 +17,7 @@ default = []
 test-bpf = ["test"]
 test = []
 client = []
+devnet = []
 
 [dependencies]
 anchor-lang = "0.26.0"

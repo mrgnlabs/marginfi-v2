@@ -7,6 +7,9 @@ edition = "2021"
 name = "mfi"
 path = "src/bin/main.rs"
 
+[features]
+devnet = ["marginfi/devnet"]
+
 [dependencies]
 clap = { version = "3.2.6", features = ["derive"] }
 anyhow = "1.0.58"
