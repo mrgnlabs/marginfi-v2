@@ -213,8 +213,8 @@ impl InterestRateConfig {
 pub struct Bank {
     pub mint_pk: Pubkey,
 
-    pub deposit_share_value: I80F48,
-    pub liability_share_value: I80F48,
+    pub deposit_share_value: WrappedI80F48,
+    pub liability_share_value: WrappedI80F48,
 
     pub liquidity_vault: Pubkey,
     pub insurance_vault: Pubkey,
@@ -222,8 +222,8 @@ pub struct Bank {
 
     pub config: BankConfig,
 
-    pub total_borrow_shares: I80F48,
-    pub total_deposit_shares: I80F48,
+    pub total_borrow_shares: WrappedI80F48,
+    pub total_deposit_shares: WrappedI80F48,
 
     pub last_update: i64,
 }
@@ -239,50 +239,51 @@ impl Bank {
     ) -> Bank {
         Bank {
             mint_pk,
-            deposit_share_value: I80F48::ONE,
-            liability_share_value: I80F48::ONE,
+            deposit_share_value: I80F48::ONE.into(),
+            liability_share_value: I80F48::ONE.into(),
             liquidity_vault,
             insurance_vault,
             fee_vault,
             config,
-            total_borrow_shares: I80F48::ZERO,
-            total_deposit_shares: I80F48::ZERO,
+            total_borrow_shares: I80F48::ZERO.into(),
+            total_deposit_shares: I80F48::ZERO.into(),
             last_update: current_timestamp,
         }
     }
 
     pub fn get_liability_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
-            .checked_mul(self.liability_share_value)
+            .checked_mul(self.liability_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
     pub fn get_deposit_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
-            .checked_mul(self.deposit_share_value)
+            .checked_mul(self.deposit_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
     pub fn get_liability_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
         Ok(value
-            .checked_div(self.liability_share_value)
+            .checked_div(self.liability_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
     pub fn get_deposit_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
         Ok(value
-            .checked_div(self.deposit_share_value)
+            .checked_div(self.deposit_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
     pub fn change_deposit_shares(&mut self, shares: I80F48) -> MarginfiResult {
-        self.total_deposit_shares = self
-            .total_deposit_shares
+        let total_deposit_shares: I80F48 = self.total_deposit_shares.into();
+        self.total_deposit_shares = total_deposit_shares
             .checked_add(shares)
-            .ok_or_else(math_error!())?;
+            .ok_or_else(math_error!())?
+            .into();
 
         if shares.is_positive() {
-            let total_shares_value = self.get_deposit_amount(self.total_deposit_shares)?;
+            let total_shares_value = self.get_deposit_amount(self.total_deposit_shares.into())?;
             let max_deposit_capacity = self.get_deposit_amount(self.config.max_capacity.into())?;
 
             check!(
@@ -295,10 +296,11 @@ impl Bank {
     }
 
     pub fn change_liability_shares(&mut self, shares: I80F48) -> MarginfiResult {
-        self.total_borrow_shares = self
-            .total_borrow_shares
+        let total_borrow_shares: I80F48 = self.total_borrow_shares.into();
+        self.total_borrow_shares = total_borrow_shares
             .checked_add(shares)
-            .ok_or_else(math_error!())?;
+            .ok_or_else(math_error!())?
+            .into();
         Ok(())
     }
 
@@ -341,8 +343,8 @@ impl Bank {
             .try_into()
             .unwrap();
 
-        let total_deposits = self.get_deposit_amount(self.total_deposit_shares)?;
-        let total_liabilities = self.get_liability_amount(self.total_borrow_shares)?;
+        let total_deposits = self.get_deposit_amount(self.total_deposit_shares.into())?;
+        let total_liabilities = self.get_liability_amount(self.total_borrow_shares.into())?;
 
         let (
             deposit_share_value,
@@ -354,13 +356,13 @@ impl Bank {
             total_deposits,
             total_liabilities,
             &self.config.interest_rate_config,
-            self.deposit_share_value,
-            self.liability_share_value,
+            self.deposit_share_value.into(),
+            self.liability_share_value.into(),
         )
         .ok_or_else(math_error!())?;
 
-        self.deposit_share_value = deposit_share_value;
-        self.liability_share_value = liability_share_value;
+        self.deposit_share_value = deposit_share_value.into();
+        self.liability_share_value = liability_share_value.into();
         self.last_update = clock.unix_timestamp;
 
         Ok((

@@ -1,9 +1,12 @@
-import { Connection } from "@solana/web3.js";
+import MarginfiClient from "./client";
+import MarginfiGroup from "./group";
+import { NodeWallet } from "./nodeWallet";
 
-async function main() {
-  const connection = new Connection("https://devnet.genesysgo.net/");
-  const epochInfo = await connection.getEpochInfo();
-  console.log(epochInfo);
-}
-
-main();
+export * from "./config";
+export * from "./constants";
+export * from "./group";
+export * from "./idl";
+export * from "./types";
+export * from "./utils";
+export { MarginfiClient, MarginfiGroup };
+export { NodeWallet };
