@@ -1,5 +1,4 @@
-use std::collections::BTreeMap;
-
+use super::marginfi_account::WeightType;
 use crate::{
     check,
     constants::{
@@ -15,8 +14,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
-
-use super::marginfi_account::WeightType;
+use std::collections::BTreeMap;
 
 #[account(zero_copy)]
 #[cfg_attr(
@@ -25,7 +23,6 @@ use super::marginfi_account::WeightType;
 )]
 #[derive(Default)]
 pub struct MarginfiGroup {
-    pub lending_pool: LendingPool,
     pub admin: Pubkey,
 }
 
@@ -51,56 +48,6 @@ impl MarginfiGroup {
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]
 pub struct GroupConfig {
     pub admin: Option<Pubkey>,
-}
-
-const MAX_LENDING_POOL_RESERVES: usize = 128;
-
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq)
-)]
-#[zero_copy]
-pub struct LendingPool {
-    pub banks: [Option<Bank>; MAX_LENDING_POOL_RESERVES],
-}
-
-impl Default for LendingPool {
-    fn default() -> Self {
-        Self {
-            banks: [None; MAX_LENDING_POOL_RESERVES],
-        }
-    }
-}
-
-impl LendingPool {
-    pub fn find_bank_by_mint(&self, mint_pk: &Pubkey) -> Option<&Bank> {
-        self.banks
-            .iter()
-            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint_pk.eq(mint_pk))
-            .map(|reserve| reserve.as_ref().unwrap())
-    }
-
-    pub fn find_bank_by_mint_mut(&mut self, mint_pk: &Pubkey) -> Option<&mut Bank> {
-        self.banks
-            .iter_mut()
-            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint_pk.eq(mint_pk))
-            .map(|reserve| reserve.as_mut().unwrap())
-    }
-
-    pub fn get_initialized_bank_mut(&mut self, bank_index: u16) -> MarginfiResult<&mut Bank> {
-        Ok(self
-            .banks
-            .get_mut(bank_index as usize)
-            .ok_or_else(|| {
-                msg!("Invalid bank index: {}", bank_index);
-                MarginfiError::BankNotFound
-            })?
-            .as_mut()
-            .ok_or_else(|| {
-                msg!("Bank not initialized: {}", bank_index);
-                MarginfiError::BankNotFound
-            })?)
-    }
 }
 
 pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
@@ -204,11 +151,11 @@ impl InterestRateConfig {
     }
 }
 
+#[account]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq)
 )]
-#[zero_copy]
 #[derive(Default)]
 pub struct Bank {
     pub mint_pk: Pubkey,

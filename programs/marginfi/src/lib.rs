@@ -61,18 +61,16 @@ pub mod marginfi {
 
     pub fn lending_pool_add_bank(
         ctx: Context<LendingPoolAddBank>,
-        bank_index: u16,
         bank_config: BankConfig,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank(ctx, bank_index, bank_config)
+        marginfi_group::lending_pool_add_bank(ctx, bank_config)
     }
 
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
-        bank_index: u16,
         bank_config_opt: BankConfigOpt,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_configure_bank(ctx, bank_index, bank_config_opt)
+        marginfi_group::lending_pool_configure_bank(ctx, bank_config_opt)
     }
 
     // User instructions
@@ -88,25 +86,12 @@ pub mod marginfi {
         marginfi_account::bank_withdraw(ctx, amount)
     }
 
-    pub fn liquidate(
-        ctx: Context<LendingAccountLiquidate>,
-        asset_bank_index: u16,
-        asset_amount: u64,
-        liab_bank_index: u16,
-    ) -> MarginfiResult {
-        marginfi_account::lending_account_liquidate(
-            ctx,
-            asset_bank_index,
-            asset_amount,
-            liab_bank_index,
-        )
+    pub fn liquidate(ctx: Context<LendingAccountLiquidate>, asset_amount: u64) -> MarginfiResult {
+        marginfi_account::lending_account_liquidate(ctx, asset_amount)
     }
 
     // Operational instructions
-    pub fn bank_accrue_interest(
-        ctx: Context<LendingPoolBankAccrueInterest>,
-        bank_index: u16,
-    ) -> MarginfiResult {
-        marginfi_group::lending_pool_bank_accrue_interest(ctx, bank_index)
+    pub fn bank_accrue_interest(ctx: Context<LendingPoolBankAccrueInterest>) -> MarginfiResult {
+        marginfi_group::lending_pool_bank_accrue_interest(ctx)
     }
 }

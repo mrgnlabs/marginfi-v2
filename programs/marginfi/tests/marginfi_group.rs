@@ -10,7 +10,7 @@ use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
 use marginfi::{
     prelude::{MarginfiError, MarginfiGroup},
-    state::marginfi_group::{BankConfig, InterestRateConfig},
+    state::marginfi_group::{Bank, BankConfig, InterestRateConfig},
 };
 use pretty_assertions::assert_eq;
 use solana_program::{
@@ -74,11 +74,6 @@ async fn success_create_marginfi_group() -> anyhow::Result<()> {
 
     // Check basic properties
     assert_eq!(marginfi_group.admin, test_f.payer());
-    assert!(marginfi_group
-        .lending_pool
-        .banks
-        .iter()
-        .all(|bank| bank.is_none()));
 
     Ok(())
 }
@@ -95,34 +90,17 @@ async fn success_add_bank() -> anyhow::Result<()> {
 
     let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
-    let new_bank_index = 0;
     let res = test_f
         .marginfi_group
-        .try_lending_pool_add_bank(
-            bank_asset_mint_fixture.key,
-            new_bank_index,
-            *DEFAULT_USDC_TEST_BANK_CONFIG,
-        )
+        .try_lending_pool_add_bank(bank_asset_mint_fixture.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
         .await;
     assert!(res.is_ok());
 
-    let marginfi_group = test_f.marginfi_group.load().await;
-
     // Check bank is active
-    assert!(marginfi_group
-        .lending_pool
-        .find_bank_by_mint(&bank_asset_mint_fixture.key)
-        .is_some());
-    assert_eq!(
-        marginfi_group
-            .lending_pool
-            .banks
-            .iter()
-            .filter(|bank| bank.is_some())
-            .collect::<Vec<_>>()
-            .len(),
-        1
-    );
+    let bank = test_f
+        .try_load(&find_bank_pda(&test_f.marginfi_group.key, &bank_asset_mint_fixture.key).0)
+        .await?;
+    assert!(bank.is_some());
 
     Ok(())
 }
@@ -134,12 +112,10 @@ async fn failure_add_bank_fake_pyth_feed() -> anyhow::Result<()> {
 
     let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
-    let new_bank_index = 0;
     let res = test_f
         .marginfi_group
         .try_lending_pool_add_bank(
             bank_asset_mint_fixture.key,
-            new_bank_index,
             BankConfig {
                 pyth_oracle: FAKE_PYTH_USDC_FEED,
                 ..Default::default()
@@ -159,22 +135,13 @@ async fn failure_add_bank_already_exists() -> anyhow::Result<()> {
 
     let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
-    let new_bank_index = 0;
     test_f
         .marginfi_group
-        .try_lending_pool_add_bank(
-            bank_asset_mint_fixture.key,
-            new_bank_index,
-            *DEFAULT_USDC_TEST_BANK_CONFIG,
-        )
+        .try_lending_pool_add_bank(bank_asset_mint_fixture.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
         .await?;
     let res = test_f
         .marginfi_group
-        .try_lending_pool_add_bank(
-            bank_asset_mint_fixture.key,
-            new_bank_index,
-            BankConfig::default(),
-        )
+        .try_lending_pool_add_bank(bank_asset_mint_fixture.key, BankConfig::default())
         .await;
 
     assert!(res.is_err());
@@ -196,7 +163,6 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             usdc_mint_fixture.key,
-            0,
             BankConfig {
                 interest_rate_config: InterestRateConfig {
                     optimal_utilization_rate: I80F48!(0.9).into(),
@@ -212,7 +178,6 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
-            1,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -255,18 +220,20 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_accrue_interest(&usdc_mint_fixture.key, 0)
+        .try_accrue_interest(usdc_mint_fixture.key)
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
     let borrower_bank_account = borrower_mfi_account.lending_account.balances[1].unwrap();
-    let marginfi_group = test_f.marginfi_group.load().await;
-    let bank = marginfi_group.lending_pool.banks[0].unwrap();
-    let liabilities = bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
+    let usdc_bank: Bank = test_f
+        .load_and_deserialize(&find_bank_pda(&test_f.marginfi_group.key, &usdc_mint_fixture.key).0)
+        .await;
+    let liabilities =
+        usdc_bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
 
     let lender_mfi_account = lender_account.load().await;
     let lender_bank_account = lender_mfi_account.lending_account.balances[0].unwrap();
-    let deposits = bank.get_deposit_amount(lender_bank_account.deposit_shares.into())?;
+    let deposits = usdc_bank.get_deposit_amount(lender_bank_account.deposit_shares.into())?;
 
     assert_eq_noise!(
         liabilities,
@@ -288,7 +255,6 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             usdc_mint_fixture.key,
-            0,
             BankConfig {
                 interest_rate_config: InterestRateConfig {
                     optimal_utilization_rate: I80F48!(0.9).into(),
@@ -307,7 +273,6 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
-            1,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
                 max_capacity: native!(200_000_000, "SOL").into(),
@@ -359,27 +324,33 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_accrue_interest(&usdc_mint_fixture.key, 0)
+        .try_accrue_interest(usdc_mint_fixture.key)
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
     let borrower_bank_account = borrower_mfi_account.lending_account.balances[1].unwrap();
-    let marginfi_group = test_f.marginfi_group.load().await;
-    let bank = marginfi_group.lending_pool.banks[0].unwrap();
-    let liabilities = bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
+    let usdc_bank: Bank = test_f
+        .load_and_deserialize(&find_bank_pda(&test_f.marginfi_group.key, &usdc_mint_fixture.key).0)
+        .await;
+    let liabilities =
+        usdc_bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
 
     let lender_mfi_account = lender_account.load().await;
     let lender_bank_account = lender_mfi_account.lending_account.balances[0].unwrap();
-    let deposits = bank.get_deposit_amount(lender_bank_account.deposit_shares.into())?;
+    let deposits = usdc_bank.get_deposit_amount(lender_bank_account.deposit_shares.into())?;
 
     assert_eq_noise!(liabilities, I80F48!(90000174657530), I80F48!(10));
     assert_eq_noise!(deposits, I80F48!(100000171232862), I80F48!(10));
 
     let mut ctx = test_f.context.borrow_mut();
-    let protocol_fees = ctx.banks_client.get_account(bank.fee_vault).await?.unwrap();
+    let protocol_fees = ctx
+        .banks_client
+        .get_account(usdc_bank.fee_vault)
+        .await?
+        .unwrap();
     let insurance_fees = ctx
         .banks_client
-        .get_account(bank.insurance_vault)
+        .get_account(usdc_bank.insurance_vault)
         .await?
         .unwrap();
 

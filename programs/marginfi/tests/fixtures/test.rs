@@ -8,15 +8,14 @@ use crate::{
 use anchor_lang::prelude::*;
 use bincode::deserialize;
 
+use super::marginfi_account::MarginfiAccountFixture;
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
 use marginfi::state::marginfi_group::{BankConfig, GroupConfig};
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
-use solana_sdk::{pubkey, signature::Keypair, signer::Signer};
+use solana_sdk::{account::Account, pubkey, signature::Keypair, signer::Signer};
 use std::{cell::RefCell, rc::Rc};
-
-use super::marginfi_account::MarginfiAccountFixture;
 
 pub struct TestFixture {
     pub context: Rc<RefCell<ProgramTestContext>>,
@@ -67,7 +66,6 @@ impl TestFixture {
 
         let tester_group = MarginfiGroupFixture::new(
             Rc::clone(&context),
-            &usdc_mint_f.key,
             ix_arg.unwrap_or(GroupConfig { admin: None }),
         )
         .await;
@@ -85,6 +83,17 @@ impl TestFixture {
             MarginfiAccountFixture::new(Rc::clone(&self.context), &self.marginfi_group.key).await;
 
         marfingi_account_f
+    }
+
+    pub async fn try_load(
+        &self,
+        address: &Pubkey,
+    ) -> anyhow::Result<Option<Account>, BanksClientError> {
+        self.context
+            .borrow_mut()
+            .banks_client
+            .get_account(*address)
+            .await
     }
 
     pub async fn load_and_deserialize<T: anchor_lang::AccountDeserialize>(

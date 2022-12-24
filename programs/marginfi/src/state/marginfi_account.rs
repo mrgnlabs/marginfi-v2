@@ -1,4 +1,4 @@
-use super::marginfi_group::{Bank, LendingPool, MarginfiGroup, WrappedI80F48};
+use super::marginfi_group::{Bank, WrappedI80F48};
 use crate::{
     check, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -81,7 +81,7 @@ pub struct BankAccountWithPriceFeed<'a> {
 impl<'a> BankAccountWithPriceFeed<'a> {
     pub fn load<'b: 'a, 'info: 'a + 'b>(
         lending_account: &'a LendingAccount,
-        lending_pool: &'a LendingPool,
+        bank: &'a Bank,
         pyth_accounts: &'b [AccountInfo<'info>],
     ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
         let pyth_accounts = create_pyth_account_map(pyth_accounts)?;
@@ -91,13 +91,6 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             .iter()
             .filter_map(|b| b.as_ref())
             .map(|balance| {
-                let bank = lending_pool
-                    .banks
-                    .get(balance.bank_index as usize)
-                    .unwrap()
-                    .as_ref()
-                    .unwrap();
-
                 let price_feed = bank.load_price_feed(&pyth_accounts)?;
 
                 Ok(BankAccountWithPriceFeed {
@@ -197,15 +190,12 @@ pub struct RiskEngine<'a> {
 
 impl<'a> RiskEngine<'a> {
     pub fn new<'b: 'a, 'info: 'a + 'b>(
-        margin_group: &'a MarginfiGroup,
+        bank: &'a Bank,
         marginfi_account: &'a MarginfiAccount,
         oracle_ais: &'b [AccountInfo<'info>],
     ) -> MarginfiResult<Self> {
-        let bank_accounts_with_price = BankAccountWithPriceFeed::load(
-            &marginfi_account.lending_account,
-            &margin_group.lending_pool,
-            oracle_ais,
-        )?;
+        let bank_accounts_with_price =
+            BankAccountWithPriceFeed::load(&marginfi_account.lending_account, &bank, oracle_ais)?;
 
         Ok(Self {
             bank_accounts_with_price,
@@ -286,18 +276,11 @@ pub struct LendingAccount {
 }
 
 impl LendingAccount {
-    pub fn get_balance(&self, mint_pk: &Pubkey, banks: &[Option<Bank>]) -> Option<&Balance> {
+    pub fn get_balance(&self, mint_pk: &Pubkey, bank: &Bank) -> Option<&Balance> {
         self.balances
             .iter()
             .find(|balance| match balance {
-                Some(balance) => {
-                    let bank = banks[balance.bank_index as usize];
-
-                    match bank {
-                        Some(bank) => bank.mint_pk.eq(mint_pk),
-                        None => false,
-                    }
-                }
+                Some(_) => bank.mint_pk.eq(mint_pk),
                 None => false,
             })
             .map(|balance| balance.as_ref().unwrap())
@@ -314,7 +297,7 @@ impl LendingAccount {
 
 #[zero_copy]
 pub struct Balance {
-    pub bank_index: u8,
+    pub asset_mint: Pubkey,
     pub deposit_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
 }
@@ -346,24 +329,14 @@ pub struct BankAccountWrapper<'a> {
 
 impl<'a> BankAccountWrapper<'a> {
     pub fn find_by_mint_or_create<'b>(
-        mint: Pubkey,
-        lending_pool: &'a mut LendingPool,
+        bank: &'a mut Bank,
         lending_account: &'a mut LendingAccount,
     ) -> MarginfiResult<BankAccountWrapper<'a>> {
-        // Find the bank by asset mint pk
-        let (bank_index, bank) = lending_pool
-            .banks
-            .iter_mut()
-            .enumerate()
-            .filter(|(_, b)| b.is_some())
-            .find(|(_, b)| b.unwrap().mint_pk == mint)
-            .ok_or_else(|| error!(MarginfiError::BankNotFound))?;
-
         // Find the user lending account balance by `bank_index`.
         // The balance account might not exist.
         let balance_index = lending_account
             .get_active_balances_iter()
-            .position(|b| b.bank_index as usize == bank_index);
+            .position(|balance| balance.asset_mint == bank.mint_pk);
 
         let balance = if let Some(index) = balance_index {
             lending_account
@@ -376,53 +349,7 @@ impl<'a> BankAccountWrapper<'a> {
                 .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
 
             lending_account.balances[empty_index] = Some(Balance {
-                bank_index: bank_index as u8,
-                deposit_shares: I80F48::ZERO.into(),
-                liability_shares: I80F48::ZERO.into(),
-            });
-
-            lending_account.balances.get_mut(empty_index).unwrap()
-        }
-        .as_mut()
-        .unwrap();
-
-        Ok(Self {
-            balance,
-            bank: bank.as_mut().unwrap(),
-        })
-    }
-
-    pub fn find_or_create(
-        bank_index: u16,
-        lending_pool: &'a mut LendingPool,
-        lending_account: &'a mut LendingAccount,
-    ) -> MarginfiResult<BankAccountWrapper<'a>> {
-        // Find the bank by asset mint pk
-        let bank = lending_pool
-            .banks
-            .get_mut(bank_index as usize)
-            .ok_or_else(|| error!(MarginfiError::BankNotFound))?
-            .as_mut()
-            .ok_or_else(|| error!(MarginfiError::BankNotFound))?;
-
-        // Find the user lending account balance by `bank_index`.
-        // The balance account might not exist.
-        let balance_index = lending_account
-            .get_active_balances_iter()
-            .position(|b| b.bank_index as usize == bank_index as usize);
-
-        let balance = if let Some(index) = balance_index {
-            lending_account
-                .balances
-                .get_mut(index)
-                .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceNotFound))?
-        } else {
-            let empty_index = lending_account
-                .get_first_empty_balance()
-                .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
-
-            lending_account.balances[empty_index] = Some(Balance {
-                bank_index: bank_index as u8,
+                asset_mint: bank.mint_pk,
                 deposit_shares: I80F48::ZERO.into(),
                 liability_shares: I80F48::ZERO.into(),
             });
@@ -434,6 +361,49 @@ impl<'a> BankAccountWrapper<'a> {
 
         Ok(Self { balance, bank })
     }
+
+    // pub fn find_or_create(
+    //     bank_index: u16,
+    //     lending_pool: &'a mut LendingPool,
+    //     lending_account: &'a mut LendingAccount,
+    // ) -> MarginfiResult<BankAccountWrapper<'a>> {
+    //     // Find the bank by asset mint pk
+    //     let bank = lending_pool
+    //         .banks
+    //         .get_mut(bank_index as usize)
+    //         .ok_or_else(|| error!(MarginfiError::BankNotFound))?
+    //         .as_mut()
+    //         .ok_or_else(|| error!(MarginfiError::BankNotFound))?;
+
+    //     // Find the user lending account balance by `bank_index`.
+    //     // The balance account might not exist.
+    //     let balance_index = lending_account
+    //         .get_active_balances_iter()
+    //         .position(|b| b.bank_index as usize == bank_index as usize);
+
+    //     let balance = if let Some(index) = balance_index {
+    //         lending_account
+    //             .balances
+    //             .get_mut(index)
+    //             .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceNotFound))?
+    //     } else {
+    //         let empty_index = lending_account
+    //             .get_first_empty_balance()
+    //             .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
+
+    //         lending_account.balances[empty_index] = Some(Balance {
+    //             bank_index: bank_index as u8,
+    //             deposit_shares: I80F48::ZERO.into(),
+    //             liability_shares: I80F48::ZERO.into(),
+    //         });
+
+    //         lending_account.balances.get_mut(empty_index).unwrap()
+    //     }
+    //     .as_mut()
+    //     .unwrap();
+
+    //     Ok(Self { balance, bank })
+    // }
 
     pub fn account_deposit(&mut self, amount: I80F48) -> MarginfiResult {
         let balance = &mut self.balance;

@@ -12,7 +12,7 @@ use marginfi::{
     prelude::MarginfiError,
     state::{
         marginfi_account::MarginfiAccount,
-        marginfi_group::{BankConfig, BankVaultType},
+        marginfi_group::{Bank, BankConfig, BankVaultType},
     },
 };
 use pretty_assertions::assert_eq;
@@ -91,14 +91,9 @@ async fn success_deposit() -> anyhow::Result<()> {
     // Setup sample bank
     let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
 
-    let sample_bank_index = 8;
     test_f
         .marginfi_group
-        .try_lending_pool_add_bank(
-            usdc_mint_f.key,
-            sample_bank_index,
-            *DEFAULT_USDC_TEST_BANK_CONFIG,
-        )
+        .try_lending_pool_add_bank(usdc_mint_f.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
         .await?;
 
     let marginfi_account_f = test_f.create_marginfi_account().await;
@@ -117,12 +112,14 @@ async fn success_deposit() -> anyhow::Result<()> {
     assert!(res.is_ok());
 
     let marginfi_account = marginfi_account_f.load().await;
-    let marginfi_group = test_f.marginfi_group.load().await;
 
     // Check balance is active
+    let usdc_bank: Bank = test_f
+        .load_and_deserialize(&find_bank_pda(&test_f.marginfi_group.key, &usdc_mint_f.key).0)
+        .await;
     assert!(marginfi_account
         .lending_account
-        .get_balance(&usdc_mint_f.key, &marginfi_group.lending_pool.banks)
+        .get_balance(&usdc_mint_f.key, &usdc_bank)
         .is_some());
     assert_eq!(
         marginfi_account
@@ -144,12 +141,10 @@ async fn failure_deposit_capacity_exceeded() -> anyhow::Result<()> {
     // Setup sample bank
     let mut usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
 
-    let sample_bank_index = 8;
     test_f
         .marginfi_group
         .try_lending_pool_add_bank(
             usdc_mint_f.key,
-            sample_bank_index,
             BankConfig {
                 pyth_oracle: PYTH_USDC_FEED,
                 max_capacity: native!(100, "USDC"),
@@ -193,12 +188,10 @@ async fn failure_deposit_bank_not_found() -> anyhow::Result<()> {
     let usdc_mint_f = MintFixture::new(test_f.context.clone(), None, None).await;
     let mut sol_mint_f = MintFixture::new(test_f.context.clone(), None, Some(9)).await;
 
-    let sample_bank_index = 8;
     test_f
         .marginfi_group
         .try_lending_pool_add_bank(
             usdc_mint_f.key,
-            sample_bank_index,
             BankConfig {
                 pyth_oracle: PYTH_USDC_FEED,
                 max_capacity: native!(100, "USDC"),
@@ -233,11 +226,11 @@ async fn success_borrow() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_lending_pool_add_bank(test_f.usdc_mint.key, 0, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .try_lending_pool_add_bank(test_f.usdc_mint.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
         .await?;
     test_f
         .marginfi_group
-        .try_lending_pool_add_bank(test_f.sol_mint.key, 1, *DEFAULT_SOL_TEST_BANK_CONFIG)
+        .try_lending_pool_add_bank(test_f.sol_mint.key, *DEFAULT_SOL_TEST_BANK_CONFIG)
         .await?;
 
     let marginfi_account_f = test_f.create_marginfi_account().await;
@@ -300,11 +293,11 @@ async fn failure_borrow_not_enough_collateral() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_lending_pool_add_bank(usdc_mint_f.key, 0, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .try_lending_pool_add_bank(usdc_mint_f.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
         .await?;
     test_f
         .marginfi_group
-        .try_lending_pool_add_bank(sol_mint_f.key, 1, *DEFAULT_SOL_TEST_BANK_CONFIG)
+        .try_lending_pool_add_bank(sol_mint_f.key, *DEFAULT_SOL_TEST_BANK_CONFIG)
         .await?;
 
     let marginfi_account_f = test_f.create_marginfi_account().await;
@@ -357,7 +350,6 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             usdc_mint_f.key,
-            0,
             BankConfig {
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
@@ -367,7 +359,6 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             sol_mint_f.key,
-            1,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -392,14 +383,21 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         .await?;
 
     depositor
-        .try_liquidate(borrower.key, 1, native!(1, "SOL"), 0, usdc_mint_f.key)
+        .try_liquidate(
+            borrower.key,
+            sol_mint_f.key,
+            native!(1, "SOL"),
+            usdc_mint_f.key,
+        )
         .await?;
 
     // Checks
-    let margin_group = test_f.marginfi_group.load().await;
-
-    let sol_bank = margin_group.lending_pool.banks[1].unwrap();
-    let usdc_bank = margin_group.lending_pool.banks[0].unwrap();
+    let sol_bank: Bank = test_f
+        .load_and_deserialize(&find_bank_pda(&test_f.marginfi_group.key, &sol_mint_f.key).0)
+        .await;
+    let usdc_bank: Bank = test_f
+        .load_and_deserialize(&find_bank_pda(&test_f.marginfi_group.key, &usdc_mint_f.key).0)
+        .await;
 
     let depositor_ma = depositor.load().await;
     let borrower_ma = borrower.load().await;
@@ -488,7 +486,6 @@ async fn liquidation_failed_liquidatee_not_unhealthy() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             usdc_mint_f.key,
-            0,
             BankConfig {
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
@@ -498,7 +495,6 @@ async fn liquidation_failed_liquidatee_not_unhealthy() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             sol_mint_f.key,
-            1,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
                 deposit_weight_maint: I80F48!(1).into(),
@@ -524,7 +520,12 @@ async fn liquidation_failed_liquidatee_not_unhealthy() -> anyhow::Result<()> {
         .await?;
 
     let res = depositor
-        .try_liquidate(borrower.key, 1, native!(1, "SOL"), 0, usdc_mint_f.key)
+        .try_liquidate(
+            borrower.key,
+            sol_mint_f.key,
+            native!(1, "SOL"),
+            usdc_mint_f.key,
+        )
         .await;
 
     assert_custom_error!(
@@ -546,7 +547,6 @@ async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             usdc_mint_f.key,
-            0,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
                 deposit_weight_maint: I80F48!(1).into(),
@@ -558,7 +558,6 @@ async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             sol_mint_f.key,
-            1,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
                 deposit_weight_maint: I80F48!(0.5).into(),
@@ -584,7 +583,12 @@ async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
         .await?;
 
     let res = depositor
-        .try_liquidate(borrower.key, 1, native!(10, "SOL"), 0, usdc_mint_f.key)
+        .try_liquidate(
+            borrower.key,
+            sol_mint_f.key,
+            native!(10, "SOL"),
+            usdc_mint_f.key,
+        )
         .await;
 
     assert_custom_error!(
@@ -593,7 +597,12 @@ async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
     );
 
     let res = depositor
-        .try_liquidate(borrower.key, 1, native!(1, "SOL"), 0, usdc_mint_f.key)
+        .try_liquidate(
+            borrower.key,
+            sol_mint_f.key,
+            native!(1, "SOL"),
+            usdc_mint_f.key,
+        )
         .await;
 
     assert!(res.is_ok());
@@ -613,7 +622,6 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             usdc_mint_f.key,
-            0,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
@@ -624,7 +632,6 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             sol_mint_f.key,
-            1,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -635,7 +642,6 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(
             sol_2_mint_f.key,
-            2,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -665,13 +671,23 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
         .await?;
 
     let res = depositor
-        .try_liquidate(borrower.key, 2, native!(2, "SOL"), 0, usdc_mint_f.key)
+        .try_liquidate(
+            borrower.key,
+            sol_mint_f.key,
+            native!(2, "SOL"),
+            usdc_mint_f.key,
+        )
         .await;
 
     assert_custom_error!(res.unwrap_err(), MarginfiError::BorrowingNotAllowed);
 
     let res = depositor
-        .try_liquidate(borrower.key, 2, native!(1, "SOL"), 0, usdc_mint_f.key)
+        .try_liquidate(
+            borrower.key,
+            sol_mint_f.key,
+            native!(1, "SOL"),
+            usdc_mint_f.key,
+        )
         .await;
 
     assert!(res.is_ok());
