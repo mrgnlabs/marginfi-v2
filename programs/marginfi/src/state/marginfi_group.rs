@@ -3,8 +3,8 @@ use crate::{
     check,
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED, PYTH_ID,
-        SECONDS_PER_YEAR,
+        INSURANCE_VAULT_SEED, LENDING_POOL_BANK_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
+        LIQUIDITY_VAULT_SEED, PYTH_ID, SECONDS_PER_YEAR,
     },
     math_error,
     prelude::MarginfiError,
@@ -198,6 +198,34 @@ impl Bank {
         }
     }
 
+    pub fn find_address(marginfi_group_pk: &Pubkey, asset_mint: &Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                LENDING_POOL_BANK_SEED.as_bytes(),
+                &marginfi_group_pk.to_bytes(),
+                &asset_mint.to_bytes(),
+            ],
+            &crate::id(),
+        )
+    }
+
+    #[inline]
+    pub fn load_from_account_infos(
+        bank_account_map: &BTreeMap<Pubkey, &AccountInfo>,
+        marginfi_group_pk: &Pubkey,
+        mint_pk: &Pubkey,
+    ) -> MarginfiResult<Self> {
+        let bank_address = Self::find_address(&marginfi_group_pk, &mint_pk).0;
+        let bank_account = bank_account_map
+            .get(&bank_address)
+            .ok_or(MarginfiError::MissingBankAccount)?;
+
+        let bank = Bank::try_deserialize(&mut &**bank_account.data.borrow())
+            .map_err(|_| MarginfiError::InvalidBankAccount)?;
+
+        Ok(bank)
+    }
+
     pub fn get_liability_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
             .checked_mul(self.liability_share_value.into())
@@ -278,8 +306,6 @@ impl Bank {
         let pyth_account = pyth_account_map
             .get(&self.config.pyth_oracle)
             .ok_or(MarginfiError::MissingPythAccount)?;
-
-        // TODO: Check for correct Pyth product
 
         Ok(load_price_feed_from_account_info(pyth_account)
             .map_err(|_| MarginfiError::InvalidPythAccount)?)

@@ -73,7 +73,7 @@ pub enum WeightType {
 }
 
 pub struct BankAccountWithPriceFeed<'a> {
-    bank: &'a Bank,
+    bank: Bank,
     price_feed: PriceFeed,
     balance: &'a Balance,
 }
@@ -81,17 +81,32 @@ pub struct BankAccountWithPriceFeed<'a> {
 impl<'a> BankAccountWithPriceFeed<'a> {
     pub fn load<'b: 'a, 'info: 'a + 'b>(
         lending_account: &'a LendingAccount,
-        bank: &'a Bank,
-        pyth_accounts: &'b [AccountInfo<'info>],
+        marginfi_group_pk: &Pubkey,
+        remaining_ais: &'b [AccountInfo<'info>],
     ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
-        let pyth_accounts = create_pyth_account_map(pyth_accounts)?;
+        check!(
+            remaining_ais
+                .len()
+                .checked_rem(2)
+                .ok_or(MarginfiError::MathError)?
+                == 0,
+            MarginfiError::MissingPythOrBankAccount
+        );
+
+        let bank_account_map = create_bank_account_map(remaining_ais)?;
+        let pyth_account_map = create_pyth_account_map(remaining_ais)?;
 
         lending_account
             .balances
             .iter()
             .filter_map(|b| b.as_ref())
             .map(|balance| {
-                let price_feed = bank.load_price_feed(&pyth_accounts)?;
+                let bank = Bank::load_from_account_infos(
+                    &bank_account_map,
+                    &marginfi_group_pk,
+                    &balance.asset_mint,
+                )?;
+                let price_feed = bank.load_price_feed(&pyth_account_map)?;
 
                 Ok(BankAccountWithPriceFeed {
                     bank,
@@ -124,11 +139,23 @@ impl<'a> BankAccountWithPriceFeed<'a> {
     }
 }
 
-pub fn create_pyth_account_map<'a, 'info>(
-    pyth_accounts: &'a [AccountInfo<'info>],
+pub fn create_bank_account_map<'a, 'info>(
+    remaining_accounts: &'a [AccountInfo<'info>],
 ) -> MarginfiResult<BTreeMap<Pubkey, &'a AccountInfo<'info>>> {
     Ok(BTreeMap::from_iter(
-        pyth_accounts.iter().map(|a| (a.key(), a)),
+        remaining_accounts.iter().step_by(2).map(|a| (a.key(), a)),
+    ))
+}
+
+pub fn create_pyth_account_map<'a, 'info>(
+    remaining_accounts: &'a [AccountInfo<'info>],
+) -> MarginfiResult<BTreeMap<Pubkey, &'a AccountInfo<'info>>> {
+    Ok(BTreeMap::from_iter(
+        remaining_accounts
+            .iter()
+            .skip(1)
+            .step_by(2)
+            .map(|a| (a.key(), a)),
     ))
 }
 
@@ -190,12 +217,14 @@ pub struct RiskEngine<'a> {
 
 impl<'a> RiskEngine<'a> {
     pub fn new<'b: 'a, 'info: 'a + 'b>(
-        bank: &'a Bank,
         marginfi_account: &'a MarginfiAccount,
-        oracle_ais: &'b [AccountInfo<'info>],
+        remaining_ais: &'b [AccountInfo<'info>],
     ) -> MarginfiResult<Self> {
-        let bank_accounts_with_price =
-            BankAccountWithPriceFeed::load(&marginfi_account.lending_account, &bank, oracle_ais)?;
+        let bank_accounts_with_price = BankAccountWithPriceFeed::load(
+            &marginfi_account.lending_account,
+            &marginfi_account.group,
+            remaining_ais,
+        )?;
 
         Ok(Self {
             bank_accounts_with_price,

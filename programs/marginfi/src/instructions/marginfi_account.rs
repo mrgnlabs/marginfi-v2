@@ -178,7 +178,7 @@ pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult 
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    let risk_engine = RiskEngine::new(&bank, &marginfi_account, ctx.remaining_accounts)?;
+    let risk_engine = RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?;
     risk_engine.check_account_health(RiskRequirementType::Initial)?;
 
     Ok(())

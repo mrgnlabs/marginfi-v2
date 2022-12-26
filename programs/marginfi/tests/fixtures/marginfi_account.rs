@@ -19,12 +19,16 @@ pub struct MarginfiAccountConfig {}
 pub struct MarginfiAccountFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
+    usdc_mint: Pubkey,
+    sol_mint: Pubkey,
 }
 
 impl MarginfiAccountFixture {
     pub async fn new(
         ctx: Rc<RefCell<ProgramTestContext>>,
         marginfi_group: &Pubkey,
+        usdc_mint: &Pubkey,
+        sol_mint: &Pubkey,
     ) -> MarginfiAccountFixture {
         let ctx_ref = ctx.clone();
         let account_key = Keypair::new();
@@ -65,6 +69,8 @@ impl MarginfiAccountFixture {
         MarginfiAccountFixture {
             ctx: ctx_ref,
             key: account_key.pubkey(),
+            usdc_mint: usdc_mint.clone(),
+            sol_mint: sol_mint.clone(),
         }
     }
 
@@ -153,7 +159,17 @@ impl MarginfiAccountFixture {
         };
         ix.accounts.extend_from_slice(&[
             AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.usdc_mint).0,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
                 pubkey: PYTH_USDC_FEED,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_mint).0,
                 is_signer: false,
                 is_writable: false,
             },
@@ -227,7 +243,17 @@ impl MarginfiAccountFixture {
 
         ix.accounts.extend_from_slice(&[
             AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.usdc_mint).0,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
                 pubkey: PYTH_USDC_FEED,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_mint).0,
                 is_signer: false,
                 is_writable: false,
             },

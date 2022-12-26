@@ -104,7 +104,7 @@ pub struct LendingPoolAddBank<'info> {
     /// marginfi group + underlying mint guarantees unicity of bank per mint within a group
     #[account(
         init,
-        space = std::mem::size_of::<Bank>(),
+        space = 8 + std::mem::size_of::<Bank>(),
         payer = admin,
         seeds = [
             LENDING_POOL_BANK_SEED.as_bytes(),
