@@ -21,6 +21,7 @@ pub struct MarginfiAccountFixture {
     pub key: Pubkey,
     usdc_mint: Pubkey,
     sol_mint: Pubkey,
+    sol_equivalent_mint: Pubkey,
 }
 
 impl MarginfiAccountFixture {
@@ -29,6 +30,7 @@ impl MarginfiAccountFixture {
         marginfi_group: &Pubkey,
         usdc_mint: &Pubkey,
         sol_mint: &Pubkey,
+        sol_equivalent_mint: &Pubkey,
     ) -> MarginfiAccountFixture {
         let ctx_ref = ctx.clone();
         let account_key = Keypair::new();
@@ -71,6 +73,7 @@ impl MarginfiAccountFixture {
             key: account_key.pubkey(),
             usdc_mint: usdc_mint.clone(),
             sol_mint: sol_mint.clone(),
+            sol_equivalent_mint: sol_equivalent_mint.clone(),
         }
     }
 
@@ -178,6 +181,16 @@ impl MarginfiAccountFixture {
                 is_signer: false,
                 is_writable: false,
             },
+            AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_equivalent_mint).0,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: PYTH_SOL_EQUIVALENT_FEED,
+                is_signer: false,
+                is_writable: false,
+            },
         ]); // Need to generalise. SDK!
 
         let tx = Transaction::new_signed_with_payer(
@@ -259,6 +272,16 @@ impl MarginfiAccountFixture {
             },
             AccountMeta {
                 pubkey: PYTH_SOL_FEED,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_equivalent_mint).0,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: PYTH_SOL_EQUIVALENT_FEED,
                 is_signer: false,
                 is_writable: false,
             },

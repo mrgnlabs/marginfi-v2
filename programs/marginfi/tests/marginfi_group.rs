@@ -185,9 +185,7 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
         )
         .await?;
 
-    let lender_account = test_f
-        .create_marginfi_account(&test_f.usdc_mint.key, &test_f.sol_mint.key)
-        .await;
+    let lender_account = test_f.create_marginfi_account().await;
     let funding_account = usdc_mint_fixture
         .create_and_mint_to(native!(100, "USDC"))
         .await;
@@ -195,9 +193,7 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
         .try_bank_deposit(usdc_mint_fixture.key, funding_account, native!(100, "USDC"))
         .await?;
 
-    let borrower_account = test_f
-        .create_marginfi_account(&test_f.usdc_mint.key, &test_f.sol_mint.key)
-        .await;
+    let borrower_account = test_f.create_marginfi_account().await;
     let funding_account = sol_mint_fixture
         .create_and_mint_to(native!(1000, "SOL"))
         .await;
@@ -285,9 +281,7 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
         )
         .await?;
 
-    let lender_account = test_f
-        .create_marginfi_account(&test_f.usdc_mint.key, &test_f.sol_mint.key)
-        .await;
+    let lender_account = test_f.create_marginfi_account().await;
     let funding_account = usdc_mint_fixture
         .create_and_mint_to(native!(100_000_000, "USDC"))
         .await;
@@ -299,9 +293,7 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
         )
         .await?;
 
-    let borrower_account = test_f
-        .create_marginfi_account(&test_f.usdc_mint.key, &test_f.sol_mint.key)
-        .await;
+    let borrower_account = test_f.create_marginfi_account().await;
     let funding_account = sol_mint_fixture
         .create_and_mint_to(native!(10_000_000, "SOL"))
         .await;

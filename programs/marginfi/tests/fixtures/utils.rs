@@ -197,6 +197,22 @@ macro_rules! native {
     ($val: expr, "SOL", f64) => {
         (($val) * 10_u64.pow(9) as f64) as u64
     };
+
+    ($val: expr, "SOL_EQ") => {
+        $val * 10_u64.pow(9)
+    };
+
+    ($val: expr, "SOL_EQ", f64) => {
+        (($val) * 10_u64.pow(9) as f64) as u64
+    };
+
+    ($val: expr, "MNDE") => {
+        $val * 10_u64.pow(9)
+    };
+
+    ($val: expr, "MNDE", f64) => {
+        (($val) * 10_u64.pow(9) as f64) as u64
+    };
 }
 
 #[macro_export]
