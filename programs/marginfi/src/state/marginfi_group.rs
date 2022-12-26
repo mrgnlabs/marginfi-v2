@@ -1,11 +1,10 @@
-use std::collections::BTreeMap;
-
+use super::marginfi_account::WeightType;
 use crate::{
     check,
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED, PYTH_ID,
-        SECONDS_PER_YEAR,
+        INSURANCE_VAULT_SEED, LENDING_POOL_BANK_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
+        LIQUIDITY_VAULT_SEED, PYTH_ID, SECONDS_PER_YEAR,
     },
     math_error,
     prelude::MarginfiError,
@@ -15,8 +14,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
-
-use super::marginfi_account::WeightType;
+use std::collections::BTreeMap;
 
 #[account(zero_copy)]
 #[cfg_attr(
@@ -25,7 +23,6 @@ use super::marginfi_account::WeightType;
 )]
 #[derive(Default)]
 pub struct MarginfiGroup {
-    pub lending_pool: LendingPool,
     pub admin: Pubkey,
 }
 
@@ -51,56 +48,6 @@ impl MarginfiGroup {
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]
 pub struct GroupConfig {
     pub admin: Option<Pubkey>,
-}
-
-const MAX_LENDING_POOL_RESERVES: usize = 128;
-
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq)
-)]
-#[zero_copy]
-pub struct LendingPool {
-    pub banks: [Option<Bank>; MAX_LENDING_POOL_RESERVES],
-}
-
-impl Default for LendingPool {
-    fn default() -> Self {
-        Self {
-            banks: [None; MAX_LENDING_POOL_RESERVES],
-        }
-    }
-}
-
-impl LendingPool {
-    pub fn find_bank_by_mint(&self, mint_pk: &Pubkey) -> Option<&Bank> {
-        self.banks
-            .iter()
-            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint_pk.eq(mint_pk))
-            .map(|reserve| reserve.as_ref().unwrap())
-    }
-
-    pub fn find_bank_by_mint_mut(&mut self, mint_pk: &Pubkey) -> Option<&mut Bank> {
-        self.banks
-            .iter_mut()
-            .find(|reserve| reserve.is_some() && reserve.as_ref().unwrap().mint_pk.eq(mint_pk))
-            .map(|reserve| reserve.as_mut().unwrap())
-    }
-
-    pub fn get_initialized_bank_mut(&mut self, bank_index: u16) -> MarginfiResult<&mut Bank> {
-        Ok(self
-            .banks
-            .get_mut(bank_index as usize)
-            .ok_or_else(|| {
-                msg!("Invalid bank index: {}", bank_index);
-                MarginfiError::BankNotFound
-            })?
-            .as_mut()
-            .ok_or_else(|| {
-                msg!("Bank not initialized: {}", bank_index);
-                MarginfiError::BankNotFound
-            })?)
-    }
 }
 
 pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
@@ -204,17 +151,17 @@ impl InterestRateConfig {
     }
 }
 
+#[account]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq)
 )]
-#[zero_copy]
 #[derive(Default)]
 pub struct Bank {
     pub mint_pk: Pubkey,
 
-    pub deposit_share_value: I80F48,
-    pub liability_share_value: I80F48,
+    pub deposit_share_value: WrappedI80F48,
+    pub liability_share_value: WrappedI80F48,
 
     pub liquidity_vault: Pubkey,
     pub insurance_vault: Pubkey,
@@ -222,8 +169,8 @@ pub struct Bank {
 
     pub config: BankConfig,
 
-    pub total_borrow_shares: I80F48,
-    pub total_deposit_shares: I80F48,
+    pub total_borrow_shares: WrappedI80F48,
+    pub total_deposit_shares: WrappedI80F48,
 
     pub last_update: i64,
 }
@@ -239,50 +186,79 @@ impl Bank {
     ) -> Bank {
         Bank {
             mint_pk,
-            deposit_share_value: I80F48::ONE,
-            liability_share_value: I80F48::ONE,
+            deposit_share_value: I80F48::ONE.into(),
+            liability_share_value: I80F48::ONE.into(),
             liquidity_vault,
             insurance_vault,
             fee_vault,
             config,
-            total_borrow_shares: I80F48::ZERO,
-            total_deposit_shares: I80F48::ZERO,
+            total_borrow_shares: I80F48::ZERO.into(),
+            total_deposit_shares: I80F48::ZERO.into(),
             last_update: current_timestamp,
         }
     }
 
+    pub fn find_address(marginfi_group_pk: &Pubkey, asset_mint: &Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                LENDING_POOL_BANK_SEED.as_bytes(),
+                &marginfi_group_pk.to_bytes(),
+                &asset_mint.to_bytes(),
+            ],
+            &crate::id(),
+        )
+    }
+
+    #[inline]
+    pub fn load_from_account_infos(
+        bank_account_map: &BTreeMap<Pubkey, &AccountInfo>,
+        marginfi_group_pk: &Pubkey,
+        mint_pk: &Pubkey,
+    ) -> MarginfiResult<Self> {
+        let bank_address = Self::find_address(&marginfi_group_pk, &mint_pk).0;
+        let bank_account = bank_account_map
+            .get(&bank_address)
+            .ok_or(MarginfiError::MissingBankAccount)?;
+
+        let bank = Bank::try_deserialize(&mut &**bank_account.data.borrow())
+            .map_err(|_| MarginfiError::InvalidBankAccount)?;
+
+        Ok(bank)
+    }
+
     pub fn get_liability_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
-            .checked_mul(self.liability_share_value)
+            .checked_mul(self.liability_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
     pub fn get_deposit_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
-            .checked_mul(self.deposit_share_value)
+            .checked_mul(self.deposit_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
     pub fn get_liability_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
         Ok(value
-            .checked_div(self.liability_share_value)
+            .checked_div(self.liability_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
     pub fn get_deposit_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
         Ok(value
-            .checked_div(self.deposit_share_value)
+            .checked_div(self.deposit_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
     pub fn change_deposit_shares(&mut self, shares: I80F48) -> MarginfiResult {
-        self.total_deposit_shares = self
-            .total_deposit_shares
+        let total_deposit_shares: I80F48 = self.total_deposit_shares.into();
+        self.total_deposit_shares = total_deposit_shares
             .checked_add(shares)
-            .ok_or_else(math_error!())?;
+            .ok_or_else(math_error!())?
+            .into();
 
         if shares.is_positive() {
-            let total_shares_value = self.get_deposit_amount(self.total_deposit_shares)?;
+            let total_shares_value = self.get_deposit_amount(self.total_deposit_shares.into())?;
             let max_deposit_capacity = self.get_deposit_amount(self.config.max_capacity.into())?;
 
             check!(
@@ -295,10 +271,11 @@ impl Bank {
     }
 
     pub fn change_liability_shares(&mut self, shares: I80F48) -> MarginfiResult {
-        self.total_borrow_shares = self
-            .total_borrow_shares
+        let total_borrow_shares: I80F48 = self.total_borrow_shares.into();
+        self.total_borrow_shares = total_borrow_shares
             .checked_add(shares)
-            .ok_or_else(math_error!())?;
+            .ok_or_else(math_error!())?
+            .into();
         Ok(())
     }
 
@@ -330,8 +307,6 @@ impl Bank {
             .get(&self.config.pyth_oracle)
             .ok_or(MarginfiError::MissingPythAccount)?;
 
-        // TODO: Check for correct Pyth product
-
         Ok(load_price_feed_from_account_info(pyth_account)
             .map_err(|_| MarginfiError::InvalidPythAccount)?)
     }
@@ -341,8 +316,8 @@ impl Bank {
             .try_into()
             .unwrap();
 
-        let total_deposits = self.get_deposit_amount(self.total_deposit_shares)?;
-        let total_liabilities = self.get_liability_amount(self.total_borrow_shares)?;
+        let total_deposits = self.get_deposit_amount(self.total_deposit_shares.into())?;
+        let total_liabilities = self.get_liability_amount(self.total_borrow_shares.into())?;
 
         let (
             deposit_share_value,
@@ -354,13 +329,13 @@ impl Bank {
             total_deposits,
             total_liabilities,
             &self.config.interest_rate_config,
-            self.deposit_share_value,
-            self.liability_share_value,
+            self.deposit_share_value.into(),
+            self.liability_share_value.into(),
         )
         .ok_or_else(math_error!())?;
 
-        self.deposit_share_value = deposit_share_value;
-        self.liability_share_value = liability_share_value;
+        self.deposit_share_value = deposit_share_value.into();
+        self.liability_share_value = liability_share_value.into();
         self.last_update = clock.unix_timestamp;
 
         Ok((
