@@ -12,10 +12,16 @@ pub enum MarginfiError {
     BankDepositCapacityExceeded,
     #[msg("Invalid transfer")]
     InvalidTransfer,
-    #[msg("Invalid Pyth account")]
-    InvalidPythAccount,
+    #[msg("Missing Pyth or Bank account")]
+    MissingPythOrBankAccount,
     #[msg("Missing Pyth account")]
     MissingPythAccount,
+    #[msg("Invalid Pyth account")]
+    InvalidPythAccount,
+    #[msg("Missing Bank account")]
+    MissingBankAccount,
+    #[msg("Invalid Bank account")]
+    InvalidBankAccount,
     #[msg("Bad account health")]
     BadAccountHealth,
     #[msg("Lending account balance slots are full")]

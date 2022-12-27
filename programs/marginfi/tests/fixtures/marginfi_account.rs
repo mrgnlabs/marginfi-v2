@@ -1,7 +1,10 @@
 use super::prelude::*;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 use anchor_spl::token;
-use marginfi::state::{marginfi_account::MarginfiAccount, marginfi_group::BankVaultType};
+use marginfi::{
+    constants::LENDING_POOL_BANK_SEED,
+    state::{marginfi_account::MarginfiAccount, marginfi_group::BankVaultType},
+};
 use solana_program::{instruction::Instruction, system_instruction};
 use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{
@@ -16,12 +19,18 @@ pub struct MarginfiAccountConfig {}
 pub struct MarginfiAccountFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
+    usdc_mint: Pubkey,
+    sol_mint: Pubkey,
+    sol_equivalent_mint: Pubkey,
 }
 
 impl MarginfiAccountFixture {
     pub async fn new(
         ctx: Rc<RefCell<ProgramTestContext>>,
         marginfi_group: &Pubkey,
+        usdc_mint: &Pubkey,
+        sol_mint: &Pubkey,
+        sol_equivalent_mint: &Pubkey,
     ) -> MarginfiAccountFixture {
         let ctx_ref = ctx.clone();
         let account_key = Keypair::new();
@@ -62,12 +71,15 @@ impl MarginfiAccountFixture {
         MarginfiAccountFixture {
             ctx: ctx_ref,
             key: account_key.pubkey(),
+            usdc_mint: usdc_mint.clone(),
+            sol_mint: sol_mint.clone(),
+            sol_equivalent_mint: sol_equivalent_mint.clone(),
         }
     }
 
     pub async fn try_bank_deposit(
         &self,
-        bank_asset_mint: Pubkey,
+        bank_mint: Pubkey,
         funding_account: Pubkey,
         amount: u64,
     ) -> anyhow::Result<(), BanksClientError> {
@@ -81,11 +93,14 @@ impl MarginfiAccountFixture {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: ctx.payer.pubkey(),
-                asset_mint: bank_asset_mint,
+                bank_mint: bank_mint,
+                bank: self
+                    .find_lending_pool_bank_pda(&marginfi_account.group, &bank_mint)
+                    .0,
                 signer_token_account: funding_account,
                 bank_liquidity_vault: find_bank_vault_pda(
                     &marginfi_account.group,
-                    &bank_asset_mint,
+                    &bank_mint,
                     BankVaultType::Liquidity,
                 )
                 .0,
@@ -109,7 +124,7 @@ impl MarginfiAccountFixture {
 
     pub async fn try_bank_withdraw(
         &self,
-        bank_asset_mint: Pubkey,
+        bank_mint: Pubkey,
         destination_account: Pubkey,
         amount: u64,
     ) -> anyhow::Result<(), BanksClientError> {
@@ -123,17 +138,20 @@ impl MarginfiAccountFixture {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: ctx.payer.pubkey(),
-                asset_mint: bank_asset_mint,
+                bank_mint: bank_mint,
+                bank: self
+                    .find_lending_pool_bank_pda(&marginfi_account.group, &bank_mint)
+                    .0,
                 destination_token_account: destination_account,
                 bank_liquidity_vault: find_bank_vault_pda(
                     &marginfi_account.group,
-                    &bank_asset_mint,
+                    &bank_mint,
                     BankVaultType::Liquidity,
                 )
                 .0,
                 bank_liquidity_vault_authority: find_bank_vault_authority_pda(
                     &marginfi_account.group,
-                    &bank_asset_mint,
+                    &bank_mint,
                     BankVaultType::Liquidity,
                 )
                 .0,
@@ -144,12 +162,32 @@ impl MarginfiAccountFixture {
         };
         ix.accounts.extend_from_slice(&[
             AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.usdc_mint).0,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
                 pubkey: PYTH_USDC_FEED,
                 is_signer: false,
                 is_writable: false,
             },
             AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_mint).0,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
                 pubkey: PYTH_SOL_FEED,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_equivalent_mint).0,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: PYTH_SOL_EQUIVALENT_FEED,
                 is_signer: false,
                 is_writable: false,
             },
@@ -170,9 +208,8 @@ impl MarginfiAccountFixture {
     pub async fn try_liquidate(
         &self,
         liquidatee_pk: Pubkey,
-        asset_bank_index: u16,
+        asset_mint: Pubkey,
         asset_amount: u64,
-        liab_bank_index: u16,
         liab_mint: Pubkey,
     ) -> std::result::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
@@ -182,6 +219,14 @@ impl MarginfiAccountFixture {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountLiquidate {
                 marginfi_group: marginfi_account.group,
+                asset_mint,
+                asset_bank: self
+                    .find_lending_pool_bank_pda(&marginfi_account.group, &asset_mint)
+                    .0,
+                liab_mint,
+                liab_bank: self
+                    .find_lending_pool_bank_pda(&marginfi_account.group, &liab_mint)
+                    .0,
                 liquidator_marginfi_account: self.key,
                 signer: ctx.payer.pubkey(),
                 liquidatee_marginfi_account: liquidatee_pk,
@@ -206,22 +251,37 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::Liquidate {
-                asset_bank_index,
-                asset_amount,
-                liab_bank_index,
-            }
-            .data(),
+            data: marginfi::instruction::Liquidate { asset_amount }.data(),
         };
 
         ix.accounts.extend_from_slice(&[
+            AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.usdc_mint).0,
+                is_signer: false,
+                is_writable: false,
+            },
             AccountMeta {
                 pubkey: PYTH_USDC_FEED,
                 is_signer: false,
                 is_writable: false,
             },
             AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_mint).0,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
                 pubkey: PYTH_SOL_FEED,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_equivalent_mint).0,
+                is_signer: false,
+                is_writable: false,
+            },
+            AccountMeta {
+                pubkey: PYTH_SOL_EQUIVALENT_FEED,
                 is_signer: false,
                 is_writable: false,
             },
@@ -245,5 +305,20 @@ impl MarginfiAccountFixture {
 
     pub fn get_size() -> usize {
         mem::size_of::<MarginfiAccount>() + 8
+    }
+
+    pub fn find_lending_pool_bank_pda(
+        &self,
+        marginfi_group: &Pubkey,
+        asset_mint: &Pubkey,
+    ) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                LENDING_POOL_BANK_SEED.as_bytes(),
+                marginfi_group.as_ref(),
+                &asset_mint.to_bytes(),
+            ],
+            &marginfi::id(),
+        )
     }
 }

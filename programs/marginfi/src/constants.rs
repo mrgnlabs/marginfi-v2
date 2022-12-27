@@ -11,6 +11,8 @@ pub const LIQUIDITY_VAULT_SEED: &[u8] = b"liquidity_vault";
 pub const INSURANCE_VAULT_SEED: &[u8] = b"insurance_vault";
 pub const FEE_VAULT_SEED: &[u8] = b"fee_vault";
 
+pub const LENDING_POOL_BANK_SEED: &[u8] = b"lending_pool_bank";
+
 /// Dummy PK
 pub const PYTH_ID: Pubkey = pubkey!("5rYvdyWAunZgD2EC1aKo7hQbutUUnkt7bBFM6xNq2z7Z");
 

@@ -3,7 +3,9 @@
 
 use anchor_lang::prelude::*;
 use marginfi::{
-    bank_authority_seed, bank_seed, constants::PYTH_ID, state::marginfi_group::BankVaultType,
+    bank_authority_seed, bank_seed,
+    constants::{LENDING_POOL_BANK_SEED, PYTH_ID},
+    state::marginfi_group::BankVaultType,
 };
 use pyth_sdk_solana::state::{AccountType, PriceAccount, PriceInfo, PriceStatus, MAGIC, VERSION_2};
 use solana_program::instruction::Instruction;
@@ -18,6 +20,17 @@ pub const RUST_LOG_DEFAULT: &str = "solana_rbpf::vm=info,\
              solana_runtime::system_instruction_processor=info,\
              solana_program_test=info,\
              solana_bpf_loader_program=debug";
+
+pub fn find_bank_pda(marginfi_group_pk: &Pubkey, asset_mint: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            LENDING_POOL_BANK_SEED.as_bytes(),
+            &marginfi_group_pk.to_bytes(),
+            &asset_mint.to_bytes(),
+        ],
+        &marginfi::id(),
+    )
+}
 
 pub fn find_bank_vault_pda(
     marginfi_group_pk: &Pubkey,
@@ -182,6 +195,22 @@ macro_rules! native {
     };
 
     ($val: expr, "SOL", f64) => {
+        (($val) * 10_u64.pow(9) as f64) as u64
+    };
+
+    ($val: expr, "SOL_EQ") => {
+        $val * 10_u64.pow(9)
+    };
+
+    ($val: expr, "SOL_EQ", f64) => {
+        (($val) * 10_u64.pow(9) as f64) as u64
+    };
+
+    ($val: expr, "MNDE") => {
+        $val * 10_u64.pow(9)
+    };
+
+    ($val: expr, "MNDE", f64) => {
         (($val) * 10_u64.pow(9) as f64) as u64
     };
 }

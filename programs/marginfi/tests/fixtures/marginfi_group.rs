@@ -31,7 +31,6 @@ pub struct MarginfiGroupFixture {
 impl MarginfiGroupFixture {
     pub async fn new(
         ctx: Rc<RefCell<ProgramTestContext>>,
-        collateral_mint: &Pubkey,
         config_arg: GroupConfig,
     ) -> MarginfiGroupFixture {
         let ctx_ref = ctx.clone();
@@ -80,7 +79,6 @@ impl MarginfiGroupFixture {
     pub async fn try_lending_pool_add_bank(
         &self,
         bank_asset_mint: Pubkey,
-        bank_index: u16,
         bank_config: BankConfig,
     ) -> Result<(), BanksClientError> {
         let mut ctx = self.ctx.borrow_mut();
@@ -91,7 +89,8 @@ impl MarginfiGroupFixture {
             accounts: marginfi::accounts::LendingPoolAddBank {
                 marginfi_group: self.key,
                 admin: ctx.payer.pubkey(),
-                asset_mint: bank_asset_mint,
+                bank_mint: bank_asset_mint,
+                bank: self.find_lending_pool_bank_pda(&bank_asset_mint).0,
                 liquidity_vault_authority: self
                     .find_bank_vault_authority_pda(&bank_asset_mint, BankVaultType::Liquidity)
                     .0,
@@ -116,11 +115,7 @@ impl MarginfiGroupFixture {
                 pyth_oracle: bank_config.pyth_oracle,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingPoolAddBank {
-                bank_index,
-                bank_config,
-            }
-            .data(),
+            data: marginfi::instruction::LendingPoolAddBank { bank_config }.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -137,7 +132,7 @@ impl MarginfiGroupFixture {
 
     pub async fn try_lending_pool_configure_bank(
         &self,
-        bank_index: u16,
+        bank_mint: Pubkey,
         bank_config_opt: BankConfigOpt,
     ) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
@@ -145,13 +140,14 @@ impl MarginfiGroupFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolConfigureBank {
+                bank_mint,
+                bank: self.find_lending_pool_bank_pda(&bank_mint).0,
                 marginfi_group: self.key,
                 admin: ctx.payer.pubkey(),
                 pyth_oracle: bank_config_opt.pyth_oracle.unwrap_or_default(),
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingPoolConfigureBank {
-                bank_index,
                 bank_config_opt: todo!(),
             }
             .data(),
@@ -169,27 +165,29 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
-    pub async fn try_accrue_interest(&self, asset_mint: &Pubkey, bank_index: u16) -> Result<()> {
+    pub async fn try_accrue_interest(&self, bank_mint: Pubkey) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolBankAccrueInterest {
                 marginfi_group: self.key,
+                bank_mint,
+                bank: self.find_lending_pool_bank_pda(&bank_mint).0,
                 liquidity_vault_authority: self
-                    .find_bank_vault_authority_pda(asset_mint, BankVaultType::Liquidity)
+                    .find_bank_vault_authority_pda(&bank_mint, BankVaultType::Liquidity)
                     .0,
                 liquidity_vault: self
-                    .find_bank_vault_pda(asset_mint, BankVaultType::Liquidity)
+                    .find_bank_vault_pda(&bank_mint, BankVaultType::Liquidity)
                     .0,
                 insurance_vault: self
-                    .find_bank_vault_pda(asset_mint, BankVaultType::Insurance)
+                    .find_bank_vault_pda(&bank_mint, BankVaultType::Insurance)
                     .0,
-                fee_vault: self.find_bank_vault_pda(asset_mint, BankVaultType::Fee).0,
+                fee_vault: self.find_bank_vault_pda(&bank_mint, BankVaultType::Fee).0,
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::BankAccrueInterest { bank_index }.data(),
+            data: marginfi::instruction::BankAccrueInterest {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -221,6 +219,17 @@ impl MarginfiGroupFixture {
                 vault_type.get_seed(),
                 &asset_mint.to_bytes(),
                 self.key.as_ref(),
+            ],
+            &marginfi::id(),
+        )
+    }
+
+    pub fn find_lending_pool_bank_pda(&self, asset_mint: &Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                LENDING_POOL_BANK_SEED.as_bytes(),
+                self.key.as_ref(),
+                &asset_mint.to_bytes(),
             ],
             &marginfi::id(),
         )
