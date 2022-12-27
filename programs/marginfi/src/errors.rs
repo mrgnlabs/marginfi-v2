@@ -26,6 +26,8 @@ pub enum MarginfiError {
     BorrowingNotAllowed,
     #[msg("Illegal post liquidation state, account is either not unhealthy or liquidation was too big")]
     AccountIllegalPostLiquidationState,
+    #[msg("Account is not bankrupt")]
+    AccountNotBankrupt,
 }
 
 impl From<MarginfiError> for ProgramError {

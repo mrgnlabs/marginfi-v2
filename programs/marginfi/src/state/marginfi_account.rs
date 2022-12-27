@@ -276,6 +276,24 @@ impl<'a> RiskEngine<'a> {
                 },
             )?)
     }
+
+    pub fn check_account_bankrupt(&self) -> MarginfiResult {
+        let (total_weighted_assets, total_weighted_liabilities) =
+            self.get_account_health_components(RiskRequirementType::Initial)?;
+
+        msg!(
+            "bankrupt: assets {} - liabs: {}",
+            total_weighted_assets,
+            total_weighted_liabilities
+        );
+
+        check!(
+            total_weighted_assets == I80F48::ZERO && total_weighted_liabilities > I80F48::ZERO,
+            MarginfiError::AccountNotBankrupt
+        );
+
+        Ok(())
+    }
 }
 
 const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
@@ -314,7 +332,7 @@ impl LendingAccount {
 
 #[zero_copy]
 pub struct Balance {
-    pub bank_index: u8,
+    pub bank_index: u16,
     pub deposit_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
 }
@@ -376,7 +394,7 @@ impl<'a> BankAccountWrapper<'a> {
                 .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
 
             lending_account.balances[empty_index] = Some(Balance {
-                bank_index: bank_index as u8,
+                bank_index: bank_index as u16,
                 deposit_shares: I80F48::ZERO.into(),
                 liability_shares: I80F48::ZERO.into(),
             });
@@ -422,7 +440,7 @@ impl<'a> BankAccountWrapper<'a> {
                 .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
 
             lending_account.balances[empty_index] = Some(Balance {
-                bank_index: bank_index as u8,
+                bank_index: bank_index as u16,
                 deposit_shares: I80F48::ZERO.into(),
                 liability_shares: I80F48::ZERO.into(),
             });
