@@ -24,7 +24,7 @@ pub const RUST_LOG_DEFAULT: &str = "solana_rbpf::vm=info,\
 pub fn find_bank_pda(marginfi_group_pk: &Pubkey, asset_mint: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[
-            LENDING_POOL_BANK_SEED.as_bytes(),
+            LENDING_POOL_BANK_SEED,
             &marginfi_group_pk.to_bytes(),
             &asset_mint.to_bytes(),
         ],

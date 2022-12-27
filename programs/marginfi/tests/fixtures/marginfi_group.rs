@@ -227,7 +227,7 @@ impl MarginfiGroupFixture {
     pub fn find_lending_pool_bank_pda(&self, asset_mint: &Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
-                LENDING_POOL_BANK_SEED.as_bytes(),
+                LENDING_POOL_BANK_SEED,
                 self.key.as_ref(),
                 &asset_mint.to_bytes(),
             ],

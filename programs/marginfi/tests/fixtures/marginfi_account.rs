@@ -314,7 +314,7 @@ impl MarginfiAccountFixture {
     ) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
-                LENDING_POOL_BANK_SEED.as_bytes(),
+                LENDING_POOL_BANK_SEED,
                 marginfi_group.as_ref(),
                 &asset_mint.to_bytes(),
             ],

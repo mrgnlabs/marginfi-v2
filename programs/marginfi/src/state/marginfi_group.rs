@@ -11,12 +11,10 @@ use crate::{
     set_if_some, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, TokenAccount, Transfer};
+use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 use std::collections::BTreeMap;
-
-use super::marginfi_account::WeightType;
 
 #[account(zero_copy)]
 #[cfg_attr(
@@ -203,7 +201,7 @@ impl Bank {
     pub fn find_address(marginfi_group_pk: &Pubkey, asset_mint: &Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
-                LENDING_POOL_BANK_SEED.as_bytes(),
+                LENDING_POOL_BANK_SEED,
                 &marginfi_group_pk.to_bytes(),
                 &asset_mint.to_bytes(),
             ],
@@ -389,25 +387,9 @@ impl Bank {
         )
     }
 
-    fn verify_vault_address(&self, vault_type: BankVaultType, vault_pk: &Pubkey) -> MarginfiResult {
-        check!(
-            {
-                match vault_type {
-                    BankVaultType::Liquidity => self.liquidity_vault,
-                    BankVaultType::Insurance => self.insurance_vault,
-                    BankVaultType::Fee => self.fee_vault,
-                }
-                .eq(vault_pk)
-            },
-            MarginfiError::InvalidTransfer
-        );
-
-        Ok(())
-    }
-
     pub fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult {
-        let n_shares = self.total_deposit_shares;
-        let old_share_value = self.deposit_share_value;
+        let n_shares: I80F48 = self.total_deposit_shares.into();
+        let old_share_value: I80F48 = self.deposit_share_value.into();
 
         let new_share_value = n_shares
             .checked_mul(old_share_value)
@@ -417,7 +399,7 @@ impl Bank {
             .checked_div(n_shares)
             .ok_or_else(math_error!())?;
 
-        self.deposit_share_value = new_share_value;
+        self.deposit_share_value = new_share_value.into();
 
         Ok(())
     }

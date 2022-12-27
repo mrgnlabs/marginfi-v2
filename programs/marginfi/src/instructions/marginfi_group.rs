@@ -1,5 +1,3 @@
-use std::cmp::{max, min};
-
 use crate::{
     bank_signer, check,
     constants::{
@@ -9,7 +7,7 @@ use crate::{
     },
     prelude::MarginfiError,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine},
+        marginfi_account::{MarginfiAccount, RiskEngine},
         marginfi_group::{
             load_pyth_price_feed, Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig,
             MarginfiGroup,
@@ -20,6 +18,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
+use std::cmp::{max, min};
 
 pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_init()?;
@@ -392,18 +391,15 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
     let BankHandleBankruptcy {
         marginfi_group: marginfi_group_loader,
         marginfi_account: marginfi_account_loader,
-        bank: bank_loader,
         insurance_vault,
         token_program,
+        bank,
         ..
-    } = &ctx.accounts;
+    } = ctx.accounts;
 
-    let mut marginfi_group = marginfi_group_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
     RiskEngine::new(&marginfi_account, &ctx.remaining_accounts)?.check_account_bankrupt()?;
-
-    let bank = bank_loader;
 
     let lending_account_balance = marginfi_account
         .lending_account
@@ -450,13 +446,13 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
 }
 
 #[derive(Accounts)]
-#[instruction(bank_index: u16)]
 pub struct BankHandleBankruptcy<'info> {
     #[account(mut, address = marginfi_account.load()?.group)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
     #[account(address = marginfi_group.load()?.admin)]
     pub admin: Signer<'info>,
     /// TODO: Add seed checks
+    #[account(mut)]
     pub bank: Account<'info, Bank>,
     #[account(mut)]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
@@ -464,7 +460,7 @@ pub struct BankHandleBankruptcy<'info> {
         mut,
         seeds = [
             LIQUIDITY_VAULT_SEED,
-            marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
+            bank.mint_pk.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
         bump
@@ -474,7 +470,7 @@ pub struct BankHandleBankruptcy<'info> {
         mut,
         seeds = [
             INSURANCE_VAULT_SEED,
-            marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
+            bank.mint_pk.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
         bump
@@ -483,7 +479,7 @@ pub struct BankHandleBankruptcy<'info> {
     #[account(
         seeds = [
             INSURANCE_VAULT_AUTHORITY_SEED,
-            marginfi_group.load()?.lending_pool.banks[bank_index as usize].unwrap().mint_pk.key().as_ref(),
+            bank.mint_pk.key().as_ref(),
             marginfi_group.key().as_ref(),
         ],
         bump
