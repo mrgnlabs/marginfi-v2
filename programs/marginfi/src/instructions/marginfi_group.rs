@@ -2,8 +2,7 @@ use crate::{
     bank_signer, check,
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LENDING_POOL_BANK_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
-        LIQUIDITY_VAULT_SEED,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     prelude::MarginfiError,
     state::{
@@ -75,11 +74,12 @@ pub fn lending_pool_add_bank(
         ..
     } = ctx.accounts;
 
-    let bank = &mut *ctx.accounts.bank;
+    let mut bank = ctx.accounts.bank.load_init()?;
 
     load_pyth_price_feed(pyth_oracle)?;
 
     *bank = Bank::new(
+        ctx.accounts.marginfi_group.key(),
         bank_config,
         bank_mint.key(),
         liquidity_vault.key(),
@@ -105,27 +105,18 @@ pub struct LendingPoolAddBank<'info> {
 
     pub bank_mint: Box<Account<'info, Mint>>,
 
-    /// PDA / seeds check ensures that provided account is legit, and use of the
-    /// marginfi group + underlying mint guarantees unicity of bank per mint within a group
     #[account(
         init,
         space = 8 + std::mem::size_of::<Bank>(),
         payer = admin,
-        seeds = [
-            LENDING_POOL_BANK_SEED,
-            marginfi_group.key().as_ref(),
-            bank_mint.key().as_ref(),
-        ],
-        bump
     )]
-    pub bank: Account<'info, Bank>,
+    pub bank: AccountLoader<'info, Bank>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED,
-            bank_mint.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
@@ -138,8 +129,7 @@ pub struct LendingPoolAddBank<'info> {
         token::authority = liquidity_vault_authority,
         seeds = [
             LIQUIDITY_VAULT_SEED,
-            bank_mint.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump,
     )]
@@ -149,8 +139,7 @@ pub struct LendingPoolAddBank<'info> {
     #[account(
         seeds = [
             INSURANCE_VAULT_AUTHORITY_SEED,
-            bank_mint.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
@@ -163,8 +152,7 @@ pub struct LendingPoolAddBank<'info> {
         token::authority = insurance_vault_authority,
         seeds = [
             INSURANCE_VAULT_SEED,
-            bank_mint.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump,
     )]
@@ -174,8 +162,7 @@ pub struct LendingPoolAddBank<'info> {
     #[account(
         seeds = [
             FEE_VAULT_AUTHORITY_SEED,
-            bank_mint.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
@@ -188,8 +175,7 @@ pub struct LendingPoolAddBank<'info> {
         token::authority = fee_vault_authority,
         seeds = [
             FEE_VAULT_SEED,
-            bank_mint.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump,
     )]
@@ -200,9 +186,7 @@ pub struct LendingPoolAddBank<'info> {
     pub pyth_oracle: AccountInfo<'info>,
 
     pub rent: Sysvar<'info, Rent>,
-
     pub token_program: Program<'info, Token>,
-
     pub system_program: Program<'info, System>,
 }
 
@@ -210,7 +194,7 @@ pub fn lending_pool_configure_bank(
     ctx: Context<LendingPoolConfigureBank>,
     bank_config: BankConfigOpt,
 ) -> MarginfiResult {
-    let bank = &mut *ctx.accounts.bank;
+    let mut bank = ctx.accounts.bank.load_mut()?;
 
     if let Some(pyth_oracle) = bank_config.pyth_oracle {
         check!(
@@ -231,17 +215,11 @@ pub struct LendingPoolConfigureBank<'info> {
     #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    pub bank_mint: Box<Account<'info, Mint>>,
-
     #[account(
-        seeds = [
-            LENDING_POOL_BANK_SEED,
-            marginfi_group.key().as_ref(),
-            bank_mint.key().as_ref(),
-        ],
-        bump
+        mut,
+        constraint = bank.load()?.group == marginfi_group.key(),
     )]
-    pub bank: Box<Account<'info, Bank>>,
+    pub bank: AccountLoader<'info, Bank>,
 
     #[account(
         address = marginfi_group.load()?.admin,
@@ -261,16 +239,16 @@ pub fn lending_pool_bank_accrue_interest(
         insurance_vault,
         fee_vault,
         token_program,
-        marginfi_group: marginfi_group_loader,
         liquidity_vault,
         ..
     } = ctx.accounts;
 
     let clock = Clock::get()?;
-    let bank = &mut *ctx.accounts.bank;
+    let mut bank = ctx.accounts.bank.load_mut()?;
 
     let (protocol_fee, insurance_fee) = bank.accrue_interest(&clock)?;
 
+    // TODO: Move bump to state
     let liq_vault_bump = *ctx.bumps.get("liquidity_vault_authority").unwrap();
 
     msg!("Protocol fee: {}", protocol_fee);
@@ -285,8 +263,7 @@ pub fn lending_pool_bank_accrue_interest(
         token_program.to_account_info(),
         bank_signer!(
             BankVaultType::Liquidity,
-            bank.mint_pk.key(),
-            marginfi_group_loader.key(),
+            ctx.accounts.bank.key(),
             liq_vault_bump
         ),
     )?;
@@ -303,8 +280,7 @@ pub fn lending_pool_bank_accrue_interest(
         token_program.to_account_info(),
         bank_signer!(
             BankVaultType::Liquidity,
-            bank.mint_pk.key(),
-            marginfi_group_loader.key(),
+            ctx.accounts.bank.key(),
             liq_vault_bump
         ),
     )?;
@@ -317,27 +293,19 @@ pub struct LendingPoolBankAccrueInterest<'info> {
     #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    pub bank_mint: Box<Account<'info, Mint>>,
-
     /// PDA / seeds check ensures that provided account is legit, and use of the
     /// marginfi group + underlying mint guarantees unicity of bank per mint within a group
     #[account(
-        seeds = [
-            LENDING_POOL_BANK_SEED,
-            marginfi_group.key().as_ref(),
-            bank_mint.key().as_ref(),
-        ],
-        bump
+        constraint = bank.load()?.group == marginfi_group.key(),
     )]
-    pub bank: Box<Account<'info, Bank>>,
+    pub bank: AccountLoader<'info, Bank>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         mut,
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED,
-            bank.mint_pk.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
@@ -348,8 +316,7 @@ pub struct LendingPoolBankAccrueInterest<'info> {
         mut,
         seeds = [
             LIQUIDITY_VAULT_SEED,
-            bank.mint_pk.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
@@ -360,8 +327,7 @@ pub struct LendingPoolBankAccrueInterest<'info> {
         mut,
         seeds = [
             INSURANCE_VAULT_SEED,
-            bank.mint_pk.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
@@ -372,8 +338,7 @@ pub struct LendingPoolBankAccrueInterest<'info> {
         mut,
         seeds = [
             FEE_VAULT_SEED,
-            bank.mint_pk.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
@@ -389,15 +354,15 @@ pub struct LendingPoolBankAccrueInterest<'info> {
 /// 4. Determine the amount of debt to be socialized among lenders.
 pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> MarginfiResult {
     let BankHandleBankruptcy {
-        marginfi_group: marginfi_group_loader,
         marginfi_account: marginfi_account_loader,
         insurance_vault,
         token_program,
-        bank,
+        bank: bank_loader,
         ..
     } = ctx.accounts;
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+    let mut bank = bank_loader.load_mut()?;
 
     RiskEngine::new(&marginfi_account, &ctx.remaining_accounts)?.check_account_bankrupt()?;
 
@@ -407,7 +372,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
         .iter_mut()
         .find(|balance| {
             if let Some(balance) = balance {
-                balance.asset_mint == bank.mint_pk
+                balance.bank_pk == bank_loader.key()
             } else {
                 false
             }
@@ -433,8 +398,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
         token_program.to_account_info(),
         &[&[
             INSURANCE_VAULT_AUTHORITY_SEED,
-            bank.mint_pk.key().as_ref(),
-            marginfi_group_loader.key().as_ref(),
+            bank_loader.key().as_ref(),
             &[*ctx.bumps.get("insurance_vault_authority").unwrap()],
         ]],
     )?;
@@ -447,21 +411,24 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
 
 #[derive(Accounts)]
 pub struct BankHandleBankruptcy<'info> {
-    #[account(mut, address = marginfi_account.load()?.group)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
     #[account(address = marginfi_group.load()?.admin)]
     pub admin: Signer<'info>,
-    /// TODO: Add seed checks
-    #[account(mut)]
-    pub bank: Account<'info, Bank>,
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = bank.load()?.group == marginfi_group.key(),
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+    #[account(
+        mut,
+        constraint = marginfi_account.load()?.group == marginfi_group.key(),
+    )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
     #[account(
         mut,
         seeds = [
             LIQUIDITY_VAULT_SEED,
-            bank.mint_pk.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
@@ -470,8 +437,7 @@ pub struct BankHandleBankruptcy<'info> {
         mut,
         seeds = [
             INSURANCE_VAULT_SEED,
-            bank.mint_pk.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
@@ -479,8 +445,7 @@ pub struct BankHandleBankruptcy<'info> {
     #[account(
         seeds = [
             INSURANCE_VAULT_AUTHORITY_SEED,
-            bank.mint_pk.key().as_ref(),
-            marginfi_group.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
