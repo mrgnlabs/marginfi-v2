@@ -45,33 +45,24 @@ macro_rules! set_if_some {
 
 #[macro_export]
 macro_rules! bank_seed {
-    ($vault_type: expr, $asset_mint: expr, $marginfi_group_pk: expr) => {
-        &[
-            $vault_type.get_seed(),
-            &$asset_mint.to_bytes(),
-            &$marginfi_group_pk.to_bytes(),
-        ]
+    ($vault_type: expr, $bank_pk: expr) => {
+        &[$vault_type.get_seed(), &$bank_pk.to_bytes()]
     };
 }
 
 #[macro_export]
 macro_rules! bank_authority_seed {
-    ($vault_type: expr, $asset_mint: expr, $marginfi_group_pk: expr) => {
-        &[
-            $vault_type.get_authority_seed(),
-            &$asset_mint.to_bytes(),
-            &$marginfi_group_pk.to_bytes(),
-        ]
+    ($vault_type: expr, $bank_pk: expr) => {
+        &[$vault_type.get_authority_seed(), &$bank_pk.to_bytes()]
     };
 }
 
 #[macro_export]
 macro_rules! bank_signer {
-    ($vault_type: expr, $asset_mint: expr, $marginfi_group_pk: expr, $authority_bump: expr) => {
+    ($vault_type: expr, $bank_pk: expr, $authority_bump: expr) => {
         &[&[
             $vault_type.get_authority_seed().as_ref(),
-            &$asset_mint.to_bytes(),
-            &$marginfi_group_pk.to_bytes(),
+            &$bank_pk.to_bytes(),
             &[$authority_bump],
         ]]
     };

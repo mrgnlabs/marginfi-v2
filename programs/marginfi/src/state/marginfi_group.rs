@@ -3,8 +3,8 @@ use crate::{
     check,
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LENDING_POOL_BANK_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
-        LIQUIDITY_VAULT_SEED, PYTH_ID, SECONDS_PER_YEAR,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED, PYTH_ID,
+        SECONDS_PER_YEAR,
     },
     math_error,
     prelude::MarginfiError,
@@ -151,7 +151,7 @@ impl InterestRateConfig {
     }
 }
 
-#[account]
+#[account(zero_copy)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq)
@@ -159,6 +159,7 @@ impl InterestRateConfig {
 #[derive(Default)]
 pub struct Bank {
     pub mint_pk: Pubkey,
+    pub group: Pubkey,
 
     pub deposit_share_value: WrappedI80F48,
     pub liability_share_value: WrappedI80F48,
@@ -177,6 +178,7 @@ pub struct Bank {
 
 impl Bank {
     pub fn new(
+        marginfi_group_pk: Pubkey,
         config: BankConfig,
         mint_pk: Pubkey,
         liquidity_vault: Pubkey,
@@ -195,34 +197,13 @@ impl Bank {
             total_borrow_shares: I80F48::ZERO.into(),
             total_deposit_shares: I80F48::ZERO.into(),
             last_update: current_timestamp,
+            group: marginfi_group_pk,
         }
     }
 
-    pub fn find_address(marginfi_group_pk: &Pubkey, asset_mint: &Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                LENDING_POOL_BANK_SEED,
-                &marginfi_group_pk.to_bytes(),
-                &asset_mint.to_bytes(),
-            ],
-            &crate::id(),
-        )
-    }
-
     #[inline]
-    pub fn load_from_account_infos(
-        bank_account_map: &BTreeMap<Pubkey, &AccountInfo>,
-        marginfi_group_pk: &Pubkey,
-        mint_pk: &Pubkey,
-    ) -> MarginfiResult<Self> {
-        let bank_address = Self::find_address(&marginfi_group_pk, &mint_pk).0;
-        let bank_account = bank_account_map
-            .get(&bank_address)
-            .ok_or(MarginfiError::MissingBankAccount)?;
-
-        let bank = Bank::try_deserialize(&mut &**bank_account.data.borrow())
-            .map_err(|_| MarginfiError::InvalidBankAccount)?;
-
+    pub fn load_from_account_info(bank_account_ai: &AccountInfo) -> MarginfiResult<Self> {
+        let bank = *bytemuck::from_bytes::<Bank>(&bank_account_ai.data.borrow());
         Ok(bank)
     }
 
@@ -309,6 +290,18 @@ impl Bank {
 
         Ok(load_price_feed_from_account_info(pyth_account)
             .map_err(|_| MarginfiError::InvalidPythAccount)?)
+    }
+
+    #[inline]
+    pub fn load_price_feed_from_account_info(&self, ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
+        check!(
+            self.config.pyth_oracle.eq(ai.key),
+            MarginfiError::InvalidPythAccount
+        );
+        let pyth_account =
+            load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidPythAccount)?;
+
+        Ok(pyth_account)
     }
 
     pub fn accrue_interest(&mut self, clock: &Clock) -> MarginfiResult<(u64, u64)> {

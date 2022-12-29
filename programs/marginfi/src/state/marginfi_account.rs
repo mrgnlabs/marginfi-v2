@@ -26,6 +26,15 @@ impl MarginfiAccount {
         self.owner = owner;
         self.group = group;
     }
+
+    pub fn get_remaining_accounts_len(&self) -> usize {
+        self.lending_account
+            .balances
+            .iter()
+            .filter(|b| b.is_some())
+            .count()
+            * 2
+    }
 }
 
 const EXP_10_I80F48: [I80F48; 15] = [
@@ -93,25 +102,35 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             MarginfiError::MissingPythOrBankAccount
         );
 
-        let bank_account_map = create_bank_account_map(remaining_ais)?;
-        let pyth_account_map = create_pyth_account_map(remaining_ais)?;
+        check!(
+            lending_account
+                .get_active_balances_iter()
+                .collect::<Vec<_>>()
+                .len()
+                * 2
+                == remaining_ais.len(),
+            MarginfiError::MissingPythOrBankAccount
+        );
 
         lending_account
-            .balances
-            .iter()
-            .filter_map(|b| b.as_ref())
-            .map(|balance| {
-                let bank = Bank::load_from_account_infos(
-                    &bank_account_map,
-                    &marginfi_group_pk,
-                    &balance.asset_mint,
-                )?;
-                let price_feed = bank.load_price_feed(&pyth_account_map)?;
+            .get_active_balances_iter()
+            .enumerate()
+            .map(|(i, b)| {
+                let bank_index = i * 2;
+                let pyth_index = bank_index + 1;
+
+                let bank_ai = remaining_ais.get(bank_index).unwrap();
+                let pyth_ai = remaining_ais.get(pyth_index).unwrap();
+
+                let bank_data = bank_ai.data.borrow();
+
+                let bank = bytemuck::from_bytes::<Bank>(&bank_data);
+                let price_feed = bank.load_price_feed_from_account_info(&pyth_ai)?;
 
                 Ok(BankAccountWithPriceFeed {
-                    bank,
+                    bank: *bank,
                     price_feed,
-                    balance,
+                    balance: b,
                 })
             })
             .collect::<Result<Vec<_>>>()
@@ -344,7 +363,7 @@ impl LendingAccount {
 
 #[zero_copy]
 pub struct Balance {
-    pub asset_mint: Pubkey,
+    pub bank_pk: Pubkey,
     pub deposit_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
 }
@@ -375,7 +394,8 @@ pub struct BankAccountWrapper<'a> {
 }
 
 impl<'a> BankAccountWrapper<'a> {
-    pub fn find_by_mint_or_create<'b>(
+    pub fn find_or_create<'b>(
+        bank_pk: &Pubkey,
         bank: &'a mut Bank,
         lending_account: &'a mut LendingAccount,
     ) -> MarginfiResult<BankAccountWrapper<'a>> {
@@ -383,7 +403,7 @@ impl<'a> BankAccountWrapper<'a> {
         // The balance account might not exist.
         let balance_index = lending_account
             .get_active_balances_iter()
-            .position(|balance| balance.asset_mint == bank.mint_pk);
+            .position(|balance| balance.bank_pk.eq(bank_pk));
 
         let balance = if let Some(index) = balance_index {
             lending_account
@@ -396,7 +416,7 @@ impl<'a> BankAccountWrapper<'a> {
                 .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
 
             lending_account.balances[empty_index] = Some(Balance {
-                asset_mint: bank.mint_pk,
+                bank_pk: *bank_pk,
                 deposit_shares: I80F48::ZERO.into(),
                 liability_shares: I80F48::ZERO.into(),
             });
