@@ -364,7 +364,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
     let mut bank = bank_loader.load_mut()?;
 
-    RiskEngine::new(&marginfi_account, &ctx.remaining_accounts)?.check_account_bankrupt()?;
+    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?.check_account_bankrupt()?;
 
     let lending_account_balance = marginfi_account
         .lending_account

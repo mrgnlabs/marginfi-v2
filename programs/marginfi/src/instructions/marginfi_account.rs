@@ -1,20 +1,20 @@
 use crate::{
     bank_signer,
     constants::{
-        INSURANCE_VAULT_SEED, LENDING_POOL_BANK_SEED, LIQUIDATION_INSURANCE_FEE,
-        LIQUIDATION_LIQUIDATOR_FEE, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+        INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
+        LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     prelude::MarginfiResult,
     state::{
         marginfi_account::{
-            calc_asset_quantity, calc_asset_value, create_pyth_account_map, BankAccountWrapper,
-            MarginfiAccount, RiskEngine, RiskRequirementType,
+            calc_asset_quantity, calc_asset_value, BankAccountWrapper, MarginfiAccount, RiskEngine,
+            RiskRequirementType,
         },
         marginfi_group::{Bank, BankVaultType, MarginfiGroup},
     },
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
 use solana_program::log::sol_log_compute_units;
 

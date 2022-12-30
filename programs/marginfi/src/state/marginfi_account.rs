@@ -90,25 +90,10 @@ pub struct BankAccountWithPriceFeed<'a> {
 impl<'a> BankAccountWithPriceFeed<'a> {
     pub fn load<'b: 'a, 'info: 'a + 'b>(
         lending_account: &'a LendingAccount,
-        marginfi_group_pk: &Pubkey,
         remaining_ais: &'b [AccountInfo<'info>],
     ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
         check!(
-            remaining_ais
-                .len()
-                .checked_rem(2)
-                .ok_or(MarginfiError::MathError)?
-                == 0,
-            MarginfiError::MissingPythOrBankAccount
-        );
-
-        check!(
-            lending_account
-                .get_active_balances_iter()
-                .collect::<Vec<_>>()
-                .len()
-                * 2
-                == remaining_ais.len(),
+            lending_account.get_active_balances_iter().count() * 2 == remaining_ais.len(),
             MarginfiError::MissingPythOrBankAccount
         );
 
@@ -125,7 +110,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 let bank_data = bank_ai.data.borrow();
 
                 let bank = bytemuck::from_bytes::<Bank>(&bank_data);
-                let price_feed = bank.load_price_feed_from_account_info(&pyth_ai)?;
+                let price_feed = bank.load_price_feed_from_account_info(pyth_ai)?;
 
                 Ok(BankAccountWithPriceFeed {
                     bank: *bank,
@@ -239,55 +224,12 @@ impl<'a> RiskEngine<'a> {
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'b [AccountInfo<'info>],
     ) -> MarginfiResult<Self> {
-        let bank_accounts_with_price = BankAccountWithPriceFeed::load(
-            &marginfi_account.lending_account,
-            &marginfi_account.group,
-            remaining_ais,
-        )?;
+        let bank_accounts_with_price =
+            BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
         Ok(Self {
             bank_accounts_with_price,
         })
-    }
-
-    pub fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
-        let (total_weighted_assets, total_weighted_liabilities) =
-            self.get_account_health_components(requirement_type)?;
-
-        msg!(
-            "assets {} - liabs: {}",
-            total_weighted_assets,
-            total_weighted_liabilities
-        );
-
-        check!(
-            total_weighted_assets > total_weighted_liabilities,
-            MarginfiError::BadAccountHealth
-        );
-
-        Ok(())
-    }
-
-    /// Check that the account is at most at the maintenance requirement level post liquidation.
-    /// This check is used to ensure two things in the liquidation process:
-    /// 1. Liquidatee account was below the maintenance requirement level before liquidation (as health can only increase, because liquidations always pay down liabilities)
-    /// 2. Liquidator didn't liquidate too many assets that would result in unnecessary loss for the liquidatee.
-    pub fn check_post_liquidation_account_health(&self) -> MarginfiResult {
-        let (total_weighted_assets, total_weighted_liabilities) =
-            self.get_account_health_components(RiskRequirementType::Maintenance)?;
-
-        msg!(
-            "post_liq: assets {} - liabs: {}",
-            total_weighted_assets,
-            total_weighted_liabilities
-        );
-
-        check!(
-            total_weighted_assets <= total_weighted_liabilities,
-            MarginfiError::AccountIllegalPostLiquidationState
-        );
-
-        Ok(())
     }
 
     pub fn get_account_health_components(
@@ -315,12 +257,55 @@ impl<'a> RiskEngine<'a> {
             )?)
     }
 
+    pub fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
+        let (total_weighted_assets, total_weighted_liabilities) =
+            self.get_account_health_components(requirement_type)?;
+
+        msg!(
+            "check_health: assets {} - liabs: {}",
+            total_weighted_assets,
+            total_weighted_liabilities
+        );
+
+        check!(
+            total_weighted_assets > total_weighted_liabilities,
+            MarginfiError::BadAccountHealth
+        );
+
+        Ok(())
+    }
+
+    /// Check that the account is at most at the maintenance requirement level post liquidation.
+    /// This check is used to ensure two things in the liquidation process:
+    /// 1. Liquidatee account was below the maintenance requirement level before liquidation (as health can only increase, because liquidations always pay down liabilities)
+    /// 2. Liquidator didn't liquidate too many assets that would result in unnecessary loss for the liquidatee.
+    ///
+    /// This check works on the assumption that the liquidation always results in a reduction of risk.
+    pub fn check_post_liquidation_account_health(&self) -> MarginfiResult {
+        let (total_weighted_assets, total_weighted_liabilities) =
+            self.get_account_health_components(RiskRequirementType::Maintenance)?;
+
+        msg!(
+            "check_post_liq: assets {} - liabs: {}",
+            total_weighted_assets,
+            total_weighted_liabilities
+        );
+
+        check!(
+            total_weighted_assets <= total_weighted_liabilities,
+            MarginfiError::AccountIllegalPostLiquidationState
+        );
+
+        Ok(())
+    }
+
+    /// Check that the account is in a bankrupt state.
     pub fn check_account_bankrupt(&self) -> MarginfiResult {
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(RiskRequirementType::Initial)?;
 
         msg!(
-            "bankrupt: assets {} - liabs: {}",
+            "check_bankrupt: assets {} - liabs: {}",
             total_weighted_assets,
             total_weighted_liabilities
         );
