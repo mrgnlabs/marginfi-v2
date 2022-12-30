@@ -1,9 +1,9 @@
-use super::prelude::*;
+use super::{bank::BankFixture, prelude::*};
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 use anchor_spl::token;
-use marginfi::{
-    constants::LENDING_POOL_BANK_SEED,
-    state::{marginfi_account::MarginfiAccount, marginfi_group::BankVaultType},
+use marginfi::state::{
+    marginfi_account::MarginfiAccount,
+    marginfi_group::{Bank, BankVaultType},
 };
 use solana_program::{instruction::Instruction, system_instruction};
 use solana_program_test::{BanksClientError, ProgramTestContext};
@@ -79,12 +79,11 @@ impl MarginfiAccountFixture {
 
     pub async fn try_bank_deposit(
         &self,
-        bank_mint: Pubkey,
         funding_account: Pubkey,
+        bank: &BankFixture,
         amount: u64,
     ) -> anyhow::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
-
         let mut ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {
@@ -93,17 +92,9 @@ impl MarginfiAccountFixture {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: ctx.payer.pubkey(),
-                bank_mint: bank_mint,
-                bank: self
-                    .find_lending_pool_bank_pda(&marginfi_account.group, &bank_mint)
-                    .0,
+                bank: bank.key,
                 signer_token_account: funding_account,
-                bank_liquidity_vault: find_bank_vault_pda(
-                    &marginfi_account.group,
-                    &bank_mint,
-                    BankVaultType::Liquidity,
-                )
-                .0,
+                bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
@@ -124,75 +115,34 @@ impl MarginfiAccountFixture {
 
     pub async fn try_bank_withdraw(
         &self,
-        bank_mint: Pubkey,
         destination_account: Pubkey,
+        bank: &BankFixture,
         amount: u64,
     ) -> anyhow::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
-
-        let mut ctx = self.ctx.borrow_mut();
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::BankWithdraw {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
-                signer: ctx.payer.pubkey(),
-                bank_mint: bank_mint,
-                bank: self
-                    .find_lending_pool_bank_pda(&marginfi_account.group, &bank_mint)
-                    .0,
+                signer: self.ctx.borrow().payer.pubkey(),
+                bank: bank.key,
                 destination_token_account: destination_account,
-                bank_liquidity_vault: find_bank_vault_pda(
-                    &marginfi_account.group,
-                    &bank_mint,
-                    BankVaultType::Liquidity,
-                )
-                .0,
-                bank_liquidity_vault_authority: find_bank_vault_authority_pda(
-                    &marginfi_account.group,
-                    &bank_mint,
-                    BankVaultType::Liquidity,
-                )
-                .0,
+                bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+                bank_liquidity_vault_authority: bank
+                    .get_vault_authority(BankVaultType::Liquidity)
+                    .0,
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::BankWithdraw { amount }.data(),
         };
-        ix.accounts.extend_from_slice(&[
-            AccountMeta {
-                pubkey: find_bank_pda(&marginfi_account.group, &self.usdc_mint).0,
-                is_signer: false,
-                is_writable: false,
-            },
-            AccountMeta {
-                pubkey: PYTH_USDC_FEED,
-                is_signer: false,
-                is_writable: false,
-            },
-            AccountMeta {
-                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_mint).0,
-                is_signer: false,
-                is_writable: false,
-            },
-            AccountMeta {
-                pubkey: PYTH_SOL_FEED,
-                is_signer: false,
-                is_writable: false,
-            },
-            AccountMeta {
-                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_equivalent_mint).0,
-                is_signer: false,
-                is_writable: false,
-            },
-            AccountMeta {
-                pubkey: PYTH_SOL_EQUIVALENT_FEED,
-                is_signer: false,
-                is_writable: false,
-            },
-        ]); // Need to generalise. SDK!
 
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas().await);
+
+        let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -207,88 +157,44 @@ impl MarginfiAccountFixture {
 
     pub async fn try_liquidate(
         &self,
-        liquidatee_pk: Pubkey,
-        asset_mint: Pubkey,
+        liquidatee: &MarginfiAccountFixture,
+        asset_bank: &BankFixture,
         asset_amount: u64,
-        liab_mint: Pubkey,
+        liab_bank: &BankFixture,
     ) -> std::result::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
-        let mut ctx = self.ctx.borrow_mut();
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountLiquidate {
                 marginfi_group: marginfi_account.group,
-                asset_mint,
-                asset_bank: self
-                    .find_lending_pool_bank_pda(&marginfi_account.group, &asset_mint)
-                    .0,
-                liab_mint,
-                liab_bank: self
-                    .find_lending_pool_bank_pda(&marginfi_account.group, &liab_mint)
-                    .0,
+                asset_bank: asset_bank.key,
+                liab_bank: liab_bank.key,
                 liquidator_marginfi_account: self.key,
-                signer: ctx.payer.pubkey(),
-                liquidatee_marginfi_account: liquidatee_pk,
-                bank_liquidity_vault_authority: find_bank_vault_authority_pda(
-                    &marginfi_account.group,
-                    &liab_mint,
-                    BankVaultType::Liquidity,
-                )
-                .0,
-                bank_liquidity_vault: find_bank_vault_pda(
-                    &marginfi_account.group,
-                    &liab_mint,
-                    BankVaultType::Liquidity,
-                )
-                .0,
-                bank_insurance_vault: find_bank_vault_pda(
-                    &marginfi_account.group,
-                    &liab_mint,
-                    BankVaultType::Insurance,
-                )
-                .0,
+                signer: self.ctx.borrow().payer.pubkey(),
+                liquidatee_marginfi_account: liquidatee.key,
+                bank_liquidity_vault_authority: liab_bank
+                    .get_vault_authority(BankVaultType::Liquidity)
+                    .0,
+                bank_liquidity_vault: liab_bank.get_vault(BankVaultType::Liquidity).0,
+                bank_insurance_vault: liab_bank.get_vault(BankVaultType::Insurance).0,
                 token_program: token::ID,
+                asset_price_feed: asset_bank.load().await.config.pyth_oracle,
+                liab_price_feed: liab_bank.load().await.config.pyth_oracle,
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::Liquidate { asset_amount }.data(),
         };
 
-        ix.accounts.extend_from_slice(&[
-            AccountMeta {
-                pubkey: find_bank_pda(&marginfi_account.group, &self.usdc_mint).0,
-                is_signer: false,
-                is_writable: false,
-            },
-            AccountMeta {
-                pubkey: PYTH_USDC_FEED,
-                is_signer: false,
-                is_writable: false,
-            },
-            AccountMeta {
-                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_mint).0,
-                is_signer: false,
-                is_writable: false,
-            },
-            AccountMeta {
-                pubkey: PYTH_SOL_FEED,
-                is_signer: false,
-                is_writable: false,
-            },
-            AccountMeta {
-                pubkey: find_bank_pda(&marginfi_account.group, &self.sol_equivalent_mint).0,
-                is_signer: false,
-                is_writable: false,
-            },
-            AccountMeta {
-                pubkey: PYTH_SOL_EQUIVALENT_FEED,
-                is_signer: false,
-                is_writable: false,
-            },
-        ]);
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas().await);
+
+        ix.accounts
+            .extend_from_slice(&liquidatee.load_observation_account_metas().await);
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
+        let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix, compute_budget_ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -299,26 +205,47 @@ impl MarginfiAccountFixture {
         ctx.banks_client.process_transaction(tx).await
     }
 
+    pub async fn load_observation_account_metas(&self) -> Vec<AccountMeta> {
+        let marginfi_account = self.load().await;
+        let bank_pks = marginfi_account
+            .lending_account
+            .balances
+            .iter()
+            .filter_map(|balance| balance.and_then(|b| Some(b.bank_pk)))
+            .collect::<Vec<_>>();
+
+        let mut banks = vec![];
+        for bank_pk in bank_pks.clone() {
+            let bank = load_and_deserialize::<Bank>(self.ctx.clone(), &bank_pk).await;
+            banks.push(bank);
+        }
+
+        banks
+            .iter()
+            .zip(bank_pks.iter())
+            .map(|(bank, bank_pk)| {
+                vec![
+                    AccountMeta {
+                        pubkey: bank_pk.clone(),
+                        is_signer: false,
+                        is_writable: false,
+                    },
+                    AccountMeta {
+                        pubkey: bank.config.pyth_oracle,
+                        is_signer: false,
+                        is_writable: false,
+                    },
+                ]
+            })
+            .flatten()
+            .collect()
+    }
+
     pub async fn load(&self) -> MarginfiAccount {
         load_and_deserialize::<MarginfiAccount>(self.ctx.clone(), &self.key).await
     }
 
     pub fn get_size() -> usize {
         mem::size_of::<MarginfiAccount>() + 8
-    }
-
-    pub fn find_lending_pool_bank_pda(
-        &self,
-        marginfi_group: &Pubkey,
-        asset_mint: &Pubkey,
-    ) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                LENDING_POOL_BANK_SEED,
-                marginfi_group.as_ref(),
-                &asset_mint.to_bytes(),
-            ],
-            &marginfi::id(),
-        )
     }
 }

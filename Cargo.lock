@@ -2041,6 +2041,7 @@ dependencies = [
  "bytemuck",
  "fixed",
  "fixed-macro",
+ "futures",
  "lazy_static",
  "pretty_assertions",
  "pyth-sdk-solana",

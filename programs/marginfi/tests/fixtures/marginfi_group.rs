@@ -23,6 +23,8 @@ use std::{
     rc::Rc,
 };
 
+use super::bank::BankFixture;
+
 pub struct MarginfiGroupFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
@@ -80,35 +82,30 @@ impl MarginfiGroupFixture {
         &self,
         bank_asset_mint: Pubkey,
         bank_config: BankConfig,
-    ) -> Result<(), BanksClientError> {
+    ) -> Result<BankFixture, BanksClientError> {
         let mut ctx = self.ctx.borrow_mut();
-
         let rent = ctx.banks_client.get_rent().await.unwrap();
+
+        let bank_key = Keypair::new();
+        let bank_fixture = BankFixture::new(self.ctx.clone(), bank_key.pubkey());
+
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolAddBank {
                 marginfi_group: self.key,
                 admin: ctx.payer.pubkey(),
                 bank_mint: bank_asset_mint,
-                bank: self.find_lending_pool_bank_pda(&bank_asset_mint).0,
-                liquidity_vault_authority: self
-                    .find_bank_vault_authority_pda(&bank_asset_mint, BankVaultType::Liquidity)
+                bank: bank_key.pubkey(),
+                liquidity_vault_authority: bank_fixture
+                    .get_vault_authority(BankVaultType::Liquidity)
                     .0,
-                liquidity_vault: self
-                    .find_bank_vault_pda(&bank_asset_mint, BankVaultType::Liquidity)
+                liquidity_vault: bank_fixture.get_vault(BankVaultType::Liquidity).0,
+                insurance_vault_authority: bank_fixture
+                    .get_vault_authority(BankVaultType::Insurance)
                     .0,
-                insurance_vault_authority: self
-                    .find_bank_vault_authority_pda(&bank_asset_mint, BankVaultType::Insurance)
-                    .0,
-                insurance_vault: self
-                    .find_bank_vault_pda(&bank_asset_mint, BankVaultType::Insurance)
-                    .0,
-                fee_vault_authority: self
-                    .find_bank_vault_authority_pda(&bank_asset_mint, BankVaultType::Fee)
-                    .0,
-                fee_vault: self
-                    .find_bank_vault_pda(&bank_asset_mint, BankVaultType::Fee)
-                    .0,
+                insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
+                fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
+                fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
                 rent: sysvar::rent::id(),
                 token_program: token::ID,
                 system_program: system_program::id(),
@@ -121,18 +118,18 @@ impl MarginfiGroupFixture {
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
-            &[&ctx.payer],
+            &[&ctx.payer, &bank_key],
             ctx.last_blockhash,
         );
 
         ctx.banks_client.process_transaction(tx).await?;
 
-        Ok(())
+        Ok(bank_fixture)
     }
 
     pub async fn try_lending_pool_configure_bank(
         &self,
-        bank_mint: Pubkey,
+        bank: BankFixture,
         bank_config_opt: BankConfigOpt,
     ) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
@@ -140,8 +137,7 @@ impl MarginfiGroupFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolConfigureBank {
-                bank_mint,
-                bank: self.find_lending_pool_bank_pda(&bank_mint).0,
+                bank: bank.key,
                 marginfi_group: self.key,
                 admin: ctx.payer.pubkey(),
                 pyth_oracle: bank_config_opt.pyth_oracle.unwrap_or_default(),
@@ -165,25 +161,18 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
-    pub async fn try_accrue_interest(&self, bank_mint: Pubkey) -> Result<()> {
+    pub async fn try_accrue_interest(&self, bank: BankFixture) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolBankAccrueInterest {
                 marginfi_group: self.key,
-                bank_mint,
-                bank: self.find_lending_pool_bank_pda(&bank_mint).0,
-                liquidity_vault_authority: self
-                    .find_bank_vault_authority_pda(&bank_mint, BankVaultType::Liquidity)
-                    .0,
-                liquidity_vault: self
-                    .find_bank_vault_pda(&bank_mint, BankVaultType::Liquidity)
-                    .0,
-                insurance_vault: self
-                    .find_bank_vault_pda(&bank_mint, BankVaultType::Insurance)
-                    .0,
-                fee_vault: self.find_bank_vault_pda(&bank_mint, BankVaultType::Fee).0,
+                bank: bank.key,
+                liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
+                liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+                insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
+                fee_vault: bank.get_vault(BankVaultType::Fee).0,
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
@@ -200,54 +189,6 @@ impl MarginfiGroupFixture {
         ctx.banks_client.process_transaction(tx).await?;
 
         Ok(())
-    }
-
-    // pub fn get_vault_pda(&self, seed: &[u8], asset_mint: Pubkey) -> (Pubkey, u8) {
-    //     Pubkey::find_program_address(
-    //         &[seed, asset_mint.as_ref(), self.key.as_ref()],
-    //         &marginfi::id(),
-    //     )
-    // }
-
-    pub fn find_bank_vault_pda(
-        &self,
-        asset_mint: &Pubkey,
-        vault_type: BankVaultType,
-    ) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                vault_type.get_seed(),
-                &asset_mint.to_bytes(),
-                self.key.as_ref(),
-            ],
-            &marginfi::id(),
-        )
-    }
-
-    pub fn find_lending_pool_bank_pda(&self, asset_mint: &Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                LENDING_POOL_BANK_SEED,
-                self.key.as_ref(),
-                &asset_mint.to_bytes(),
-            ],
-            &marginfi::id(),
-        )
-    }
-
-    pub fn find_bank_vault_authority_pda(
-        &self,
-        asset_mint: &Pubkey,
-        vault_type: BankVaultType,
-    ) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                vault_type.get_authority_seed(),
-                &asset_mint.to_bytes(),
-                self.key.as_ref(),
-            ],
-            &marginfi::id(),
-        )
     }
 
     pub fn get_size() -> usize {
