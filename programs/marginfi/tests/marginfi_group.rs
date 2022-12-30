@@ -257,7 +257,7 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
                     insurance_fee_fixed_apr: I80F48!(0.01).into(),
                     ..Default::default()
                 },
-                max_capacity: native!(1_000_000_000, "USDC").into(),
+                max_capacity: native!(1_000_000_000, "USDC"),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
         )
@@ -269,7 +269,7 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
             sol_mint_fixture.key,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
-                max_capacity: native!(200_000_000, "SOL").into(),
+                max_capacity: native!(200_000_000, "SOL"),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
