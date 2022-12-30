@@ -4,7 +4,7 @@
 use anchor_lang::prelude::*;
 use marginfi::{
     bank_authority_seed, bank_seed,
-    constants::{LENDING_POOL_BANK_SEED, PYTH_ID},
+    constants::{PYTH_ID},
     state::marginfi_group::BankVaultType,
 };
 use pyth_sdk_solana::state::{AccountType, PriceAccount, PriceInfo, PriceStatus, MAGIC, VERSION_2};

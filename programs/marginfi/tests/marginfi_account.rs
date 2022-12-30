@@ -44,7 +44,7 @@ async fn success_create_marginfi_account() -> anyhow::Result<()> {
 
     let size = MarginfiAccountFixture::get_size();
     let create_marginfi_account_ix = system_instruction::create_account(
-        &*&test_f.payer(),
+        &test_f.payer(),
         &marginfi_account_key.pubkey(),
         test_f.get_minimum_rent_for_size(size).await,
         size as u64,

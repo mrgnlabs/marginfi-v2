@@ -71,9 +71,9 @@ impl MarginfiAccountFixture {
         MarginfiAccountFixture {
             ctx: ctx_ref,
             key: account_key.pubkey(),
-            usdc_mint: usdc_mint.clone(),
-            sol_mint: sol_mint.clone(),
-            sol_equivalent_mint: sol_equivalent_mint.clone(),
+            usdc_mint: *usdc_mint,
+            sol_mint: *sol_mint,
+            sol_equivalent_mint: *sol_equivalent_mint,
         }
     }
 
@@ -223,10 +223,10 @@ impl MarginfiAccountFixture {
         banks
             .iter()
             .zip(bank_pks.iter())
-            .map(|(bank, bank_pk)| {
+            .flat_map(|(bank, bank_pk)| {
                 vec![
                     AccountMeta {
-                        pubkey: bank_pk.clone(),
+                        pubkey: *bank_pk,
                         is_signer: false,
                         is_writable: false,
                     },
@@ -237,7 +237,6 @@ impl MarginfiAccountFixture {
                     },
                 ]
             })
-            .flatten()
             .collect()
     }
 

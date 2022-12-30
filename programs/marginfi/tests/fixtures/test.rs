@@ -108,16 +108,16 @@ impl TestFixture {
     }
 
     pub async fn create_marginfi_account(&self) -> MarginfiAccountFixture {
-        let marfingi_account_f = MarginfiAccountFixture::new(
+        
+
+        MarginfiAccountFixture::new(
             Rc::clone(&self.context),
             &self.marginfi_group.key,
             &self.usdc_mint.key,
             &self.sol_mint.key,
             &self.sol_equivalent_mint.key,
         )
-        .await;
-
-        marfingi_account_f
+        .await
     }
 
     pub async fn try_load(

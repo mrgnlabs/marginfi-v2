@@ -70,12 +70,12 @@ impl MarginfiGroupFixture {
             ctx.banks_client.process_transaction(tx).await.unwrap();
         }
 
-        let tester_group = MarginfiGroupFixture {
+        
+
+        MarginfiGroupFixture {
             ctx: ctx_ref.clone(),
             key: group_key.pubkey(),
-        };
-
-        tester_group
+        }
     }
 
     pub async fn try_lending_pool_add_bank(
