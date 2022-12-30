@@ -4,7 +4,7 @@
 use anchor_lang::{prelude::Pubkey, AccountDeserialize};
 use marginfi::state::marginfi_group::{Bank, BankVaultType};
 use solana_program_test::ProgramTestContext;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 use super::utils::{find_bank_vault_authority_pda, find_bank_vault_pda, load_and_deserialize};
 
@@ -28,5 +28,13 @@ impl BankFixture {
 
     pub async fn load(&self) -> Bank {
         load_and_deserialize::<Bank>(self.ctx.clone(), &self.key).await
+    }
+}
+
+impl Debug for BankFixture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BankFixture")
+            .field("key", &self.key)
+            .finish()
     }
 }

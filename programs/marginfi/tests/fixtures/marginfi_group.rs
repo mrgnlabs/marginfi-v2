@@ -70,8 +70,6 @@ impl MarginfiGroupFixture {
             ctx.banks_client.process_transaction(tx).await.unwrap();
         }
 
-        
-
         MarginfiGroupFixture {
             ctx: ctx_ref.clone(),
             key: group_key.pubkey(),
@@ -161,7 +159,7 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
-    pub async fn try_accrue_interest(&self, bank: BankFixture) -> Result<()> {
+    pub async fn try_accrue_interest(&self, bank: &BankFixture) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {

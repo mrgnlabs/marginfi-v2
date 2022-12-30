@@ -96,10 +96,10 @@ async fn success_add_bank() -> anyhow::Result<()> {
         .await;
     assert!(res.is_ok());
 
+    let bank = res?;
+
     // Check bank is active
-    let bank = test_f
-        .try_load(&find_bank_pda(&test_f.marginfi_group.key, &bank_asset_mint_fixture.key).0)
-        .await?;
+    let bank = test_f.try_load(&bank.key).await?;
     assert!(bank.is_some());
 
     Ok(())
@@ -159,7 +159,7 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
     let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
     let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
-    test_f
+    let usdc_bank = test_f
         .marginfi_group
         .try_lending_pool_add_bank(
             usdc_mint_fixture.key,
@@ -174,7 +174,7 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
         )
         .await?;
 
-    test_f
+    let sol_bank = test_f
         .marginfi_group
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
@@ -190,7 +190,7 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
         .create_and_mint_to(native!(100, "USDC"))
         .await;
     lender_account
-        .try_bank_deposit(usdc_mint_fixture.key, funding_account, native!(100, "USDC"))
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100, "USDC"))
         .await?;
 
     let borrower_account = test_f.create_marginfi_account().await;
@@ -198,16 +198,12 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
         .create_and_mint_to(native!(1000, "SOL"))
         .await;
     borrower_account
-        .try_bank_deposit(sol_mint_fixture.key, funding_account, native!(999, "SOL"))
+        .try_bank_deposit(funding_account, &sol_bank, native!(999, "SOL"))
         .await?;
 
     let destination_account = usdc_mint_fixture.create_and_mint_to(0).await;
     borrower_account
-        .try_bank_withdraw(
-            usdc_mint_fixture.key,
-            destination_account,
-            native!(90, "USDC"),
-        )
+        .try_bank_withdraw(destination_account, &usdc_bank, native!(90, "USDC"))
         .await?;
 
     {
@@ -220,14 +216,12 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_accrue_interest(usdc_mint_fixture.key)
+        .try_accrue_interest(&usdc_bank)
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
     let borrower_bank_account = borrower_mfi_account.lending_account.balances[1].unwrap();
-    let usdc_bank: Bank = test_f
-        .load_and_deserialize(&find_bank_pda(&test_f.marginfi_group.key, &usdc_mint_fixture.key).0)
-        .await;
+    let usdc_bank: Bank = usdc_bank.load().await;
     let liabilities =
         usdc_bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
 
@@ -251,7 +245,7 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
     let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
     let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
-    test_f
+    let usdc_bank = test_f
         .marginfi_group
         .try_lending_pool_add_bank(
             usdc_mint_fixture.key,
@@ -269,7 +263,7 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
         )
         .await?;
 
-    test_f
+    let sol_bank = test_f
         .marginfi_group
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
@@ -286,11 +280,7 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
         .create_and_mint_to(native!(100_000_000, "USDC"))
         .await;
     lender_account
-        .try_bank_deposit(
-            usdc_mint_fixture.key,
-            funding_account,
-            native!(100_000_000, "USDC"),
-        )
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000_000, "USDC"))
         .await?;
 
     let borrower_account = test_f.create_marginfi_account().await;
@@ -298,20 +288,12 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
         .create_and_mint_to(native!(10_000_000, "SOL"))
         .await;
     borrower_account
-        .try_bank_deposit(
-            sol_mint_fixture.key,
-            funding_account,
-            native!(10_000_000, "SOL"),
-        )
+        .try_bank_deposit(funding_account, &sol_bank, native!(10_000_000, "SOL"))
         .await?;
 
     let destination_account = usdc_mint_fixture.create_and_mint_to(0).await;
     borrower_account
-        .try_bank_withdraw(
-            usdc_mint_fixture.key,
-            destination_account,
-            native!(90_000_000, "USDC"),
-        )
+        .try_bank_withdraw(destination_account, &usdc_bank, native!(90_000_000, "USDC"))
         .await?;
 
     {
@@ -324,14 +306,12 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_accrue_interest(usdc_mint_fixture.key)
+        .try_accrue_interest(&usdc_bank)
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
     let borrower_bank_account = borrower_mfi_account.lending_account.balances[1].unwrap();
-    let usdc_bank: Bank = test_f
-        .load_and_deserialize(&find_bank_pda(&test_f.marginfi_group.key, &usdc_mint_fixture.key).0)
-        .await;
+    let usdc_bank = usdc_bank.load().await;
     let liabilities =
         usdc_bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
 

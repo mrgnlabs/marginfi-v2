@@ -108,8 +108,6 @@ impl TestFixture {
     }
 
     pub async fn create_marginfi_account(&self) -> MarginfiAccountFixture {
-        
-
         MarginfiAccountFixture::new(
             Rc::clone(&self.context),
             &self.marginfi_group.key,
