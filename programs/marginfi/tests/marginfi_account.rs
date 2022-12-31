@@ -3,11 +3,8 @@
 
 mod fixtures;
 
-use crate::fixtures::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
-use anchor_lang::{
-    prelude::{ErrorCode, Pubkey},
-    InstructionData, Key, ToAccountMetas,
-};
+use crate::fixtures::marginfi_account::MarginfiAccountFixture;
+use anchor_lang::{InstructionData, Key, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
@@ -531,10 +528,7 @@ async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
         .await?;
 
     let borrower = test_f.create_marginfi_account().await;
-    let borrower_sol_account = test_f
-        .sol_mint
-        .create_and_mint_to(native!(10, "SOL"))
-        .await;
+    let borrower_sol_account = test_f.sol_mint.create_and_mint_to(native!(10, "SOL")).await;
     let borrower_usdc_account = test_f.usdc_mint.create_and_mint_to(0).await;
     borrower
         .try_bank_deposit(borrower_sol_account, &sol_bank, native!(10, "SOL"))

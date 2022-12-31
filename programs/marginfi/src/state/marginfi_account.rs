@@ -8,10 +8,7 @@ use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use pyth_sdk_solana::{Price, PriceFeed};
-use std::{
-    cmp::{max, min},
-    collections::BTreeMap,
-};
+use std::cmp::{max, min};
 
 #[account(zero_copy)]
 pub struct MarginfiAccount {

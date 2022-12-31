@@ -16,15 +16,11 @@ use pretty_assertions::assert_eq;
 use solana_program::{
     instruction::Instruction,
     program_pack::Pack,
-    system_instruction::{self, SystemError},
+    system_instruction::{self},
     system_program,
 };
 use solana_program_test::*;
-use solana_sdk::{
-    signature::Keypair,
-    signer::Signer,
-    transaction::{Transaction, TransactionError},
-};
+use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 
 #[tokio::test]
 async fn success_create_marginfi_group() -> anyhow::Result<()> {
