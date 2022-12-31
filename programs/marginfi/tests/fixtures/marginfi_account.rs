@@ -140,7 +140,7 @@ impl MarginfiAccountFixture {
         };
 
         ix.accounts
-            .extend_from_slice(&self.load_observation_account_metas().await);
+            .extend_from_slice(&self.load_observation_account_metas(Some(bank.key)).await);
 
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
@@ -158,39 +158,45 @@ impl MarginfiAccountFixture {
     pub async fn try_liquidate(
         &self,
         liquidatee: &MarginfiAccountFixture,
-        asset_bank: &BankFixture,
+        asset_bank_fixture: &BankFixture,
         asset_amount: u64,
-        liab_bank: &BankFixture,
+        liab_bank_fixture: &BankFixture,
     ) -> std::result::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
+
+        let asset_bank = asset_bank_fixture.load().await;
+        let liab_bank = liab_bank_fixture.load().await;
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountLiquidate {
                 marginfi_group: marginfi_account.group,
-                asset_bank: asset_bank.key,
-                liab_bank: liab_bank.key,
+                asset_bank: asset_bank_fixture.key,
+                liab_bank: liab_bank_fixture.key,
                 liquidator_marginfi_account: self.key,
                 signer: self.ctx.borrow().payer.pubkey(),
                 liquidatee_marginfi_account: liquidatee.key,
-                bank_liquidity_vault_authority: liab_bank
+                bank_liquidity_vault_authority: liab_bank_fixture
                     .get_vault_authority(BankVaultType::Liquidity)
                     .0,
-                bank_liquidity_vault: liab_bank.get_vault(BankVaultType::Liquidity).0,
-                bank_insurance_vault: liab_bank.get_vault(BankVaultType::Insurance).0,
+                bank_liquidity_vault: liab_bank_fixture.get_vault(BankVaultType::Liquidity).0,
+                bank_insurance_vault: liab_bank_fixture.get_vault(BankVaultType::Insurance).0,
                 token_program: token::ID,
-                asset_price_feed: asset_bank.load().await.config.pyth_oracle,
-                liab_price_feed: liab_bank.load().await.config.pyth_oracle,
+                asset_price_feed: asset_bank.config.pyth_oracle,
+                liab_price_feed: liab_bank.config.pyth_oracle,
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::Liquidate { asset_amount }.data(),
         };
 
-        ix.accounts
-            .extend_from_slice(&self.load_observation_account_metas().await);
+        ix.accounts.extend_from_slice(
+            &self
+                .load_observation_account_metas(Some(asset_bank_fixture.key))
+                .await,
+        );
 
         ix.accounts
-            .extend_from_slice(&liquidatee.load_observation_account_metas().await);
+            .extend_from_slice(&liquidatee.load_observation_account_metas(None).await);
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
@@ -205,14 +211,23 @@ impl MarginfiAccountFixture {
         ctx.banks_client.process_transaction(tx).await
     }
 
-    pub async fn load_observation_account_metas(&self) -> Vec<AccountMeta> {
+    pub async fn load_observation_account_metas(
+        &self,
+        include_bank: Option<Pubkey>,
+    ) -> Vec<AccountMeta> {
         let marginfi_account = self.load().await;
-        let bank_pks = marginfi_account
+        let mut bank_pks = marginfi_account
             .lending_account
             .balances
             .iter()
             .filter_map(|balance| balance.and_then(|b| Some(b.bank_pk)))
             .collect::<Vec<_>>();
+
+        if let Some(bank_pk) = include_bank {
+            if !bank_pks.contains(&bank_pk) {
+                bank_pks.push(bank_pk);
+            }
+        }
 
         let mut banks = vec![];
         for bank_pk in bank_pks.clone() {
@@ -220,7 +235,7 @@ impl MarginfiAccountFixture {
             banks.push(bank);
         }
 
-        banks
+        let ams = banks
             .iter()
             .zip(bank_pks.iter())
             .flat_map(|(bank, bank_pk)| {
@@ -237,7 +252,9 @@ impl MarginfiAccountFixture {
                     },
                 ]
             })
-            .collect()
+            .collect::<Vec<_>>();
+
+        ams
     }
 
     pub async fn load(&self) -> MarginfiAccount {

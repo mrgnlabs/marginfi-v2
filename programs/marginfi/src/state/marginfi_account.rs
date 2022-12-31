@@ -55,6 +55,8 @@ const EXP_10_I80F48: [I80F48; 15] = [
     I80F48!(100_000_000_000_000),
 ];
 
+// TODO: Make a division table;
+
 const USDC_EXPONENT: i32 = 6;
 
 /// Convert a price `price.price` with decimal exponent `price.expo` to an I80F48 representation with exponent 6.
@@ -67,7 +69,9 @@ pub fn pyth_price_to_i80f48(price: &Price) -> MarginfiResult<I80F48> {
 
     let price = I80F48::from_num(pyth_price);
 
-    let price = if expo_delta < 0 {
+    let price = if expo_delta == 0 {
+        price
+    } else if expo_delta < 0 {
         price.checked_div(expo_scale).ok_or_else(math_error!())?
     } else {
         price.checked_mul(expo_scale).ok_or_else(math_error!())?
@@ -92,6 +96,12 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         lending_account: &'a LendingAccount,
         remaining_ais: &'b [AccountInfo<'info>],
     ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
+        msg!(
+            "Expecting {} remaining accounts",
+            lending_account.get_active_balances_iter().count() * 2
+        );
+        msg!("Got {} remaining accounts", remaining_ais.len());
+
         check!(
             lending_account.get_active_balances_iter().count() * 2 == remaining_ais.len(),
             MarginfiError::MissingPythOrBankAccount
@@ -105,11 +115,12 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 let pyth_index = bank_index + 1;
 
                 let bank_ai = remaining_ais.get(bank_index).unwrap();
+
+                check!(b.bank_pk.eq(bank_ai.key), MarginfiError::InvalidBankAccount);
                 let pyth_ai = remaining_ais.get(pyth_index).unwrap();
 
-                let bank_data = bank_ai.data.borrow();
-
-                let bank = bytemuck::from_bytes::<Bank>(&bank_data);
+                let bank_data = bank_ai.try_borrow_data()?;
+                let bank = bytemuck::from_bytes::<Bank>(&bank_data[8..]);
                 let price_feed = bank.load_price_feed_from_account_info(pyth_ai)?;
 
                 Ok(BankAccountWithPriceFeed {
@@ -121,6 +132,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             .collect::<Result<Vec<_>>>()
     }
 
+    #[inline(always)]
     pub fn calc_weighted_assets_and_liabilities_values(
         &self,
         weight_type: WeightType,
@@ -143,32 +155,17 @@ impl<'a> BankAccountWithPriceFeed<'a> {
     }
 }
 
-pub fn create_bank_account_map<'a, 'info>(
-    remaining_accounts: &'a [AccountInfo<'info>],
-) -> MarginfiResult<BTreeMap<Pubkey, &'a AccountInfo<'info>>> {
-    Ok(BTreeMap::from_iter(
-        remaining_accounts.iter().step_by(2).map(|a| (a.key(), a)),
-    ))
-}
-
-pub fn create_pyth_account_map<'a, 'info>(
-    remaining_accounts: &'a [AccountInfo<'info>],
-) -> MarginfiResult<BTreeMap<Pubkey, &'a AccountInfo<'info>>> {
-    Ok(BTreeMap::from_iter(
-        remaining_accounts
-            .iter()
-            .skip(1)
-            .step_by(2)
-            .map(|a| (a.key(), a)),
-    ))
-}
-
 #[inline]
+/// Calculate the value of an asset, given its quantity with a decimal exponent, and a price with a decimal exponent, and an optional weight.
 pub fn calc_asset_value(
     asset_quantity: I80F48,
     pyth_price: &Price,
     weight: Option<I80F48>,
 ) -> MarginfiResult<I80F48> {
+    if asset_quantity == I80F48::ZERO {
+        return Ok(I80F48::ZERO);
+    }
+
     let price = pyth_price_to_i80f48(pyth_price)?;
     let scaling_factor = EXP_10_I80F48[pyth_price.expo.unsigned_abs() as usize];
 
@@ -177,6 +174,13 @@ pub fn calc_asset_value(
     } else {
         asset_quantity
     };
+
+    msg!(
+        "weighted_asset_qt: {}, price: {}, expo: {}",
+        weighted_asset_qt,
+        price,
+        pyth_price.expo
+    );
 
     let asset_value = weighted_asset_qt
         .checked_mul(price)
@@ -232,6 +236,7 @@ impl<'a> RiskEngine<'a> {
         })
     }
 
+    /// Returns the total assets and liabilities of the account in the form of (assets, liabilities)
     pub fn get_account_health_components(
         &self,
         requirement_type: RiskRequirementType,
@@ -514,5 +519,35 @@ impl<'a> BankAccountWrapper<'a> {
     ) -> MarginfiResult {
         self.bank
             .withdraw_spl_transfer(amount, accounts, program, signer_seeds)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use fixed_macro::types::I80F48;
+
+    #[test]
+    fn test_calc_asset_value() {
+        let price_usdc = Price {
+            price: 1_000_000,
+            expo: 6,
+            ..Default::default()
+        };
+        assert_eq!(
+            calc_asset_value(I80F48!(10_000_000), &price_usdc, None).unwrap(),
+            I80F48!(10_000_000)
+        );
+
+        let price_sol = Price {
+            price: 10_000_000_000,
+            expo: 9,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            calc_asset_value(I80F48!(1_000_000_000), &price_sol, None).unwrap(),
+            I80F48!(10_000_000)
+        );
     }
 }

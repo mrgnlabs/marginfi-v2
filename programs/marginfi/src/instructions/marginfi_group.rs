@@ -296,6 +296,7 @@ pub struct LendingPoolBankAccrueInterest<'info> {
     /// PDA / seeds check ensures that provided account is legit, and use of the
     /// marginfi group + underlying mint guarantees unicity of bank per mint within a group
     #[account(
+        mut,
         constraint = bank.load()?.group == marginfi_group.key(),
     )]
     pub bank: AccountLoader<'info, Bank>,

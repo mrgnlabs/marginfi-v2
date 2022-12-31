@@ -129,31 +129,6 @@ async fn failure_add_bank_fake_pyth_feed() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn failure_add_bank_already_exists() -> anyhow::Result<()> {
-    // Setup test executor with non-admin payer
-    let test_f = TestFixture::new(None).await;
-
-    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
-
-    test_f
-        .marginfi_group
-        .try_lending_pool_add_bank(bank_asset_mint_fixture.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
-        .await?;
-    let res = test_f
-        .marginfi_group
-        .try_lending_pool_add_bank(bank_asset_mint_fixture.key, BankConfig::default())
-        .await;
-
-    assert!(res.is_err());
-    assert_eq!(
-        res.unwrap_err().unwrap(),
-        TransactionError::InstructionError(0, SystemError::AccountAlreadyInUse.into())
-    );
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
     let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
