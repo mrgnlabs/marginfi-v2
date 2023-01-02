@@ -360,26 +360,6 @@ impl LendingAccount {
     pub fn get_active_balances_iter(&self) -> impl Iterator<Item = &Balance> {
         self.balances.iter().filter_map(|b| b.as_ref())
     }
-
-    pub fn checked_liquidation_can_start_for_bank(&self, bank_pk: &Pubkey) -> MarginfiResult {
-        let balance = self.balances.iter().find(|balance| {
-            if let Some(balance) = balance {
-                balance.bank_pk == *bank_pk
-            } else {
-                false
-            }
-        });
-
-        let has_liability = if let Some(Some(balance)) = balance {
-            balance.liability_shares.value != 0
-        } else {
-            false
-        };
-
-        check!(has_liability, MarginfiError::IllegalLiquidation);
-
-        Ok(())
-    }
 }
 
 #[zero_copy]
