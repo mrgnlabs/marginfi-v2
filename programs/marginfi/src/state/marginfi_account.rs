@@ -283,7 +283,21 @@ impl<'a> RiskEngine<'a> {
     /// 2. Liquidator didn't liquidate too many assets that would result in unnecessary loss for the liquidatee.
     ///
     /// This check works on the assumption that the liquidation always results in a reduction of risk.
-    pub fn check_post_liquidation_account_health(&self) -> MarginfiResult {
+    ///
+    /// 1. We check that the paid off liability is not zero. Assuming the liquidation always pays off some liability, this ensures that the liquidation was not too large.
+    /// 2. We check that the account is still at most at the maintenance requirement level. This ensures that the liquidation was not too large overall.
+    pub fn check_post_liquidation_account_health(&self, bank_pk: &Pubkey) -> MarginfiResult {
+        let liability_bank_balance = self
+            .bank_accounts_with_price
+            .iter()
+            .find(|a| a.balance.bank_pk == *bank_pk)
+            .unwrap();
+
+        check!(
+            liability_bank_balance.balance.liability_shares.value != 0,
+            MarginfiError::AccountIllegalPostLiquidationState
+        );
+
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(RiskRequirementType::Maintenance)?;
 
@@ -345,6 +359,26 @@ impl LendingAccount {
 
     pub fn get_active_balances_iter(&self) -> impl Iterator<Item = &Balance> {
         self.balances.iter().filter_map(|b| b.as_ref())
+    }
+
+    pub fn checked_liquidation_can_start_for_bank(&self, bank_pk: &Pubkey) -> MarginfiResult {
+        let balance = self.balances.iter().find(|balance| {
+            if let Some(balance) = balance {
+                balance.bank_pk == *bank_pk
+            } else {
+                false
+            }
+        });
+
+        let has_liability = if let Some(Some(balance)) = balance {
+            balance.liability_shares.value != 0
+        } else {
+            false
+        };
+
+        check!(has_liability, MarginfiError::IllegalLiquidation);
+
+        Ok(())
     }
 }
 

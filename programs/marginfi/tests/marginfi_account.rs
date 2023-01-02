@@ -633,3 +633,86 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
     assert!(res.is_ok());
     Ok(())
 }
+
+#[tokio::test]
+async fn liquidation_failed_bank_not_liquidatable() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    // Setup sample bank
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            test_f.usdc_mint.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            test_f.sol_mint.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+    let sol_2_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            test_f.sol_equivalent_mint.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let depositor = test_f.create_marginfi_account().await;
+    let deposit_account = test_f
+        .usdc_mint
+        .create_and_mint_to(native!(200, "USDC"))
+        .await;
+    depositor
+        .try_bank_deposit(deposit_account, &usdc_bank, native!(200, "USDC"))
+        .await?;
+
+    let borrower = test_f.create_marginfi_account().await;
+    let borrower_sol_account = test_f
+        .sol_mint
+        .create_and_mint_to(native!(100, "SOL"))
+        .await;
+    let borrower_sol_2_account = test_f
+        .sol_equivalent_mint
+        .create_and_mint_to(native!(100, "SOL"))
+        .await;
+    let borrower_usdc_account = test_f.usdc_mint.create_and_mint_to(0).await;
+    borrower
+        .try_bank_deposit(borrower_sol_account, &sol_bank, native!(10, "SOL"))
+        .await?;
+    borrower
+        .try_bank_deposit(borrower_sol_2_account, &sol_2_bank, native!(1, "SOL"))
+        .await?;
+
+    borrower
+        .try_bank_withdraw(borrower_usdc_account, &usdc_bank, native!(60, "USDC"))
+        .await?;
+
+    let res = depositor
+        .try_liquidate(&borrower, &sol_2_bank, native!(1, "SOL"), &sol_bank)
+        .await;
+
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::AccountIllegalPostLiquidationState
+    );
+
+    let res = depositor
+        .try_liquidate(&borrower, &sol_2_bank, native!(1, "SOL"), &usdc_bank)
+        .await;
+
+    assert!(res.is_ok());
+    Ok(())
+}

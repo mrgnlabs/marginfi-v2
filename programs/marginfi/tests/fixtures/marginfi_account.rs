@@ -140,7 +140,7 @@ impl MarginfiAccountFixture {
         };
 
         ix.accounts
-            .extend_from_slice(&self.load_observation_account_metas(Some(bank.key)).await);
+            .extend_from_slice(&self.load_observation_account_metas(vec![bank.key]).await);
 
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
@@ -186,17 +186,17 @@ impl MarginfiAccountFixture {
                 liab_price_feed: liab_bank.config.pyth_oracle,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::Liquidate { asset_amount }.data(),
+            data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
         };
 
         ix.accounts.extend_from_slice(
             &self
-                .load_observation_account_metas(Some(asset_bank_fixture.key))
+                .load_observation_account_metas(vec![asset_bank_fixture.key, liab_bank_fixture.key])
                 .await,
         );
 
         ix.accounts
-            .extend_from_slice(&liquidatee.load_observation_account_metas(None).await);
+            .extend_from_slice(&liquidatee.load_observation_account_metas(vec![]).await);
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
@@ -213,7 +213,7 @@ impl MarginfiAccountFixture {
 
     pub async fn load_observation_account_metas(
         &self,
-        include_bank: Option<Pubkey>,
+        include_banks: Vec<Pubkey>,
     ) -> Vec<AccountMeta> {
         let marginfi_account = self.load().await;
         let mut bank_pks = marginfi_account
@@ -223,7 +223,7 @@ impl MarginfiAccountFixture {
             .filter_map(|balance| balance.and_then(|b| Some(b.bank_pk)))
             .collect::<Vec<_>>();
 
-        if let Some(bank_pk) = include_bank {
+        for bank_pk in include_banks {
             if !bank_pks.contains(&bank_pk) {
                 bank_pks.push(bank_pk);
             }
@@ -234,6 +234,8 @@ impl MarginfiAccountFixture {
             let bank = load_and_deserialize::<Bank>(self.ctx.clone(), &bank_pk).await;
             banks.push(bank);
         }
+
+        println!("Lending account banks: {}", banks.len());
 
         let ams = banks
             .iter()

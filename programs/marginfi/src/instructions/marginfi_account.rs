@@ -264,6 +264,15 @@ pub struct BankWithdraw<'info> {
 /// `q_ll = q_a * p_a * (1 - f_l) / p_l`
 /// `q_lf = q_a * p_a * (1 - (f_l + f_i)) / p_l`
 ///
+/// Risk model
+///
+/// Assumptions:
+///
+/// The fundamental idea behind the risk model is that the liquidation always leaves the liquidatee account in a better health than before.
+/// This can be achieved by ensuring that for each token the liability has a LTV > 1, each collateral has a risk haircut of < 1,
+/// with this by paying down the liability with the collateral, the liquidatee account will always be in a better health,
+/// assuming that the liquidatee liability token balance doesn't become positive (doesn't become counted as collateral),
+/// and that the liquidatee collateral token balance doesn't become negative (doesn't become counted as liability).
 ///
 pub fn lending_account_liquidate(
     ctx: Context<LendingAccountLiquidate>,
@@ -296,8 +305,6 @@ pub fn lending_account_liquidate(
             // TODO: Check price expiration and confidence
             liab_price_feed.get_price_unchecked()
         };
-
-        sol_log_compute_units();
 
         let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
         let liquidator_discount = I80F48::ONE - LIQUIDATION_LIQUIDATOR_FEE;
@@ -367,9 +374,6 @@ pub fn lending_account_liquidate(
 
         liquidatee_liab_bank_account.account_deposit(liab_quantity_final)?;
 
-        sol_log_compute_units();
-        msg!("Balance: {}", ctx.accounts.bank_liquidity_vault.amount);
-
         // SPL transfer
         // Insurance fund receives fee
         liquidatee_liab_bank_account.withdraw_spl_transfer(
@@ -389,8 +393,6 @@ pub fn lending_account_liquidate(
                 *ctx.bumps.get("bank_liquidity_vault_authority").unwrap()
             ),
         )?;
-
-        sol_log_compute_units();
     }
 
     // Risk checks
@@ -400,15 +402,11 @@ pub fn lending_account_liquidate(
         .split_at(liquidator_marginfi_account.get_remaining_accounts_len());
 
     RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
-        .check_post_liquidation_account_health()?;
-
-    sol_log_compute_units();
+        .check_post_liquidation_account_health(&ctx.accounts.liab_bank.key())?;
 
     // Verify liquidator account health
     RiskEngine::new(&liquidator_marginfi_account, liquidator_remaining_accounts)?
         .check_account_health(RiskRequirementType::Initial)?;
-
-    sol_log_compute_units();
 
     Ok(())
 }

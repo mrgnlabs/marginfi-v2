@@ -86,7 +86,10 @@ pub mod marginfi {
         marginfi_account::bank_withdraw(ctx, amount)
     }
 
-    pub fn liquidate(ctx: Context<LendingAccountLiquidate>, asset_amount: u64) -> MarginfiResult {
+    pub fn lending_account_liquidate(
+        ctx: Context<LendingAccountLiquidate>,
+        asset_amount: u64,
+    ) -> MarginfiResult {
         marginfi_account::lending_account_liquidate(ctx, asset_amount)
     }
 
