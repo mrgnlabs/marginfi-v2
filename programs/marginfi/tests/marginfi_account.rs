@@ -4,7 +4,7 @@
 mod fixtures;
 
 use crate::fixtures::marginfi_account::MarginfiAccountFixture;
-use anchor_lang::{InstructionData, Key, ToAccountMetas};
+use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
