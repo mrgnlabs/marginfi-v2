@@ -19,14 +19,16 @@ use fixed::types::I80F48;
 use solana_program::log::sol_log_compute_units;
 
 pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
-    let margin_account = &mut ctx.accounts.marginfi_account.load_init()?;
     let InitializeMarginfiAccount {
         signer,
         marginfi_group,
+        marginfi_account,
         ..
     } = ctx.accounts;
 
-    margin_account.initialize(marginfi_group.key(), signer.key());
+    let mut marginfi_account = marginfi_account.load_init()?;
+
+    marginfi_account.initialize(marginfi_group.key(), signer.key());
 
     Ok(())
 }
@@ -35,7 +37,11 @@ pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
 pub struct InitializeMarginfiAccount<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(zero)]
+    #[account(
+        init,
+        payer = signer,
+        space = 8 + std::mem::size_of::<MarginfiAccount>()
+    )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(mut)]
@@ -56,14 +62,15 @@ pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
         signer_token_account,
         bank_liquidity_vault,
         token_program,
+        bank: bank_loader,
         ..
     } = ctx.accounts;
 
-    let mut bank = ctx.accounts.bank.load_mut()?;
+    let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account.load_mut()?;
 
     let mut bank_account = BankAccountWrapper::find_or_create(
-        &ctx.accounts.bank.key(),
+        &bank_loader.key(),
         &mut bank,
         &mut marginfi_account.lending_account,
     )?;
@@ -84,7 +91,6 @@ pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
 
 #[derive(Accounts)]
 pub struct BankDeposit<'info> {
-    #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -94,7 +100,6 @@ pub struct BankDeposit<'info> {
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
-        mut,
         address = marginfi_account.load()?.owner,
     )]
     pub signer: Signer<'info>,
@@ -105,18 +110,17 @@ pub struct BankDeposit<'info> {
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    /// Token mint is checked at transfer
+    /// Token mint/authority are checked at transfer
     #[account(mut)]
-    pub signer_token_account: Account<'info, TokenAccount>,
+    pub signer_token_account: AccountInfo<'info>,
 
-    /// TODO: Store bump on-chain
     #[account(
         mut,
         seeds = [
             LIQUIDITY_VAULT_SEED,
             bank.key().as_ref(),
         ],
-        bump,
+        bump = bank.load()?.liquidity_vault_bump,
     )]
     pub bank_liquidity_vault: UncheckedAccount<'info>,
 
@@ -137,16 +141,18 @@ pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult 
         bank_liquidity_vault,
         token_program,
         bank_liquidity_vault_authority,
+        bank: bank_loader,
         ..
     } = ctx.accounts;
 
     let mut marginfi_account = marginfi_account.load_mut()?;
 
     {
-        let mut bank = ctx.accounts.bank.load_mut()?;
+        let mut bank = bank_loader.load_mut()?;
+        let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
 
         let mut bank_account = BankAccountWrapper::find_or_create(
-            &ctx.accounts.bank.key(),
+            &bank_loader.key(),
             &mut bank,
             &mut marginfi_account.lending_account,
         )?;
@@ -162,8 +168,8 @@ pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult 
             token_program.to_account_info(),
             bank_signer!(
                 BankVaultType::Liquidity,
-                ctx.accounts.bank.key(),
-                *ctx.bumps.get("bank_liquidity_vault_authority").unwrap()
+                bank_loader.key(),
+                liquidity_vault_authority_bump
             ),
         )?;
     }
@@ -178,17 +184,15 @@ pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult 
 
 #[derive(Accounts)]
 pub struct BankWithdraw<'info> {
-    #[account(
-        mut,
-        address = marginfi_account.load()?.group
-    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = marginfi_account.load()?.group == marginfi_group.key(),
+    )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
-        mut,
         address = marginfi_account.load()?.owner,
     )]
     pub signer: Signer<'info>,
@@ -202,14 +206,13 @@ pub struct BankWithdraw<'info> {
     #[account(mut)]
     pub destination_token_account: Account<'info, TokenAccount>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         mut,
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED,
             bank.key().as_ref(),
         ],
-        bump,
+        bump = bank.load()?.liquidity_vault_authority_bump,
     )]
     pub bank_liquidity_vault_authority: AccountInfo<'info>,
 
@@ -219,7 +222,7 @@ pub struct BankWithdraw<'info> {
             LIQUIDITY_VAULT_SEED,
             bank.key().as_ref(),
         ],
-        bump,
+        bump = bank.load()?.liquidity_vault_bump,
     )]
     pub bank_liquidity_vault: Account<'info, TokenAccount>,
 

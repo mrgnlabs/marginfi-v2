@@ -434,11 +434,9 @@ impl<'a> BankAccountWrapper<'a> {
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
-        msg!("Account debiting: {} to {}", amount, bank.mint_pk);
+        msg!("Account debiting: {} to {}", amount, balance.bank_pk);
 
-        let liability_shares: I80F48 = balance.liability_shares.into();
-
-        let liability_value = bank.get_liability_amount(liability_shares)?;
+        let liability_value = bank.get_liability_amount(balance.liability_shares.into())?;
 
         let (deposit_value_delta, liability_replay_value_delta) = (
             max(
@@ -451,10 +449,12 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         let deposit_shares_delta = bank.get_deposit_shares(deposit_value_delta)?;
+
         balance.change_deposit_shares(deposit_shares_delta)?;
         bank.change_deposit_shares(deposit_shares_delta)?;
 
         let liability_shares_delta = bank.get_liability_shares(liability_replay_value_delta)?;
+
         balance.change_liability_shares(-liability_shares_delta)?;
         bank.change_liability_shares(-liability_shares_delta)?;
 

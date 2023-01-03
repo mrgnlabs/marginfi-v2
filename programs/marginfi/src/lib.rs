@@ -27,7 +27,6 @@ assert_cfg!(
     "Test feature must be disabled for a mainnet release"
 );
 
-
 #[program]
 pub mod marginfi {
     use super::*;
@@ -62,14 +61,20 @@ pub mod marginfi {
     }
 
     // User instructions
+    /// Initialize a marginfi account for a given group
     pub fn initialize_marginfi_account(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
         marginfi_account::initialize(ctx)
     }
 
+    /// Deposit assets into a lending account
+    /// Repay borrowed assets, if any exist.
     pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
         marginfi_account::bank_deposit(ctx, amount)
     }
 
+    /// Withdraw assets from a lending account
+    /// Withdraw deposited assets, if any exist, otherwise borrow assets.
+    /// Account health checked.
     pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult {
         marginfi_account::bank_withdraw(ctx, amount)
     }

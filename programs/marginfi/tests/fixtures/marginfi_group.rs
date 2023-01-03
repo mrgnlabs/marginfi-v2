@@ -62,7 +62,7 @@ impl MarginfiGroupFixture {
             );
 
             let tx = Transaction::new_signed_with_payer(
-                &[create_marginfi_group_ix, init_marginfi_group_ix],
+                &[init_marginfi_group_ix],
                 Some(&ctx.payer.pubkey().clone()),
                 &[&ctx.payer, &group_key],
                 ctx.last_blockhash,

@@ -29,9 +29,14 @@ pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
 
 #[derive(Accounts)]
 pub struct InitializeMarginfiGroup<'info> {
-    #[account(zero)]
+    #[account(
+        init,
+        payer = admin,
+        space = 8 + std::mem::size_of::<MarginfiGroup>(),
+    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     pub system_program: Program<'info, System>,
@@ -82,12 +87,12 @@ pub fn lending_pool_add_bank(
     // Verify that pyth oracle
     load_pyth_price_feed(pyth_oracle)?;
 
-    let liquidity_vault_bump = *ctx.bumps.get("liquidity_vault_bump").unwrap();
-    let liquidity_vault_authority_bump = *ctx.bumps.get("liquidity_vault_authority_bump").unwrap();
-    let insurance_vault_bump = *ctx.bumps.get("insurance_vault_bump").unwrap();
-    let insurance_vault_authority_bump = *ctx.bumps.get("insurance_vault_authority_bump").unwrap();
-    let fee_vault_bump = *ctx.bumps.get("fee_vault_bump").unwrap();
-    let fee_vault_authority_bump = *ctx.bumps.get("fee_vault_authority_bump").unwrap();
+    let liquidity_vault_bump = *ctx.bumps.get("liquidity_vault").unwrap();
+    let liquidity_vault_authority_bump = *ctx.bumps.get("liquidity_vault_authority").unwrap();
+    let insurance_vault_bump = *ctx.bumps.get("insurance_vault").unwrap();
+    let insurance_vault_authority_bump = *ctx.bumps.get("insurance_vault_authority").unwrap();
+    let fee_vault_bump = *ctx.bumps.get("fee_vault").unwrap();
+    let fee_vault_authority_bump = *ctx.bumps.get("fee_vault_authority").unwrap();
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),

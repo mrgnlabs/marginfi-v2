@@ -3,7 +3,6 @@
 
 mod fixtures;
 
-use crate::fixtures::marginfi_account::MarginfiAccountFixture;
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
@@ -16,9 +15,7 @@ use marginfi::{
     },
 };
 use pretty_assertions::assert_eq;
-use solana_program::{
-    instruction::Instruction, program_pack::Pack, system_instruction, system_program,
-};
+use solana_program::{instruction::Instruction, program_pack::Pack, system_program};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 
@@ -29,7 +26,6 @@ async fn success_create_marginfi_account() -> anyhow::Result<()> {
 
     // Create & initialize marginfi account
     let marginfi_account_key = Keypair::new();
-
     let accounts = marginfi::accounts::InitializeMarginfiAccount {
         marginfi_group: test_f.marginfi_group.key,
         marginfi_account: marginfi_account_key.pubkey(),
@@ -42,17 +38,8 @@ async fn success_create_marginfi_account() -> anyhow::Result<()> {
         data: marginfi::instruction::InitializeMarginfiAccount {}.data(),
     };
 
-    let size = MarginfiAccountFixture::get_size();
-    let create_marginfi_account_ix = system_instruction::create_account(
-        &test_f.payer(),
-        &marginfi_account_key.pubkey(),
-        test_f.get_minimum_rent_for_size(size).await,
-        size as u64,
-        &marginfi::id(),
-    );
-
     let tx = Transaction::new_signed_with_payer(
-        &[create_marginfi_account_ix, init_marginfi_account_ix],
+        &[init_marginfi_account_ix],
         Some(&test_f.payer()),
         &[&test_f.payer_keypair(), &marginfi_account_key],
         test_f.get_latest_blockhash().await,

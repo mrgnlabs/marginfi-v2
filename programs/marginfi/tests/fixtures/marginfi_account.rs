@@ -5,7 +5,7 @@ use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankVaultType},
 };
-use solana_program::{instruction::Instruction, system_instruction};
+use solana_program::instruction::Instruction;
 use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, signature::Keypair, signer::Signer,
@@ -49,18 +49,9 @@ impl MarginfiAccountFixture {
                 accounts: accounts.to_account_metas(Some(true)),
                 data: marginfi::instruction::InitializeMarginfiAccount {}.data(),
             };
-            let rent = ctx.banks_client.get_rent().await.unwrap();
-            let size = MarginfiAccountFixture::get_size();
-            let create_marginfi_account_ix = system_instruction::create_account(
-                &ctx.payer.pubkey(),
-                &account_key.pubkey(),
-                rent.minimum_balance(size),
-                size as u64,
-                &marginfi::id(),
-            );
 
             let tx = Transaction::new_signed_with_payer(
-                &[create_marginfi_account_ix, init_marginfi_account_ix],
+                &[init_marginfi_account_ix],
                 Some(&ctx.payer.pubkey()),
                 &[&ctx.payer, &account_key],
                 ctx.last_blockhash,
