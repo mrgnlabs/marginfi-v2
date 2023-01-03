@@ -50,6 +50,7 @@ pub struct GroupConfig {
     pub admin: Option<Pubkey>,
 }
 
+/// Load and validate a pyth price feed account.
 pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidPythAccount);
     let price_feed =
@@ -165,8 +166,16 @@ pub struct Bank {
     pub liability_share_value: WrappedI80F48,
 
     pub liquidity_vault: Pubkey,
+    pub liquidity_vault_bump: u8,
+    pub liquidity_vault_authority_bump: u8,
+
     pub insurance_vault: Pubkey,
+    pub insurance_vault_bump: u8,
+    pub insurance_vault_authority_bump: u8,
+
     pub fee_vault: Pubkey,
+    pub fee_vault_bump: u8,
+    pub fee_vault_authority_bump: u8,
 
     pub config: BankConfig,
 
@@ -185,6 +194,12 @@ impl Bank {
         insurance_vault: Pubkey,
         fee_vault: Pubkey,
         current_timestamp: i64,
+        liquidity_vault_bump: u8,
+        liquidity_vault_authority_bump: u8,
+        insurance_vault_bump: u8,
+        insurance_vault_authority_bump: u8,
+        fee_vault_bump: u8,
+        fee_vault_authority_bump: u8,
     ) -> Bank {
         Bank {
             mint_pk,
@@ -198,6 +213,12 @@ impl Bank {
             total_deposit_shares: I80F48::ZERO.into(),
             last_update: current_timestamp,
             group: marginfi_group_pk,
+            liquidity_vault_bump,
+            liquidity_vault_authority_bump,
+            insurance_vault_bump,
+            insurance_vault_authority_bump,
+            fee_vault_bump,
+            fee_vault_authority_bump,
         }
     }
 

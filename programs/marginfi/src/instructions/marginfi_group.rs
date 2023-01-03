@@ -22,9 +22,7 @@ use std::cmp::{max, min};
 pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_init()?;
 
-    let InitializeMarginfiGroup { admin, .. } = ctx.accounts;
-
-    marginfi_group.set_initial_configuration(admin.key());
+    marginfi_group.set_initial_configuration(ctx.accounts.admin.key());
 
     Ok(())
 }
@@ -34,13 +32,14 @@ pub struct InitializeMarginfiGroup<'info> {
     #[account(zero)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(mut)]
     pub admin: Signer<'info>,
 
     pub system_program: Program<'info, System>,
 }
 
 /// Configure margin group
+///
+/// Admin only
 pub fn configure(ctx: Context<ConfigureMarginfiGroup>, config: GroupConfig) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_mut()?;
 
@@ -61,6 +60,10 @@ pub struct ConfigureMarginfiGroup<'info> {
 }
 
 /// Add a bank to the lending pool
+///
+/// Admin only
+///
+/// TODO: Allow for different oracle configurations
 pub fn lending_pool_add_bank(
     ctx: Context<LendingPoolAddBank>,
     bank_config: BankConfig,
@@ -76,7 +79,15 @@ pub fn lending_pool_add_bank(
 
     let mut bank = ctx.accounts.bank.load_init()?;
 
+    // Verify that pyth oracle
     load_pyth_price_feed(pyth_oracle)?;
+
+    let liquidity_vault_bump = *ctx.bumps.get("liquidity_vault_bump").unwrap();
+    let liquidity_vault_authority_bump = *ctx.bumps.get("liquidity_vault_authority_bump").unwrap();
+    let insurance_vault_bump = *ctx.bumps.get("insurance_vault_bump").unwrap();
+    let insurance_vault_authority_bump = *ctx.bumps.get("insurance_vault_authority_bump").unwrap();
+    let fee_vault_bump = *ctx.bumps.get("fee_vault_bump").unwrap();
+    let fee_vault_authority_bump = *ctx.bumps.get("fee_vault_authority_bump").unwrap();
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
@@ -86,6 +97,12 @@ pub fn lending_pool_add_bank(
         insurance_vault.key(),
         fee_vault.key(),
         Clock::get()?.unix_timestamp,
+        liquidity_vault_bump,
+        liquidity_vault_authority_bump,
+        insurance_vault_bump,
+        insurance_vault_authority_bump,
+        fee_vault_bump,
+        fee_vault_authority_bump,
     );
 
     Ok(())
@@ -94,7 +111,6 @@ pub fn lending_pool_add_bank(
 #[derive(Accounts)]
 #[instruction(bank_config: BankConfig)]
 pub struct LendingPoolAddBank<'info> {
-    #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -120,7 +136,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump
     )]
-    pub liquidity_vault_authority: UncheckedAccount<'info>,
+    pub liquidity_vault_authority: AccountInfo<'info>,
 
     #[account(
         init,
@@ -143,7 +159,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump
     )]
-    pub insurance_vault_authority: UncheckedAccount<'info>,
+    pub insurance_vault_authority: AccountInfo<'info>,
 
     #[account(
         init,
@@ -166,7 +182,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump
     )]
-    pub fee_vault_authority: UncheckedAccount<'info>,
+    pub fee_vault_authority: AccountInfo<'info>,
 
     #[account(
         init,
@@ -212,19 +228,18 @@ pub fn lending_pool_configure_bank(
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBank<'info> {
-    #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        address = marginfi_group.load()?.admin,
+    )]
+    pub admin: Signer<'info>,
 
     #[account(
         mut,
         constraint = bank.load()?.group == marginfi_group.key(),
     )]
     pub bank: AccountLoader<'info, Bank>,
-
-    #[account(
-        address = marginfi_group.load()?.admin,
-    )]
-    pub admin: Signer<'info>,
 
     /// Set only if pyth oracle is being changed otherwise can be a random account.
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑

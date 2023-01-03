@@ -26,32 +26,18 @@ assert_cfg!(
     not(all(feature = "mainnet-beta", feature = "test")),
     "Test feature must be disabled for a mainnet release"
 );
-/// Marginfi v2 program entrypoint.
-///
-/// Instructions:
-/// Admin instructions:
-/// - `initialize_marginfi_group` - Initializes a new marginfi group.
-/// - `configure_marginfi_group` - Configures a marginfi group.
-/// - `lending_pool_add_bank` - Adds a bank to a lending pool.
-/// - `lending_pool_configure_bank` - Configures a bank in a lending pool.
-///
-/// User instructions:
-/// - `create_margin_account` - Creates a new margin account.
-/// - `lending_pool_deposit` - Deposits liquidity into a bank.
-/// - `lending_pool_withdraw` - Withdraws liquidity from a bank.
-/// - `liquidate` - Liquidates a margin account.
-///
-/// Operational instructions:
-/// - `accrue_interest` - Accrues interest for a reserve.
+
+
 #[program]
 pub mod marginfi {
-
     use super::*;
 
+    /// Initialize a new Marginfi Group with initial config
     pub fn initialize_marginfi_group(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
         marginfi_group::initialize(ctx)
     }
 
+    /// Configure a Marginfi Group
     pub fn configure_marginfi_group(
         ctx: Context<ConfigureMarginfiGroup>,
         config: GroupConfig,
@@ -59,6 +45,7 @@ pub mod marginfi {
         marginfi_group::configure(ctx, config)
     }
 
+    /// Add a new bank to the Marginfi Group
     pub fn lending_pool_add_bank(
         ctx: Context<LendingPoolAddBank>,
         bank_config: BankConfig,
@@ -66,6 +53,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank(ctx, bank_config)
     }
 
+    /// Configure a bank in the Marginfi Group
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
         bank_config_opt: BankConfigOpt,
