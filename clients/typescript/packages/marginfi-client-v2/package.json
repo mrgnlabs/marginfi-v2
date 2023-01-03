@@ -1,9 +1,9 @@
 {
     "name": "marginfi-client-v2",
     "version": "0.0.0",
-    "main": "./src/index.tsx",
+    "main": "./src/index.ts",
     "private": true,
-    "types": "./src/index.tsx",
+    "types": "./src/index.ts",
     "license": "MIT",
     "scripts": {
         "dev": "ts-node src/index.ts",
