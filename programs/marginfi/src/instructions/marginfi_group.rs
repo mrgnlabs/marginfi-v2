@@ -6,7 +6,7 @@ use crate::{
     },
     prelude::MarginfiError,
     state::{
-        marginfi_account::{MarginfiAccount, RiskEngine},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine},
         marginfi_group::{
             load_pyth_price_feed, Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig,
             MarginfiGroup,
@@ -369,10 +369,11 @@ pub struct LendingPoolBankAccrueInterest<'info> {
 }
 
 /// Handle a bankrupt marginfi account.
-/// 1. Check if account is bankrupt.
-/// 2. Determine the amount of bad debt.
-/// 3. Determine the amount of debt to be repaid from the insurance vault.
-/// 4. Determine the amount of debt to be socialized among lenders.
+/// 1. Verify account is bankrupt, and lending account belonging to account contains bad debt.
+/// 2. Determine the amount of bad debt covered by the insurance fund and the amount socialized between depositors.
+/// 3. Cover the bad debt of the bankrupt account.
+/// 4. Transfer the insured amount from the insurance fund.
+/// 5. Socialize the loss between lenders if any.
 pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> MarginfiResult {
     let BankHandleBankruptcy {
         marginfi_account: marginfi_account_loader,
@@ -387,26 +388,38 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
 
     RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?.check_account_bankrupt()?;
 
-    let lending_account_balance = marginfi_account
-        .lending_account
-        .balances
-        .iter_mut()
-        .find(|balance| {
-            if let Some(balance) = balance {
-                balance.bank_pk == bank_loader.key()
-            } else {
-                false
-            }
-        })
-        .unwrap()
-        .as_mut()
-        .unwrap();
+    let lending_account_balance =
+        marginfi_account
+            .lending_account
+            .balances
+            .iter_mut()
+            .find(|balance| {
+                if let Some(balance) = balance {
+                    balance.bank_pk == bank_loader.key()
+                } else {
+                    false
+                }
+            });
+
+    check!(
+        lending_account_balance.is_some(),
+        MarginfiError::LendingAccountBalanceNotFound
+    );
+
+    let lending_account_balance = lending_account_balance.unwrap().as_mut().unwrap();
 
     let bad_debt = bank.get_liability_amount(lending_account_balance.liability_shares.into())?;
-    let available_insurance_funds = I80F48::from_num(insurance_vault.amount);
 
-    let covered_by_insurance = min(bad_debt, available_insurance_funds);
-    let socialized_loss = max(bad_debt - covered_by_insurance, I80F48::ZERO);
+    check!(bad_debt > I80F48::ZERO, MarginfiError::BalanceNotBadDebt);
+
+    let (covered_by_insurance, socialized_loss) = {
+        let available_insurance_funds = I80F48::from_num(insurance_vault.amount);
+
+        let covered_by_insurance = min(bad_debt, available_insurance_funds);
+        let socialized_loss = max(bad_debt - covered_by_insurance, I80F48::ZERO);
+
+        (covered_by_insurance, socialized_loss)
+    };
 
     // Cover bad debt with insurance funds.
     bank.withdraw_spl_transfer(
@@ -417,15 +430,24 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
             authority: ctx.accounts.insurance_vault_authority.to_account_info(),
         },
         token_program.to_account_info(),
-        &[&[
-            INSURANCE_VAULT_AUTHORITY_SEED,
-            bank_loader.key().as_ref(),
-            &[*ctx.bumps.get("insurance_vault_authority").unwrap()],
-        ]],
+        bank_signer!(
+            BankVaultType::Insurance,
+            bank_loader.key(),
+            bank.insurance_vault_authority_bump
+        ),
     )?;
 
-    // Socialize bad debt among lenders.
+    // Socialize bad debt among depositors.
     bank.socialize_loss(socialized_loss)?;
+
+    // Settle bad debt.
+    // The liabilities of this account and global total liabilities are reduced by `bad_debt`
+    BankAccountWrapper::find_or_create(
+        &bank_loader.key(),
+        &mut bank,
+        &mut marginfi_account.lending_account,
+    )?
+    .account_deposit(bad_debt)?;
 
     Ok(())
 }
@@ -433,43 +455,50 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
 #[derive(Accounts)]
 pub struct BankHandleBankruptcy<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+
     #[account(address = marginfi_group.load()?.admin)]
     pub admin: Signer<'info>,
+
     #[account(
         mut,
         constraint = bank.load()?.group == marginfi_group.key(),
     )]
     pub bank: AccountLoader<'info, Bank>,
+
     #[account(
         mut,
         constraint = marginfi_account.load()?.group == marginfi_group.key(),
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
+
     #[account(
         mut,
         seeds = [
             LIQUIDITY_VAULT_SEED,
             bank.key().as_ref(),
         ],
-        bump
+        bump = bank.load()?.liquidity_vault_bump
     )]
     pub liquidity_vault: Box<Account<'info, TokenAccount>>,
+
     #[account(
         mut,
         seeds = [
             INSURANCE_VAULT_SEED,
             bank.key().as_ref(),
         ],
-        bump
+        bump = bank.load()?.insurance_vault_bump
     )]
     pub insurance_vault: Box<Account<'info, TokenAccount>>,
+
     #[account(
         seeds = [
             INSURANCE_VAULT_AUTHORITY_SEED,
             bank.key().as_ref(),
         ],
-        bump
+        bump = bank.load()?.insurance_vault_authority_bump
     )]
-    pub insurance_vault_authority: UncheckedAccount<'info>,
+    pub insurance_vault_authority: AccountInfo<'info>,
+
     pub token_program: Program<'info, Token>,
 }

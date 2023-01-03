@@ -34,6 +34,8 @@ pub enum MarginfiError {
     AccountIllegalPostLiquidationState,
     #[msg("Account is not bankrupt")]
     AccountNotBankrupt,
+    #[msg("Account balance is not bad debt")]
+    BalanceNotBadDebt,
 }
 
 impl From<MarginfiError> for ProgramError {

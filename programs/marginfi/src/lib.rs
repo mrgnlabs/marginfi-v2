@@ -60,6 +60,11 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank(ctx, bank_config_opt)
     }
 
+    /// Handle bad debt of a bankrupt marginfi account for a given bank.
+    pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> MarginfiResult {
+        marginfi_group::lending_pool_handle_bankruptcy(ctx)
+    }
+
     // User instructions
     /// Initialize a marginfi account for a given group
     pub fn initialize_marginfi_account(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
@@ -79,6 +84,7 @@ pub mod marginfi {
         marginfi_account::bank_withdraw(ctx, amount)
     }
 
+    /// Liquidate a lending account balance of an unhealthy marginfi account
     pub fn lending_account_liquidate(
         ctx: Context<LendingAccountLiquidate>,
         asset_amount: u64,

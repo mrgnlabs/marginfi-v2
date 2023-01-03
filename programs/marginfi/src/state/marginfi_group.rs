@@ -179,7 +179,7 @@ pub struct Bank {
 
     pub config: BankConfig,
 
-    pub total_borrow_shares: WrappedI80F48,
+    pub total_liability_shares: WrappedI80F48,
     pub total_deposit_shares: WrappedI80F48,
 
     pub last_update: i64,
@@ -209,7 +209,7 @@ impl Bank {
             insurance_vault,
             fee_vault,
             config,
-            total_borrow_shares: I80F48::ZERO.into(),
+            total_liability_shares: I80F48::ZERO.into(),
             total_deposit_shares: I80F48::ZERO.into(),
             last_update: current_timestamp,
             group: marginfi_group_pk,
@@ -273,8 +273,8 @@ impl Bank {
     }
 
     pub fn change_liability_shares(&mut self, shares: I80F48) -> MarginfiResult {
-        let total_borrow_shares: I80F48 = self.total_borrow_shares.into();
-        self.total_borrow_shares = total_borrow_shares
+        let total_liability_shares: I80F48 = self.total_liability_shares.into();
+        self.total_liability_shares = total_liability_shares
             .checked_add(shares)
             .ok_or_else(math_error!())?
             .into();
@@ -331,7 +331,7 @@ impl Bank {
             .unwrap();
 
         let total_deposits = self.get_deposit_amount(self.total_deposit_shares.into())?;
-        let total_liabilities = self.get_liability_amount(self.total_borrow_shares.into())?;
+        let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
         let (
             deposit_share_value,
@@ -401,16 +401,19 @@ impl Bank {
         )
     }
 
+    /// Socialize a loss `loss_amount` among depositors,
+    /// the `total_deposit_shares` stays the same, but total value of deposits is
+    /// reduced by `loss_amount`;
     pub fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult {
-        let n_shares: I80F48 = self.total_deposit_shares.into();
-        let old_share_value: I80F48 = self.deposit_share_value.into();
+        let total_deposit_shares: I80F48 = self.total_deposit_shares.into();
+        let old_deposit_share_vaule: I80F48 = self.deposit_share_value.into();
 
-        let new_share_value = n_shares
-            .checked_mul(old_share_value)
+        let new_share_value = total_deposit_shares
+            .checked_mul(old_deposit_share_vaule)
             .ok_or_else(math_error!())?
             .checked_sub(loss_amount)
             .ok_or_else(math_error!())?
-            .checked_div(n_shares)
+            .checked_div(total_deposit_shares)
             .ok_or_else(math_error!())?;
 
         self.deposit_share_value = new_share_value.into();
