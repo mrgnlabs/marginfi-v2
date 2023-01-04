@@ -14,7 +14,7 @@
     "publish-packages": "turbo run build lint test && changeset version && changeset publish"
   },
   "devDependencies": {
-    "eslint-config-mrgnlabs": "*",
+    "@mrgnlabs/eslint-config-custom": "*",
     "prettier": "latest",
     "turbo": "latest"
   },

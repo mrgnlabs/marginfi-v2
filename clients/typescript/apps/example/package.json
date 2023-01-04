@@ -16,12 +16,12 @@
   },
   "devDependencies": {
     "@babel/core": "^7.0.0",
-    "eslint": "7.32.0",
-    "eslint-config-custom": "*",
-    "tsconfig": "*",
+    "@mrgnlabs/eslint-config-custom": "*",
+    "@mrgnlabs/tsconfig": "*",
     "@types/node": "^17.0.12",
     "@types/react": "^18.0.22",
     "@types/react-dom": "^18.0.7",
+    "eslint": "7.32.0",
     "typescript": "^4.5.3"
   }
 }

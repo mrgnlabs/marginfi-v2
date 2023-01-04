@@ -2,8 +2,13 @@
   "$schema": "https://turbo.build/schema.json",
   "pipeline": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**"
+      ]
     },
     "lint": {
       "outputs": []
@@ -11,5 +16,13 @@
     "dev": {
       "cache": false
     }
-  }
+  },
+  "globalEnv": [
+    "MARGINFI_ENV",
+    "MARGINFI_RPC_ENDPOINT",
+    "MARGINFI_PROGRAM",
+    "MARGINFI_GROUP",
+    "MARGINFI_WALLET_KEY",
+    "MARGINFI_WALLET"
+  ]
 }

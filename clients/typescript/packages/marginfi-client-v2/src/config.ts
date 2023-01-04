@@ -24,10 +24,10 @@ function getMarginfiConfig(
         environment,
         programId:
           overrides?.programId ||
-          new PublicKey("HfHBtENWH9C27kXMwP62WCSMm734kzKj9YnzUaHPzk6i"),
+          new PublicKey("H7UazmGqtrVS8HH1TSouQdCr2o4aSgNQt6n2hJUdicz3"),
         groupPk:
           overrides?.groupPk ||
-          new PublicKey("2XGMxsZkV6zyJ6kbdurqM19hXLvTPSXaAmr6MBTpGpzr"),
+          new PublicKey("oA73UQvsdN1BiSavPSBupkgkhateeLd6g8NrU7JUxhr"),
       };
     default:
       throw Error(`Unknown environment ${environment}`);

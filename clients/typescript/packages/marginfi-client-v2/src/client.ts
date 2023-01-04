@@ -106,10 +106,12 @@ class MarginfiClient {
     }>
   ): Promise<MarginfiClient> {
     const debug = require("debug")("mfi:client");
-    const env = overrides?.env ?? getEnvFromStr(process.env.ENV!);
+    const env = overrides?.env ?? getEnvFromStr(process.env.MARGINFI_ENV!);
     const connection =
       overrides?.connection ??
-      new Connection(process.env.RPC_ENDPOINT!, { commitment: "confirmed" });
+      new Connection(process.env.MARGINFI_RPC_ENDPOINT!, {
+        commitment: "confirmed",
+      });
     const programId =
       overrides?.programId ?? new PublicKey(process.env.MARGINFI_PROGRAM!);
     const groupPk =
@@ -120,11 +122,11 @@ class MarginfiClient {
     const wallet =
       overrides?.wallet ??
       new NodeWallet(
-        process.env.WALLET_KEY
+        process.env.MARGINFI_WALLET_KEY
           ? Keypair.fromSecretKey(
-              new Uint8Array(JSON.parse(process.env.WALLET_KEY))
+              new Uint8Array(JSON.parse(process.env.MARGINFI_WALLET_KEY))
             )
-          : loadKeypair(process.env.WALLET!)
+          : loadKeypair(process.env.MARGINFI_WALLET!)
       );
 
     debug("Loading the marginfi client from env vars");

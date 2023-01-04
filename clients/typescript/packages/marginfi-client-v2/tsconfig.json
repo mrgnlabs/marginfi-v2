@@ -3,7 +3,7 @@
     "target": "ES6",
     "resolveJsonModule": true
   },
-  "extends": "tsconfig/base.json",
+  "extends": "@mrgnlabs/tsconfig/base.json",
   "include": ["."],
   "exclude": ["dist", "build", "node_modules"]
 }
