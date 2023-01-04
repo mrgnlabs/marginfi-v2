@@ -16,7 +16,6 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
-use solana_program::log::sol_log_compute_units;
 
 pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
     let InitializeMarginfiAccount {
