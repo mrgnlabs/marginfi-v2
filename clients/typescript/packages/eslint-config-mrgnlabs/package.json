@@ -1,15 +1,15 @@
 {
-  "name": "eslint-config-custom",
+  "name": "eslint-config-mrgnlabs",
   "version": "0.0.0",
   "main": "index.js",
-  "private": true,
   "license": "MIT",
   "dependencies": {
     "eslint": "^7.23.0",
-    "eslint-config-next": "13.0.0",
+    "eslint-config-next": "^12.0.8",
     "eslint-config-prettier": "^8.3.0",
+    "eslint-config-turbo": "latest",
     "eslint-plugin-react": "7.31.8",
-    "eslint-config-turbo": "latest"
+    "eslint-plugin-react-hooks": "^5.0.0-next-7b25b961d-20220930"
   },
   "devDependencies": {
     "typescript": "^4.7.4"
