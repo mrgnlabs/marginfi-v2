@@ -35,24 +35,24 @@ pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111
 lazy_static! {
     pub static ref DEFAULT_USDC_TEST_BANK_CONFIG: BankConfig = BankConfig {
         pyth_oracle: PYTH_USDC_FEED,
-        max_capacity: native!(1_000_000, "USDC"),
+        max_capacity: native!(1_000_000_000, "USDC"),
         deposit_weight_init: I80F48!(1).into(),
         deposit_weight_maint: I80F48!(1).into(),
         ..BankConfig::default()
     };
     pub static ref DEFAULT_SOL_TEST_BANK_CONFIG: BankConfig = BankConfig {
         pyth_oracle: PYTH_SOL_FEED,
-        max_capacity: native!(1_000, "SOL"),
+        max_capacity: native!(1_000_000, "SOL"),
         ..BankConfig::default()
     };
     pub static ref DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG: BankConfig = BankConfig {
         pyth_oracle: PYTH_SOL_EQUIVALENT_FEED,
-        max_capacity: native!(1_000, "SOL_EQ"),
+        max_capacity: native!(1_000_000, "SOL_EQ"),
         ..BankConfig::default()
     };
     pub static ref DEFAULT_MNDE_TEST_BANK_CONFIG: BankConfig = BankConfig {
         pyth_oracle: PYTH_MNDE_FEED,
-        max_capacity: native!(0.1, "MNDE", f64),
+        max_capacity: native!(1_000_000, "MNDE"),
         ..BankConfig::default()
     };
 }

@@ -7,7 +7,7 @@ use anchor_spl::token;
 use anyhow::Result;
 use marginfi::{
     constants::*,
-    prelude::MarginfiGroup,
+    prelude::{MarginfiGroup, MarginfiResult},
     state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
 };
 use solana_program::sysvar;
@@ -23,7 +23,7 @@ use std::{
     rc::Rc,
 };
 
-use super::bank::BankFixture;
+use super::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
 
 pub struct MarginfiGroupFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
@@ -187,6 +187,47 @@ impl MarginfiGroupFixture {
         ctx.banks_client.process_transaction(tx).await?;
 
         Ok(())
+    }
+
+    pub async fn try_handle_bankruptcy(
+        &self,
+        bank: &BankFixture,
+        marginfi_account: &MarginfiAccountFixture,
+    ) -> Result<(), BanksClientError> {
+        let mut accounts = marginfi::accounts::LendingPoolHandleBankruptcy {
+            marginfi_group: self.key,
+            admin: self.ctx.borrow().payer.pubkey(),
+            bank: bank.key,
+            marginfi_account: marginfi_account.key,
+            liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
+            insurance_vault_authority: bank.get_vault_authority(BankVaultType::Insurance).0,
+            token_program: token::ID,
+        }
+        .to_account_metas(Some(true));
+
+        accounts.append(
+            &mut marginfi_account
+                .load_observation_account_metas(vec![])
+                .await,
+        );
+
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: accounts,
+            data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
     }
 
     pub fn get_size() -> usize {

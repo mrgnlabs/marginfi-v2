@@ -8,10 +8,10 @@ use marginfi::state::{
 use solana_program::instruction::Instruction;
 use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, signature::Keypair, signer::Signer,
-    transaction::Transaction,
+    account::AccountSharedData, compute_budget::ComputeBudgetInstruction, signature::Keypair,
+    signer::Signer, transaction::Transaction,
 };
-use std::{cell::RefCell, mem, rc::Rc};
+use std::{cell::RefCell, mem, rc::Rc, sync::Arc};
 
 #[derive(Default, Clone)]
 pub struct MarginfiAccountConfig {}
@@ -248,6 +248,19 @@ impl MarginfiAccountFixture {
             .collect::<Vec<_>>();
 
         ams
+    }
+
+    pub async fn set_account(&self, mfi_account: &MarginfiAccount) -> anyhow::Result<()> {
+        let mut ctx = self.ctx.borrow_mut();
+        let mut account = ctx.banks_client.get_account(self.key).await?.unwrap();
+        let discriminator = account.data[..8].to_vec();
+        let mut new_data = vec![];
+        new_data.append(&mut discriminator.clone());
+        new_data.append(&mut bytemuck::bytes_of(mfi_account).to_vec());
+        account.data = new_data;
+        ctx.set_account(&self.key, &account.into());
+
+        Ok(())
     }
 
     pub async fn load(&self) -> MarginfiAccount {

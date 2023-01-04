@@ -374,8 +374,8 @@ pub struct LendingPoolBankAccrueInterest<'info> {
 /// 3. Cover the bad debt of the bankrupt account.
 /// 4. Transfer the insured amount from the insurance fund.
 /// 5. Socialize the loss between lenders if any.
-pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> MarginfiResult {
-    let BankHandleBankruptcy {
+pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>) -> MarginfiResult {
+    let LendingPoolHandleBankruptcy {
         marginfi_account: marginfi_account_loader,
         insurance_vault,
         token_program,
@@ -384,9 +384,10 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
     } = ctx.accounts;
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
-    let mut bank = bank_loader.load_mut()?;
 
     RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?.check_account_bankrupt()?;
+
+    let mut bank = bank_loader.load_mut()?;
 
     let lending_account_balance =
         marginfi_account
@@ -453,7 +454,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> Mar
 }
 
 #[derive(Accounts)]
-pub struct BankHandleBankruptcy<'info> {
+pub struct LendingPoolHandleBankruptcy<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(address = marginfi_group.load()?.admin)]

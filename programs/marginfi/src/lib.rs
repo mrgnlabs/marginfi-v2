@@ -61,7 +61,9 @@ pub mod marginfi {
     }
 
     /// Handle bad debt of a bankrupt marginfi account for a given bank.
-    pub fn lending_pool_handle_bankruptcy(ctx: Context<BankHandleBankruptcy>) -> MarginfiResult {
+    pub fn lending_pool_handle_bankruptcy(
+        ctx: Context<LendingPoolHandleBankruptcy>,
+    ) -> MarginfiResult {
         marginfi_group::lending_pool_handle_bankruptcy(ctx)
     }
 

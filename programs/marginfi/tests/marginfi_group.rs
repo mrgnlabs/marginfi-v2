@@ -14,6 +14,7 @@ use marginfi::{
 };
 use pretty_assertions::assert_eq;
 use solana_program::{
+    account_info::IntoAccountInfo,
     instruction::Instruction,
     program_pack::Pack,
     system_instruction::{self},
@@ -40,17 +41,8 @@ async fn success_create_marginfi_group() -> anyhow::Result<()> {
         accounts: accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::InitializeMarginfiGroup {}.data(),
     };
-    let size = MarginfiGroupFixture::get_size();
-    let create_marginfi_group_ix = system_instruction::create_account(
-        &test_f.payer(),
-        &marginfi_group_key.pubkey(),
-        test_f.get_minimum_rent_for_size(size).await,
-        size as u64,
-        &marginfi::id(),
-    );
-
     let tx = Transaction::new_signed_with_payer(
-        &[create_marginfi_group_ix, init_marginfi_group_ix],
+        &[init_marginfi_group_ix],
         Some(&test_f.payer().clone()),
         &[&test_f.payer_keypair(), &marginfi_group_key],
         test_f.get_latest_blockhash().await,
@@ -312,6 +304,569 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
 
     assert_eq!(protocol_fees.amount, 1712326);
     assert_eq!(insurance_fees.amount, 1712326);
+
+    Ok(())
+}
+
+/// Handle Bankruptcy Success (Fully Insured)
+#[tokio::test]
+async fn lending_pool_handle_bankruptcy_success_full_insurance() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let mut usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+    lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    let borrower_account = test_f.create_marginfi_account().await;
+    let borrower_deposit_account = sol_mint_fixture
+        .create_and_mint_to(native!(1_001, "SOL"))
+        .await;
+
+    borrower_account
+        .try_bank_deposit(borrower_deposit_account, &sol_bank, native!(1_001, "SOL"))
+        .await?;
+
+    let borrower_borrow_account = usdc_mint_fixture.create_and_mint_to(0).await;
+
+    borrower_account
+        .try_bank_withdraw(borrower_borrow_account, &usdc_bank, native!(10_000, "USDC"))
+        .await?;
+
+    let mut borrower_mfi_account = borrower_account.load().await;
+    borrower_mfi_account.lending_account.balances[0]
+        .as_mut()
+        .unwrap()
+        .deposit_shares
+        .value = 0;
+
+    borrower_account.set_account(&borrower_mfi_account).await?;
+
+    usdc_mint_fixture
+        .mint_to(
+            &usdc_bank.load().await.insurance_vault,
+            native!(10_000, "USDC"),
+        )
+        .await;
+
+    test_f
+        .marginfi_group
+        .try_handle_bankruptcy(&usdc_bank, &borrower_account)
+        .await?;
+
+    let borrower_mfi_account = borrower_account.load().await;
+    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1].unwrap();
+
+    assert_eq!(
+        I80F48::from(borrower_usdc_balance.liability_shares),
+        I80F48::ZERO
+    );
+
+    let lender_mfi_account = lender_account.load().await;
+    let usdc_bank = usdc_bank.load().await;
+
+    let lender_usdc_value = usdc_bank.get_deposit_amount(
+        lender_mfi_account.lending_account.balances[0]
+            .unwrap()
+            .deposit_shares
+            .into(),
+    )?;
+
+    assert_eq_noise!(
+        lender_usdc_value,
+        I80F48::from(native!(100_000, "USDC")),
+        I80F48::ONE
+    );
+
+    let insurance_amount = token::accessor::amount(
+        &(
+            &usdc_bank.insurance_vault,
+            &mut test_f
+                .context
+                .borrow_mut()
+                .banks_client
+                .get_account(usdc_bank.insurance_vault)
+                .await?
+                .unwrap(),
+        )
+            .into_account_info(),
+    )?;
+
+    assert_eq!(insurance_amount, 0);
+
+    Ok(())
+}
+
+/// Handle Bankruptcy Success (Partially Insured)
+#[tokio::test]
+async fn lending_pool_handle_bankruptcy_success_partial_insurance() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let mut usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+    lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    let borrower_account = test_f.create_marginfi_account().await;
+    let borrower_deposit_account = sol_mint_fixture
+        .create_and_mint_to(native!(1_001, "SOL"))
+        .await;
+
+    borrower_account
+        .try_bank_deposit(borrower_deposit_account, &sol_bank, native!(1_001, "SOL"))
+        .await?;
+
+    let borrower_borrow_account = usdc_mint_fixture.create_and_mint_to(0).await;
+
+    borrower_account
+        .try_bank_withdraw(borrower_borrow_account, &usdc_bank, native!(10_000, "USDC"))
+        .await?;
+
+    let mut borrower_mfi_account = borrower_account.load().await;
+    borrower_mfi_account.lending_account.balances[0]
+        .as_mut()
+        .unwrap()
+        .deposit_shares
+        .value = 0;
+
+    borrower_account.set_account(&borrower_mfi_account).await?;
+
+    usdc_mint_fixture
+        .mint_to(
+            &usdc_bank.load().await.insurance_vault,
+            native!(5_000, "USDC"),
+        )
+        .await;
+
+    test_f
+        .marginfi_group
+        .try_handle_bankruptcy(&usdc_bank, &borrower_account)
+        .await?;
+
+    let borrower_mfi_account = borrower_account.load().await;
+    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1].unwrap();
+
+    assert_eq!(
+        I80F48::from(borrower_usdc_balance.liability_shares),
+        I80F48::ZERO
+    );
+
+    let lender_mfi_account = lender_account.load().await;
+    let usdc_bank = usdc_bank.load().await;
+
+    let lender_usdc_value = usdc_bank.get_deposit_amount(
+        lender_mfi_account.lending_account.balances[0]
+            .unwrap()
+            .deposit_shares
+            .into(),
+    )?;
+
+    assert_eq_noise!(
+        lender_usdc_value,
+        I80F48::from(native!(95_000, "USDC")),
+        I80F48::ONE
+    );
+
+    let insurance_amount = token::accessor::amount(
+        &(
+            &usdc_bank.insurance_vault,
+            &mut test_f
+                .context
+                .borrow_mut()
+                .banks_client
+                .get_account(usdc_bank.insurance_vault)
+                .await?
+                .unwrap(),
+        )
+            .into_account_info(),
+    )?;
+
+    assert_eq!(insurance_amount, 0);
+
+    Ok(())
+}
+
+/// Handle Bankruptcy Success (Not Insured)
+#[tokio::test]
+async fn lending_pool_handle_bankruptcy_success_no_insurance() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+    lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    let borrower_account = test_f.create_marginfi_account().await;
+    let borrower_deposit_account = sol_mint_fixture
+        .create_and_mint_to(native!(1_001, "SOL"))
+        .await;
+
+    borrower_account
+        .try_bank_deposit(borrower_deposit_account, &sol_bank, native!(1_001, "SOL"))
+        .await?;
+
+    let borrower_borrow_account = usdc_mint_fixture.create_and_mint_to(0).await;
+
+    borrower_account
+        .try_bank_withdraw(borrower_borrow_account, &usdc_bank, native!(10_000, "USDC"))
+        .await?;
+
+    let mut borrower_mfi_account = borrower_account.load().await;
+    borrower_mfi_account.lending_account.balances[0]
+        .as_mut()
+        .unwrap()
+        .deposit_shares
+        .value = 0;
+
+    borrower_account.set_account(&borrower_mfi_account).await?;
+
+    test_f
+        .marginfi_group
+        .try_handle_bankruptcy(&usdc_bank, &borrower_account)
+        .await?;
+
+    let borrower_mfi_account = borrower_account.load().await;
+    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1].unwrap();
+
+    assert_eq!(
+        I80F48::from(borrower_usdc_balance.liability_shares),
+        I80F48::ZERO
+    );
+
+    let lender_mfi_account = lender_account.load().await;
+    let usdc_bank = usdc_bank.load().await;
+
+    let lender_usdc_value = usdc_bank.get_deposit_amount(
+        lender_mfi_account.lending_account.balances[0]
+            .unwrap()
+            .deposit_shares
+            .into(),
+    )?;
+
+    assert_eq_noise!(
+        lender_usdc_value,
+        I80F48::from(native!(90_000, "USDC")),
+        I80F48::ONE
+    );
+
+    Ok(())
+}
+
+/// Handle Bankruptcy Success (Not Insured, 3 depositors)
+#[tokio::test]
+async fn lending_pool_handle_bankruptcy_success_no_insurance_3() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+    lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    let lender_account_2 = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+    lender_account_2
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    let lender_account_3 = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+    lender_account_3
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    let borrower_account = test_f.create_marginfi_account().await;
+    let borrower_deposit_account = sol_mint_fixture
+        .create_and_mint_to(native!(1_001, "SOL"))
+        .await;
+
+    borrower_account
+        .try_bank_deposit(borrower_deposit_account, &sol_bank, native!(1_001, "SOL"))
+        .await?;
+
+    let borrower_borrow_account = usdc_mint_fixture.create_and_mint_to(0).await;
+
+    borrower_account
+        .try_bank_withdraw(borrower_borrow_account, &usdc_bank, native!(10_000, "USDC"))
+        .await?;
+
+    let mut borrower_mfi_account = borrower_account.load().await;
+    borrower_mfi_account.lending_account.balances[0]
+        .as_mut()
+        .unwrap()
+        .deposit_shares
+        .value = 0;
+
+    borrower_account.set_account(&borrower_mfi_account).await?;
+
+    test_f
+        .marginfi_group
+        .try_handle_bankruptcy(&usdc_bank, &borrower_account)
+        .await?;
+
+    let borrower_mfi_account = borrower_account.load().await;
+    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1].unwrap();
+
+    assert_eq!(
+        I80F48::from(borrower_usdc_balance.liability_shares),
+        I80F48::ZERO
+    );
+
+    let lender_mfi_account = lender_account.load().await;
+    let usdc_bank = usdc_bank.load().await;
+
+    let lender_usdc_value = usdc_bank.get_deposit_amount(
+        lender_mfi_account.lending_account.balances[0]
+            .unwrap()
+            .deposit_shares
+            .into(),
+    )?;
+
+    assert_eq_noise!(
+        lender_usdc_value,
+        I80F48::from(native!(96_666, "USDC")),
+        I80F48::from(native!(1, "USDC"))
+    );
+
+    Ok(())
+}
+
+/// Handle Bankruptcy Error (Not Bankrupt)
+#[tokio::test]
+async fn lending_pool_handle_bankruptcy_success_not_bankrupt() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+    lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    let borrower_account = test_f.create_marginfi_account().await;
+    let borrower_deposit_account = sol_mint_fixture
+        .create_and_mint_to(native!(1_001, "SOL"))
+        .await;
+
+    borrower_account
+        .try_bank_deposit(borrower_deposit_account, &sol_bank, native!(1_001, "SOL"))
+        .await?;
+
+    let borrower_borrow_account = usdc_mint_fixture.create_and_mint_to(0).await;
+
+    borrower_account
+        .try_bank_withdraw(borrower_borrow_account, &usdc_bank, native!(10_000, "USDC"))
+        .await?;
+
+    let res = test_f
+        .marginfi_group
+        .try_handle_bankruptcy(&usdc_bank, &borrower_account)
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::AccountNotBankrupt);
+
+    Ok(())
+}
+
+/// Handle Bankruptcy Success (Bankrupt, Not Debt)
+#[tokio::test]
+async fn lending_pool_handle_bankruptcy_success_not_debt() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+    lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    let borrower_account = test_f.create_marginfi_account().await;
+    let borrower_deposit_account = sol_mint_fixture
+        .create_and_mint_to(native!(1_001, "SOL"))
+        .await;
+
+    borrower_account
+        .try_bank_deposit(borrower_deposit_account, &sol_bank, native!(1_001, "SOL"))
+        .await?;
+
+    let borrower_borrow_account = usdc_mint_fixture.create_and_mint_to(0).await;
+
+    borrower_account
+        .try_bank_withdraw(borrower_borrow_account, &usdc_bank, native!(10_000, "USDC"))
+        .await?;
+
+    let mut borrower_mfi_account = borrower_account.load().await;
+    borrower_mfi_account.lending_account.balances[0]
+        .as_mut()
+        .unwrap()
+        .deposit_shares
+        .value = 0;
+
+    borrower_account.set_account(&borrower_mfi_account).await?;
+
+    let res = test_f
+        .marginfi_group
+        .try_handle_bankruptcy(&sol_bank, &borrower_account)
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BalanceNotBadDebt);
 
     Ok(())
 }
