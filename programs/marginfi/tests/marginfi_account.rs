@@ -11,7 +11,7 @@ use marginfi::{
     prelude::MarginfiError,
     state::{
         marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankConfig, BankVaultType},
+        marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
     },
 };
 use pretty_assertions::assert_eq;
@@ -129,9 +129,8 @@ async fn failure_deposit_capacity_exceeded() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.usdc_mint.key,
             BankConfig {
-                pyth_oracle: PYTH_USDC_FEED,
                 max_capacity: native!(100, "USDC"),
-                ..Default::default()
+                ..DEFAULT_USDC_TEST_BANK_CONFIG.clone()
             },
         )
         .await?;
@@ -300,7 +299,7 @@ async fn liquidation_successful() -> anyhow::Result<()> {
             test_f.sol_mint.key,
             BankConfig {
                 deposit_weight_init: I80F48!(1).into(),
-                deposit_weight_maint: I80F48!(0.5).into(),
+                deposit_weight_maint: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -328,6 +327,14 @@ async fn liquidation_successful() -> anyhow::Result<()> {
     // Borrower borrows $999
     borrower
         .try_bank_withdraw(borrower_usdc_account, &usdc_bank, native!(999, "USDC"))
+        .await?;
+
+    sol_bank
+        .update_config(BankConfigOpt {
+            deposit_weight_init: Some(I80F48!(0.25).into()),
+            deposit_weight_maint: Some(I80F48!(0.5).into()),
+            ..Default::default()
+        })
         .await?;
 
     depositor
@@ -485,10 +492,6 @@ async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.usdc_mint.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
-                deposit_weight_maint: I80F48!(1).into(),
-                liability_weight_init: I80F48!(1).into(),
-                liability_weight_maint: I80F48!(1).into(),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
         )
@@ -498,8 +501,6 @@ async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.sol_mint.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
-                deposit_weight_maint: I80F48!(0.5).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -522,6 +523,14 @@ async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
         .await?;
     borrower
         .try_bank_withdraw(borrower_usdc_account, &usdc_bank, native!(61, "USDC"))
+        .await?;
+
+    sol_bank
+        .update_config(BankConfigOpt {
+            deposit_weight_init: Some(I80F48!(0.25).into()),
+            deposit_weight_maint: Some(I80F48!(0.5).into()),
+            ..Default::default()
+        })
         .await?;
 
     let res = depositor
@@ -607,6 +616,14 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
         .try_bank_withdraw(borrower_usdc_account, &usdc_bank, native!(60, "USDC"))
         .await?;
 
+    sol_bank
+        .update_config(BankConfigOpt {
+            deposit_weight_init: Some(I80F48!(0.25).into()),
+            deposit_weight_maint: Some(I80F48!(0.5).into()),
+            ..Default::default()
+        })
+        .await?;
+
     let res = depositor
         .try_liquidate(&borrower, &sol_2_bank, native!(2, "SOL"), &usdc_bank)
         .await;
@@ -685,6 +702,14 @@ async fn liquidation_failed_bank_not_liquidatable() -> anyhow::Result<()> {
 
     borrower
         .try_bank_withdraw(borrower_usdc_account, &usdc_bank, native!(60, "USDC"))
+        .await?;
+
+    sol_bank
+        .update_config(BankConfigOpt {
+            deposit_weight_init: Some(I80F48!(0.25).into()),
+            deposit_weight_maint: Some(I80F48!(0.5).into()),
+            ..Default::default()
+        })
         .await?;
 
     let res = depositor

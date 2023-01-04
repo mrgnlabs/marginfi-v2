@@ -1,12 +1,18 @@
 #![cfg(feature = "test-bpf")]
 #![allow(unused)]
 
-use anchor_lang::{prelude::Pubkey, AccountDeserialize};
-use marginfi::state::marginfi_group::{Bank, BankVaultType};
+use anchor_lang::{prelude::Pubkey, AccountDeserialize, InstructionData, ToAccountMetas};
+use lazy_static::__Deref;
+use marginfi::state::marginfi_group::{Bank, BankConfigOpt, BankVaultType};
+use solana_program::instruction::Instruction;
 use solana_program_test::ProgramTestContext;
+use solana_sdk::{signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
-use super::utils::{find_bank_vault_authority_pda, find_bank_vault_pda, load_and_deserialize};
+use super::{
+    marginfi_group::MarginfiGroupFixture,
+    utils::{find_bank_vault_authority_pda, find_bank_vault_pda, load_and_deserialize},
+};
 
 pub struct BankFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
@@ -28,6 +34,42 @@ impl BankFixture {
 
     pub async fn load(&self) -> Bank {
         load_and_deserialize::<Bank>(self.ctx.clone(), &self.key).await
+    }
+
+    pub async fn update_config(&self, config: BankConfigOpt) -> anyhow::Result<()> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolConfigureBank {
+                marginfi_group: self.load().await.group,
+                admin: self.ctx.borrow().payer.pubkey(),
+                bank: self.key,
+                pyth_oracle: if let Some(pyth_oracle) = config.pyth_oracle {
+                    pyth_oracle
+                } else {
+                    Pubkey::default()
+                },
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolConfigureBank {
+                bank_config_opt: config,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
     }
 }
 

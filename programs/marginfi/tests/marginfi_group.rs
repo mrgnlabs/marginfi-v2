@@ -122,19 +122,16 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
     let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
     let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
+    let mut bank_config = BankConfig {
+        ..*DEFAULT_USDC_TEST_BANK_CONFIG
+    };
+
+    bank_config.interest_rate_config.optimal_utilization_rate = I80F48!(0.9).into();
+    bank_config.interest_rate_config.plateau_interest_rate = I80F48!(1).into();
+
     let usdc_bank = test_f
         .marginfi_group
-        .try_lending_pool_add_bank(
-            usdc_mint_fixture.key,
-            BankConfig {
-                interest_rate_config: InterestRateConfig {
-                    optimal_utilization_rate: I80F48!(0.9).into(),
-                    plateau_interest_rate: I80F48!(1).into(),
-                    ..Default::default()
-                },
-                ..*DEFAULT_USDC_TEST_BANK_CONFIG
-            },
-        )
+        .try_lending_pool_add_bank(usdc_mint_fixture.key, bank_config)
         .await?;
 
     let sol_bank = test_f
@@ -208,22 +205,19 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
     let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
     let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
+    let mut bank_config = BankConfig {
+        max_capacity: native!(1_000_000_000, "USDC"),
+        ..*DEFAULT_USDC_TEST_BANK_CONFIG
+    };
+
+    bank_config.interest_rate_config.optimal_utilization_rate = I80F48!(0.9).into();
+    bank_config.interest_rate_config.plateau_interest_rate = I80F48!(1).into();
+    bank_config.interest_rate_config.protocol_fixed_fee_apr = I80F48!(0.01).into();
+    bank_config.interest_rate_config.insurance_fee_fixed_apr = I80F48!(0.01).into();
+
     let usdc_bank = test_f
         .marginfi_group
-        .try_lending_pool_add_bank(
-            usdc_mint_fixture.key,
-            BankConfig {
-                interest_rate_config: InterestRateConfig {
-                    optimal_utilization_rate: I80F48!(0.9).into(),
-                    plateau_interest_rate: I80F48!(1).into(),
-                    protocol_fixed_fee_apr: I80F48!(0.01).into(),
-                    insurance_fee_fixed_apr: I80F48!(0.01).into(),
-                    ..Default::default()
-                },
-                max_capacity: native!(1_000_000_000, "USDC"),
-                ..*DEFAULT_USDC_TEST_BANK_CONFIG
-            },
-        )
+        .try_lending_pool_add_bank(usdc_mint_fixture.key, bank_config)
         .await?;
 
     let sol_bank = test_f

@@ -624,7 +624,7 @@ impl From<WrappedI80F48> for I80F48 {
     }
 }
 
-#[derive(AnchorDeserialize, AnchorSerialize)]
+#[derive(AnchorDeserialize, AnchorSerialize, Default)]
 pub struct BankConfigOpt {
     pub deposit_weight_init: Option<WrappedI80F48>,
     pub deposit_weight_maint: Option<WrappedI80F48>,
