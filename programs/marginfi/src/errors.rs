@@ -36,6 +36,8 @@ pub enum MarginfiError {
     AccountNotBankrupt,
     #[msg("Account balance is not bad debt")]
     BalanceNotBadDebt,
+    #[msg("Invalid group config")]
+    InvalidConfig,
 }
 
 impl From<MarginfiError> for ProgramError {

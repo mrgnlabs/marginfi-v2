@@ -110,6 +110,8 @@ pub fn lending_pool_add_bank(
         fee_vault_authority_bump,
     );
 
+    bank.config.validate()?;
+
     Ok(())
 }
 
@@ -268,9 +270,6 @@ pub fn lending_pool_bank_accrue_interest(
 
     let (protocol_fee, insurance_fee) = bank.accrue_interest(&clock)?;
 
-    // TODO: Move bump to state
-    let liq_vault_bump = *ctx.bumps.get("liquidity_vault_authority").unwrap();
-
     msg!("Protocol fee: {}", protocol_fee);
 
     bank.withdraw_spl_transfer(
@@ -284,7 +283,7 @@ pub fn lending_pool_bank_accrue_interest(
         bank_signer!(
             BankVaultType::Liquidity,
             ctx.accounts.bank.key(),
-            liq_vault_bump
+            bank.liquidity_vault_authority_bump
         ),
     )?;
 
@@ -301,7 +300,7 @@ pub fn lending_pool_bank_accrue_interest(
         bank_signer!(
             BankVaultType::Liquidity,
             ctx.accounts.bank.key(),
-            liq_vault_bump
+            bank.liquidity_vault_authority_bump
         ),
     )?;
 
@@ -310,11 +309,8 @@ pub fn lending_pool_bank_accrue_interest(
 
 #[derive(Accounts)]
 pub struct LendingPoolBankAccrueInterest<'info> {
-    #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    /// PDA / seeds check ensures that provided account is legit, and use of the
-    /// marginfi group + underlying mint guarantees unicity of bank per mint within a group
     #[account(
         mut,
         constraint = bank.load()?.group == marginfi_group.key(),
@@ -323,14 +319,13 @@ pub struct LendingPoolBankAccrueInterest<'info> {
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
-        mut,
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED,
             bank.key().as_ref(),
         ],
-        bump
+        bump = bank.load()?.liquidity_vault_authority_bump
     )]
-    pub liquidity_vault_authority: UncheckedAccount<'info>,
+    pub liquidity_vault_authority: AccountInfo<'info>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -339,9 +334,9 @@ pub struct LendingPoolBankAccrueInterest<'info> {
             LIQUIDITY_VAULT_SEED,
             bank.key().as_ref(),
         ],
-        bump
+        bump = bank.load()?.liquidity_vault_bump
     )]
-    pub liquidity_vault: UncheckedAccount<'info>,
+    pub liquidity_vault: AccountInfo<'info>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -350,9 +345,9 @@ pub struct LendingPoolBankAccrueInterest<'info> {
             INSURANCE_VAULT_SEED,
             bank.key().as_ref(),
         ],
-        bump
+        bump = bank.load()?.insurance_vault_bump
     )]
-    pub insurance_vault: UncheckedAccount<'info>,
+    pub insurance_vault: AccountInfo<'info>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -361,9 +356,9 @@ pub struct LendingPoolBankAccrueInterest<'info> {
             FEE_VAULT_SEED,
             bank.key().as_ref(),
         ],
-        bump
+        bump = bank.load()?.fee_vault_bump
     )]
-    pub fee_vault: UncheckedAccount<'info>,
+    pub fee_vault: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
 }

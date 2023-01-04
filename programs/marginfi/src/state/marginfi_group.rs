@@ -150,6 +150,22 @@ impl InterestRateConfig {
                 .checked_add(plateau_ir)
         }
     }
+
+    pub fn validate(&self) -> MarginfiResult {
+        let optimal_ur: I80F48 = self.optimal_utilization_rate.into();
+        let plateau_ir: I80F48 = self.plateau_interest_rate.into();
+        let max_ir: I80F48 = self.max_interest_rate.into();
+
+        check!(
+            optimal_ur > I80F48::ZERO && optimal_ur < I80F48::ONE,
+            MarginfiError::InvalidConfig
+        );
+        check!(plateau_ir > I80F48::ZERO, MarginfiError::InvalidConfig);
+        check!(max_ir > I80F48::ZERO, MarginfiError::InvalidConfig);
+        check!(plateau_ir < max_ir, MarginfiError::InvalidConfig);
+
+        Ok(())
+    }
 }
 
 #[account(zero_copy)]
@@ -297,6 +313,9 @@ impl Bank {
         );
         set_if_some!(self.config.max_capacity, config.max_capacity);
         set_if_some!(self.config.pyth_oracle, config.pyth_oracle);
+
+        self.config.validate()?;
+
         Ok(())
     }
 
@@ -556,6 +575,33 @@ impl BankConfig {
                 self.liability_weight_maint.into(),
             ),
         }
+    }
+
+    pub fn validate(&self) -> MarginfiResult {
+        let deposit_init_w = I80F48::from(self.deposit_weight_init);
+        let deposit_maint_w = I80F48::from(self.deposit_weight_maint);
+
+        check!(
+            deposit_init_w >= I80F48::ZERO && deposit_init_w <= I80F48::ONE,
+            MarginfiError::InvalidConfig
+        );
+        check!(
+            deposit_maint_w >= deposit_init_w,
+            MarginfiError::InvalidConfig
+        );
+
+        let liab_init_w = I80F48::from(self.liability_weight_init);
+        let liab_maint_w = I80F48::from(self.liability_weight_maint);
+
+        check!(liab_init_w >= I80F48::ONE, MarginfiError::InvalidConfig);
+        check!(
+            liab_maint_w <= liab_init_w && liab_maint_w >= I80F48::ONE,
+            MarginfiError::InvalidConfig
+        );
+
+        self.interest_rate_config.validate()?;
+
+        Ok(())
     }
 }
 

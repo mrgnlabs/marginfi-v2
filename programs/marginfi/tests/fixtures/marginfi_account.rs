@@ -8,10 +8,10 @@ use marginfi::state::{
 use solana_program::instruction::Instruction;
 use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{
-    account::AccountSharedData, compute_budget::ComputeBudgetInstruction, signature::Keypair,
-    signer::Signer, transaction::Transaction,
+    compute_budget::ComputeBudgetInstruction, signature::Keypair, signer::Signer,
+    transaction::Transaction,
 };
-use std::{cell::RefCell, mem, rc::Rc, sync::Arc};
+use std::{cell::RefCell, mem, rc::Rc};
 
 #[derive(Default, Clone)]
 pub struct MarginfiAccountConfig {}

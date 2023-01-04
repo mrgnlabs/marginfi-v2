@@ -291,6 +291,8 @@ pub fn lending_account_liquidate(
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account.load_mut()?;
 
     {
+        // ##Accounting changes##
+
         let asset_quantity = I80F48::from_num(asset_quantity);
 
         let mut asset_bank = ctx.accounts.asset_bank.load_mut()?;
@@ -324,8 +326,6 @@ pub fn lending_account_liquidate(
             &liab_price,
         )?;
 
-        // Accounting changes
-
         // Insurance fund fee
         let insurance_fund_fee = liab_quantity_liquidator - liab_quantity_final;
 
@@ -341,8 +341,6 @@ pub fn lending_account_liquidate(
             asset_quantity,
             insurance_fund_fee
         );
-
-        sol_log_compute_units();
 
         // Liquidator pays off liability
         BankAccountWrapper::find_or_create(
@@ -369,6 +367,8 @@ pub fn lending_account_liquidate(
         .account_withdraw(asset_quantity)?;
 
         // Liquidatee receives liability payment
+        let liab_bank_liquidity_authority_bump = liab_bank.liquidity_vault_authority_bump;
+
         let mut liquidatee_liab_bank_account = BankAccountWrapper::find_or_create(
             &ctx.accounts.liab_bank.key(),
             &mut liab_bank,
@@ -377,7 +377,7 @@ pub fn lending_account_liquidate(
 
         liquidatee_liab_bank_account.account_deposit(liab_quantity_final)?;
 
-        // SPL transfer
+        // ## SPL transfer ##
         // Insurance fund receives fee
         liquidatee_liab_bank_account.withdraw_spl_transfer(
             insurance_fund_fee.to_num(),
@@ -393,12 +393,12 @@ pub fn lending_account_liquidate(
             bank_signer!(
                 BankVaultType::Liquidity,
                 ctx.accounts.liab_bank.key(),
-                *ctx.bumps.get("bank_liquidity_vault_authority").unwrap()
+                liab_bank_liquidity_authority_bump
             ),
         )?;
     }
 
-    // Risk checks
+    // ## Risk checks ##
     // Verify liquidatee liquidation post health
     let (liquidator_remaining_accounts, liquidatee_remaining_accounts) = ctx
         .remaining_accounts
@@ -415,9 +415,7 @@ pub fn lending_account_liquidate(
 }
 
 #[derive(Accounts)]
-#[instruction(asset_quantity: u64)]
 pub struct LendingAccountLiquidate<'info> {
-    #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -427,7 +425,6 @@ pub struct LendingAccountLiquidate<'info> {
     pub asset_bank: AccountLoader<'info, Bank>,
 
     #[account(
-        mut,
         constraint = asset_bank.load()?.config.pyth_oracle == asset_price_feed.key()
     )]
     pub asset_price_feed: AccountInfo<'info>,
@@ -439,7 +436,6 @@ pub struct LendingAccountLiquidate<'info> {
     pub liab_bank: AccountLoader<'info, Bank>,
 
     #[account(
-        mut,
         constraint = liab_bank.load()?.config.pyth_oracle == liab_price_feed.key()
     )]
     pub liab_price_feed: AccountInfo<'info>,
@@ -451,7 +447,6 @@ pub struct LendingAccountLiquidate<'info> {
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
-        mut,
         address = liquidator_marginfi_account.load()?.owner
     )]
     pub signer: Signer<'info>,
@@ -468,7 +463,7 @@ pub struct LendingAccountLiquidate<'info> {
             LIQUIDITY_VAULT_AUTHORITY_SEED,
             liab_bank.key().as_ref(),
         ],
-        bump
+        bump = liab_bank.load()?.liquidity_vault_authority_bump
     )]
     pub bank_liquidity_vault_authority: AccountInfo<'info>,
 
@@ -478,7 +473,7 @@ pub struct LendingAccountLiquidate<'info> {
             LIQUIDITY_VAULT_SEED,
             liab_bank.key().as_ref(),
         ],
-        bump
+        bump = liab_bank.load()?.liquidity_vault_bump
     )]
     pub bank_liquidity_vault: Box<Account<'info, TokenAccount>>,
 
@@ -488,7 +483,8 @@ pub struct LendingAccountLiquidate<'info> {
             INSURANCE_VAULT_SEED,
             liab_bank.key().as_ref(),
         ],
-        bump
+        bump = liab_bank.load()?.insurance_vault_bump
+
     )]
     pub bank_insurance_vault: AccountInfo<'info>,
 
