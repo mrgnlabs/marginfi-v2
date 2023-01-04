@@ -4,6 +4,7 @@ pub mod instructions;
 pub mod macros;
 pub mod prelude;
 pub mod state;
+pub mod utils;
 
 use anchor_lang::prelude::*;
 use instructions::*;
@@ -14,7 +15,7 @@ use static_assertions::assert_cfg;
 #[cfg(feature = "mainnet-beta")] // mainnet
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 #[cfg(feature = "devnet")] // devnet
-declare_id!("HfHBtENWH9C27kXMwP62WCSMm734kzKj9YnzUaHPzk6i");
+declare_id!("H7UazmGqtrVS8HH1TSouQdCr2o4aSgNQt6n2hJUdicz3");
 #[cfg(all(not(feature = "mainnet-beta"), not(feature = "devnet")))] // other
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 

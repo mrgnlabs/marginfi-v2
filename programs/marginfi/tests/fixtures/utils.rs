@@ -2,9 +2,7 @@
 #![allow(dead_code)]
 
 use anchor_lang::prelude::*;
-use marginfi::{
-    bank_authority_seed, bank_seed, constants::PYTH_ID, state::marginfi_group::BankVaultType,
-};
+use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{AccountType, PriceAccount, PriceInfo, PriceStatus, MAGIC, VERSION_2};
 use solana_program::instruction::Instruction;
 use solana_program_test::*;
@@ -18,14 +16,6 @@ pub const RUST_LOG_DEFAULT: &str = "solana_rbpf::vm=info,\
              solana_runtime::system_instruction_processor=info,\
              solana_program_test=info,\
              solana_bpf_loader_program=debug";
-
-pub fn find_bank_vault_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
-    Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), &marginfi::id())
-}
-
-pub fn find_bank_vault_authority_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
-    Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), &marginfi::id())
-}
 
 pub async fn load_and_deserialize<T: AccountDeserialize>(
     ctx: Rc<RefCell<ProgramTestContext>>,

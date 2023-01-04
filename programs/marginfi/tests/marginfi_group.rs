@@ -10,15 +10,11 @@ use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
 use marginfi::{
     prelude::{MarginfiError, MarginfiGroup},
-    state::marginfi_group::{Bank, BankConfig, InterestRateConfig},
+    state::marginfi_group::{Bank, BankConfig},
 };
 use pretty_assertions::assert_eq;
 use solana_program::{
-    account_info::IntoAccountInfo,
-    instruction::Instruction,
-    program_pack::Pack,
-    system_instruction::{self},
-    system_program,
+    account_info::IntoAccountInfo, instruction::Instruction, program_pack::Pack, system_program,
 };
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};

@@ -1,18 +1,16 @@
 #![cfg(feature = "test-bpf")]
 #![allow(unused)]
 
+use super::utils::load_and_deserialize;
 use anchor_lang::{prelude::Pubkey, AccountDeserialize, InstructionData, ToAccountMetas};
-use lazy_static::__Deref;
-use marginfi::state::marginfi_group::{Bank, BankConfigOpt, BankVaultType};
+use marginfi::{
+    state::marginfi_group::{Bank, BankConfigOpt, BankVaultType},
+    utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
+};
 use solana_program::instruction::Instruction;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
-
-use super::{
-    marginfi_group::MarginfiGroupFixture,
-    utils::{find_bank_vault_authority_pda, find_bank_vault_pda, load_and_deserialize},
-};
 
 pub struct BankFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,

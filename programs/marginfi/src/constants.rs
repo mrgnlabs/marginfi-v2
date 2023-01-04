@@ -1,4 +1,4 @@
-use anchor_lang::prelude::Pubkey;
+use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use solana_program::pubkey;
@@ -13,7 +13,11 @@ pub const FEE_VAULT_SEED: &[u8] = b"fee_vault";
 
 pub const LENDING_POOL_BANK_SEED: &[u8] = b"lending_pool_bank";
 
-/// Dummy PK
+#[cfg(feature = "mainnet-beta")] // mainnet
+pub const PYTH_ID: Pubkey = pubkey!("5rYvdyWAunZgD2EC1aKo7hQbutUUnkt7bBFM6xNq2z7Z");
+#[cfg(feature = "devnet")] // devnet
+pub const PYTH_ID: Pubkey = pubkey!("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
+#[cfg(all(not(feature = "mainnet-beta"), not(feature = "devnet")))] // other
 pub const PYTH_ID: Pubkey = pubkey!("5rYvdyWAunZgD2EC1aKo7hQbutUUnkt7bBFM6xNq2z7Z");
 
 /// TODO: Make these variable per bank

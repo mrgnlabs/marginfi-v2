@@ -4,12 +4,18 @@ use crate::{
     utils::process_transaction,
 };
 use anchor_client::Cluster;
+use anchor_spl::token;
 use anyhow::Result;
 use anyhow::{anyhow, bail};
-use marginfi::prelude::MarginfiGroup;
+use fixed::types::I80F48;
+use marginfi::{
+    prelude::{GroupConfig, MarginfiGroup},
+    state::marginfi_group::{BankConfig, BankVaultType, InterestRateConfig, WrappedI80F48},
+    utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
+};
 use solana_sdk::{
     commitment_config::CommitmentLevel, pubkey::Pubkey, signature::Keypair, signer::Signer,
-    system_instruction, system_program,
+    system_instruction, system_program, sysvar,
 };
 use std::fs;
 
@@ -95,6 +101,160 @@ pub fn group_create(config: Config, profile: Profile, admin: Option<Pubkey>) -> 
 
     let mut profile = profile;
     profile.set_marginfi_group(marginfi_group_keypair.pubkey())?;
+
+    Ok(())
+}
+
+pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) -> Result<()> {
+    let rpc_client = config.program.rpc();
+
+    if profile.marginfi_group.is_none() {
+        bail!("Marginfi group not specified in profile [{}]", profile.name);
+    }
+
+    let configure_marginfi_group_ix = config
+        .program
+        .request()
+        .signer(&config.payer)
+        .accounts(marginfi::accounts::ConfigureMarginfiGroup {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            admin: config.payer.pubkey(),
+        })
+        .args(marginfi::instruction::ConfigureMarginfiGroup {
+            config: GroupConfig { admin },
+        })
+        .instructions()?;
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+
+    let signers = vec![&config.payer];
+    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
+        &configure_marginfi_group_ix,
+        Some(&config.payer.pubkey()),
+        &signers,
+        recent_blockhash,
+    );
+
+    match process_transaction(&tx, &rpc_client, config.dry_run) {
+        Ok(sig) => println!("marginfi group created (sig: {})", sig),
+        Err(err) => println!("Error during marginfi group creation:\n{:#?}", err),
+    };
+
+    Ok(())
+}
+
+pub fn group_add_bank(
+    config: Config,
+    profile: Profile,
+    bank_mint: Pubkey,
+    pyth_oracle: Pubkey,
+    deposit_weight_init: f64,
+    deposit_weight_maint: f64,
+    liability_weight_init: f64,
+    liability_weight_maint: f64,
+    max_capacity: u64,
+    optimal_utilization_rate: f64,
+    plateau_interest_rate: f64,
+    max_interest_rate: f64,
+    insurance_fee_fixed_apr: f64,
+    insurance_ir_fee: f64,
+    protocol_fixed_fee_apr: f64,
+    protocol_ir_fee: f64,
+) -> Result<()> {
+    let rpc_client = config.program.rpc();
+
+    if profile.marginfi_group.is_none() {
+        bail!("Marginfi group not specified in profile [{}]", profile.name);
+    }
+
+    let deposit_weight_init: WrappedI80F48 = I80F48::from_num(deposit_weight_init).into();
+    let deposit_weight_maint: WrappedI80F48 = I80F48::from_num(deposit_weight_maint).into();
+    let liability_weight_init: WrappedI80F48 = I80F48::from_num(liability_weight_init).into();
+    let liability_weight_maint: WrappedI80F48 = I80F48::from_num(liability_weight_maint).into();
+
+    let optimal_utilization_rate: WrappedI80F48 = I80F48::from_num(optimal_utilization_rate).into();
+    let plateau_interest_rate: WrappedI80F48 = I80F48::from_num(plateau_interest_rate).into();
+    let max_interest_rate: WrappedI80F48 = I80F48::from_num(max_interest_rate).into();
+    let insurance_fee_fixed_apr: WrappedI80F48 = I80F48::from_num(insurance_fee_fixed_apr).into();
+    let insurance_ir_fee: WrappedI80F48 = I80F48::from_num(insurance_ir_fee).into();
+    let protocol_fixed_fee_apr: WrappedI80F48 = I80F48::from_num(protocol_fixed_fee_apr).into();
+    let protocol_ir_fee: WrappedI80F48 = I80F48::from_num(protocol_ir_fee).into();
+
+    let interest_rate_config = InterestRateConfig {
+        optimal_utilization_rate,
+        plateau_interest_rate,
+        max_interest_rate,
+        insurance_fee_fixed_apr,
+        insurance_ir_fee,
+        protocol_fixed_fee_apr,
+        protocol_ir_fee,
+    };
+
+    let bank_keypair = Keypair::new();
+
+    let add_bank_ix = config
+        .program
+        .request()
+        .signer(&config.payer)
+        .accounts(marginfi::accounts::LendingPoolAddBank {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            admin: config.payer.pubkey(),
+            bank: bank_keypair.pubkey(),
+            bank_mint,
+            fee_vault: find_bank_vault_pda(&bank_keypair.pubkey(), BankVaultType::Fee).0,
+            fee_vault_authority: find_bank_vault_authority_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Fee,
+            )
+            .0,
+            insurance_vault: find_bank_vault_pda(&bank_keypair.pubkey(), BankVaultType::Insurance)
+                .0,
+            insurance_vault_authority: find_bank_vault_authority_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Insurance,
+            )
+            .0,
+            liquidity_vault: find_bank_vault_pda(&bank_keypair.pubkey(), BankVaultType::Liquidity)
+                .0,
+            liquidity_vault_authority: find_bank_vault_authority_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Liquidity,
+            )
+            .0,
+            pyth_oracle,
+            rent: sysvar::rent::id(),
+            token_program: token::ID,
+            system_program: system_program::id(),
+        })
+        .args(marginfi::instruction::LendingPoolAddBank {
+            bank_config: BankConfig {
+                deposit_weight_init,
+                deposit_weight_maint,
+                liability_weight_init,
+                liability_weight_maint,
+                max_capacity,
+                pyth_oracle,
+                interest_rate_config,
+            },
+        })
+        .instructions()?;
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+
+    let signers = vec![&config.payer, &bank_keypair];
+    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
+        &add_bank_ix,
+        Some(&config.payer.pubkey()),
+        &signers,
+        recent_blockhash,
+    );
+
+    match process_transaction(&tx, &rpc_client, config.dry_run) {
+        Ok(sig) => println!("bank created (sig: {})", sig),
+        Err(err) => println!("Error during bank creation:\n{:#?}", err),
+    };
+
+    println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
 
     Ok(())
 }
