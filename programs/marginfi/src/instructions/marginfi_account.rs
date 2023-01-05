@@ -7,8 +7,8 @@ use crate::{
     prelude::MarginfiResult,
     state::{
         marginfi_account::{
-            calc_asset_quantity, calc_asset_value, BankAccountWrapper, MarginfiAccount, RiskEngine,
-            RiskRequirementType,
+            calc_asset_quantity, calc_asset_value, get_price, BankAccountWrapper, MarginfiAccount,
+            RiskEngine, RiskRequirementType,
         },
         marginfi_group::{Bank, BankVaultType, MarginfiGroup},
     },
@@ -298,16 +298,16 @@ pub fn lending_account_liquidate(
         let asset_price = {
             let asset_price_feed =
                 asset_bank.load_price_feed_from_account_info(&ctx.accounts.asset_price_feed)?;
-            // TODO: Check price expiration and confidence
-            asset_price_feed.get_price_unchecked()
+
+            get_price(&asset_price_feed)?
         };
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
         let liab_price = {
             let liab_price_feed =
                 liab_bank.load_price_feed_from_account_info(&ctx.accounts.liab_price_feed)?;
-            // TODO: Check price expiration and confidence
-            liab_price_feed.get_price_unchecked()
+
+            get_price(&liab_price_feed)?
         };
 
         let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
@@ -315,14 +315,26 @@ pub fn lending_account_liquidate(
 
         // Quantity of liability to be paid off by liquidator
         let liab_quantity_liquidator = calc_asset_quantity(
-            calc_asset_value(asset_quantity, &asset_price, Some(liquidator_discount))?,
-            &liab_price,
+            calc_asset_value(
+                asset_quantity,
+                asset_price,
+                asset_bank.mint_decimals,
+                Some(liquidator_discount),
+            )?,
+            liab_price,
+            liab_bank.mint_decimals,
         )?;
 
         // Quantity of liability to be received by liquidatee
         let liab_quantity_final = calc_asset_quantity(
-            calc_asset_value(asset_quantity, &asset_price, Some(final_discount))?,
-            &liab_price,
+            calc_asset_value(
+                asset_quantity,
+                asset_price,
+                asset_bank.mint_decimals,
+                Some(final_discount),
+            )?,
+            liab_price,
+            liab_bank.mint_decimals,
         )?;
 
         // Insurance fund fee

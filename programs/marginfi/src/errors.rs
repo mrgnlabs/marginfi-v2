@@ -38,6 +38,8 @@ pub enum MarginfiError {
     BalanceNotBadDebt,
     #[msg("Invalid group config")]
     InvalidConfig,
+    #[msg("Stale oracle data")]
+    StaleOracle,
 }
 
 impl From<MarginfiError> for ProgramError {

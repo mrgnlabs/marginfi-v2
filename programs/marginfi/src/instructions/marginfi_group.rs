@@ -98,6 +98,7 @@ pub fn lending_pool_add_bank(
         ctx.accounts.marginfi_group.key(),
         bank_config,
         bank_mint.key(),
+        bank_mint.decimals,
         liquidity_vault.key(),
         insurance_vault.key(),
         fee_vault.key(),

@@ -175,7 +175,9 @@ impl InterestRateConfig {
 )]
 #[derive(Default)]
 pub struct Bank {
-    pub mint_pk: Pubkey,
+    pub mint: Pubkey,
+    pub mint_decimals: u8,
+
     pub group: Pubkey,
 
     pub deposit_share_value: WrappedI80F48,
@@ -205,7 +207,8 @@ impl Bank {
     pub fn new(
         marginfi_group_pk: Pubkey,
         config: BankConfig,
-        mint_pk: Pubkey,
+        mint: Pubkey,
+        mint_decimals: u8,
         liquidity_vault: Pubkey,
         insurance_vault: Pubkey,
         fee_vault: Pubkey,
@@ -218,7 +221,8 @@ impl Bank {
         fee_vault_authority_bump: u8,
     ) -> Bank {
         Bank {
-            mint_pk,
+            mint,
+            mint_decimals,
             deposit_share_value: I80F48::ONE.into(),
             liability_share_value: I80F48::ONE.into(),
             liquidity_vault,

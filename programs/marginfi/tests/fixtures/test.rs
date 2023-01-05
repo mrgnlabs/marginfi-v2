@@ -100,6 +100,14 @@ impl TestFixture {
         );
 
         let context = Rc::new(RefCell::new(program.start_with_context().await));
+
+        {
+            let mut ctx = context.borrow_mut();
+            let mut clock: Clock = ctx.banks_client.get_sysvar().await.unwrap();
+            clock.unix_timestamp = 0;
+            ctx.set_sysvar(&clock);
+        }
+
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 
         let usdc_mint_f = MintFixture::new(Rc::clone(&context), Some(usdc_keypair), None).await;

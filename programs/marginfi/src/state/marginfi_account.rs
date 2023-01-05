@@ -1,6 +1,8 @@
 use super::marginfi_group::{Bank, WrappedI80F48};
 use crate::{
-    check, math_error,
+    check,
+    constants::{CONF_INTERVAL_MULTIPLE, MAX_PRICE_AGE_SEC, USDC_EXPONENT},
+    math_error,
     prelude::{MarginfiError, MarginfiResult},
 };
 use anchor_lang::prelude::*;
@@ -52,19 +54,10 @@ const EXP_10_I80F48: [I80F48; 15] = [
     I80F48!(100_000_000_000_000),
 ];
 
-// TODO: Make a division table;
-
-const USDC_EXPONENT: i32 = 6;
-
-/// Convert a price `price.price` with decimal exponent `price.expo` to an I80F48 representation with exponent 6.
-pub fn pyth_price_to_i80f48(price: &Price) -> MarginfiResult<I80F48> {
-    let pyth_price = price.price;
-    let pyth_expo = price.expo;
-
-    let expo_delta = USDC_EXPONENT - pyth_expo;
+#[inline(always)]
+fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
+    let expo_delta = USDC_EXPONENT - exponent;
     let expo_scale = EXP_10_I80F48[expo_delta.unsigned_abs() as usize];
-
-    let price = I80F48::from_num(pyth_price);
 
     let price = if expo_delta == 0 {
         price
@@ -134,8 +127,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         &self,
         weight_type: WeightType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
-        // TODO: Expire price, and check confidence interval
-        let price = self.price_feed.get_price_unchecked();
+        let (worst_price, best_price) = get_price_range(&self.price_feed)?;
 
         let deposits_qt = self
             .bank
@@ -145,26 +137,71 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             .get_deposit_amount(self.balance.liability_shares.into())?;
         let (deposit_weight, liability_weight) = self.bank.config.get_weights(weight_type); // TODO: asset-specific weights
 
+        let mint_decimals = self.bank.mint_decimals;
+
         Ok((
-            calc_asset_value(deposits_qt, &price, Some(deposit_weight))?,
-            calc_asset_value(liabilities_qt, &price, Some(liability_weight))?,
+            calc_asset_value(
+                deposits_qt,
+                worst_price,
+                mint_decimals,
+                Some(deposit_weight),
+            )?,
+            calc_asset_value(
+                liabilities_qt,
+                best_price,
+                mint_decimals,
+                Some(liability_weight),
+            )?,
         ))
     }
+}
+
+/// Get a normalized price range for the given price feed.
+/// The range is the price +/- the CONF_INTERVAL_MULTIPLE * confidence interval.
+pub fn get_price_range(pf: &PriceFeed) -> MarginfiResult<(I80F48, I80F48)> {
+    let price_state = pf
+        .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
+        .ok_or_else(|| MarginfiError::StaleOracle)?;
+
+    let base_price =
+        pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)?;
+
+    let price_range =
+        pyth_price_components_to_i80f48(I80F48::from_num(price_state.conf), price_state.expo)?
+            .checked_mul(CONF_INTERVAL_MULTIPLE)
+            .ok_or_else(math_error!())?;
+
+    let lowest_price = base_price
+        .checked_sub(price_range)
+        .ok_or_else(math_error!())?;
+    let highest_price = base_price
+        .checked_add(price_range)
+        .ok_or_else(math_error!())?;
+
+    Ok((lowest_price, highest_price))
+}
+
+pub fn get_price(pf: &PriceFeed) -> MarginfiResult<I80F48> {
+    let price_state = pf
+        .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
+        .ok_or_else(|| MarginfiError::StaleOracle)?;
+
+    pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)
 }
 
 #[inline]
 /// Calculate the value of an asset, given its quantity with a decimal exponent, and a price with a decimal exponent, and an optional weight.
 pub fn calc_asset_value(
     asset_quantity: I80F48,
-    pyth_price: &Price,
+    price: I80F48,
+    mint_decimals: u8,
     weight: Option<I80F48>,
 ) -> MarginfiResult<I80F48> {
     if asset_quantity == I80F48::ZERO {
         return Ok(I80F48::ZERO);
     }
 
-    let price = pyth_price_to_i80f48(pyth_price)?;
-    let scaling_factor = EXP_10_I80F48[pyth_price.expo.unsigned_abs() as usize];
+    let scaling_factor = EXP_10_I80F48[mint_decimals as usize];
 
     let weighted_asset_qt = if let Some(weight) = weight {
         asset_quantity.checked_mul(weight).unwrap()
@@ -176,7 +213,7 @@ pub fn calc_asset_value(
         "weighted_asset_qt: {}, price: {}, expo: {}",
         weighted_asset_qt,
         price,
-        pyth_price.expo
+        mint_decimals
     );
 
     let asset_value = weighted_asset_qt
@@ -189,9 +226,12 @@ pub fn calc_asset_value(
 }
 
 #[inline]
-pub fn calc_asset_quantity(asset_value: I80F48, pyth_price: &Price) -> MarginfiResult<I80F48> {
-    let price = pyth_price_to_i80f48(pyth_price)?;
-    let scaling_factor = EXP_10_I80F48[pyth_price.expo.unsigned_abs() as usize];
+pub fn calc_asset_quantity(
+    asset_value: I80F48,
+    price: I80F48,
+    mint_decimals: u8,
+) -> MarginfiResult<I80F48> {
+    let scaling_factor = EXP_10_I80F48[mint_decimals as usize];
 
     let asset_qt = asset_value
         .checked_mul(scaling_factor)
@@ -347,7 +387,7 @@ impl LendingAccount {
         self.balances
             .iter()
             .find(|balance| match balance {
-                Some(_) => bank.mint_pk.eq(mint_pk),
+                Some(_) => bank.mint.eq(mint_pk),
                 None => false,
             })
             .map(|balance| balance.as_ref().unwrap())
@@ -476,7 +516,7 @@ impl<'a> BankAccountWrapper<'a> {
         msg!(
             "Account crediting: {} of {} (borrow: {})",
             amount,
-            self.bank.mint_pk,
+            self.bank.mint,
             allow_borrow
         );
         let balance = &mut self.balance;
@@ -540,24 +580,13 @@ mod test {
 
     #[test]
     fn test_calc_asset_value() {
-        let price_usdc = Price {
-            price: 1_000_000,
-            expo: 6,
-            ..Default::default()
-        };
         assert_eq!(
-            calc_asset_value(I80F48!(10_000_000), &price_usdc, None).unwrap(),
+            calc_asset_value(I80F48!(10_000_000), I80F48!(1_000_000), 6, None).unwrap(),
             I80F48!(10_000_000)
         );
 
-        let price_sol = Price {
-            price: 10_000_000_000,
-            expo: 9,
-            ..Default::default()
-        };
-
         assert_eq!(
-            calc_asset_value(I80F48!(1_000_000_000), &price_sol, None).unwrap(),
+            calc_asset_value(I80F48!(1_000_000_000), I80F48!(10_000_000), 9, None).unwrap(),
             I80F48!(10_000_000)
         );
     }

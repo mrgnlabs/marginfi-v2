@@ -21,3 +21,12 @@ pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);
 pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
 
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
+
+pub const MAX_PRICE_AGE_SEC: u64 = 20;
+
+/// Range that contains 95% price data distribution
+///
+/// https://docs.pyth.network/pythnet-price-feeds/best-practices#confidence-intervals
+pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(4.24);
+
+pub const USDC_EXPONENT: i32 = 6;

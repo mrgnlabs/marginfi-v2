@@ -5,7 +5,9 @@ use anchor_lang::prelude::*;
 use marginfi::{
     bank_authority_seed, bank_seed, constants::PYTH_ID, state::marginfi_group::BankVaultType,
 };
-use pyth_sdk_solana::state::{AccountType, PriceAccount, PriceInfo, PriceStatus, MAGIC, VERSION_2};
+use pyth_sdk_solana::state::{
+    AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
+};
 use solana_program::instruction::Instruction;
 use solana_program_test::*;
 use solana_sdk::{account::Account, signature::Keypair};
@@ -70,6 +72,12 @@ pub fn craft_pyth_price_account(mint: Pubkey, ui_price: i64, mint_decimals: i32)
             magic: MAGIC,
             ver: VERSION_2,
             atype: AccountType::Price as u32,
+            timestamp: 0,
+            ema_price: Rational {
+                val: native_price,
+                numer: native_price,
+                denom: 1,
+            },
             ..Default::default()
         })
         .to_vec(),
