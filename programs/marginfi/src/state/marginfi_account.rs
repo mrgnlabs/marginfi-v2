@@ -9,7 +9,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use pyth_sdk_solana::{Price, PriceFeed};
+use pyth_sdk_solana::{PriceFeed};
 use std::cmp::{max, min};
 
 #[account(zero_copy)]

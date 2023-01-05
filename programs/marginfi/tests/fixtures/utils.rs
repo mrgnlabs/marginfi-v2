@@ -3,7 +3,7 @@
 
 use anchor_lang::prelude::*;
 use marginfi::{
-    bank_authority_seed, bank_seed, constants::PYTH_ID, state::marginfi_group::BankVaultType,
+    constants::PYTH_ID,
 };
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
