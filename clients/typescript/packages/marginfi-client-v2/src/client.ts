@@ -26,7 +26,7 @@ import {
   MarginfiProgram,
   TransactionOptions,
 } from "./types";
-import { getEnvFromStr, loadKeypair } from "./utils";
+import { loadKeypair } from "./utils";
 import { getConfig } from "./config";
 import MarginfiGroup from "./group";
 
@@ -46,7 +46,7 @@ class MarginfiClient {
     readonly wallet: Wallet,
     group: MarginfiGroup
   ) {
-    this.programId = config.programId;
+    this.programId = config.program;
     this._group = group;
   }
 
@@ -72,9 +72,9 @@ class MarginfiClient {
     const debug = require("debug")("mfi:client");
     debug(
       "Loading Marginfi Client\n\tprogram: %s\n\tenv: %s\n\tgroup: %s\n\turl: %s",
-      config.programId,
+      config.program,
       config.environment,
-      config.groupPk,
+      config.group,
       connection.rpcEndpoint
     );
     const provider = new AnchorProvider(
@@ -85,7 +85,7 @@ class MarginfiClient {
 
     const program = new Program(
       MARGINFI_IDL,
-      config.programId,
+      config.program,
       provider
     ) as any as MarginfiProgram;
     return new MarginfiClient(
@@ -106,7 +106,7 @@ class MarginfiClient {
     }>
   ): Promise<MarginfiClient> {
     const debug = require("debug")("mfi:client");
-    const env = overrides?.env ?? getEnvFromStr(process.env.MARGINFI_ENV!);
+    const env = overrides?.env ?? (process.env.MARGINFI_ENV! as Environment);
     const connection =
       overrides?.connection ??
       new Connection(process.env.MARGINFI_RPC_ENDPOINT!, {
@@ -139,8 +139,8 @@ class MarginfiClient {
     );
 
     const config = await getConfig(env, {
-      groupPk,
-      programId,
+      group: groupPk,
+      program: programId,
     });
 
     return MarginfiClient.fetch(config, wallet, connection, {

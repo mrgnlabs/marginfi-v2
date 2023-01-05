@@ -1,18 +1,22 @@
-{
-    "devnet": {
-        "program": "",
-        "group": "",
-        "banks": {
-            "USDC": {
+[
+    {
+        "label": "devnet1",
+        "cluster": "devnet",
+        "program": "H7UazmGqtrVS8HH1TSouQdCr2o4aSgNQt6n2hJUdicz3",
+        "group": "oA73UQvsdN1BiSavPSBupkgkhateeLd6g8NrU7JUxhr",
+        "banks": [
+            {
+                "label": "USDC",
                 "mint": "8FRFC6MoGGkMFQwngccyu69VnYbzykGeez7ignHVAFSN",
                 "oracle": "5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7",
-                "bank": "FeDSRAhxUEA62pHfZdm3gVw3JzEcQ71QXGHYgvUpPGEt"
+                "address": "FeDSRAhxUEA62pHfZdm3gVw3JzEcQ71QXGHYgvUpPGEt"
             },
-            "WSOL": {
+            {
+                "label": "SOL",
                 "mint": "dSoLyxP7wHDXf8xcoH4ufuTXgp1ayWSjL9PM44BbgWT",
                 "oracle": "J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix",
-                "bank": "Dm3fy43XZqpVv4u1jUMYaNYDCzW3dCtWR6AUb44nRm72"
+                "address": "Dm3fy43XZqpVv4u1jUMYaNYDCzW3dCtWR6AUb44nRm72"
             }
-        }
+        ]
     }
-}
+]

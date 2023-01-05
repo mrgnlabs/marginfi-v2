@@ -33,19 +33,19 @@ export function loadKeypair(keypairPath: string): Keypair {
   return loaded;
 }
 
-/**
- * @internal
- */
-export function getEnvFromStr(envString: string = "devnet"): Environment {
-  switch (envString.toUpperCase()) {
-    case "MAINNET":
-      return Environment.MAINNET;
-    case "MAINNET-BETA":
-      return Environment.MAINNET;
-    default:
-      return Environment.DEVNET;
-  }
-}
+// /**
+//  * @internal
+//  */
+// export function getEnvFromStr(envString: string = "devnet"): Environment {
+//   switch (envString.toUpperCase()) {
+//     case "MAINNET":
+//       return Environment.MAINNET;
+//     case "MAINNET-BETA":
+//       return Environment.MAINNET;
+//     default:
+//       return Environment.DEVNET;
+//   }
+// }
 
 /**
  * Transaction processing and error-handling helper.

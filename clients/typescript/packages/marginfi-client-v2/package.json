@@ -13,7 +13,8 @@
         "@project-serum/anchor": "^0.26.0",
         "@solana/wallet-adapter-base": "^0.9.20",
         "@solana/web3.js": "^1.71.0",
-        "bignumber.js": "^9.1.1"
+        "bignumber.js": "^9.1.1",
+        "superstruct": "^1.0.3"
     },
     "devDependencies": {
         "@mrgnlabs/eslint-config-custom": "*",

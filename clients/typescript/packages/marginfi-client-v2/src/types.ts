@@ -30,10 +30,7 @@ export interface TransactionOptions extends SendOptions {
 /**
  * Supported config environments.
  */
-export enum Environment {
-  DEVNET = "devnet",
-  MAINNET = "mainnet",
-}
+export type Environment = "devnet1";
 
 /**
  * Marginfi bank vault type
@@ -44,17 +41,20 @@ export enum BankVaultType {
   FeeVault,
 }
 
-export interface MarginfiDedicatedConfig {
+export interface MarginfiConfig {
   environment: Environment;
-  programId: PublicKey;
-  groupPk: PublicKey;
+  cluster: string;
+  program: PublicKey;
+  group: PublicKey;
+  banks: BankConfig[];
 }
 
-/**
- * Marginfi config.
- * Aggregated data required to conveniently interact with the program
- */
-export interface MarginfiConfig extends MarginfiDedicatedConfig {}
+export interface BankConfig {
+  label: string;
+  mint: PublicKey;
+  oracle: PublicKey;
+  address: PublicKey;
+}
 
 export interface InstructionsWrapper {
   instructions: TransactionInstruction[];

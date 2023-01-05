@@ -27,7 +27,7 @@ class MarginfiGroup {
     program: MarginfiProgram,
     rawData: MarginfiGroupData
   ) {
-    this.publicKey = config.groupPk;
+    this.publicKey = config.group;
     this._config = config;
     this._program = program;
 
@@ -47,7 +47,7 @@ class MarginfiGroup {
    */
   static async fetch(config: MarginfiConfig, program: MarginfiProgram) {
     const debug = require("debug")(`mfi:margin-group`);
-    debug("Loading Marginfi Group %s", config.groupPk);
+    debug("Loading Marginfi Group %s", config.group);
     const accountData = await MarginfiGroup._fetchAccountData(config, program);
     return new MarginfiGroup(config, program, accountData);
   }
@@ -106,7 +106,7 @@ class MarginfiGroup {
     program: MarginfiProgram
   ): Promise<MarginfiGroupData> {
     const data: MarginfiGroupData = (await program.account.marginfiGroup.fetch(
-      config.groupPk
+      config.group
     )) as any;
 
     return data;
