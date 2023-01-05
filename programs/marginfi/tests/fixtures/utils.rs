@@ -2,9 +2,7 @@
 #![allow(dead_code)]
 
 use anchor_lang::prelude::*;
-use marginfi::{
-    constants::PYTH_ID,
-};
+use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
 };
