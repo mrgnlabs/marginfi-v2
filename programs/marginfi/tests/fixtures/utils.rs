@@ -21,14 +21,6 @@ pub const RUST_LOG_DEFAULT: &str = "solana_rbpf::vm=info,\
              solana_program_test=info,\
              solana_bpf_loader_program=debug";
 
-pub fn find_bank_vault_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
-    Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), &marginfi::id())
-}
-
-pub fn find_bank_vault_authority_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
-    Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), &marginfi::id())
-}
-
 pub async fn load_and_deserialize<T: AccountDeserialize>(
     ctx: Rc<RefCell<ProgramTestContext>>,
     address: &Pubkey,

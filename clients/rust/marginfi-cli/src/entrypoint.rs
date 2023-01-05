@@ -33,9 +33,32 @@ pub enum Command {
 
 #[derive(Debug, Parser)]
 pub enum GroupCommand {
-    Get { marginfi_group: Option<Pubkey> },
+    Get {
+        marginfi_group: Option<Pubkey>,
+    },
     GetAll {},
-    Create { admin: Option<Pubkey> },
+    Create {
+        admin: Option<Pubkey>,
+    },
+    Configure {
+        admin: Option<Pubkey>,
+    },
+    AddBank {
+        bank_mint: Pubkey,
+        deposit_weight_init: f64,
+        deposit_weight_maint: f64,
+        liability_weight_init: f64,
+        liability_weight_maint: f64,
+        max_capacity: u64,
+        pyth_oracle: Pubkey,
+        optimal_utilization_rate: f64,
+        plateau_interest_rate: f64,
+        max_interest_rate: f64,
+        insurance_fee_fixed_apr: f64,
+        insurance_ir_fee: f64,
+        protocol_fixed_fee_apr: f64,
+        protocol_ir_fee: f64,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -114,6 +137,40 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         }
         GroupCommand::GetAll {} => processor::group_get_all(config),
         GroupCommand::Create { admin } => processor::group_create(config, profile, admin),
+        GroupCommand::Configure { admin } => processor::group_configure(config, profile, admin),
+        GroupCommand::AddBank {
+            bank_mint,
+            deposit_weight_init,
+            deposit_weight_maint,
+            liability_weight_init,
+            liability_weight_maint,
+            max_capacity,
+            pyth_oracle,
+            optimal_utilization_rate,
+            plateau_interest_rate,
+            max_interest_rate,
+            insurance_fee_fixed_apr,
+            insurance_ir_fee,
+            protocol_fixed_fee_apr,
+            protocol_ir_fee,
+        } => processor::group_add_bank(
+            config,
+            profile,
+            bank_mint,
+            pyth_oracle,
+            deposit_weight_init,
+            deposit_weight_maint,
+            liability_weight_init,
+            liability_weight_maint,
+            max_capacity,
+            optimal_utilization_rate,
+            plateau_interest_rate,
+            max_interest_rate,
+            insurance_fee_fixed_apr,
+            insurance_ir_fee,
+            protocol_fixed_fee_apr,
+            protocol_ir_fee,
+        ),
     }
 }
 

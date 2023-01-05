@@ -1,0 +1,18 @@
+{
+    "devnet": {
+        "program": "",
+        "group": "",
+        "banks": {
+            "USDC": {
+                "mint": "8FRFC6MoGGkMFQwngccyu69VnYbzykGeez7ignHVAFSN",
+                "oracle": "5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7",
+                "bank": "FeDSRAhxUEA62pHfZdm3gVw3JzEcQ71QXGHYgvUpPGEt"
+            },
+            "WSOL": {
+                "mint": "So11111111111111111111111111111111111111112",
+                "oracle": "J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix",
+                "bank": "ApDJFXMtZRSqrDR8T9mg2Zs9Df2tx5hXfv7EpdBLk9H3"
+            }
+        }
+    }
+}

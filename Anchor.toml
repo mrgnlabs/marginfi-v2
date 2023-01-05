@@ -3,7 +3,7 @@ seeds = true
 skip-lint = false
 
 [programs.devnet]
-marginfi = "HfHBtENWH9C27kXMwP62WCSMm734kzKj9YnzUaHPzk6i"
+marginfi = "H7UazmGqtrVS8HH1TSouQdCr2o4aSgNQt6n2hJUdicz3"
 
 [programs.localnet]
 marginfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
@@ -12,7 +12,7 @@ marginfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "https://devnet.genesysgo.net/"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
