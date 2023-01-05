@@ -20,7 +20,7 @@ cargo run  --features devnet group add-bank \
 
 # Add SOL bank
 cargo run  --features devnet group add-bank \
-    So11111111111111111111111111111111111111112 \
+    dSoLyxP7wHDXf8xcoH4ufuTXgp1ayWSjL9PM44BbgWT \
     0.9 \
     0.9 \
     1.1 \

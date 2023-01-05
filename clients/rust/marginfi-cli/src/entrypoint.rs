@@ -25,6 +25,10 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: GroupCommand,
     },
+    Bank {
+        #[clap(subcommand)]
+        subcmd: BankCommand,
+    },
     Profile {
         #[clap(subcommand)]
         subcmd: ProfileCommand,
@@ -62,6 +66,12 @@ pub enum GroupCommand {
 }
 
 #[derive(Debug, Parser)]
+pub enum BankCommand {
+    Get { bank: Option<Pubkey> },
+    GetAll { marginfi_group: Option<Pubkey> },
+}
+
+#[derive(Debug, Parser)]
 pub enum ProfileCommand {
     Create {
         #[clap(long)]
@@ -92,6 +102,7 @@ pub fn entry(opts: Opts) -> Result<()> {
 
     match opts.command {
         Command::Group { subcmd } => group(subcmd, &opts.cfg_override),
+        Command::Bank { subcmd } => bank(subcmd, &opts.cfg_override),
         Command::Profile { subcmd } => profile(subcmd),
     }
 }
@@ -171,6 +182,22 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_fixed_fee_apr,
             protocol_ir_fee,
         ),
+    }
+}
+
+fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
+    let profile = load_profile()?;
+    let config = profile.config(Some(global_options))?;
+
+    match subcmd {
+        BankCommand::Get { bank: _ } => (),
+        BankCommand::GetAll { marginfi_group: _ } => (),
+        // _ => get_consent(&subcmd, &profile)?,
+    }
+
+    match subcmd {
+        BankCommand::Get { bank } => processor::bank_get(config, bank),
+        BankCommand::GetAll { marginfi_group } => processor::bank_get_all(config, marginfi_group),
     }
 }
 

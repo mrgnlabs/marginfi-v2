@@ -10,9 +10,10 @@ use anyhow::{anyhow, bail};
 use fixed::types::I80F48;
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
-    state::marginfi_group::{BankConfig, BankVaultType, InterestRateConfig, WrappedI80F48},
+    state::marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, WrappedI80F48},
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
+use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
 use solana_sdk::{
     commitment_config::CommitmentLevel, pubkey::Pubkey, signature::Keypair, signer::Signer,
     system_instruction, system_program, sysvar,
@@ -256,6 +257,66 @@ pub fn group_add_bank(
 
     println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
 
+    Ok(())
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// bank
+// --------------------------------------------------------------------------------------------------------------------
+
+pub fn bank_get(config: Config, bank: Option<Pubkey>) -> Result<()> {
+    let rpc_client = config.program.rpc();
+
+    if let Some(bank) = bank {
+        let account: Bank = config.program.account(bank)?;
+        println!("Address: {}", bank);
+        println!("=============");
+        println!("Raw data:");
+        println!("{:#?}", account);
+
+        let liquidity_vault_balance =
+            rpc_client.get_token_account_balance(&account.liquidity_vault)?;
+        let fee_vault_balance = rpc_client.get_token_account_balance(&account.fee_vault)?;
+        let insurance_vault_balance =
+            rpc_client.get_token_account_balance(&account.insurance_vault)?;
+
+        println!("=============");
+        println!("Token balances:");
+        println!(
+            "\tliquidity vault: {} (native: {})",
+            liquidity_vault_balance.ui_amount.unwrap(),
+            liquidity_vault_balance.amount
+        );
+        println!(
+            "\tfee vault: {} (native: {})",
+            fee_vault_balance.ui_amount.unwrap(),
+            fee_vault_balance.amount
+        );
+        println!(
+            "\tinsurance vault: {} (native: {})",
+            insurance_vault_balance.ui_amount.unwrap(),
+            insurance_vault_balance.amount
+        );
+    } else {
+        group_get_all(config)?;
+    }
+    Ok(())
+}
+
+pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
+    let filters = match marginfi_group {
+        Some(marginfi_group) => vec![RpcFilterType::Memcmp(Memcmp {
+            bytes: MemcmpEncodedBytes::Base58(marginfi_group.to_string()),
+            offset: 8,
+            encoding: None,
+        })],
+        None => vec![],
+    };
+
+    let accounts: Vec<(Pubkey, Bank)> = config.program.accounts(filters)?;
+    for (address, state) in accounts {
+        println!("-> {}:\n{:#?}\n", address, state);
+    }
     Ok(())
 }
 
