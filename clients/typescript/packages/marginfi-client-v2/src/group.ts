@@ -1,15 +1,9 @@
-import { BorshCoder } from "@project-serum/anchor";
+import { BN, BorshCoder } from "@project-serum/anchor";
 import { Commitment, PublicKey } from "@solana/web3.js";
-import Bank from "./bank";
+import Bank, { BankData } from "./bank";
 import { DEFAULT_COMMITMENT } from "./constants";
 import { MARGINFI_IDL } from "./idl";
-import {
-  AccountType,
-  BankData,
-  MarginfiConfig,
-  MarginfiGroupData,
-  MarginfiProgram,
-} from "./types";
+import { AccountType, MarginfiConfig, MarginfiProgram } from "./types";
 
 /**
  * Wrapper class around a specific marginfi group.
@@ -193,3 +187,10 @@ class MarginfiGroup {
 }
 
 export default MarginfiGroup;
+
+// On-chain types
+
+export interface MarginfiGroupData {
+  admin: PublicKey;
+  reservedSpace: BN[];
+}

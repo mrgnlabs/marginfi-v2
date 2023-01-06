@@ -1,16 +1,10 @@
 import { Address, BorshCoder, translateAddress } from "@project-serum/anchor";
 import { AccountInfo, Commitment, PublicKey } from "@solana/web3.js";
 import { DEFAULT_COMMITMENT, MarginfiClient } from ".";
-import Bank from "./bank";
+import Bank, { BankData } from "./bank";
 import MarginfiGroup from "./group";
 import { MARGINFI_IDL } from "./idl";
-import {
-  AccountType,
-  BankData,
-  MarginfiAccountData,
-  MarginfiConfig,
-  MarginfiProgram,
-} from "./types";
+import { AccountType, MarginfiConfig, MarginfiProgram } from "./types";
 
 /**
  * Wrapper class around a specific marginfi marginfi account.
@@ -349,3 +343,10 @@ class MarginfiAccount {
 }
 
 export default MarginfiAccount;
+
+// On-chain types
+
+export interface MarginfiAccountData {
+  group: PublicKey;
+  authority: PublicKey;
+}

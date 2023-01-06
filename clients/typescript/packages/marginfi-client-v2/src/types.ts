@@ -46,11 +46,6 @@ export enum BankVaultType {
   FeeVault,
 }
 
-export interface MarginfiAccountData {
-  group: PublicKey;
-  authority: PublicKey;
-}
-
 export interface MarginfiConfig {
   environment: Environment;
   cluster: string;
@@ -62,32 +57,6 @@ export interface MarginfiConfig {
 export interface BankAddress {
   label: string;
   address: PublicKey;
-}
-
-export interface BankConfig {
-  depositWeightInit: BigNumber;
-  depositWeightMaint: BigNumber;
-
-  liabilityWeightInit: BigNumber;
-  liabilityWeightMaint: BigNumber;
-
-  maxCapacity: number;
-
-  pythOracle: PublicKey;
-  interestRateConfig: InterestRateConfig;
-}
-
-export interface InterestRateConfig {
-  // Curve Params
-  optimalUtilizationRate: BigNumber;
-  plateauInterestRate: BigNumber;
-  maxInterestRate: BigNumber;
-
-  // Fees
-  insuranceFeeFixedApr: BigNumber;
-  insuranceIrFee: BigNumber;
-  protocolFixedFeeApr: BigNumber;
-  protocolIrFee: BigNumber;
 }
 
 export interface InstructionsWrapper {
@@ -104,64 +73,4 @@ export enum AccountType {
 
 export interface WrappedI8048F {
   value: BN;
-}
-
-export interface MarginfiGroupData {
-  admin: PublicKey;
-  reservedSpace: BN[];
-}
-
-export interface BankData {
-  mint: PublicKey;
-  mintDecimals: number;
-
-  group: PublicKey;
-
-  depositShareValue: WrappedI8048F;
-  liabilityShareValue: WrappedI8048F;
-
-  liquidityVault: PublicKey;
-  liquidityVaultBump: number;
-  liquidityVaultAuthorityBump: number;
-
-  insuranceVault: PublicKey;
-  insuranceVaultBump: number;
-  insuranceVaultAuthorityBump: number;
-
-  feeVault: PublicKey;
-  feeVaultBump: number;
-  feeVaultAuthorityBump: number;
-
-  config: BankConfigData;
-
-  totalLiabilityShares: WrappedI8048F;
-  totalDepositShares: WrappedI8048F;
-
-  lastUpdate: BN;
-}
-
-export interface BankConfigData {
-  depositWeightInit: WrappedI8048F;
-  depositWeightMaint: WrappedI8048F;
-
-  liabilityWeightInit: WrappedI8048F;
-  liabilityWeightMaint: WrappedI8048F;
-
-  maxCapacity: BN;
-
-  pythOracle: PublicKey;
-  interestRateConfig: InterestRateConfigData;
-}
-
-export interface InterestRateConfigData {
-  // Curve Params
-  optimalUtilizationRate: WrappedI8048F;
-  plateauInterestRate: WrappedI8048F;
-  maxInterestRate: WrappedI8048F;
-
-  // Fees
-  insuranceFeeFixedApr: WrappedI8048F;
-  insuranceIrFee: WrappedI8048F;
-  protocolFixedFeeApr: WrappedI8048F;
-  protocolIrFee: WrappedI8048F;
 }

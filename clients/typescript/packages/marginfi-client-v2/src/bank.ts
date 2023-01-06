@@ -1,6 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
-import { BankConfig, BankData } from "./types";
+import BN from "bn.js";
+import { WrappedI8048F } from "./types";
 import { nativeToUi, wrappedI80F48toBigNumber } from "./utils";
 
 /**
@@ -113,3 +114,88 @@ class Bank {
 }
 
 export default Bank;
+
+// Client types
+
+export interface BankConfig {
+  depositWeightInit: BigNumber;
+  depositWeightMaint: BigNumber;
+
+  liabilityWeightInit: BigNumber;
+  liabilityWeightMaint: BigNumber;
+
+  maxCapacity: number;
+
+  pythOracle: PublicKey;
+  interestRateConfig: InterestRateConfig;
+}
+
+export interface InterestRateConfig {
+  // Curve Params
+  optimalUtilizationRate: BigNumber;
+  plateauInterestRate: BigNumber;
+  maxInterestRate: BigNumber;
+
+  // Fees
+  insuranceFeeFixedApr: BigNumber;
+  insuranceIrFee: BigNumber;
+  protocolFixedFeeApr: BigNumber;
+  protocolIrFee: BigNumber;
+}
+
+// On-chain types
+
+export interface BankData {
+  mint: PublicKey;
+  mintDecimals: number;
+
+  group: PublicKey;
+
+  depositShareValue: WrappedI8048F;
+  liabilityShareValue: WrappedI8048F;
+
+  liquidityVault: PublicKey;
+  liquidityVaultBump: number;
+  liquidityVaultAuthorityBump: number;
+
+  insuranceVault: PublicKey;
+  insuranceVaultBump: number;
+  insuranceVaultAuthorityBump: number;
+
+  feeVault: PublicKey;
+  feeVaultBump: number;
+  feeVaultAuthorityBump: number;
+
+  config: BankConfigData;
+
+  totalLiabilityShares: WrappedI8048F;
+  totalDepositShares: WrappedI8048F;
+
+  lastUpdate: BN;
+}
+
+export interface BankConfigData {
+  depositWeightInit: WrappedI8048F;
+  depositWeightMaint: WrappedI8048F;
+
+  liabilityWeightInit: WrappedI8048F;
+  liabilityWeightMaint: WrappedI8048F;
+
+  maxCapacity: BN;
+
+  pythOracle: PublicKey;
+  interestRateConfig: InterestRateConfigData;
+}
+
+export interface InterestRateConfigData {
+  // Curve Params
+  optimalUtilizationRate: WrappedI8048F;
+  plateauInterestRate: WrappedI8048F;
+  maxInterestRate: WrappedI8048F;
+
+  // Fees
+  insuranceFeeFixedApr: WrappedI8048F;
+  insuranceIrFee: WrappedI8048F;
+  protocolFixedFeeApr: WrappedI8048F;
+  protocolIrFee: WrappedI8048F;
+}
