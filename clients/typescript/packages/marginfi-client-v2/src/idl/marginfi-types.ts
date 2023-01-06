@@ -1,43 +1,6 @@
 export type Marginfi = {
   version: "0.1.0";
   name: "marginfi";
-  constants: [
-    {
-      name: "LIQUIDITY_VAULT_AUTHORITY_SEED";
-      type: "bytes";
-      value: "[108, 105, 113, 117, 105, 100, 105, 116, 121, 95, 118, 97, 117, 108, 116, 95, 97, 117, 116, 104]";
-    },
-    {
-      name: "INSURANCE_VAULT_AUTHORITY_SEED";
-      type: "bytes";
-      value: "[105, 110, 115, 117, 114, 97, 110, 99, 101, 95, 118, 97, 117, 108, 116, 95, 97, 117, 116, 104]";
-    },
-    {
-      name: "FEE_VAULT_AUTHORITY_SEED";
-      type: "bytes";
-      value: "[102, 101, 101, 95, 118, 97, 117, 108, 116, 95, 97, 117, 116, 104]";
-    },
-    {
-      name: "LIQUIDITY_VAULT_SEED";
-      type: "bytes";
-      value: "[108, 105, 113, 117, 105, 100, 105, 116, 121, 95, 118, 97, 117, 108, 116]";
-    },
-    {
-      name: "INSURANCE_VAULT_SEED";
-      type: "bytes";
-      value: "[105, 110, 115, 117, 114, 97, 110, 99, 101, 95, 118, 97, 117, 108, 116]";
-    },
-    {
-      name: "FEE_VAULT_SEED";
-      type: "bytes";
-      value: "[102, 101, 101, 95, 118, 97, 117, 108, 116]";
-    },
-    {
-      name: "LENDING_POOL_BANK_SEED";
-      type: "bytes";
-      value: "[108, 101, 110, 100, 105, 110, 103, 95, 112, 111, 111, 108, 95, 98, 97, 110, 107]";
-    }
-  ];
   instructions: [
     {
       name: "initializeMarginfiGroup";
@@ -46,11 +9,11 @@ export type Marginfi = {
         {
           name: "marginfiGroup";
           isMut: true;
-          isSigner: false;
+          isSigner: true;
         },
         {
           name: "admin";
-          isMut: false;
+          isMut: true;
           isSigner: true;
         },
         {
@@ -207,7 +170,57 @@ export type Marginfi = {
       ];
     },
     {
+      name: "lendingPoolHandleBankruptcy";
+      docs: [
+        "Handle bad debt of a bankrupt marginfi account for a given bank."
+      ];
+      accounts: [
+        {
+          name: "marginfiGroup";
+          isMut: false;
+          isSigner: false;
+        },
+        {
+          name: "admin";
+          isMut: false;
+          isSigner: true;
+        },
+        {
+          name: "bank";
+          isMut: true;
+          isSigner: false;
+        },
+        {
+          name: "marginfiAccount";
+          isMut: true;
+          isSigner: false;
+        },
+        {
+          name: "liquidityVault";
+          isMut: true;
+          isSigner: false;
+        },
+        {
+          name: "insuranceVault";
+          isMut: true;
+          isSigner: false;
+        },
+        {
+          name: "insuranceVaultAuthority";
+          isMut: false;
+          isSigner: false;
+        },
+        {
+          name: "tokenProgram";
+          isMut: false;
+          isSigner: false;
+        }
+      ];
+      args: [];
+    },
+    {
       name: "initializeMarginfiAccount";
+      docs: ["Initialize a marginfi account for a given group"];
       accounts: [
         {
           name: "marginfiGroup";
@@ -217,7 +230,7 @@ export type Marginfi = {
         {
           name: "marginfiAccount";
           isMut: true;
-          isSigner: false;
+          isSigner: true;
         },
         {
           name: "signer";
@@ -234,10 +247,14 @@ export type Marginfi = {
     },
     {
       name: "bankDeposit";
+      docs: [
+        "Deposit assets into a lending account",
+        "Repay borrowed assets, if any exist."
+      ];
       accounts: [
         {
           name: "marginfiGroup";
-          isMut: true;
+          isMut: false;
           isSigner: false;
         },
         {
@@ -247,7 +264,7 @@ export type Marginfi = {
         },
         {
           name: "signer";
-          isMut: true;
+          isMut: false;
           isSigner: true;
         },
         {
@@ -259,13 +276,12 @@ export type Marginfi = {
           name: "signerTokenAccount";
           isMut: true;
           isSigner: false;
-          docs: ["Token mint is checked at transfer"];
+          docs: ["Token mint/authority are checked at transfer"];
         },
         {
           name: "bankLiquidityVault";
           isMut: true;
           isSigner: false;
-          docs: ["TODO: Store bump on-chain"];
         },
         {
           name: "tokenProgram";
@@ -282,10 +298,15 @@ export type Marginfi = {
     },
     {
       name: "bankWithdraw";
+      docs: [
+        "Withdraw assets from a lending account",
+        "Withdraw deposited assets, if any exist, otherwise borrow assets.",
+        "Account health checked."
+      ];
       accounts: [
         {
           name: "marginfiGroup";
-          isMut: true;
+          isMut: false;
           isSigner: false;
         },
         {
@@ -295,7 +316,7 @@ export type Marginfi = {
         },
         {
           name: "signer";
-          isMut: true;
+          isMut: false;
           isSigner: true;
         },
         {
@@ -333,10 +354,13 @@ export type Marginfi = {
     },
     {
       name: "lendingAccountLiquidate";
+      docs: [
+        "Liquidate a lending account balance of an unhealthy marginfi account"
+      ];
       accounts: [
         {
           name: "marginfiGroup";
-          isMut: true;
+          isMut: false;
           isSigner: false;
         },
         {
@@ -346,7 +370,7 @@ export type Marginfi = {
         },
         {
           name: "assetPriceFeed";
-          isMut: true;
+          isMut: false;
           isSigner: false;
         },
         {
@@ -356,7 +380,7 @@ export type Marginfi = {
         },
         {
           name: "liabPriceFeed";
-          isMut: true;
+          isMut: false;
           isSigner: false;
         },
         {
@@ -366,7 +390,7 @@ export type Marginfi = {
         },
         {
           name: "signer";
-          isMut: true;
+          isMut: false;
           isSigner: true;
         },
         {
@@ -407,21 +431,17 @@ export type Marginfi = {
       accounts: [
         {
           name: "marginfiGroup";
-          isMut: true;
+          isMut: false;
           isSigner: false;
         },
         {
           name: "bank";
           isMut: true;
           isSigner: false;
-          docs: [
-            "PDA / seeds check ensures that provided account is legit, and use of the",
-            "marginfi group + underlying mint guarantees unicity of bank per mint within a group"
-          ];
         },
         {
           name: "liquidityVaultAuthority";
-          isMut: true;
+          isMut: false;
           isSigner: false;
         },
         {
@@ -459,7 +479,7 @@ export type Marginfi = {
             type: "publicKey";
           },
           {
-            name: "owner";
+            name: "authority";
             type: "publicKey";
           },
           {
@@ -489,8 +509,12 @@ export type Marginfi = {
         kind: "struct";
         fields: [
           {
-            name: "mintPk";
+            name: "mint";
             type: "publicKey";
+          },
+          {
+            name: "mintDecimals";
+            type: "u8";
           },
           {
             name: "group";
@@ -551,7 +575,7 @@ export type Marginfi = {
             };
           },
           {
-            name: "totalBorrowShares";
+            name: "totalLiabilityShares";
             type: {
               defined: "WrappedI80F48";
             };
@@ -919,6 +943,21 @@ export type Marginfi = {
       code: 6015;
       name: "AccountNotBankrupt";
       msg: "Account is not bankrupt";
+    },
+    {
+      code: 6016;
+      name: "BalanceNotBadDebt";
+      msg: "Account balance is not bad debt";
+    },
+    {
+      code: 6017;
+      name: "InvalidConfig";
+      msg: "Invalid group config";
+    },
+    {
+      code: 6018;
+      name: "StaleOracle";
+      msg: "Stale oracle data";
     }
   ];
 };
@@ -926,49 +965,6 @@ export type Marginfi = {
 export const IDL: Marginfi = {
   version: "0.1.0",
   name: "marginfi",
-  constants: [
-    {
-      name: "LIQUIDITY_VAULT_AUTHORITY_SEED",
-      type: "bytes",
-      value:
-        "[108, 105, 113, 117, 105, 100, 105, 116, 121, 95, 118, 97, 117, 108, 116, 95, 97, 117, 116, 104]",
-    },
-    {
-      name: "INSURANCE_VAULT_AUTHORITY_SEED",
-      type: "bytes",
-      value:
-        "[105, 110, 115, 117, 114, 97, 110, 99, 101, 95, 118, 97, 117, 108, 116, 95, 97, 117, 116, 104]",
-    },
-    {
-      name: "FEE_VAULT_AUTHORITY_SEED",
-      type: "bytes",
-      value:
-        "[102, 101, 101, 95, 118, 97, 117, 108, 116, 95, 97, 117, 116, 104]",
-    },
-    {
-      name: "LIQUIDITY_VAULT_SEED",
-      type: "bytes",
-      value:
-        "[108, 105, 113, 117, 105, 100, 105, 116, 121, 95, 118, 97, 117, 108, 116]",
-    },
-    {
-      name: "INSURANCE_VAULT_SEED",
-      type: "bytes",
-      value:
-        "[105, 110, 115, 117, 114, 97, 110, 99, 101, 95, 118, 97, 117, 108, 116]",
-    },
-    {
-      name: "FEE_VAULT_SEED",
-      type: "bytes",
-      value: "[102, 101, 101, 95, 118, 97, 117, 108, 116]",
-    },
-    {
-      name: "LENDING_POOL_BANK_SEED",
-      type: "bytes",
-      value:
-        "[108, 101, 110, 100, 105, 110, 103, 95, 112, 111, 111, 108, 95, 98, 97, 110, 107]",
-    },
-  ],
   instructions: [
     {
       name: "initializeMarginfiGroup",
@@ -977,11 +973,11 @@ export const IDL: Marginfi = {
         {
           name: "marginfiGroup",
           isMut: true,
-          isSigner: false,
+          isSigner: true,
         },
         {
           name: "admin",
-          isMut: false,
+          isMut: true,
           isSigner: true,
         },
         {
@@ -1138,7 +1134,57 @@ export const IDL: Marginfi = {
       ],
     },
     {
+      name: "lendingPoolHandleBankruptcy",
+      docs: [
+        "Handle bad debt of a bankrupt marginfi account for a given bank.",
+      ],
+      accounts: [
+        {
+          name: "marginfiGroup",
+          isMut: false,
+          isSigner: false,
+        },
+        {
+          name: "admin",
+          isMut: false,
+          isSigner: true,
+        },
+        {
+          name: "bank",
+          isMut: true,
+          isSigner: false,
+        },
+        {
+          name: "marginfiAccount",
+          isMut: true,
+          isSigner: false,
+        },
+        {
+          name: "liquidityVault",
+          isMut: true,
+          isSigner: false,
+        },
+        {
+          name: "insuranceVault",
+          isMut: true,
+          isSigner: false,
+        },
+        {
+          name: "insuranceVaultAuthority",
+          isMut: false,
+          isSigner: false,
+        },
+        {
+          name: "tokenProgram",
+          isMut: false,
+          isSigner: false,
+        },
+      ],
+      args: [],
+    },
+    {
       name: "initializeMarginfiAccount",
+      docs: ["Initialize a marginfi account for a given group"],
       accounts: [
         {
           name: "marginfiGroup",
@@ -1148,7 +1194,7 @@ export const IDL: Marginfi = {
         {
           name: "marginfiAccount",
           isMut: true,
-          isSigner: false,
+          isSigner: true,
         },
         {
           name: "signer",
@@ -1165,10 +1211,14 @@ export const IDL: Marginfi = {
     },
     {
       name: "bankDeposit",
+      docs: [
+        "Deposit assets into a lending account",
+        "Repay borrowed assets, if any exist.",
+      ],
       accounts: [
         {
           name: "marginfiGroup",
-          isMut: true,
+          isMut: false,
           isSigner: false,
         },
         {
@@ -1178,7 +1228,7 @@ export const IDL: Marginfi = {
         },
         {
           name: "signer",
-          isMut: true,
+          isMut: false,
           isSigner: true,
         },
         {
@@ -1190,13 +1240,12 @@ export const IDL: Marginfi = {
           name: "signerTokenAccount",
           isMut: true,
           isSigner: false,
-          docs: ["Token mint is checked at transfer"],
+          docs: ["Token mint/authority are checked at transfer"],
         },
         {
           name: "bankLiquidityVault",
           isMut: true,
           isSigner: false,
-          docs: ["TODO: Store bump on-chain"],
         },
         {
           name: "tokenProgram",
@@ -1213,10 +1262,15 @@ export const IDL: Marginfi = {
     },
     {
       name: "bankWithdraw",
+      docs: [
+        "Withdraw assets from a lending account",
+        "Withdraw deposited assets, if any exist, otherwise borrow assets.",
+        "Account health checked.",
+      ],
       accounts: [
         {
           name: "marginfiGroup",
-          isMut: true,
+          isMut: false,
           isSigner: false,
         },
         {
@@ -1226,7 +1280,7 @@ export const IDL: Marginfi = {
         },
         {
           name: "signer",
-          isMut: true,
+          isMut: false,
           isSigner: true,
         },
         {
@@ -1264,10 +1318,13 @@ export const IDL: Marginfi = {
     },
     {
       name: "lendingAccountLiquidate",
+      docs: [
+        "Liquidate a lending account balance of an unhealthy marginfi account",
+      ],
       accounts: [
         {
           name: "marginfiGroup",
-          isMut: true,
+          isMut: false,
           isSigner: false,
         },
         {
@@ -1277,7 +1334,7 @@ export const IDL: Marginfi = {
         },
         {
           name: "assetPriceFeed",
-          isMut: true,
+          isMut: false,
           isSigner: false,
         },
         {
@@ -1287,7 +1344,7 @@ export const IDL: Marginfi = {
         },
         {
           name: "liabPriceFeed",
-          isMut: true,
+          isMut: false,
           isSigner: false,
         },
         {
@@ -1297,7 +1354,7 @@ export const IDL: Marginfi = {
         },
         {
           name: "signer",
-          isMut: true,
+          isMut: false,
           isSigner: true,
         },
         {
@@ -1338,21 +1395,17 @@ export const IDL: Marginfi = {
       accounts: [
         {
           name: "marginfiGroup",
-          isMut: true,
+          isMut: false,
           isSigner: false,
         },
         {
           name: "bank",
           isMut: true,
           isSigner: false,
-          docs: [
-            "PDA / seeds check ensures that provided account is legit, and use of the",
-            "marginfi group + underlying mint guarantees unicity of bank per mint within a group",
-          ],
         },
         {
           name: "liquidityVaultAuthority",
-          isMut: true,
+          isMut: false,
           isSigner: false,
         },
         {
@@ -1390,7 +1443,7 @@ export const IDL: Marginfi = {
             type: "publicKey",
           },
           {
-            name: "owner",
+            name: "authority",
             type: "publicKey",
           },
           {
@@ -1420,8 +1473,12 @@ export const IDL: Marginfi = {
         kind: "struct",
         fields: [
           {
-            name: "mintPk",
+            name: "mint",
             type: "publicKey",
+          },
+          {
+            name: "mintDecimals",
+            type: "u8",
           },
           {
             name: "group",
@@ -1482,7 +1539,7 @@ export const IDL: Marginfi = {
             },
           },
           {
-            name: "totalBorrowShares",
+            name: "totalLiabilityShares",
             type: {
               defined: "WrappedI80F48",
             },
@@ -1850,6 +1907,21 @@ export const IDL: Marginfi = {
       code: 6015,
       name: "AccountNotBankrupt",
       msg: "Account is not bankrupt",
+    },
+    {
+      code: 6016,
+      name: "BalanceNotBadDebt",
+      msg: "Account balance is not bad debt",
+    },
+    {
+      code: 6017,
+      name: "InvalidConfig",
+      msg: "Invalid group config",
+    },
+    {
+      code: 6018,
+      name: "StaleOracle",
+      msg: "Stale oracle data",
     },
   ],
 };

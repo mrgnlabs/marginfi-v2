@@ -1,6 +1,7 @@
 import { AnchorProvider, BN, Program } from "@project-serum/anchor";
 import { SignerWalletAdapter } from "@solana/wallet-adapter-base";
 import {
+  ConfirmOptions,
   Keypair,
   PublicKey,
   SendOptions,
@@ -23,7 +24,7 @@ export type Wallet = Pick<
   publicKey: PublicKey;
 };
 
-export interface TransactionOptions extends SendOptions {
+export interface TransactionOptions extends ConfirmOptions {
   dryRun?: boolean;
 }
 
@@ -31,6 +32,11 @@ export interface TransactionOptions extends SendOptions {
  * Supported config environments.
  */
 export type Environment = "devnet1";
+
+export interface InstructionsWrapper {
+  instructions: TransactionInstruction[];
+  keys: Keypair[];
+}
 
 /**
  * Marginfi bank vault type
@@ -41,11 +47,16 @@ export enum BankVaultType {
   FeeVault,
 }
 
+export interface MarginfiAccountData {
+  group: PublicKey;
+  authority: PublicKey;
+}
+
 export interface MarginfiConfig {
   environment: Environment;
   cluster: string;
-  program: PublicKey;
-  group: PublicKey;
+  programId: PublicKey;
+  groupPk: PublicKey;
   banks: BankConfig[];
 }
 

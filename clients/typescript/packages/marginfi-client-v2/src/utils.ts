@@ -13,7 +13,7 @@ import {
   PDA_BANK_INSURANCE_VAULT_AUTH_SEED,
   PDA_BANK_FEE_VAULT_AUTH_SEED,
 } from "./constants";
-import { BankVaultType, Environment } from "./types";
+import { BankVaultType } from "./types";
 
 /**
  * Load Keypair from the provided file.
@@ -125,4 +125,11 @@ function getVaultAuthoritySeed(type: BankVaultType): Buffer {
     default:
       throw Error("Unkown bank vault type requested");
   }
+}
+
+/**
+ * @internal
+ */
+export function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

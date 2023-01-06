@@ -35,8 +35,8 @@ function parseConfig(configRaw: MarginfiConfigRaw): MarginfiConfig {
   return {
     environment: configRaw.label,
     cluster: configRaw.cluster,
-    program: new PublicKey(configRaw.program),
-    group: new PublicKey(configRaw.group),
+    programId: new PublicKey(configRaw.program),
+    groupPk: new PublicKey(configRaw.group),
     banks: configRaw.banks.map((raw) => parseBankConfig(raw)),
   };
 }
@@ -78,8 +78,8 @@ function getMarginfiConfig(
       const defaultConfig = defaultConfigs[environment];
       return {
         environment,
-        program: overrides?.program || defaultConfig.program,
-        group: overrides?.group || defaultConfig.group,
+        programId: overrides?.programId || defaultConfig.programId,
+        groupPk: overrides?.groupPk || defaultConfig.groupPk,
         cluster: overrides?.cluster || defaultConfig.cluster,
         banks: overrides?.banks || defaultConfig.banks,
       };

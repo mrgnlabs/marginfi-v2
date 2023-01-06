@@ -1,5 +1,6 @@
 import { BorshCoder } from "@project-serum/anchor";
-import { PublicKey } from "@solana/web3.js";
+import { Commitment, PublicKey } from "@solana/web3.js";
+import { DEFAULT_COMMITMENT, DEFAULT_CONFIRM_OPTS } from "./constants";
 import { MARGINFI_IDL } from "./idl";
 // import instructions from "./instructions";
 import {
@@ -27,7 +28,7 @@ class MarginfiGroup {
     program: MarginfiProgram,
     rawData: MarginfiGroupData
   ) {
-    this.publicKey = config.group;
+    this.publicKey = config.groupPk;
     this._config = config;
     this._program = program;
 
@@ -45,10 +46,18 @@ class MarginfiGroup {
    * @param program marginfi Anchor program
    * @return MarginfiGroup instance
    */
-  static async fetch(config: MarginfiConfig, program: MarginfiProgram) {
+  static async fetch(
+    config: MarginfiConfig,
+    program: MarginfiProgram,
+    commitment?: Commitment
+  ) {
     const debug = require("debug")(`mfi:margin-group`);
-    debug("Loading Marginfi Group %s", config.group);
-    const accountData = await MarginfiGroup._fetchAccountData(config, program);
+    debug("Loading Marginfi Group %s", config.groupPk);
+    const accountData = await MarginfiGroup._fetchAccountData(
+      config,
+      program,
+      commitment
+    );
     return new MarginfiGroup(config, program, accountData);
   }
 
@@ -103,10 +112,17 @@ class MarginfiGroup {
    */
   private static async _fetchAccountData(
     config: MarginfiConfig,
-    program: MarginfiProgram
+    program: MarginfiProgram,
+    commitment?: Commitment
   ): Promise<MarginfiGroupData> {
+    const mergedCommitment =
+      commitment ??
+      program.provider.connection.commitment ??
+      DEFAULT_COMMITMENT;
+
     const data: MarginfiGroupData = (await program.account.marginfiGroup.fetch(
-      config.group
+      config.groupPk,
+      mergedCommitment
     )) as any;
 
     return data;
@@ -137,12 +153,12 @@ class MarginfiGroup {
   /**
    * Update instance data by fetching and storing the latest on-chain state.
    */
-  async fetch() {
+  async fetch(commitment?: Commitment) {
     const data = await MarginfiGroup._fetchAccountData(
       this._config,
-      this._program
+      this._program,
+      commitment
     );
-    // this.bank = new Bank(data.bank);
   }
 }
 
