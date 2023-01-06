@@ -1,7 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
-import { WrappedI8048F } from "./types";
+import { WrappedI80F48 } from "./types";
 import { nativeToUi, wrappedI80F48toBigNumber } from "./utils";
 
 /**
@@ -9,6 +9,8 @@ import { nativeToUi, wrappedI80F48toBigNumber } from "./utils";
  */
 class Bank {
   public readonly publicKey: PublicKey;
+
+  public readonly label: string;
 
   public group: PublicKey;
   public mint: PublicKey;
@@ -31,13 +33,13 @@ class Bank {
 
   public config: BankConfig;
 
-  constructor(address: PublicKey, rawData: BankData) {
+  constructor(label: string, address: PublicKey, rawData: BankData) {
+    this.label = label;
     this.publicKey = address;
 
     this.mint = rawData.mint;
     this.mintDecimals = rawData.mintDecimals;
     this.group = rawData.group;
-    console.log(rawData.depositShareValue);
 
     this.depositShareValue = wrappedI80F48toBigNumber(
       rawData.depositShareValue,
@@ -151,8 +153,8 @@ export interface BankData {
 
   group: PublicKey;
 
-  depositShareValue: WrappedI8048F;
-  liabilityShareValue: WrappedI8048F;
+  depositShareValue: WrappedI80F48;
+  liabilityShareValue: WrappedI80F48;
 
   liquidityVault: PublicKey;
   liquidityVaultBump: number;
@@ -168,18 +170,18 @@ export interface BankData {
 
   config: BankConfigData;
 
-  totalLiabilityShares: WrappedI8048F;
-  totalDepositShares: WrappedI8048F;
+  totalLiabilityShares: WrappedI80F48;
+  totalDepositShares: WrappedI80F48;
 
   lastUpdate: BN;
 }
 
 export interface BankConfigData {
-  depositWeightInit: WrappedI8048F;
-  depositWeightMaint: WrappedI8048F;
+  depositWeightInit: WrappedI80F48;
+  depositWeightMaint: WrappedI80F48;
 
-  liabilityWeightInit: WrappedI8048F;
-  liabilityWeightMaint: WrappedI8048F;
+  liabilityWeightInit: WrappedI80F48;
+  liabilityWeightMaint: WrappedI80F48;
 
   maxCapacity: BN;
 
@@ -189,13 +191,13 @@ export interface BankConfigData {
 
 export interface InterestRateConfigData {
   // Curve Params
-  optimalUtilizationRate: WrappedI8048F;
-  plateauInterestRate: WrappedI8048F;
-  maxInterestRate: WrappedI8048F;
+  optimalUtilizationRate: WrappedI80F48;
+  plateauInterestRate: WrappedI80F48;
+  maxInterestRate: WrappedI80F48;
 
   // Fees
-  insuranceFeeFixedApr: WrappedI8048F;
-  insuranceIrFee: WrappedI8048F;
-  protocolFixedFeeApr: WrappedI8048F;
-  protocolIrFee: WrappedI8048F;
+  insuranceFeeFixedApr: WrappedI80F48;
+  insuranceIrFee: WrappedI80F48;
+  protocolFixedFeeApr: WrappedI80F48;
+  protocolIrFee: WrappedI80F48;
 }

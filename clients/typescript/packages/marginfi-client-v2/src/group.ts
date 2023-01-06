@@ -10,11 +10,11 @@ import { AccountType, MarginfiConfig, MarginfiProgram } from "./types";
  */
 class MarginfiGroup {
   public readonly publicKey: PublicKey;
-  public readonly admin: PublicKey;
 
   private _program: MarginfiProgram;
   private _config: MarginfiConfig;
 
+  private _admin: PublicKey;
   private _banks: Map<string, Bank>;
 
   /**
@@ -29,12 +29,21 @@ class MarginfiGroup {
     this.publicKey = config.groupPk;
     this._config = config;
     this._program = program;
-    this.admin = rawData.admin;
 
+    this._admin = rawData.admin;
     this._banks = banks.reduce((acc, current) => {
       acc.set(current.publicKey.toBase58(), current);
       return acc;
     }, new Map<string, Bank>());
+  }
+
+  // --- Getters / Setters
+
+  /**
+   * Marginfi account authority address
+   */
+  get admin(): PublicKey {
+    return this._admin;
   }
 
   // --- Factories
@@ -77,7 +86,12 @@ class MarginfiGroup {
     }
 
     const banks = bankAccountsData.map(
-      (bd, index) => new Bank(bankAddresses[index], bd as BankData)
+      (bd, index) =>
+        new Bank(
+          config.banks[index].label,
+          bankAddresses[index],
+          bd as BankData
+        )
     );
 
     return new MarginfiGroup(config, program, accountData, banks);
@@ -177,11 +191,19 @@ class MarginfiGroup {
   /**
    * Update instance data by fetching and storing the latest on-chain state.
    */
-  async fetch(commitment?: Commitment) {
+  async reload(commitment?: Commitment) {
     const data = await MarginfiGroup._fetchAccountData(
       this._config,
       this._program,
       commitment
+    );
+  }
+  /**
+   * Update instance data by fetching and storing the latest on-chain state.
+   */
+  getBank(label: string): Bank | null {
+    return (
+      [...this._banks.values()].find((bank) => bank.label === label) ?? null
     );
   }
 }

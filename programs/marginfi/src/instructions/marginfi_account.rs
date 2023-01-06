@@ -99,7 +99,7 @@ pub struct BankDeposit<'info> {
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
-        address = marginfi_account.load()?.owner,
+        address = marginfi_account.load()?.authority,
     )]
     pub signer: Signer<'info>,
 
@@ -192,7 +192,7 @@ pub struct BankWithdraw<'info> {
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
-        address = marginfi_account.load()?.owner,
+        address = marginfi_account.load()?.authority,
     )]
     pub signer: Signer<'info>,
 
@@ -458,7 +458,7 @@ pub struct LendingAccountLiquidate<'info> {
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
-        address = liquidator_marginfi_account.load()?.owner
+        address = liquidator_marginfi_account.load()?.authority
     )]
     pub signer: Signer<'info>,
 

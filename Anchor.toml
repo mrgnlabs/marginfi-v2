@@ -3,7 +3,7 @@ seeds = true
 skip-lint = false
 
 [programs.devnet]
-marginfi = "H7UazmGqtrVS8HH1TSouQdCr2o4aSgNQt6n2hJUdicz3"
+marginfi = "EPsDwX4sRNRkiykuqeyExF5LsHV9XBPMZM6gHj7QQbkY"
 
 [programs.localnet]
 marginfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"

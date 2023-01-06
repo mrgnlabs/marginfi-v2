@@ -60,7 +60,7 @@ async fn success_create_marginfi_account() -> anyhow::Result<()> {
 
     // Check basic properties
     assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
-    assert_eq!(marginfi_account.owner, test_f.payer());
+    assert_eq!(marginfi_account.authority, test_f.payer());
     assert!(marginfi_account
         .lending_account
         .balances

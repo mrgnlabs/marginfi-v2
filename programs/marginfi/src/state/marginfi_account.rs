@@ -15,14 +15,14 @@ use std::cmp::{max, min};
 #[account(zero_copy)]
 pub struct MarginfiAccount {
     pub group: Pubkey,
-    pub owner: Pubkey,
+    pub authority: Pubkey,
     pub lending_account: LendingAccount,
 }
 
 impl MarginfiAccount {
     /// Set the initial data for the marginfi account.
-    pub fn initialize(&mut self, group: Pubkey, owner: Pubkey) {
-        self.owner = owner;
+    pub fn initialize(&mut self, group: Pubkey, authority: Pubkey) {
+        self.authority = authority;
         self.group = group;
     }
 

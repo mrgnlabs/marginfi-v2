@@ -27,9 +27,23 @@ async function main() {
     client
   );
 
-  console.log(marginfiAccount.group);
+  const bankLabel = "SOL";
 
-  // marginfiAccount.
+  const group = marginfiAccount.group;
+  console.log(marginfiAccount.lendingAccount);
+
+  const bank = group.getBank(bankLabel);
+  if (!bank) throw Error(`${bankLabel} bank not found`);
+
+  console.log(bank.mint);
+  console.log(bank.mintDecimals);
+  console.log(bank.group);
+  console.log(bank.depositShareValue);
+  console.log(bank.liabilityShareValue);
+  console.log(bank.liquidityVault);
+
+  const sig = await marginfiAccount.deposit(1, bank);
+  console.log(sig);
 }
 
 main();

@@ -13,6 +13,9 @@ import {
   PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED,
   PDA_BANK_INSURANCE_VAULT_AUTH_SEED,
   PDA_BANK_FEE_VAULT_AUTH_SEED,
+  PDA_BANK_LIQUIDITY_VAULT_SEED,
+  PDA_BANK_INSURANCE_VAULT_SEED,
+  PDA_BANK_FEE_VAULT_SEED,
 } from "./constants";
 import { BankVaultType, UiAmount } from "./types";
 import { Decimal } from "decimal.js";
@@ -103,33 +106,6 @@ export async function processTransaction(
 }
 
 /**
- * Compute bank authority PDA for a specific marginfi group
- */
-export async function getBankVaultAuthority(
-  marginfiGroupPk: PublicKey,
-  programId: PublicKey,
-  bankVaultType: BankVaultType = BankVaultType.LiquidityVault
-): Promise<[PublicKey, number]> {
-  return PublicKey.findProgramAddressSync(
-    [getVaultAuthoritySeed(bankVaultType), marginfiGroupPk.toBuffer()],
-    programId
-  );
-}
-
-function getVaultAuthoritySeed(type: BankVaultType): Buffer {
-  switch (type) {
-    case BankVaultType.LiquidityVault:
-      return PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED;
-    case BankVaultType.InsuranceVault:
-      return PDA_BANK_INSURANCE_VAULT_AUTH_SEED;
-    case BankVaultType.FeeVault:
-      return PDA_BANK_FEE_VAULT_AUTH_SEED;
-    default:
-      throw Error("Unkown bank vault type requested");
-  }
-}
-
-/**
  * @internal
  */
 export function sleep(ms: number) {
@@ -188,4 +164,44 @@ export function uiToNative(amount: UiAmount, decimals: number): BN {
 export function nativeToUi(amount: UiAmount | BN, decimals: number): number {
   let amt = toBigNumber(amount);
   return amt.div(10 ** decimals).toNumber();
+}
+
+function getBankVaultSeeds(type: BankVaultType): Buffer {
+  switch (type) {
+    case BankVaultType.LiquidityVault:
+      return PDA_BANK_LIQUIDITY_VAULT_SEED;
+    case BankVaultType.InsuranceVault:
+      return PDA_BANK_INSURANCE_VAULT_SEED;
+    case BankVaultType.FeeVault:
+      return PDA_BANK_FEE_VAULT_SEED;
+    default:
+      throw Error(`Unknown vault type ${type}`);
+  }
+}
+
+function getBankVaultAuthoritySeeds(type: BankVaultType): Buffer {
+  switch (type) {
+    case BankVaultType.LiquidityVault:
+      return PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED;
+    case BankVaultType.InsuranceVault:
+      return PDA_BANK_INSURANCE_VAULT_AUTH_SEED;
+    case BankVaultType.FeeVault:
+      return PDA_BANK_FEE_VAULT_AUTH_SEED;
+    default:
+      throw Error(`Unknown vault type ${type}`);
+  }
+}
+
+/**
+ * Compute authority PDA for a specific marginfi group bank vault
+ */
+export function getBankVaultAuthority(
+  bankVaultType: BankVaultType,
+  bankPk: PublicKey,
+  programId: PublicKey
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [getBankVaultAuthoritySeeds(bankVaultType), bankPk.toBuffer()],
+    programId
+  );
 }

@@ -1,36 +1,66 @@
 import { Address, BorshCoder, translateAddress } from "@project-serum/anchor";
-import { AccountInfo, Commitment, PublicKey } from "@solana/web3.js";
-import { DEFAULT_COMMITMENT, MarginfiClient } from ".";
+import { associatedAddress } from "@project-serum/anchor/dist/cjs/utils/token";
+import {
+  AccountInfo,
+  Commitment,
+  PublicKey,
+  Transaction,
+} from "@solana/web3.js";
+import BigNumber from "bignumber.js";
+import {
+  DEFAULT_COMMITMENT,
+  getBankVaultAuthority,
+  MarginfiClient,
+  processTransaction,
+  uiToNative,
+  wrappedI80F48toBigNumber,
+} from ".";
 import Bank, { BankData } from "./bank";
 import MarginfiGroup from "./group";
 import { MARGINFI_IDL } from "./idl";
-import { AccountType, MarginfiConfig, MarginfiProgram } from "./types";
+import instructions from "./instructions";
+import {
+  AccountType,
+  BankVaultType,
+  InstructionsWrapper,
+  MarginfiConfig,
+  MarginfiProgram,
+  UiAmount,
+  WrappedI80F48,
+} from "./types";
 
 /**
  * Wrapper class around a specific marginfi marginfi account.
  */
 class MarginfiAccount {
   public readonly publicKey: PublicKey;
-  public group: MarginfiGroup;
 
+  private _group: MarginfiGroup;
   private _authority: PublicKey;
+  private _lendingAccount: Balance[];
 
   /**
    * @internal
    */
   private constructor(
-    marginfiAccountPk: Address,
+    marginfiAccountPk: PublicKey,
     readonly client: MarginfiClient,
     group: MarginfiGroup,
-    authority: PublicKey
+    rawData: MarginfiAccountData
   ) {
-    const publicKey = translateAddress(marginfiAccountPk);
-    this.publicKey = publicKey;
+    this.publicKey = marginfiAccountPk;
 
-    this.group = group;
-    this._authority = authority;
-
-    this;
+    this._group = group;
+    this._authority = rawData.authority;
+    this._lendingAccount = (
+      rawData.lendingAccount.balances.filter(
+        (la) => la !== null
+      ) as BalanceData[]
+    ).map((la) => ({
+      bankPk: la.bankPk,
+      depositShares: wrappedI80F48toBigNumber(la.depositShares),
+      liabilityShares: wrappedI80F48toBigNumber(la.liabilityShares),
+    }));
   }
 
   // --- Getters / Setters
@@ -40,6 +70,20 @@ class MarginfiAccount {
    */
   get authority(): PublicKey {
     return this._authority;
+  }
+
+  /**
+   * Marginfi group address
+   */
+  get group(): MarginfiGroup {
+    return this._group;
+  }
+
+  /**
+   * Marginfi group address
+   */
+  get lendingAccount(): Balance[] {
+    return this._lendingAccount;
   }
 
   /** @internal */
@@ -82,7 +126,7 @@ class MarginfiAccount {
       _marginfiAccountPk,
       client,
       await MarginfiGroup.fetch(config, program, commitment),
-      accountData.authority
+      accountData
     );
 
     require("debug")("mfi:margin-account")(
@@ -122,7 +166,7 @@ class MarginfiAccount {
       _marginfiAccountPk,
       client,
       marginfiGroup,
-      accountData.authority
+      accountData
     );
   }
 
@@ -155,6 +199,116 @@ class MarginfiAccount {
     );
   }
 
+  /**
+   * Create transaction instruction to deposit collateral into the marginfi account.
+   *
+   * @param amount Amount to deposit (UI unit)
+   * @param bank Bank to deposit to
+   * @returns `MarginDepositCollateral` transaction instruction
+   */
+  async makeDepositIx(
+    amount: UiAmount,
+    bank: Bank
+  ): Promise<InstructionsWrapper> {
+    const userTokenAtaPk = await associatedAddress({
+      mint: bank.mint,
+      owner: this.client.provider.wallet.publicKey,
+    });
+    console.log(bank.liquidityVault);
+
+    const ix = await instructions.makeDepositIx(
+      this._program,
+      {
+        marginfiGroupPk: this.group.publicKey,
+        marginfiAccountPk: this.publicKey,
+        authorityPk: this.client.provider.wallet.publicKey,
+        signerTokenAccountPk: userTokenAtaPk,
+        bankLiquidityVaultPk: bank.liquidityVault,
+        bankPk: bank.publicKey,
+      },
+      { amount: uiToNative(amount, bank.mintDecimals) }
+    );
+
+    return { instructions: [ix], keys: [] };
+  }
+
+  /**
+   * Deposit collateral into the marginfi account.
+   *
+   * @param amount Amount to deposit (UI unit)
+   * @param bank Bank to deposit to
+   * @returns Transaction signature
+   */
+  async deposit(amount: UiAmount, bank: Bank): Promise<string> {
+    const debug = require("debug")(
+      `mfi:margin-account:${this.publicKey.toString()}:deposit`
+    );
+
+    debug("Depositing %s %s into marginfi account", amount, bank.mint);
+    const ixs = await this.makeDepositIx(amount, bank);
+    const tx = new Transaction().add(...ixs.instructions);
+    const sig = await processTransaction(this.client.provider, tx);
+    debug("Depositing successful %s", sig);
+    await this.reload();
+    return sig;
+  }
+
+  /**
+   * Create transaction instruction to withdraw collateral from the marginfi account.
+   *
+   * @param amount Amount to withdraw (mint native unit)
+   * @param bank Bank to withdraw from
+   * @returns `MarginWithdrawCollateral` transaction instruction
+   */
+  async makeWithdrawIx(
+    amount: UiAmount,
+    bank: Bank
+  ): Promise<InstructionsWrapper> {
+    const userTokenAtaPk = await associatedAddress({
+      mint: bank.mint,
+      owner: this.client.provider.wallet.publicKey,
+    });
+    const [bankLiquidityVaultAuthorityPk] = await getBankVaultAuthority(
+      BankVaultType.LiquidityVault,
+      bank.publicKey,
+      this._program.programId
+    );
+    const ix = await instructions.makeWithdrawIx(
+      this._program,
+      {
+        marginfiGroupPk: this.group.publicKey,
+        marginfiAccountPk: this.publicKey,
+        signerPk: this.client.provider.wallet.publicKey,
+        destinationTokenAccountPk: userTokenAtaPk,
+        bankLiquidityVaultPk: bank.liquidityVault,
+        bankLiquidityVaultAuthorityPk,
+      },
+      { amount: uiToNative(amount, bank.mintDecimals) }
+    );
+
+    return { instructions: [ix], keys: [] };
+  }
+
+  /**
+   * Withdraw collateral from the marginfi account.
+   *
+   * @param amount Amount to withdraw (UI unit)
+   * @param bank Bank to withdraw from
+   * @returns Transaction signature
+   */
+  async withdraw(amount: UiAmount, bank: Bank): Promise<string> {
+    const debug = require("debug")(
+      `mfi:margin-account:${this.publicKey.toString()}:withdraw`
+    );
+    debug("Withdrawing %s from marginfi account", amount);
+    const ixs = await this.makeWithdrawIx(amount, bank);
+    const tx = new Transaction().add(...ixs.instructions);
+    const sig = await processTransaction(this.client.provider, tx);
+    debug("Withdrawing successful %s", sig);
+    await this.reload();
+    return sig;
+  }
+
   // --- Others
 
   /**
@@ -181,6 +335,7 @@ class MarginfiAccount {
         accountAddress,
         mergedCommitment
       )) as any;
+    console.log(data);
 
     if (!data.group.equals(config.groupPk))
       throw Error(
@@ -241,10 +396,15 @@ class MarginfiAccount {
     }
 
     const banks = bankAccountsData.map(
-      (bd, index) => new Bank(bankAddresses[index], bd as BankData)
+      (bd, index) =>
+        new Bank(
+          this._config.banks[index].label,
+          bankAddresses[index],
+          bd as BankData
+        )
     );
 
-    this.group = MarginfiGroup.fromAccountDataRaw(
+    this._group = MarginfiGroup.fromAccountDataRaw(
       this._config,
       this._program,
       marginfiGroupAi.data,
@@ -344,9 +504,24 @@ class MarginfiAccount {
 
 export default MarginfiAccount;
 
+// Client types
+
+export interface Balance {
+  bankPk: PublicKey;
+  depositShares: BigNumber;
+  liabilityShares: BigNumber;
+}
+
 // On-chain types
 
 export interface MarginfiAccountData {
   group: PublicKey;
   authority: PublicKey;
+  lendingAccount: { balances: (BalanceData | null)[] };
+}
+
+export interface BalanceData {
+  bankPk: PublicKey;
+  depositShares: WrappedI80F48;
+  liabilityShares: WrappedI80F48;
 }

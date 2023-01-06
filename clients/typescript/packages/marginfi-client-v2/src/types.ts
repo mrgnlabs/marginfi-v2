@@ -71,6 +71,6 @@ export enum AccountType {
   MarginfiAccount = "marginfiAccount",
 }
 
-export interface WrappedI8048F {
+export interface WrappedI80F48 {
   value: BN;
 }

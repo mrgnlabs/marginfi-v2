@@ -16,7 +16,7 @@ use marginfi::{
 use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
 use solana_sdk::{
     commitment_config::CommitmentLevel, pubkey::Pubkey, signature::Keypair, signer::Signer,
-    system_instruction, system_program, sysvar,
+    system_program, sysvar,
 };
 use std::fs;
 
@@ -59,18 +59,8 @@ pub fn group_create(config: Config, profile: Profile, admin: Option<Pubkey>) -> 
     }
 
     let marginfi_group_keypair = Keypair::new();
-    let account_size = 8 + std::mem::size_of::<MarginfiGroup>();
-    let rent_exemption_amount = rpc_client.get_minimum_balance_for_rent_exemption(account_size)?;
 
-    let create_marginfi_group_ix = system_instruction::create_account(
-        &admin,
-        &marginfi_group_keypair.pubkey(),
-        rent_exemption_amount,
-        account_size as u64,
-        &marginfi::id(),
-    );
-
-    let mut init_marginfi_group_ix = config
+    let init_marginfi_group_ix = config
         .program
         .request()
         .signer(&config.payer)
@@ -84,12 +74,9 @@ pub fn group_create(config: Config, profile: Profile, admin: Option<Pubkey>) -> 
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
 
-    let mut ixs = vec![create_marginfi_group_ix];
-    ixs.append(&mut init_marginfi_group_ix);
-
     let signers = vec![&config.payer, &marginfi_group_keypair];
     let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
-        &ixs,
+        &init_marginfi_group_ix,
         Some(&config.payer.pubkey()),
         &signers,
         recent_blockhash,

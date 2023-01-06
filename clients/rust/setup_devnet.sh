@@ -2,7 +2,7 @@
 
 # Add USDC bank
 cargo run  --features devnet group add-bank \
-    8FRFC6MoGGkMFQwngccyu69VnYbzykGeez7ignHVAFSN \
+    dUSD28TejMQTx9jR468Bnv1xFsBRMJvcDpP1srf85Va \
     1 \
     1 \
     1 \
@@ -16,7 +16,7 @@ cargo run  --features devnet group add-bank \
     0.1 \
     0.01 \
     0.1 \
-    # --dry-run
+    --dry-run
 
 # Add SOL bank
 cargo run  --features devnet group add-bank \
@@ -34,4 +34,4 @@ cargo run  --features devnet group add-bank \
     0.1 \
     0.01 \
     0.1 \
-    # --dry-run
+    --dry-run
