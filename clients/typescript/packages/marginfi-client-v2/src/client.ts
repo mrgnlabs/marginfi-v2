@@ -1,11 +1,12 @@
 import {
+  Address,
   AnchorProvider,
   BorshAccountsCoder,
   Program,
+  translateAddress,
 } from "@project-serum/anchor";
 import { bs58 } from "@project-serum/anchor/dist/cjs/utils/bytes";
 import {
-  AddressLookupTableAccount,
   ConfirmOptions,
   Connection,
   Keypair,
@@ -26,16 +27,12 @@ import {
   MarginfiProgram,
   TransactionOptions,
 } from "./types";
-import { loadKeypair, sleep } from "./utils";
+import { loadKeypair } from "./utils";
 import { getConfig } from "./config";
 import MarginfiGroup from "./group";
 import instructions from "./instructions";
 import MarginfiAccount from "./account";
-import {
-  DEFAULT_COMMITMENT,
-  DEFAULT_CONFIRM_OPTS,
-  DEFAULT_SEND_OPTS,
-} from "./constants";
+import { DEFAULT_COMMITMENT, DEFAULT_CONFIRM_OPTS } from "./constants";
 
 /**
  * Entrypoint to interact with the marginfi contract.
@@ -108,8 +105,8 @@ class MarginfiClient {
     overrides?: Partial<{
       env: Environment;
       connection: Connection;
-      programId: PublicKey;
-      marginfiGroup: PublicKey;
+      programId: Address;
+      marginfiGroup: Address;
       wallet: Wallet;
     }>
   ): Promise<MarginfiClient> {
@@ -147,8 +144,8 @@ class MarginfiClient {
     );
 
     const config = await getConfig(env, {
-      groupPk,
-      programId,
+      groupPk: translateAddress(groupPk),
+      programId: translateAddress(programId),
     });
 
     return MarginfiClient.fetch(config, wallet, connection, {

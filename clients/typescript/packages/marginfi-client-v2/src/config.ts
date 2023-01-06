@@ -1,12 +1,10 @@
 import { PublicKey } from "@solana/web3.js";
-import { BankConfig, Environment, MarginfiConfig } from "./types";
+import { BankAddress, Environment, MarginfiConfig } from "./types";
 import { array, assert, Infer, literal, object, string } from "superstruct";
 import configs from "./configs.json";
 
 const BankConfigRaw = object({
   label: string(),
-  mint: string(),
-  oracle: string(),
   address: string(),
 });
 const MarginfiConfigRaw = object({
@@ -22,11 +20,9 @@ export type BankConfigRaw = Infer<typeof BankConfigRaw>;
 export type MarginfiConfigRaw = Infer<typeof MarginfiConfigRaw>;
 export type ConfigRaw = Infer<typeof ConfigRaw>;
 
-function parseBankConfig(bankConfigRaw: BankConfigRaw): BankConfig {
+function parseBankConfig(bankConfigRaw: BankConfigRaw): BankAddress {
   return {
     label: bankConfigRaw.label,
-    mint: new PublicKey(bankConfigRaw.mint),
-    oracle: new PublicKey(bankConfigRaw.oracle),
     address: new PublicKey(bankConfigRaw.address),
   };
 }

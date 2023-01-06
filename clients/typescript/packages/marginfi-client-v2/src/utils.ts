@@ -1,4 +1,4 @@
-import { AnchorProvider } from "@project-serum/anchor";
+import { AnchorProvider, BN } from "@project-serum/anchor";
 import {
   ConfirmOptions,
   Connection,
@@ -8,12 +8,14 @@ import {
   Transaction,
   TransactionSignature,
 } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 import {
   PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED,
   PDA_BANK_INSURANCE_VAULT_AUTH_SEED,
   PDA_BANK_FEE_VAULT_AUTH_SEED,
 } from "./constants";
-import { BankVaultType } from "./types";
+import { BankVaultType, UiAmount } from "./types";
+import { Decimal } from "decimal.js";
 
 /**
  * Load Keypair from the provided file.
@@ -132,4 +134,58 @@ function getVaultAuthoritySeed(type: BankVaultType): Buffer {
  */
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function wrappedI80F48toBigNumber(
+  { value }: { value: BN },
+  scaleDecimal: number = 6
+): BigNumber {
+  let numbers = new Decimal(
+    `${value.isNeg() ? "-" : ""}0b${value.abs().toString(2)}p-48`
+  ).dividedBy(10 ** scaleDecimal);
+  return new BigNumber(numbers.toString());
+}
+
+/**
+ * Converts a ui representation of a token amount into its native value as `BN`, given the specified mint decimal amount (default to 6 for USDC).
+ */
+export function toNumber(amount: UiAmount): number {
+  let amt: number;
+  if (typeof amount === "number") {
+    amt = amount;
+  } else if (typeof amount === "string") {
+    amt = Number(amount);
+  } else {
+    amt = amount.toNumber();
+  }
+  return amt;
+}
+
+/**
+ * Converts a ui representation of a token amount into its native value as `BN`, given the specified mint decimal amount (default to 6 for USDC).
+ */
+export function toBigNumber(amount: UiAmount | BN): BigNumber {
+  let amt: BigNumber;
+  if (amount instanceof BigNumber) {
+    amt = amount;
+  } else {
+    amt = new BigNumber(amount.toString());
+  }
+  return amt;
+}
+
+/**
+ * Converts a UI representation of a token amount into its native value as `BN`, given the specified mint decimal amount (default to 6 for USDC).
+ */
+export function uiToNative(amount: UiAmount, decimals: number): BN {
+  let amt = toBigNumber(amount);
+  return new BN(amt.times(10 ** decimals).toFixed(0, BigNumber.ROUND_FLOOR));
+}
+
+/**
+ * Converts a native representation of a token amount into its UI value as `number`, given the specified mint decimal amount (default to 6 for USDC).
+ */
+export function nativeToUi(amount: UiAmount | BN, decimals: number): number {
+  let amt = toBigNumber(amount);
+  return amt.div(10 ** decimals).toNumber();
 }

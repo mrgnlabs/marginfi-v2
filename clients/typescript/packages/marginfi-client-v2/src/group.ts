@@ -1,10 +1,11 @@
 import { BorshCoder } from "@project-serum/anchor";
 import { Commitment, PublicKey } from "@solana/web3.js";
-import { DEFAULT_COMMITMENT, DEFAULT_CONFIRM_OPTS } from "./constants";
+import Bank from "./bank";
+import { DEFAULT_COMMITMENT } from "./constants";
 import { MARGINFI_IDL } from "./idl";
-// import instructions from "./instructions";
 import {
   AccountType,
+  BankData,
   MarginfiConfig,
   MarginfiGroupData,
   MarginfiProgram,
@@ -20,19 +21,26 @@ class MarginfiGroup {
   private _program: MarginfiProgram;
   private _config: MarginfiConfig;
 
+  private _banks: Map<string, Bank>;
+
   /**
    * @internal
    */
   private constructor(
     config: MarginfiConfig,
     program: MarginfiProgram,
-    rawData: MarginfiGroupData
+    rawData: MarginfiGroupData,
+    banks: Bank[]
   ) {
     this.publicKey = config.groupPk;
     this._config = config;
     this._program = program;
-
     this.admin = rawData.admin;
+
+    this._banks = banks.reduce((acc, current) => {
+      acc.set(current.publicKey.toBase58(), current);
+      return acc;
+    }, new Map<string, Bank>());
   }
 
   // --- Factories
@@ -53,12 +61,32 @@ class MarginfiGroup {
   ) {
     const debug = require("debug")(`mfi:margin-group`);
     debug("Loading Marginfi Group %s", config.groupPk);
+
     const accountData = await MarginfiGroup._fetchAccountData(
       config,
       program,
       commitment
     );
-    return new MarginfiGroup(config, program, accountData);
+
+    const bankAddresses = config.banks.map((b) => b.address);
+    let bankAccountsData = await program.account.bank.fetchMultiple(
+      bankAddresses,
+      commitment
+    );
+
+    let nullAccounts = [];
+    for (let i = 0; i < bankAccountsData.length; i++) {
+      if (bankAccountsData[i] === null) nullAccounts.push(bankAddresses[i]);
+    }
+    if (nullAccounts.length > 0) {
+      throw Error(`Failed to fetch banks ${nullAccounts}`);
+    }
+
+    const banks = bankAccountsData.map(
+      (bd, index) => new Bank(bankAddresses[index], bd as BankData)
+    );
+
+    return new MarginfiGroup(config, program, accountData, banks);
   }
 
   /**
@@ -75,9 +103,10 @@ class MarginfiGroup {
   static fromAccountData(
     config: MarginfiConfig,
     program: MarginfiProgram,
-    accountData: MarginfiGroupData
+    accountData: MarginfiGroupData,
+    banks: Bank[]
   ) {
-    return new MarginfiGroup(config, program, accountData);
+    return new MarginfiGroup(config, program, accountData, banks);
   }
 
   /**
@@ -94,10 +123,11 @@ class MarginfiGroup {
   static fromAccountDataRaw(
     config: MarginfiConfig,
     program: MarginfiProgram,
-    rawData: Buffer
+    rawData: Buffer,
+    banks: Bank[]
   ) {
     const data = MarginfiGroup.decode(rawData);
-    return MarginfiGroup.fromAccountData(config, program, data);
+    return MarginfiGroup.fromAccountData(config, program, data, banks);
   }
 
   // --- Others
