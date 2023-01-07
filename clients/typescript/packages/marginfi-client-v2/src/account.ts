@@ -2,6 +2,7 @@ import { Address, BorshCoder, translateAddress } from "@project-serum/anchor";
 import { associatedAddress } from "@project-serum/anchor/dist/cjs/utils/token";
 import {
   AccountInfo,
+  AccountMeta,
   Commitment,
   PublicKey,
   Transaction,
@@ -52,11 +53,11 @@ class MarginfiAccount {
 
     this._group = group;
     this._authority = rawData.authority;
+
     this._lendingAccount = (
-      rawData.lendingAccount.balances.filter(
-        (la) => la !== null
-      ) as BalanceData[]
+      rawData.lendingAccount.balances.filter((la) => la.active) as BalanceData[]
     ).map((la) => ({
+      active: la.active,
       bankPk: la.bankPk,
       depositShares: wrappedI80F48toBigNumber(la.depositShares),
       liabilityShares: wrappedI80F48toBigNumber(la.liabilityShares),
@@ -214,7 +215,6 @@ class MarginfiAccount {
       mint: bank.mint,
       owner: this.client.provider.wallet.publicKey,
     });
-    console.log(bank.liquidityVault);
 
     const ix = await instructions.makeDepositIx(
       this._program,
@@ -273,17 +273,22 @@ class MarginfiAccount {
       bank.publicKey,
       this._program.programId
     );
+
+    const remainingAccounts = this.getHealthCheckAccounts();
+
     const ix = await instructions.makeWithdrawIx(
       this._program,
       {
         marginfiGroupPk: this.group.publicKey,
         marginfiAccountPk: this.publicKey,
         signerPk: this.client.provider.wallet.publicKey,
+        bankPk: bank.publicKey,
         destinationTokenAccountPk: userTokenAtaPk,
         bankLiquidityVaultPk: bank.liquidityVault,
         bankLiquidityVaultAuthorityPk,
       },
-      { amount: uiToNative(amount, bank.mintDecimals) }
+      { amount: uiToNative(amount, bank.mintDecimals) },
+      remainingAccounts
     );
 
     return { instructions: [ix], keys: [] };
@@ -311,6 +316,28 @@ class MarginfiAccount {
 
   // --- Others
 
+  getHealthCheckAccounts(): AccountMeta[] {
+    return this.lendingAccount.flatMap((balance) => {
+      const bank = this._group.getBankByPk(balance.bankPk);
+      if (bank === null)
+        throw Error(`Could not find bank ${balance.bankPk.toBase58()}`);
+
+      return [
+        {
+          pubkey: bank.publicKey,
+          isSigner: false,
+          isWritable: false,
+        },
+
+        {
+          pubkey: bank.config.pythOracle,
+          isSigner: false,
+          isWritable: false,
+        },
+      ];
+    });
+  }
+
   /**
    * Fetch marginfi account data.
    * Check sanity against provided config.
@@ -335,7 +362,6 @@ class MarginfiAccount {
         accountAddress,
         mergedCommitment
       )) as any;
-    console.log(data);
 
     if (!data.group.equals(config.groupPk))
       throw Error(
@@ -420,6 +446,14 @@ class MarginfiAccount {
    */
   private _updateFromAccountData(data: MarginfiAccountData) {
     this._authority = data.authority;
+    this._lendingAccount = (
+      data.lendingAccount.balances.filter((la) => la.active) as BalanceData[]
+    ).map((la) => ({
+      active: la.active,
+      bankPk: la.bankPk,
+      depositShares: wrappedI80F48toBigNumber(la.depositShares),
+      liabilityShares: wrappedI80F48toBigNumber(la.liabilityShares),
+    }));
   }
 
   private async loadGroupAndAccountAi(): Promise<AccountInfo<Buffer>[]> {
@@ -507,6 +541,7 @@ export default MarginfiAccount;
 // Client types
 
 export interface Balance {
+  active: boolean;
   bankPk: PublicKey;
   depositShares: BigNumber;
   liabilityShares: BigNumber;
@@ -517,10 +552,11 @@ export interface Balance {
 export interface MarginfiAccountData {
   group: PublicKey;
   authority: PublicKey;
-  lendingAccount: { balances: (BalanceData | null)[] };
+  lendingAccount: { balances: BalanceData[] };
 }
 
 export interface BalanceData {
+  active: boolean;
   bankPk: PublicKey;
   depositShares: WrappedI80F48;
   liabilityShares: WrappedI80F48;

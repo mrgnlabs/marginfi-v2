@@ -1,4 +1,9 @@
-import { BN, BorshCoder } from "@project-serum/anchor";
+import {
+  Address,
+  BN,
+  BorshCoder,
+  translateAddress,
+} from "@project-serum/anchor";
 import { Commitment, PublicKey } from "@solana/web3.js";
 import Bank, { BankData } from "./bank";
 import { DEFAULT_COMMITMENT } from "./constants";
@@ -76,10 +81,6 @@ class MarginfiGroup {
       bankAddresses,
       commitment
     );
-    const ai = await program.provider.connection.getAccountInfo(
-      bankAddresses[1]
-    );
-    process.stdout.write(JSON.stringify(ai?.data.toJSON().data) + "\n");
 
     let nullAccounts = [];
     for (let i = 0; i < bankAccountsData.length; i++) {
@@ -202,13 +203,22 @@ class MarginfiGroup {
       commitment
     );
   }
+
   /**
-   * Update instance data by fetching and storing the latest on-chain state.
+   * Get bank by label.
    */
-  getBank(label: string): Bank | null {
+  getBankByLabel(label: string): Bank | null {
     return (
       [...this._banks.values()].find((bank) => bank.label === label) ?? null
     );
+  }
+
+  /**
+   * Update instance data by fetching and storing the latest on-chain state.
+   */
+  getBankByPk(publicKey: Address): Bank | null {
+    let _publicKey = translateAddress(publicKey);
+    return this._banks.get(_publicKey.toString()) ?? null;
   }
 }
 

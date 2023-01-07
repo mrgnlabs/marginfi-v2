@@ -521,7 +521,7 @@ export type Marginfi = {
             type: "publicKey";
           },
           {
-            name: "ignore";
+            name: "ignore1";
             type: {
               array: ["u8", 7];
             };
@@ -575,7 +575,7 @@ export type Marginfi = {
             type: "u8";
           },
           {
-            name: "ignore";
+            name: "ignore2";
             type: {
               array: ["u8", 2];
             };
@@ -617,9 +617,7 @@ export type Marginfi = {
             type: {
               array: [
                 {
-                  option: {
-                    defined: "Balance";
-                  };
+                  defined: "Balance";
                 },
                 16
               ];
@@ -634,8 +632,18 @@ export type Marginfi = {
         kind: "struct";
         fields: [
           {
+            name: "active";
+            type: "bool";
+          },
+          {
             name: "bankPk";
             type: "publicKey";
+          },
+          {
+            name: "ignore";
+            type: {
+              array: ["u8", 7];
+            };
           },
           {
             name: "depositShares";
@@ -1497,7 +1505,7 @@ export const IDL: Marginfi = {
             type: "publicKey",
           },
           {
-            name: "ignore",
+            name: "ignore1",
             type: {
               array: ["u8", 7],
             },
@@ -1551,7 +1559,7 @@ export const IDL: Marginfi = {
             type: "u8",
           },
           {
-            name: "ignore",
+            name: "ignore2",
             type: {
               array: ["u8", 2],
             },
@@ -1593,9 +1601,7 @@ export const IDL: Marginfi = {
             type: {
               array: [
                 {
-                  option: {
-                    defined: "Balance",
-                  },
+                  defined: "Balance",
                 },
                 16,
               ],
@@ -1610,8 +1616,18 @@ export const IDL: Marginfi = {
         kind: "struct",
         fields: [
           {
+            name: "active",
+            type: "bool",
+          },
+          {
             name: "bankPk",
             type: "publicKey",
+          },
+          {
+            name: "ignore",
+            type: {
+              array: ["u8", 7],
+            },
           },
           {
             name: "depositShares",

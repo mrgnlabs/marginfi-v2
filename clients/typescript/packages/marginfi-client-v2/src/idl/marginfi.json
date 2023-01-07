@@ -643,8 +643,21 @@
         "kind": "struct",
         "fields": [
           {
+            "name": "active",
+            "type": "bool"
+          },
+          {
             "name": "bankPk",
             "type": "publicKey"
+          },
+          {
+            "name": "ignore",
+            "type": {
+              "array": [
+                "u8",
+                7
+              ]
+            }
           },
           {
             "name": "depositShares",

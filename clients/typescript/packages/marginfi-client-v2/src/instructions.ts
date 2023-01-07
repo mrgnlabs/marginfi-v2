@@ -58,6 +58,7 @@ async function makeWithdrawIx(
     marginfiGroupPk: PublicKey;
     marginfiAccountPk: PublicKey;
     signerPk: PublicKey;
+    bankPk: PublicKey;
     bankLiquidityVaultAuthorityPk: PublicKey;
     bankLiquidityVaultPk: PublicKey;
     destinationTokenAccountPk: PublicKey;
@@ -76,6 +77,7 @@ async function makeWithdrawIx(
       bankLiquidityVault: accounts.bankLiquidityVaultPk,
       bankLiquidityVaultAuthority: accounts.bankLiquidityVaultAuthorityPk,
       destinationTokenAccount: accounts.destinationTokenAccountPk,
+      bank: accounts.bankPk,
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .remainingAccounts(remainingAccounts)
