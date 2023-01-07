@@ -274,7 +274,7 @@ class MarginfiAccount {
       this._program.programId
     );
 
-    const remainingAccounts = this.getHealthCheckAccounts();
+    const remainingAccounts = this.getHealthCheckAccounts([bank]);
 
     const ix = await instructions.makeWithdrawIx(
       this._program,
@@ -316,11 +316,18 @@ class MarginfiAccount {
 
   // --- Others
 
-  getHealthCheckAccounts(): AccountMeta[] {
-    return this.lendingAccount.flatMap((balance) => {
+  getHealthCheckAccounts(mandatoryBanks: Bank[] = []): AccountMeta[] {
+    let mandatoryBanksSet = new Set(mandatoryBanks.map((b) => b.publicKey));
+    let mandatoryBanksAdded = new Set<PublicKey>();
+
+    let remainingAccounts = this.lendingAccount.flatMap((balance) => {
       const bank = this._group.getBankByPk(balance.bankPk);
       if (bank === null)
         throw Error(`Could not find bank ${balance.bankPk.toBase58()}`);
+
+      if (mandatoryBanksSet.has(bank.publicKey)) {
+        mandatoryBanksAdded.add(bank.publicKey);
+      }
 
       return [
         {
@@ -328,7 +335,6 @@ class MarginfiAccount {
           isSigner: false,
           isWritable: false,
         },
-
         {
           pubkey: bank.config.pythOracle,
           isSigner: false,
@@ -336,6 +342,33 @@ class MarginfiAccount {
         },
       ];
     });
+
+    const remainingBanksSet = new Set(
+      [...mandatoryBanksSet].filter((x) => !mandatoryBanksAdded.has(x))
+    );
+
+    if (remainingBanksSet.size > 0) {
+      remainingBanksSet.forEach((bankPk) => {
+        const bank = this._group.getBankByPk(bankPk);
+        if (bank === null)
+          throw Error(`Could not find bank ${bankPk.toBase58()}`);
+
+        remainingAccounts = remainingAccounts.concat([
+          {
+            pubkey: bankPk,
+            isSigner: false,
+            isWritable: false,
+          },
+          {
+            pubkey: bank.config.pythOracle,
+            isSigner: false,
+            isWritable: false,
+          },
+        ]);
+      });
+    }
+
+    return remainingAccounts;
   }
 
   /**

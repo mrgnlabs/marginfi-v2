@@ -25,18 +25,22 @@ async function main() {
     client
   );
 
-  const bankLabel = "SOL";
   const group = marginfiAccount.group;
 
-  const bank = group.getBankByLabel(bankLabel);
-  if (!bank) throw Error(`${bankLabel} bank not found`);
+  const bankLabel1 = "SOL";
+  const bank1 = group.getBankByLabel(bankLabel1);
+  if (!bank1) throw Error(`${bankLabel1} bank not found`);
 
-  const sig1 = await marginfiAccount.deposit(1, bank);
+  const bankLabel2 = "USDC";
+  const bank2 = group.getBankByLabel(bankLabel2);
+  if (!bank2) throw Error(`${bankLabel2} bank not found`);
+
+  const sig1 = await marginfiAccount.deposit(1, bank1);
   console.log("deposit", sig1);
 
   await marginfiAccount.reload();
 
-  const sig2 = await marginfiAccount.withdraw(0.9, bank);
+  const sig2 = await marginfiAccount.withdraw(5, bank2);
   console.log("withdraw", sig2);
 }
 
