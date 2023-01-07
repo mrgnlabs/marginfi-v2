@@ -533,6 +533,15 @@
             "type": "publicKey"
           },
           {
+            "name": "ignore",
+            "type": {
+              "array": [
+                "u8",
+                7
+              ]
+            }
+          },
+          {
             "name": "depositShareValue",
             "type": {
               "defined": "WrappedI80F48"

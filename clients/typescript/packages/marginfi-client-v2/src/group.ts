@@ -76,6 +76,10 @@ class MarginfiGroup {
       bankAddresses,
       commitment
     );
+    const ai = await program.provider.connection.getAccountInfo(
+      bankAddresses[1]
+    );
+    process.stdout.write(JSON.stringify(ai?.data.toJSON().data) + "\n");
 
     let nullAccounts = [];
     for (let i = 0; i < bankAccountsData.length; i++) {

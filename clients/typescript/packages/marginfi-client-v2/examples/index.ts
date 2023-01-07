@@ -40,7 +40,8 @@ async function main() {
   console.log(bank.group);
   console.log(bank.depositShareValue);
   console.log(bank.liabilityShareValue);
-  console.log(bank.liquidityVault);
+  console.log(bank.liquidityVault.toBuffer().toJSON().data);
+  console.log(bank);
 
   const sig = await marginfiAccount.deposit(1, bank);
   console.log(sig);

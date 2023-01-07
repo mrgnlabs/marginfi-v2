@@ -521,6 +521,12 @@ export type Marginfi = {
             type: "publicKey";
           },
           {
+            name: "ignore";
+            type: {
+              array: ["u8", 7];
+            };
+          },
+          {
             name: "depositShareValue";
             type: {
               defined: "WrappedI80F48";
@@ -567,6 +573,12 @@ export type Marginfi = {
           {
             name: "feeVaultAuthorityBump";
             type: "u8";
+          },
+          {
+            name: "ignore";
+            type: {
+              array: ["u8", 2];
+            };
           },
           {
             name: "config";
@@ -1485,6 +1497,12 @@ export const IDL: Marginfi = {
             type: "publicKey",
           },
           {
+            name: "ignore",
+            type: {
+              array: ["u8", 7],
+            },
+          },
+          {
             name: "depositShareValue",
             type: {
               defined: "WrappedI80F48",
@@ -1531,6 +1549,12 @@ export const IDL: Marginfi = {
           {
             name: "feeVaultAuthorityBump",
             type: "u8",
+          },
+          {
+            name: "ignore",
+            type: {
+              array: ["u8", 2],
+            },
           },
           {
             name: "config",
