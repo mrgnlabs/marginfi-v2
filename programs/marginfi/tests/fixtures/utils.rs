@@ -57,7 +57,7 @@ pub fn craft_pyth_price_account(mint: Pubkey, ui_price: i64, mint_decimals: i32)
                 status: PriceStatus::Trading,
                 ..Default::default()
             },
-            expo: mint_decimals,
+            expo: -mint_decimals,
             prev_price: native_price,
             magic: MAGIC,
             ver: VERSION_2,

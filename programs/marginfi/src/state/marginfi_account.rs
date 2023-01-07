@@ -1,7 +1,7 @@
 use super::marginfi_group::{Bank, WrappedI80F48};
 use crate::{
     check,
-    constants::{CONF_INTERVAL_MULTIPLE, MAX_PRICE_AGE_SEC, USDC_EXPONENT},
+    constants::{CONF_INTERVAL_MULTIPLE, MAX_PRICE_AGE_SEC},
     math_error,
     prelude::{MarginfiError, MarginfiResult},
 };
@@ -56,15 +56,18 @@ const EXP_10_I80F48: [I80F48; 15] = [
 
 #[inline(always)]
 fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
-    let expo_delta = USDC_EXPONENT - exponent;
-    let expo_scale = EXP_10_I80F48[expo_delta.unsigned_abs() as usize];
+    let scaling_factor = EXP_10_I80F48[exponent.unsigned_abs() as usize];
 
-    let price = if expo_delta == 0 {
+    let price = if exponent == 0 {
         price
-    } else if expo_delta < 0 {
-        price.checked_div(expo_scale).ok_or_else(math_error!())?
+    } else if exponent < 0 {
+        price
+            .checked_div(scaling_factor)
+            .ok_or_else(math_error!())?
     } else {
-        price.checked_mul(expo_scale).ok_or_else(math_error!())?
+        price
+            .checked_mul(scaling_factor)
+            .ok_or_else(math_error!())?
     };
 
     Ok(price)
