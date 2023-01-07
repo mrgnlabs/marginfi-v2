@@ -30,7 +30,7 @@ impl MarginfiAccount {
         self.lending_account
             .balances
             .iter()
-            .filter(|b| b.is_some())
+            .filter(|b| b.active)
             .count()
             * 2
     }
@@ -379,31 +379,28 @@ const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 #[zero_copy]
 pub struct LendingAccount {
-    pub balances: [Option<Balance>; MAX_LENDING_ACCOUNT_BALANCES],
+    pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES],
 }
 
 impl LendingAccount {
     pub fn get_balance(&self, mint_pk: &Pubkey, bank: &Bank) -> Option<&Balance> {
         self.balances
             .iter()
-            .find(|balance| match balance {
-                Some(_) => bank.mint.eq(mint_pk),
-                None => false,
-            })
-            .map(|balance| balance.as_ref().unwrap())
+            .find(|balance| balance.active && bank.mint.eq(mint_pk))
     }
 
     pub fn get_first_empty_balance(&self) -> Option<usize> {
-        self.balances.iter().position(|b| b.is_none())
+        self.balances.iter().position(|b| !b.active)
     }
 
     pub fn get_active_balances_iter(&self) -> impl Iterator<Item = &Balance> {
-        self.balances.iter().filter_map(|b| b.as_ref())
+        self.balances.iter().filter(|b| b.active)
     }
 }
 
 #[zero_copy]
 pub struct Balance {
+    pub active: bool,
     pub bank_pk: Pubkey,
     pub deposit_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
@@ -456,16 +453,15 @@ impl<'a> BankAccountWrapper<'a> {
                 .get_first_empty_balance()
                 .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
 
-            lending_account.balances[empty_index] = Some(Balance {
+            lending_account.balances[empty_index] = Balance {
+                active: true,
                 bank_pk: *bank_pk,
                 deposit_shares: I80F48::ZERO.into(),
                 liability_shares: I80F48::ZERO.into(),
-            });
+            };
 
             lending_account.balances.get_mut(empty_index).unwrap()
-        }
-        .as_mut()
-        .unwrap();
+        };
 
         Ok(Self { balance, bank })
     }

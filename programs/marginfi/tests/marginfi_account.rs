@@ -65,7 +65,7 @@ async fn success_create_marginfi_account() -> anyhow::Result<()> {
         .lending_account
         .balances
         .iter()
-        .all(|bank| bank.is_none()));
+        .all(|bank| !bank.active));
 
     Ok(())
 }
@@ -353,7 +353,6 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         sol_bank
             .get_deposit_amount(
                 depositor_ma.lending_account.balances[1]
-                    .unwrap()
                     .deposit_shares
                     .into()
             )
@@ -366,7 +365,6 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         usdc_bank
             .get_deposit_amount(
                 depositor_ma.lending_account.balances[0]
-                    .unwrap()
                     .deposit_shares
                     .into()
             )
@@ -380,7 +378,6 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         sol_bank
             .get_deposit_amount(
                 borrower_ma.lending_account.balances[0]
-                    .unwrap()
                     .deposit_shares
                     .into()
             )
@@ -393,7 +390,6 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         usdc_bank
             .get_liability_amount(
                 borrower_ma.lending_account.balances[1]
-                    .unwrap()
                     .liability_shares
                     .into()
             )

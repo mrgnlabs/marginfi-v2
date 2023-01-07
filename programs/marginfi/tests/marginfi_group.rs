@@ -176,13 +176,13 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
-    let borrower_bank_account = borrower_mfi_account.lending_account.balances[1].unwrap();
+    let borrower_bank_account = borrower_mfi_account.lending_account.balances[1];
     let usdc_bank: Bank = usdc_bank.load().await;
     let liabilities =
         usdc_bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
 
     let lender_mfi_account = lender_account.load().await;
-    let lender_bank_account = lender_mfi_account.lending_account.balances[0].unwrap();
+    let lender_bank_account = lender_mfi_account.lending_account.balances[0];
     let deposits = usdc_bank.get_deposit_amount(lender_bank_account.deposit_shares.into())?;
 
     assert_eq_noise!(
@@ -263,13 +263,13 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
-    let borrower_bank_account = borrower_mfi_account.lending_account.balances[1].unwrap();
+    let borrower_bank_account = borrower_mfi_account.lending_account.balances[1];
     let usdc_bank = usdc_bank.load().await;
     let liabilities =
         usdc_bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
 
     let lender_mfi_account = lender_account.load().await;
-    let lender_bank_account = lender_mfi_account.lending_account.balances[0].unwrap();
+    let lender_bank_account = lender_mfi_account.lending_account.balances[0];
     let deposits = usdc_bank.get_deposit_amount(lender_bank_account.deposit_shares.into())?;
 
     assert_eq_noise!(liabilities, I80F48!(90000174657530), I80F48!(10));
@@ -351,8 +351,6 @@ async fn lending_pool_handle_bankruptcy_success_full_insurance() -> anyhow::Resu
 
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
-        .as_mut()
-        .unwrap()
         .deposit_shares
         .value = 0;
 
@@ -371,7 +369,7 @@ async fn lending_pool_handle_bankruptcy_success_full_insurance() -> anyhow::Resu
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
-    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1].unwrap();
+    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1];
 
     assert_eq!(
         I80F48::from(borrower_usdc_balance.liability_shares),
@@ -383,7 +381,6 @@ async fn lending_pool_handle_bankruptcy_success_full_insurance() -> anyhow::Resu
 
     let lender_usdc_value = usdc_bank.get_deposit_amount(
         lender_mfi_account.lending_account.balances[0]
-            .unwrap()
             .deposit_shares
             .into(),
     )?;
@@ -466,8 +463,6 @@ async fn lending_pool_handle_bankruptcy_success_partial_insurance() -> anyhow::R
 
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
-        .as_mut()
-        .unwrap()
         .deposit_shares
         .value = 0;
 
@@ -486,7 +481,7 @@ async fn lending_pool_handle_bankruptcy_success_partial_insurance() -> anyhow::R
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
-    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1].unwrap();
+    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1];
 
     assert_eq!(
         I80F48::from(borrower_usdc_balance.liability_shares),
@@ -498,7 +493,6 @@ async fn lending_pool_handle_bankruptcy_success_partial_insurance() -> anyhow::R
 
     let lender_usdc_value = usdc_bank.get_deposit_amount(
         lender_mfi_account.lending_account.balances[0]
-            .unwrap()
             .deposit_shares
             .into(),
     )?;
@@ -581,8 +575,6 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance() -> anyhow::Result
 
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
-        .as_mut()
-        .unwrap()
         .deposit_shares
         .value = 0;
 
@@ -594,7 +586,7 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance() -> anyhow::Result
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
-    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1].unwrap();
+    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1];
 
     assert_eq!(
         I80F48::from(borrower_usdc_balance.liability_shares),
@@ -606,7 +598,6 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance() -> anyhow::Result
 
     let lender_usdc_value = usdc_bank.get_deposit_amount(
         lender_mfi_account.lending_account.balances[0]
-            .unwrap()
             .deposit_shares
             .into(),
     )?;
@@ -689,8 +680,6 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance_3() -> anyhow::Resu
 
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
-        .as_mut()
-        .unwrap()
         .deposit_shares
         .value = 0;
 
@@ -702,7 +691,7 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance_3() -> anyhow::Resu
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
-    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1].unwrap();
+    let borrower_usdc_balance = borrower_mfi_account.lending_account.balances[1];
 
     assert_eq!(
         I80F48::from(borrower_usdc_balance.liability_shares),
@@ -714,7 +703,6 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance_3() -> anyhow::Resu
 
     let lender_usdc_value = usdc_bank.get_deposit_amount(
         lender_mfi_account.lending_account.balances[0]
-            .unwrap()
             .deposit_shares
             .into(),
     )?;
@@ -843,8 +831,6 @@ async fn lending_pool_handle_bankruptcy_success_not_debt() -> anyhow::Result<()>
 
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
-        .as_mut()
-        .unwrap()
         .deposit_shares
         .value = 0;
 

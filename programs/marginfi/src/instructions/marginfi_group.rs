@@ -385,25 +385,18 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
 
     let mut bank = bank_loader.load_mut()?;
 
-    let lending_account_balance =
-        marginfi_account
-            .lending_account
-            .balances
-            .iter_mut()
-            .find(|balance| {
-                if let Some(balance) = balance {
-                    balance.bank_pk == bank_loader.key()
-                } else {
-                    false
-                }
-            });
+    let lending_account_balance = marginfi_account
+        .lending_account
+        .balances
+        .iter_mut()
+        .find(|balance| balance.active && balance.bank_pk == bank_loader.key());
 
     check!(
         lending_account_balance.is_some(),
         MarginfiError::LendingAccountBalanceNotFound
     );
 
-    let lending_account_balance = lending_account_balance.unwrap().as_mut().unwrap();
+    let lending_account_balance = lending_account_balance.unwrap();
 
     let bad_debt = bank.get_liability_amount(lending_account_balance.liability_shares.into())?;
 

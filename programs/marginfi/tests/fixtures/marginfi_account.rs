@@ -211,7 +211,7 @@ impl MarginfiAccountFixture {
             .lending_account
             .balances
             .iter()
-            .filter_map(|balance| balance.and_then(|b| Some(b.bank_pk)))
+            .filter_map(|balance| balance.active.then(|| balance.bank_pk))
             .collect::<Vec<_>>();
 
         for bank_pk in include_banks {

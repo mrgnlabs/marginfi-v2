@@ -10,7 +10,10 @@ use anyhow::{anyhow, bail};
 use fixed::types::I80F48;
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
-    state::marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, WrappedI80F48},
+    state::{
+        marginfi_account::MarginfiAccount,
+        marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, WrappedI80F48},
+    },
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
 use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
@@ -18,7 +21,7 @@ use solana_sdk::{
     commitment_config::CommitmentLevel, pubkey::Pubkey, signature::Keypair, signer::Signer,
     system_program, sysvar,
 };
-use std::fs;
+use std::{fs, str::FromStr};
 
 // --------------------------------------------------------------------------------------------------------------------
 // marginfi group
