@@ -1,5 +1,6 @@
 import { Address, BorshCoder, translateAddress } from "@project-serum/anchor";
 import { associatedAddress } from "@project-serum/anchor/dist/cjs/utils/token";
+import { parsePriceData } from "@pythnetwork/client";
 import {
   AccountInfo,
   AccountMeta,
@@ -16,11 +17,6 @@ import {
   uiToNative,
   wrappedI80F48toBigNumber,
 } from ".";
-import {
-  parsePriceData,
-  Price,
-  PriceData,
-} from "../../../../../node_modules/@pythnetwork/client/lib/index";
 import Bank, { BankData, PriceBias } from "./bank";
 import MarginfiGroup from "./group";
 import { MARGINFI_IDL } from "./idl";
@@ -527,20 +523,19 @@ class MarginfiAccount {
   }
 
   public getHealthComponents(
-    banks: { [key: string]: Bank },
     marginReqType: MarginRequirementType
   ): [BigNumber, BigNumber] {
     return this._lendingAccount
-      .map((la) => {
-        const bank = banks[la.bankPk.toBase58()];
+      .map((accountBalance) => {
+        const bank = this._group.banks.get(accountBalance.bankPk.toBase58())!;
         return [
           bank.getDepositUsdValue(
-            la.depositShares,
+            accountBalance.depositShares,
             marginReqType,
             PriceBias.Lowest
           ),
           bank.getLiabilityUsdValue(
-            la.liabilityShares,
+            accountBalance.liabilityShares,
             marginReqType,
             PriceBias.Highest
           ),

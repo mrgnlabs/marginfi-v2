@@ -52,6 +52,9 @@ class MarginfiGroup {
     return this._admin;
   }
 
+  get banks(): Map<string, Bank> {
+    return this._banks;
+  }
   // --- Factories
 
   /**

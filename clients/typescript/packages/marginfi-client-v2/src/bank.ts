@@ -5,11 +5,8 @@ import { MarginRequirementType } from "./account";
 import { WrappedI80F48 } from "./types";
 import { nativeToUi, wrappedI80F48toBigNumber } from "./utils";
 import { Connection } from "@solana/web3.js";
-import {
-  parsePriceData,
-  PriceData,
-} from "../../../../../node_modules/@pythnetwork/client/lib/index";
 import { PYTH_PRICE_CONF_INTERVALS, USDC_DECIMALS } from "./constants";
+import { PriceData, parsePriceData } from "@pythnetwork/client";
 
 /**
  * Wrapper class around a specific marginfi group.
@@ -162,6 +159,13 @@ class Bank {
     const price = this.getPrice(priceBias);
     const weight = this.getDepositWeight(marginRequirementType);
 
+    console.log(
+      "value: %s, price: %s, weight: %s",
+      depositValue,
+      price,
+      weight
+    );
+
     return depositValue
       .times(price)
       .div(new BigNumber(10).pow(USDC_DECIMALS))
@@ -177,24 +181,24 @@ class Bank {
     const price = this.getPrice(priceBias);
     const weight = this.getLiabilityWeight(marginRequirementType);
 
-    return liabilityValue
-      .times(price)
-      .div(new BigNumber(10).pow(USDC_DECIMALS))
-      .times(weight);
+    console.log(
+      "value: %s, price: %s, weight: %s",
+      liabilityValue,
+      price,
+      weight
+    );
+
+    return liabilityValue.times(price).times(weight);
   }
 
   public getPrice(priceBias: PriceBias): BigNumber {
     const basePrice = this.priceData.emaPrice;
     const confidenceRange = this.priceData.emaConfidence;
 
-    const basePriceVal = priceComponentsToBigNumber(
-      new BigNumber(basePrice.value),
-      this.priceData.exponent
+    const basePriceVal = new BigNumber(basePrice.value);
+    const confidenceRangeVal = new BigNumber(confidenceRange.value).times(
+      PYTH_PRICE_CONF_INTERVALS
     );
-    const confidenceRangeVal = priceComponentsToBigNumber(
-      new BigNumber(confidenceRange.value),
-      this.priceData.exponent
-    ).times(PYTH_PRICE_CONF_INTERVALS);
 
     switch (priceBias) {
       case PriceBias.Lowest:
