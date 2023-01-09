@@ -53,6 +53,13 @@
     bn.js "^5.1.2"
     buffer-layout "^1.2.0"
 
+"@pythnetwork/client@^2.9.0":
+  version "2.9.0"
+  resolved "https://registry.yarnpkg.com/@pythnetwork/client/-/client-2.9.0.tgz#96cf9f56d2144139758dc49ca6c981f87ce950e2"
+  integrity sha512-2CyDmTwPWW+JCQgRKUpwMR/31oiLWH6I3GA0h2ZXIcbt/hWxcr5TXyKlWuyi+l+jh73WWh88gq8NXLoIgRcvkA==
+  dependencies:
+    buffer "^6.0.1"
+
 "@solana/buffer-layout@^4.0.0":
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/@solana/buffer-layout/-/buffer-layout-4.0.1.tgz#b996235eaec15b1e0b5092a8ed6028df77fa6c15"
@@ -275,7 +282,7 @@ buffer@6.0.1:
     base64-js "^1.3.1"
     ieee754 "^1.2.1"
 
-buffer@~6.0.3:
+buffer@^6.0.1, buffer@~6.0.3:
   version "6.0.3"
   resolved "https://registry.yarnpkg.com/buffer/-/buffer-6.0.3.tgz#2ace578459cc8fbe2a70aaa8f52ee63b6a74c6c6"
   integrity sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==

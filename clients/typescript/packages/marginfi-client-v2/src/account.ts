@@ -16,7 +16,11 @@ import {
   uiToNative,
   wrappedI80F48toBigNumber,
 } from ".";
-import Bank, { BankData } from "./bank";
+import {
+  Price,
+  PriceData,
+} from "../../../../../node_modules/@pythnetwork/client/lib/index";
+import Bank, { BankData, PriceBias } from "./bank";
 import MarginfiGroup from "./group";
 import { MARGINFI_IDL } from "./idl";
 import instructions from "./instructions";
@@ -515,6 +519,34 @@ class MarginfiAccount {
     return [marginfiGroupAi, marginfiAccountAi];
   }
 
+  public getHealthComponents(
+    banks: { [key: string]: Bank },
+    marginReqType: MarginRequirementType
+  ): [BigNumber, BigNumber] {
+    return this._lendingAccount
+      .map((la) => {
+        const bank = banks[la.bankPk.toBase58()];
+        return [
+          bank.getDepositUsdValue(
+            la.depositShares,
+            marginReqType,
+            PriceBias.Lowest
+          ),
+          bank.getLiabilityUsdValue(
+            la.liabilityShares,
+            marginReqType,
+            PriceBias.Highest
+          ),
+        ];
+      })
+      .reduce(
+        ([deposit, liability], [d, l]) => {
+          return [deposit.plus(d), liability.plus(l)];
+        },
+        [new BigNumber(0), new BigNumber(0)]
+      ) as [BigNumber, BigNumber];
+  }
+
   // public toString() {
   //   const marginRequirementInit = this.computeMarginRequirement(
   //     MarginRequirementType.Init
@@ -580,6 +612,30 @@ export interface Balance {
   liabilityShares: BigNumber;
 }
 
+export class LendingAccountBalance {
+  public active: boolean;
+  public bank_pk: PublicKey;
+  public bank: Bank;
+  public deposit_shares: BigNumber;
+  public liability_shares: BigNumber;
+
+  constructor(data: Balance, bank: Bank) {
+    this.active = data.active;
+    this.bank_pk = data.bankPk;
+    this.deposit_shares = data.depositShares;
+    this.liability_shares = data.liabilityShares;
+    this.bank = bank;
+  }
+
+  get depositValue() {
+    return this.bank.getDepositValue(this.deposit_shares);
+  }
+
+  get liabilityValue() {
+    return this.bank.getLiabilityValue(this.liability_shares);
+  }
+}
+
 // On-chain types
 
 export interface MarginfiAccountData {
@@ -593,4 +649,10 @@ export interface BalanceData {
   bankPk: PublicKey;
   depositShares: WrappedI80F48;
   liabilityShares: WrappedI80F48;
+}
+
+export enum MarginRequirementType {
+  Init = 0,
+  Maint = 1,
+  Equity = 2,
 }

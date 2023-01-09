@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES6",
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "moduleResolution": "node"
   },
   "extends": "@mrgnlabs/tsconfig/base.json",
   "include": ["."],

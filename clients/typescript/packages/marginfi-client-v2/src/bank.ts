@@ -1,8 +1,15 @@
 import { PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
+import { MarginRequirementType } from "./account";
 import { WrappedI80F48 } from "./types";
 import { nativeToUi, wrappedI80F48toBigNumber } from "./utils";
+import { Connection } from "@solana/web3.js";
+import {
+  parsePriceData,
+  PriceData,
+} from "../../../../../node_modules/@pythnetwork/client/lib/index";
+import { PYTH_PRICE_CONF_INTERVALS, USDC_DECIMALS } from "./constants";
 
 /**
  * Wrapper class around a specific marginfi group.
@@ -33,7 +40,14 @@ class Bank {
 
   public config: BankConfig;
 
-  constructor(label: string, address: PublicKey, rawData: BankData) {
+  private priceData: PriceData;
+
+  constructor(
+    label: string,
+    address: PublicKey,
+    rawData: BankData,
+    priceData: PriceData
+  ) {
     this.label = label;
     this.publicKey = address;
 
@@ -112,6 +126,115 @@ class Bank {
         ),
       },
     };
+
+    this.priceData = priceData;
+  }
+
+  public async reloadPriceData(connection: Connection) {
+    const pythPriceAccount = await connection.getAccountInfo(
+      this.config.pythOracle
+    );
+    this.priceData = parsePriceData(pythPriceAccount!.data);
+  }
+
+  public getDepositValue(depositShares: BigNumber): BigNumber {
+    return depositShares.times(this.depositShareValue);
+  }
+
+  public getLiabilityValue(liabilityShares: BigNumber): BigNumber {
+    return liabilityShares.times(this.liabilityShareValue);
+  }
+
+  public getDepositShares(depositValue: BigNumber): BigNumber {
+    return depositValue.div(this.depositShareValue);
+  }
+
+  public getLiabilityShares(liabilityValue: BigNumber): BigNumber {
+    return liabilityValue.div(this.liabilityShareValue);
+  }
+
+  public getDepositUsdValue(
+    depositShares: BigNumber,
+    marginRequirementType: MarginRequirementType,
+    priceBias: PriceBias
+  ): BigNumber {
+    const depositValue = this.getDepositValue(depositShares);
+    const price = this.getPrice(priceBias);
+    const weight = this.getDepositWeight(marginRequirementType);
+
+    return depositValue
+      .times(price)
+      .div(new BigNumber(10).pow(USDC_DECIMALS))
+      .times(weight);
+  }
+
+  public getLiabilityUsdValue(
+    liabilityShares: BigNumber,
+    marginRequirementType: MarginRequirementType,
+    priceBias: PriceBias
+  ): BigNumber {
+    const liabilityValue = this.getLiabilityValue(liabilityShares);
+    const price = this.getPrice(priceBias);
+    const weight = this.getLiabilityWeight(marginRequirementType);
+
+    return liabilityValue
+      .times(price)
+      .div(new BigNumber(10).pow(USDC_DECIMALS))
+      .times(weight);
+  }
+
+  public getPrice(priceBias: PriceBias): BigNumber {
+    const basePrice = this.priceData.emaPrice;
+    const confidenceRange = this.priceData.emaConfidence;
+
+    const basePriceVal = priceComponentsToBigNumber(
+      new BigNumber(basePrice.value),
+      this.priceData.exponent
+    );
+    const confidenceRangeVal = priceComponentsToBigNumber(
+      new BigNumber(confidenceRange.value),
+      this.priceData.exponent
+    ).times(PYTH_PRICE_CONF_INTERVALS);
+
+    switch (priceBias) {
+      case PriceBias.Lowest:
+        return basePriceVal.minus(confidenceRangeVal);
+      case PriceBias.Highest:
+        return basePriceVal.plus(confidenceRangeVal);
+      case PriceBias.Average:
+        return basePriceVal;
+    }
+  }
+
+  // Return deposit weight based on margin requirement types
+  public getDepositWeight(
+    marginRequirementType: MarginRequirementType
+  ): BigNumber {
+    switch (marginRequirementType) {
+      case MarginRequirementType.Init:
+        return this.config.depositWeightInit;
+      case MarginRequirementType.Maint:
+        return this.config.depositWeightMaint;
+      case MarginRequirementType.Equity:
+        return new BigNumber(1);
+      default:
+        throw new Error("Invalid margin requirement type");
+    }
+  }
+
+  public getLiabilityWeight(
+    marginRequirementType: MarginRequirementType
+  ): BigNumber {
+    switch (marginRequirementType) {
+      case MarginRequirementType.Init:
+        return this.config.liabilityWeightInit;
+      case MarginRequirementType.Maint:
+        return this.config.liabilityWeightMaint;
+      case MarginRequirementType.Equity:
+        return new BigNumber(0);
+      default:
+        throw new Error("Invalid margin requirement type");
+    }
   }
 }
 
@@ -200,4 +323,14 @@ export interface InterestRateConfigData {
   insuranceIrFee: WrappedI80F48;
   protocolFixedFeeApr: WrappedI80F48;
   protocolIrFee: WrappedI80F48;
+}
+
+export enum PriceBias {
+  Lowest = 0,
+  Average = 1,
+  Highest = 2,
+}
+
+function priceComponentsToBigNumber(price: BigNumber, exp: number): BigNumber {
+  return price.times(new BigNumber(10).pow(exp - USDC_DECIMALS));
 }
