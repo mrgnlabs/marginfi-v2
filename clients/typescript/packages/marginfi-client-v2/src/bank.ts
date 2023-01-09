@@ -37,6 +37,9 @@ class Bank {
 
   public config: BankConfig;
 
+  public totalDepositShares: BigNumber;
+  public totalLiabilityShares: BigNumber;
+
   private priceData: PriceData;
 
   constructor(
@@ -124,7 +127,22 @@ class Bank {
       },
     };
 
+    this.totalDepositShares = wrappedI80F48toBigNumber(
+      rawData.totalDepositShares
+    );
+    this.totalLiabilityShares = wrappedI80F48toBigNumber(
+      rawData.totalLiabilityShares
+    );
+
     this.priceData = priceData;
+  }
+
+  get totalDeposits(): BigNumber {
+    return this.getDepositValue(this.totalDepositShares);
+  }
+
+  get totalLiabilities(): BigNumber {
+    return this.getLiabilityValue(this.totalLiabilityShares);
   }
 
   public async reloadPriceData(connection: Connection) {
@@ -205,7 +223,7 @@ class Bank {
         return basePriceVal.minus(confidenceRangeVal);
       case PriceBias.Highest:
         return basePriceVal.plus(confidenceRangeVal);
-      case PriceBias.Average:
+      case PriceBias.None:
         return basePriceVal;
     }
   }
@@ -239,6 +257,49 @@ class Bank {
       default:
         throw new Error("Invalid margin requirement type");
     }
+  }
+
+  public getInterestRates(): [BigNumber, BigNumber] {
+    const {
+      insuranceFeeFixedApr,
+      insuranceIrFee,
+      protocolFixedFeeApr,
+      protocolIrFee,
+    } = this.config.interestRateConfig;
+
+    const rateFee = insuranceFeeFixedApr.plus(protocolFixedFeeApr);
+    const fixedFee = insuranceIrFee.plus(protocolIrFee);
+
+    const interestRate = this.interestRateCurve();
+    const utilizationRate = this.getUtilizationRate();
+
+    const lendingRate = interestRate.times(utilizationRate);
+    const borrowingRate = interestRate
+      .times(new BigNumber(1).plus(rateFee))
+      .plus(fixedFee);
+
+    return [lendingRate, borrowingRate];
+  }
+
+  private interestRateCurve(): BigNumber {
+    const { optimalUtilizationRate, plateauInterestRate, maxInterestRate } =
+      this.config.interestRateConfig;
+
+    const utilizationRate = this.getUtilizationRate();
+
+    if (utilizationRate.lte(optimalUtilizationRate)) {
+      return utilizationRate.times(maxInterestRate).div(optimalUtilizationRate);
+    } else {
+      return utilizationRate
+        .minus(optimalUtilizationRate)
+        .div(new BigNumber(1).minus(optimalUtilizationRate))
+        .times(maxInterestRate.minus(plateauInterestRate))
+        .plus(plateauInterestRate);
+    }
+  }
+
+  private getUtilizationRate(): BigNumber {
+    return this.totalLiabilities.div(this.totalDeposits);
   }
 }
 
@@ -331,7 +392,7 @@ export interface InterestRateConfigData {
 
 export enum PriceBias {
   Lowest = 0,
-  Average = 1,
+  None = 1,
   Highest = 2,
 }
 

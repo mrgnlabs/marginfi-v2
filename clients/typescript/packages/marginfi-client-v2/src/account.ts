@@ -55,14 +55,9 @@ class MarginfiAccount {
     this._group = group;
     this._authority = rawData.authority;
 
-    this._lendingAccount = (
-      rawData.lendingAccount.balances.filter((la) => la.active) as BalanceData[]
-    ).map((la) => ({
-      active: la.active,
-      bankPk: la.bankPk,
-      depositShares: wrappedI80F48toBigNumber(la.depositShares),
-      liabilityShares: wrappedI80F48toBigNumber(la.liabilityShares),
-    }));
+    this._lendingAccount = rawData.lendingAccount.balances
+      .filter((la) => la.active)
+      .map((la) => new Balance(la));
   }
 
   // --- Getters / Setters
@@ -486,14 +481,10 @@ class MarginfiAccount {
    */
   private _updateFromAccountData(data: MarginfiAccountData) {
     this._authority = data.authority;
-    this._lendingAccount = (
-      data.lendingAccount.balances.filter((la) => la.active) as BalanceData[]
-    ).map((la) => ({
-      active: la.active,
-      bankPk: la.bankPk,
-      depositShares: wrappedI80F48toBigNumber(la.depositShares),
-      liabilityShares: wrappedI80F48toBigNumber(la.liabilityShares),
-    }));
+
+    this._lendingAccount = data.lendingAccount.balances
+      .filter((la) => la.active)
+      .map((la) => new Balance(la));
   }
 
   private async loadGroupAndAccountAi(): Promise<AccountInfo<Buffer>[]> {
@@ -528,18 +519,7 @@ class MarginfiAccount {
     return this._lendingAccount
       .map((accountBalance) => {
         const bank = this._group.banks.get(accountBalance.bankPk.toBase58())!;
-        return [
-          bank.getDepositUsdValue(
-            accountBalance.depositShares,
-            marginReqType,
-            PriceBias.Lowest
-          ),
-          bank.getLiabilityUsdValue(
-            accountBalance.liabilityShares,
-            marginReqType,
-            PriceBias.Highest
-          ),
-        ];
+        return accountBalance.getUsdValueWithPriceBias(bank, marginReqType);
       })
       .reduce(
         ([deposit, liability], [d, l]) => {
@@ -607,34 +587,53 @@ export default MarginfiAccount;
 
 // Client types
 
-export interface Balance {
+export class Balance {
   active: boolean;
   bankPk: PublicKey;
   depositShares: BigNumber;
   liabilityShares: BigNumber;
-}
 
-export class LendingAccountBalance {
-  public active: boolean;
-  public bank_pk: PublicKey;
-  public bank: Bank;
-  public deposit_shares: BigNumber;
-  public liability_shares: BigNumber;
-
-  constructor(data: Balance, bank: Bank) {
+  constructor(data: BalanceData) {
     this.active = data.active;
-    this.bank_pk = data.bankPk;
-    this.deposit_shares = data.depositShares;
-    this.liability_shares = data.liabilityShares;
-    this.bank = bank;
+    this.bankPk = data.bankPk;
+    this.depositShares = wrappedI80F48toBigNumber(data.depositShares);
+    this.liabilityShares = wrappedI80F48toBigNumber(data.liabilityShares);
   }
 
-  get depositValue() {
-    return this.bank.getDepositValue(this.deposit_shares);
+  public getUsdValue(
+    bank: Bank,
+    marginReqType: MarginRequirementType
+  ): [BigNumber, BigNumber] {
+    return [
+      bank.getDepositUsdValue(
+        this.depositShares,
+        marginReqType,
+        PriceBias.None
+      ),
+      bank.getLiabilityUsdValue(
+        this.liabilityShares,
+        marginReqType,
+        PriceBias.None
+      ),
+    ];
   }
 
-  get liabilityValue() {
-    return this.bank.getLiabilityValue(this.liability_shares);
+  public getUsdValueWithPriceBias(
+    bank: Bank,
+    marginReqType: MarginRequirementType
+  ): [BigNumber, BigNumber] {
+    return [
+      bank.getDepositUsdValue(
+        this.depositShares,
+        marginReqType,
+        PriceBias.Lowest
+      ),
+      bank.getLiabilityUsdValue(
+        this.liabilityShares,
+        marginReqType,
+        PriceBias.Highest
+      ),
+    ];
   }
 }
 
