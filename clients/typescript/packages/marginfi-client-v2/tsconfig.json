@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES6",
     "resolveJsonModule": true,
-    "moduleResolution": "node"
+    "lib": ["es2019"]
   },
   "extends": "@mrgnlabs/tsconfig/base.json",
   "include": ["."],

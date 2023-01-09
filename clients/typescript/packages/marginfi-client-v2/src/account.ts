@@ -17,6 +17,7 @@ import {
   wrappedI80F48toBigNumber,
 } from ".";
 import {
+  parsePriceData,
   Price,
   PriceData,
 } from "../../../../../node_modules/@pythnetwork/client/lib/index";
@@ -458,12 +459,18 @@ class MarginfiAccount {
       throw Error(`Failed to fetch banks ${nullAccounts}`);
     }
 
+    const pythAccounts =
+      await this._program.provider.connection.getMultipleAccountsInfo(
+        bankAccountsData.map((b) => (b as BankData).config.pythOracle)
+      );
+
     const banks = bankAccountsData.map(
       (bd, index) =>
         new Bank(
           this._config.banks[index].label,
           bankAddresses[index],
-          bd as BankData
+          bd as BankData,
+          parsePriceData(pythAccounts[index]!.data)
         )
     );
 

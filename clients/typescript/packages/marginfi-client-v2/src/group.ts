@@ -4,6 +4,7 @@ import {
   BorshCoder,
   translateAddress,
 } from "@project-serum/anchor";
+import { parseBaseData, parsePriceData } from "@pythnetwork/client";
 import { Commitment, PublicKey } from "@solana/web3.js";
 import Bank, { BankData } from "./bank";
 import { DEFAULT_COMMITMENT } from "./constants";
@@ -90,12 +91,18 @@ class MarginfiGroup {
       throw Error(`Failed to fetch banks ${nullAccounts}`);
     }
 
+    const pythAccounts =
+      await program.provider.connection.getMultipleAccountsInfo(
+        bankAccountsData.map((b) => (b as BankData).config.pythOracle)
+      );
+
     const banks = bankAccountsData.map(
       (bd, index) =>
         new Bank(
           config.banks[index].label,
           bankAddresses[index],
-          bd as BankData
+          bd as BankData,
+          parsePriceData(pythAccounts[index]!.data)
         )
     );
 
