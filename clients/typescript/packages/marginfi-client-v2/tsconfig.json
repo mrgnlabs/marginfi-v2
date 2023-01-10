@@ -1,10 +1,8 @@
 {
+  "extends": "@mrgnlabs/tsconfig/node16.json",
   "compilerOptions": {
-    "target": "ES6",
-    "resolveJsonModule": true,
-    "lib": ["es2019"]
+    "resolveJsonModule": true
   },
-  "extends": "@mrgnlabs/tsconfig/base.json",
-  "include": ["."],
-  "exclude": ["dist", "build", "node_modules"]
+  "include": ["**/*.ts"],
+  "exclude": ["dist", "node_modules"]
 }

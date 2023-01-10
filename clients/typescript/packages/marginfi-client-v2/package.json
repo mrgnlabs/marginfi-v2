@@ -6,9 +6,9 @@
     "types": "./src/index.ts",
     "license": "MIT",
     "scripts": {
-        "dev": "ts-node src/index.ts",
+        "dev": "tsup --watch",
         "lint": "TIMING=1 eslint \"**/*.ts*\"",
-        "build": "tsc"
+        "build": "tsup"
     },
     "dependencies": {
         "@coral-xyz/anchor": "^0.26.0",
