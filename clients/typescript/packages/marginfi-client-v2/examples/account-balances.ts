@@ -1,5 +1,11 @@
 import { Connection } from "@solana/web3.js";
-import { AccountType, getConfig, MarginfiClient, NodeWallet } from "../src";
+import {
+  AccountType,
+  getConfig,
+  MarginfiClient,
+  NodeWallet,
+  shortenAddress,
+} from "../src";
 import MarginfiAccount, { MarginRequirementType } from "../src/account";
 
 async function main() {
@@ -17,7 +23,7 @@ async function main() {
   console.log(programAddresses.map((key) => key.toBase58()));
 
   const marginfiAccount = await MarginfiAccount.fetch(
-    "6tgsmyfNHVzZaDJ6bjSVrKBGVsrgpqHNzr7WDz3BeT7t",
+    "D3fKdP5zUPVGxtkGG5VXFxymcGpG71Nz5WskM6UhX2kD",
     client
   );
 
@@ -39,8 +45,9 @@ async function main() {
     );
 
     console.log(
-      "Balance (%s) deposits: %s, borrows: %s",
-      balance.bankPk,
+      "Balance for %s (%s) deposits: %s, borrows: %s",
+      shortenAddress(bank.mint),
+      shortenAddress(balance.bankPk),
       assets,
       liabs
     );

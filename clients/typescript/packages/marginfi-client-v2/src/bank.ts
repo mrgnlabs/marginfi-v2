@@ -56,12 +56,10 @@ class Bank {
     this.group = rawData.group;
 
     this.depositShareValue = wrappedI80F48toBigNumber(
-      rawData.depositShareValue,
-      0
+      rawData.depositShareValue
     );
     this.liabilityShareValue = wrappedI80F48toBigNumber(
-      rawData.liabilityShareValue,
-      0
+      rawData.liabilityShareValue
     );
 
     this.liquidityVault = rawData.liquidityVault;
@@ -78,51 +76,40 @@ class Bank {
 
     this.config = {
       depositWeightInit: wrappedI80F48toBigNumber(
-        rawData.config.depositWeightInit,
-        0
+        rawData.config.depositWeightInit
       ),
       depositWeightMaint: wrappedI80F48toBigNumber(
-        rawData.config.depositWeightMaint,
-        0
+        rawData.config.depositWeightMaint
       ),
       liabilityWeightInit: wrappedI80F48toBigNumber(
-        rawData.config.liabilityWeightInit,
-        0
+        rawData.config.liabilityWeightInit
       ),
       liabilityWeightMaint: wrappedI80F48toBigNumber(
-        rawData.config.liabilityWeightMaint,
-        0
+        rawData.config.liabilityWeightMaint
       ),
       maxCapacity: nativeToUi(rawData.config.maxCapacity, this.mintDecimals),
       pythOracle: rawData.config.pythOracle,
       interestRateConfig: {
         insuranceFeeFixedApr: wrappedI80F48toBigNumber(
-          rawData.config.interestRateConfig.insuranceFeeFixedApr,
-          0
+          rawData.config.interestRateConfig.insuranceFeeFixedApr
         ),
         maxInterestRate: wrappedI80F48toBigNumber(
-          rawData.config.interestRateConfig.maxInterestRate,
-          0
+          rawData.config.interestRateConfig.maxInterestRate
         ),
         insuranceIrFee: wrappedI80F48toBigNumber(
-          rawData.config.interestRateConfig.insuranceIrFee,
-          0
+          rawData.config.interestRateConfig.insuranceIrFee
         ),
         optimalUtilizationRate: wrappedI80F48toBigNumber(
-          rawData.config.interestRateConfig.optimalUtilizationRate,
-          0
+          rawData.config.interestRateConfig.optimalUtilizationRate
         ),
         plateauInterestRate: wrappedI80F48toBigNumber(
-          rawData.config.interestRateConfig.optimalUtilizationRate,
-          0
+          rawData.config.interestRateConfig.optimalUtilizationRate
         ),
         protocolFixedFeeApr: wrappedI80F48toBigNumber(
-          rawData.config.interestRateConfig.protocolFixedFeeApr,
-          0
+          rawData.config.interestRateConfig.protocolFixedFeeApr
         ),
         protocolIrFee: wrappedI80F48toBigNumber(
-          rawData.config.interestRateConfig.protocolIrFee,
-          0
+          rawData.config.interestRateConfig.protocolIrFee
         ),
       },
     };
@@ -198,7 +185,10 @@ class Bank {
     weight?: BigNumber
   ): BigNumber {
     const price = this.getPrice(priceBias);
-    return quantity.times(price).times(weight ?? 1);
+    return quantity
+      .times(price)
+      .times(weight ?? 1)
+      .dividedBy(10 ** this.mintDecimals);
   }
 
   public getPrice(priceBias: PriceBias): BigNumber {

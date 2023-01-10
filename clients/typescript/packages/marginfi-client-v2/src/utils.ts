@@ -1,4 +1,4 @@
-import { AnchorProvider, BN } from "@project-serum/anchor";
+import { Address, AnchorProvider, BN } from "@project-serum/anchor";
 import {
   ConfirmOptions,
   Connection,
@@ -114,7 +114,7 @@ export function sleep(ms: number) {
 
 export function wrappedI80F48toBigNumber(
   { value }: { value: BN },
-  scaleDecimal: number = 6
+  scaleDecimal: number = 0
 ): BigNumber {
   let numbers = new Decimal(
     `${value.isNeg() ? "-" : ""}0b${value.abs().toString(2)}p-48`
@@ -204,4 +204,10 @@ export function getBankVaultAuthority(
     [getBankVaultAuthoritySeeds(bankVaultType), bankPk.toBuffer()],
     programId
   );
+}
+
+// shorten the checksummed version of the input address to have 4 characters at start and end
+export function shortenAddress(pubkey: Address, chars = 4): string {
+  const pubkeyStr = pubkey.toString();
+  return `${pubkeyStr.slice(0, chars)}...${pubkeyStr.slice(-chars)}`;
 }
