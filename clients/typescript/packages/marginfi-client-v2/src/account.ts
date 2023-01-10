@@ -1,4 +1,9 @@
-import { Address, BorshCoder, translateAddress } from "@project-serum/anchor";
+import {
+  Address,
+  BN,
+  BorshCoder,
+  translateAddress,
+} from "@project-serum/anchor";
 import { associatedAddress } from "@project-serum/anchor/dist/cjs/utils/token";
 import { parsePriceData } from "@pythnetwork/client";
 import {
@@ -537,12 +542,56 @@ class MarginfiAccount {
     return assets < liabilities;
   }
 
-  // Calculate the max withdraw of a lending account balance.
-  // max_withdraw = max(free_collateral, balance_deposit) + max(free_collateral - balance_deposit, 0) / balance_liab_weight
-  public getMaxWithdrawForBank(bank: Bank): BigNumber {
-    // TODO
+  public getBalance(bankPk: PublicKey): Balance {
+    return (
+      this._lendingAccount.find((b) => b.bankPk.equals(bankPk)) ??
+      Balance.newEmpty(bankPk)
+    );
+  }
 
-    return new BigNumber(0);
+  public getFreeCollateral(): BigNumber {
+    const [assets, liabilities] = this.getHealthComponents(
+      MarginRequirementType.Init
+    );
+
+    return BigNumber.max(0, assets.minus(liabilities));
+  }
+
+  /**
+   * Calculate the maximum amount of asset that can be withdrawn from a bank given existing deposits of the asset
+   * and the untied collateral of the margin account.
+   *
+   * fc = free collateral
+   * ucb = untied collateral for bank
+   *
+   * q = (min(fc, ucb) / (price_lowest_bias * deposit_weight)) + (fc - min(fc, ucb)) / (price_highest_bias * liab_weight)
+   *
+   */
+  public getMaxWithdrawForBank(bank: Bank): BigNumber {
+    const balance = this.getBalance(bank.publicKey);
+
+    const freeCollateral = this.getFreeCollateral();
+    const untiedCollateralForBank = BigNumber.min(
+      bank.getDepositUsdValue(
+        balance.depositShares,
+        MarginRequirementType.Init,
+        PriceBias.Lowest
+      ),
+      freeCollateral
+    );
+
+    const priceLowestBias = bank.getPrice(PriceBias.Lowest);
+    const priceHighestBias = bank.getPrice(PriceBias.Highest);
+    const depositWeight = bank.getDepositWeight(MarginRequirementType.Init);
+    const liabWeight = bank.getLiabilityWeight(MarginRequirementType.Init);
+
+    return untiedCollateralForBank
+      .div(priceLowestBias.times(depositWeight))
+      .plus(
+        freeCollateral
+          .minus(untiedCollateralForBank)
+          .div(priceHighestBias.times(liabWeight))
+      );
   }
 
   // public toString() {
@@ -616,6 +665,15 @@ export class Balance {
     this.liabilityShares = wrappedI80F48toBigNumber(data.liabilityShares);
   }
 
+  public static newEmpty(bankPk: PublicKey): Balance {
+    return new Balance({
+      active: false,
+      bankPk,
+      depositShares: { value: new BN(0) },
+      liabilityShares: { value: new BN(0) },
+    });
+  }
+
   public getUsdValue(
     bank: Bank,
     marginReqType: MarginRequirementType
@@ -651,7 +709,7 @@ export class Balance {
       ),
     ];
   }
-  
+
   public getValue(bank: Bank): [BigNumber, BigNumber] {
     return [
       bank.getDepositValue(this.depositShares),
