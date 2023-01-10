@@ -197,10 +197,8 @@ class Bank {
     priceBias: PriceBias,
     weight?: BigNumber
   ): BigNumber {
-    const normalizedQuantity = quantity.div(Math.pow(10, this.mintDecimals));
     const price = this.getPrice(priceBias);
-
-    return normalizedQuantity.times(price).times(weight ?? 1);
+    return quantity.times(price).times(weight ?? 1);
   }
 
   public getPrice(priceBias: PriceBias): BigNumber {
