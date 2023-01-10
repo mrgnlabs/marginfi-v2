@@ -529,6 +529,22 @@ class MarginfiAccount {
       ) as [BigNumber, BigNumber];
   }
 
+  public canBeLiquidated(): boolean {
+    const [assets, liabilities] = this.getHealthComponents(
+      MarginRequirementType.Maint
+    );
+
+    return assets < liabilities;
+  }
+
+  // Calculate the max withdraw of a lending account balance.
+  // max_withdraw = max(free_collateral, balance_deposit) + max(free_collateral - balance_deposit, 0) / balance_liab_weight
+  public getMaxWithdrawForBank(bank: Bank): BigNumber {
+    // TODO
+
+    return new BigNumber(0);
+  }
+
   // public toString() {
   //   const marginRequirementInit = this.computeMarginRequirement(
   //     MarginRequirementType.Init
@@ -633,6 +649,13 @@ export class Balance {
         marginReqType,
         PriceBias.Highest
       ),
+    ];
+  }
+  
+  public getValue(bank: Bank): [BigNumber, BigNumber] {
+    return [
+      bank.getDepositValue(this.depositShares),
+      bank.getLiabilityValue(this.liabilityShares),
     ];
   }
 }

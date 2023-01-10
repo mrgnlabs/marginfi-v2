@@ -173,21 +173,11 @@ class Bank {
     marginRequirementType: MarginRequirementType,
     priceBias: PriceBias
   ): BigNumber {
-    const depositValue = this.getDepositValue(depositShares);
-    const price = this.getPrice(priceBias);
-    const weight = this.getDepositWeight(marginRequirementType);
-
-    console.log(
-      "value: %s, price: %s, weight: %s",
-      depositValue,
-      price,
-      weight
+    return this.getUsdValue(
+      this.getDepositValue(depositShares),
+      priceBias,
+      this.getDepositWeight(marginRequirementType)
     );
-
-    return depositValue
-      .times(price)
-      .div(new BigNumber(10).pow(USDC_DECIMALS))
-      .times(weight);
   }
 
   public getLiabilityUsdValue(
@@ -195,18 +185,22 @@ class Bank {
     marginRequirementType: MarginRequirementType,
     priceBias: PriceBias
   ): BigNumber {
-    const liabilityValue = this.getLiabilityValue(liabilityShares);
-    const price = this.getPrice(priceBias);
-    const weight = this.getLiabilityWeight(marginRequirementType);
-
-    console.log(
-      "value: %s, price: %s, weight: %s",
-      liabilityValue,
-      price,
-      weight
+    return this.getUsdValue(
+      this.getLiabilityValue(liabilityShares),
+      priceBias,
+      this.getLiabilityWeight(marginRequirementType)
     );
+  }
 
-    return liabilityValue.times(price).times(weight);
+  public getUsdValue(
+    quantity: BigNumber,
+    priceBias: PriceBias,
+    weight?: BigNumber
+  ): BigNumber {
+    const normalizedQuantity = quantity.div(Math.pow(10, this.mintDecimals));
+    const price = this.getPrice(priceBias);
+
+    return normalizedQuantity.times(price).times(weight ?? 1);
   }
 
   public getPrice(priceBias: PriceBias): BigNumber {

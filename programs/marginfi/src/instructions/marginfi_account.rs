@@ -307,7 +307,7 @@ pub fn lending_account_liquidate(
             let liab_price_feed =
                 liab_bank.load_price_feed_from_account_info(&ctx.accounts.liab_price_feed)?;
 
-            get_price(&liab_price_feed)?
+            get_pricxe(&liab_price_feed)?
         };
 
         let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
