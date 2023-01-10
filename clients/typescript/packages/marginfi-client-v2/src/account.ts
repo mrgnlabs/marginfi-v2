@@ -566,6 +566,10 @@ class MarginfiAccount {
    *
    * q = (min(fc, ucb) / (price_lowest_bias * deposit_weight)) + (fc - min(fc, ucb)) / (price_highest_bias * liab_weight)
    *
+   * 
+   * 
+   * NOTE FOR LIQUIDATORS
+   * This function doesn't take into account the collateral received when liquidating an account.
    */
   public getMaxWithdrawForBank(bank: Bank): BigNumber {
     const balance = this.getBalance(bank.publicKey);
@@ -592,6 +596,57 @@ class MarginfiAccount {
           .minus(untiedCollateralForBank)
           .div(priceHighestBias.times(liabWeight))
       );
+  }
+
+  public async makeLendingAccountLiquidateIx(
+    liquidateeMarginfiAccount: MarginfiAccount,
+    assetBank: Bank,
+    assetQuantityUi: UiAmount,
+    liabBank: Bank
+  ): Promise<InstructionsWrapper> {
+    const ix = await instructions.makeLendingAccountLiquidateIx(
+      this._program,
+      {
+        marginfiGroup: this._config.groupPk,
+        signer: this.client.provider.wallet.publicKey,
+        assetBank: assetBank.publicKey,
+        assetPriceFeed: assetBank.config.pythOracle,
+        liabBank: liabBank.publicKey,
+        liabPriceFeed: liabBank.config.pythOracle,
+        liquidatorMarginfiAccount: this.publicKey,
+        liquidateeMarginfiAccount: liquidateeMarginfiAccount.publicKey,
+        bankLiquidityVaultAuthority: getBankVaultAuthority(
+          BankVaultType.LiquidityVault,
+          liabBank.publicKey,
+          this._program.programId
+        )[0],
+        bankLiquidityVault: liabBank.liquidityVault,
+        bankInsuranceVault: liabBank.insuranceVault,
+      },
+      { assetAmount: uiToNative(assetQuantityUi, assetBank.mintDecimals) },
+      [
+        ...this.getHealthCheckAccounts([assetBank, liabBank]),
+        ...liquidateeMarginfiAccount.getHealthCheckAccounts(),
+      ]
+    );
+
+    return { instructions: [ix], keys: [] };
+  }
+
+  public async lendingAccountLiquidate(
+    liquidateeMarginfiAccount: MarginfiAccount,
+    assetBank: Bank,
+    assetQuantityUi: UiAmount,
+    liabBank: Bank
+  ): Promise<string> {
+    const ixw = await this.makeLendingAccountLiquidateIx(
+      liquidateeMarginfiAccount,
+      assetBank,
+      assetQuantityUi,
+      liabBank
+    );
+    const tx = new Transaction().add(...ixw.instructions);
+    return processTransaction(this.client.provider, tx);
   }
 
   // public toString() {

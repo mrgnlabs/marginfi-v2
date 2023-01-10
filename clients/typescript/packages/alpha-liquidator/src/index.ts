@@ -1,41 +1,34 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
-import { AccountType, getConfig, MarginfiClient, NodeWallet } from "../src";
-import MarginfiAccount, { MarginRequirementType } from "../src/account";
-import { PriceBias } from "../src/bank";
 
-const LIQUIDATOR_PK = new PublicKey("");
+import {
+  NodeWallet,
+  getConfig,
+  MarginfiClient,
+  AccountType,
+  loadKeypair,
+  MarginfiGroup,
+} from "@mrgnlabs/marginfi-client-v2";
+import MarginfiAccount, {
+  MarginRequirementType,
+} from "@mrgnlabs/marginfi-client-v2/src/account";
+import { PriceBias } from "@mrgnlabs/marginfi-client-v2/src/bank";
 
-async function main() {
-  const connection = new Connection(
-    "https://devnet.genesysgo.net/",
-    "confirmed"
-  );
-  const wallet = NodeWallet.local();
-  const config = await getConfig("devnet1");
-  const client = await MarginfiClient.fetch(config, wallet, connection);
+const LIQUIDATOR_PK = new PublicKey(process.env.LIQUIDATOR_PK);
+const connection = new Connection(process.env.RPC_ENDPOINT, "confirmed");
+const wallet = new NodeWallet(loadKeypair(process.env.KEYPAIR_PATH));
+const MARGINFI_GROUP_PK = new PublicKey(process.env.MARGINFI_GROUP_PK);
 
-  const programAddresses = await client.getAllProgramAccountAddresses(
-    AccountType.MarginfiGroup
-  );
-  console.log(programAddresses.map((key) => key.toBase58()));
-
-  const liquidatorAccount = await MarginfiAccount.fetch(LIQUIDATOR_PK, client);
+async function processAccount(
+  group: MarginfiGroup,
+  client: MarginfiClient,
+  liquidatorAccount: MarginfiAccount,
+  marginfiAccountAddress: PublicKey
+) {
   const marginfiAccount = await MarginfiAccount.fetch(
-    "6tgsmyfNHVzZaDJ6bjSVrKBGVsrgpqHNzr7WDz3BeT7t",
+    marginfiAccountAddress,
     client
   );
-
-  const group = marginfiAccount.group;
-
-  const bankLabel1 = "SOL";
-  const bank1 = group.getBankByLabel(bankLabel1);
-  if (!bank1) throw Error(`${bankLabel1} bank not found`);
-
-  const bankLabel2 = "USDC";
-  const bank2 = group.getBankByLabel(bankLabel2);
-  if (!bank2) throw Error(`${bankLabel2} bank not found`);
-
   if (marginfiAccount.canBeLiquidated()) {
     const [assets, liabs] = marginfiAccount.getHealthComponents(
       MarginRequirementType.Maint
@@ -134,6 +127,24 @@ async function main() {
   console.log("Liquidation tx: %s", sig);
 
   // Sell any non usd collateral and pay down any liability
+}
+async function main() {
+  const config = await getConfig("devnet1");
+  const client = await MarginfiClient.fetch(config, wallet, connection);
+  const group = await MarginfiGroup.fetch(config, client.program);
+  const liquidatorAccount = await MarginfiAccount.fetch(LIQUIDATOR_PK, client);
+
+  const round = async () => {
+    const addresses = await client.getAllMarginfiAccountAddresses();
+
+    for (let i = 0; i < addresses.length; i++) {
+      await processAccount(group, client, liquidatorAccount, addresses[i]);
+    }
+
+    setTimeout(round, 10_000);
+  };
+
+  round();
 }
 
 main();
