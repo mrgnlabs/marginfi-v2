@@ -84,10 +84,51 @@ async function makeWithdrawIx(
     .instruction();
 }
 
+function makeLendingAccountLiquidateIx(
+  mfiProgram: MarginfiProgram,
+  accounts: {
+    marginfiGroup: PublicKey;
+    signer: PublicKey;
+    assetBank: PublicKey;
+    assetPriceFeed: PublicKey;
+    liabBank: PublicKey;
+    liabPriceFeed: PublicKey;
+    liquidatorMarginfiAccount: PublicKey;
+    liquidateeMarginfiAccount: PublicKey;
+    bankLiquidityVaultAuthority: PublicKey;
+    bankLiquidityVault: PublicKey;
+    bankInsuranceVault: PublicKey;
+  },
+  args: {
+    assetAmount: BN;
+  },
+  remainingAccounts: AccountMeta[] = []
+) {
+  return mfiProgram.methods
+    .lendingAccountLiquidate(args.assetAmount)
+    .accountsStrict({
+      marginfiGroup: accounts.marginfiGroup,
+      signer: accounts.signer,
+      assetBank: accounts.assetBank,
+      assetPriceFeed: accounts.assetPriceFeed,
+      liabBank: accounts.liabBank,
+      liabPriceFeed: accounts.liabPriceFeed,
+      liquidatorMarginfiAccount: accounts.liquidatorMarginfiAccount,
+      liquidateeMarginfiAccount: accounts.liquidateeMarginfiAccount,
+      bankLiquidityVaultAuthority: accounts.bankLiquidityVaultAuthority,
+      bankLiquidityVault: accounts.bankLiquidityVault,
+      bankInsuranceVault: accounts.bankInsuranceVault,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(remainingAccounts)
+    .instruction();
+}
+
 const instructions = {
   makeDepositIx,
   makeWithdrawIx,
   makeInitMarginfiAccountIx,
+  makeLendingAccountLiquidateIx,
 };
 
 export default instructions;

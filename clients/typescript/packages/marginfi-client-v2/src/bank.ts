@@ -241,6 +241,14 @@ class Bank {
     }
   }
 
+  public getQuantityFromUsdValue(
+    usdValue: BigNumber,
+    priceBias: PriceBias
+  ): BigNumber {
+    const price = this.getPrice(priceBias);
+    return usdValue.div(price);
+  }
+
   public getInterestRates(): [BigNumber, BigNumber] {
     const {
       insuranceFeeFixedApr,
