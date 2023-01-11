@@ -249,7 +249,10 @@ class Bank {
     return usdValue.div(price);
   }
 
-  public getInterestRates(): [BigNumber, BigNumber] {
+  public getInterestRates(): {
+    lendingRate: BigNumber;
+    borrowingRate: BigNumber;
+  } {
     const {
       insuranceFeeFixedApr,
       insuranceIrFee,
@@ -268,7 +271,7 @@ class Bank {
       .times(new BigNumber(1).plus(rateFee))
       .plus(fixedFee);
 
-    return [lendingRate, borrowingRate];
+    return { lendingRate, borrowingRate };
   }
 
   private interestRateCurve(): BigNumber {

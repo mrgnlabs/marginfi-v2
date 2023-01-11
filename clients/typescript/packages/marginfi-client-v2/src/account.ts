@@ -518,10 +518,11 @@ class MarginfiAccount {
     return [marginfiGroupAi, marginfiAccountAi];
   }
 
-  public getHealthComponents(
-    marginReqType: MarginRequirementType
-  ): [BigNumber, BigNumber] {
-    return this._lendingAccount
+  public getHealthComponents(marginReqType: MarginRequirementType): {
+    assets: BigNumber;
+    liabilities: BigNumber;
+  } {
+    const [assets, liabilities] = this._lendingAccount
       .map((accountBalance) => {
         const bank = this._group.banks.get(accountBalance.bankPk.toBase58())!;
         return accountBalance.getUsdValueWithPriceBias(bank, marginReqType);
@@ -531,11 +532,13 @@ class MarginfiAccount {
           return [deposit.plus(d), liability.plus(l)];
         },
         [new BigNumber(0), new BigNumber(0)]
-      ) as [BigNumber, BigNumber];
+      );
+
+    return { assets, liabilities };
   }
 
   public canBeLiquidated(): boolean {
-    const [assets, liabilities] = this.getHealthComponents(
+    const { assets, liabilities } = this.getHealthComponents(
       MarginRequirementType.Maint
     );
 

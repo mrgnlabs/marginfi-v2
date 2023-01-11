@@ -11,33 +11,26 @@ import {
   Connection,
   Keypair,
   PublicKey,
-  Signer,
-  Transaction,
-  TransactionMessage,
-  TransactionSignature,
-  VersionedTransaction,
 } from "@solana/web3.js";
-import { InstructionsWrapper, Wallet } from "./types";
+import { InstructionsWrapper } from "./types";
 import { MARGINFI_IDL } from "./idl";
-import { NodeWallet } from "./nodeWallet";
 import {
   AccountType,
   Environment,
   MarginfiConfig,
   MarginfiProgram,
-  TransactionOptions,
 } from "./types";
-import { loadKeypair } from "./utils";
 import { getConfig } from "./config";
 import MarginfiGroup from "./group";
 import instructions from "./instructions";
-import MarginfiAccount, { MarginfiAccountData } from "./account";
-import { DEFAULT_COMMITMENT, DEFAULT_CONFIRM_OPTS } from "./constants";
+import { DEFAULT_COMMITMENT } from "./constants";
+import { MarginfiAccountData } from "./account";
+import MarginfiAccountReadonly from "./accountReadonly";
 
 /**
  * Entrypoint to interact with the marginfi contract.
  */
-class MarginfiClient {
+class MarginfiClientReadonly {
   public readonly programId: PublicKey;
   private _group: MarginfiGroup;
 
@@ -47,7 +40,6 @@ class MarginfiClient {
   private constructor(
     readonly config: MarginfiConfig,
     readonly program: MarginfiProgram,
-    readonly wallet: Wallet,
     group: MarginfiGroup
   ) {
     this.programId = config.programId;
@@ -69,7 +61,6 @@ class MarginfiClient {
    */
   static async fetch(
     config: MarginfiConfig,
-    wallet: Wallet,
     connection: Connection,
     opts?: ConfirmOptions
   ) {
@@ -81,7 +72,8 @@ class MarginfiClient {
       config.groupPk,
       connection.rpcEndpoint
     );
-    const provider = new AnchorProvider(connection, wallet, {
+
+    const provider = new AnchorProvider(connection, {} as any, {
       ...AnchorProvider.defaultOptions(),
       commitment:
         connection.commitment ?? AnchorProvider.defaultOptions().commitment,
@@ -93,10 +85,9 @@ class MarginfiClient {
       config.programId,
       provider
     ) as any as MarginfiProgram;
-    return new MarginfiClient(
+    return new MarginfiClientReadonly(
       config,
       program,
-      wallet,
       await MarginfiGroup.fetch(config, program, opts?.commitment)
     );
   }
@@ -107,9 +98,8 @@ class MarginfiClient {
       connection: Connection;
       programId: Address;
       marginfiGroup: Address;
-      wallet: Wallet;
     }>
-  ): Promise<MarginfiClient> {
+  ): Promise<MarginfiClientReadonly> {
     const debug = require("debug")("mfi:client");
     const env = overrides?.env ?? (process.env.MARGINFI_ENV! as Environment);
     const connection =
@@ -124,31 +114,16 @@ class MarginfiClient {
       (process.env.MARGINFI_GROUP
         ? new PublicKey(process.env.MARGINFI_GROUP)
         : PublicKey.default);
-    const wallet =
-      overrides?.wallet ??
-      new NodeWallet(
-        process.env.MARGINFI_WALLET_KEY
-          ? Keypair.fromSecretKey(
-              new Uint8Array(JSON.parse(process.env.MARGINFI_WALLET_KEY))
-            )
-          : loadKeypair(process.env.MARGINFI_WALLET!)
-      );
 
     debug("Loading the marginfi client from env vars");
-    debug(
-      "Env: %s\nProgram: %s\nGroup: %s\nSigner: %s",
-      env,
-      programId,
-      groupPk,
-      wallet.publicKey
-    );
+    debug("Env: %s\nProgram: %s\nGroup: %s", env, programId, groupPk);
 
     const config = await getConfig(env, {
       groupPk: translateAddress(groupPk),
       programId: translateAddress(programId),
     });
 
-    return MarginfiClient.fetch(config, wallet, connection, {
+    return MarginfiClientReadonly.fetch(config, connection, {
       commitment: connection.commitment,
     });
   }
@@ -199,29 +174,6 @@ class MarginfiClient {
   }
 
   /**
-   * Create a new marginfi account under the authority of the user.
-   *
-   * @returns MarginfiAccount instance
-   */
-  async createMarginfiAccount(
-    opts?: TransactionOptions
-  ): Promise<MarginfiAccount> {
-    const dbg = require("debug")("mfi:client");
-
-    const accountKeypair = Keypair.generate();
-
-    const ixs = await this.makeCreateMarginfiAccountIx(accountKeypair);
-    const tx = new Transaction().add(...ixs.instructions);
-    const sig = await this.processTransaction(tx, ixs.keys, opts);
-
-    dbg("Created Marginfi account %s", sig);
-
-    return opts?.dryRun
-      ? Promise.resolve(undefined as unknown as MarginfiAccount)
-      : MarginfiAccount.fetch(accountKeypair.publicKey, this, opts?.commitment);
-  }
-
-  /**
    * Retrieves the addresses of all marginfi accounts in the udnerlying group.
    *
    * @returns Account addresses
@@ -265,31 +217,27 @@ class MarginfiClient {
    * @returns MarginfiAccount instances
    */
   async getMarginfiAccountsForAuthority(
-    authority?: Address
-  ): Promise<MarginfiAccount[]> {
+    authority: Address
+  ): Promise<MarginfiAccountReadonly[]> {
     const marginfiGroup = await MarginfiGroup.fetch(this.config, this.program);
-    const _authority = authority
-      ? translateAddress(authority)
-      : this.provider.wallet.publicKey;
-    console.log("fetching accounts for ", _authority.toBase58());
-
+    const _authority = translateAddress(authority);
     return (
       await this.program.account.marginfiAccount.all([
         {
           memcmp: {
-            bytes: this._group.publicKey.toBase58(),
-            offset: 8, // marginfiGroup is the first field in the account, so only offset is the discriminant
+            bytes: _authority.toBase58(),
+            offset: 8, // authority is the first field in the account, so only offset is the discriminant
           },
         },
         {
           memcmp: {
-            bytes: _authority.toBase58(),
-            offset: 8 + 32, // authority is the second field in the account after the authority, so offset by the discriminant and a pubkey
+            bytes: this._group.publicKey.toBase58(),
+            offset: 8 + 32, // marginfiGroup is the second field in the account after the authority, so offset by the discriminant and a pubkey
           },
         },
       ])
     ).map((a) =>
-      MarginfiAccount.fromAccountData(
+      MarginfiAccountReadonly.fromAccountData(
         a.publicKey,
         this,
         a.account as MarginfiAccountData,
@@ -327,98 +275,6 @@ class MarginfiClient {
       )
     ).map((a) => a.pubkey);
   }
-
-  async processTransaction(
-    transaction: Transaction,
-    signers?: Array<Signer>,
-    opts?: TransactionOptions
-  ): Promise<TransactionSignature> {
-    let signature: TransactionSignature = "";
-    try {
-      const connection = new Connection(
-        this.provider.connection.rpcEndpoint,
-        this.provider.opts
-      );
-
-      const {
-        context: { slot: minContextSlot },
-        value: { blockhash, lastValidBlockHeight },
-      } = await connection.getLatestBlockhashAndContext();
-
-      const versionedMessage = new TransactionMessage({
-        instructions: transaction.instructions,
-        payerKey: this.provider.publicKey,
-        recentBlockhash: blockhash,
-      });
-      const versionedTransaction = new VersionedTransaction(
-        versionedMessage.compileToV0Message([])
-      );
-
-      await this.wallet.signTransaction(versionedTransaction);
-      if (signers) versionedTransaction.sign(signers);
-
-      if (opts?.dryRun) {
-        const response = await connection.simulateTransaction(
-          versionedTransaction,
-          opts ?? { minContextSlot, sigVerify: false }
-        );
-        console.log(
-          response.value.err
-            ? `❌ Error: ${response.value.err}`
-            : `✅ Success - ${response.value.unitsConsumed} CU`
-        );
-        console.log("------ Logs 👇 ------");
-        console.log(response.value.logs);
-
-        const signaturesEncoded = encodeURIComponent(
-          JSON.stringify(
-            versionedTransaction.signatures.map((s) => bs58.encode(s))
-          )
-        );
-        const messageEncoded = encodeURIComponent(
-          Buffer.from(versionedTransaction.message.serialize()).toString(
-            "base64"
-          )
-        );
-        console.log(
-          Buffer.from(versionedTransaction.message.serialize()).toString(
-            "base64"
-          )
-        );
-
-        const urlEscaped = `https://explorer.solana.com/tx/inspector?cluster=${this.config.cluster}&signatures=${signaturesEncoded}&message=${messageEncoded}`;
-        console.log("------ Inspect 👇 ------");
-        console.log(urlEscaped);
-
-        return versionedTransaction.signatures[0].toString();
-      } else {
-        let mergedOpts: ConfirmOptions = {
-          ...DEFAULT_CONFIRM_OPTS,
-          commitment: connection.commitment ?? DEFAULT_CONFIRM_OPTS.commitment,
-          preflightCommitment:
-            connection.commitment ?? DEFAULT_CONFIRM_OPTS.commitment,
-          minContextSlot,
-          ...opts,
-        };
-
-        signature = await connection.sendTransaction(
-          versionedTransaction,
-          mergedOpts
-        );
-        await connection.confirmTransaction(
-          {
-            blockhash,
-            lastValidBlockHeight,
-            signature,
-          },
-          mergedOpts.commitment
-        );
-        return signature;
-      }
-    } catch (error: any) {
-      throw `Transaction failed! ${error?.message}`;
-    }
-  }
 }
 
-export default MarginfiClient;
+export default MarginfiClientReadonly;
