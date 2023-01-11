@@ -20,8 +20,6 @@
   * Integrate Switchboard or coordinate with the Pyth team, ideally we use Pyth.
 * Rust Client
     Ongoing -- developed as needed.
-* struct packing
-    Ideally we figure out a way to use packed, to conserve onchain space, and avoid anchor issues.
 * TS Client
     Developed as needed for the UI, and any bots.
 * Crank Bot

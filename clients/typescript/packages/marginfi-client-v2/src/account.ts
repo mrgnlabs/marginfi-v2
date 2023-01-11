@@ -1,5 +1,6 @@
 import { Address, BorshCoder, translateAddress } from "@project-serum/anchor";
 import { associatedAddress } from "@project-serum/anchor/dist/cjs/utils/token";
+import { parsePriceData } from "@pythnetwork/client";
 import {
   AccountInfo,
   AccountMeta,
@@ -16,7 +17,7 @@ import {
   uiToNative,
   wrappedI80F48toBigNumber,
 } from ".";
-import Bank, { BankData } from "./bank";
+import Bank, { BankData, PriceBias } from "./bank";
 import MarginfiGroup from "./group";
 import { MARGINFI_IDL } from "./idl";
 import instructions from "./instructions";
@@ -54,14 +55,9 @@ class MarginfiAccount {
     this._group = group;
     this._authority = rawData.authority;
 
-    this._lendingAccount = (
-      rawData.lendingAccount.balances.filter((la) => la.active) as BalanceData[]
-    ).map((la) => ({
-      active: la.active,
-      bankPk: la.bankPk,
-      depositShares: wrappedI80F48toBigNumber(la.depositShares),
-      liabilityShares: wrappedI80F48toBigNumber(la.liabilityShares),
-    }));
+    this._lendingAccount = rawData.lendingAccount.balances
+      .filter((la) => la.active)
+      .map((la) => new Balance(la));
   }
 
   // --- Getters / Setters
@@ -454,12 +450,18 @@ class MarginfiAccount {
       throw Error(`Failed to fetch banks ${nullAccounts}`);
     }
 
+    const pythAccounts =
+      await this._program.provider.connection.getMultipleAccountsInfo(
+        bankAccountsData.map((b) => (b as BankData).config.pythOracle)
+      );
+
     const banks = bankAccountsData.map(
       (bd, index) =>
         new Bank(
           this._config.banks[index].label,
           bankAddresses[index],
-          bd as BankData
+          bd as BankData,
+          parsePriceData(pythAccounts[index]!.data)
         )
     );
 
@@ -479,14 +481,10 @@ class MarginfiAccount {
    */
   private _updateFromAccountData(data: MarginfiAccountData) {
     this._authority = data.authority;
-    this._lendingAccount = (
-      data.lendingAccount.balances.filter((la) => la.active) as BalanceData[]
-    ).map((la) => ({
-      active: la.active,
-      bankPk: la.bankPk,
-      depositShares: wrappedI80F48toBigNumber(la.depositShares),
-      liabilityShares: wrappedI80F48toBigNumber(la.liabilityShares),
-    }));
+
+    this._lendingAccount = data.lendingAccount.balances
+      .filter((la) => la.active)
+      .map((la) => new Balance(la));
   }
 
   private async loadGroupAndAccountAi(): Promise<AccountInfo<Buffer>[]> {
@@ -513,6 +511,38 @@ class MarginfiAccount {
     }
 
     return [marginfiGroupAi, marginfiAccountAi];
+  }
+
+  public getHealthComponents(
+    marginReqType: MarginRequirementType
+  ): [BigNumber, BigNumber] {
+    return this._lendingAccount
+      .map((accountBalance) => {
+        const bank = this._group.banks.get(accountBalance.bankPk.toBase58())!;
+        return accountBalance.getUsdValueWithPriceBias(bank, marginReqType);
+      })
+      .reduce(
+        ([deposit, liability], [d, l]) => {
+          return [deposit.plus(d), liability.plus(l)];
+        },
+        [new BigNumber(0), new BigNumber(0)]
+      ) as [BigNumber, BigNumber];
+  }
+
+  public canBeLiquidated(): boolean {
+    const [assets, liabilities] = this.getHealthComponents(
+      MarginRequirementType.Maint
+    );
+
+    return assets < liabilities;
+  }
+
+  // Calculate the max withdraw of a lending account balance.
+  // max_withdraw = max(free_collateral, balance_deposit) + max(free_collateral - balance_deposit, 0) / balance_liab_weight
+  public getMaxWithdrawForBank(bank: Bank): BigNumber {
+    // TODO
+
+    return new BigNumber(0);
   }
 
   // public toString() {
@@ -573,11 +603,61 @@ export default MarginfiAccount;
 
 // Client types
 
-export interface Balance {
+export class Balance {
   active: boolean;
   bankPk: PublicKey;
   depositShares: BigNumber;
   liabilityShares: BigNumber;
+
+  constructor(data: BalanceData) {
+    this.active = data.active;
+    this.bankPk = data.bankPk;
+    this.depositShares = wrappedI80F48toBigNumber(data.depositShares);
+    this.liabilityShares = wrappedI80F48toBigNumber(data.liabilityShares);
+  }
+
+  public getUsdValue(
+    bank: Bank,
+    marginReqType: MarginRequirementType
+  ): [BigNumber, BigNumber] {
+    return [
+      bank.getDepositUsdValue(
+        this.depositShares,
+        marginReqType,
+        PriceBias.None
+      ),
+      bank.getLiabilityUsdValue(
+        this.liabilityShares,
+        marginReqType,
+        PriceBias.None
+      ),
+    ];
+  }
+
+  public getUsdValueWithPriceBias(
+    bank: Bank,
+    marginReqType: MarginRequirementType
+  ): [BigNumber, BigNumber] {
+    return [
+      bank.getDepositUsdValue(
+        this.depositShares,
+        marginReqType,
+        PriceBias.Lowest
+      ),
+      bank.getLiabilityUsdValue(
+        this.liabilityShares,
+        marginReqType,
+        PriceBias.Highest
+      ),
+    ];
+  }
+
+  public getValue(bank: Bank): [BigNumber, BigNumber] {
+    return [
+      bank.getDepositValue(this.depositShares),
+      bank.getLiabilityValue(this.liabilityShares),
+    ];
+  }
 }
 
 // On-chain types
@@ -593,4 +673,10 @@ export interface BalanceData {
   bankPk: PublicKey;
   depositShares: WrappedI80F48;
   liabilityShares: WrappedI80F48;
+}
+
+export enum MarginRequirementType {
+  Init = 0,
+  Maint = 1,
+  Equity = 2,
 }

@@ -6,11 +6,14 @@
     "types": "./src/index.ts",
     "license": "MIT",
     "scripts": {
-        "dev": "ts-node src/index.ts",
-        "lint": "TIMING=1 eslint \"**/*.ts*\""
+        "dev": "tsup --watch",
+        "lint": "TIMING=1 eslint \"**/*.ts*\"",
+        "build": "tsup"
     },
     "dependencies": {
+        "@coral-xyz/anchor": "^0.26.0",
         "@project-serum/anchor": "^0.26.0",
+        "@pythnetwork/client": "^2.9.0",
         "@solana/wallet-adapter-base": "^0.9.20",
         "@solana/web3.js": "^1.71.0",
         "bignumber.js": "^9.1.1",

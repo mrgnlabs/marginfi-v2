@@ -18,6 +18,7 @@
     }
   },
   "globalEnv": [
+    "NODE_ENV",
     "MARGINFI_ENV",
     "MARGINFI_RPC_ENDPOINT",
     "MARGINFI_PROGRAM",
