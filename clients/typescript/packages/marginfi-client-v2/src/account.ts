@@ -553,7 +553,7 @@ class MarginfiAccount {
   }
 
   public getFreeCollateral(): BigNumber {
-    const [assets, liabilities] = this.getHealthComponents(
+    const { assets, liabilities } = this.getHealthComponents(
       MarginRequirementType.Init
     );
 
@@ -569,8 +569,8 @@ class MarginfiAccount {
    *
    * q = (min(fc, ucb) / (price_lowest_bias * deposit_weight)) + (fc - min(fc, ucb)) / (price_highest_bias * liab_weight)
    *
-   * 
-   * 
+   *
+   *
    * NOTE FOR LIQUIDATORS
    * This function doesn't take into account the collateral received when liquidating an account.
    */
@@ -652,58 +652,45 @@ class MarginfiAccount {
     return processTransaction(this.client.provider, tx);
   }
 
-  // public toString() {
-  //   const marginRequirementInit = this.computeMarginRequirement(
-  //     MarginRequirementType.Init
-  //   );
-  //   const marginRequirementMaint = this.computeMarginRequirement(
-  //     MarginRequirementType.Maint
-  //   );
+  public toString() {
+    const { assets, liabilities } = this.getHealthComponents(
+      MarginRequirementType.Equity
+    );
 
-  //   const initHealth =
-  //     marginRequirementInit.toNumber() <= 0
-  //       ? Infinity
-  //       : equity.div(marginRequirementInit.toNumber());
-  //   const maintHealth =
-  //     marginRequirementMaint.toNumber() <= 0
-  //       ? Infinity
-  //       : equity.div(marginRequirementMaint.toNumber());
-  //   const marginRatio = liabilities.lte(0) ? Infinity : equity.div(liabilities);
+    let str = `-----------------
+  Marginfi account:
+    Address: ${this.publicKey.toBase58()}
+    Group: ${this.group.publicKey.toBase58()}
+    Authority: ${this.authority.toBase58()}
+    Equity: ${this.getHealthComponents(
+      MarginRequirementType.Equity
+    ).assets.toFixed(6)}
+    Equity: ${assets.minus(liabilities).toFixed(6)}
+    Assets: ${assets.toFixed(6)},
+    Liabilities: ${liabilities.toFixed(6)}`;
 
-  //   let str = `-----------------
-  // Marginfi account:
-  //   Address: ${this.publicKey.toBase58()}
-  //   GA Balance: ${deposits.toFixed(6)}
-  //   Equity: ${equity.toFixed(6)}
-  //   Mr Adjusted Equity: ${mrEquity.toFixed(6)}
-  //   Assets: ${assets.toFixed(6)},
-  //   Liabilities: ${liabilities.toFixed(6)}
-  //   Margin ratio: ${marginRatio.toFixed(6)}
-  //   Requirement
-  //     init: ${marginRequirementInit.toFixed(6)}, health: ${initHealth.toFixed(
-  //     6
-  //   )}
-  //     maint: ${marginRequirementMaint.toFixed(
-  //       6
-  //     )}, health: ${maintHealth.toFixed(6)}`;
+    const activeLendingAccounts = this.lendingAccount.filter((la) => la.active);
+    if (activeLendingAccounts.length > 0) {
+      str = str.concat("\n-----------------\nBalances:");
+    }
+    for (let lendingAccount of activeLendingAccounts) {
+      const bank = this._group.getBankByPk(lendingAccount.bankPk);
+      if (!bank) {
+        console.log(`Bank ${lendingAccount.bankPk} not found`);
+        continue;
+      }
+      const utpStr = `\n  Bank ${bank.label}:
+      Address: ${bank.publicKey.toBase58()}
+      Mint: ${bank.mint.toBase58()}
+      Equity: ${lendingAccount.getUsdValue(
+        bank,
+        MarginRequirementType.Equity
+      )}`;
+      str = str.concat(utpStr);
+    }
 
-  //   if (this.activeUtps.length > 0) {
-  //     str = str.concat("\n-----------------\nUTPs:");
-  //   }
-  //   for (let utp of this.activeUtps) {
-  //     const utpStr = `\n  ${UTP_NAME[utp.index]}:
-  //     Address: ${utp.address.toBase58()}
-  //     Equity: ${utp.equity.toFixed(6)},
-  //     Free collateral: ${utp.freeCollateral.toFixed(6)}`;
-  //     str = str.concat(utpStr);
-  //   }
-
-  //   return str;
-  // }
-
-  // [customInspectSymbol](_depth: number, _inspectOptions: any, _inspect: any) {
-  //   return this.toString();
-  // }
+    return str;
+  }
 }
 
 export default MarginfiAccount;
