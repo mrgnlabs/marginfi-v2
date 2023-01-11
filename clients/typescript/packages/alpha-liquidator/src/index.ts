@@ -72,9 +72,9 @@ async function processAccount(
       maxLiabCoverage,
       PriceBias.None
     );
-    const liquidateeLiabUsdValue = bank.getUsdValue(
-      bank.getLiabilityQuantity(balance.liabilityShares),
-      PriceBias.None
+    const [_, liquidateeLiabUsdValue] = balance.getUsdValue(
+      bank,
+      MarginRequirementType.Equity
     );
 
     const liabUsdValue = BigNumber.max(
