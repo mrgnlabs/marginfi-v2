@@ -125,11 +125,11 @@ class Bank {
   }
 
   get totalDeposits(): BigNumber {
-    return this.getDepositValue(this.totalDepositShares);
+    return this.getDepositQuantity(this.totalDepositShares);
   }
 
   get totalLiabilities(): BigNumber {
-    return this.getLiabilityValue(this.totalLiabilityShares);
+    return this.getLiabilityQuantity(this.totalLiabilityShares);
   }
 
   public async reloadPriceData(connection: Connection) {
@@ -139,11 +139,11 @@ class Bank {
     this.priceData = parsePriceData(pythPriceAccount!.data);
   }
 
-  public getDepositValue(depositShares: BigNumber): BigNumber {
+  public getDepositQuantity(depositShares: BigNumber): BigNumber {
     return depositShares.times(this.depositShareValue);
   }
 
-  public getLiabilityValue(liabilityShares: BigNumber): BigNumber {
+  public getLiabilityQuantity(liabilityShares: BigNumber): BigNumber {
     return liabilityShares.times(this.liabilityShareValue);
   }
 
@@ -161,7 +161,7 @@ class Bank {
     priceBias: PriceBias
   ): BigNumber {
     return this.getUsdValue(
-      this.getDepositValue(depositShares),
+      this.getDepositQuantity(depositShares),
       priceBias,
       this.getDepositWeight(marginRequirementType)
     );
@@ -173,7 +173,7 @@ class Bank {
     priceBias: PriceBias
   ): BigNumber {
     return this.getUsdValue(
-      this.getLiabilityValue(liabilityShares),
+      this.getLiabilityQuantity(liabilityShares),
       priceBias,
       this.getLiabilityWeight(marginRequirementType)
     );
