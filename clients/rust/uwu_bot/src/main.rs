@@ -1,5 +1,5 @@
 use anchor_client::{
-    anchor_lang::{prelude::Signer, InstructionData, ToAccountMetas},
+    anchor_lang::{InstructionData, ToAccountMetas},
     Cluster, Program,
 };
 use anyhow::Result;
@@ -11,9 +11,9 @@ use solana_client::{
 };
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
-    signature::Keypair, stake::program, transaction::Transaction,
+    signature::Keypair,
 };
-use std::{env, fs, future::Future, rc::Rc, str::FromStr, time::Duration};
+use std::{env, fs, rc::Rc, str::FromStr, time::Duration};
 use tokio::time::sleep;
 
 #[tokio::main]
