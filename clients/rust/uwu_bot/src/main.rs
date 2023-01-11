@@ -13,10 +13,11 @@ use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
     signature::Keypair, stake::program, transaction::Transaction,
 };
-use std::{env, fs, rc::Rc, str::FromStr, time::Duration};
+use std::{env, fs, future::Future, rc::Rc, str::FromStr, time::Duration};
 use tokio::time::sleep;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let program_id = Pubkey::from_str(&env::var("MARGINFI_PROGRAM").unwrap()).unwrap();
     let group_id = Pubkey::from_str(&env::var("MARGINFI_GROUP").unwrap()).unwrap();
     let rpc = RpcClient::new(env::var("RPC_ENDPOINT").unwrap());
@@ -28,7 +29,7 @@ fn main() -> Result<()> {
     );
     let program = Rc::new(client.program(program_id));
 
-    let run = || async {
+    loop {
         let banks = load_all_banks_for_group(program.clone(), group_id)
             .await
             .unwrap();
@@ -64,13 +65,7 @@ fn main() -> Result<()> {
             .unwrap();
 
         sleep(Duration::from_secs(1)).await;
-
-        run().await
-    };
-
-    tokio::runtime::Runtime::new().unwrap().block_on(run());
-
-    Ok(())
+    }
 }
 
 async fn load_all_banks_for_group(
