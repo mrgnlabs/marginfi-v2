@@ -68,7 +68,7 @@ async function main() {
       PriceBias.None
     );
     const liquidateeLiabUsdValue = bank.getUsdValue(
-      bank.getLiabilityValue(balance.liabilityShares),
+      bank.getLiabilityQuantity(balance.liabilityShares),
       PriceBias.None
     );
 
