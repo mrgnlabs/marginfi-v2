@@ -247,19 +247,12 @@ async function withdrawNonUsdcCollateral(
       continue;
     }
 
-    const [collateralUsdValue, _] = balance.getUsdValue(
-      bank,
-      MarginRequirementType.Equity
-    );
+    const [collateralQuantity, _] = balance.getQuantity(bank);
 
-    if (collateralUsdValue.lte(1)) {
+    if (collateralQuantity.lte(1)) {
       continue;
     }
 
-    const collateralQuantity = bank.getQuantityFromUsdValue(
-      collateralUsdValue,
-      PriceBias.None
-    );
     const sig = await marginfiAccount.withdraw(collateralQuantity, bank);
     console.log("Withdraw tx: %s", sig);
     mintsWithdrawn.push(bank.mint);

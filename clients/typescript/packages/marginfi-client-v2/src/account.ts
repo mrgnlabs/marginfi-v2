@@ -765,7 +765,7 @@ export class Balance {
     ];
   }
 
-  public getValue(bank: Bank): [BigNumber, BigNumber] {
+  public getQuantity(bank: Bank): [BigNumber, BigNumber] {
     return [
       bank.getDepositQuantity(this.depositShares),
       bank.getLiabilityQuantity(this.liabilityShares),
