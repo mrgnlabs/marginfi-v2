@@ -1,10 +1,9 @@
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import {
   NodeWallet,
   getConfig,
   MarginfiClient,
-  AccountType,
   loadKeypair,
   MarginfiGroup,
   uiToNative,
@@ -15,11 +14,8 @@ import MarginfiAccount, {
   MarginRequirementType,
 } from "@mrgnlabs/marginfi-client-v2/src/account";
 import Bank, { PriceBias } from "@mrgnlabs/marginfi-client-v2/src/bank";
-import bs58 from "bs58";
-import fetch from "node-fetch";
 import JSBI from "jsbi";
-import { Jupiter, RouteInfo, TOKEN_LIST_URL } from "@jup-ag/core";
-import { Token } from "@jup-ag/core/dist/lib/amms/marcoPolo/type";
+import { Jupiter } from "@jup-ag/core";
 import { associatedAddress } from "@project-serum/anchor/dist/esm/utils/token";
 
 const LIQUIDATOR_PK = new PublicKey(process.env.LIQUIDATOR_PK);
