@@ -436,7 +436,7 @@ class MarginfiAccount {
       "Reloading account data"
     );
     const [marginfiGroupAi, marginfiAccountAi] =
-      await this.loadGroupAndAccountAi();
+      await this._loadGroupAndAccountAi();
     const marginfiAccountData = MarginfiAccount.decode(marginfiAccountAi.data);
     if (!marginfiAccountData.group.equals(this._config.groupPk))
       throw Error(
@@ -493,7 +493,7 @@ class MarginfiAccount {
       .map((la) => new Balance(la));
   }
 
-  private async loadGroupAndAccountAi(): Promise<AccountInfo<Buffer>[]> {
+  private async _loadGroupAndAccountAi(): Promise<AccountInfo<Buffer>[]> {
     const debug = require("debug")(
       `mfi:margin-account:${this.publicKey.toString()}:loader`
     );
@@ -571,6 +571,84 @@ class MarginfiAccount {
     );
 
     return BigNumber.max(0, assets.minus(liabilities));
+  }
+
+  private _getHealthComponentsWithoutBias(
+    marginReqType: MarginRequirementType
+  ): {
+    assets: BigNumber;
+    liabilities: BigNumber;
+  } {
+    const [assets, liabilities] = this._lendingAccount
+      .map((accountBalance) => {
+        const bank = this._group.banks.get(accountBalance.bankPk.toBase58());
+        if (!bank)
+          throw Error(
+            `Bank ${shortenAddress(accountBalance.bankPk)} not found`
+          );
+        const { assets, liabilities } = accountBalance.getUsdValue(
+          bank,
+          marginReqType
+        );
+        return [assets, liabilities];
+      })
+      .reduce(
+        ([asset, liability], [d, l]) => {
+          return [asset.plus(d), liability.plus(l)];
+        },
+        [new BigNumber(0), new BigNumber(0)]
+      );
+
+    return { assets, liabilities };
+  }
+
+  public computeApy(): number {
+    const { assets, liabilities } = this._getHealthComponentsWithoutBias(
+      MarginRequirementType.Equity
+    );
+    const totalUsdValue = assets.minus(liabilities);
+    console.log("totalUsdValue", totalUsdValue.toNumber());
+
+    return this.getActiveBalances()
+      .reduce((weightedApy, balance) => {
+        const bank = this._group.getBankByPk(balance.bankPk);
+        if (!bank) throw Error(`Bank ${balance.bankPk.toBase58()} not found`);
+        console.log(
+          bank
+            .getInterestRates()
+            .borrowingRate.times(
+              balance.getUsdValue(bank, MarginRequirementType.Equity)
+                .liabilities
+            )
+            .toNumber(),
+          bank
+            .getInterestRates()
+            .lendingRate.times(
+              balance.getUsdValue(bank, MarginRequirementType.Equity).assets
+            )
+            .toNumber()
+        );
+
+        return weightedApy
+          .minus(
+            bank
+              .getInterestRates()
+              .borrowingRate.times(
+                balance.getUsdValue(bank, MarginRequirementType.Equity)
+                  .liabilities
+              )
+              .div(liabilities)
+          )
+          .plus(
+            bank
+              .getInterestRates()
+              .lendingRate.times(
+                balance.getUsdValue(bank, MarginRequirementType.Equity).assets
+              )
+              .div(assets)
+          );
+      }, new BigNumber(0))
+      .toNumber();
   }
 
   /**
