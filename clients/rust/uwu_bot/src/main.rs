@@ -3,31 +3,100 @@ use anchor_client::{
     Cluster, Program,
 };
 use anyhow::Result;
+use clap::Parser;
+use log::info;
 use marginfi::{constants::LIQUIDITY_VAULT_SEED, state::marginfi_group::Bank};
+use solana_account_decoder::UiAccountEncoding;
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
-    rpc_config::RpcSendTransactionConfig,
+    rpc_config::{
+        EncodingConfig, RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig,
+    },
     rpc_filter::{Memcmp, RpcFilterType},
 };
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
-    signature::Keypair,
+    commitment_config::{CommitmentConfig, CommitmentLevel},
+    compute_budget::ComputeBudgetInstruction,
+    instruction::Instruction,
+    pubkey::Pubkey,
+    signature::{read_keypair_file, Keypair},
 };
-use std::{env, fs, rc::Rc, str::FromStr, time::Duration};
+use std::{env, fs, mem::size_of, rc::Rc, str::FromStr, time::Duration};
 use tokio::time::sleep;
+
+const DEFAULT_PROGRAM_ID: &str = "EPsDwX4sRNRkiykuqeyExF5LsHV9XBPMZM6gHj7QQbkY";
+const DEFAULT_GROUP_ID: &str = "2y5NtJQVpaDPynjHFSEAcPJ6ZFWeReJaK2sCYFbRaERC";
+const DEFAULT_RPC_URL: &str = "https://devnet.genesysgo.net";
+
+#[derive(Parser)]
+struct Ops {
+    #[clap(subcommand)]
+    cmd: Command,
+    #[clap(flatten)]
+    global: GlobalOptions,
+}
+#[derive(Parser)]
+struct GlobalOptions {
+    #[clap(
+        global = true,
+        short = 'p',
+        long = "program",
+        default_value = DEFAULT_PROGRAM_ID
+    )]
+    program_id: String,
+    #[clap(
+        global = true,
+        short = 'g',
+        long = "group",
+        default_value = DEFAULT_GROUP_ID
+    )]
+    group_id: String,
+    #[clap(
+        global = true,
+        short = 'u',
+        long = "url",
+        default_value = DEFAULT_RPC_URL
+    )]
+    rpc_url: String,
+    #[clap(
+        global = true,
+        short = 'k',
+        long = "keypair",
+        default_value = "~/.config/solana/id.json"
+    )]
+    wallet_path: String,
+}
+
+#[derive(Parser)]
+enum Command {
+    #[clap(name = "crank")]
+    Crank(CrankOptions),
+}
+
+#[derive(Parser)]
+struct CrankOptions {
+    #[clap(short = 'i', long = "interval", default_value = "1")]
+    interval_sec: u64,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let program_id = Pubkey::from_str(&env::var("MARGINFI_PROGRAM").unwrap()).unwrap();
-    let group_id = Pubkey::from_str(&env::var("MARGINFI_GROUP").unwrap()).unwrap();
-    let rpc = RpcClient::new(env::var("RPC_ENDPOINT").unwrap());
-    let signer = fs::read(env::var("KEYPAIR_PATH").unwrap()).unwrap();
+    env_logger::init();
 
-    let client = anchor_client::Client::new(
-        Cluster::Custom(rpc.url(), "".to_owned()),
-        Rc::new(Keypair::from_bytes(&signer)?),
-    );
+    info!("Starting interest cranker (* ^ ω ^)");
+
+    let Ops { cmd, global } = Ops::parse();
+
+    let program_id = Pubkey::from_str(&global.program_id).unwrap();
+    let group_id = Pubkey::from_str(&global.group_id).unwrap();
+    let rpc = RpcClient::new(global.rpc_url);
+    let signer = read_keypair_file(shellexpand::tilde(&global.wallet_path).to_string()).unwrap();
+
+    let client =
+        anchor_client::Client::new(Cluster::Custom(rpc.url(), "".to_owned()), Rc::new(signer));
     let program = Rc::new(client.program(program_id));
+
+    let Command::Crank(CrankOptions { interval_sec }) = cmd;
 
     loop {
         let banks = load_all_banks_for_group(program.clone(), group_id)
@@ -35,7 +104,10 @@ async fn main() -> Result<()> {
             .unwrap();
         let mut request = program
             .state_request()
-            .instruction(ComputeBudgetInstruction::set_compute_unit_limit(1_000_000));
+            .instruction(ComputeBudgetInstruction::set_compute_unit_limit(1_000_000))
+            .options(CommitmentConfig::confirmed());
+
+        info!("Cranking {} banks ヽ(*・ω・)ﾉ", banks.len());
 
         let ixs = banks.iter().map(|(bank_pk, bank)| Instruction {
             program_id,
@@ -64,7 +136,7 @@ async fn main() -> Result<()> {
             .send_with_spinner_and_config(RpcSendTransactionConfig::default())
             .unwrap();
 
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_secs(interval_sec)).await;
     }
 }
 
@@ -72,10 +144,20 @@ async fn load_all_banks_for_group(
     program: Rc<Program>,
     group_id: Pubkey,
 ) -> Result<Vec<(Pubkey, Bank)>> {
-    Ok(
-        program.accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-            48,
-            group_id.to_bytes().to_vec(),
-        ))])?,
-    )
+    Ok(program
+        .rpc()
+        .get_program_accounts_with_config(
+            &program.id(),
+            RpcProgramAccountsConfig {
+                filters: Some(vec![RpcFilterType::DataSize(472)]),
+                account_config: RpcAccountInfoConfig {
+                    encoding: Some(UiAccountEncoding::Base64),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )?
+        .iter()
+        .map(|(key, account)| (*key, *bytemuck::from_bytes::<Bank>(&account.data[8..])))
+        .collect::<Vec<_>>())
 }
