@@ -2,7 +2,7 @@ import { Address, BorshCoder, translateAddress } from "@project-serum/anchor";
 import { parsePriceData } from "@pythnetwork/client";
 import { AccountInfo, Commitment, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
-import { DEFAULT_COMMITMENT } from ".";
+import { DEFAULT_COMMITMENT, shortenAddress } from ".";
 import { Balance, MarginfiAccountData, MarginRequirementType } from "./account";
 import Bank, { BankData } from "./bank";
 import MarginfiClientReadonly from "./clientReadonly";
@@ -327,24 +327,35 @@ class MarginfiAccountReadonly {
     return [marginfiGroupAi, marginfiAccountAi];
   }
 
-  public getHealthComponents(
-    marginReqType: MarginRequirementType
-  ): [BigNumber, BigNumber] {
-    return this._lendingAccount
+  public getHealthComponents(marginReqType: MarginRequirementType): {
+    assets: BigNumber;
+    liabilities: BigNumber;
+  } {
+    const [assets, liabilities] = this._lendingAccount
       .map((accountBalance) => {
-        const bank = this._group.banks.get(accountBalance.bankPk.toBase58())!;
-        return accountBalance.getUsdValueWithPriceBias(bank, marginReqType);
+        const bank = this._group.banks.get(accountBalance.bankPk.toBase58());
+        if (!bank)
+          throw Error(
+            `Bank ${shortenAddress(accountBalance.bankPk)} not found`
+          );
+        const { assets, liabilities } = accountBalance.getUsdValueWithPriceBias(
+          bank,
+          marginReqType
+        );
+        return [assets, liabilities];
       })
       .reduce(
-        ([deposit, liability], [d, l]) => {
-          return [deposit.plus(d), liability.plus(l)];
+        ([asset, liability], [d, l]) => {
+          return [asset.plus(d), liability.plus(l)];
         },
         [new BigNumber(0), new BigNumber(0)]
-      ) as [BigNumber, BigNumber];
+      );
+
+    return { assets, liabilities };
   }
 
   public canBeLiquidated(): boolean {
-    const [assets, liabilities] = this.getHealthComponents(
+    const { assets, liabilities } = this.getHealthComponents(
       MarginRequirementType.Maint
     );
 

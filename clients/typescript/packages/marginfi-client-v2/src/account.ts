@@ -530,20 +530,24 @@ class MarginfiAccount {
           throw Error(
             `Bank ${shortenAddress(accountBalance.bankPk)} not found`
           );
-        const [assets, liabilities] = accountBalance.getUsdValueWithPriceBias(
+        const { assets, liabilities } = accountBalance.getUsdValueWithPriceBias(
           bank,
           marginReqType
         );
         return [assets, liabilities];
       })
       .reduce(
-        ([deposit, liability], [d, l]) => {
-          return [deposit.plus(d), liability.plus(l)];
+        ([asset, liability], [d, l]) => {
+          return [asset.plus(d), liability.plus(l)];
         },
         [new BigNumber(0), new BigNumber(0)]
       );
 
     return { assets, liabilities };
+  }
+
+  public getActiveBalances(): Balance[] {
+    return this._lendingAccount.filter((b) => b.active);
   }
 
   public canBeLiquidated(): boolean {
@@ -588,7 +592,7 @@ class MarginfiAccount {
 
     const freeCollateral = this.getFreeCollateral();
     const untiedCollateralForBank = BigNumber.min(
-      bank.getDepositUsdValue(
+      bank.getAssetUsdValue(
         balance.depositShares,
         MarginRequirementType.Init,
         PriceBias.Lowest
@@ -598,7 +602,7 @@ class MarginfiAccount {
 
     const priceLowestBias = bank.getPrice(PriceBias.Lowest);
     const priceHighestBias = bank.getPrice(PriceBias.Highest);
-    const depositWeight = bank.getDepositWeight(MarginRequirementType.Init);
+    const depositWeight = bank.getAssetWeight(MarginRequirementType.Init);
     const liabWeight = bank.getLiabilityWeight(MarginRequirementType.Init);
 
     return untiedCollateralForBank
@@ -731,44 +735,47 @@ export class Balance {
   public getUsdValue(
     bank: Bank,
     marginReqType: MarginRequirementType
-  ): [BigNumber, BigNumber] {
-    return [
-      bank.getDepositUsdValue(
+  ): { assets: BigNumber; liabilities: BigNumber } {
+    return {
+      assets: bank.getAssetUsdValue(
         this.depositShares,
         marginReqType,
         PriceBias.None
       ),
-      bank.getLiabilityUsdValue(
+      liabilities: bank.getLiabilityUsdValue(
         this.liabilityShares,
         marginReqType,
         PriceBias.None
       ),
-    ];
+    };
   }
 
   public getUsdValueWithPriceBias(
     bank: Bank,
     marginReqType: MarginRequirementType
-  ): [BigNumber, BigNumber] {
-    return [
-      bank.getDepositUsdValue(
+  ): { assets: BigNumber; liabilities: BigNumber } {
+    return {
+      assets: bank.getAssetUsdValue(
         this.depositShares,
         marginReqType,
         PriceBias.Lowest
       ),
-      bank.getLiabilityUsdValue(
+      liabilities: bank.getLiabilityUsdValue(
         this.liabilityShares,
         marginReqType,
         PriceBias.Highest
       ),
-    ];
+    };
   }
 
-  public getQuantity(bank: Bank): [BigNumber, BigNumber] {
-    return [
-      bank.getDepositQuantity(this.depositShares),
-      bank.getLiabilityQuantity(this.liabilityShares),
-    ];
+  public getQuantity(bank: Bank): {
+    assets: BigNumber;
+    liabilities: BigNumber;
+  } {
+    return {
+      assets: bank.getAssetQuantity(this.depositShares),
+      liabilities: bank.getLiabilityQuantity(this.liabilityShares),
+    };
   }
 }
 
