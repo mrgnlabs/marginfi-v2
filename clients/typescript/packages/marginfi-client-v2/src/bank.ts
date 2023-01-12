@@ -235,7 +235,7 @@ class Bank {
       case MarginRequirementType.Maint:
         return this.config.liabilityWeightMaint;
       case MarginRequirementType.Equity:
-        return new BigNumber(0);
+        return new BigNumber(1);
       default:
         throw new Error("Invalid margin requirement type");
     }

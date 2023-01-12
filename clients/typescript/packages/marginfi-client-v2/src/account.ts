@@ -19,6 +19,7 @@ import {
   getBankVaultAuthority,
   MarginfiClient,
   processTransaction,
+  shortenAddress,
   uiToNative,
   wrappedI80F48toBigNumber,
 } from ".";
@@ -524,8 +525,16 @@ class MarginfiAccount {
   } {
     const [assets, liabilities] = this._lendingAccount
       .map((accountBalance) => {
-        const bank = this._group.banks.get(accountBalance.bankPk.toBase58())!;
-        return accountBalance.getUsdValueWithPriceBias(bank, marginReqType);
+        const bank = this._group.banks.get(accountBalance.bankPk.toBase58());
+        if (!bank)
+          throw Error(
+            `Bank ${shortenAddress(accountBalance.bankPk)} not found`
+          );
+        const [assets, liabilities] = accountBalance.getUsdValueWithPriceBias(
+          bank,
+          marginReqType
+        );
+        return [assets, liabilities];
       })
       .reduce(
         ([deposit, liability], [d, l]) => {
