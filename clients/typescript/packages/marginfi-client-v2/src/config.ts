@@ -87,10 +87,10 @@ function getMarginfiConfig(
 /**
  * Retrieve config per environment
  */
-export async function getConfig(
+export function getConfig(
   environment: Environment,
   overrides?: Partial<Omit<MarginfiConfig, "environment">>
-): Promise<MarginfiConfig> {
+): MarginfiConfig {
   return {
     ...getMarginfiConfig(environment, overrides),
   };

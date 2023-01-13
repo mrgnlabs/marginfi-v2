@@ -125,7 +125,7 @@ class Bank {
   }
 
   get totalDeposits(): BigNumber {
-    return this.getDepositQuantity(this.totalDepositShares);
+    return this.getAssetQuantity(this.totalDepositShares);
   }
 
   get totalLiabilities(): BigNumber {
@@ -139,7 +139,7 @@ class Bank {
     this.priceData = parsePriceData(pythPriceAccount!.data);
   }
 
-  public getDepositQuantity(depositShares: BigNumber): BigNumber {
+  public getAssetQuantity(depositShares: BigNumber): BigNumber {
     return depositShares.times(this.depositShareValue);
   }
 
@@ -147,7 +147,7 @@ class Bank {
     return liabilityShares.times(this.liabilityShareValue);
   }
 
-  public getDepositShares(depositValue: BigNumber): BigNumber {
+  public getAssetShares(depositValue: BigNumber): BigNumber {
     return depositValue.div(this.depositShareValue);
   }
 
@@ -155,15 +155,15 @@ class Bank {
     return liabilityValue.div(this.liabilityShareValue);
   }
 
-  public getDepositUsdValue(
+  public getAssetUsdValue(
     depositShares: BigNumber,
     marginRequirementType: MarginRequirementType,
     priceBias: PriceBias
   ): BigNumber {
     return this.getUsdValue(
-      this.getDepositQuantity(depositShares),
+      this.getAssetQuantity(depositShares),
       priceBias,
-      this.getDepositWeight(marginRequirementType)
+      this.getAssetWeight(marginRequirementType)
     );
   }
 
@@ -211,7 +211,7 @@ class Bank {
   }
 
   // Return deposit weight based on margin requirement types
-  public getDepositWeight(
+  public getAssetWeight(
     marginRequirementType: MarginRequirementType
   ): BigNumber {
     switch (marginRequirementType) {
@@ -235,7 +235,7 @@ class Bank {
       case MarginRequirementType.Maint:
         return this.config.liabilityWeightMaint;
       case MarginRequirementType.Equity:
-        return new BigNumber(0);
+        return new BigNumber(1);
       default:
         throw new Error("Invalid margin requirement type");
     }
@@ -249,7 +249,10 @@ class Bank {
     return usdValue.div(price);
   }
 
-  public getInterestRates(): [BigNumber, BigNumber] {
+  public getInterestRates(): {
+    lendingRate: BigNumber;
+    borrowingRate: BigNumber;
+  } {
     const {
       insuranceFeeFixedApr,
       insuranceIrFee,
@@ -268,7 +271,7 @@ class Bank {
       .times(new BigNumber(1).plus(rateFee))
       .plus(fixedFee);
 
-    return [lendingRate, borrowingRate];
+    return { lendingRate, borrowingRate };
   }
 
   private interestRateCurve(): BigNumber {

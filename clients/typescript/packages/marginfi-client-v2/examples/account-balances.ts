@@ -23,7 +23,7 @@ async function main() {
   console.log(programAddresses.map((key) => key.toBase58()));
 
   const marginfiAccount = await MarginfiAccount.fetch(
-    "D3fKdP5zUPVGxtkGG5VXFxymcGpG71Nz5WskM6UhX2kD",
+    "H9rVGRzqZJC2gJ9ysgVDq1AnwLurdipVz94f4yy9igan",
     client
   );
 
@@ -39,7 +39,7 @@ async function main() {
 
   marginfiAccount.lendingAccount.forEach((balance) => {
     const bank = group.banks.get(balance.bankPk.toString())!;
-    const [assets, liabs] = balance.getUsdValue(
+    const { assets, liabilities } = balance.getUsdValue(
       bank,
       MarginRequirementType.Equity
     );
@@ -49,7 +49,7 @@ async function main() {
       shortenAddress(bank.mint),
       shortenAddress(balance.bankPk),
       assets,
-      liabs
+      liabilities
     );
   });
 }

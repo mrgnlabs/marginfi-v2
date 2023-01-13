@@ -19,6 +19,7 @@ import {
   getBankVaultAuthority,
   MarginfiClient,
   processTransaction,
+  shortenAddress,
   uiToNative,
   wrappedI80F48toBigNumber,
 } from ".";
@@ -435,7 +436,7 @@ class MarginfiAccount {
       "Reloading account data"
     );
     const [marginfiGroupAi, marginfiAccountAi] =
-      await this.loadGroupAndAccountAi();
+      await this._loadGroupAndAccountAi();
     const marginfiAccountData = MarginfiAccount.decode(marginfiAccountAi.data);
     if (!marginfiAccountData.group.equals(this._config.groupPk))
       throw Error(
@@ -492,7 +493,7 @@ class MarginfiAccount {
       .map((la) => new Balance(la));
   }
 
-  private async loadGroupAndAccountAi(): Promise<AccountInfo<Buffer>[]> {
+  private async _loadGroupAndAccountAi(): Promise<AccountInfo<Buffer>[]> {
     const debug = require("debug")(
       `mfi:margin-account:${this.publicKey.toString()}:loader`
     );
@@ -518,24 +519,39 @@ class MarginfiAccount {
     return [marginfiGroupAi, marginfiAccountAi];
   }
 
-  public getHealthComponents(
-    marginReqType: MarginRequirementType
-  ): [BigNumber, BigNumber] {
-    return this._lendingAccount
+  public getHealthComponents(marginReqType: MarginRequirementType): {
+    assets: BigNumber;
+    liabilities: BigNumber;
+  } {
+    const [assets, liabilities] = this._lendingAccount
       .map((accountBalance) => {
-        const bank = this._group.banks.get(accountBalance.bankPk.toBase58())!;
-        return accountBalance.getUsdValueWithPriceBias(bank, marginReqType);
+        const bank = this._group.banks.get(accountBalance.bankPk.toBase58());
+        if (!bank)
+          throw Error(
+            `Bank ${shortenAddress(accountBalance.bankPk)} not found`
+          );
+        const { assets, liabilities } = accountBalance.getUsdValueWithPriceBias(
+          bank,
+          marginReqType
+        );
+        return [assets, liabilities];
       })
       .reduce(
-        ([deposit, liability], [d, l]) => {
-          return [deposit.plus(d), liability.plus(l)];
+        ([asset, liability], [d, l]) => {
+          return [asset.plus(d), liability.plus(l)];
         },
         [new BigNumber(0), new BigNumber(0)]
-      ) as [BigNumber, BigNumber];
+      );
+
+    return { assets, liabilities };
+  }
+
+  public getActiveBalances(): Balance[] {
+    return this._lendingAccount.filter((b) => b.active);
   }
 
   public canBeLiquidated(): boolean {
-    const [assets, liabilities] = this.getHealthComponents(
+    const { assets, liabilities } = this.getHealthComponents(
       MarginRequirementType.Maint
     );
 
@@ -550,11 +566,72 @@ class MarginfiAccount {
   }
 
   public getFreeCollateral(): BigNumber {
-    const [assets, liabilities] = this.getHealthComponents(
+    const { assets, liabilities } = this.getHealthComponents(
       MarginRequirementType.Init
     );
 
     return BigNumber.max(0, assets.minus(liabilities));
+  }
+
+  private _getHealthComponentsWithoutBias(
+    marginReqType: MarginRequirementType
+  ): {
+    assets: BigNumber;
+    liabilities: BigNumber;
+  } {
+    const [assets, liabilities] = this._lendingAccount
+      .map((accountBalance) => {
+        const bank = this._group.banks.get(accountBalance.bankPk.toBase58());
+        if (!bank)
+          throw Error(
+            `Bank ${shortenAddress(accountBalance.bankPk)} not found`
+          );
+        const { assets, liabilities } = accountBalance.getUsdValue(
+          bank,
+          marginReqType
+        );
+        return [assets, liabilities];
+      })
+      .reduce(
+        ([asset, liability], [d, l]) => {
+          return [asset.plus(d), liability.plus(l)];
+        },
+        [new BigNumber(0), new BigNumber(0)]
+      );
+
+    return { assets, liabilities };
+  }
+
+  public computeApy(): number {
+    const { assets, liabilities } = this._getHealthComponentsWithoutBias(
+      MarginRequirementType.Equity
+    );
+    const totalUsdValue = assets.minus(liabilities);
+
+    return this.getActiveBalances()
+      .reduce((weightedApy, balance) => {
+        const bank = this._group.getBankByPk(balance.bankPk);
+        if (!bank) throw Error(`Bank ${balance.bankPk.toBase58()} not found`);
+        return weightedApy
+          .minus(
+            bank
+              .getInterestRates()
+              .borrowingRate.times(
+                balance.getUsdValue(bank, MarginRequirementType.Equity)
+                  .liabilities
+              )
+              .div(liabilities)
+          )
+          .plus(
+            bank
+              .getInterestRates()
+              .lendingRate.times(
+                balance.getUsdValue(bank, MarginRequirementType.Equity).assets
+              )
+              .div(assets)
+          );
+      }, new BigNumber(0))
+      .toNumber();
   }
 
   /**
@@ -566,8 +643,8 @@ class MarginfiAccount {
    *
    * q = (min(fc, ucb) / (price_lowest_bias * deposit_weight)) + (fc - min(fc, ucb)) / (price_highest_bias * liab_weight)
    *
-   * 
-   * 
+   *
+   *
    * NOTE FOR LIQUIDATORS
    * This function doesn't take into account the collateral received when liquidating an account.
    */
@@ -576,7 +653,7 @@ class MarginfiAccount {
 
     const freeCollateral = this.getFreeCollateral();
     const untiedCollateralForBank = BigNumber.min(
-      bank.getDepositUsdValue(
+      bank.getAssetUsdValue(
         balance.depositShares,
         MarginRequirementType.Init,
         PriceBias.Lowest
@@ -586,7 +663,7 @@ class MarginfiAccount {
 
     const priceLowestBias = bank.getPrice(PriceBias.Lowest);
     const priceHighestBias = bank.getPrice(PriceBias.Highest);
-    const depositWeight = bank.getDepositWeight(MarginRequirementType.Init);
+    const depositWeight = bank.getAssetWeight(MarginRequirementType.Init);
     const liabWeight = bank.getLiabilityWeight(MarginRequirementType.Init);
 
     return untiedCollateralForBank
@@ -649,58 +726,45 @@ class MarginfiAccount {
     return processTransaction(this.client.provider, tx);
   }
 
-  // public toString() {
-  //   const marginRequirementInit = this.computeMarginRequirement(
-  //     MarginRequirementType.Init
-  //   );
-  //   const marginRequirementMaint = this.computeMarginRequirement(
-  //     MarginRequirementType.Maint
-  //   );
+  public toString() {
+    const { assets, liabilities } = this.getHealthComponents(
+      MarginRequirementType.Equity
+    );
 
-  //   const initHealth =
-  //     marginRequirementInit.toNumber() <= 0
-  //       ? Infinity
-  //       : equity.div(marginRequirementInit.toNumber());
-  //   const maintHealth =
-  //     marginRequirementMaint.toNumber() <= 0
-  //       ? Infinity
-  //       : equity.div(marginRequirementMaint.toNumber());
-  //   const marginRatio = liabilities.lte(0) ? Infinity : equity.div(liabilities);
+    let str = `-----------------
+  Marginfi account:
+    Address: ${this.publicKey.toBase58()}
+    Group: ${this.group.publicKey.toBase58()}
+    Authority: ${this.authority.toBase58()}
+    Equity: ${this.getHealthComponents(
+      MarginRequirementType.Equity
+    ).assets.toFixed(6)}
+    Equity: ${assets.minus(liabilities).toFixed(6)}
+    Assets: ${assets.toFixed(6)},
+    Liabilities: ${liabilities.toFixed(6)}`;
 
-  //   let str = `-----------------
-  // Marginfi account:
-  //   Address: ${this.publicKey.toBase58()}
-  //   GA Balance: ${deposits.toFixed(6)}
-  //   Equity: ${equity.toFixed(6)}
-  //   Mr Adjusted Equity: ${mrEquity.toFixed(6)}
-  //   Assets: ${assets.toFixed(6)},
-  //   Liabilities: ${liabilities.toFixed(6)}
-  //   Margin ratio: ${marginRatio.toFixed(6)}
-  //   Requirement
-  //     init: ${marginRequirementInit.toFixed(6)}, health: ${initHealth.toFixed(
-  //     6
-  //   )}
-  //     maint: ${marginRequirementMaint.toFixed(
-  //       6
-  //     )}, health: ${maintHealth.toFixed(6)}`;
+    const activeLendingAccounts = this.lendingAccount.filter((la) => la.active);
+    if (activeLendingAccounts.length > 0) {
+      str = str.concat("\n-----------------\nBalances:");
+    }
+    for (let lendingAccount of activeLendingAccounts) {
+      const bank = this._group.getBankByPk(lendingAccount.bankPk);
+      if (!bank) {
+        console.log(`Bank ${lendingAccount.bankPk} not found`);
+        continue;
+      }
+      const utpStr = `\n  Bank ${bank.label}:
+      Address: ${bank.publicKey.toBase58()}
+      Mint: ${bank.mint.toBase58()}
+      Equity: ${lendingAccount.getUsdValue(
+        bank,
+        MarginRequirementType.Equity
+      )}`;
+      str = str.concat(utpStr);
+    }
 
-  //   if (this.activeUtps.length > 0) {
-  //     str = str.concat("\n-----------------\nUTPs:");
-  //   }
-  //   for (let utp of this.activeUtps) {
-  //     const utpStr = `\n  ${UTP_NAME[utp.index]}:
-  //     Address: ${utp.address.toBase58()}
-  //     Equity: ${utp.equity.toFixed(6)},
-  //     Free collateral: ${utp.freeCollateral.toFixed(6)}`;
-  //     str = str.concat(utpStr);
-  //   }
-
-  //   return str;
-  // }
-
-  // [customInspectSymbol](_depth: number, _inspectOptions: any, _inspect: any) {
-  //   return this.toString();
-  // }
+    return str;
+  }
 }
 
 export default MarginfiAccount;
@@ -732,44 +796,47 @@ export class Balance {
   public getUsdValue(
     bank: Bank,
     marginReqType: MarginRequirementType
-  ): [BigNumber, BigNumber] {
-    return [
-      bank.getDepositUsdValue(
+  ): { assets: BigNumber; liabilities: BigNumber } {
+    return {
+      assets: bank.getAssetUsdValue(
         this.depositShares,
         marginReqType,
         PriceBias.None
       ),
-      bank.getLiabilityUsdValue(
+      liabilities: bank.getLiabilityUsdValue(
         this.liabilityShares,
         marginReqType,
         PriceBias.None
       ),
-    ];
+    };
   }
 
   public getUsdValueWithPriceBias(
     bank: Bank,
     marginReqType: MarginRequirementType
-  ): [BigNumber, BigNumber] {
-    return [
-      bank.getDepositUsdValue(
+  ): { assets: BigNumber; liabilities: BigNumber } {
+    return {
+      assets: bank.getAssetUsdValue(
         this.depositShares,
         marginReqType,
         PriceBias.Lowest
       ),
-      bank.getLiabilityUsdValue(
+      liabilities: bank.getLiabilityUsdValue(
         this.liabilityShares,
         marginReqType,
         PriceBias.Highest
       ),
-    ];
+    };
   }
 
-  public getQuantity(bank: Bank): [BigNumber, BigNumber] {
-    return [
-      bank.getDepositQuantity(this.depositShares),
-      bank.getLiabilityQuantity(this.liabilityShares),
-    ];
+  public getQuantity(bank: Bank): {
+    assets: BigNumber;
+    liabilities: BigNumber;
+  } {
+    return {
+      assets: bank.getAssetQuantity(this.depositShares),
+      liabilities: bank.getLiabilityQuantity(this.liabilityShares),
+    };
   }
 }
 
