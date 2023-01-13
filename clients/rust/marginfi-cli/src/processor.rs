@@ -1,7 +1,7 @@
 use crate::{
     config::Config,
-    profile::{get_cli_config_dir, load_profile, CliConfig, Profile},
-    utils::process_transaction,
+    profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
+    utils::{find_bank_vault_authority_pda, find_bank_vault_pda, process_transaction},
 };
 use anchor_client::Cluster;
 use anchor_spl::token;
@@ -14,14 +14,17 @@ use marginfi::{
         marginfi_account::MarginfiAccount,
         marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, WrappedI80F48},
     },
-    utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
-use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
+use solana_account_decoder::UiAccountEncoding;
+use solana_client::{
+    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
+    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
+};
 use solana_sdk::{
     commitment_config::CommitmentLevel, pubkey::Pubkey, signature::Keypair, signer::Signer,
     system_program, sysvar,
 };
-use std::{fs, str::FromStr};
+use std::{fs, mem::size_of, str::FromStr};
 
 // --------------------------------------------------------------------------------------------------------------------
 // marginfi group
@@ -36,6 +39,8 @@ pub fn group_get(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
         println!("=============");
         println!("Raw data:");
         println!("{:#?}", account);
+
+        print_group_banks(config, marginfi_group)?;
     } else {
         group_get_all(config)?;
     }
@@ -50,11 +55,32 @@ pub fn group_get_all(config: Config) -> Result<()> {
     Ok(())
 }
 
-pub fn group_create(config: Config, profile: Profile, admin: Option<Pubkey>) -> Result<()> {
+pub fn print_group_banks(config: Config, marginfi_group: Pubkey) -> Result<()> {
+    let banks = config
+        .program
+        .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp {
+            offset: 8 + size_of::<Pubkey>() + size_of::<u8>(),
+            bytes: MemcmpEncodedBytes::Bytes(marginfi_group.to_bytes().to_vec()),
+            encoding: None,
+        })])?;
+
+    println!("--------\nBanks:");
+    for (address, state) in banks {
+        println!("{}:\n{:#?}\n", address, state);
+    }
+    Ok(())
+}
+
+pub fn group_create(
+    config: Config,
+    profile: Profile,
+    admin: Option<Pubkey>,
+    override_existing_profile_group: bool,
+) -> Result<()> {
     let rpc_client = config.program.rpc();
     let admin = admin.unwrap_or_else(|| config.payer.pubkey());
 
-    if profile.marginfi_group.is_some() {
+    if profile.marginfi_group.is_some() && !override_existing_profile_group {
         bail!(
             "Marginfi group already exists for profile [{}]",
             profile.name
@@ -87,7 +113,10 @@ pub fn group_create(config: Config, profile: Profile, admin: Option<Pubkey>) -> 
 
     match process_transaction(&tx, &rpc_client, config.dry_run) {
         Ok(sig) => println!("marginfi group created (sig: {})", sig),
-        Err(err) => println!("Error during marginfi group creation:\n{:#?}", err),
+        Err(err) => {
+            println!("Error during marginfi group creation:\n{:#?}", err);
+            return Err(anyhow!("Error during marginfi group creation"));
+        }
     };
 
     let mut profile = profile;
@@ -192,24 +221,40 @@ pub fn group_add_bank(
             admin: config.payer.pubkey(),
             bank: bank_keypair.pubkey(),
             bank_mint,
-            fee_vault: find_bank_vault_pda(&bank_keypair.pubkey(), BankVaultType::Fee).0,
+            fee_vault: find_bank_vault_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Fee,
+                &config.program_id,
+            )
+            .0,
             fee_vault_authority: find_bank_vault_authority_pda(
                 &bank_keypair.pubkey(),
                 BankVaultType::Fee,
+                &config.program_id,
             )
             .0,
-            insurance_vault: find_bank_vault_pda(&bank_keypair.pubkey(), BankVaultType::Insurance)
-                .0,
+            insurance_vault: find_bank_vault_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Insurance,
+                &config.program_id,
+            )
+            .0,
             insurance_vault_authority: find_bank_vault_authority_pda(
                 &bank_keypair.pubkey(),
                 BankVaultType::Insurance,
+                &config.program_id,
             )
             .0,
-            liquidity_vault: find_bank_vault_pda(&bank_keypair.pubkey(), BankVaultType::Liquidity)
-                .0,
+            liquidity_vault: find_bank_vault_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
             liquidity_vault_authority: find_bank_vault_authority_pda(
                 &bank_keypair.pubkey(),
                 BankVaultType::Liquidity,
+                &config.program_id,
             )
             .0,
             pyth_oracle,
@@ -375,7 +420,7 @@ pub fn set_profile(name: String) -> Result<()> {
     let cli_config_file = cli_config_dir.join("config.json");
 
     if !cli_config_file.exists() {
-        return Err(anyhow!("Profiles not configured, run `bb profile set`"));
+        return Err(anyhow!("Profiles not configured, run `mfi profile create`"));
     }
 
     let profile_file = cli_config_dir
@@ -401,7 +446,7 @@ pub fn list_profiles() -> Result<()> {
     let cli_profiles_dir = cli_config_dir.join("profiles");
 
     if !cli_profiles_dir.exists() {
-        return Err(anyhow!("Profiles not configured, run `bb profile set`"));
+        return Err(anyhow!("Profiles not configured, run `mfi profile create`"));
     }
 
     let mut profiles = fs::read_dir(&cli_profiles_dir)?
@@ -424,6 +469,28 @@ pub fn list_profiles() -> Result<()> {
     for profile in profiles {
         println!("{}", profile);
     }
+
+    Ok(())
+}
+
+pub fn configure_profile(
+    name: String,
+    cluster: Option<Cluster>,
+    keypair_path: Option<String>,
+    rpc_url: Option<String>,
+    program_id: Option<Pubkey>,
+    commitment: Option<CommitmentLevel>,
+    group: Option<Pubkey>,
+) -> Result<()> {
+    let mut profile = profile::load_profile_by_name(&name)?;
+    profile.config(
+        cluster,
+        keypair_path,
+        rpc_url,
+        program_id,
+        commitment,
+        group,
+    )?;
 
     Ok(())
 }

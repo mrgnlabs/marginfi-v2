@@ -21,5 +21,3 @@ solana-account-decoder = "1.14.12"
 solana-client = "1.14.11"
 solana-sdk = "1.14.11"
 tokio = "1.24"
-
-[workspace]

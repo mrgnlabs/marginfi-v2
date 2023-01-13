@@ -1,6 +1,6 @@
 [workspace]
 members = ["programs/*"]
-exclude = ["sdk/rust"]
+exclude = ["clients/rust"]
 
 [profile.release]
 overflow-checks = true

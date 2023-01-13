@@ -5,14 +5,18 @@ use anchor_client::{
 use anyhow::Result;
 use clap::Parser;
 use log::info;
-use marginfi::{constants::LIQUIDITY_VAULT_SEED, state::marginfi_group::Bank};
+use marginfi::{
+    bank_authority_seed, bank_seed,
+    constants::LIQUIDITY_VAULT_SEED,
+    state::marginfi_group::{Bank, BankVaultType},
+};
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
     rpc_config::{
         EncodingConfig, RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig,
     },
-    rpc_filter::{Memcmp, RpcFilterType},
+    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
 };
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
@@ -24,8 +28,8 @@ use solana_sdk::{
 use std::{env, fs, mem::size_of, rc::Rc, str::FromStr, time::Duration};
 use tokio::time::sleep;
 
-const DEFAULT_PROGRAM_ID: &str = "EPsDwX4sRNRkiykuqeyExF5LsHV9XBPMZM6gHj7QQbkY";
-const DEFAULT_GROUP_ID: &str = "2y5NtJQVpaDPynjHFSEAcPJ6ZFWeReJaK2sCYFbRaERC";
+const DEFAULT_PROGRAM_ID: &str = "mf2iDQbVTAE3tT4tgAZBhBAmKUW56GsXX7H3oeH4atr";
+const DEFAULT_GROUP_ID: &str = "EqmdxNhQS2Snwzh5nsBB3JkWGaaBqefcC5Lgj2Zjiv78";
 const DEFAULT_RPC_URL: &str = "https://devnet.genesysgo.net";
 
 #[derive(Parser)]
@@ -114,8 +118,9 @@ async fn main() -> Result<()> {
             accounts: marginfi::accounts::LendingPoolBankAccrueInterest {
                 marginfi_group: group_id,
                 bank: *bank_pk,
-                liquidity_vault_authority: Pubkey::find_program_address(
-                    &[LIQUIDITY_VAULT_SEED, bank_pk.as_ref()],
+                liquidity_vault_authority: find_bank_vault_authority_pda(
+                    bank_pk,
+                    BankVaultType::Liquidity,
                     &program_id,
                 )
                 .0,
@@ -132,9 +137,10 @@ async fn main() -> Result<()> {
             request = request.instruction(ix);
         }
 
-        request
-            .send_with_spinner_and_config(RpcSendTransactionConfig::default())
-            .unwrap();
+        // request
+        //     .send_with_spinner_and_config(RpcSendTransactionConfig::default())
+        //     .unwrap();
+        request.send().unwrap();
 
         sleep(Duration::from_secs(interval_sec)).await;
     }
@@ -144,20 +150,25 @@ async fn load_all_banks_for_group(
     program: Rc<Program>,
     group_id: Pubkey,
 ) -> Result<Vec<(Pubkey, Bank)>> {
-    Ok(program
-        .rpc()
-        .get_program_accounts_with_config(
-            &program.id(),
-            RpcProgramAccountsConfig {
-                filters: Some(vec![RpcFilterType::DataSize(472)]),
-                account_config: RpcAccountInfoConfig {
-                    encoding: Some(UiAccountEncoding::Base64),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-        )?
-        .iter()
-        .map(|(key, account)| (*key, *bytemuck::from_bytes::<Bank>(&account.data[8..])))
-        .collect::<Vec<_>>())
+    Ok(program.accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp {
+        offset: 8 + size_of::<Pubkey>() + size_of::<u8>(),
+        bytes: MemcmpEncodedBytes::Bytes(group_id.to_bytes().to_vec()),
+        encoding: None,
+    })])?)
+}
+
+pub fn find_bank_vault_pda(
+    bank_pk: &Pubkey,
+    vault_type: BankVaultType,
+    program_id: &Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), program_id)
+}
+
+pub fn find_bank_vault_authority_pda(
+    bank_pk: &Pubkey,
+    vault_type: BankVaultType,
+    program_id: &Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
 }

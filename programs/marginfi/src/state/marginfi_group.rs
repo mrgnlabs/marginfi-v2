@@ -14,7 +14,10 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    fmt::{Debug, Formatter},
+};
 
 #[account(zero_copy)]
 #[cfg_attr(
@@ -64,6 +67,7 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
 )]
 #[zero_copy]
 #[derive(Default, AnchorDeserialize, AnchorSerialize)]
+#[repr(C)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -175,6 +179,7 @@ impl InterestRateConfig {
     derive(Debug, PartialEq, Eq)
 )]
 #[derive(Default)]
+#[repr(C)]
 pub struct Bank {
     pub mint: Pubkey,
     pub mint_decimals: u8,
@@ -539,6 +544,7 @@ fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48)
     derive(Debug, PartialEq, Eq)
 )]
 #[zero_copy]
+#[repr(C)]
 #[derive(AnchorDeserialize, AnchorSerialize)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
@@ -612,9 +618,16 @@ impl BankConfig {
 
 #[zero_copy]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Debug, Default, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, AnchorDeserialize, AnchorSerialize)]
+#[repr(C)]
 pub struct WrappedI80F48 {
     pub value: i128,
+}
+
+impl Debug for WrappedI80F48 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", I80F48::from_bits(self.value))
+    }
 }
 
 impl From<I80F48> for WrappedI80F48 {

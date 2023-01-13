@@ -109,10 +109,11 @@ pub struct BankDeposit<'info> {
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    /// Token mint/authority are checked at transfer
+    /// CHECK: Token mint/authority are checked at transfer
     #[account(mut)]
     pub signer_token_account: AccountInfo<'info>,
 
+    /// CHECK: Seed constraint check
     #[account(
         mut,
         seeds = [
@@ -121,7 +122,7 @@ pub struct BankDeposit<'info> {
         ],
         bump = bank.load()?.liquidity_vault_bump,
     )]
-    pub bank_liquidity_vault: UncheckedAccount<'info>,
+    pub bank_liquidity_vault: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -205,6 +206,7 @@ pub struct BankWithdraw<'info> {
     #[account(mut)]
     pub destination_token_account: Account<'info, TokenAccount>,
 
+    /// CHECK: Seed constraint check
     #[account(
         mut,
         seeds = [
@@ -435,6 +437,7 @@ pub struct LendingAccountLiquidate<'info> {
     )]
     pub asset_bank: AccountLoader<'info, Bank>,
 
+    /// CHECK: Compare stored address with price feed address
     #[account(
         constraint = asset_bank.load()?.config.pyth_oracle == asset_price_feed.key()
     )]
@@ -446,6 +449,7 @@ pub struct LendingAccountLiquidate<'info> {
     )]
     pub liab_bank: AccountLoader<'info, Bank>,
 
+    /// CHECK: Compare stored address with price feed address
     #[account(
         constraint = liab_bank.load()?.config.pyth_oracle == liab_price_feed.key()
     )]
@@ -468,6 +472,7 @@ pub struct LendingAccountLiquidate<'info> {
     )]
     pub liquidatee_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
+    /// CHECK: Seed constraint
     #[account(
         mut,
         seeds = [
@@ -478,6 +483,7 @@ pub struct LendingAccountLiquidate<'info> {
     )]
     pub bank_liquidity_vault_authority: AccountInfo<'info>,
 
+    /// CHECK: Seed constraint
     #[account(
         mut,
         seeds = [
@@ -488,6 +494,7 @@ pub struct LendingAccountLiquidate<'info> {
     )]
     pub bank_liquidity_vault: Box<Account<'info, TokenAccount>>,
 
+    /// CHECK: Seed constraint
     #[account(
         mut,
         seeds = [

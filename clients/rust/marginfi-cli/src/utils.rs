@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
+use marginfi::{bank_authority_seed, bank_seed, state::marginfi_group::BankVaultType};
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::{signature::Signature, transaction::Transaction};
+use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::Transaction};
 
 pub fn process_transaction(
     tx: &Transaction,
@@ -30,6 +31,21 @@ pub fn process_transaction(
     }
 }
 
+pub fn find_bank_vault_pda(
+    bank_pk: &Pubkey,
+    vault_type: BankVaultType,
+    program_id: &Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), program_id)
+}
+
+pub fn find_bank_vault_authority_pda(
+    bank_pk: &Pubkey,
+    vault_type: BankVaultType,
+    program_id: &Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
+}
 // const SCALE: u128 = 10_u128.pow(14);
 
 // pub fn ui_to_native(value: f64) -> u128 {

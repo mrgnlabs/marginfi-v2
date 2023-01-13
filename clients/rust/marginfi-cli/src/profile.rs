@@ -11,6 +11,7 @@ use solana_sdk::{
     signature::read_keypair_file,
     signer::Signer,
 };
+use std::str::FromStr;
 use std::{fs, path::PathBuf, rc::Rc};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -50,7 +51,7 @@ impl Profile {
         }
     }
 
-    pub fn config(&self, global_options: Option<&GlobalOptions>) -> Result<Config> {
+    pub fn get_config(&self, global_options: Option<&GlobalOptions>) -> Result<Config> {
         let wallet_path = self.keypair_path.clone();
         let payer = read_keypair_file(&*shellexpand::tilde(&wallet_path))
             .expect("Example requires a keypair file");
@@ -67,7 +68,7 @@ impl Profile {
         None => {
             match cluster {
                 Cluster::Localnet => pubkey!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"),
-                Cluster::Devnet => pubkey!("H7UazmGqtrVS8HH1TSouQdCr2o4aSgNQt6n2hJUdicz3"),
+                Cluster::Devnet => pubkey!("mf2iDQbVTAE3tT4tgAZBhBAmKUW56GsXX7H3oeH4atr"),
                 _ => bail!("cluster {:?} does not have a default target program ID, please provide it through the --pid option", cluster)
             }
         }
@@ -93,6 +94,44 @@ impl Profile {
         })
     }
 
+    pub fn config(
+        &mut self,
+        cluster: Option<Cluster>,
+        keypair_path: Option<String>,
+        rpc_url: Option<String>,
+        program_id: Option<Pubkey>,
+        commitment: Option<CommitmentLevel>,
+        group: Option<Pubkey>,
+    ) -> Result<()> {
+        if let Some(cluster) = cluster {
+            self.cluster = cluster;
+        }
+
+        if let Some(keypair_path) = keypair_path {
+            self.keypair_path = keypair_path;
+        }
+
+        if let Some(rpc_url) = rpc_url {
+            self.rpc_url = rpc_url;
+        }
+
+        if let Some(program_id) = program_id {
+            self.program_id = Some(program_id);
+        }
+
+        if let Some(commitment) = commitment {
+            self.commitment = Some(commitment);
+        }
+
+        if let Some(group) = group {
+            self.marginfi_group = Some(group);
+        }
+
+        self.write_to_file()?;
+
+        Ok(())
+    }
+
     pub fn get_marginfi_group(&self) -> Pubkey {
         self.marginfi_group.unwrap_or_else(|| {
             panic!(
@@ -104,6 +143,12 @@ impl Profile {
 
     pub fn set_marginfi_group(&mut self, address: Pubkey) -> Result<()> {
         self.marginfi_group = Some(address);
+        self.write_to_file()?;
+
+        Ok(())
+    }
+
+    fn write_to_file(&self) -> Result<()> {
         let cli_config_dir = get_cli_config_dir();
         let cli_profiles_dir = cli_config_dir.join("profiles");
         let profile_file = cli_profiles_dir.join(self.name.clone() + ".json");
@@ -119,7 +164,7 @@ pub fn load_profile() -> Result<Profile> {
     let cli_config_file = cli_config_dir.join("config.json");
 
     if !cli_config_file.exists() {
-        return Err(anyhow!("Profiles not configured, run `mfi profile set`"));
+        return Err(anyhow!("Profiles not configured, run `mfi profile create`"));
     }
 
     let cli_config = fs::read_to_string(&cli_config_file)?;
@@ -142,6 +187,22 @@ pub fn load_profile() -> Result<Profile> {
     Ok(profile)
 }
 
+pub fn load_profile_by_name(name: &str) -> Result<Profile> {
+    let cli_config_dir = get_cli_config_dir();
+    let profile_file = cli_config_dir
+        .join("profiles")
+        .join(format!("{}.json", name));
+
+    if !profile_file.exists() {
+        return Err(anyhow!("Profile {} does not exist", name));
+    }
+
+    let profile = fs::read_to_string(&profile_file)?;
+    let profile: Profile = serde_json::from_str(&profile)?;
+
+    Ok(profile)
+}
+
 pub fn get_cli_config_dir() -> PathBuf {
     home_dir()
         .expect("$HOME not set")
@@ -151,7 +212,7 @@ pub fn get_cli_config_dir() -> PathBuf {
 
 impl std::fmt::Debug for Profile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let config = self.config(None).map_err(|_| std::fmt::Error)?;
+        let config = self.get_config(None).map_err(|_| std::fmt::Error)?;
         write!(
             f,
             r#"

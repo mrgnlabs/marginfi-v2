@@ -461,6 +461,7 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
+    /// CHECK: Seed constraint
     #[account(
         mut,
         seeds = [
@@ -469,7 +470,7 @@ pub struct LendingPoolHandleBankruptcy<'info> {
         ],
         bump = bank.load()?.liquidity_vault_bump
     )]
-    pub liquidity_vault: Box<Account<'info, TokenAccount>>,
+    pub liquidity_vault: AccountInfo<'info>,
 
     #[account(
         mut,
@@ -481,6 +482,7 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     )]
     pub insurance_vault: Box<Account<'info, TokenAccount>>,
 
+    /// CHECK: Seed constraint
     #[account(
         seeds = [
             INSURANCE_VAULT_AUTHORITY_SEED,

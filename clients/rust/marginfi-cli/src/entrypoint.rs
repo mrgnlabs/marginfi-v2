@@ -43,6 +43,8 @@ pub enum GroupCommand {
     GetAll {},
     Create {
         admin: Option<Pubkey>,
+        #[clap(short='f', long="override")]
+        override_existing_profile_group: bool
     },
     Configure {
         admin: Option<Pubkey>,
@@ -95,6 +97,22 @@ pub enum ProfileCommand {
         #[clap(long)]
         name: String,
     },
+    Config {
+        #[clap(long)]
+        name: String,
+        #[clap(long)]
+        cluster: Option<Cluster>,
+        #[clap(long)]
+        keypair_path: Option<String>,
+        #[clap(long)]
+        rpc_url: Option<String>,
+        #[clap(long)]
+        program_id: Option<Pubkey>,
+        #[clap(long)]
+        commitment: Option<CommitmentLevel>,
+        #[clap(long)]
+        group: Option<Pubkey>,
+    },
 }
 
 pub fn entry(opts: Opts) -> Result<()> {
@@ -129,12 +147,29 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
         ProfileCommand::Show => processor::show_profile(),
         ProfileCommand::List => processor::list_profiles(),
         ProfileCommand::Set { name } => processor::set_profile(name),
+        ProfileCommand::Config {
+            cluster,
+            keypair_path,
+            rpc_url,
+            program_id,
+            commitment,
+            group,
+            name,
+        } => processor::configure_profile(
+            name,
+            cluster,
+            keypair_path,
+            rpc_url,
+            program_id,
+            commitment,
+            group,
+        ),
     }
 }
 
 fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
     let profile = load_profile()?;
-    let config = profile.config(Some(global_options))?;
+    let config = profile.get_config(Some(global_options))?;
 
     match subcmd {
         GroupCommand::Get { marginfi_group: _ } => (),
@@ -147,7 +182,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             processor::group_get(config, marginfi_group.or(profile.marginfi_group))
         }
         GroupCommand::GetAll {} => processor::group_get_all(config),
-        GroupCommand::Create { admin } => processor::group_create(config, profile, admin),
+        GroupCommand::Create { admin, override_existing_profile_group } => processor::group_create(config, profile, admin, override_existing_profile_group),
         GroupCommand::Configure { admin } => processor::group_configure(config, profile, admin),
         GroupCommand::AddBank {
             bank_mint,
@@ -187,7 +222,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
 
 fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     let profile = load_profile()?;
-    let config = profile.config(Some(global_options))?;
+    let config = profile.get_config(Some(global_options))?;
 
     match subcmd {
         BankCommand::Get { bank: _ } => (),
