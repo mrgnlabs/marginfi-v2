@@ -31,11 +31,11 @@ async function main() {
   const bank2 = group.getBankByLabel(bankLabel2);
   if (!bank2) throw Error(`${bankLabel2} bank not found`);
 
-  const [assets, liabs] = marginfiAccount.getHealthComponents(
+  const { assets, liabilities } = marginfiAccount.getHealthComponents(
     MarginRequirementType.Init
   );
 
-  console.log("Assets: %s, Liabs: %s", assets, liabs);
+  console.log("Assets: %s, Liabs: %s", assets, liabilities);
 }
 
 main();

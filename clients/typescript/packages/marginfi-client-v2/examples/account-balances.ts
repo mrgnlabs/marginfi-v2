@@ -39,7 +39,7 @@ async function main() {
 
   marginfiAccount.lendingAccount.forEach((balance) => {
     const bank = group.banks.get(balance.bankPk.toString())!;
-    const [assets, liabs] = balance.getUsdValue(
+    const { assets, liabilities } = balance.getUsdValue(
       bank,
       MarginRequirementType.Equity
     );
@@ -49,7 +49,7 @@ async function main() {
       shortenAddress(bank.mint),
       shortenAddress(balance.bankPk),
       assets,
-      liabs
+      liabilities
     );
   });
 }

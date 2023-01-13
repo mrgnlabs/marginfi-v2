@@ -607,28 +607,11 @@ class MarginfiAccount {
       MarginRequirementType.Equity
     );
     const totalUsdValue = assets.minus(liabilities);
-    console.log("totalUsdValue", totalUsdValue.toNumber());
 
     return this.getActiveBalances()
       .reduce((weightedApy, balance) => {
         const bank = this._group.getBankByPk(balance.bankPk);
         if (!bank) throw Error(`Bank ${balance.bankPk.toBase58()} not found`);
-        console.log(
-          bank
-            .getInterestRates()
-            .borrowingRate.times(
-              balance.getUsdValue(bank, MarginRequirementType.Equity)
-                .liabilities
-            )
-            .toNumber(),
-          bank
-            .getInterestRates()
-            .lendingRate.times(
-              balance.getUsdValue(bank, MarginRequirementType.Equity).assets
-            )
-            .toNumber()
-        );
-
         return weightedApy
           .minus(
             bank
