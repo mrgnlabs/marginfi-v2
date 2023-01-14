@@ -487,6 +487,11 @@ impl<'a> BankAccountWrapper<'a> {
             min(liability_value, amount),
         );
 
+        {
+            let is_deposit_increasing = !deposit_value_delta.is_zero();
+            bank.assert_operational_mode(Some(is_deposit_increasing))?;
+        }
+
         let deposit_shares_delta = bank.get_deposit_shares(deposit_value_delta)?;
 
         balance.change_deposit_shares(deposit_shares_delta)?;
@@ -535,10 +540,16 @@ impl<'a> BankAccountWrapper<'a> {
             ),
         );
 
-        check!(
-            allow_borrow || liability_value_delta == I80F48::ZERO,
-            MarginfiError::BorrowingNotAllowed
-        );
+        {
+            let is_liability_increasing = liability_value_delta != I80F48::ZERO;
+
+            check!(
+                allow_borrow || !is_liability_increasing,
+                MarginfiError::BorrowingNotAllowed
+            );
+
+            bank.assert_operational_mode(Some(is_liability_increasing))?;
+        }
 
         let deposit_shares_delta = bank.get_deposit_shares(deposit_remove_value_delta)?;
         balance.change_deposit_shares(-deposit_shares_delta)?;

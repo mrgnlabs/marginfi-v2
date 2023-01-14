@@ -40,6 +40,10 @@ pub enum MarginfiError {
     InvalidConfig,
     #[msg("Stale oracle data")]
     StaleOracle,
+    #[msg("Bank paused")]
+    BankPaused,
+    #[msg("Bank is ReduceOnly mode")]
+    BankReduceOnly,
 }
 
 impl From<MarginfiError> for ProgramError {

@@ -10,7 +10,7 @@ use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
 use marginfi::{
     prelude::{MarginfiError, MarginfiGroup},
-    state::marginfi_group::{Bank, BankConfig},
+    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankOperationalState},
 };
 use pretty_assertions::assert_eq;
 use solana_program::{
@@ -843,6 +843,290 @@ async fn lending_pool_handle_bankruptcy_success_not_debt() -> anyhow::Result<()>
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::BalanceNotBadDebt);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lending_pool_bank_paused_should_error() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank(
+            &usdc_bank,
+            BankConfigOpt {
+                operational_state: Some(BankOperationalState::Paused),
+                ..BankConfigOpt::default()
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+    let res = lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BankPaused);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lending_pool_bank_reduce_only_success_withdraw() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+
+    lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank(
+            &usdc_bank,
+            BankConfigOpt {
+                operational_state: Some(BankOperationalState::ReduceOnly),
+                ..BankConfigOpt::default()
+            },
+        )
+        .await?;
+
+    let res = lender_account
+        .try_bank_withdraw(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await;
+
+    assert!(res.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lending_pool_bank_reduce_only_borrow_failure() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = sol_mint_fixture
+        .create_and_mint_to(native!(100, "SOL"))
+        .await;
+
+    lender_account
+        .try_bank_deposit(funding_account, &sol_bank, native!(100, "SOL"))
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+
+    lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank(
+            &usdc_bank,
+            BankConfigOpt {
+                operational_state: Some(BankOperationalState::ReduceOnly),
+                ..BankConfigOpt::default()
+            },
+        )
+        .await?;
+
+    let funding_account = sol_mint_fixture.create_and_mint_to(native!(0, "SOL")).await;
+    let res = lender_account
+        .try_bank_withdraw(funding_account, &sol_bank, native!(1, "SOL"))
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BankReduceOnly);
+
+    Ok(())
+}
+#[tokio::test]
+async fn lending_pool_bank_reduce_only_deposit_failure() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank(
+            &usdc_bank,
+            BankConfigOpt {
+                operational_state: Some(BankOperationalState::ReduceOnly),
+                ..BankConfigOpt::default()
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+
+    let res = lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BankReduceOnly);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lending_pool_bank_reduce_only_success_deposit() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            sol_mint_fixture.key,
+            BankConfig {
+                deposit_weight_init: I80F48!(1).into(),
+                ..*DEFAULT_SOL_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = sol_mint_fixture
+        .create_and_mint_to(native!(100, "SOL"))
+        .await;
+
+    lender_account
+        .try_bank_deposit(funding_account, &sol_bank, native!(100, "SOL"))
+        .await?;
+
+    let lender_account = test_f.create_marginfi_account().await;
+    let funding_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+
+    lender_account
+        .try_bank_deposit(funding_account, &usdc_bank, native!(100_000, "USDC"))
+        .await?;
+
+    let funding_account = sol_mint_fixture.create_and_mint_to(native!(0, "SOL")).await;
+    lender_account
+        .try_bank_withdraw(funding_account, &sol_bank, native!(1, "SOL"))
+        .await?;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank(
+            &usdc_bank,
+            BankConfigOpt {
+                operational_state: Some(BankOperationalState::ReduceOnly),
+                ..BankConfigOpt::default()
+            },
+        )
+        .await?;
+    let res = lender_account
+        .try_bank_deposit(funding_account, &sol_bank, native!(1, "SOL"))
+        .await;
+
+    assert!(res.is_ok());
 
     Ok(())
 }

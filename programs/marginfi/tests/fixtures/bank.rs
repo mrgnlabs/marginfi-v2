@@ -12,6 +12,7 @@ use solana_program_test::ProgramTestContext;
 use solana_sdk::{signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
+#[derive(Clone)]
 pub struct BankFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,

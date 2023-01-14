@@ -324,6 +324,8 @@ impl Bank {
         set_if_some!(self.config.max_capacity, config.max_capacity);
         set_if_some!(self.config.pyth_oracle, config.pyth_oracle);
 
+        set_if_some!(self.config.operational_state, config.operational_state);
+
         self.config.validate()?;
 
         Ok(())
@@ -449,6 +451,19 @@ impl Bank {
 
         Ok(())
     }
+
+    pub fn assert_operational_mode(&self, metric_increasing: Option<bool>) -> Result<()> {
+        match self.config.operational_state {
+            BankOperationalState::Paused => return Err(MarginfiError::BankPaused.into()),
+            BankOperationalState::Operational => (),
+            BankOperationalState::ReduceOnly => check!(
+                !metric_increasing.unwrap_or(false),
+                MarginfiError::BankReduceOnly
+            ),
+        }
+
+        Ok(())
+    }
 }
 
 /// We use a simple interest rate model that auto settles the accrued interest into the lending account balances.
@@ -539,6 +554,15 @@ fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48)
     Some(interest_payment)
 }
 
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
+#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
+pub enum BankOperationalState {
+    Paused,
+    Operational,
+    ReduceOnly,
+}
+
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq)
@@ -558,6 +582,7 @@ pub struct BankConfig {
 
     pub pyth_oracle: Pubkey,
     pub interest_rate_config: InterestRateConfig,
+    pub operational_state: BankOperationalState,
 }
 
 impl Default for BankConfig {
@@ -570,6 +595,7 @@ impl Default for BankConfig {
             max_capacity: 0,
             pyth_oracle: Default::default(),
             interest_rate_config: Default::default(),
+            operational_state: BankOperationalState::Paused,
         }
     }
 }
@@ -653,6 +679,8 @@ pub struct BankConfigOpt {
     pub max_capacity: Option<u64>,
 
     pub pyth_oracle: Option<Pubkey>,
+
+    pub operational_state: Option<BankOperationalState>,
 }
 
 #[derive(Debug, Clone)]
