@@ -3,14 +3,18 @@
 use std::collections::BTreeMap;
 
 use anchor_lang::{
-    prelude::{AccountLoader, Context, Pubkey},
+    prelude::{AccountLoader, Context, Pubkey, Rent},
     Key,
 };
 use anyhow::Result;
 use arbitrary::Arbitrary;
+use fixed::types::I80F48;
 use libfuzzer_sys::fuzz_target;
-use marginfi::{prelude::MarginfiGroup, state::marginfi_group::Bank};
-use marginfi_fuzz::{setup_marginfi_group, MarginfiGroupAccounts};
+use marginfi::{
+    prelude::MarginfiGroup,
+    state::marginfi_group::{Bank, WrappedI80F48},
+};
+use marginfi_fuzz::{setup_marginfi_group, BankAndOracleConfig, MarginfiGroupAccounts};
 
 #[derive(Debug, Arbitrary)]
 enum Action {
@@ -64,11 +68,11 @@ impl<'a> Arbitrary<'a> for OwnerId {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BankId(u8);
-const NUM_BANKS: u8 = 8;
+const N_BANKS: usize = 8;
 impl<'a> Arbitrary<'a> for BankId {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
         let i: u8 = u.arbitrary()?;
-        Ok(BankId(i % NUM_BANKS))
+        Ok(BankId(i % N_BANKS as u8))
     }
 
     fn size_hint(_: usize) -> (usize, Option<usize>) {
@@ -101,16 +105,19 @@ impl<'a> Arbitrary<'a> for AssetAmount {
 #[derive(Debug, Arbitrary)]
 pub struct ActionSequence(Vec<Action>);
 
-fuzz_target!(|data: ActionSequence| { process_actions(data).unwrap() });
-
-struct FuzzerContext {
-    marginfi_group: Pubkey,
-    banks: Vec<(Pubkey, Bank)>,
+#[derive(Debug, Arbitrary)]
+pub struct FuzzerContext {
+    pub action_sequence: ActionSequence,
+    pub initial_bank_configs: [BankAndOracleConfig; N_BANKS],
 }
 
-fn process_actions(actions: ActionSequence) -> Result<()> {
+fuzz_target!(|data: FuzzerContext| { process_actions(data).unwrap() });
+
+fn process_actions(ctx: FuzzerContext) -> Result<()> {
     let bump = bumpalo::Bump::new();
-    let mga = MarginfiGroupAccounts::setup(&bump);
+    let mut mga = MarginfiGroupAccounts::setup(&bump);
+
+    mga.setup_banks(&bump, Rent::free(), N_BANKS, &ctx.initial_bank_configs);
 
     let al =
         AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &mga.marginfi_group)

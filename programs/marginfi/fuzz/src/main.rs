@@ -1,11 +1,16 @@
-use anchor_lang::{prelude::AccountLoader, Discriminator, Key};
+use anchor_lang::{
+    prelude::{AccountLoader, Rent},
+    Discriminator, Key,
+};
 use anyhow::Result;
 use marginfi::prelude::MarginfiGroup;
-use marginfi_fuzz::setup_marginfi_group;
+use marginfi_fuzz::{setup_marginfi_group, BankAndOracleConfig};
 
 fn main() -> Result<()> {
     let bump = bumpalo::Bump::new();
-    let a = setup_marginfi_group(&bump);
+    let mut a = setup_marginfi_group(&bump);
+
+    a.setup_banks(&bump, Rent::free(), 1, &[BankAndOracleConfig::dummy()]);
 
     let al = AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &a.marginfi_group)
         .unwrap();
