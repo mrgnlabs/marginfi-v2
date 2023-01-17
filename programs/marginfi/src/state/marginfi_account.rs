@@ -164,7 +164,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
 pub fn get_price_range(pf: &PriceFeed) -> MarginfiResult<(I80F48, I80F48)> {
     let price_state = pf
         .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
-        .ok_or_else(|| MarginfiError::StaleOracle)?;
+        .ok_or(MarginfiError::StaleOracle)?;
 
     let base_price =
         pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)?;
@@ -187,7 +187,7 @@ pub fn get_price_range(pf: &PriceFeed) -> MarginfiResult<(I80F48, I80F48)> {
 pub fn get_price(pf: &PriceFeed) -> MarginfiResult<I80F48> {
     let price_state = pf
         .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
-        .ok_or_else(|| MarginfiError::StaleOracle)?;
+        .ok_or(MarginfiError::StaleOracle)?;
 
     pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)
 }
