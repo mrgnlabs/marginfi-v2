@@ -196,10 +196,12 @@ pub struct Bank {
     pub insurance_vault: Pubkey,
     pub insurance_vault_bump: u8,
     pub insurance_vault_authority_bump: u8,
+    pub insurance_transfer_remainder: WrappedI80F48,
 
     pub fee_vault: Pubkey,
     pub fee_vault_bump: u8,
     pub fee_vault_authority_bump: u8,
+    pub fee_transfer_remainder: WrappedI80F48,
 
     pub total_liability_shares: WrappedI80F48,
     pub total_deposit_shares: WrappedI80F48,
@@ -243,8 +245,10 @@ impl Bank {
             liquidity_vault_authority_bump,
             insurance_vault_bump,
             insurance_vault_authority_bump,
+            insurance_transfer_remainder: I80F48::ZERO.into(),
             fee_vault_bump,
             fee_vault_authority_bump,
+            fee_transfer_remainder: I80F48::ZERO.into(),
         }
     }
 
@@ -370,8 +374,8 @@ impl Bank {
         let (
             deposit_share_value,
             liability_share_value,
-            group_fees_collected,
-            insurance_fees_collected,
+            mut fees_collected,
+            mut insurance_collected,
         ) = calc_interest_rate_accrual_state_changes(
             time_delta,
             total_deposits,
@@ -386,10 +390,19 @@ impl Bank {
         self.liability_share_value = liability_share_value.into();
         self.last_update = clock.unix_timestamp;
 
-        Ok((
-            group_fees_collected.to_num(),
-            insurance_fees_collected.to_num(),
-        ))
+        fees_collected = fees_collected
+            .checked_add(self.fee_transfer_remainder.into())
+            .ok_or_else(math_error!())?;
+
+        self.fee_transfer_remainder = fees_collected.frac().into();
+
+        insurance_collected = insurance_collected
+            .checked_add(self.insurance_transfer_remainder.into())
+            .ok_or_else(math_error!())?;
+
+        self.insurance_transfer_remainder = insurance_collected.frac().into();
+
+        Ok((fees_collected.to_num(), insurance_collected.to_num()))
     }
 
     pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(

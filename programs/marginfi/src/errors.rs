@@ -45,7 +45,7 @@ pub enum MarginfiError {
     #[msg("Bank is ReduceOnly mode")]
     BankReduceOnly,
     #[msg("Invalid oracle setup")]
-    InvalidOracleSetup
+    InvalidOracleSetup,
 }
 
 impl From<MarginfiError> for ProgramError {

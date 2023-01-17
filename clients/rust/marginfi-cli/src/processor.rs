@@ -65,9 +65,11 @@ pub fn print_group_banks(config: Config, marginfi_group: Pubkey) -> Result<()> {
         })])?;
 
     println!("--------\nBanks:");
+
     for (address, state) in banks {
         println!("{}:\n{:#?}\n", address, state);
     }
+
     Ok(())
 }
 
