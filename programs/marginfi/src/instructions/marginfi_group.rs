@@ -8,8 +8,7 @@ use crate::{
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine},
         marginfi_group::{
-            load_pyth_price_feed, Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig,
-            MarginfiGroup,
+            Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig, MarginfiGroup,
         },
     },
     MarginfiResult,
@@ -78,14 +77,10 @@ pub fn lending_pool_add_bank(
         liquidity_vault,
         insurance_vault,
         fee_vault,
-        pyth_oracle,
         ..
     } = ctx.accounts;
 
     let mut bank = ctx.accounts.bank.load_init()?;
-
-    // Verify that pyth oracle
-    load_pyth_price_feed(pyth_oracle)?;
 
     let liquidity_vault_bump = *ctx.bumps.get("liquidity_vault").unwrap();
     let liquidity_vault_authority_bump = *ctx.bumps.get("liquidity_vault_authority").unwrap();
@@ -112,6 +107,7 @@ pub fn lending_pool_add_bank(
     );
 
     bank.config.validate()?;
+    bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
 
     Ok(())
 }
@@ -205,10 +201,6 @@ pub struct LendingPoolAddBank<'info> {
     )]
     pub fee_vault: Box<Account<'info, TokenAccount>>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
-    #[account(address = bank_config.pyth_oracle)]
-    pub pyth_oracle: AccountInfo<'info>,
-
     pub rent: Sysvar<'info, Rent>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -220,16 +212,11 @@ pub fn lending_pool_configure_bank(
 ) -> MarginfiResult {
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    if let Some(pyth_oracle) = bank_config.pyth_oracle {
-        check!(
-            pyth_oracle == ctx.accounts.pyth_oracle.key(),
-            MarginfiError::InvalidPythAccount
-        );
+    bank.configure(&bank_config)?;
 
-        load_pyth_price_feed(&ctx.accounts.pyth_oracle)?;
+    if bank_config.oracle.is_some() {
+        bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
     }
-
-    bank.configure(bank_config)?;
 
     Ok(())
 }
@@ -248,10 +235,6 @@ pub struct LendingPoolConfigureBank<'info> {
         constraint = bank.load()?.group == marginfi_group.key(),
     )]
     pub bank: AccountLoader<'info, Bank>,
-
-    /// Set only if pyth oracle is being changed otherwise can be a random account.
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
-    pub pyth_oracle: UncheckedAccount<'info>,
 }
 
 pub fn lending_pool_bank_accrue_interest(

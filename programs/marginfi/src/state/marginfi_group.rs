@@ -3,8 +3,8 @@ use crate::{
     check,
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED, PYTH_ID,
-        SECONDS_PER_YEAR,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+        MAX_ORACLE_KEYS, PYTH_ID, SECONDS_PER_YEAR,
     },
     math_error,
     prelude::MarginfiError,
@@ -56,9 +56,9 @@ pub struct GroupConfig {
 
 /// Load and validate a pyth price feed account.
 pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
-    check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidPythAccount);
+    check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
     let price_feed =
-        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidPythAccount)?;
+        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
 }
 #[cfg_attr(
@@ -201,12 +201,12 @@ pub struct Bank {
     pub fee_vault_bump: u8,
     pub fee_vault_authority_bump: u8,
 
-    pub config: BankConfig,
-
     pub total_liability_shares: WrappedI80F48,
     pub total_deposit_shares: WrappedI80F48,
 
     pub last_update: i64,
+
+    pub config: BankConfig,
 }
 
 impl Bank {
@@ -307,7 +307,7 @@ impl Bank {
         Ok(())
     }
 
-    pub fn configure(&mut self, config: BankConfigOpt) -> MarginfiResult {
+    pub fn configure(&mut self, config: &BankConfigOpt) -> MarginfiResult {
         set_if_some!(self.config.deposit_weight_init, config.deposit_weight_init);
         set_if_some!(
             self.config.deposit_weight_maint,
@@ -322,9 +322,12 @@ impl Bank {
             config.liability_weight_maint
         );
         set_if_some!(self.config.max_capacity, config.max_capacity);
-        set_if_some!(self.config.pyth_oracle, config.pyth_oracle);
 
         set_if_some!(self.config.operational_state, config.operational_state);
+
+        set_if_some!(self.config.oracle_setup, config.oracle.map(|o| o.0));
+
+        set_if_some!(self.config.oracle_keys, config.oracle.map(|o| o.1));
 
         self.config.validate()?;
 
@@ -337,21 +340,21 @@ impl Bank {
         pyth_account_map: &BTreeMap<Pubkey, &AccountInfo>,
     ) -> MarginfiResult<PriceFeed> {
         let pyth_account = pyth_account_map
-            .get(&self.config.pyth_oracle)
+            .get(&self.config.get_pyth_oracle_key())
             .ok_or(MarginfiError::MissingPythAccount)?;
 
         Ok(load_price_feed_from_account_info(pyth_account)
-            .map_err(|_| MarginfiError::InvalidPythAccount)?)
+            .map_err(|_| MarginfiError::InvalidOracleAccount)?)
     }
 
     #[inline]
     pub fn load_price_feed_from_account_info(&self, ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
         check!(
-            self.config.pyth_oracle.eq(ai.key),
-            MarginfiError::InvalidPythAccount
+            self.config.get_pyth_oracle_key().eq(ai.key),
+            MarginfiError::InvalidOracleAccount
         );
-        let pyth_account =
-            load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidPythAccount)?;
+        let pyth_account = load_price_feed_from_account_info(ai)
+            .map_err(|_| MarginfiError::InvalidOracleAccount)?;
 
         Ok(pyth_account)
     }
@@ -563,6 +566,18 @@ pub enum BankOperationalState {
     ReduceOnly,
 }
 
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
+#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
+pub enum OracleSetup {
+    None,
+    Pyth,
+}
+
+pub enum OracleKey {
+    Pyth(Pubkey),
+}
+
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq)
@@ -580,9 +595,11 @@ pub struct BankConfig {
 
     pub max_capacity: u64,
 
-    pub pyth_oracle: Pubkey,
     pub interest_rate_config: InterestRateConfig,
     pub operational_state: BankOperationalState,
+
+    pub oracle_setup: OracleSetup,
+    pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS],
 }
 
 impl Default for BankConfig {
@@ -593,14 +610,16 @@ impl Default for BankConfig {
             liability_weight_init: I80F48::ONE.into(),
             liability_weight_maint: I80F48::ONE.into(),
             max_capacity: 0,
-            pyth_oracle: Default::default(),
             interest_rate_config: Default::default(),
             operational_state: BankOperationalState::Paused,
+            oracle_setup: OracleSetup::None,
+            oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
         }
     }
 }
 
 impl BankConfig {
+    #[inline]
     pub fn get_weights(&self, weight_type: WeightType) -> (I80F48, I80F48) {
         match weight_type {
             WeightType::Initial => (
@@ -640,6 +659,40 @@ impl BankConfig {
 
         Ok(())
     }
+
+    pub fn validate_oracle_setup(&self, oracle_ais: &[AccountInfo]) -> MarginfiResult {
+        match self.oracle_setup {
+            OracleSetup::None => Ok(()),
+            OracleSetup::Pyth => {
+                check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
+
+                let pyth_oracle_ai = &oracle_ais[0];
+
+                check!(
+                    pyth_oracle_ai.key().eq(&self.oracle_keys[0]),
+                    MarginfiError::InvalidOracleAccount
+                );
+
+                load_pyth_price_feed(pyth_oracle_ai)?;
+                Ok(())
+            }
+        }
+    }
+
+    #[inline]
+    pub fn get_oracle_key(&self) -> OracleKey {
+        match self.oracle_setup {
+            OracleSetup::None => panic!("No oracle setup"),
+            OracleSetup::Pyth => OracleKey::Pyth(self.oracle_keys[0]),
+        }
+    }
+
+    #[inline]
+    pub fn get_pyth_oracle_key(&self) -> Pubkey {
+        match self.get_oracle_key() {
+            OracleKey::Pyth(key) => key,
+        }
+    }
 }
 
 #[zero_copy]
@@ -678,9 +731,9 @@ pub struct BankConfigOpt {
 
     pub max_capacity: Option<u64>,
 
-    pub pyth_oracle: Option<Pubkey>,
-
     pub operational_state: Option<BankOperationalState>,
+
+    pub oracle: Option<(OracleSetup, [Pubkey; MAX_ORACLE_KEYS])>,
 }
 
 #[derive(Debug, Clone)]

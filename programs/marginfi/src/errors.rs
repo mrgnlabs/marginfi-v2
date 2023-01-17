@@ -17,7 +17,7 @@ pub enum MarginfiError {
     #[msg("Missing Pyth account")]
     MissingPythAccount,
     #[msg("Invalid Pyth account")]
-    InvalidPythAccount,
+    InvalidOracleAccount,
     #[msg("Missing Bank account")]
     MissingBankAccount,
     #[msg("Invalid Bank account")]
@@ -44,6 +44,8 @@ pub enum MarginfiError {
     BankPaused,
     #[msg("Bank is ReduceOnly mode")]
     BankReduceOnly,
+    #[msg("Invalid oracle setup")]
+    InvalidOracleSetup
 }
 
 impl From<MarginfiError> for ProgramError {

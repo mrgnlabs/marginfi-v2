@@ -34,3 +34,5 @@ pub const MAX_PRICE_AGE_SEC: u64 = 20;
 pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(4.24);
 
 pub const USDC_EXPONENT: i32 = 6;
+
+pub const MAX_ORACLE_KEYS: usize = 5;

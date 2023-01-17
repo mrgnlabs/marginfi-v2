@@ -158,25 +158,30 @@ impl MarginfiAccountFixture {
         let asset_bank = asset_bank_fixture.load().await;
         let liab_bank = liab_bank_fixture.load().await;
 
+        let mut accounts = marginfi::accounts::LendingAccountLiquidate {
+            marginfi_group: marginfi_account.group,
+            asset_bank: asset_bank_fixture.key,
+            liab_bank: liab_bank_fixture.key,
+            liquidator_marginfi_account: self.key,
+            signer: self.ctx.borrow().payer.pubkey(),
+            liquidatee_marginfi_account: liquidatee.key,
+            bank_liquidity_vault_authority: liab_bank_fixture
+                .get_vault_authority(BankVaultType::Liquidity)
+                .0,
+            bank_liquidity_vault: liab_bank_fixture.get_vault(BankVaultType::Liquidity).0,
+            bank_insurance_vault: liab_bank_fixture.get_vault(BankVaultType::Insurance).0,
+            token_program: token::ID,
+        }
+        .to_account_metas(Some(true));
+
+        accounts.extend(vec![
+            AccountMeta::new_readonly(asset_bank.config.get_pyth_oracle_key(), false),
+            AccountMeta::new_readonly(liab_bank.config.get_pyth_oracle_key(), false),
+        ]);
+
         let mut ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingAccountLiquidate {
-                marginfi_group: marginfi_account.group,
-                asset_bank: asset_bank_fixture.key,
-                liab_bank: liab_bank_fixture.key,
-                liquidator_marginfi_account: self.key,
-                signer: self.ctx.borrow().payer.pubkey(),
-                liquidatee_marginfi_account: liquidatee.key,
-                bank_liquidity_vault_authority: liab_bank_fixture
-                    .get_vault_authority(BankVaultType::Liquidity)
-                    .0,
-                bank_liquidity_vault: liab_bank_fixture.get_vault(BankVaultType::Liquidity).0,
-                bank_insurance_vault: liab_bank_fixture.get_vault(BankVaultType::Insurance).0,
-                token_program: token::ID,
-                asset_price_feed: asset_bank.config.pyth_oracle,
-                liab_price_feed: liab_bank.config.pyth_oracle,
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
         };
 
@@ -239,7 +244,7 @@ impl MarginfiAccountFixture {
                         is_writable: false,
                     },
                     AccountMeta {
-                        pubkey: bank.config.pyth_oracle,
+                        pubkey: bank.config.get_pyth_oracle_key(),
                         is_signer: false,
                         is_writable: false,
                     },

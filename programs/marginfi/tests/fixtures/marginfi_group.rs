@@ -85,29 +85,31 @@ impl MarginfiGroupFixture {
         let bank_key = Keypair::new();
         let bank_fixture = BankFixture::new(self.ctx.clone(), bank_key.pubkey());
 
+        let mut accounts = marginfi::accounts::LendingPoolAddBank {
+            marginfi_group: self.key,
+            admin: self.ctx.borrow().payer.pubkey(),
+            bank_mint: bank_asset_mint,
+            bank: bank_key.pubkey(),
+            liquidity_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Liquidity).0,
+            liquidity_vault: bank_fixture.get_vault(BankVaultType::Liquidity).0,
+            insurance_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Insurance).0,
+            insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
+            fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
+            fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
+            rent: sysvar::rent::id(),
+            token_program: token::ID,
+            system_program: system_program::id(),
+        }
+        .to_account_metas(Some(true));
+
+        accounts.push(AccountMeta::new_readonly(
+            bank_config.get_pyth_oracle_key(),
+            false,
+        ));
+
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolAddBank {
-                marginfi_group: self.key,
-                admin: self.ctx.borrow().payer.pubkey(),
-                bank_mint: bank_asset_mint,
-                bank: bank_key.pubkey(),
-                liquidity_vault_authority: bank_fixture
-                    .get_vault_authority(BankVaultType::Liquidity)
-                    .0,
-                liquidity_vault: bank_fixture.get_vault(BankVaultType::Liquidity).0,
-                insurance_vault_authority: bank_fixture
-                    .get_vault_authority(BankVaultType::Insurance)
-                    .0,
-                insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
-                fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
-                fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
-                rent: sysvar::rent::id(),
-                token_program: token::ID,
-                system_program: system_program::id(),
-                pyth_oracle: bank_config.pyth_oracle,
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingPoolAddBank { bank_config }.data(),
         };
 
@@ -154,15 +156,24 @@ impl MarginfiGroupFixture {
         bank: &BankFixture,
         bank_config_opt: BankConfigOpt,
     ) -> Instruction {
+        let mut accounts = marginfi::accounts::LendingPoolConfigureBank {
+            bank: bank.key,
+            marginfi_group: self.key,
+            admin: self.ctx.borrow().payer.pubkey(),
+        }
+        .to_account_metas(Some(true));
+
+        if let Some((_, oracle_keys)) = bank_config_opt.oracle {
+            accounts.extend(
+                oracle_keys
+                    .iter()
+                    .map(|k| AccountMeta::new_readonly(*k, false)),
+            );
+        }
+
         Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolConfigureBank {
-                bank: bank.key,
-                marginfi_group: self.key,
-                admin: self.ctx.borrow().payer.pubkey(),
-                pyth_oracle: bank_config_opt.pyth_oracle.unwrap_or_default(),
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingPoolConfigureBank { bank_config_opt }.data(),
         }
     }

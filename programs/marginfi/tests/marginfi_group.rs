@@ -101,13 +101,14 @@ async fn failure_add_bank_fake_pyth_feed() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             bank_asset_mint_fixture.key,
             BankConfig {
-                pyth_oracle: FAKE_PYTH_USDC_FEED,
-                ..Default::default()
+                oracle_setup: marginfi::state::marginfi_group::OracleSetup::Pyth,
+                oracle_keys: create_oracle_key_array(FAKE_PYTH_USDC_FEED),
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
         )
         .await;
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::InvalidPythAccount);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::InvalidOracleAccount);
 
     Ok(())
 }
@@ -1003,7 +1004,7 @@ async fn lending_pool_bank_reduce_only_borrow_failure() -> anyhow::Result<()> {
     test_f
         .marginfi_group
         .try_lending_pool_configure_bank(
-            &usdc_bank,
+            &sol_bank,
             BankConfigOpt {
                 operational_state: Some(BankOperationalState::ReduceOnly),
                 ..BankConfigOpt::default()

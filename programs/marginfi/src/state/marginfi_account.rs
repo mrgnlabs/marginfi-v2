@@ -313,7 +313,7 @@ impl<'a> RiskEngine<'a> {
         );
 
         check!(
-            total_weighted_assets > total_weighted_liabilities,
+            total_weighted_assets >= total_weighted_liabilities,
             MarginfiError::BadAccountHealth
         );
 
@@ -473,7 +473,7 @@ impl<'a> BankAccountWrapper<'a> {
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
-        msg!("Account crediting: {} to {}", amount, balance.bank_pk);
+        msg!("Account deposit: {} to {}", amount, balance.bank_pk);
 
         let liability_value = bank.get_liability_amount(balance.liability_shares.into())?;
 
@@ -518,7 +518,7 @@ impl<'a> BankAccountWrapper<'a> {
 
     fn account_credit_asset(&mut self, amount: I80F48, allow_borrow: bool) -> MarginfiResult {
         msg!(
-            "Account debiting: {} of {} (borrow: {})",
+            "Account remove: {} of {} (borrow: {})",
             amount,
             self.bank.mint,
             allow_borrow
