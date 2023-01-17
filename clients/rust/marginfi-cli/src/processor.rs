@@ -13,24 +13,18 @@ use anyhow::{anyhow, bail};
 use fixed::types::I80F48;
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{
-            Bank, BankConfig, BankOperationalState, BankVaultType, InterestRateConfig, OracleSetup,
-            WrappedI80F48,
-        },
+    state::marginfi_group::{
+        Bank, BankConfig, BankOperationalState, BankVaultType, InterestRateConfig, OracleSetup,
+        WrappedI80F48,
     },
 };
-use solana_account_decoder::UiAccountEncoding;
-use solana_client::{
-    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
-    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
-};
+
+use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
 use solana_sdk::{
     commitment_config::CommitmentLevel, pubkey::Pubkey, signature::Keypair, signer::Signer,
     system_program, sysvar,
 };
-use std::{fs, mem::size_of, str::FromStr};
+use std::{fs, mem::size_of};
 
 // --------------------------------------------------------------------------------------------------------------------
 // marginfi group
