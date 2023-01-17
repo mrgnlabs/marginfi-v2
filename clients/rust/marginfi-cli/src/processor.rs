@@ -1,7 +1,10 @@
 use crate::{
     config::Config,
     profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
-    utils::{find_bank_vault_authority_pda, find_bank_vault_pda, process_transaction},
+    utils::{
+        create_oracle_key_array, find_bank_vault_authority_pda, find_bank_vault_pda,
+        process_transaction,
+    },
 };
 use anchor_client::Cluster;
 use anchor_spl::token;
@@ -12,7 +15,10 @@ use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
     state::{
         marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, WrappedI80F48},
+        marginfi_group::{
+            Bank, BankConfig, BankOperationalState, BankVaultType, InterestRateConfig, OracleSetup,
+            WrappedI80F48,
+        },
     },
 };
 use solana_account_decoder::UiAccountEncoding;
@@ -257,7 +263,6 @@ pub fn group_add_bank(
                 &config.program_id,
             )
             .0,
-            pyth_oracle,
             rent: sysvar::rent::id(),
             token_program: token::ID,
             system_program: system_program::id(),
@@ -269,8 +274,10 @@ pub fn group_add_bank(
                 liability_weight_init,
                 liability_weight_maint,
                 max_capacity,
-                pyth_oracle,
                 interest_rate_config,
+                operational_state: BankOperationalState::Operational,
+                oracle_setup: OracleSetup::Pyth,
+                oracle_keys: create_oracle_key_array(pyth_oracle),
             },
         })
         .instructions()?;

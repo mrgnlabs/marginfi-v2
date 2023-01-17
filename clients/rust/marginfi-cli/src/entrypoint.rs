@@ -43,8 +43,8 @@ pub enum GroupCommand {
     GetAll {},
     Create {
         admin: Option<Pubkey>,
-        #[clap(short='f', long="override")]
-        override_existing_profile_group: bool
+        #[clap(short = 'f', long = "override")]
+        override_existing_profile_group: bool,
     },
     Configure {
         admin: Option<Pubkey>,
@@ -182,7 +182,10 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             processor::group_get(config, marginfi_group.or(profile.marginfi_group))
         }
         GroupCommand::GetAll {} => processor::group_get_all(config),
-        GroupCommand::Create { admin, override_existing_profile_group } => processor::group_create(config, profile, admin, override_existing_profile_group),
+        GroupCommand::Create {
+            admin,
+            override_existing_profile_group,
+        } => processor::group_create(config, profile, admin, override_existing_profile_group),
         GroupCommand::Configure { admin } => processor::group_configure(config, profile, admin),
         GroupCommand::AddBank {
             bank_mint,
