@@ -10,7 +10,10 @@ use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use pyth_sdk_solana::PriceFeed;
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    ops::Not,
+};
 
 #[account(zero_copy)]
 pub struct MarginfiAccount {
@@ -541,7 +544,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         {
-            let is_liability_increasing = liability_value_delta != I80F48::ZERO;
+            let is_liability_increasing = liability_value_delta.is_zero().not();
 
             check!(
                 allow_borrow || !is_liability_increasing,
