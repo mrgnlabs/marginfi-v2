@@ -29,6 +29,7 @@ lazy_static = "1.4.0"
 pyth-sdk-solana = "0.7.0"
 solana-program = "1.14.11"
 static_assertions = "1.1.0"
+type-layout = "0.2.0"
 
 [dev-dependencies]
 anyhow = "1.0.66"

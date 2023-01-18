@@ -7,8 +7,18 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
-use marginfi::state::marginfi_group::{BankConfigOpt, BankOperationalState};
+use marginfi::{
+    prelude::{GroupConfig, MarginfiGroup},
+    state::{
+        marginfi_account::{Balance, LendingAccount, MarginfiAccount},
+        marginfi_group::{
+            Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
+            OracleConfig, WrappedI80F48,
+        },
+    },
+};
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
+use type_layout::TypeLayout;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -35,6 +45,7 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: ProfileCommand,
     },
+    InspectPadding {},
 }
 
 #[derive(Debug, Parser)]
@@ -162,6 +173,7 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Group { subcmd } => group(subcmd, &opts.cfg_override),
         Command::Bank { subcmd } => bank(subcmd, &opts.cfg_override),
         Command::Profile { subcmd } => profile(subcmd),
+        Command::InspectPadding {} => inspect_padding(),
     }
 }
 
@@ -286,7 +298,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             bank_pk,
         } => processor::bank_configure(
             config,
-            profile,
+            profile, //
             bank_pk,
             BankConfigOpt {
                 deposit_weight_init: deposit_weight_init.map(|x| I80F48::from_num(x).into()),
@@ -299,6 +311,23 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             },
         ),
     }
+}
+
+fn inspect_padding() -> Result<()> {
+    println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
+    println!("GroupConfig: {}", GroupConfig::type_layout());
+    println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
+    println!("Bank: {}", Bank::type_layout());
+    println!("BankConfig: {}", BankConfig::type_layout());
+    println!("OracleConfig: {}", OracleConfig::type_layout());
+    println!("BankConfigOpt: {}", BankConfigOpt::type_layout());
+    println!("WrappedI80F48: {}", WrappedI80F48::type_layout());
+
+    println!("MarginfiAccount: {}", MarginfiAccount::type_layout());
+    println!("LendingAccount: {}", LendingAccount::type_layout());
+    println!("Balance: {}", Balance::type_layout());
+
+    Ok(())
 }
 
 fn get_consent<T: std::fmt::Debug>(cmd: T, profile: &Profile) -> Result<()> {

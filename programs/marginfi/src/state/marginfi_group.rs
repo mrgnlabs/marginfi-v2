@@ -18,11 +18,13 @@ use std::{
     collections::BTreeMap,
     fmt::{Debug, Formatter},
 };
+#[cfg(any(feature = "test", feature = "client"))]
+use type_layout::TypeLayout;
 
 #[account(zero_copy)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq)
+    derive(Debug, PartialEq, Eq, TypeLayout)
 )]
 #[derive(Default)]
 pub struct MarginfiGroup {
@@ -48,8 +50,8 @@ impl MarginfiGroup {
     }
 }
 
+#[cfg_attr(any(feature = "test", feature = "client"), derive(Debug, TypeLayout))]
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(Debug))]
 pub struct GroupConfig {
     pub admin: Option<Pubkey>,
 }
@@ -61,13 +63,14 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
         load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
 }
+
+#[zero_copy]
+#[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq)
+    derive(Debug, PartialEq, Eq, TypeLayout)
 )]
-#[zero_copy]
 #[derive(Default, AnchorDeserialize, AnchorSerialize)]
-#[repr(C)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -174,12 +177,12 @@ impl InterestRateConfig {
 }
 
 #[account(zero_copy)]
+#[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq)
+    derive(Debug, PartialEq, Eq, TypeLayout)
 )]
 #[derive(Default)]
-#[repr(C)]
 pub struct Bank {
     pub mint: Pubkey,
     pub mint_decimals: u8,
@@ -329,9 +332,9 @@ impl Bank {
 
         set_if_some!(self.config.operational_state, config.operational_state);
 
-        set_if_some!(self.config.oracle_setup, config.oracle.map(|o| o.0));
+        set_if_some!(self.config.oracle_setup, config.oracle.map(|o| o.setup));
 
-        set_if_some!(self.config.oracle_keys, config.oracle.map(|o| o.1));
+        set_if_some!(self.config.oracle_keys, config.oracle.map(|o| o.keys));
 
         self.config.validate()?;
 
@@ -571,8 +574,8 @@ fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48)
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
 pub enum BankOperationalState {
     Paused,
     Operational,
@@ -580,8 +583,8 @@ pub enum BankOperationalState {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
 pub enum OracleSetup {
     None,
     Pyth,
@@ -591,12 +594,12 @@ pub enum OracleKey {
     Pyth(Pubkey),
 }
 
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq)
-)]
 #[zero_copy]
 #[repr(C)]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, PartialEq, Eq, TypeLayout)
+)]
 #[derive(AnchorDeserialize, AnchorSerialize)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
@@ -709,9 +712,12 @@ impl BankConfig {
 }
 
 #[zero_copy]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Default, AnchorDeserialize, AnchorSerialize)]
 #[repr(C)]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(PartialEq, Eq, TypeLayout)
+)]
+#[derive(Default, AnchorDeserialize, AnchorSerialize)]
 pub struct WrappedI80F48 {
     pub value: i128,
 }
@@ -734,6 +740,10 @@ impl From<WrappedI80F48> for I80F48 {
     }
 }
 
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(PartialEq, Eq, TypeLayout)
+)]
 #[derive(AnchorDeserialize, AnchorSerialize, Default)]
 pub struct BankConfigOpt {
     pub deposit_weight_init: Option<WrappedI80F48>,
@@ -746,7 +756,17 @@ pub struct BankConfigOpt {
 
     pub operational_state: Option<BankOperationalState>,
 
-    pub oracle: Option<(OracleSetup, [Pubkey; MAX_ORACLE_KEYS])>,
+    pub oracle: Option<OracleConfig>,
+}
+
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(PartialEq, Eq, TypeLayout)
+)]
+#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize)]
+pub struct OracleConfig {
+    pub setup: OracleSetup,
+    pub keys: [Pubkey; MAX_ORACLE_KEYS],
 }
 
 #[derive(Debug, Clone)]

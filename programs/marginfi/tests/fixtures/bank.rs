@@ -46,9 +46,10 @@ impl BankFixture {
         }
         .to_account_metas(Some(true));
 
-        if let Some((_, oracle_keys)) = config.oracle {
+        if let Some(oracle_config) = config.oracle {
             accounts.extend(
-                oracle_keys
+                oracle_config
+                    .keys
                     .iter()
                     .map(|k| AccountMeta::new_readonly(*k, false)),
             );

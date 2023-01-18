@@ -14,8 +14,14 @@ use std::{
     cmp::{max, min},
     ops::Not,
 };
+#[cfg(any(feature = "test", feature = "client"))]
+use type_layout::TypeLayout;
 
 #[account(zero_copy)]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, PartialEq, Eq, TypeLayout)
+)]
 pub struct MarginfiAccount {
     pub group: Pubkey,
     pub authority: Pubkey,
@@ -384,6 +390,10 @@ impl<'a> RiskEngine<'a> {
 const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 #[zero_copy]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, PartialEq, Eq, TypeLayout)
+)]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES],
 }
@@ -405,6 +415,10 @@ impl LendingAccount {
 }
 
 #[zero_copy]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, PartialEq, Eq, TypeLayout)
+)]
 pub struct Balance {
     pub active: bool,
     pub bank_pk: Pubkey,

@@ -163,9 +163,10 @@ impl MarginfiGroupFixture {
         }
         .to_account_metas(Some(true));
 
-        if let Some((_, oracle_keys)) = bank_config_opt.oracle {
+        if let Some(oracle_config) = bank_config_opt.oracle {
             accounts.extend(
-                oracle_keys
+                oracle_config
+                    .keys
                     .iter()
                     .map(|k| AccountMeta::new_readonly(*k, false)),
             );
