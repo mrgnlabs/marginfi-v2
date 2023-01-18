@@ -30,10 +30,12 @@ class Bank {
   public insuranceVault: PublicKey;
   public insuranceVaultBump: number;
   public insuranceVaultAuthorityBump: number;
+  public insuranceTransferRemainder: BigNumber;
 
   public feeVault: PublicKey;
   public feeVaultBump: number;
   public feeVaultAuthorityBump: number;
+  public feeTransferRemainder: BigNumber;
 
   public config: BankConfig;
 
@@ -70,9 +72,17 @@ class Bank {
     this.insuranceVaultBump = rawData.insuranceVaultBump;
     this.insuranceVaultAuthorityBump = rawData.insuranceVaultAuthorityBump;
 
+    this.insuranceTransferRemainder = wrappedI80F48toBigNumber(
+      rawData.insuranceTransferRemainder
+    );
+
     this.feeVault = rawData.feeVault;
     this.feeVaultBump = rawData.feeVaultBump;
     this.feeVaultAuthorityBump = rawData.feeVaultAuthorityBump;
+
+    this.feeTransferRemainder = wrappedI80F48toBigNumber(
+      rawData.feeTransferRemainder
+    );
 
     this.config = {
       depositWeightInit: wrappedI80F48toBigNumber(
@@ -88,7 +98,8 @@ class Bank {
         rawData.config.liabilityWeightMaint
       ),
       maxCapacity: nativeToUi(rawData.config.maxCapacity, this.mintDecimals),
-      pythOracle: rawData.config.pythOracle,
+      oracleSetup: rawData.config.oracleSetup,
+      oracleKeys: rawData.config.oracleKeys,
       interestRateConfig: {
         insuranceFeeFixedApr: wrappedI80F48toBigNumber(
           rawData.config.interestRateConfig.insuranceFeeFixedApr
@@ -134,7 +145,7 @@ class Bank {
 
   public async reloadPriceData(connection: Connection) {
     const pythPriceAccount = await connection.getAccountInfo(
-      this.config.pythOracle
+      this.config.oracleKeys[0]
     );
     this.priceData = parsePriceData(pythPriceAccount!.data);
   }
@@ -309,8 +320,10 @@ export interface BankConfig {
 
   maxCapacity: number;
 
-  pythOracle: PublicKey;
   interestRateConfig: InterestRateConfig;
+
+  oracleSetup: OracleSetup;
+  oracleKeys: PublicKey[];
 }
 
 export interface InterestRateConfig {
@@ -344,17 +357,24 @@ export interface BankData {
   insuranceVault: PublicKey;
   insuranceVaultBump: number;
   insuranceVaultAuthorityBump: number;
+  insuranceTransferRemainder: WrappedI80F48;
 
   feeVault: PublicKey;
   feeVaultBump: number;
   feeVaultAuthorityBump: number;
-
-  config: BankConfigData;
+  feeTransferRemainder: WrappedI80F48;
 
   totalLiabilityShares: WrappedI80F48;
   totalDepositShares: WrappedI80F48;
 
   lastUpdate: BN;
+
+  config: BankConfigData;
+}
+
+export enum OracleSetup {
+  None = 0,
+  Pyth = 1,
 }
 
 export interface BankConfigData {
@@ -366,8 +386,10 @@ export interface BankConfigData {
 
   maxCapacity: BN;
 
-  pythOracle: PublicKey;
   interestRateConfig: InterestRateConfigData;
+
+  oracleSetup: OracleSetup;
+  oracleKeys: PublicKey[];
 }
 
 export interface InterestRateConfigData {

@@ -89,6 +89,7 @@ class MarginfiGroup {
     let nullAccounts = [];
     for (let i = 0; i < bankAccountsData.length; i++) {
       if (bankAccountsData[i] === null) nullAccounts.push(bankAddresses[i]);
+      console.log(bankAccountsData[i]!);
     }
     if (nullAccounts.length > 0) {
       throw Error(`Failed to fetch banks ${nullAccounts}`);
@@ -96,7 +97,7 @@ class MarginfiGroup {
 
     const pythAccounts =
       await program.provider.connection.getMultipleAccountsInfo(
-        bankAccountsData.map((b) => (b as BankData).config.pythOracle)
+        bankAccountsData.map((b) => (b as BankData).config.oracleKeys[0])
       );
 
     const banks = bankAccountsData.map(

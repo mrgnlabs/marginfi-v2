@@ -15,7 +15,7 @@ use static_assertions::assert_cfg;
 #[cfg(feature = "mainnet-beta")] // mainnet
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 #[cfg(feature = "devnet")] // devnet
-declare_id!("mf2iDQbVTAE3tT4tgAZBhBAmKUW56GsXX7H3oeH4atr");
+declare_id!("uwuyG6VmYrDk8Q3FfQ7wZhuhbi8ExweW74BrmT3vM1i");
 #[cfg(all(not(feature = "mainnet-beta"), not(feature = "devnet")))] // other
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 

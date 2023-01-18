@@ -14,15 +14,20 @@ use fixed::types::I80F48;
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
     state::marginfi_group::{
-        Bank, BankConfig, BankOperationalState, BankVaultType, InterestRateConfig, OracleSetup,
-        WrappedI80F48,
+        Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType, InterestRateConfig,
+        OracleSetup, WrappedI80F48,
     },
 };
 
 use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
 use solana_sdk::{
-    commitment_config::CommitmentLevel, pubkey::Pubkey, signature::Keypair, signer::Signer,
+    commitment_config::CommitmentLevel,
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+    signature::Keypair,
+    signer::Signer,
     system_program, sysvar,
+    transaction::Transaction,
 };
 use std::{fs, mem::size_of};
 
@@ -263,6 +268,7 @@ pub fn group_add_bank(
             token_program: token::ID,
             system_program: system_program::id(),
         })
+        .accounts(AccountMeta::new_readonly(pyth_oracle, false))
         .args(marginfi::instruction::LendingPoolAddBank {
             bank_config: BankConfig {
                 deposit_weight_init,
@@ -494,6 +500,38 @@ pub fn configure_profile(
         commitment,
         group,
     )?;
+
+    Ok(())
+}
+
+pub fn bank_configure(
+    config: Config,
+    profile: Profile,
+    bank_pk: Pubkey,
+    bank_config_opt: BankConfigOpt,
+) -> Result<()> {
+    let configure_bank_ix = config
+        .program
+        .request()
+        .signer(&config.payer)
+        .accounts(marginfi::accounts::LendingPoolConfigureBank {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            admin: config.payer.pubkey(),
+            bank: bank_pk,
+        })
+        .args(marginfi::instruction::LendingPoolConfigureBank { bank_config_opt })
+        .instructions()?;
+
+    let transaction = Transaction::new_signed_with_payer(
+        &configure_bank_ix,
+        Some(&config.payer.pubkey()),
+        &[&config.payer],
+        config.program.rpc().get_latest_blockhash().unwrap(),
+    );
+
+    let sig = process_transaction(&transaction, &config.program.rpc(), config.dry_run)?;
+
+    println!("Transaction signature: {}", sig);
 
     Ok(())
 }
