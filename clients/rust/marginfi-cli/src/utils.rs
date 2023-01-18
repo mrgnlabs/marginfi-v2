@@ -1,5 +1,8 @@
 use anyhow::{bail, Result};
-use marginfi::{bank_authority_seed, bank_seed, state::marginfi_group::BankVaultType};
+use marginfi::{
+    bank_authority_seed, bank_seed, constants::MAX_ORACLE_KEYS,
+    state::marginfi_group::BankVaultType,
+};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::Transaction};
 
@@ -45,6 +48,12 @@ pub fn find_bank_vault_authority_pda(
     program_id: &Pubkey,
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
+}
+
+pub fn create_oracle_key_array(oracle_key: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
+    let mut oracle_keys = [Pubkey::default(); MAX_ORACLE_KEYS];
+    oracle_keys[0] = oracle_key;
+    oracle_keys
 }
 // const SCALE: u128 = 10_u128.pow(14);
 

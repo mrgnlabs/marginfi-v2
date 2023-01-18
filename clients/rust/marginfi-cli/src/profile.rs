@@ -11,7 +11,7 @@ use solana_sdk::{
     signature::read_keypair_file,
     signer::Signer,
 };
-use std::str::FromStr;
+
 use std::{fs, path::PathBuf, rc::Rc};
 
 #[derive(Serialize, Deserialize, Clone)]

@@ -1,6 +1,6 @@
 import * as anchor from "@project-serum/anchor";
 import { Program } from "@project-serum/anchor";
-import { Marginfi } from "../target/types/marginfi";
+import { Marginfi } from "../clients/typescript/packages/marginfi-client-v2/src/idl/marginfi";
 
 describe("marginfi", () => {
   // Configure the client to use the local cluster.

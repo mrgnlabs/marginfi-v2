@@ -11,7 +11,10 @@ use bincode::deserialize;
 use super::marginfi_account::MarginfiAccountFixture;
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
-use marginfi::state::marginfi_group::{BankConfig, GroupConfig, InterestRateConfig};
+use marginfi::{
+    constants::MAX_ORACLE_KEYS,
+    state::marginfi_group::{BankConfig, GroupConfig, InterestRateConfig, OracleSetup},
+};
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
 use solana_sdk::{account::Account, pubkey, signature::Keypair, signer::Signer};
@@ -32,8 +35,16 @@ pub const PYTH_SOL_EQUIVALENT_FEED: Pubkey = pubkey!("PythSo1Equiva1entPrice1111
 pub const PYTH_MNDE_FEED: Pubkey = pubkey!("PythMndePrice111111111111111111111111111111");
 pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111111111111111");
 
+pub fn create_oracle_key_array(pyth_oracle: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
+    let mut keys = [Pubkey::default(); MAX_ORACLE_KEYS];
+    keys[0] = pyth_oracle;
+
+    keys
+}
+
 lazy_static! {
     pub static ref DEFAULT_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::Pyth,
         deposit_weight_maint: I80F48!(1).into(),
         deposit_weight_init: I80F48!(1).into(),
         liability_weight_init: I80F48!(1).into(),
@@ -52,23 +63,23 @@ lazy_static! {
         ..Default::default()
     };
     pub static ref DEFAULT_USDC_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        pyth_oracle: PYTH_USDC_FEED,
         max_capacity: native!(1_000_000_000, "USDC"),
+        oracle_keys: create_oracle_key_array(PYTH_USDC_FEED),
         ..DEFAULT_CONFIG.clone()
     };
     pub static ref DEFAULT_SOL_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        pyth_oracle: PYTH_SOL_FEED,
         max_capacity: native!(1_000_000, "SOL"),
+        oracle_keys: create_oracle_key_array(PYTH_SOL_FEED),
         ..DEFAULT_CONFIG.clone()
     };
     pub static ref DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        pyth_oracle: PYTH_SOL_EQUIVALENT_FEED,
         max_capacity: native!(1_000_000, "SOL_EQ"),
+        oracle_keys: create_oracle_key_array(PYTH_SOL_EQUIVALENT_FEED),
         ..DEFAULT_CONFIG.clone()
     };
     pub static ref DEFAULT_MNDE_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        pyth_oracle: PYTH_MNDE_FEED,
         max_capacity: native!(1_000_000, "MNDE"),
+        oracle_keys: create_oracle_key_array(PYTH_MNDE_FEED),
         ..DEFAULT_CONFIG.clone()
     };
 }

@@ -299,7 +299,7 @@ pub fn lending_account_liquidate(
         let mut asset_bank = ctx.accounts.asset_bank.load_mut()?;
         let asset_price = {
             let asset_price_feed =
-                asset_bank.load_price_feed_from_account_info(&ctx.accounts.asset_price_feed)?;
+                asset_bank.load_price_feed_from_account_info(&ctx.remaining_accounts[0])?;
 
             get_price(&asset_price_feed)?
         };
@@ -307,7 +307,7 @@ pub fn lending_account_liquidate(
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
         let liab_price = {
             let liab_price_feed =
-                liab_bank.load_price_feed_from_account_info(&ctx.accounts.liab_price_feed)?;
+                liab_bank.load_price_feed_from_account_info(&ctx.remaining_accounts[1])?;
 
             get_price(&liab_price_feed)?
         };
@@ -413,8 +413,8 @@ pub fn lending_account_liquidate(
 
     // ## Risk checks ##
     // Verify liquidatee liquidation post health
-    let (liquidator_remaining_accounts, liquidatee_remaining_accounts) = ctx
-        .remaining_accounts
+    let (liquidator_remaining_accounts, liquidatee_remaining_accounts) = ctx.remaining_accounts
+        [2..]
         .split_at(liquidator_marginfi_account.get_remaining_accounts_len());
 
     RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
@@ -437,23 +437,11 @@ pub struct LendingAccountLiquidate<'info> {
     )]
     pub asset_bank: AccountLoader<'info, Bank>,
 
-    /// CHECK: Compare stored address with price feed address
-    #[account(
-        constraint = asset_bank.load()?.config.pyth_oracle == asset_price_feed.key()
-    )]
-    pub asset_price_feed: AccountInfo<'info>,
-
     #[account(
         mut,
         constraint = liab_bank.load()?.group == marginfi_group.key()
     )]
     pub liab_bank: AccountLoader<'info, Bank>,
-
-    /// CHECK: Compare stored address with price feed address
-    #[account(
-        constraint = liab_bank.load()?.config.pyth_oracle == liab_price_feed.key()
-    )]
-    pub liab_price_feed: AccountInfo<'info>,
 
     #[account(
         mut,

@@ -5,8 +5,20 @@ use crate::{
 };
 use anchor_client::Cluster;
 use anyhow::Result;
-use clap::Parser;
+use clap::{clap_derive::ArgEnum, Parser};
+use fixed::types::I80F48;
+use marginfi::{
+    prelude::{GroupConfig, MarginfiGroup},
+    state::{
+        marginfi_account::{Balance, LendingAccount, MarginfiAccount},
+        marginfi_group::{
+            Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
+            OracleConfig, WrappedI80F48,
+        },
+    },
+};
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
+use type_layout::TypeLayout;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -33,6 +45,7 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: ProfileCommand,
     },
+    InspectPadding {},
 }
 
 #[derive(Debug, Parser)]
@@ -43,10 +56,10 @@ pub enum GroupCommand {
     GetAll {},
     Create {
         admin: Option<Pubkey>,
-        #[clap(short='f', long="override")]
-        override_existing_profile_group: bool
+        #[clap(short = 'f', long = "override")]
+        override_existing_profile_group: bool,
     },
-    Configure {
+    Update {
         admin: Option<Pubkey>,
     },
     AddBank {
@@ -67,10 +80,48 @@ pub enum GroupCommand {
     },
 }
 
+#[derive(Clone, Copy, Debug, Parser, ArgEnum)]
+pub enum BankOperationalStateArg {
+    Paused,
+    Operational,
+    ReduceOnly,
+}
+
+impl Into<BankOperationalState> for BankOperationalStateArg {
+    fn into(self) -> BankOperationalState {
+        match self {
+            BankOperationalStateArg::Paused => BankOperationalState::Paused,
+            BankOperationalStateArg::Operational => BankOperationalState::Operational,
+            BankOperationalStateArg::ReduceOnly => BankOperationalState::ReduceOnly,
+        }
+    }
+}
+
 #[derive(Debug, Parser)]
 pub enum BankCommand {
-    Get { bank: Option<Pubkey> },
-    GetAll { marginfi_group: Option<Pubkey> },
+    Get {
+        bank: Option<Pubkey>,
+    },
+    GetAll {
+        marginfi_group: Option<Pubkey>,
+    },
+    Update {
+        bank_pk: Pubkey,
+        #[clap(long)]
+        deposit_weight_init: Option<f32>,
+        #[clap(long)]
+        deposit_weight_maint: Option<f32>,
+
+        #[clap(long)]
+        liability_weight_init: Option<f32>,
+        #[clap(long)]
+        liability_weight_maint: Option<f32>,
+
+        #[clap(long)]
+        max_capacity: Option<u64>,
+        #[clap(long, arg_enum)]
+        operational_state: Option<BankOperationalStateArg>,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -97,7 +148,7 @@ pub enum ProfileCommand {
         #[clap(long)]
         name: String,
     },
-    Config {
+    Update {
         #[clap(long)]
         name: String,
         #[clap(long)]
@@ -122,6 +173,7 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Group { subcmd } => group(subcmd, &opts.cfg_override),
         Command::Bank { subcmd } => bank(subcmd, &opts.cfg_override),
         Command::Profile { subcmd } => profile(subcmd),
+        Command::InspectPadding {} => inspect_padding(),
     }
 }
 
@@ -147,7 +199,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
         ProfileCommand::Show => processor::show_profile(),
         ProfileCommand::List => processor::list_profiles(),
         ProfileCommand::Set { name } => processor::set_profile(name),
-        ProfileCommand::Config {
+        ProfileCommand::Update {
             cluster,
             keypair_path,
             rpc_url,
@@ -182,8 +234,11 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             processor::group_get(config, marginfi_group.or(profile.marginfi_group))
         }
         GroupCommand::GetAll {} => processor::group_get_all(config),
-        GroupCommand::Create { admin, override_existing_profile_group } => processor::group_create(config, profile, admin, override_existing_profile_group),
-        GroupCommand::Configure { admin } => processor::group_configure(config, profile, admin),
+        GroupCommand::Create {
+            admin,
+            override_existing_profile_group,
+        } => processor::group_create(config, profile, admin, override_existing_profile_group),
+        GroupCommand::Update { admin } => processor::group_configure(config, profile, admin),
         GroupCommand::AddBank {
             bank_mint,
             deposit_weight_init,
@@ -227,13 +282,52 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     match subcmd {
         BankCommand::Get { bank: _ } => (),
         BankCommand::GetAll { marginfi_group: _ } => (),
-        // _ => get_consent(&subcmd, &profile)?,
+        _ => get_consent(&subcmd, &profile)?,
     }
 
     match subcmd {
         BankCommand::Get { bank } => processor::bank_get(config, bank),
         BankCommand::GetAll { marginfi_group } => processor::bank_get_all(config, marginfi_group),
+        BankCommand::Update {
+            deposit_weight_init,
+            deposit_weight_maint,
+            liability_weight_init,
+            liability_weight_maint,
+            max_capacity,
+            operational_state,
+            bank_pk,
+        } => processor::bank_configure(
+            config,
+            profile, //
+            bank_pk,
+            BankConfigOpt {
+                deposit_weight_init: deposit_weight_init.map(|x| I80F48::from_num(x).into()),
+                deposit_weight_maint: deposit_weight_maint.map(|x| I80F48::from_num(x).into()),
+                liability_weight_init: liability_weight_init.map(|x| I80F48::from_num(x).into()),
+                liability_weight_maint: liability_weight_maint.map(|x| I80F48::from_num(x).into()),
+                max_capacity,
+                operational_state: operational_state.map(|x| x.into()),
+                oracle: None,
+            },
+        ),
     }
+}
+
+fn inspect_padding() -> Result<()> {
+    println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
+    println!("GroupConfig: {}", GroupConfig::type_layout());
+    println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
+    println!("Bank: {}", Bank::type_layout());
+    println!("BankConfig: {}", BankConfig::type_layout());
+    println!("OracleConfig: {}", OracleConfig::type_layout());
+    println!("BankConfigOpt: {}", BankConfigOpt::type_layout());
+    println!("WrappedI80F48: {}", WrappedI80F48::type_layout());
+
+    println!("MarginfiAccount: {}", MarginfiAccount::type_layout());
+    println!("LendingAccount: {}", LendingAccount::type_layout());
+    println!("Balance: {}", Balance::type_layout());
+
+    Ok(())
 }
 
 fn get_consent<T: std::fmt::Debug>(cmd: T, profile: &Profile) -> Result<()> {

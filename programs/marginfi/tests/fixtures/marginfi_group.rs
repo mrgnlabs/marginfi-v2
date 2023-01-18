@@ -81,80 +81,122 @@ impl MarginfiGroupFixture {
         bank_asset_mint: Pubkey,
         bank_config: BankConfig,
     ) -> Result<BankFixture, BanksClientError> {
-        let mut ctx = self.ctx.borrow_mut();
-        let rent = ctx.banks_client.get_rent().await.unwrap();
-
+        let rent = self.ctx.borrow_mut().banks_client.get_rent().await.unwrap();
         let bank_key = Keypair::new();
         let bank_fixture = BankFixture::new(self.ctx.clone(), bank_key.pubkey());
 
+        let mut accounts = marginfi::accounts::LendingPoolAddBank {
+            marginfi_group: self.key,
+            admin: self.ctx.borrow().payer.pubkey(),
+            bank_mint: bank_asset_mint,
+            bank: bank_key.pubkey(),
+            liquidity_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Liquidity).0,
+            liquidity_vault: bank_fixture.get_vault(BankVaultType::Liquidity).0,
+            insurance_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Insurance).0,
+            insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
+            fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
+            fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
+            rent: sysvar::rent::id(),
+            token_program: token::ID,
+            system_program: system_program::id(),
+        }
+        .to_account_metas(Some(true));
+
+        accounts.push(AccountMeta::new_readonly(
+            bank_config.get_pyth_oracle_key(),
+            false,
+        ));
+
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolAddBank {
-                marginfi_group: self.key,
-                admin: ctx.payer.pubkey(),
-                bank_mint: bank_asset_mint,
-                bank: bank_key.pubkey(),
-                liquidity_vault_authority: bank_fixture
-                    .get_vault_authority(BankVaultType::Liquidity)
-                    .0,
-                liquidity_vault: bank_fixture.get_vault(BankVaultType::Liquidity).0,
-                insurance_vault_authority: bank_fixture
-                    .get_vault_authority(BankVaultType::Insurance)
-                    .0,
-                insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
-                fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
-                fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
-                rent: sysvar::rent::id(),
-                token_program: token::ID,
-                system_program: system_program::id(),
-                pyth_oracle: bank_config.pyth_oracle,
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingPoolAddBank { bank_config }.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&ctx.payer.pubkey().clone()),
-            &[&ctx.payer, &bank_key],
-            ctx.last_blockhash,
+            &[
+                ix,
+                self.make_lending_pool_configure_bank_ix(
+                    &bank_fixture,
+                    BankConfigOpt {
+                        operational_state: Some(
+                            marginfi::state::marginfi_group::BankOperationalState::Operational,
+                        ),
+                        ..Default::default()
+                    },
+                ),
+            ],
+            Some(&self.ctx.borrow().payer.pubkey().clone()),
+            &[&self.ctx.borrow().payer, &bank_key],
+            self.ctx.borrow().last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        self.try_lending_pool_configure_bank(
+            &bank_fixture,
+            BankConfigOpt {
+                operational_state: Some(
+                    marginfi::state::marginfi_group::BankOperationalState::Operational,
+                ),
+                ..Default::default()
+            },
+        )
+        .await;
 
         Ok(bank_fixture)
     }
 
+    pub fn make_lending_pool_configure_bank_ix(
+        &self,
+        bank: &BankFixture,
+        bank_config_opt: BankConfigOpt,
+    ) -> Instruction {
+        let mut accounts = marginfi::accounts::LendingPoolConfigureBank {
+            bank: bank.key,
+            marginfi_group: self.key,
+            admin: self.ctx.borrow().payer.pubkey(),
+        }
+        .to_account_metas(Some(true));
+
+        if let Some(oracle_config) = bank_config_opt.oracle {
+            accounts.extend(
+                oracle_config
+                    .keys
+                    .iter()
+                    .map(|k| AccountMeta::new_readonly(*k, false)),
+            );
+        }
+
+        Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolConfigureBank { bank_config_opt }.data(),
+        }
+    }
+
     pub async fn try_lending_pool_configure_bank(
         &self,
-        bank: BankFixture,
+        bank: &BankFixture,
         bank_config_opt: BankConfigOpt,
-    ) -> Result<()> {
-        let mut ctx = self.ctx.borrow_mut();
-
-        let ix = Instruction {
-            program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolConfigureBank {
-                bank: bank.key,
-                marginfi_group: self.key,
-                admin: ctx.payer.pubkey(),
-                pyth_oracle: bank_config_opt.pyth_oracle.unwrap_or_default(),
-            }
-            .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingPoolConfigureBank {
-                bank_config_opt: todo!(),
-            }
-            .data(),
-        };
-
+    ) -> Result<(), BanksClientError> {
+        let ix = self.make_lending_pool_configure_bank_ix(&bank, bank_config_opt);
         let tx = Transaction::new_signed_with_payer(
             &[ix],
-            Some(&ctx.payer.pubkey().clone()),
-            &[&ctx.payer],
-            ctx.last_blockhash,
+            Some(&self.ctx.borrow().payer.pubkey().clone()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
 
         Ok(())
     }

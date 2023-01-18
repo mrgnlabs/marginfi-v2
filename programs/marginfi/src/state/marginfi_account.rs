@@ -10,9 +10,18 @@ use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use pyth_sdk_solana::PriceFeed;
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    ops::Not,
+};
+#[cfg(any(feature = "test", feature = "client"))]
+use type_layout::TypeLayout;
 
 #[account(zero_copy)]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, PartialEq, Eq, TypeLayout)
+)]
 pub struct MarginfiAccount {
     pub group: Pubkey,
     pub authority: Pubkey,
@@ -164,7 +173,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
 pub fn get_price_range(pf: &PriceFeed) -> MarginfiResult<(I80F48, I80F48)> {
     let price_state = pf
         .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
-        .ok_or_else(|| MarginfiError::StaleOracle)?;
+        .ok_or(MarginfiError::StaleOracle)?;
 
     let base_price =
         pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)?;
@@ -187,7 +196,7 @@ pub fn get_price_range(pf: &PriceFeed) -> MarginfiResult<(I80F48, I80F48)> {
 pub fn get_price(pf: &PriceFeed) -> MarginfiResult<I80F48> {
     let price_state = pf
         .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
-        .ok_or_else(|| MarginfiError::StaleOracle)?;
+        .ok_or(MarginfiError::StaleOracle)?;
 
     pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)
 }
@@ -313,7 +322,7 @@ impl<'a> RiskEngine<'a> {
         );
 
         check!(
-            total_weighted_assets > total_weighted_liabilities,
+            total_weighted_assets >= total_weighted_liabilities,
             MarginfiError::BadAccountHealth
         );
 
@@ -381,6 +390,10 @@ impl<'a> RiskEngine<'a> {
 const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 #[zero_copy]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, PartialEq, Eq, TypeLayout)
+)]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES],
 }
@@ -402,6 +415,10 @@ impl LendingAccount {
 }
 
 #[zero_copy]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, PartialEq, Eq, TypeLayout)
+)]
 pub struct Balance {
     pub active: bool,
     pub bank_pk: Pubkey,
@@ -473,7 +490,7 @@ impl<'a> BankAccountWrapper<'a> {
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
-        msg!("Account crediting: {} to {}", amount, balance.bank_pk);
+        msg!("Account deposit: {} to {}", amount, balance.bank_pk);
 
         let liability_value = bank.get_liability_amount(balance.liability_shares.into())?;
 
@@ -486,6 +503,11 @@ impl<'a> BankAccountWrapper<'a> {
             ),
             min(liability_value, amount),
         );
+
+        {
+            let is_deposit_increasing = !deposit_value_delta.is_zero();
+            bank.assert_operational_mode(Some(is_deposit_increasing))?;
+        }
 
         let deposit_shares_delta = bank.get_deposit_shares(deposit_value_delta)?;
 
@@ -513,7 +535,7 @@ impl<'a> BankAccountWrapper<'a> {
 
     fn account_credit_asset(&mut self, amount: I80F48, allow_borrow: bool) -> MarginfiResult {
         msg!(
-            "Account debiting: {} of {} (borrow: {})",
+            "Account remove: {} of {} (borrow: {})",
             amount,
             self.bank.mint,
             allow_borrow
@@ -535,10 +557,16 @@ impl<'a> BankAccountWrapper<'a> {
             ),
         );
 
-        check!(
-            allow_borrow || liability_value_delta == I80F48::ZERO,
-            MarginfiError::BorrowingNotAllowed
-        );
+        {
+            let is_liability_increasing = liability_value_delta.is_zero().not();
+
+            check!(
+                allow_borrow || !is_liability_increasing,
+                MarginfiError::BorrowingNotAllowed
+            );
+
+            bank.assert_operational_mode(Some(is_liability_increasing))?;
+        }
 
         let deposit_shares_delta = bank.get_deposit_shares(deposit_remove_value_delta)?;
         balance.change_deposit_shares(-deposit_shares_delta)?;

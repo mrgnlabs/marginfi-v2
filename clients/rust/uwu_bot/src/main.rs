@@ -7,25 +7,18 @@ use clap::Parser;
 use log::info;
 use marginfi::{
     bank_authority_seed, bank_seed,
-    constants::LIQUIDITY_VAULT_SEED,
     state::marginfi_group::{Bank, BankVaultType},
 };
-use solana_account_decoder::UiAccountEncoding;
+
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
-    rpc_config::{
-        EncodingConfig, RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig,
-    },
     rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
 };
 use solana_sdk::{
-    commitment_config::{CommitmentConfig, CommitmentLevel},
-    compute_budget::ComputeBudgetInstruction,
-    instruction::Instruction,
-    pubkey::Pubkey,
-    signature::{read_keypair_file, Keypair},
+    commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction,
+    instruction::Instruction, pubkey::Pubkey, signature::read_keypair_file,
 };
-use std::{env, fs, mem::size_of, rc::Rc, str::FromStr, time::Duration};
+use std::{mem::size_of, rc::Rc, str::FromStr, time::Duration};
 use tokio::time::sleep;
 
 const DEFAULT_PROGRAM_ID: &str = "mf2iDQbVTAE3tT4tgAZBhBAmKUW56GsXX7H3oeH4atr";

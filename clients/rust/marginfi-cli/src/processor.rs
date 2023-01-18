@@ -1,7 +1,10 @@
 use crate::{
     config::Config,
     profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
-    utils::{find_bank_vault_authority_pda, find_bank_vault_pda, process_transaction},
+    utils::{
+        create_oracle_key_array, find_bank_vault_authority_pda, find_bank_vault_pda,
+        process_transaction,
+    },
 };
 use anchor_client::Cluster;
 use anchor_spl::token;
@@ -10,21 +13,23 @@ use anyhow::{anyhow, bail};
 use fixed::types::I80F48;
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, WrappedI80F48},
+    state::marginfi_group::{
+        Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType, InterestRateConfig,
+        OracleSetup, WrappedI80F48,
     },
 };
-use solana_account_decoder::UiAccountEncoding;
-use solana_client::{
-    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
-    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
-};
+
+use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
 use solana_sdk::{
-    commitment_config::CommitmentLevel, pubkey::Pubkey, signature::Keypair, signer::Signer,
+    commitment_config::CommitmentLevel,
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+    signature::Keypair,
+    signer::Signer,
     system_program, sysvar,
+    transaction::Transaction,
 };
-use std::{fs, mem::size_of, str::FromStr};
+use std::{fs, mem::size_of};
 
 // --------------------------------------------------------------------------------------------------------------------
 // marginfi group
@@ -65,9 +70,11 @@ pub fn print_group_banks(config: Config, marginfi_group: Pubkey) -> Result<()> {
         })])?;
 
     println!("--------\nBanks:");
+
     for (address, state) in banks {
         println!("{}:\n{:#?}\n", address, state);
     }
+
     Ok(())
 }
 
@@ -257,11 +264,11 @@ pub fn group_add_bank(
                 &config.program_id,
             )
             .0,
-            pyth_oracle,
             rent: sysvar::rent::id(),
             token_program: token::ID,
             system_program: system_program::id(),
         })
+        .accounts(AccountMeta::new_readonly(pyth_oracle, false))
         .args(marginfi::instruction::LendingPoolAddBank {
             bank_config: BankConfig {
                 deposit_weight_init,
@@ -269,8 +276,10 @@ pub fn group_add_bank(
                 liability_weight_init,
                 liability_weight_maint,
                 max_capacity,
-                pyth_oracle,
                 interest_rate_config,
+                operational_state: BankOperationalState::Operational,
+                oracle_setup: OracleSetup::Pyth,
+                oracle_keys: create_oracle_key_array(pyth_oracle),
             },
         })
         .instructions()?;
@@ -491,6 +500,38 @@ pub fn configure_profile(
         commitment,
         group,
     )?;
+
+    Ok(())
+}
+
+pub fn bank_configure(
+    config: Config,
+    profile: Profile,
+    bank_pk: Pubkey,
+    bank_config_opt: BankConfigOpt,
+) -> Result<()> {
+    let configure_bank_ix = config
+        .program
+        .request()
+        .signer(&config.payer)
+        .accounts(marginfi::accounts::LendingPoolConfigureBank {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            admin: config.payer.pubkey(),
+            bank: bank_pk,
+        })
+        .args(marginfi::instruction::LendingPoolConfigureBank { bank_config_opt })
+        .instructions()?;
+
+    let transaction = Transaction::new_signed_with_payer(
+        &configure_bank_ix,
+        Some(&config.payer.pubkey()),
+        &[&config.payer],
+        config.program.rpc().get_latest_blockhash().unwrap(),
+    );
+
+    let sig = process_transaction(&transaction, &config.program.rpc(), config.dry_run)?;
+
+    println!("Transaction signature: {}", sig);
 
     Ok(())
 }

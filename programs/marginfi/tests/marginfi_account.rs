@@ -265,13 +265,13 @@ async fn failure_borrow_not_enough_collateral() -> anyhow::Result<()> {
         .await?;
 
     let res = marginfi_account_f
-        .try_bank_withdraw(user_sol_token_account_f.key, &sol_bank, native!(100, "SOL"))
+        .try_bank_withdraw(user_sol_token_account_f.key, &sol_bank, native!(101, "SOL"))
         .await;
 
     assert_custom_error!(res.unwrap_err(), MarginfiError::BadAccountHealth);
 
     let res = marginfi_account_f
-        .try_bank_withdraw(user_sol_token_account_f.key, &sol_bank, native!(99, "SOL"))
+        .try_bank_withdraw(user_sol_token_account_f.key, &sol_bank, native!(100, "SOL"))
         .await;
 
     assert!(res.is_ok());

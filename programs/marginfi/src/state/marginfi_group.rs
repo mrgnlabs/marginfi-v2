@@ -3,8 +3,8 @@ use crate::{
     check,
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED, PYTH_ID,
-        SECONDS_PER_YEAR,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+        MAX_ORACLE_KEYS, PYTH_ID, SECONDS_PER_YEAR,
     },
     math_error,
     prelude::MarginfiError,
@@ -18,11 +18,13 @@ use std::{
     collections::BTreeMap,
     fmt::{Debug, Formatter},
 };
+#[cfg(any(feature = "test", feature = "client"))]
+use type_layout::TypeLayout;
 
 #[account(zero_copy)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq)
+    derive(Debug, PartialEq, Eq, TypeLayout)
 )]
 #[derive(Default)]
 pub struct MarginfiGroup {
@@ -48,26 +50,27 @@ impl MarginfiGroup {
     }
 }
 
+#[cfg_attr(any(feature = "test", feature = "client"), derive(Debug, TypeLayout))]
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(Debug))]
 pub struct GroupConfig {
     pub admin: Option<Pubkey>,
 }
 
 /// Load and validate a pyth price feed account.
 pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
-    check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidPythAccount);
+    check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
     let price_feed =
-        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidPythAccount)?;
+        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
 }
+
+#[zero_copy]
+#[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq)
+    derive(Debug, PartialEq, Eq, TypeLayout)
 )]
-#[zero_copy]
 #[derive(Default, AnchorDeserialize, AnchorSerialize)]
-#[repr(C)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -174,12 +177,12 @@ impl InterestRateConfig {
 }
 
 #[account(zero_copy)]
+#[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq)
+    derive(Debug, PartialEq, Eq, TypeLayout)
 )]
 #[derive(Default)]
-#[repr(C)]
 pub struct Bank {
     pub mint: Pubkey,
     pub mint_decimals: u8,
@@ -196,17 +199,19 @@ pub struct Bank {
     pub insurance_vault: Pubkey,
     pub insurance_vault_bump: u8,
     pub insurance_vault_authority_bump: u8,
+    pub insurance_transfer_remainder: WrappedI80F48,
 
     pub fee_vault: Pubkey,
     pub fee_vault_bump: u8,
     pub fee_vault_authority_bump: u8,
-
-    pub config: BankConfig,
+    pub fee_transfer_remainder: WrappedI80F48,
 
     pub total_liability_shares: WrappedI80F48,
     pub total_deposit_shares: WrappedI80F48,
 
     pub last_update: i64,
+
+    pub config: BankConfig,
 }
 
 impl Bank {
@@ -243,8 +248,10 @@ impl Bank {
             liquidity_vault_authority_bump,
             insurance_vault_bump,
             insurance_vault_authority_bump,
+            insurance_transfer_remainder: I80F48::ZERO.into(),
             fee_vault_bump,
             fee_vault_authority_bump,
+            fee_transfer_remainder: I80F48::ZERO.into(),
         }
     }
 
@@ -307,7 +314,7 @@ impl Bank {
         Ok(())
     }
 
-    pub fn configure(&mut self, config: BankConfigOpt) -> MarginfiResult {
+    pub fn configure(&mut self, config: &BankConfigOpt) -> MarginfiResult {
         set_if_some!(self.config.deposit_weight_init, config.deposit_weight_init);
         set_if_some!(
             self.config.deposit_weight_maint,
@@ -322,7 +329,12 @@ impl Bank {
             config.liability_weight_maint
         );
         set_if_some!(self.config.max_capacity, config.max_capacity);
-        set_if_some!(self.config.pyth_oracle, config.pyth_oracle);
+
+        set_if_some!(self.config.operational_state, config.operational_state);
+
+        set_if_some!(self.config.oracle_setup, config.oracle.map(|o| o.setup));
+
+        set_if_some!(self.config.oracle_keys, config.oracle.map(|o| o.keys));
 
         self.config.validate()?;
 
@@ -335,21 +347,21 @@ impl Bank {
         pyth_account_map: &BTreeMap<Pubkey, &AccountInfo>,
     ) -> MarginfiResult<PriceFeed> {
         let pyth_account = pyth_account_map
-            .get(&self.config.pyth_oracle)
+            .get(&self.config.get_pyth_oracle_key())
             .ok_or(MarginfiError::MissingPythAccount)?;
 
         Ok(load_price_feed_from_account_info(pyth_account)
-            .map_err(|_| MarginfiError::InvalidPythAccount)?)
+            .map_err(|_| MarginfiError::InvalidOracleAccount)?)
     }
 
     #[inline]
     pub fn load_price_feed_from_account_info(&self, ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
         check!(
-            self.config.pyth_oracle.eq(ai.key),
-            MarginfiError::InvalidPythAccount
+            self.config.get_pyth_oracle_key().eq(ai.key),
+            MarginfiError::InvalidOracleAccount
         );
-        let pyth_account =
-            load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidPythAccount)?;
+        let pyth_account = load_price_feed_from_account_info(ai)
+            .map_err(|_| MarginfiError::InvalidOracleAccount)?;
 
         Ok(pyth_account)
     }
@@ -365,8 +377,8 @@ impl Bank {
         let (
             deposit_share_value,
             liability_share_value,
-            group_fees_collected,
-            insurance_fees_collected,
+            mut fees_collected,
+            mut insurance_collected,
         ) = calc_interest_rate_accrual_state_changes(
             time_delta,
             total_deposits,
@@ -381,10 +393,19 @@ impl Bank {
         self.liability_share_value = liability_share_value.into();
         self.last_update = clock.unix_timestamp;
 
-        Ok((
-            group_fees_collected.to_num(),
-            insurance_fees_collected.to_num(),
-        ))
+        fees_collected = fees_collected
+            .checked_add(self.fee_transfer_remainder.into())
+            .ok_or_else(math_error!())?;
+
+        self.fee_transfer_remainder = fees_collected.frac().into();
+
+        insurance_collected = insurance_collected
+            .checked_add(self.insurance_transfer_remainder.into())
+            .ok_or_else(math_error!())?;
+
+        self.insurance_transfer_remainder = insurance_collected.frac().into();
+
+        Ok((fees_collected.to_num(), insurance_collected.to_num()))
     }
 
     pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
@@ -446,6 +467,19 @@ impl Bank {
             .ok_or_else(math_error!())?;
 
         self.deposit_share_value = new_share_value.into();
+
+        Ok(())
+    }
+
+    pub fn assert_operational_mode(&self, metric_increasing: Option<bool>) -> Result<()> {
+        match self.config.operational_state {
+            BankOperationalState::Paused => return Err(MarginfiError::BankPaused.into()),
+            BankOperationalState::Operational => (),
+            BankOperationalState::ReduceOnly => check!(
+                !metric_increasing.unwrap_or(false),
+                MarginfiError::BankReduceOnly
+            ),
+        }
 
         Ok(())
     }
@@ -539,12 +573,33 @@ fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48)
     Some(interest_payment)
 }
 
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq)
-)]
+#[repr(u8)]
+#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
+pub enum BankOperationalState {
+    Paused,
+    Operational,
+    ReduceOnly,
+}
+
+#[repr(u8)]
+#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
+pub enum OracleSetup {
+    None,
+    Pyth,
+}
+
+pub enum OracleKey {
+    Pyth(Pubkey),
+}
+
 #[zero_copy]
 #[repr(C)]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, PartialEq, Eq, TypeLayout)
+)]
 #[derive(AnchorDeserialize, AnchorSerialize)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
@@ -556,8 +611,11 @@ pub struct BankConfig {
 
     pub max_capacity: u64,
 
-    pub pyth_oracle: Pubkey,
     pub interest_rate_config: InterestRateConfig,
+    pub operational_state: BankOperationalState,
+
+    pub oracle_setup: OracleSetup,
+    pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS],
 }
 
 impl Default for BankConfig {
@@ -568,13 +626,16 @@ impl Default for BankConfig {
             liability_weight_init: I80F48::ONE.into(),
             liability_weight_maint: I80F48::ONE.into(),
             max_capacity: 0,
-            pyth_oracle: Default::default(),
             interest_rate_config: Default::default(),
+            operational_state: BankOperationalState::Paused,
+            oracle_setup: OracleSetup::None,
+            oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
         }
     }
 }
 
 impl BankConfig {
+    #[inline]
     pub fn get_weights(&self, weight_type: WeightType) -> (I80F48, I80F48) {
         match weight_type {
             WeightType::Initial => (
@@ -614,12 +675,49 @@ impl BankConfig {
 
         Ok(())
     }
+
+    pub fn validate_oracle_setup(&self, oracle_ais: &[AccountInfo]) -> MarginfiResult {
+        match self.oracle_setup {
+            OracleSetup::None => Ok(()),
+            OracleSetup::Pyth => {
+                check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
+
+                let pyth_oracle_ai = &oracle_ais[0];
+
+                check!(
+                    pyth_oracle_ai.key().eq(&self.oracle_keys[0]),
+                    MarginfiError::InvalidOracleAccount
+                );
+
+                load_pyth_price_feed(pyth_oracle_ai)?;
+                Ok(())
+            }
+        }
+    }
+
+    #[inline]
+    pub fn get_oracle_key(&self) -> OracleKey {
+        match self.oracle_setup {
+            OracleSetup::None => panic!("No oracle setup"),
+            OracleSetup::Pyth => OracleKey::Pyth(self.oracle_keys[0]),
+        }
+    }
+
+    #[inline]
+    pub fn get_pyth_oracle_key(&self) -> Pubkey {
+        match self.get_oracle_key() {
+            OracleKey::Pyth(key) => key,
+        }
+    }
 }
 
 #[zero_copy]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Default, AnchorDeserialize, AnchorSerialize)]
 #[repr(C)]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(PartialEq, Eq, TypeLayout)
+)]
+#[derive(Default, AnchorDeserialize, AnchorSerialize)]
 pub struct WrappedI80F48 {
     pub value: i128,
 }
@@ -642,6 +740,10 @@ impl From<WrappedI80F48> for I80F48 {
     }
 }
 
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(PartialEq, Eq, TypeLayout)
+)]
 #[derive(AnchorDeserialize, AnchorSerialize, Default)]
 pub struct BankConfigOpt {
     pub deposit_weight_init: Option<WrappedI80F48>,
@@ -652,7 +754,19 @@ pub struct BankConfigOpt {
 
     pub max_capacity: Option<u64>,
 
-    pub pyth_oracle: Option<Pubkey>,
+    pub operational_state: Option<BankOperationalState>,
+
+    pub oracle: Option<OracleConfig>,
+}
+
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(PartialEq, Eq, TypeLayout)
+)]
+#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize)]
+pub struct OracleConfig {
+    pub setup: OracleSetup,
+    pub keys: [Pubkey; MAX_ORACLE_KEYS],
 }
 
 #[derive(Debug, Clone)]

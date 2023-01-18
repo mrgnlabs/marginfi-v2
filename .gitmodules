@@ -1,3 +1,0 @@
-[submodule "clients/typescript/apps/marginfi-v2-ui"]
-	path = clients/typescript/apps/marginfi-v2-ui
-	url = https://github.com/mrgnlabs/marginfi-v2-ui.git
