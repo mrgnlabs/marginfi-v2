@@ -852,7 +852,6 @@ async fn lending_pool_handle_bankruptcy_success_not_debt() -> anyhow::Result<()>
 async fn lending_pool_bank_paused_should_error() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
     let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
-    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
     let usdc_bank = test_f
         .marginfi_group
@@ -860,17 +859,6 @@ async fn lending_pool_bank_paused_should_error() -> anyhow::Result<()> {
             usdc_mint_fixture.key,
             BankConfig {
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
-            },
-        )
-        .await?;
-
-    let sol_bank = test_f
-        .marginfi_group
-        .try_lending_pool_add_bank(
-            sol_mint_fixture.key,
-            BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
-                ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
         .await?;
@@ -904,7 +892,6 @@ async fn lending_pool_bank_paused_should_error() -> anyhow::Result<()> {
 async fn lending_pool_bank_reduce_only_success_withdraw() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
     let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
-    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
     let usdc_bank = test_f
         .marginfi_group
@@ -912,17 +899,6 @@ async fn lending_pool_bank_reduce_only_success_withdraw() -> anyhow::Result<()> 
             usdc_mint_fixture.key,
             BankConfig {
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
-            },
-        )
-        .await?;
-
-    let sol_bank = test_f
-        .marginfi_group
-        .try_lending_pool_add_bank(
-            sol_mint_fixture.key,
-            BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
-                ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
         .await?;
