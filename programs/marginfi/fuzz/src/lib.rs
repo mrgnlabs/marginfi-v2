@@ -13,7 +13,10 @@ use lazy_static::lazy_static;
 use marginfi::{
     constants::PYTH_ID,
     prelude::MarginfiGroup,
-    state::marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, WrappedI80F48},
+    state::{
+        marginfi_account::MarginfiAccount,
+        marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, WrappedI80F48},
+    },
 };
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
@@ -30,7 +33,7 @@ use solana_program::{
 };
 use spl_token::state::Mint;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     mem::{align_of, size_of},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
@@ -40,6 +43,7 @@ type SplAccount = spl_token::state::Account;
 pub struct MarginfiGroupAccounts<'info> {
     pub marginfi_group: AccountInfo<'info>,
     pub banks: Vec<BankAccounts<'info>>,
+    pub marginfi_accounts: Vec<UserAccount<'info>>,
     pub owner: AccountInfo<'info>,
     pub system_program: AccountInfo<'info>,
     pub rent_sysvar: AccountInfo<'info>,
@@ -67,6 +71,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             system_program,
             rent_sysvar,
             token_program,
+            marginfi_accounts: vec![],
         }
     }
 
@@ -80,6 +85,13 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         for i in 0..n_banks {
             let bank = self.setup_bank(bump, rent, initial_bank_configs[i]);
             self.banks.push(bank);
+        }
+    }
+
+    pub fn setup_users(&mut self, bump: &'bump Bump, rent: Rent, n_users: usize) {
+        for _ in 0..n_users {
+            let user = self.create_marginfi_account(bump, rent).unwrap();
+            self.marginfi_accounts.push(UserAccount::new(user));
         }
     }
 
@@ -145,6 +157,13 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         seed_bump_map.insert("fee_vault".to_owned(), fee_vault_bump);
         seed_bump_map.insert("fee_vault_authority".to_owned(), fee_vault_authority_bump);
 
+        test_syscall_stubs(Some(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
+        ));
+
         marginfi::instructions::marginfi_group::lending_pool_add_bank(
             Context::new(
                 &marginfi::id(),
@@ -159,12 +178,11 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
                     insurance_vault: Box::new(Account::try_from(&insurance_vault).unwrap()),
                     fee_vault_authority,
                     fee_vault: Box::new(Account::try_from(&fee_vault).unwrap()),
-                    pyth_oracle: oracle.clone(),
                     rent: Sysvar::from_account_info(&self.rent_sysvar).unwrap(),
                     token_program: Program::try_from(&self.token_program).unwrap(),
                     system_program: Program::try_from(&self.system_program).unwrap(),
                 },
-                &[],
+                &[oracle.clone()],
                 seed_bump_map,
             ),
             BankConfig {
@@ -173,7 +191,6 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
                 liability_weight_init: initial_bank_config.liability_weight_init,
                 liability_weight_maint: initial_bank_config.liability_weight_maint,
                 max_capacity: initial_bank_config.max_capacity,
-                pyth_oracle: oracle.key.clone(),
                 interest_rate_config: InterestRateConfig {
                     optimal_utilization_rate: I80F48!(0.5).into(),
                     plateau_interest_rate: I80F48!(0.5).into(),
@@ -183,9 +200,21 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
                     protocol_fixed_fee_apr: I80F48!(0.01).into(),
                     protocol_ir_fee: I80F48!(0.1).into(),
                 },
+                oracle_setup: marginfi::state::marginfi_group::OracleSetup::Pyth,
+                oracle_keys: [
+                    oracle.key(),
+                    Pubkey::default(),
+                    Pubkey::default(),
+                    Pubkey::default(),
+                    Pubkey::default(),
+                ],
+                operational_state:
+                    marginfi::state::marginfi_group::BankOperationalState::Operational,
             },
         )
         .unwrap();
+
+        set_discriminator::<Bank>(bank.clone());
 
         BankAccounts {
             bank,
@@ -195,6 +224,35 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             fee_vault,
             mint,
         }
+    }
+
+    fn create_marginfi_account(
+        &self,
+        bump: &'bump Bump,
+        rent: Rent,
+    ) -> anyhow::Result<AccountInfo<'bump>> {
+        let marginfi_account =
+            new_owned_account(size_of::<MarginfiAccount>(), &marginfi::ID, bump, rent);
+
+        marginfi::instructions::marginfi_account::initialize(Context::new(
+            &marginfi::id(),
+            &mut marginfi::instructions::marginfi_account::InitializeMarginfiAccount {
+                marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
+                marginfi_account: AccountLoader::try_from_unchecked(
+                    &marginfi::ID,
+                    &marginfi_account,
+                )?,
+                signer: Signer::try_from(&self.owner)?,
+                system_program: Program::try_from(&self.system_program)?,
+            },
+            &[],
+            BTreeMap::new(),
+        ))
+        .unwrap();
+
+        set_discriminator::<MarginfiAccount>(marginfi_account.clone());
+
+        Ok(marginfi_account)
     }
 }
 
@@ -338,6 +396,20 @@ pub fn get_vault_authority(
     )
 }
 
+pub struct UserAccount<'info> {
+    pub margin_account: AccountInfo<'info>,
+    pub token_accounts: HashMap<Pubkey, AccountInfo<'info>>,
+}
+
+impl<'info> UserAccount<'info> {
+    pub fn new(margin_account: AccountInfo<'info>) -> Self {
+        Self {
+            margin_account,
+            token_accounts: HashMap::new(),
+        }
+    }
+}
+
 pub struct BankAccounts<'info> {
     pub bank: AccountInfo<'info>,
     pub oracle: AccountInfo<'info>,
@@ -347,9 +419,6 @@ pub struct BankAccounts<'info> {
     pub mint: AccountInfo<'info>,
 }
 
-impl<'bump> BankAccounts<'bump> {
-    // pub fn setup();}
-}
 fn random_pubkey(bump: &Bump) -> &Pubkey {
     bump.alloc(Pubkey::new(transmute_to_bytes(&rand::random::<[u64; 4]>())))
 }
@@ -663,6 +732,7 @@ pub fn setup_marginfi_group(bump: &Bump) -> MarginfiGroupAccounts {
     MarginfiGroupAccounts {
         marginfi_group,
         banks: vec![],
+        marginfi_accounts: vec![],
         owner: admin,
         system_program,
         rent_sysvar,

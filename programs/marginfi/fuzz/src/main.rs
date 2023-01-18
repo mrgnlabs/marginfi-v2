@@ -10,12 +10,14 @@ fn main() -> Result<()> {
     let bump = bumpalo::Bump::new();
     let mut a = setup_marginfi_group(&bump);
 
-    a.setup_banks(&bump, Rent::free(), 1, &[BankAndOracleConfig::dummy()]);
+    a.setup_banks(&bump, Rent::free(), 8, &[BankAndOracleConfig::dummy(); 8]);
 
     let al = AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &a.marginfi_group)
         .unwrap();
 
     assert_eq!(al.load().unwrap().admin, a.owner.key());
+
+    println!("Done!");
 
     Ok(())
 }

@@ -122,38 +122,19 @@ fn process_actions(ctx: FuzzerContext) -> Result<()> {
     let al =
         AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &mga.marginfi_group)
             .unwrap();
+
     assert_eq!(al.load()?.admin, mga.owner.key());
 
-    // for action in actions {
-    //     process_action(action, fuzzer_context)?;
-    // }
+    for action in ctx.action_sequence.0.iter() {
+        process_action(action)?;
+    }
 
     Ok(())
 }
 
-fn process_action(action: Action) -> Result<()> {
+fn process_action(action: &Action) -> Result<()> {
     match action {
-        //     Action::Deposit {
-        //         asset_amount,
-        //         bank,
-        //         owner,
-        //     } => {
-        //         marginfi::instructions::bank_deposit(Context::new(
-        //             marginfi::id(),
-        //             marginfi::accounts::BankDeposit {
-        //                 marginfi_group: todo!(),
-        //                 marginfi_account: todo!(),
-        //                 signer: todo!(),
-        //                 bank: todo!(),
-        //                 signer_token_account: todo!(),
-        //                 bank_liquidity_vault: todo!(),
-        //                 token_program: todo!(),
-        //             },
-        //             &[],
-        //             BTreeMap::new(),
-        //         ));
-        //     }
-        _ => unimplemented!(),
+        _ => (),
     };
 
     Ok(())

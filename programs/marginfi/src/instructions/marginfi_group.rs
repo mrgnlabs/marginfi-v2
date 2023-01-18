@@ -97,7 +97,7 @@ pub fn lending_pool_add_bank(
         liquidity_vault.key(),
         insurance_vault.key(),
         fee_vault.key(),
-        Clock::get()?.unix_timestamp,
+        Clock::get().unwrap().unix_timestamp,
         liquidity_vault_bump,
         liquidity_vault_authority_bump,
         insurance_vault_bump,
