@@ -576,6 +576,8 @@ impl<'a> BankAccountWrapper<'a> {
         balance.change_liability_shares(liability_shares_delta)?;
         bank.change_liability_shares(liability_shares_delta)?;
 
+        bank.check_utilization_ratio()?;
+
         Ok(())
     }
 

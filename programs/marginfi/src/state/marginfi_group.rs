@@ -314,6 +314,18 @@ impl Bank {
         Ok(())
     }
 
+    pub fn check_utilization_ratio(&self) -> MarginfiResult {
+        let total_deposits = self.get_deposit_amount(self.total_deposit_shares.into())?;
+        let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
+
+        check!(
+            total_deposits >= total_liabilities,
+            crate::prelude::MarginfiError::IllegalUtilizationRatio
+        );
+
+        Ok(())
+    }
+
     pub fn configure(&mut self, config: &BankConfigOpt) -> MarginfiResult {
         set_if_some!(self.config.deposit_weight_init, config.deposit_weight_init);
         set_if_some!(
@@ -374,6 +386,8 @@ impl Bank {
         let total_deposits = self.get_deposit_amount(self.total_deposit_shares.into())?;
         let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
+        check!(total_deposits > I80F48::ZERO, MarginfiError::BankEmpty);
+
         let (
             deposit_share_value,
             liability_share_value,
@@ -392,6 +406,8 @@ impl Bank {
         self.deposit_share_value = deposit_share_value.into();
         self.liability_share_value = liability_share_value.into();
         self.last_update = clock.unix_timestamp;
+
+        self.check_utilization_ratio()?;
 
         fees_collected = fees_collected
             .checked_add(self.fee_transfer_remainder.into())
