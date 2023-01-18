@@ -35,6 +35,8 @@ use spl_token::state::Mint;
 use std::{
     collections::{BTreeMap, HashMap},
     mem::{align_of, size_of},
+    ops::Add,
+    sync::{atomic::AtomicU64, RwLock},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -48,6 +50,7 @@ pub struct MarginfiGroupAccounts<'info> {
     pub system_program: AccountInfo<'info>,
     pub rent_sysvar: AccountInfo<'info>,
     pub token_program: AccountInfo<'info>,
+    pub last_sysvar_current_timestamp: RwLock<u64>,
 }
 
 impl<'bump> MarginfiGroupAccounts<'bump> {
@@ -72,6 +75,12 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             rent_sysvar,
             token_program,
             marginfi_accounts: vec![],
+            last_sysvar_current_timestamp: RwLock::new(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            ),
         }
     }
 
@@ -89,9 +98,13 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
     }
 
     pub fn setup_users(&mut self, bump: &'bump Bump, rent: Rent, n_users: usize) {
+        let token_vec = self.banks.iter().map(|b| *b.mint.key).collect();
+
         for _ in 0..n_users {
-            let user = self.create_marginfi_account(bump, rent).unwrap();
-            self.marginfi_accounts.push(UserAccount::new(user));
+            self.marginfi_accounts.push(
+                self.create_marginfi_account(bump, rent, &token_vec)
+                    .unwrap(),
+            );
         }
     }
 
@@ -158,10 +171,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         seed_bump_map.insert("fee_vault_authority".to_owned(), fee_vault_authority_bump);
 
         test_syscall_stubs(Some(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64,
+            self.last_sysvar_current_timestamp.read().unwrap().clone() as i64,
         ));
 
         marginfi::instructions::marginfi_group::lending_pool_add_bank(
@@ -172,11 +182,11 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
                     admin: Signer::try_from(&self.owner).unwrap(),
                     bank_mint: Box::new(Account::try_from(&mint).unwrap()),
                     bank: AccountLoader::try_from_unchecked(&marginfi::ID, &bank).unwrap(),
-                    liquidity_vault_authority,
+                    liquidity_vault_authority: liquidity_vault_authority.clone(),
                     liquidity_vault: Box::new(Account::try_from(&liquidity_vault).unwrap()),
-                    insurance_vault_authority,
+                    insurance_vault_authority: insurance_vault_authority.clone(),
                     insurance_vault: Box::new(Account::try_from(&insurance_vault).unwrap()),
-                    fee_vault_authority,
+                    fee_vault_authority: fee_vault_authority.clone(),
                     fee_vault: Box::new(Account::try_from(&fee_vault).unwrap()),
                     rent: Sysvar::from_account_info(&self.rent_sysvar).unwrap(),
                     token_program: Program::try_from(&self.token_program).unwrap(),
@@ -223,6 +233,10 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             insurance_vault,
             fee_vault,
             mint,
+            liquidity_vault_authority,
+            insurance_vault_authority,
+            fee_vault_authority,
+            mint_decimals: initial_bank_config.mint_decimals,
         }
     }
 
@@ -230,7 +244,8 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         &self,
         bump: &'bump Bump,
         rent: Rent,
-    ) -> anyhow::Result<AccountInfo<'bump>> {
+        token_mints: &Vec<Pubkey>,
+    ) -> anyhow::Result<UserAccount<'bump>> {
         let marginfi_account =
             new_owned_account(size_of::<MarginfiAccount>(), &marginfi::ID, bump, rent);
 
@@ -250,9 +265,249 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         ))
         .unwrap();
 
+        let token_accounts = token_mints
+            .iter()
+            .map(|token| {
+                new_token_account(token, self.owner.key, 100_000_000_000_000_000, bump, rent)
+            })
+            .collect();
+
         set_discriminator::<MarginfiAccount>(marginfi_account.clone());
 
-        Ok(marginfi_account)
+        Ok(UserAccount::new(marginfi_account, token_accounts))
+    }
+
+    pub fn process_action_deposits(
+        &self,
+        account_idx: &AccountIdx,
+        bank_idx: &BankIdx,
+        asset_amount: &AssetAmount,
+    ) -> anyhow::Result<()> {
+        let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
+        let bank = &self.banks[bank_idx.0 as usize];
+
+        let cache = AccountInfoCache::new(&[
+            marginfi_account.margin_account.clone(),
+            bank.bank.clone(),
+            marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
+            bank.liquidity_vault.clone(),
+        ]);
+
+        let res = marginfi::instructions::marginfi_account::bank_deposit(
+            Context::new(
+                &marginfi::ID,
+                &mut marginfi::instructions::BankDeposit {
+                    marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
+                    marginfi_account: AccountLoader::try_from(&marginfi_account.margin_account)?,
+                    signer: Signer::try_from(&self.owner)?,
+                    bank: AccountLoader::try_from(&bank.bank)?,
+                    signer_token_account: marginfi_account.token_accounts[bank_idx.0 as usize]
+                        .clone(),
+                    bank_liquidity_vault: bank.liquidity_vault.clone(),
+                    token_program: Program::try_from(&self.token_program)?,
+                },
+                &[],
+                BTreeMap::new(),
+            ),
+            asset_amount.0,
+        );
+
+        // println!("Deposit: {:?}", res);
+
+        if res.is_err() {
+            cache.revert();
+        }
+
+        Ok(())
+    }
+
+    pub fn process_action_withdraw(
+        &self,
+        account_idx: &AccountIdx,
+        bank_idx: &BankIdx,
+        asset_amount: &AssetAmount,
+    ) -> anyhow::Result<()> {
+        let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
+        let bank = &self.banks[bank_idx.0 as usize];
+
+        let cache = AccountInfoCache::new(&[
+            marginfi_account.margin_account.clone(),
+            bank.bank.clone(),
+            marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
+            bank.liquidity_vault.clone(),
+        ]);
+
+        let res = marginfi::instructions::marginfi_account::bank_withdraw(
+            Context::new(
+                &marginfi::ID,
+                &mut marginfi::instructions::BankWithdraw {
+                    marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
+                    marginfi_account: AccountLoader::try_from(&marginfi_account.margin_account)?,
+                    signer: Signer::try_from(&self.owner)?,
+                    bank: AccountLoader::try_from(&bank.bank)?,
+                    token_program: Program::try_from(&self.token_program)?,
+                    destination_token_account: Account::try_from(
+                        &marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
+                    )?,
+                    bank_liquidity_vault_authority: bank.liquidity_vault_authority.clone(),
+                    bank_liquidity_vault: Account::try_from(&bank.liquidity_vault)?,
+                },
+                &[bank.bank.clone(), bank.oracle.clone()],
+                BTreeMap::new(),
+            ),
+            asset_amount.0,
+        );
+
+        if res.is_err() {
+            cache.revert();
+        }
+
+        // println!("Withdraw: {:?}", res);
+
+        Ok(())
+    }
+
+    pub fn process_accrue_interest(
+        &self,
+        bank_idx: &BankIdx,
+        time_delta: u8,
+    ) -> anyhow::Result<()> {
+        let bank = &self.banks[bank_idx.0 as usize];
+
+        let cache = AccountInfoCache::new(&[
+            bank.bank.clone(),
+            bank.liquidity_vault.clone(),
+            bank.insurance_vault.clone(),
+            bank.fee_vault.clone(),
+        ]);
+
+        let mut last_timstamp = self.last_sysvar_current_timestamp.write().unwrap();
+        *last_timstamp = last_timstamp.add(time_delta as u64);
+        test_syscall_stubs(Some(last_timstamp.clone() as i64));
+
+        let res = marginfi::instructions::marginfi_group::lending_pool_bank_accrue_interest(
+            Context::new(
+                &marginfi::ID,
+                &mut marginfi::instructions::LendingPoolBankAccrueInterest {
+                    marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
+                    bank: AccountLoader::try_from(&bank.bank)?,
+                    liquidity_vault_authority: bank.liquidity_vault_authority.clone(),
+                    liquidity_vault: bank.liquidity_vault.clone(),
+                    insurance_vault: bank.insurance_vault.clone(),
+                    fee_vault: bank.fee_vault.clone(),
+                    token_program: Program::try_from(&self.token_program)?,
+                },
+                &[],
+                BTreeMap::new(),
+            ),
+        );
+
+        if res.is_err() {
+            cache.revert();
+        }
+
+        // println!("Accrue Interest: {:?}", res);
+
+        Ok(())
+    }
+
+    pub fn update_oracle(
+        &self,
+        bank_idx: &BankIdx,
+        price_change: &PriceChange,
+    ) -> anyhow::Result<()> {
+        let bank = &self.banks[bank_idx.0 as usize];
+        let price_oracle = bank.oracle.clone();
+
+        update_oracle_account(
+            price_oracle,
+            price_change.0 * 10_i64.pow(bank.mint_decimals as u32),
+        )?;
+
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PriceChange(i64);
+
+impl<'a> Arbitrary<'a> for PriceChange {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Self(u.int_in_range(-100..=100)?))
+    }
+}
+
+struct AccountInfoCache<'bump> {
+    account_data: Vec<Vec<u8>>,
+    account_info: Vec<AccountInfo<'bump>>,
+}
+
+impl<'info> AccountInfoCache<'info> {
+    pub fn new(ais: &[AccountInfo<'info>]) -> Self {
+        let account_data = ais.iter().map(|ai| ai.data.borrow().to_owned()).collect();
+        Self {
+            account_data,
+            account_info: ais.to_vec(),
+        }
+    }
+
+    pub fn revert(&self) {
+        for (ai, data) in self.account_info.iter().zip(self.account_data.iter()) {
+            ai.data.borrow_mut().copy_from_slice(data);
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AccountIdx(pub u8);
+pub const N_USERS: u8 = 8;
+impl<'a> Arbitrary<'a> for AccountIdx {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
+        let i: u8 = u.int_in_range(0..=N_USERS - 1)? as u8;
+        Ok(AccountIdx(i))
+    }
+
+    fn size_hint(_: usize) -> (usize, Option<usize>) {
+        (1, Some(1))
+    }
+
+    fn arbitrary_take_rest(mut u: arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Self::arbitrary(&mut u)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BankIdx(pub u8);
+pub const N_BANKS: usize = 8;
+impl<'a> Arbitrary<'a> for BankIdx {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
+        Ok(BankIdx(u.int_in_range(0..=N_BANKS - 1)? as u8))
+    }
+
+    fn size_hint(_: usize) -> (usize, Option<usize>) {
+        (1, Some(1))
+    }
+
+    fn arbitrary_take_rest(mut u: arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Self::arbitrary(&mut u)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AssetAmount(pub u64);
+
+pub const MAX_ASSET_AMOUNT: u64 = 1_000_000_000_000;
+impl<'a> Arbitrary<'a> for AssetAmount {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
+        Ok(AssetAmount(u.int_in_range(0..=MAX_ASSET_AMOUNT)? as u64))
+    }
+
+    fn size_hint(_: usize) -> (usize, Option<usize>) {
+        (8, Some(8))
+    }
+
+    fn arbitrary_take_rest(mut u: arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Self::arbitrary(&mut u)
     }
 }
 
@@ -377,35 +632,30 @@ pub fn new_token_account_with_pubkey<'bump, 'a, 'b>(
     )
 }
 
-pub fn get_vault_address(
-    bank: &Pubkey,
-    vault_type: BankVaultType,
-    program_id: &Pubkey,
-) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[vault_type.get_seed(), bank.as_ref()], program_id)
+pub fn get_vault_address(bank: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[vault_type.get_seed(), &bank.to_bytes()], &marginfi::ID)
 }
 
-pub fn get_vault_authority(
-    bank: &Pubkey,
-    vault_type: BankVaultType,
-    program_id: &Pubkey,
-) -> (Pubkey, u8) {
+pub fn get_vault_authority(bank: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
     Pubkey::find_program_address(
-        &[vault_type.get_authority_seed(), bank.as_ref()],
-        program_id,
+        &[vault_type.get_authority_seed(), &bank.to_bytes()],
+        &marginfi::ID,
     )
 }
 
 pub struct UserAccount<'info> {
     pub margin_account: AccountInfo<'info>,
-    pub token_accounts: HashMap<Pubkey, AccountInfo<'info>>,
+    pub token_accounts: Vec<AccountInfo<'info>>,
 }
 
 impl<'info> UserAccount<'info> {
-    pub fn new(margin_account: AccountInfo<'info>) -> Self {
+    pub fn new(
+        margin_account: AccountInfo<'info>,
+        token_accounts: Vec<AccountInfo<'info>>,
+    ) -> Self {
         Self {
             margin_account,
-            token_accounts: HashMap::new(),
+            token_accounts,
         }
     }
 }
@@ -414,9 +664,13 @@ pub struct BankAccounts<'info> {
     pub bank: AccountInfo<'info>,
     pub oracle: AccountInfo<'info>,
     pub liquidity_vault: AccountInfo<'info>,
+    pub liquidity_vault_authority: AccountInfo<'info>,
     pub insurance_vault: AccountInfo<'info>,
+    pub insurance_vault_authority: AccountInfo<'info>,
     pub fee_vault: AccountInfo<'info>,
+    pub fee_vault_authority: AccountInfo<'info>,
     pub mint: AccountInfo<'info>,
+    pub mint_decimals: u8,
 }
 
 fn random_pubkey(bump: &Bump) -> &Pubkey {
@@ -428,11 +682,6 @@ fn allocate_dex_owned_account(unpadded_size: usize, bump: &Bump) -> &mut [u8] {
     let padded_size = unpadded_size + 12;
     let u64_data = bump.alloc_slice_fill_copy(padded_size / 8 + 1, 0u64);
     let data = transmute_to_bytes_mut(u64_data); //[3..padded_size + 3];
-
-    // assert_eq!(
-    //     data[8..padded_size + 8].as_ptr() as usize % align_of::<&[u8]>(),
-    //     0
-    // );
 
     data
 }
@@ -465,7 +714,7 @@ pub fn new_vault_account<'bump>(
     bank: &'bump Pubkey,
     bump: &'bump Bump,
 ) -> (AccountInfo<'bump>, u8) {
-    let (vault_address, seed_bump) = get_vault_address(bank, vault_type, &marginfi::ID);
+    let (vault_address, seed_bump) = get_vault_address(bank, vault_type);
 
     (
         new_token_account_with_pubkey(vault_address, mint_pubkey, owner, 0, bump, Rent::free()),
@@ -478,7 +727,7 @@ pub fn new_vault_authority<'bump>(
     bank: &'bump Pubkey,
     bump: &'bump Bump,
 ) -> (AccountInfo<'bump>, u8) {
-    let (vault_address, seed_bump) = get_vault_address(bank, vault_type, &marginfi::ID);
+    let (vault_address, seed_bump) = get_vault_authority(bank, vault_type);
 
     (
         AccountInfo::new(
@@ -609,6 +858,17 @@ pub fn new_oracle_account(
     )
 }
 
+pub fn update_oracle_account(ai: AccountInfo, price_change: i64) -> Result<(), ProgramError> {
+    let mut data = ai.try_borrow_mut_data()?;
+    let data = bytemuck::from_bytes_mut::<PriceAccount>(&mut data);
+
+    data.agg.price += price_change;
+    data.ema_price.val += price_change;
+    data.ema_price.numer += price_change;
+
+    Ok(())
+}
+
 pub fn set_discriminator<T: Discriminator>(ai: AccountInfo) {
     let mut data = ai.try_borrow_mut_data().unwrap();
 
@@ -662,9 +922,9 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
     }
 
     fn sol_log(&self, message: &str) {
-        if *VERBOSE >= 1 {
-            println!("{}", message);
-        }
+        if *VERBOSE >= 1 {}
+
+        // println!("Program Log: {}", message);
     }
 
     fn sol_invoke_signed(
@@ -675,10 +935,11 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
     ) -> ProgramResult {
         let mut new_account_infos = vec![];
 
-        // mimic check for token program in accounts
-        if !account_infos.iter().any(|x| *x.key == spl_token::id()) {
-            return Err(ProgramError::InvalidAccountData);
-        }
+        // // mimic check for token program in accounts
+        // if !account_infos.iter().any(|x| *x.key == spl_token::id()) {
+        //     println!("No token program account found");
+        //     return Err(ProgramError::InvalidAccountData);
+        // }
 
         for meta in instruction.accounts.iter() {
             for account_info in account_infos.iter() {
@@ -737,6 +998,12 @@ pub fn setup_marginfi_group(bump: &Bump) -> MarginfiGroupAccounts {
         system_program,
         rent_sysvar,
         token_program,
+        last_sysvar_current_timestamp: RwLock::new(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        ),
     }
 }
 
