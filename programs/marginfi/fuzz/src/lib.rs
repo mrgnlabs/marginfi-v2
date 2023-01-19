@@ -433,7 +433,7 @@ pub struct PriceChange(i64);
 
 impl<'a> Arbitrary<'a> for PriceChange {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        Ok(Self(u.int_in_range(-100..=100)?))
+        Ok(Self(u.int_in_range(-10..=10)? * 10))
     }
 }
 

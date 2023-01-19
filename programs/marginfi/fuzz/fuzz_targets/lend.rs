@@ -58,7 +58,7 @@ pub struct ActionSequence(Vec<Action>);
 
 impl<'a> Arbitrary<'a> for ActionSequence {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let n_actions = u.int_in_range(0..=200)?;
+        let n_actions = u.int_in_range(0..=10)? * 20;
         let mut actions = Vec::with_capacity(n_actions);
 
         for _ in 0..n_actions {
@@ -79,7 +79,7 @@ pub struct FuzzerContext {
 fuzz_target!(|data: FuzzerContext| { process_actions(data).unwrap() });
 
 fn process_actions(ctx: FuzzerContext) -> Result<()> {
-    let bump = bumpalo::Bump::new();
+    let mut bump = bumpalo::Bump::new();
     let mut mga = MarginfiGroupAccounts::setup(&bump);
 
     mga.setup_banks(&bump, Rent::free(), N_BANKS, &ctx.initial_bank_configs);
@@ -96,6 +96,8 @@ fn process_actions(ctx: FuzzerContext) -> Result<()> {
     }
 
     verify_end_state(&mga)?;
+
+    bump.reset();
 
     Ok(())
 }
