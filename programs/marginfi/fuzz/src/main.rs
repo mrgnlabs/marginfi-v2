@@ -1,6 +1,6 @@
 use anchor_lang::{
     prelude::{AccountLoader, Rent},
-    Discriminator, Key,
+    Key,
 };
 use anyhow::Result;
 use marginfi::prelude::MarginfiGroup;

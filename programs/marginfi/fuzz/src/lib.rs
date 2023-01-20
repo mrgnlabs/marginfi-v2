@@ -7,7 +7,7 @@ use anchor_lang::{
 };
 use arbitrary::Arbitrary;
 use bumpalo::Bump;
-use fixed::types::I80F48;
+
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
 use marginfi::{
@@ -27,17 +27,17 @@ use solana_program::{
     entrypoint::ProgramResult,
     instruction::Instruction,
     program_pack::Pack,
-    program_stubs::{self, SyscallStubs},
+    program_stubs::{self},
     stake_history::Epoch,
     system_program, sysvar,
 };
 use spl_token::state::Mint;
 use std::{
-    collections::{BTreeMap, HashMap},
-    mem::{align_of, size_of},
+    collections::BTreeMap,
+    mem::size_of,
     ops::Add,
-    sync::{atomic::AtomicU64, RwLock},
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    sync::RwLock,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 type SplAccount = spl_token::state::Account;
@@ -62,7 +62,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         let rent_sysvar = new_rent_sysvar_account(0, Rent::free(), bump);
         let marginfi_group = initialize_marginfi_group(
             bump,
-            &marginfi_program.key,
+            marginfi_program.key,
             admin.clone(),
             system_program.clone(),
         );
@@ -116,7 +116,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
     ) -> BankAccounts<'bump> {
         let bank = new_owned_account(size_of::<Bank>(), &marginfi::ID, bump, rent);
 
-        let mint = new_token_mint(bump, rent.clone(), initial_bank_config.mint_decimals);
+        let mint = new_token_mint(bump, rent, initial_bank_config.mint_decimals);
         let (liquidity_vault_authority, liquidity_vault_authority_bump) =
             new_vault_authority(BankVaultType::Liquidity, bank.key, bump);
         let (liquidity_vault, liquidity_vault_bump) = new_vault_account(
@@ -151,7 +151,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             bump,
             rent,
             initial_bank_config.oracle_native_price as i64,
-            mint.key.clone(),
+            *mint.key,
             initial_bank_config.mint_decimals as i32,
         );
 
@@ -171,7 +171,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         seed_bump_map.insert("fee_vault_authority".to_owned(), fee_vault_authority_bump);
 
         test_syscall_stubs(Some(
-            self.last_sysvar_current_timestamp.read().unwrap().clone() as i64,
+            *self.last_sysvar_current_timestamp.read().unwrap() as i64
         ));
 
         marginfi::instructions::marginfi_group::lending_pool_add_bank(
@@ -383,7 +383,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
 
         let mut last_timstamp = self.last_sysvar_current_timestamp.write().unwrap();
         *last_timstamp = last_timstamp.add(time_delta as u64);
-        test_syscall_stubs(Some(last_timstamp.clone() as i64));
+        test_syscall_stubs(Some(*last_timstamp as i64));
 
         let res = marginfi::instructions::marginfi_group::lending_pool_bank_accrue_interest(
             Context::new(
@@ -463,7 +463,7 @@ pub struct AccountIdx(pub u8);
 pub const N_USERS: u8 = 8;
 impl<'a> Arbitrary<'a> for AccountIdx {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        let i: u8 = u.int_in_range(0..=N_USERS - 1)? as u8;
+        let i: u8 = u.int_in_range(0..=N_USERS - 1)?;
         Ok(AccountIdx(i))
     }
 
@@ -499,7 +499,7 @@ pub struct AssetAmount(pub u64);
 pub const MAX_ASSET_AMOUNT: u64 = 1_000_000_000_000;
 impl<'a> Arbitrary<'a> for AssetAmount {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        Ok(AssetAmount(u.int_in_range(0..=MAX_ASSET_AMOUNT)? as u64))
+        Ok(AssetAmount(u.int_in_range(0..=MAX_ASSET_AMOUNT)?))
     }
 
     fn size_hint(_: usize) -> (usize, Option<usize>) {
@@ -921,7 +921,7 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
         solana_program::entrypoint::SUCCESS
     }
 
-    fn sol_log(&self, message: &str) {
+    fn sol_log(&self, _message: &str) {
         if *VERBOSE >= 1 {}
 
         // println!("Program Log: {}", message);
@@ -985,7 +985,7 @@ pub fn setup_marginfi_group(bump: &Bump) -> MarginfiGroupAccounts {
     let rent_sysvar = new_rent_sysvar_account(0, Rent::free(), bump);
     let marginfi_group = initialize_marginfi_group(
         bump,
-        &marginfi_program.key,
+        marginfi_program.key,
         admin.clone(),
         system_program.clone(),
     );

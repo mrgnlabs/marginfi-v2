@@ -1,22 +1,17 @@
 #![no_main]
 
-use std::{collections::BTreeMap, error::Error};
-
 use anchor_lang::{
-    prelude::{AccountLoader, Context, Pubkey, Rent},
+    prelude::{AccountLoader, Rent},
     Key,
 };
 use anyhow::Result;
 use arbitrary::Arbitrary;
-use fixed::types::I80F48;
+
 use libfuzzer_sys::fuzz_target;
-use marginfi::{
-    prelude::MarginfiGroup,
-    state::marginfi_group::{Bank, WrappedI80F48},
-};
+use marginfi::{prelude::MarginfiGroup, state::marginfi_group::Bank};
 use marginfi_fuzz::{
-    setup_marginfi_group, AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx,
-    MarginfiGroupAccounts, PriceChange, N_BANKS, N_USERS,
+    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, MarginfiGroupAccounts, PriceChange,
+    N_BANKS, N_USERS,
 };
 use solana_program::program_pack::Pack;
 
