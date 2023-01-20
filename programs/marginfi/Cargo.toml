@@ -18,6 +18,7 @@ test-bpf = ["test"]
 test = []
 client = []
 devnet = []
+mainnet-beta = []
 
 [dependencies]
 anchor-lang = "0.26.0"
