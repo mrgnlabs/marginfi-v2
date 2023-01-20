@@ -619,5 +619,13 @@ mod test {
             calc_asset_value(I80F48!(1_000_000_000), I80F48!(10_000_000), 9, None).unwrap(),
             I80F48!(10_000_000)
         );
+
+
+
+
+        assert_eq!(
+            calc_asset_value(I80F48!(1_000_000_000), , 9, None).unwrap(),
+            I80F48!(10_000_000)
+        );
     }
 }

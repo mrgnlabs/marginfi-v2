@@ -14,7 +14,7 @@ pub const FEE_VAULT_SEED: &[u8] = b"fee_vault";
 pub const LENDING_POOL_BANK_SEED: &[u8] = b"lending_pool_bank";
 
 #[cfg(feature = "mainnet-beta")] // mainnet
-pub const PYTH_ID: Pubkey = pubkey!("5rYvdyWAunZgD2EC1aKo7hQbutUUnkt7bBFM6xNq2z7Z");
+pub const PYTH_ID: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");
 #[cfg(feature = "devnet")] // devnet
 pub const PYTH_ID: Pubkey = pubkey!("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
 #[cfg(all(not(feature = "mainnet-beta"), not(feature = "devnet")))] // other

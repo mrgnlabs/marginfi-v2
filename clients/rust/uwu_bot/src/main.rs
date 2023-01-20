@@ -21,6 +21,10 @@ use solana_sdk::{
 use std::{mem::size_of, rc::Rc, str::FromStr, time::Duration};
 use tokio::time::sleep;
 
+use crate::uwu::get_random_emoji;
+
+mod uwu;
+
 const DEFAULT_PROGRAM_ID: &str = "mf2iDQbVTAE3tT4tgAZBhBAmKUW56GsXX7H3oeH4atr";
 const DEFAULT_GROUP_ID: &str = "EqmdxNhQS2Snwzh5nsBB3JkWGaaBqefcC5Lgj2Zjiv78";
 const DEFAULT_RPC_URL: &str = "https://devnet.genesysgo.net";
@@ -104,7 +108,7 @@ async fn main() -> Result<()> {
             .instruction(ComputeBudgetInstruction::set_compute_unit_limit(1_000_000))
             .options(CommitmentConfig::confirmed());
 
-        info!("Cranking {} banks ヽ(*・ω・)ﾉ", banks.len());
+        info!("Cranking {} banks {}", banks.len(), get_random_emoji());
 
         let ixs = banks.iter().map(|(bank_pk, bank)| Instruction {
             program_id,

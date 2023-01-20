@@ -63,19 +63,33 @@ pub enum GroupCommand {
         admin: Option<Pubkey>,
     },
     AddBank {
-        bank_mint: Pubkey,
+        #[clap(long)]
+        mint: Pubkey,
+        #[clap(long)]
         deposit_weight_init: f64,
+        #[clap(long)]
         deposit_weight_maint: f64,
+        #[clap(long)]
         liability_weight_init: f64,
+        #[clap(long)]
         liability_weight_maint: f64,
+        #[clap(long)]
         max_capacity: u64,
+        #[clap(long)]
         pyth_oracle: Pubkey,
+        #[clap(long)]
         optimal_utilization_rate: f64,
+        #[clap(long)]
         plateau_interest_rate: f64,
+        #[clap(long)]
         max_interest_rate: f64,
+        #[clap(long)]
         insurance_fee_fixed_apr: f64,
+        #[clap(long)]
         insurance_ir_fee: f64,
+        #[clap(long)]
         protocol_fixed_fee_apr: f64,
+        #[clap(long)]
         protocol_ir_fee: f64,
     },
 }
@@ -145,11 +159,9 @@ pub enum ProfileCommand {
     Show,
     List,
     Set {
-        #[clap(long)]
         name: String,
     },
     Update {
-        #[clap(long)]
         name: String,
         #[clap(long)]
         cluster: Option<Cluster>,
@@ -240,7 +252,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         } => processor::group_create(config, profile, admin, override_existing_profile_group),
         GroupCommand::Update { admin } => processor::group_configure(config, profile, admin),
         GroupCommand::AddBank {
-            bank_mint,
+            mint: bank_mint,
             deposit_weight_init,
             deposit_weight_maint,
             liability_weight_init,
