@@ -263,6 +263,8 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
         .try_accrue_interest(&usdc_bank)
         .await?;
 
+    test_f.marginfi_group.try_collect_fees(&usdc_bank).await?;
+
     let borrower_mfi_account = borrower_account.load().await;
     let borrower_bank_account = borrower_mfi_account.lending_account.balances[1];
     let usdc_bank = usdc_bank.load().await;

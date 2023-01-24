@@ -240,7 +240,27 @@ pub struct LendingPoolConfigureBank<'info> {
 pub fn lending_pool_bank_accrue_interest(
     ctx: Context<LendingPoolBankAccrueInterest>,
 ) -> MarginfiResult {
-    let LendingPoolBankAccrueInterest {
+    let clock = Clock::get()?;
+    let mut bank = ctx.accounts.bank.load_mut()?;
+
+    bank.accrue_interest(&clock)?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LendingPoolBankAccrueInterest<'info> {
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        mut,
+        constraint = bank.load()?.group == marginfi_group.key(),
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+}
+
+pub fn lending_pool_collect_fees(ctx: Context<LendingPoolCollectFees>) -> MarginfiResult {
+    let LendingPoolCollectFees {
         liquidity_vault_authority,
         insurance_vault,
         fee_vault,
@@ -249,15 +269,38 @@ pub fn lending_pool_bank_accrue_interest(
         ..
     } = ctx.accounts;
 
-    let clock = Clock::get()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    let (protocol_fee, insurance_fee) = bank.accrue_interest(&clock)?;
+    let mut available_liquidity = I80F48::from_num(liquidity_vault.amount);
 
-    msg!("Protocol fee: {}", protocol_fee);
+    let (insurance_fee_transfer_amount, new_outstanding_insurance_fees) = {
+        let outstanding_fees = I80F48::from(bank.collected_insurance_fees_outstanding);
+        let transfer_amount = min(outstanding_fees, available_liquidity).int();
+
+        (transfer_amount.int(), outstanding_fees - transfer_amount)
+    };
+
+    bank.collected_insurance_fees_outstanding = new_outstanding_insurance_fees.into();
+
+    available_liquidity -= insurance_fee_transfer_amount;
+
+    let (group_fee_transfer_amount, new_outstanding_group_fees) = {
+        let outstanding_fees = I80F48::from(bank.collected_group_fees_outstanding);
+        let transfer_amount = min(outstanding_fees, available_liquidity).int();
+
+        (transfer_amount.int(), outstanding_fees - transfer_amount)
+    };
+
+    bank.collected_group_fees_outstanding = new_outstanding_group_fees.into();
+
+    msg!(
+        "Collecting fees\nInsurance: {}\nProtocol: {}",
+        insurance_fee_transfer_amount,
+        group_fee_transfer_amount
+    );
 
     bank.withdraw_spl_transfer(
-        protocol_fee,
+        group_fee_transfer_amount.to_num(),
         Transfer {
             from: liquidity_vault.to_account_info(),
             to: fee_vault.to_account_info(),
@@ -271,10 +314,8 @@ pub fn lending_pool_bank_accrue_interest(
         ),
     )?;
 
-    msg!("Insurance fee: {}", insurance_fee);
-
     bank.withdraw_spl_transfer(
-        insurance_fee,
+        insurance_fee_transfer_amount.to_num(),
         Transfer {
             from: liquidity_vault.to_account_info(),
             to: insurance_vault.to_account_info(),
@@ -292,7 +333,7 @@ pub fn lending_pool_bank_accrue_interest(
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolBankAccrueInterest<'info> {
+pub struct LendingPoolCollectFees<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -320,7 +361,7 @@ pub struct LendingPoolBankAccrueInterest<'info> {
         ],
         bump = bank.load()?.liquidity_vault_bump
     )]
-    pub liquidity_vault: AccountInfo<'info>,
+    pub liquidity_vault: Account<'info, TokenAccount>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -346,7 +387,6 @@ pub struct LendingPoolBankAccrueInterest<'info> {
 
     pub token_program: Program<'info, Token>,
 }
-
 /// Handle a bankrupt marginfi account.
 /// 1. Verify account is bankrupt, and lending account belonging to account contains bad debt.
 /// 2. Determine the amount of bad debt covered by the insurance fund and the amount socialized between depositors.
