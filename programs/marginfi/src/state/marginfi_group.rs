@@ -6,7 +6,7 @@ use crate::{
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
         MAX_ORACLE_KEYS, PYTH_ID, SECONDS_PER_YEAR,
     },
-    math_error,
+    debug, math_error,
     prelude::MarginfiError,
     set_if_some, MarginfiResult,
 };
@@ -403,7 +403,7 @@ impl Bank {
             )
             .ok_or_else(math_error!())?;
 
-        msg!("deposit share value: {}\nliability share value: {}\nfees collected: {}\ninsurance collected: {}",
+        debug!("deposit share value: {}\nliability share value: {}\nfees collected: {}\ninsurance collected: {}",
             deposit_share_value, liability_share_value, fees_collected, insurance_collected);
 
         self.deposit_share_value = deposit_share_value.into();
@@ -546,7 +546,7 @@ fn calc_interest_rate_accrual_state_changes(
     let (lending_apr, borrowing_apr, group_fee_apr, insurance_fee_apr) =
         interest_rate_config.calc_interest_rate(utilization_rate)?;
 
-    msg!(
+    debug!(
         "Accruing interest for {} seconds. Utilization rate: {}. Lending APR: {}. Borrowing APR: {}. Group fee APR: {}. Insurance fee APR: {}",
         time_delta,
         utilization_rate,

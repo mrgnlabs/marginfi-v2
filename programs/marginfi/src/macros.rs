@@ -67,3 +67,13 @@ macro_rules! bank_signer {
         ]]
     };
 }
+
+#[macro_export]
+macro_rules! debug {
+    ($($arg:tt)*) => {
+        #[cfg(feature = "debug")]
+        {
+            anchor_lang::prelude::msg!($($arg)*);
+        }
+    };
+}

@@ -16,6 +16,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
+use solana_program::log::sol_log_compute_units;
 use std::cmp::{max, min};
 
 pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
@@ -243,7 +244,11 @@ pub fn lending_pool_bank_accrue_interest(
     let clock = Clock::get()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
 
+    sol_log_compute_units();
+
     bank.accrue_interest(&clock)?;
+
+    sol_log_compute_units();
 
     Ok(())
 }
@@ -293,11 +298,11 @@ pub fn lending_pool_collect_fees(ctx: Context<LendingPoolCollectFees>) -> Margin
 
     bank.collected_group_fees_outstanding = new_outstanding_group_fees.into();
 
-    msg!(
-        "Collecting fees\nInsurance: {}\nProtocol: {}",
-        insurance_fee_transfer_amount,
-        group_fee_transfer_amount
-    );
+    // msg!(
+    //     "Collecting fees\nInsurance: {}\nProtocol: {}",
+    //     insurance_fee_transfer_amount,
+    //     group_fee_transfer_amount
+    // );
 
     bank.withdraw_spl_transfer(
         group_fee_transfer_amount.to_num(),
