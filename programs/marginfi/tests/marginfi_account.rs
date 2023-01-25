@@ -3,6 +3,7 @@
 
 mod fixtures;
 
+use anchor_lang::prelude::Clock;
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
@@ -754,5 +755,103 @@ async fn liquidation_failed_bank_not_liquidatable() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_ok());
+    Ok(())
+}
+
+#[tokio::test]
+async fn automatic_interest_payments() -> anyhow::Result<()> {
+    // Setup test executor with non-admin payer
+    let mut test_f = TestFixture::new(None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.usdc_mint.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await?;
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.sol_mint.key, *DEFAULT_SOL_TEST_BANK_CONFIG)
+        .await?;
+
+    let user_pubkey = test_f.context.borrow().payer.pubkey();
+    let user_usdc_token_account_f =
+        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint.key, &user_pubkey).await;
+    let user_sol_token_account_f =
+        TokenAccountFixture::new(test_f.context.clone(), &test_f.sol_mint.key, &user_pubkey).await;
+
+    test_f
+        .sol_mint
+        .mint_to(&user_sol_token_account_f.key, native!(1_000, "SOL"))
+        .await;
+
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let sol_depositor = test_f.create_marginfi_account().await;
+    sol_depositor
+        .try_bank_deposit(
+            user_sol_token_account_f.key,
+            &sol_bank,
+            native!(1_000, "SOL"),
+        )
+        .await?;
+
+    test_f
+        .usdc_mint
+        .mint_to(&user_usdc_token_account_f.key, native!(1_000, "USDC"))
+        .await;
+
+    let liquidity_vault = sol_bank.get_vault(BankVaultType::Liquidity).0;
+
+    test_f
+        .sol_mint
+        .mint_to(&liquidity_vault, native!(1_000_000, "SOL"))
+        .await;
+
+    marginfi_account_f
+        .try_bank_deposit(
+            user_usdc_token_account_f.key,
+            &usdc_bank,
+            native!(1_000, "USDC"),
+        )
+        .await?;
+
+    marginfi_account_f
+        .try_bank_withdraw(user_sol_token_account_f.key, &sol_bank, native!(99, "SOL"))
+        .await?;
+
+    {
+        let mut ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 year
+        clock.unix_timestamp += 365 * 24 * 60 * 60;
+        ctx.set_sysvar(&clock);
+    }
+
+    marginfi_account_f
+        .try_bank_deposit(user_sol_token_account_f.key, &sol_bank, native!(99, "SOL"))
+        .await?;
+
+    let sol_ba = sol_bank.load().await;
+
+    let b_ma = marginfi_account_f.load().await;
+
+    assert_eq_noise!(
+        sol_ba
+            .get_liability_amount(b_ma.lending_account.balances[1].liability_shares.into())
+            .unwrap(),
+        I80F48::from(native!(11.76, "SOL", f64)),
+        native!(0.00001, "SOL", f64)
+    );
+
+    let lender_ma = sol_depositor.load().await;
+
+    assert_eq_noise!(
+        sol_ba
+            .get_deposit_amount(lender_ma.lending_account.balances[0].deposit_shares.into())
+            .unwrap(),
+        I80F48::from(native!(1011.76, "SOL", f64)),
+        native!(0.00001, "SOL", f64)
+    );
+    // TODO: check health is sane
+
     Ok(())
 }
