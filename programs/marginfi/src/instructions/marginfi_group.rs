@@ -16,7 +16,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
-use solana_program::log::sol_log_compute_units;
+
 use std::cmp::{max, min};
 
 pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
