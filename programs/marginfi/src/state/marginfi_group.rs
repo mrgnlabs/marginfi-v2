@@ -419,8 +419,6 @@ impl Bank {
 
         self.last_update = clock.unix_timestamp;
 
-        self.check_utilization_ratio()?;
-
         self.collected_group_fees_outstanding = {
             fees_collected
                 .checked_add(self.collected_group_fees_outstanding.into())
