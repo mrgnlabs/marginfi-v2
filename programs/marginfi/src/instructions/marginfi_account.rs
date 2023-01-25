@@ -65,6 +65,8 @@ pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
         ..
     } = ctx.accounts;
 
+    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
+
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account.load_mut()?;
 
@@ -144,6 +146,8 @@ pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult 
         bank: bank_loader,
         ..
     } = ctx.accounts;
+
+    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
 
     let mut marginfi_account = marginfi_account.load_mut()?;
 
@@ -290,6 +294,15 @@ pub fn lending_account_liquidate(
 
     let mut liquidator_marginfi_account = liquidator_marginfi_account.load_mut()?;
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account.load_mut()?;
+
+    {
+        let clock = Clock::get()?;
+        ctx.accounts
+            .asset_bank
+            .load_mut()?
+            .accrue_interest(&clock)?;
+        ctx.accounts.liab_bank.load_mut()?.accrue_interest(&clock)?;
+    }
 
     {
         // ##Accounting changes##

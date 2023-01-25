@@ -14,6 +14,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{spl_token::state::AccountState, transfer, TokenAccount, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
+use solana_program::log::sol_log_compute_units;
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Formatter},
@@ -383,14 +384,21 @@ impl Bank {
     /// Collected protocol and insurance fees are stored in state.
     /// A separate instruction is required to withdraw these fees.
     pub fn accrue_interest(&mut self, clock: &Clock) -> MarginfiResult<()> {
+        sol_log_compute_units();
         let time_delta: u64 = (clock.unix_timestamp - self.last_update)
             .try_into()
             .unwrap();
 
+        if time_delta == 0 {
+            return Ok(());
+        }
+
         let total_deposits = self.get_deposit_amount(self.total_deposit_shares.into())?;
         let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
-        check!(total_deposits > I80F48::ZERO, MarginfiError::BankEmpty);
+        if (total_deposits == I80F48::ZERO) || (total_liabilities == I80F48::ZERO) {
+            return Ok(());
+        }
 
         let (deposit_share_value, liability_share_value, fees_collected, insurance_collected) =
             calc_interest_rate_accrual_state_changes(
@@ -426,6 +434,8 @@ impl Bank {
                 .ok_or_else(math_error!())?
                 .into()
         };
+
+        sol_log_compute_units();
 
         Ok(())
     }

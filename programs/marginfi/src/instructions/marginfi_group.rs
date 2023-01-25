@@ -244,11 +244,7 @@ pub fn lending_pool_bank_accrue_interest(
     let clock = Clock::get()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    sol_log_compute_units();
-
     bank.accrue_interest(&clock)?;
-
-    sol_log_compute_units();
 
     Ok(())
 }
@@ -412,6 +408,8 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
     RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?.check_account_bankrupt()?;
 
     let mut bank = bank_loader.load_mut()?;
+
+    bank.accrue_interest(&Clock::get()?)?;
 
     let lending_account_balance = marginfi_account
         .lending_account
