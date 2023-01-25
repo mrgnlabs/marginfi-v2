@@ -14,11 +14,12 @@ no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
 default = []
-test-bpf = ["test"]
+test-bpf = ["test", "debug"]
 test = []
 client = []
 devnet = []
 mainnet-beta = []
+debug = []
 
 [dependencies]
 anchor-lang = "0.26.0"

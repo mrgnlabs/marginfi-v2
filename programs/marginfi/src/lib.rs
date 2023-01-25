@@ -99,4 +99,8 @@ pub mod marginfi {
     pub fn bank_accrue_interest(ctx: Context<LendingPoolBankAccrueInterest>) -> MarginfiResult {
         marginfi_group::lending_pool_bank_accrue_interest(ctx)
     }
+
+    pub fn bank_collect_fees(ctx: Context<LendingPoolCollectFees>) -> MarginfiResult {
+        marginfi_group::lending_pool_collect_fees(ctx)
+    }
 }

@@ -209,6 +209,31 @@ impl MarginfiGroupFixture {
             accounts: marginfi::accounts::LendingPoolBankAccrueInterest {
                 marginfi_group: self.key,
                 bank: bank.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::BankAccrueInterest {}.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_collect_fees(&self, bank: &BankFixture) -> Result<()> {
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolCollectFees {
+                marginfi_group: self.key,
+                bank: bank.key,
                 liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
                 liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
                 insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
@@ -216,7 +241,7 @@ impl MarginfiGroupFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::BankAccrueInterest {}.data(),
+            data: marginfi::instruction::BankCollectFees {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(

@@ -48,8 +48,6 @@ pub enum MarginfiError {
     InvalidOracleSetup,
     #[msg("Invalid bank utilization ratio")]
     IllegalUtilizationRatio,
-    #[msg("Bank is empty")]
-    BankEmpty,
 }
 
 impl From<MarginfiError> for ProgramError {

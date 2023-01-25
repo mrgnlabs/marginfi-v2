@@ -6,7 +6,7 @@ use crate::{
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
         MAX_ORACLE_KEYS, PYTH_ID, SECONDS_PER_YEAR,
     },
-    math_error,
+    debug, math_error,
     prelude::MarginfiError,
     set_if_some, MarginfiResult,
 };
@@ -14,6 +14,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
+use solana_program::log::sol_log_compute_units;
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Formatter},
@@ -199,12 +200,12 @@ pub struct Bank {
     pub insurance_vault: Pubkey,
     pub insurance_vault_bump: u8,
     pub insurance_vault_authority_bump: u8,
-    pub insurance_transfer_remainder: WrappedI80F48,
+    pub collected_insurance_fees_outstanding: WrappedI80F48,
 
     pub fee_vault: Pubkey,
     pub fee_vault_bump: u8,
     pub fee_vault_authority_bump: u8,
-    pub fee_transfer_remainder: WrappedI80F48,
+    pub collected_group_fees_outstanding: WrappedI80F48,
 
     pub total_liability_shares: WrappedI80F48,
     pub total_deposit_shares: WrappedI80F48,
@@ -248,10 +249,10 @@ impl Bank {
             liquidity_vault_authority_bump,
             insurance_vault_bump,
             insurance_vault_authority_bump,
-            insurance_transfer_remainder: I80F48::ZERO.into(),
+            collected_insurance_fees_outstanding: I80F48::ZERO.into(),
             fee_vault_bump,
             fee_vault_authority_bump,
-            fee_transfer_remainder: I80F48::ZERO.into(),
+            collected_group_fees_outstanding: I80F48::ZERO.into(),
         }
     }
 
@@ -378,50 +379,63 @@ impl Bank {
         Ok(pyth_account)
     }
 
-    pub fn accrue_interest(&mut self, clock: &Clock) -> MarginfiResult<(u64, u64)> {
+    /// Calculate the interest rate accrual state changes for a given time period
+    ///
+    /// Collected protocol and insurance fees are stored in state.
+    /// A separate instruction is required to withdraw these fees.
+    pub fn accrue_interest(&mut self, clock: &Clock) -> MarginfiResult<()> {
+        sol_log_compute_units();
         let time_delta: u64 = (clock.unix_timestamp - self.last_update)
             .try_into()
             .unwrap();
 
+        if time_delta == 0 {
+            return Ok(());
+        }
+
         let total_deposits = self.get_deposit_amount(self.total_deposit_shares.into())?;
         let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
-        check!(total_deposits > I80F48::ZERO, MarginfiError::BankEmpty);
+        if (total_deposits == I80F48::ZERO) || (total_liabilities == I80F48::ZERO) {
+            return Ok(());
+        }
 
-        let (
-            deposit_share_value,
-            liability_share_value,
-            mut fees_collected,
-            mut insurance_collected,
-        ) = calc_interest_rate_accrual_state_changes(
-            time_delta,
-            total_deposits,
-            total_liabilities,
-            &self.config.interest_rate_config,
-            self.deposit_share_value.into(),
-            self.liability_share_value.into(),
-        )
-        .ok_or_else(math_error!())?;
+        let (deposit_share_value, liability_share_value, fees_collected, insurance_collected) =
+            calc_interest_rate_accrual_state_changes(
+                time_delta,
+                total_deposits,
+                total_liabilities,
+                &self.config.interest_rate_config,
+                self.deposit_share_value.into(),
+                self.liability_share_value.into(),
+            )
+            .ok_or_else(math_error!())?;
+
+        debug!("deposit share value: {}\nliability share value: {}\nfees collected: {}\ninsurance collected: {}",
+            deposit_share_value, liability_share_value, fees_collected, insurance_collected);
 
         self.deposit_share_value = deposit_share_value.into();
         self.liability_share_value = liability_share_value.into();
+
         self.last_update = clock.unix_timestamp;
 
-        self.check_utilization_ratio()?;
+        self.collected_group_fees_outstanding = {
+            fees_collected
+                .checked_add(self.collected_group_fees_outstanding.into())
+                .ok_or_else(math_error!())?
+                .into()
+        };
 
-        fees_collected = fees_collected
-            .checked_add(self.fee_transfer_remainder.into())
-            .ok_or_else(math_error!())?;
+        self.collected_insurance_fees_outstanding = {
+            insurance_collected
+                .checked_add(self.collected_insurance_fees_outstanding.into())
+                .ok_or_else(math_error!())?
+                .into()
+        };
 
-        self.fee_transfer_remainder = fees_collected.frac().into();
+        sol_log_compute_units();
 
-        insurance_collected = insurance_collected
-            .checked_add(self.insurance_transfer_remainder.into())
-            .ok_or_else(math_error!())?;
-
-        self.insurance_transfer_remainder = insurance_collected.frac().into();
-
-        Ok((fees_collected.to_num(), insurance_collected.to_num()))
+        Ok(())
     }
 
     pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
@@ -540,7 +554,7 @@ fn calc_interest_rate_accrual_state_changes(
     let (lending_apr, borrowing_apr, group_fee_apr, insurance_fee_apr) =
         interest_rate_config.calc_interest_rate(utilization_rate)?;
 
-    msg!(
+    debug!(
         "Accruing interest for {} seconds. Utilization rate: {}. Lending APR: {}. Borrowing APR: {}. Group fee APR: {}. Insurance fee APR: {}",
         time_delta,
         utilization_rate,
