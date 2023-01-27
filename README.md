@@ -22,20 +22,20 @@ The risk of the lending pool is managed by the margin group.
 * Same admin authorization with the margin group.
 * Risk is managed by the margin group.
 
-Each lending pool controls one or more _Reserves_.
+Each lending pool controls one or more _Banks_
 
 ```rs
-struct LendingPool {
+struct Banks {
 
 }
 ```
 
-### Reserve
+### Banks
 
 Represents a single asset in the pool. Records data to calculate the interest rate.
 
 ```rs
-struct Reserve {
+struct Banks {
     asset_mint: Pubkey,
     vault_token_account: Pubkey,
     total_deposits: u64,
@@ -47,7 +47,7 @@ struct Reserve {
 ```
                      ┌────────────┐       ┌────────────┐       ┌───────────┐       ┌──────────┐
                      │ Margin/Risk│       │ Lending    │       │           │       │ Price    │
-                     │ Group      │1─────1│ Pool       │1─────n│ Reserves  │m─────n│ Oracle   │
+                     │ Group      │1─────1│ Pool       │1─────n│ Banks     │m─────n│ Oracle   │
                      │            │       │            │       │           │       │          │
                      └────────────┘       └────────────┘       └───────────┘       └──────────┘
                            1                    1
@@ -66,17 +66,3 @@ struct Reserve {
 Q: Should Lending Pool be and independent account, that is connected to the Margin Group?
 
 Including the _Lending Pool_ in the _Margin Group_ account would reduce the tx size, however moving it out allows us to potentially reuse the _Lending Reserve_ down the line.
-
-Q: Should the _Reserves_ be independent accounts and not a part of the _Lending Pool_ account?
-
-Pros:
-- Better on-chain space utilizatio (we don't have to preallocate a bunch of space).
-
-Cons
-
-
-
-## Actions
-
-## Creating a Margin Group
-- Creat

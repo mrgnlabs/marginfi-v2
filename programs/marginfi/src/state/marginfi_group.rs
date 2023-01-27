@@ -554,8 +554,7 @@ fn calc_interest_rate_accrual_state_changes(
     let (lending_apr, borrowing_apr, group_fee_apr, insurance_fee_apr) =
         interest_rate_config.calc_interest_rate(utilization_rate)?;
 
-    debug!(
-        "Accruing interest for {} seconds. Utilization rate: {}. Lending APR: {}. Borrowing APR: {}. Group fee APR: {}. Insurance fee APR: {}",
+    debug!(        "Accruing interest for {} seconds. Utilization rate: {}. Lending APR: {}. Borrowing APR: {}. Group fee APR: {}. Insurance fee APR: {}",
         time_delta,
         utilization_rate,
         lending_apr,
