@@ -121,8 +121,9 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 check!(b.bank_pk.eq(bank_ai.key), MarginfiError::InvalidBankAccount);
                 let pyth_ai = remaining_ais.get(pyth_index).unwrap();
 
-                let bank_data = bank_ai.try_borrow_data()?;
-                let bank = bytemuck::from_bytes::<Bank>(&bank_data[8..]);
+                let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
+                let bank = bank_al.load()?;
+
                 let price_feed = bank.load_price_feed_from_account_info(pyth_ai)?;
 
                 Ok(BankAccountWithPriceFeed {
