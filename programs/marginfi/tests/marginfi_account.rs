@@ -1150,3 +1150,48 @@ async fn flashloan_different_marginfi_account() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn flashloan_success_multiple_assets() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.usdc_mint.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await?;
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.sol_mint.key, *DEFAULT_SOL_TEST_BANK_CONFIG)
+        .await?;
+
+    let depositor = test_f.create_marginfi_account().await;
+    let deposit_token_account = test_f
+        .sol_mint
+        .create_and_mint_to(native!(1001, "SOL"))
+        .await;
+    depositor
+        .try_bank_deposit(deposit_token_account, &sol_bank, native!(1001, "SOL"))
+        .await?;
+
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let withdraw_account = test_f.sol_mint.create_and_mint_to(0).await;
+
+    let withdraw_ix = marginfi_account_f
+        .make_bank_withdraw_ix(withdraw_account, &sol_bank, native!(1000, "SOL"))
+        .await;
+    let deposit_account = test_f
+        .usdc_mint
+        .create_and_mint_to(native!(100_000, "USDC"))
+        .await;
+    let deposit_ix = marginfi_account_f
+        .make_bank_deposit_ix(deposit_account, &usdc_bank, native!(100_000, "USDC"))
+        .await;
+    let res = marginfi_account_f
+        .try_execute_flashloan(vec![withdraw_ix, deposit_ix], vec![sol_bank.key, usdc_bank.key])
+        .await;
+
+    assert!(res.is_ok());
+
+    Ok(())
+}
