@@ -290,10 +290,7 @@ impl MarginfiAccountFixture {
         }
     }
 
-    pub async fn create_end_flashloan_ix(
-        &self,
-        include_banks: Vec<Pubkey>,
-    ) -> Instruction {
+    pub async fn create_end_flashloan_ix(&self, include_banks: Vec<Pubkey>) -> Instruction {
         let marginfi_account = self.load().await;
 
         let mut ix = Instruction {
@@ -318,7 +315,10 @@ impl MarginfiAccountFixture {
         include_banks: Vec<Pubkey>,
     ) -> std::result::Result<(), BanksClientError> {
         let flashloan_end_ix_index = ixs.len() + 1;
-        let mut wrapped_ixs = vec![self.create_start_flashloan_ix(flashloan_end_ix_index as u16).await];
+        let mut wrapped_ixs = vec![
+            self.create_start_flashloan_ix(flashloan_end_ix_index as u16)
+                .await,
+        ];
 
         wrapped_ixs.extend(ixs);
 
@@ -331,6 +331,11 @@ impl MarginfiAccountFixture {
             self.ctx.borrow().last_blockhash,
         );
 
-        Ok(self.ctx.borrow_mut().banks_client.process_transaction(transaction).await?)
+        Ok(self
+            .ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(transaction)
+            .await?)
     }
 }

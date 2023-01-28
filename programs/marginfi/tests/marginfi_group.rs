@@ -11,7 +11,7 @@ use marginfi::{
 use pretty_assertions::assert_eq;
 use solana_program::{
     account_info::IntoAccountInfo, instruction::Instruction, program_pack::Pack, system_program,
-}  ;
+};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 
