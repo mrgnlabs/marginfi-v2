@@ -377,14 +377,14 @@ impl<'a> RiskEngine<'a> {
             liability_bank_balance
                 .is_empty(BalanceSide::Liabilities)
                 .not(),
-            MarginfiError::AccountIllegalPostLiquidationState
+            MarginfiError::IllegalLiquidation
         );
 
         let account_health = self.get_account_health(RiskRequirementType::Maintenance)?;
 
         check!(
             account_health <= I80F48::ZERO,
-            MarginfiError::AccountIllegalPostLiquidationState
+            MarginfiError::IllegalLiquidation
         );
 
         Ok(account_health)
@@ -414,14 +414,14 @@ impl<'a> RiskEngine<'a> {
             liability_bank_balance
                 .is_empty(BalanceSide::Liabilities)
                 .not(),
-            MarginfiError::AccountIllegalPostLiquidationState
+            MarginfiError::IllegalLiquidation
         );
 
         let account_health = self.get_account_health(RiskRequirementType::Maintenance)?;
 
         check!(
             account_health <= I80F48::ZERO,
-            MarginfiError::AccountIllegalPostLiquidationState
+            MarginfiError::IllegalLiquidation
         );
 
         msg!(
@@ -432,7 +432,7 @@ impl<'a> RiskEngine<'a> {
 
         check!(
             account_health > pre_liquidation_health,
-            MarginfiError::AccountIllegalPostLiquidationState
+            MarginfiError::IllegalLiquidation
         );
 
         Ok(())

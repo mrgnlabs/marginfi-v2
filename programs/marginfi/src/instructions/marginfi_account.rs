@@ -305,10 +305,10 @@ pub fn lending_account_liquidate(
     }
 
     let pre_liquidation_health = {
-        let remaining_accounts_len = ctx.remaining_accounts.len();
-        let liquidatee_remaining_accounts = &ctx.remaining_accounts[remaining_accounts_len
-            - liquidatee_marginfi_account.get_remaining_accounts_len()
-            ..remaining_accounts_len];
+        let liquidatee_accounts_starting_pos =
+            ctx.remaining_accounts.len() - liquidatee_marginfi_account.get_remaining_accounts_len();
+        let liquidatee_remaining_accounts =
+            &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
 
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
             .check_pre_liquidation_condition_and_get_account_health(&ctx.accounts.liab_bank.key())?
