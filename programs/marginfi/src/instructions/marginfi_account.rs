@@ -1,9 +1,10 @@
 use crate::{
     bank_signer,
     constants::{
-        INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
-        LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+        INSURANCE_VAULT_SEED, IXS_SYSVAR_MARGINFI_ACCOUNT_INDEX, LIQUIDATION_INSURANCE_FEE,
+        LIQUIDATION_LIQUIDATOR_FEE, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
+    marginfi,
     prelude::MarginfiResult,
     state::{
         marginfi_account::{
@@ -12,10 +13,12 @@ use crate::{
         },
         marginfi_group::{Bank, BankVaultType, MarginfiGroup},
     },
+    utils::verify_flashloan_ixs_sysvar,
 };
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, Discriminator};
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
+use solana_program::sysvar::instructions::load_instruction_at_checked;
 
 pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
     let InitializeMarginfiAccount {
@@ -508,4 +511,64 @@ pub struct LendingAccountLiquidate<'info> {
     pub bank_insurance_vault: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
+}
+
+pub fn marginfi_account_flashloan_start(
+    ctx: Context<MarginfiAccountFlashloanStart>,
+    end_index: usize,
+) -> MarginfiResult {
+    verify_flashloan_ixs_sysvar(
+        &ctx.accounts.instructions_sysvar,
+        end_index,
+        &ctx.accounts.marginfi_account.key(),
+        ctx.program_id,
+    )?;
+
+    ctx.accounts.marginfi_account.load_mut()?.start_flashloan();
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct MarginfiAccountFlashloanStart<'info> {
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    #[account(
+        mut,
+        constraint = marginfi_account.load()?.group == marginfi_group.key()
+    )]
+    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
+
+    #[account(
+        address = marginfi_account.load()?.authority
+    )]
+    pub signer: Signer<'info>,
+
+    /// CHECK: Checked by `load_instruction_at_checked`
+    pub instructions_sysvar: AccountInfo<'info>,
+}
+
+pub fn marginfi_account_flashloan_end(ctx: Context<MarginfiAccountFlashloanEnd>) -> MarginfiResult {
+    let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+
+    marginfi_account.end_flashloan();
+
+    RiskEngine::new(&marginfi_account, &ctx.remaining_accounts)?
+        .check_account_health(RiskRequirementType::Initial)?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct MarginfiAccountFlashloanEnd<'info> {
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    #[account(
+        mut,
+        constraint = marginfi_account.load()?.group == marginfi_group.key()
+    )]
+    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
+
+    #[account(
+        address = marginfi_account.load()?.authority
+    )]
+    pub signer: Signer<'info>,
 }

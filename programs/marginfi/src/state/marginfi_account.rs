@@ -26,11 +26,14 @@ pub struct MarginfiAccount {
     pub group: Pubkey,
     pub authority: Pubkey,
     pub lending_account: LendingAccount,
+    pub in_flashloan: bool,
 }
 
 impl MarginfiAccount {
     /// Set the initial data for the marginfi account.
     pub fn initialize(&mut self, group: Pubkey, authority: Pubkey) {
+        assert!(self.in_flashloan.not());
+
         self.authority = authority;
         self.group = group;
     }
@@ -42,6 +45,16 @@ impl MarginfiAccount {
             .filter(|b| b.active)
             .count()
             * 2
+    }
+
+    pub fn start_flashloan(&mut self) {
+        assert!(self.in_flashloan.not());
+        self.in_flashloan = true;
+    }
+
+    pub fn end_flashloan(&mut self) {
+        assert!(self.in_flashloan);
+        self.in_flashloan = false;
     }
 }
 
@@ -271,6 +284,7 @@ impl RiskRequirementType {
 
 pub struct RiskEngine<'a> {
     bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
+    in_flashloan: bool,
 }
 
 impl<'a> RiskEngine<'a> {
@@ -283,6 +297,7 @@ impl<'a> RiskEngine<'a> {
 
         Ok(Self {
             bank_accounts_with_price,
+            in_flashloan: marginfi_account.in_flashloan,
         })
     }
 
@@ -313,6 +328,11 @@ impl<'a> RiskEngine<'a> {
     }
 
     pub fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
+        if self.in_flashloan {
+            msg!("check_health: in_flashloan, skipping check");
+            return Ok(());
+        }
+
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(requirement_type)?;
 

@@ -48,6 +48,8 @@ pub enum MarginfiError {
     InvalidOracleSetup,
     #[msg("Invalid bank utilization ratio")]
     IllegalUtilizationRatio,
+    #[msg("Ixs sysvar verification failed")]
+    FlashloanIxsSysvarInvalid,
 }
 
 impl From<MarginfiError> for ProgramError {

@@ -1,13 +1,9 @@
-#![cfg(feature = "test-bpf")]
-#![allow(dead_code)]
-
-mod fixtures;
-
 use anchor_lang::{prelude::Clock, InstructionData, ToAccountMetas};
 use anchor_spl::token::{self};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
+use fixtures::*;
 use marginfi::{
     prelude::{MarginfiError, MarginfiGroup},
     state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankOperationalState},
@@ -15,7 +11,7 @@ use marginfi::{
 use pretty_assertions::assert_eq;
 use solana_program::{
     account_info::IntoAccountInfo, instruction::Instruction, program_pack::Pack, system_program,
-};
+}  ;
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 

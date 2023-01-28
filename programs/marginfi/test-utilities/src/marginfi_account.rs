@@ -251,10 +251,8 @@ impl MarginfiAccountFixture {
                 ]
             })
             .collect::<Vec<_>>();
-
         ams
     }
-
     pub async fn set_account(&self, mfi_account: &MarginfiAccount) -> anyhow::Result<()> {
         let mut ctx = self.ctx.borrow_mut();
         let mut account = ctx.banks_client.get_account(self.key).await?.unwrap();
@@ -274,5 +272,65 @@ impl MarginfiAccountFixture {
 
     pub fn get_size() -> usize {
         mem::size_of::<MarginfiAccount>() + 8
+    }
+
+    pub async fn create_start_flashloan_ix(&self, end_index: u16) -> Instruction {
+        let marginfi_account = self.load().await;
+
+        Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::MarginfiAccountFlashloanStart {
+                marginfi_group: marginfi_account.group,
+                marginfi_account: self.key,
+                signer: self.ctx.borrow().payer.pubkey(),
+                instructions_sysvar: solana_program::sysvar::instructions::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::MarginfiAccountFlashloanStart { end_index }.data(),
+        }
+    }
+
+    pub async fn create_end_flashloan_ix(
+        &self,
+        include_banks: Vec<Pubkey>,
+    ) -> Instruction {
+        let marginfi_account = self.load().await;
+
+        let mut ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::MarginfiAccountFlashloanEnd {
+                marginfi_group: marginfi_account.group,
+                marginfi_account: self.key,
+                signer: self.ctx.borrow().payer.pubkey(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::MarginfiAccountFlashloanEnd.data(),
+        };
+
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas(include_banks).await);
+        ix
+    }
+
+    pub async fn try_execute_flashloan(
+        &self,
+        ixs: Vec<Instruction>,
+        include_banks: Vec<Pubkey>,
+    ) -> std::result::Result<(), BanksClientError> {
+        let flashloan_end_ix_index = ixs.len() + 1;
+        let mut wrapped_ixs = vec![self.create_start_flashloan_ix(flashloan_end_ix_index as u16).await];
+
+        wrapped_ixs.extend(ixs);
+
+        wrapped_ixs.extend(vec![self.create_end_flashloan_ix(include_banks).await]);
+
+        let transaction = Transaction::new_signed_with_payer(
+            &wrapped_ixs,
+            Some(&self.ctx.borrow().payer.pubkey()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        Ok(self.ctx.borrow_mut().banks_client.process_transaction(transaction).await?)
     }
 }

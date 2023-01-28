@@ -1,13 +1,9 @@
-#![cfg(feature = "test-bpf")]
-#![allow(dead_code)]
-
-mod fixtures;
-
 use anchor_lang::prelude::Clock;
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use fixtures::prelude::*;
+use fixtures::{prelude::*, *};
+use marginfi::prelude::MarginfiResult;
 use marginfi::{
     prelude::MarginfiError,
     state::{
@@ -852,6 +848,30 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
         native!(0.00001, "SOL", f64)
     );
     // TODO: check health is sane
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn flashloan_success() -> anyhow::Result<()> {
+    let mut test_f = TestFixture::new(None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.usdc_mint.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await?;
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.sol_mint.key, *DEFAULT_SOL_TEST_BANK_CONFIG)
+        .await?;
+
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let res = marginfi_account_f
+        .try_execute_flashloan(vec![], vec![])
+        .await;
+
+    assert!(res.is_ok());
 
     Ok(())
 }

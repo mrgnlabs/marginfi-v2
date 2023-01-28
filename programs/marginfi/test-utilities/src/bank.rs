@@ -1,6 +1,3 @@
-#![cfg(feature = "test-bpf")]
-#![allow(unused)]
-
 use super::utils::load_and_deserialize;
 use anchor_lang::{
     prelude::{AccountMeta, Pubkey},

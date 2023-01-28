@@ -1,5 +1,3 @@
-#![cfg(feature = "test-bpf")]
-
 use anchor_lang::prelude::*;
 use anchor_spl::token::{
     spl_token::{
