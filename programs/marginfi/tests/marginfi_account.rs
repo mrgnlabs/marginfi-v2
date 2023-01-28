@@ -853,7 +853,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn flashloan_success() -> anyhow::Result<()> {
+async fn flashloan_success_no_trades() -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(None).await;
 
     let usdc_bank = test_f
@@ -872,6 +872,281 @@ async fn flashloan_success() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn flashloan_success_trades() -> anyhow::Result<()> {
+    let mut test_f = TestFixture::new(None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.usdc_mint.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await?;
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.sol_mint.key, *DEFAULT_SOL_TEST_BANK_CONFIG)
+        .await?;
+
+    let depositor = test_f.create_marginfi_account().await;
+    let deposit_token_account = test_f
+        .sol_mint
+        .create_and_mint_to(native!(1001, "SOL"))
+        .await;
+    depositor
+        .try_bank_deposit(deposit_token_account, &sol_bank, native!(1001, "SOL"))
+        .await?;
+
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let withdraw_account = test_f.sol_mint.create_and_mint_to(0).await;
+
+    let withdraw_ix = marginfi_account_f
+        .make_bank_withdraw_ix(withdraw_account, &sol_bank, native!(1000, "SOL"))
+        .await;
+
+    let deposit_ix = marginfi_account_f
+        .make_bank_deposit_ix(withdraw_account, &sol_bank, native!(1000, "SOL"))
+        .await;
+    let res = marginfi_account_f
+        .try_execute_flashloan(vec![withdraw_ix, deposit_ix], vec![sol_bank.key])
+        .await;
+
+    assert!(res.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn flashloan_error_account_health() -> anyhow::Result<()> {
+    let mut test_f = TestFixture::new(None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.usdc_mint.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await?;
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.sol_mint.key, *DEFAULT_SOL_TEST_BANK_CONFIG)
+        .await?;
+
+    let depositor = test_f.create_marginfi_account().await;
+    let deposit_token_account = test_f
+        .sol_mint
+        .create_and_mint_to(native!(1001, "SOL"))
+        .await;
+    depositor
+        .try_bank_deposit(deposit_token_account, &sol_bank, native!(1001, "SOL"))
+        .await?;
+
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let withdraw_account = test_f.sol_mint.create_and_mint_to(0).await;
+
+    let withdraw_ix = marginfi_account_f
+        .make_bank_withdraw_ix(withdraw_account, &sol_bank, native!(1000, "SOL"))
+        .await;
+
+    let res = marginfi_account_f
+        .try_execute_flashloan(vec![withdraw_ix], vec![sol_bank.key])
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BadAccountHealth);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn flashloan_error_invalid_index_0() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.usdc_mint.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await?;
+
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let start_fe_ix = marginfi_account_f.create_start_flashloan_ix(1).await;
+
+    let withdraw_account = test_f.sol_mint.create_and_mint_to(0).await;
+
+    let withdraw_ix = marginfi_account_f
+        .make_bank_withdraw_ix(withdraw_account, &usdc_bank, native!(1000, "SOL"))
+        .await;
+
+    let tx = Transaction::new_signed_with_payer(
+        &[start_fe_ix, withdraw_ix],
+        Some(&test_f.payer()),
+        &[&test_f.payer_keypair()],
+        test_f.context.borrow().last_blockhash,
+    );
+
+    let res = test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::FlashloanIxsSysvarInvalid);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn flashloan_error_fe_incorrect_ordering() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.usdc_mint.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await?;
+
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.sol_mint.key, *DEFAULT_SOL_TEST_BANK_CONFIG)
+        .await?;
+
+    let depositor = test_f.create_marginfi_account().await;
+    let deposit_token_account = test_f
+        .sol_mint
+        .create_and_mint_to(native!(1001, "SOL"))
+        .await;
+    depositor
+        .try_bank_deposit(deposit_token_account, &sol_bank, native!(1001, "SOL"))
+        .await?;
+
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let start_fl_ix = marginfi_account_f.create_start_flashloan_ix(3).await;
+    let end_fl_ix = marginfi_account_f
+        .create_end_flashloan_ix(vec![sol_bank.key])
+        .await;
+
+    let withdraw_account = test_f.sol_mint.create_and_mint_to(0).await;
+
+    let withdraw_ix = marginfi_account_f
+        .make_bank_withdraw_ix(withdraw_account, &sol_bank, native!(1000, "SOL"))
+        .await;
+
+    let deposit_ix = marginfi_account_f
+        .make_bank_deposit_ix(withdraw_account, &sol_bank, native!(1000, "SOL"))
+        .await;
+
+    let tx = Transaction::new_signed_with_payer(
+        &[
+            start_fl_ix.clone(),
+            withdraw_ix,
+            deposit_ix,
+            end_fl_ix,
+            start_fl_ix,
+        ],
+        Some(&test_f.payer()),
+        &[&test_f.payer_keypair()],
+        test_f.context.borrow().last_blockhash,
+    );
+
+    let res = test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::FlashloanIxsSysvarInvalid);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn flashloan_error_invalid_program() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let start_fl_ix = marginfi_account_f.create_start_flashloan_ix(1).await;
+    let mut end_fl_ix = marginfi_account_f.create_end_flashloan_ix(vec![]).await;
+
+    end_fl_ix.program_id = system_program::ID;
+
+    let tx = Transaction::new_signed_with_payer(
+        &[start_fl_ix, end_fl_ix],
+        Some(&test_f.payer()),
+        &[&test_f.payer_keypair()],
+        test_f.context.borrow().last_blockhash,
+    );
+
+    let res = test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::FlashloanIxsSysvarInvalid);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn flashloan_different_marginfi_account() -> anyhow::Result<()> {
+    let mut test_f = TestFixture::new(None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.usdc_mint.key, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await?;
+    let sol_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(test_f.sol_mint.key, *DEFAULT_SOL_TEST_BANK_CONFIG)
+        .await?;
+
+    let depositor = test_f.create_marginfi_account().await;
+    let deposit_token_account = test_f
+        .sol_mint
+        .create_and_mint_to(native!(1001, "SOL"))
+        .await;
+    depositor
+        .try_bank_deposit(deposit_token_account, &sol_bank, native!(1001, "SOL"))
+        .await?;
+
+    let marginfi_account_f = test_f.create_marginfi_account().await;
+
+    let start_fl_ix = marginfi_account_f.create_start_flashloan_ix(3).await;
+    let end_fl_ix = depositor.create_end_flashloan_ix(vec![sol_bank.key]).await;
+
+    let withdraw_account = test_f.sol_mint.create_and_mint_to(0).await;
+
+    let withdraw_ix = marginfi_account_f
+        .make_bank_withdraw_ix(withdraw_account, &sol_bank, native!(1000, "SOL"))
+        .await;
+
+    let deposit_ix = marginfi_account_f
+        .make_bank_deposit_ix(withdraw_account, &sol_bank, native!(1000, "SOL"))
+        .await;
+
+    let tx = Transaction::new_signed_with_payer(
+        &[start_fl_ix, withdraw_ix, deposit_ix, end_fl_ix],
+        Some(&test_f.payer()),
+        &[&test_f.payer_keypair()],
+        test_f.context.borrow().last_blockhash,
+    );
+
+    let res = test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::FlashloanIxsSysvarInvalid);
 
     Ok(())
 }

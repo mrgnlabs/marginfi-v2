@@ -68,21 +68,19 @@ impl MarginfiAccountFixture {
         }
     }
 
-    pub async fn try_bank_deposit(
+    pub async fn make_bank_deposit_ix(
         &self,
         funding_account: Pubkey,
         bank: &BankFixture,
         amount: u64,
-    ) -> anyhow::Result<(), BanksClientError> {
+    ) -> Instruction {
         let marginfi_account = self.load().await;
-        let mut ctx = self.ctx.borrow_mut();
-
-        let ix = Instruction {
+        Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::BankDeposit {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
-                signer: ctx.payer.pubkey(),
+                signer: self.ctx.borrow().payer.pubkey(),
                 bank: bank.key,
                 signer_token_account: funding_account,
                 bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
@@ -90,7 +88,20 @@ impl MarginfiAccountFixture {
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::BankDeposit { amount }.data(),
-        };
+        }
+    }
+
+    pub async fn try_bank_deposit(
+        &self,
+        funding_account: Pubkey,
+        bank: &BankFixture,
+        amount: u64,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let ix = self
+            .make_bank_deposit_ix(funding_account, bank, amount)
+            .await;
+
+        let mut ctx = self.ctx.borrow_mut();
 
         let tx = Transaction::new_signed_with_payer(
             &[ix],
@@ -104,12 +115,12 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
-    pub async fn try_bank_withdraw(
+    pub async fn make_bank_withdraw_ix(
         &self,
         destination_account: Pubkey,
         bank: &BankFixture,
         amount: u64,
-    ) -> anyhow::Result<(), BanksClientError> {
+    ) -> Instruction {
         let marginfi_account = self.load().await;
 
         let mut ix = Instruction {
@@ -133,6 +144,18 @@ impl MarginfiAccountFixture {
         ix.accounts
             .extend_from_slice(&self.load_observation_account_metas(vec![bank.key]).await);
 
+        ix
+    }
+
+    pub async fn try_bank_withdraw(
+        &self,
+        destination_account: Pubkey,
+        bank: &BankFixture,
+        amount: u64,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let ix = self
+            .make_bank_withdraw_ix(destination_account, bank, amount)
+            .await;
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
