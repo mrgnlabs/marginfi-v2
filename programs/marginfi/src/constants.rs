@@ -38,3 +38,7 @@ pub const USDC_EXPONENT: i32 = 6;
 pub const MAX_ORACLE_KEYS: usize = 5;
 
 pub const IXS_SYSVAR_MARGINFI_ACCOUNT_INDEX: usize = 1;
+
+/// Any balance below 1 SPL token amount is treated as none,
+/// this is to account for any artifacts resulting from binary fraction arithemtic.
+pub const EMPTY_BALANCE_THRESHOLD: I80F48 = I80F48!(1);

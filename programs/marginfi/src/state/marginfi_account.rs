@@ -1,7 +1,7 @@
 use super::marginfi_group::{Bank, WrappedI80F48};
 use crate::{
     check,
-    constants::{CONF_INTERVAL_MULTIPLE, MAX_PRICE_AGE_SEC},
+    constants::{CONF_INTERVAL_MULTIPLE, EMPTY_BALANCE_THRESHOLD, MAX_PRICE_AGE_SEC},
     math_error,
     prelude::{MarginfiError, MarginfiResult},
 };
@@ -44,7 +44,7 @@ impl MarginfiAccount {
             .iter()
             .filter(|b| b.active)
             .count()
-            * 2
+            * 2 // TODO: Make account count oracle setup specific
     }
 
     pub fn start_flashloan(&mut self) {
@@ -104,6 +104,11 @@ pub struct BankAccountWithPriceFeed<'a> {
     bank: Bank,
     price_feed: PriceFeed,
     balance: &'a Balance,
+}
+
+pub enum BalanceSide {
+    Deposits,
+    Liabilities,
 }
 
 impl<'a> BankAccountWithPriceFeed<'a> {
@@ -179,6 +184,19 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 Some(liability_weight),
             )?,
         ))
+    }
+
+    /// Check wether a balance is empty while accounting for any rounding errors
+    /// that might have occured during depositing/withdrawing.
+    #[inline]
+    pub fn is_empty(&self, side: BalanceSide) -> bool {
+        let shares: I80F48 = match side {
+            BalanceSide::Deposits => self.balance.deposit_shares,
+            BalanceSide::Liabilities => self.balance.liability_shares,
+        }
+        .into();
+
+        shares < EMPTY_BALANCE_THRESHOLD
     }
 }
 
@@ -327,6 +345,18 @@ impl<'a> RiskEngine<'a> {
             )?)
     }
 
+    pub fn get_account_health(
+        &self,
+        requirement_type: RiskRequirementType,
+    ) -> MarginfiResult<I80F48> {
+        let (total_weighted_assets, total_weighted_liabilities) =
+            self.get_account_health_components(requirement_type)?;
+
+        Ok(total_weighted_assets
+            .checked_sub(total_weighted_liabilities)
+            .ok_or_else(math_error!())?)
+    }
+
     pub fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
         if self.in_flashloan {
             msg!("check_health: in_flashloan, skipping check");
@@ -350,6 +380,41 @@ impl<'a> RiskEngine<'a> {
         Ok(())
     }
 
+    /// Checks
+    /// 1. Account is liquidatable
+    /// 2. Account has an outstanding liability for the provided liablity bank
+    pub fn check_pre_liquidation_condition_and_get_account_health(
+        &self,
+        bank_pk: &Pubkey,
+    ) -> MarginfiResult<I80F48> {
+        let liability_bank_balance = self
+            .bank_accounts_with_price
+            .iter()
+            .find(|a| a.balance.bank_pk == *bank_pk)
+            .unwrap();
+
+        check!(
+            liability_bank_balance
+                .is_empty(BalanceSide::Liabilities)
+                .not(),
+            MarginfiError::IllegalLiquidation
+        );
+
+        check!(
+            liability_bank_balance.is_empty(BalanceSide::Deposits),
+            MarginfiError::IllegalLiquidation
+        );
+
+        let account_health = self.get_account_health(RiskRequirementType::Maintenance)?;
+
+        check!(
+            account_health <= I80F48::ZERO,
+            MarginfiError::IllegalLiquidation
+        );
+
+        Ok(account_health)
+    }
+
     /// Check that the account is at most at the maintenance requirement level post liquidation.
     /// This check is used to ensure two things in the liquidation process:
     /// 1. Liquidatee account was below the maintenance requirement level before liquidation (as health can only increase, because liquidations always pay down liabilities)
@@ -359,7 +424,11 @@ impl<'a> RiskEngine<'a> {
     ///
     /// 1. We check that the paid off liability is not zero. Assuming the liquidation always pays off some liability, this ensures that the liquidation was not too large.
     /// 2. We check that the account is still at most at the maintenance requirement level. This ensures that the liquidation was not too large overall.
-    pub fn check_post_liquidation_account_health(&self, bank_pk: &Pubkey) -> MarginfiResult {
+    pub fn check_post_liquidation_account_health(
+        &self,
+        bank_pk: &Pubkey,
+        pre_liquidation_health: I80F48,
+    ) -> MarginfiResult {
         let liability_bank_balance = self
             .bank_accounts_with_price
             .iter()
@@ -367,22 +436,33 @@ impl<'a> RiskEngine<'a> {
             .unwrap();
 
         check!(
-            liability_bank_balance.balance.liability_shares.value != 0,
-            MarginfiError::AccountIllegalPostLiquidationState
-        );
-
-        let (total_weighted_assets, total_weighted_liabilities) =
-            self.get_account_health_components(RiskRequirementType::Maintenance)?;
-
-        msg!(
-            "check_post_liq: assets {} - liabs: {}",
-            total_weighted_assets,
-            total_weighted_liabilities
+            liability_bank_balance
+                .is_empty(BalanceSide::Liabilities)
+                .not(),
+            MarginfiError::IllegalLiquidation
         );
 
         check!(
-            total_weighted_assets <= total_weighted_liabilities,
-            MarginfiError::AccountIllegalPostLiquidationState
+            liability_bank_balance.is_empty(BalanceSide::Deposits),
+            MarginfiError::IllegalLiquidation
+        );
+
+        let account_health = self.get_account_health(RiskRequirementType::Maintenance)?;
+
+        check!(
+            account_health <= I80F48::ZERO,
+            MarginfiError::IllegalLiquidation
+        );
+
+        msg!(
+            "account_health: {}, pre_liquidation_health: {}",
+            account_health,
+            pre_liquidation_health
+        );
+
+        check!(
+            account_health > pre_liquidation_health,
+            MarginfiError::IllegalLiquidation
         );
 
         Ok(())
@@ -488,7 +568,7 @@ impl<'a> BankAccountWrapper<'a> {
             lending_account
                 .balances // active_balances?
                 .get_mut(index)
-                .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceNotFound))?
+                .unwrap()
         } else {
             let empty_index = lending_account
                 .get_first_empty_balance()

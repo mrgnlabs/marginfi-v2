@@ -307,6 +307,16 @@ pub fn lending_account_liquidate(
         ctx.accounts.liab_bank.load_mut()?.accrue_interest(&clock)?;
     }
 
+    let pre_liquidation_health = {
+        let liquidatee_accounts_starting_pos =
+            ctx.remaining_accounts.len() - liquidatee_marginfi_account.get_remaining_accounts_len();
+        let liquidatee_remaining_accounts =
+            &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
+
+        RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
+            .check_pre_liquidation_condition_and_get_account_health(&ctx.accounts.liab_bank.key())?
+    };
+
     {
         // ##Accounting changes##
 
@@ -428,13 +438,16 @@ pub fn lending_account_liquidate(
     }
 
     // ## Risk checks ##
-    // Verify liquidatee liquidation post health
+
     let (liquidator_remaining_accounts, liquidatee_remaining_accounts) = ctx.remaining_accounts
         [2..]
         .split_at(liquidator_marginfi_account.get_remaining_accounts_len());
-
+    // Verify liquidatee liquidation post health
     RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
-        .check_post_liquidation_account_health(&ctx.accounts.liab_bank.key())?;
+        .check_post_liquidation_account_health(
+            &ctx.accounts.liab_bank.key(),
+            pre_liquidation_health,
+        )?;
 
     // Verify liquidator account health
     RiskEngine::new(&liquidator_marginfi_account, liquidator_remaining_accounts)?
