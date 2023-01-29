@@ -548,7 +548,7 @@ impl<'a> BankAccountWrapper<'a> {
             lending_account
                 .balances // active_balances?
                 .get_mut(index)
-                .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceNotFound))?
+                .unwrap()
         } else {
             let empty_index = lending_account
                 .get_first_empty_balance()
