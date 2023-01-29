@@ -36,3 +36,7 @@ pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(4.24);
 pub const USDC_EXPONENT: i32 = 6;
 
 pub const MAX_ORACLE_KEYS: usize = 5;
+
+/// Any balance below 1 SPL token amount is treated as none,
+/// this is to account for any artifacts resulting from binary fraction arithemtic.
+pub const EMPTY_BALANCE_THRESHOLD: I80F48 = I80F48!(1);

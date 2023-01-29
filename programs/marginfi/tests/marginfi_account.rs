@@ -369,7 +369,6 @@ async fn liquidation_successful() -> anyhow::Result<()> {
             ..Default::default()
         })
         .await?;
-
     depositor
         .try_liquidate(&borrower, &sol_bank, native!(1, "SOL"), &usdc_bank)
         .await?;
@@ -504,10 +503,7 @@ async fn liquidation_failed_liquidatee_not_unhealthy() -> anyhow::Result<()> {
 
     assert!(res.is_err());
 
-    assert_custom_error!(
-        res.unwrap_err(),
-        MarginfiError::AccountIllegalPostLiquidationState
-    );
+    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalLiquidation);
 
     Ok(())
 }
@@ -566,10 +562,7 @@ async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
         .try_liquidate(&borrower, &sol_bank, native!(10, "SOL"), &usdc_bank)
         .await;
 
-    assert_custom_error!(
-        res.unwrap_err(),
-        MarginfiError::AccountIllegalPostLiquidationState
-    );
+    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalLiquidation);
 
     let res = depositor
         .try_liquidate(&borrower, &sol_bank, native!(1, "SOL"), &usdc_bank)
@@ -589,7 +582,8 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.usdc_mint.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                liability_weight_init: I80F48!(1.2).into(),
+                liability_weight_maint: I80F48!(1.1).into(),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
         )
@@ -599,7 +593,6 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.sol_mint.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -609,7 +602,6 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.sol_equivalent_mint.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG
             },
         )
@@ -648,7 +640,7 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
     sol_bank
         .update_config(BankConfigOpt {
             deposit_weight_init: Some(I80F48!(0.25).into()),
-            deposit_weight_maint: Some(I80F48!(0.5).into()),
+            deposit_weight_maint: Some(I80F48!(0.3).into()),
             ..Default::default()
         })
         .await?;
@@ -677,7 +669,6 @@ async fn liquidation_failed_bank_not_liquidatable() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.usdc_mint.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
         )
@@ -687,7 +678,6 @@ async fn liquidation_failed_bank_not_liquidatable() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.sol_mint.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -697,7 +687,6 @@ async fn liquidation_failed_bank_not_liquidatable() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.sol_equivalent_mint.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG
             },
         )
@@ -736,7 +725,7 @@ async fn liquidation_failed_bank_not_liquidatable() -> anyhow::Result<()> {
     sol_bank
         .update_config(BankConfigOpt {
             deposit_weight_init: Some(I80F48!(0.25).into()),
-            deposit_weight_maint: Some(I80F48!(0.5).into()),
+            deposit_weight_maint: Some(I80F48!(0.4).into()),
             ..Default::default()
         })
         .await?;
@@ -745,13 +734,10 @@ async fn liquidation_failed_bank_not_liquidatable() -> anyhow::Result<()> {
         .try_liquidate(&borrower, &sol_2_bank, native!(1, "SOL"), &sol_bank)
         .await;
 
-    assert_custom_error!(
-        res.unwrap_err(),
-        MarginfiError::AccountIllegalPostLiquidationState
-    );
+    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalLiquidation);
 
     let res = depositor
-        .try_liquidate(&borrower, &sol_2_bank, native!(1, "SOL"), &usdc_bank)
+        .try_liquidate(&borrower, &sol_bank, native!(1, "SOL"), &usdc_bank)
         .await;
 
     assert!(res.is_ok());
