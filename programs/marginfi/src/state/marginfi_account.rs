@@ -380,6 +380,11 @@ impl<'a> RiskEngine<'a> {
             MarginfiError::IllegalLiquidation
         );
 
+        check!(
+            liability_bank_balance.is_empty(BalanceSide::Deposits),
+            MarginfiError::IllegalLiquidation
+        );
+
         let account_health = self.get_account_health(RiskRequirementType::Maintenance)?;
 
         check!(
@@ -414,6 +419,11 @@ impl<'a> RiskEngine<'a> {
             liability_bank_balance
                 .is_empty(BalanceSide::Liabilities)
                 .not(),
+            MarginfiError::IllegalLiquidation
+        );
+
+        check!(
+            liability_bank_balance.is_empty(BalanceSide::Deposits),
             MarginfiError::IllegalLiquidation
         );
 
