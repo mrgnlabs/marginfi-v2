@@ -1,0 +1,11 @@
+[env]
+RUST_MIN_STACK = "8192000"
+
+[alias]
+b = "build"
+f = "fmt --check"
+ff = "fmt"
+l = "clippy --features=test,test-bpf"
+lf = "clippy --features=test,test-bpf --fix"
+t = "test-bpf --features=test,test-bpf"
+r = "run"

@@ -1,0 +1,23 @@
+[features]
+seeds = true
+skip-lint = false
+
+[programs.devnet]
+marginfi = "EPsDwX4sRNRkiykuqeyExF5LsHV9XBPMZM6gHj7QQbkY"
+
+[programs.localnet]
+marginfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "https://devnet.genesysgo.net/"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[[test.validator.account]]
+address = "8FRFC6MoGGkMFQwngccyu69VnYbzykGeez7ignHVAFSN"
+filename = "tests/fixtures/localnet_usdc.json"

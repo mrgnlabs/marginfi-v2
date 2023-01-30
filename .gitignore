@@ -1,0 +1,27 @@
+# cargo
+target
+
+# rustfmt
+**/*.rs.bk
+
+# solana
+.anchor
+/scripts/test-ledger
+/scripts/VALIDATOR_OUT
+
+# TS
+**/dist/
+**/yarn-error.log
+
+# IDEs
+.idea
+*.iml
+**/.vscode
+
+# other
+.env
+.DS_Store
+node_modules
+.idea/
+test-ledger/
+*.profraw
