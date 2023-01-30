@@ -11,7 +11,8 @@ pub const LIQUIDITY_VAULT_SEED: &[u8] = b"liquidity_vault";
 pub const INSURANCE_VAULT_SEED: &[u8] = b"insurance_vault";
 pub const FEE_VAULT_SEED: &[u8] = b"fee_vault";
 
-pub const LENDING_POOL_BANK_SEED: &[u8] = b"lending_pool_bank";
+pub const SHARES_TOKEN_MINT_SEED: &[u8] = b"shares_token_mint";
+pub const SHARES_TOKEN_MINT_AUTHORITY_SEED: &[u8] = b"shares_token_mint_auth";
 
 #[cfg(feature = "mainnet-beta")] // mainnet
 pub const PYTH_ID: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");

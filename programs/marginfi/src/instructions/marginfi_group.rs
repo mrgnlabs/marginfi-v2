@@ -3,8 +3,10 @@ use crate::{
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+        SHARES_TOKEN_MINT_AUTHORITY_SEED, SHARES_TOKEN_MINT_SEED,
     },
     prelude::MarginfiError,
+    shares_mint_signer,
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine},
         marginfi_group::{
@@ -14,7 +16,7 @@ use crate::{
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token::{Burn, Mint, MintTo, Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
 
 use std::cmp::{max, min};
@@ -89,6 +91,8 @@ pub fn lending_pool_add_bank(
     let insurance_vault_authority_bump = *ctx.bumps.get("insurance_vault_authority").unwrap();
     let fee_vault_bump = *ctx.bumps.get("fee_vault").unwrap();
     let fee_vault_authority_bump = *ctx.bumps.get("fee_vault_authority").unwrap();
+    let shares_token_mint_bump = *ctx.bumps.get("shares_token_mint").unwrap();
+    let shares_token_mint_authority_bump = *ctx.bumps.get("shares_token_mint_authority").unwrap();
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
@@ -105,6 +109,8 @@ pub fn lending_pool_add_bank(
         insurance_vault_authority_bump,
         fee_vault_bump,
         fee_vault_authority_bump,
+        shares_token_mint_bump,
+        shares_token_mint_authority_bump,
     );
 
     bank.config.validate()?;
@@ -201,6 +207,28 @@ pub struct LendingPoolAddBank<'info> {
         bump,
     )]
     pub fee_vault: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        init,
+        payer = admin,
+        mint::decimals = bank_mint.decimals,
+        mint::authority = shares_token_mint_authority,
+        seeds = [
+            SHARES_TOKEN_MINT_SEED,
+            bank.key().as_ref(),
+        ],
+        bump
+    )]
+    pub shares_token_mint: Account<'info, Mint>,
+
+    #[account(
+        seeds = [
+            SHARES_TOKEN_MINT_AUTHORITY_SEED,
+            bank.key().as_ref(),
+        ],
+        bump
+    )]
+    pub shares_token_mint_authority: AccountInfo<'info>,
 
     pub rent: Sysvar<'info, Rent>,
     pub token_program: Program<'info, Token>,
@@ -517,6 +545,198 @@ pub struct LendingPoolHandleBankruptcy<'info> {
         bump = bank.load()?.insurance_vault_authority_bump
     )]
     pub insurance_vault_authority: AccountInfo<'info>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+pub fn bank_mint_shares(ctx: Context<BankMintShares>, amount: u64) -> MarginfiResult {
+    let BankMintShares {
+        bank: bank_loader,
+        signer,
+        user_deposit_token_account,
+        liquidity_vault,
+        shares_token_mint,
+        shares_token_mint_authority,
+        user_shares_token_account,
+        token_program,
+        ..
+    } = ctx.accounts;
+
+    let mut bank = bank_loader.load_mut()?;
+
+    bank.accrue_interest(&Clock::get()?)?;
+
+    bank.deposit_spl_transfer(
+        amount,
+        Transfer {
+            from: user_deposit_token_account.to_account_info(),
+            to: liquidity_vault.to_account_info(),
+            authority: signer.to_account_info(),
+        },
+        token_program.to_account_info(),
+    )?;
+
+    let deposit_shares = bank.deposit_and_get_shares(I80F48::from_num(amount))?;
+
+    bank.mint_shares(
+        deposit_shares.to_num(),
+        MintTo {
+            mint: shares_token_mint.to_account_info(),
+            to: user_shares_token_account.to_account_info(),
+            authority: shares_token_mint_authority.to_account_info(),
+        },
+        token_program.to_account_info(),
+        shares_mint_signer!(bank_loader.key(), bank.shares_token_mint_authority_bump),
+    )?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct BankMintShares<'info> {
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        mut,
+        constraint = bank.load()?.group == marginfi_group.key(),
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+
+    #[account(
+        mut,
+        seeds = [
+            SHARES_TOKEN_MINT_SEED,
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.shares_token_mint_bump
+    )]
+    pub shares_token_mint: AccountInfo<'info>,
+
+    #[account(
+        seeds = [
+            SHARES_TOKEN_MINT_AUTHORITY_SEED,
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.shares_token_mint_authority_bump
+    )]
+    pub shares_token_mint_authority: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_SEED,
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.liquidity_vault_bump
+    )]
+    pub liquidity_vault: AccountInfo<'info>,
+
+    pub signer: Signer<'info>,
+
+    #[account(mut)]
+    pub user_deposit_token_account: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub user_shares_token_account: AccountInfo<'info>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+pub fn bank_redeem_shares(ctx: Context<BankRedeemShares>, shares_amount: u64) -> MarginfiResult {
+    let BankRedeemShares {
+        bank: bank_loader,
+        signer,
+        user_shares_token_account,
+        liquidity_vault,
+        shares_token_mint,
+        user_deposit_token_account,
+        token_program,
+        ..
+    } = ctx.accounts;
+
+    let mut bank = bank_loader.load_mut()?;
+
+    bank.accrue_interest(&Clock::get()?)?;
+
+    bank.burn_shares(
+        shares_amount,
+        Burn {
+            mint: shares_token_mint.to_account_info(),
+            from: user_shares_token_account.to_account_info(),
+            authority: signer.to_account_info(),
+        },
+        token_program.to_account_info(),
+    )?;
+
+    let withdraw_token_amount =
+        bank.redeem_shares_and_get_asset_amount(I80F48::from_num(shares_amount))?;
+
+    bank.withdraw_spl_transfer(
+        withdraw_token_amount.to_num(),
+        Transfer {
+            from: liquidity_vault.to_account_info(),
+            to: user_deposit_token_account.to_account_info(),
+            authority: signer.to_account_info(),
+        },
+        token_program.to_account_info(),
+        bank_signer!(
+            BankVaultType::Liquidity,
+            bank_loader.key(),
+            bank.liquidity_vault_authority_bump
+        ),
+    )?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct BankRedeemShares<'info> {
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        mut,
+        constraint = bank.load()?.group == marginfi_group.key(),
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+
+    #[account(
+        mut,
+        seeds = [
+            SHARES_TOKEN_MINT_SEED,
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.shares_token_mint_bump,
+    )]
+    pub shares_token_mint: AccountInfo<'info>,
+
+    /// CHECK: Seed constraint check
+    #[account(
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.liquidity_vault_authority_bump,
+    )]
+    pub bank_liquidity_vault_authority: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_SEED,
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.liquidity_vault_bump
+    )]
+    pub liquidity_vault: AccountInfo<'info>,
+
+    pub signer: Signer<'info>,
+
+    #[account(mut)]
+    pub user_shares_token_account: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub user_deposit_token_account: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
 }

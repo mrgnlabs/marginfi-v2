@@ -69,6 +69,17 @@ macro_rules! bank_signer {
 }
 
 #[macro_export]
+macro_rules! shares_mint_signer {
+    ($bank_pk: expr, $authority_bump: expr) => {
+        &[&[
+            $crate::constants::SHARES_TOKEN_MINT_AUTHORITY_SEED.as_ref(),
+            &$bank_pk.to_bytes(),
+            &[$authority_bump],
+        ]]
+    };
+}
+
+#[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {
         #[cfg(feature = "debug")]

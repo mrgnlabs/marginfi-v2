@@ -103,4 +103,15 @@ pub mod marginfi {
     pub fn bank_collect_fees(ctx: Context<LendingPoolCollectFees>) -> MarginfiResult {
         marginfi_group::lending_pool_collect_fees(ctx)
     }
+
+    pub fn bank_mint_shares(ctx: Context<BankMintShares>, amount: u64) -> MarginfiResult {
+        marginfi_group::bank_mint_shares(ctx, amount)
+    }
+
+    pub fn bank_redeem_shares(
+        ctx: Context<BankRedeemShares>,
+        shares_amount: u64,
+    ) -> MarginfiResult {
+        marginfi_group::bank_redeem_shares(ctx, shares_amount)
+    }
 }

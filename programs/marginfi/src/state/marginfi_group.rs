@@ -11,7 +11,7 @@ use crate::{
     set_if_some, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, Transfer};
+use anchor_spl::token::{burn, mint_to, transfer, Burn, MintTo, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 use solana_program::log::sol_log_compute_units;
@@ -213,6 +213,9 @@ pub struct Bank {
     pub last_update: i64,
 
     pub config: BankConfig,
+
+    pub shares_token_mint_bump: u8,
+    pub shares_token_mint_authority_bump: u8,
 }
 
 impl Bank {
@@ -231,6 +234,8 @@ impl Bank {
         insurance_vault_authority_bump: u8,
         fee_vault_bump: u8,
         fee_vault_authority_bump: u8,
+        shares_token_mint_bump: u8,
+        shares_token_mint_authority_bump: u8,
     ) -> Bank {
         Bank {
             mint,
@@ -253,6 +258,8 @@ impl Bank {
             fee_vault_bump,
             fee_vault_authority_bump,
             collected_group_fees_outstanding: I80F48::ZERO.into(),
+            shares_token_mint_bump,
+            shares_token_mint_authority_bump,
         }
     }
 
@@ -284,6 +291,24 @@ impl Bank {
         Ok(value
             .checked_div(self.deposit_share_value.into())
             .ok_or_else(math_error!())?)
+    }
+
+    #[inline]
+    pub fn deposit_and_get_shares(&mut self, amount: I80F48) -> MarginfiResult<I80F48> {
+        let shares = self.get_deposit_shares(amount)?;
+
+        self.change_deposit_shares(shares)?;
+
+        Ok(shares)
+    }
+
+    #[inline]
+    pub fn redeem_shares_and_get_asset_amount(&mut self, shares: I80F48) -> MarginfiResult<I80F48> {
+        self.change_deposit_shares(-shares)?;
+
+        self.check_utilization_ratio()?;
+
+        Ok(self.get_deposit_amount(shares)?)
     }
 
     pub fn change_deposit_shares(&mut self, shares: I80F48) -> MarginfiResult {
@@ -479,6 +504,42 @@ impl Bank {
             CpiContext::new_with_signer(program, accounts, signer_seeds),
             amount,
         )
+    }
+
+    pub fn mint_shares<'b: 'c, 'c: 'b>(
+        &self,
+        amount: u64,
+        accounts: MintTo<'b>,
+        program: AccountInfo<'c>,
+        signer_seeds: &[&[&[u8]]],
+    ) -> MarginfiResult {
+        msg!(
+            "mint_and_transfer_shares: amount: {} to {}, auth {}",
+            amount,
+            accounts.to.key,
+            accounts.authority.key
+        );
+
+        mint_to(
+            CpiContext::new_with_signer(program, accounts, signer_seeds),
+            amount,
+        )
+    }
+
+    pub fn burn_shares<'b: 'c, 'c: 'b>(
+        &self,
+        amount: u64,
+        accounts: Burn<'b>,
+        program: AccountInfo<'c>,
+    ) -> MarginfiResult {
+        msg!(
+            "burn_shares: amount: {} from {}, auth {}",
+            amount,
+            accounts.from.key,
+            accounts.authority.key
+        );
+
+        burn(CpiContext::new(program, accounts), amount)
     }
 
     /// Socialize a loss `loss_amount` among depositors,
