@@ -54,6 +54,10 @@ pub enum MarginfiError {
     OperationBorrowOnly,
     #[msg("Operation is repay-only")]
     OperationRepayOnly,
+    #[msg("No asset found")]
+    NoAssetFound,
+    #[msg("No liability found")]
+    NoLiabilityFound,
     #[msg("Invalid oracle setup")]
     InvalidOracleSetup,
     #[msg("Invalid bank utilization ratio")]

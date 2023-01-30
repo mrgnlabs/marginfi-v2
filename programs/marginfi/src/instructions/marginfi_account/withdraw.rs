@@ -4,7 +4,10 @@ use crate::state::marginfi_group::Bank;
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
-    state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
+    state::{
+        marginfi_account::{BankAccountWrapper, MarginfiAccount},
+        marginfi_group::BankVaultType,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
@@ -19,9 +22,10 @@ use solana_program::sysvar::Sysvar;
 /// 5. Verify that the user account is in a healthy state
 ///
 /// Will error if there is no existing asset <=> borrowing is not allowed.
-pub fn marginfi_account_withdraw(
+pub fn withdraw(
     ctx: Context<MarginfiAccountWithdraw>,
     amount: u64,
+    withdraw_all: Option<bool>,
 ) -> MarginfiResult {
     let MarginfiAccountWithdraw {
         marginfi_account,
@@ -32,6 +36,8 @@ pub fn marginfi_account_withdraw(
         bank: bank_loader,
         ..
     } = ctx.accounts;
+
+    let withdraw_all = withdraw_all.unwrap_or(false);
 
     bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
 
@@ -47,9 +53,16 @@ pub fn marginfi_account_withdraw(
             &mut marginfi_account.lending_account,
         )?;
 
-        bank_account.withdraw(I80F48::from_num(amount))?;
+        let spl_withdraw_amount = if withdraw_all {
+            bank_account.withdraw_all()?
+        } else {
+            bank_account.withdraw(I80F48::from_num(amount))?;
+
+            amount
+        };
+
         bank_account.withdraw_spl_transfer(
-            amount,
+            spl_withdraw_amount,
             Transfer {
                 from: bank_liquidity_vault.to_account_info(),
                 to: destination_token_account.to_account_info(),

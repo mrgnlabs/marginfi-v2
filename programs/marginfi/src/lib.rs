@@ -74,25 +74,42 @@ pub mod marginfi {
         marginfi_account::initialize(ctx)
     }
 
-    /// Deposit assets into a lending account
-    /// Repay borrowed assets, if any exist.
-    pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
-        marginfi_account::bank_deposit(ctx, amount)
+    pub fn marginfi_account_deposit(
+        ctx: Context<MarginfiAccountDeposit>,
+        amount: u64,
+    ) -> MarginfiResult {
+        marginfi_account::deposit(ctx, amount)
     }
 
-    /// Withdraw assets from a lending account
-    /// Withdraw deposited assets, if any exist, otherwise borrow assets.
-    /// Account health checked.
-    pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult {
-        marginfi_account::bank_withdraw(ctx, amount)
+    pub fn marginfi_account_withdraw(
+        ctx: Context<MarginfiAccountWithdraw>,
+        amount: u64,
+        withdraw_all: Option<bool>,
+    ) -> MarginfiResult {
+        marginfi_account::withdraw(ctx, amount, withdraw_all)
+    }
+
+    pub fn marginfi_account_borrow(
+        ctx: Context<MarginfiAccountBorrow>,
+        amount: u64,
+    ) -> MarginfiResult {
+        marginfi_account::borrow(ctx, amount)
+    }
+
+    pub fn marginfi_account_repay(
+        ctx: Context<MarginfiAccountRepay>,
+        amount: u64,
+        repay_all: Option<bool>,
+    ) -> MarginfiResult {
+        marginfi_account::repay(ctx, amount, repay_all)
     }
 
     /// Liquidate a lending account balance of an unhealthy marginfi account
-    pub fn lending_account_liquidate(
-        ctx: Context<LendingAccountLiquidate>,
+    pub fn marginfi_account_liquidate(
+        ctx: Context<MarginfiAccountLiquidate>,
         asset_amount: u64,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_liquidate(ctx, asset_amount)
+        marginfi_account::liquidate(ctx, asset_amount)
     }
 
     // Operational instructions

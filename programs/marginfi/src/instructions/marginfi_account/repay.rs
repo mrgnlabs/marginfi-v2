@@ -1,4 +1,3 @@
-use crate::errors::MarginfiError;
 use crate::prelude::{MarginfiGroup, MarginfiResult};
 use crate::state::marginfi_group::Bank;
 use crate::{
@@ -17,7 +16,11 @@ use solana_program::sysvar::Sysvar;
 /// 4. Transfer funds from the signer's token account to the bank's liquidity vault
 ///
 /// Will error if there is no existing liability <=> depositing is not allowed.
-pub fn marginfi_account_repay(ctx: Context<MarginfiAccountRepay>, amount: u64) -> MarginfiResult {
+pub fn repay(
+    ctx: Context<MarginfiAccountRepay>,
+    amount: u64,
+    repay_all: Option<bool>,
+) -> MarginfiResult {
     let MarginfiAccountRepay {
         marginfi_account,
         signer,
@@ -27,6 +30,8 @@ pub fn marginfi_account_repay(ctx: Context<MarginfiAccountRepay>, amount: u64) -
         bank: bank_loader,
         ..
     } = ctx.accounts;
+
+    let repay_all = repay_all.unwrap_or(false);
 
     bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
 
@@ -39,9 +44,16 @@ pub fn marginfi_account_repay(ctx: Context<MarginfiAccountRepay>, amount: u64) -
         &mut marginfi_account.lending_account,
     )?;
 
-    bank_account.repay(I80F48::from_num(amount))?;
+    let spl_deposit_amount = if repay_all {
+        bank_account.repay_all()?
+    } else {
+        bank_account.repay(I80F48::from_num(amount))?;
+
+        amount
+    };
+
     bank_account.deposit_spl_transfer(
-        amount,
+        spl_deposit_amount,
         Transfer {
             from: signer_token_account.to_account_info(),
             to: bank_liquidity_vault.to_account_info(),

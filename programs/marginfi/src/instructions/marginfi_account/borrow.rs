@@ -3,8 +3,9 @@ use crate::prelude::{MarginfiGroup, MarginfiResult};
 use crate::state::marginfi_group::Bank;
 use crate::{
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
-    state::marginfi_account::{
-        BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType,
+    state::{
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType},
+        marginfi_group::BankVaultType,
     },
 };
 use anchor_lang::prelude::*;
@@ -20,7 +21,7 @@ use solana_program::sysvar::Sysvar;
 /// 5. Verify that the user account is in a healthy state
 ///
 /// Will error if there is an existing asset <=> withdrawing is not allowed.
-pub fn marginfi_account_borrow(ctx: Context<MarginfiAccountBorrow>, amount: u64) -> MarginfiResult {
+pub fn borrow(ctx: Context<MarginfiAccountBorrow>, amount: u64) -> MarginfiResult {
     let MarginfiAccountBorrow {
         marginfi_account,
         destination_token_account,
