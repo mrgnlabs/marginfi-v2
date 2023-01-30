@@ -166,7 +166,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             .get_asset_amount(self.balance.asset_shares.into())?;
         let liability_amount = self
             .bank
-            .get_asset_amount(self.balance.liability_shares.into())?;
+            .get_liability_amount(self.balance.liability_shares.into())?;
         let (asset_weight, liability_weight) = self.bank.config.get_weights(weight_type);
 
         let mint_decimals = self.bank.mint_decimals;
