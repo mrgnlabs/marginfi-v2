@@ -293,6 +293,8 @@ impl Bank {
 
         self.change_deposit_shares(shares)?;
 
+        self.assert_operational_mode(Some(true))?;
+
         Ok(shares)
     }
 

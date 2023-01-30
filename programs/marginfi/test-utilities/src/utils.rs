@@ -193,3 +193,23 @@ macro_rules! f_native {
 pub fn clone_keypair(keypair: &Keypair) -> Keypair {
     Keypair::from_bytes(&keypair.to_bytes()).unwrap()
 }
+
+pub fn get_shares_token_mint(bank_key: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            marginfi::constants::SHARES_TOKEN_MINT_SEED.as_ref(),
+            bank_key.as_ref(),
+        ],
+        &marginfi::id(),
+    )
+}
+
+pub fn get_shares_token_mint_authority(bank_key: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            marginfi::constants::SHARES_TOKEN_MINT_AUTHORITY_SEED.as_ref(),
+            bank_key.as_ref(),
+        ],
+        &marginfi::id(),
+    )
+}

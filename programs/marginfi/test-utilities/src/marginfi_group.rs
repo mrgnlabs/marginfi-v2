@@ -93,6 +93,8 @@ impl MarginfiGroupFixture {
             insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
             fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
             fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
+            shares_token_mint: get_shares_token_mint(&bank_key.pubkey()).0,
+            shares_token_mint_authority: get_shares_token_mint_authority(&bank_key.pubkey()).0,
             rent: sysvar::rent::id(),
             token_program: token::ID,
             system_program: system_program::id(),

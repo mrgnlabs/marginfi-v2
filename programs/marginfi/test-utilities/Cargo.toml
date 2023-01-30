@@ -29,7 +29,7 @@ solana-sdk = "1.14.11"
 
 [dependencies.marginfi]
 path = ".."
-features = ["client"]
+features = ["client", "cpi"]
 
 # Prevent this from interfering with workspaces
 # [workspace]

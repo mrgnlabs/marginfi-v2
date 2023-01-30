@@ -6,7 +6,7 @@ use fixtures::prelude::*;
 use fixtures::*;
 use marginfi::{
     prelude::{MarginfiError, MarginfiGroup},
-    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankOperationalState},
+    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType},
 };
 use pretty_assertions::assert_eq;
 use solana_program::{
@@ -1102,6 +1102,118 @@ async fn lending_pool_bank_reduce_only_success_deposit() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn bank_mint_shares_success() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let usdc_bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(
+            usdc_mint_fixture.key,
+            BankConfig {
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
+            },
+        )
+        .await?;
+
+    let sol_token_account = sol_mint_fixture
+        .create_and_mint_to(native!(100, "SOL"))
+        .await;
+
+    let shares_fixture = TokenAccountFixture::new(
+        test_f.context.clone(),
+        &get_shares_token_mint(&usdc_bank.key).0,
+        &test_f.payer(),
+    )
+    .await;
+
+    let shares_token_account = shares_fixture.new_account().await;
+
+    let res = usdc_bank
+        .try_mint_shares(
+            native!(100, "USDC"),
+            sol_token_account,
+            shares_token_account,
+        )
+        .await;
+
+    let shares_token_amount = token::accessor::amount(
+        &(
+            &shares_token_account,
+            &mut test_f
+                .context
+                .borrow_mut()
+                .banks_client
+                .get_account(shares_token_account)
+                .await?
+                .unwrap(),
+        )
+            .into_account_info(),
+    )?;
+
+    let bank_vault_pk = &usdc_bank.get_vault(BankVaultType::Liquidity).0;
+    let vault_token_amount = token::accessor::amount(
+        &(
+            bank_vault_pk,
+            &mut test_f
+                .context
+                .borrow_mut()
+                .banks_client
+                .get_account(*bank_vault_pk)
+                .await?
+                .unwrap(),
+        )
+            .into_account_info(),
+    )?;
+
+    assert_eq!(shares_token_amount, native!(100, "USDC"));
+    assert_eq!(vault_token_amount, native!(100, "USDC"));
+
+    assert!(res.is_ok());
+
+    let res = usdc_bank
+        .try_redeem_shares(native!(99, "USDC"), sol_token_account, shares_token_account)
+        .await;
+
+    let shares_token_amount = token::accessor::amount(
+        &(
+            &shares_token_account,
+            &mut test_f
+                .context
+                .borrow_mut()
+                .banks_client
+                .get_account(shares_token_account)
+                .await?
+                .unwrap(),
+        )
+            .into_account_info(),
+    )?;
+
+    let vault_token_amount = token::accessor::amount(
+        &(
+            bank_vault_pk,
+            &mut test_f
+                .context
+                .borrow_mut()
+                .banks_client
+                .get_account(*bank_vault_pk)
+                .await?
+                .unwrap(),
+        )
+            .into_account_info(),
+    )?;
+
+    assert!(res.is_ok());
+
+    assert_eq!(shares_token_amount, native!(1, "USDC"));
+
+    assert_eq!(vault_token_amount, native!(1, "USDC"));
 
     Ok(())
 }
