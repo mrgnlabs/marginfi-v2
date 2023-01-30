@@ -1,7 +1,4 @@
-#![cfg(feature = "test-bpf")]
-#![allow(unused)]
-
-use crate::fixtures::{spl::*, utils::*};
+use crate::{spl::*, utils::*};
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 use anchor_spl::token;
 use anyhow::Result;

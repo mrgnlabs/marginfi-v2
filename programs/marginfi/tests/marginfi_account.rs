@@ -1,13 +1,9 @@
-#![cfg(feature = "test-bpf")]
-#![allow(dead_code)]
-
-mod fixtures;
-
 use anchor_lang::prelude::Clock;
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use fixtures::prelude::*;
+use fixtures::{prelude::*, *};
+use marginfi::prelude::MarginfiResult;
 use marginfi::{
     prelude::MarginfiError,
     state::{

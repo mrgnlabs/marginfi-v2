@@ -1,6 +1,3 @@
-#![cfg(feature = "test")]
-#![allow(dead_code)]
-
 use anchor_lang::prelude::*;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
