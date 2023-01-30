@@ -154,7 +154,7 @@ async fn failure_deposit_capacity_exceeded() -> anyhow::Result<()> {
     let res = marginfi_account_f
         .try_bank_deposit(token_account_f.key, &usdc_bank, native!(101, "USDC"))
         .await;
-    assert_custom_error!(res.unwrap_err(), MarginfiError::BankDepositCapacityExceeded);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BankAssetCapacityExceeded);
 
     Ok(())
 }
@@ -327,8 +327,8 @@ async fn liquidation_successful() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.sol_mint.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
-                deposit_weight_maint: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
+                asset_weight_maint: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -360,8 +360,8 @@ async fn liquidation_successful() -> anyhow::Result<()> {
 
     sol_bank
         .update_config(BankConfigOpt {
-            deposit_weight_init: Some(I80F48!(0.25).into()),
-            deposit_weight_maint: Some(I80F48!(0.5).into()),
+            asset_weight_init: Some(I80F48!(0.25).into()),
+            asset_weight_maint: Some(I80F48!(0.5).into()),
             ..Default::default()
         })
         .await?;
@@ -379,11 +379,7 @@ async fn liquidation_successful() -> anyhow::Result<()> {
     // Depositors should have 1 SOL
     assert_eq!(
         sol_bank
-            .get_deposit_amount(
-                depositor_ma.lending_account.balances[1]
-                    .deposit_shares
-                    .into()
-            )
+            .get_asset_amount(depositor_ma.lending_account.balances[1].asset_shares.into())
             .unwrap(),
         I80F48::from(native!(1, "SOL"))
     );
@@ -391,11 +387,7 @@ async fn liquidation_successful() -> anyhow::Result<()> {
     // Depositors should have 1990.25 USDC
     assert_eq_noise!(
         usdc_bank
-            .get_deposit_amount(
-                depositor_ma.lending_account.balances[0]
-                    .deposit_shares
-                    .into()
-            )
+            .get_asset_amount(depositor_ma.lending_account.balances[0].asset_shares.into())
             .unwrap(),
         I80F48::from(native!(1990.25, "USDC", f64)),
         native!(0.00001, "USDC", f64)
@@ -404,11 +396,7 @@ async fn liquidation_successful() -> anyhow::Result<()> {
     // Borrower should have 99 SOL
     assert_eq!(
         sol_bank
-            .get_deposit_amount(
-                borrower_ma.lending_account.balances[0]
-                    .deposit_shares
-                    .into()
-            )
+            .get_asset_amount(borrower_ma.lending_account.balances[0].asset_shares.into())
             .unwrap(),
         I80F48::from(native!(99, "SOL"))
     );
@@ -454,7 +442,7 @@ async fn liquidation_failed_liquidatee_not_unhealthy() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.usdc_mint.key,
             BankConfig {
-                deposit_weight_maint: I80F48!(1).into(),
+                asset_weight_maint: I80F48!(1).into(),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
         )
@@ -464,8 +452,8 @@ async fn liquidation_failed_liquidatee_not_unhealthy() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             test_f.sol_mint.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
-                deposit_weight_maint: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
+                asset_weight_maint: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -548,8 +536,8 @@ async fn liquidation_failed_liquidation_too_severe() -> anyhow::Result<()> {
 
     sol_bank
         .update_config(BankConfigOpt {
-            deposit_weight_init: Some(I80F48!(0.25).into()),
-            deposit_weight_maint: Some(I80F48!(0.5).into()),
+            asset_weight_init: Some(I80F48!(0.25).into()),
+            asset_weight_maint: Some(I80F48!(0.5).into()),
             ..Default::default()
         })
         .await?;
@@ -635,8 +623,8 @@ async fn liquidation_failed_liquidator_no_collateral() -> anyhow::Result<()> {
 
     sol_bank
         .update_config(BankConfigOpt {
-            deposit_weight_init: Some(I80F48!(0.25).into()),
-            deposit_weight_maint: Some(I80F48!(0.3).into()),
+            asset_weight_init: Some(I80F48!(0.25).into()),
+            asset_weight_maint: Some(I80F48!(0.3).into()),
             ..Default::default()
         })
         .await?;
@@ -720,8 +708,8 @@ async fn liquidation_failed_bank_not_liquidatable() -> anyhow::Result<()> {
 
     sol_bank
         .update_config(BankConfigOpt {
-            deposit_weight_init: Some(I80F48!(0.25).into()),
-            deposit_weight_maint: Some(I80F48!(0.4).into()),
+            asset_weight_init: Some(I80F48!(0.25).into()),
+            asset_weight_maint: Some(I80F48!(0.4).into()),
             ..Default::default()
         })
         .await?;
@@ -828,7 +816,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
 
     assert_eq_noise!(
         sol_ba
-            .get_deposit_amount(lender_ma.lending_account.balances[0].deposit_shares.into())
+            .get_asset_amount(lender_ma.lending_account.balances[0].asset_shares.into())
             .unwrap(),
         I80F48::from(native!(1011.76, "SOL", f64)),
         native!(0.00001, "SOL", f64)

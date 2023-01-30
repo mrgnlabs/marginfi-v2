@@ -108,7 +108,7 @@ pub struct BankAccountWithPriceFeed<'a> {
 }
 
 pub enum BalanceSide {
-    Deposits,
+    Assets,
     Liabilities,
 }
 
@@ -161,25 +161,20 @@ impl<'a> BankAccountWithPriceFeed<'a> {
     ) -> MarginfiResult<(I80F48, I80F48)> {
         let (worst_price, best_price) = get_price_range(&self.price_feed)?;
 
-        let deposits_qt = self
+        let asset_amount = self
             .bank
-            .get_deposit_amount(self.balance.deposit_shares.into())?;
-        let liabilities_qt = self
+            .get_asset_amount(self.balance.asset_shares.into())?;
+        let liability_amount = self
             .bank
-            .get_deposit_amount(self.balance.liability_shares.into())?;
-        let (deposit_weight, liability_weight) = self.bank.config.get_weights(weight_type); // TODO: asset-specific weights
+            .get_asset_amount(self.balance.liability_shares.into())?;
+        let (asset_weight, liability_weight) = self.bank.config.get_weights(weight_type);
 
         let mint_decimals = self.bank.mint_decimals;
 
         Ok((
+            calc_asset_value(asset_amount, worst_price, mint_decimals, Some(asset_weight))?,
             calc_asset_value(
-                deposits_qt,
-                worst_price,
-                mint_decimals,
-                Some(deposit_weight),
-            )?,
-            calc_asset_value(
-                liabilities_qt,
+                liability_amount,
                 best_price,
                 mint_decimals,
                 Some(liability_weight),
@@ -229,31 +224,31 @@ pub fn get_price(pf: &PriceFeed) -> MarginfiResult<I80F48> {
 #[inline]
 /// Calculate the value of an asset, given its quantity with a decimal exponent, and a price with a decimal exponent, and an optional weight.
 pub fn calc_asset_value(
-    asset_quantity: I80F48,
+    asset_amount: I80F48,
     price: I80F48,
     mint_decimals: u8,
     weight: Option<I80F48>,
 ) -> MarginfiResult<I80F48> {
-    if asset_quantity == I80F48::ZERO {
+    if asset_amount == I80F48::ZERO {
         return Ok(I80F48::ZERO);
     }
 
     let scaling_factor = EXP_10_I80F48[mint_decimals as usize];
 
-    let weighted_asset_qt = if let Some(weight) = weight {
-        asset_quantity.checked_mul(weight).unwrap()
+    let weighted_asset_amount = if let Some(weight) = weight {
+        asset_amount.checked_mul(weight).unwrap()
     } else {
-        asset_quantity
+        asset_amount
     };
 
     msg!(
         "weighted_asset_qt: {}, price: {}, expo: {}",
-        weighted_asset_qt,
+        weighted_asset_amount,
         price,
         mint_decimals
     );
 
-    let asset_value = weighted_asset_qt
+    let asset_value = weighted_asset_amount
         .checked_mul(price)
         .ok_or_else(math_error!())?
         .checked_div(scaling_factor)
@@ -387,7 +382,7 @@ impl<'a> RiskEngine<'a> {
         );
 
         check!(
-            liability_bank_balance.is_empty(BalanceSide::Deposits),
+            liability_bank_balance.is_empty(BalanceSide::Assets),
             MarginfiError::IllegalLiquidation
         );
 
@@ -429,7 +424,7 @@ impl<'a> RiskEngine<'a> {
         );
 
         check!(
-            liability_bank_balance.is_empty(BalanceSide::Deposits),
+            liability_bank_balance.is_empty(BalanceSide::Assets),
             MarginfiError::IllegalLiquidation
         );
 
@@ -513,7 +508,7 @@ impl LendingAccount {
 pub struct Balance {
     pub active: bool,
     pub bank_pk: Pubkey,
-    pub deposit_shares: WrappedI80F48,
+    pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
 }
 
@@ -523,7 +518,7 @@ impl Balance {
     #[inline]
     pub fn is_empty(&self, side: BalanceSide) -> bool {
         let shares: I80F48 = match side {
-            BalanceSide::Deposits => self.deposit_shares,
+            BalanceSide::Assets => self.asset_shares,
             BalanceSide::Liabilities => self.liability_shares,
         }
         .into();
@@ -531,9 +526,9 @@ impl Balance {
         shares < EMPTY_BALANCE_THRESHOLD
     }
 
-    pub fn change_deposit_shares(&mut self, delta: I80F48) -> MarginfiResult {
-        let deposit_shares: I80F48 = self.deposit_shares.into();
-        self.deposit_shares = deposit_shares
+    pub fn change_asset_shares(&mut self, delta: I80F48) -> MarginfiResult {
+        let asset_shares: I80F48 = self.asset_shares.into();
+        self.asset_shares = asset_shares
             .checked_add(delta)
             .ok_or_else(math_error!())?
             .into();
@@ -585,7 +580,7 @@ impl<'a> BankAccountWrapper<'a> {
             lending_account.balances[empty_index] = Balance {
                 active: true,
                 bank_pk: *bank_pk,
-                deposit_shares: I80F48::ZERO.into(),
+                asset_shares: I80F48::ZERO.into(),
                 liability_shares: I80F48::ZERO.into(),
             };
 
@@ -684,10 +679,10 @@ impl<'a> BankAccountWrapper<'a> {
             bank.assert_operational_mode(Some(is_asset_amount_increasing))?;
         }
 
-        let asset_shares_increase = bank.get_deposit_shares(asset_amount_increase)?;
+        let asset_shares_increase = bank.get_asset_shares(asset_amount_increase)?;
 
-        balance.change_deposit_shares(asset_shares_increase)?;
-        bank.change_deposit_shares(asset_shares_increase)?;
+        balance.change_asset_shares(asset_shares_increase)?;
+        bank.change_asset_shares(asset_shares_increase)?;
 
         let liability_shares_decrease = bank.get_liability_shares(liability_amount_decrease)?;
 
@@ -713,8 +708,8 @@ impl<'a> BankAccountWrapper<'a> {
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
-        let current_asset_shares: I80F48 = balance.deposit_shares.into();
-        let current_asset_amount = bank.get_deposit_amount(current_asset_shares)?;
+        let current_asset_shares: I80F48 = balance.asset_shares.into();
+        let current_asset_amount = bank.get_asset_amount(current_asset_shares)?;
 
         let (asset_amount_decrease, liability_amount_increase) = (
             min(current_asset_amount, balance_delta),
@@ -747,10 +742,10 @@ impl<'a> BankAccountWrapper<'a> {
             bank.assert_operational_mode(Some(is_liability_amount_increasing))?;
         }
 
-        let asset_shares_decrease = bank.get_deposit_shares(asset_amount_decrease)?;
+        let asset_shares_decrease = bank.get_asset_shares(asset_amount_decrease)?;
 
-        balance.change_deposit_shares(-asset_shares_decrease)?;
-        bank.change_deposit_shares(-asset_shares_decrease)?;
+        balance.change_asset_shares(-asset_shares_decrease)?;
+        bank.change_asset_shares(-asset_shares_decrease)?;
 
         let liability_shares_increase = bank.get_liability_shares(liability_amount_increase)?;
 

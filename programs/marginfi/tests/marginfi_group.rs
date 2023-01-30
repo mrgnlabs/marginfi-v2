@@ -132,7 +132,7 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -180,14 +180,14 @@ async fn success_accrue_interest_rates_1() -> anyhow::Result<()> {
 
     let lender_mfi_account = lender_account.load().await;
     let lender_bank_account = lender_mfi_account.lending_account.balances[0];
-    let deposits = usdc_bank.get_deposit_amount(lender_bank_account.deposit_shares.into())?;
+    let assets = usdc_bank.get_asset_amount(lender_bank_account.asset_shares.into())?;
 
     assert_eq_noise!(
         liabilities,
         I80F48::from(native!(180, "USDC")),
         I80F48!(100)
     );
-    assert_eq_noise!(deposits, I80F48::from(native!(190, "USDC")), I80F48!(100));
+    assert_eq_noise!(assets, I80F48::from(native!(190, "USDC")), I80F48!(100));
 
     Ok(())
 }
@@ -218,7 +218,7 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
                 max_capacity: native!(200_000_000, "SOL"),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
@@ -269,10 +269,10 @@ async fn success_accrue_interest_rates_2() -> anyhow::Result<()> {
 
     let lender_mfi_account = lender_account.load().await;
     let lender_bank_account = lender_mfi_account.lending_account.balances[0];
-    let deposits = usdc_bank.get_deposit_amount(lender_bank_account.deposit_shares.into())?;
+    let assets = usdc_bank.get_asset_amount(lender_bank_account.asset_shares.into())?;
 
     assert_eq_noise!(liabilities, I80F48!(90000174657530), I80F48!(10));
-    assert_eq_noise!(deposits, I80F48!(100000171232862), I80F48!(10));
+    assert_eq_noise!(assets, I80F48!(100000171232862), I80F48!(10));
 
     let mut ctx = test_f.context.borrow_mut();
     let protocol_fees = ctx
@@ -319,7 +319,7 @@ async fn lending_pool_handle_bankruptcy_success_full_insurance() -> anyhow::Resu
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -350,7 +350,7 @@ async fn lending_pool_handle_bankruptcy_success_full_insurance() -> anyhow::Resu
 
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
-        .deposit_shares
+        .asset_shares
         .value = 0;
 
     borrower_account.set_account(&borrower_mfi_account).await?;
@@ -378,9 +378,9 @@ async fn lending_pool_handle_bankruptcy_success_full_insurance() -> anyhow::Resu
     let lender_mfi_account = lender_account.load().await;
     let usdc_bank = usdc_bank.load().await;
 
-    let lender_usdc_value = usdc_bank.get_deposit_amount(
+    let lender_usdc_value = usdc_bank.get_asset_amount(
         lender_mfi_account.lending_account.balances[0]
-            .deposit_shares
+            .asset_shares
             .into(),
     )?;
 
@@ -431,7 +431,7 @@ async fn lending_pool_handle_bankruptcy_success_partial_insurance() -> anyhow::R
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -462,7 +462,7 @@ async fn lending_pool_handle_bankruptcy_success_partial_insurance() -> anyhow::R
 
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
-        .deposit_shares
+        .asset_shares
         .value = 0;
 
     borrower_account.set_account(&borrower_mfi_account).await?;
@@ -490,9 +490,9 @@ async fn lending_pool_handle_bankruptcy_success_partial_insurance() -> anyhow::R
     let lender_mfi_account = lender_account.load().await;
     let usdc_bank = usdc_bank.load().await;
 
-    let lender_usdc_value = usdc_bank.get_deposit_amount(
+    let lender_usdc_value = usdc_bank.get_asset_amount(
         lender_mfi_account.lending_account.balances[0]
-            .deposit_shares
+            .asset_shares
             .into(),
     )?;
 
@@ -543,7 +543,7 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance() -> anyhow::Result
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -574,7 +574,7 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance() -> anyhow::Result
 
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
-        .deposit_shares
+        .asset_shares
         .value = 0;
 
     borrower_account.set_account(&borrower_mfi_account).await?;
@@ -595,9 +595,9 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance() -> anyhow::Result
     let lender_mfi_account = lender_account.load().await;
     let usdc_bank = usdc_bank.load().await;
 
-    let lender_usdc_value = usdc_bank.get_deposit_amount(
+    let lender_usdc_value = usdc_bank.get_asset_amount(
         lender_mfi_account.lending_account.balances[0]
-            .deposit_shares
+            .asset_shares
             .into(),
     )?;
 
@@ -632,7 +632,7 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance_3() -> anyhow::Resu
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -679,7 +679,7 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance_3() -> anyhow::Resu
 
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
-        .deposit_shares
+        .asset_shares
         .value = 0;
 
     borrower_account.set_account(&borrower_mfi_account).await?;
@@ -700,9 +700,9 @@ async fn lending_pool_handle_bankruptcy_success_no_insurance_3() -> anyhow::Resu
     let lender_mfi_account = lender_account.load().await;
     let usdc_bank = usdc_bank.load().await;
 
-    let lender_usdc_value = usdc_bank.get_deposit_amount(
+    let lender_usdc_value = usdc_bank.get_asset_amount(
         lender_mfi_account.lending_account.balances[0]
-            .deposit_shares
+            .asset_shares
             .into(),
     )?;
 
@@ -737,7 +737,7 @@ async fn lending_pool_handle_bankruptcy_success_not_bankrupt() -> anyhow::Result
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -799,7 +799,7 @@ async fn lending_pool_handle_bankruptcy_success_not_debt() -> anyhow::Result<()>
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -830,7 +830,7 @@ async fn lending_pool_handle_bankruptcy_success_not_debt() -> anyhow::Result<()>
 
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
-        .deposit_shares
+        .asset_shares
         .value = 0;
 
     borrower_account.set_account(&borrower_mfi_account).await?;
@@ -951,7 +951,7 @@ async fn lending_pool_bank_reduce_only_borrow_failure() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )
@@ -1058,7 +1058,7 @@ async fn lending_pool_bank_reduce_only_success_deposit() -> anyhow::Result<()> {
         .try_lending_pool_add_bank(
             sol_mint_fixture.key,
             BankConfig {
-                deposit_weight_init: I80F48!(1).into(),
+                asset_weight_init: I80F48!(1).into(),
                 ..*DEFAULT_SOL_TEST_BANK_CONFIG
             },
         )

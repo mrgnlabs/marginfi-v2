@@ -175,8 +175,8 @@ pub fn group_add_bank(
     profile: Profile,
     bank_mint: Pubkey,
     pyth_oracle: Pubkey,
-    deposit_weight_init: f64,
-    deposit_weight_maint: f64,
+    asset_weight_init: f64,
+    asset_weight_maint: f64,
     liability_weight_init: f64,
     liability_weight_maint: f64,
     max_capacity: u64,
@@ -194,8 +194,8 @@ pub fn group_add_bank(
         bail!("Marginfi group not specified in profile [{}]", profile.name);
     }
 
-    let deposit_weight_init: WrappedI80F48 = I80F48::from_num(deposit_weight_init).into();
-    let deposit_weight_maint: WrappedI80F48 = I80F48::from_num(deposit_weight_maint).into();
+    let asset_weight_init: WrappedI80F48 = I80F48::from_num(asset_weight_init).into();
+    let asset_weight_maint: WrappedI80F48 = I80F48::from_num(asset_weight_maint).into();
     let liability_weight_init: WrappedI80F48 = I80F48::from_num(liability_weight_init).into();
     let liability_weight_maint: WrappedI80F48 = I80F48::from_num(liability_weight_maint).into();
 
@@ -271,8 +271,8 @@ pub fn group_add_bank(
         .accounts(AccountMeta::new_readonly(pyth_oracle, false))
         .args(marginfi::instruction::LendingPoolAddBank {
             bank_config: BankConfig {
-                deposit_weight_init,
-                deposit_weight_maint,
+                asset_weight_init,
+                asset_weight_maint,
                 liability_weight_init,
                 liability_weight_maint,
                 max_capacity,

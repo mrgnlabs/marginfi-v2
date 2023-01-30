@@ -39,8 +39,8 @@ pub fn create_oracle_key_array(pyth_oracle: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS]
 lazy_static! {
     pub static ref DEFAULT_CONFIG: BankConfig = BankConfig {
         oracle_setup: OracleSetup::Pyth,
-        deposit_weight_maint: I80F48!(1).into(),
-        deposit_weight_init: I80F48!(1).into(),
+        asset_weight_maint: I80F48!(1).into(),
+        asset_weight_init: I80F48!(1).into(),
         liability_weight_init: I80F48!(1).into(),
         liability_weight_maint: I80F48!(1).into(),
 
