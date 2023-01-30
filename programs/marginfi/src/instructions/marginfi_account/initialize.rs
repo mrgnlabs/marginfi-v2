@@ -23,9 +23,9 @@ pub struct InitializeMarginfiAccount<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-    init,
-    payer = signer,
-    space = 8 + std::mem::size_of::<MarginfiAccount>()
+        init,
+        payer = signer,
+        space = 8 + std::mem::size_of::<MarginfiAccount>()
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

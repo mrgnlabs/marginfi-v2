@@ -238,64 +238,64 @@ pub struct MarginfiAccountLiquidate<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-    mut,
-    constraint = asset_bank.load()?.group == marginfi_group.key()
+        mut,
+        constraint = asset_bank.load()?.group == marginfi_group.key()
     )]
     pub asset_bank: AccountLoader<'info, Bank>,
 
     #[account(
-    mut,
-    constraint = liab_bank.load()?.group == marginfi_group.key()
+        mut,
+        constraint = liab_bank.load()?.group == marginfi_group.key()
     )]
     pub liab_bank: AccountLoader<'info, Bank>,
 
     #[account(
-    mut,
-    constraint = liquidator_marginfi_account.load()?.group == marginfi_group.key()
+        mut,
+        constraint = liquidator_marginfi_account.load()?.group == marginfi_group.key()
     )]
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
-    address = liquidator_marginfi_account.load()?.authority
+        address = liquidator_marginfi_account.load()?.authority
     )]
     pub signer: Signer<'info>,
 
     #[account(
-    mut,
-    constraint = liquidatee_marginfi_account.load()?.group == marginfi_group.key()
+        mut,
+        constraint = liquidatee_marginfi_account.load()?.group == marginfi_group.key()
     )]
     pub liquidatee_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     /// CHECK: Seed constraint
     #[account(
-    mut,
-    seeds = [
-    LIQUIDITY_VAULT_AUTHORITY_SEED,
-    liab_bank.key().as_ref(),
-    ],
-    bump = liab_bank.load()?.liquidity_vault_authority_bump
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            liab_bank.key().as_ref(),
+        ],
+        bump = liab_bank.load()?.liquidity_vault_authority_bump
     )]
     pub bank_liquidity_vault_authority: AccountInfo<'info>,
 
     /// CHECK: Seed constraint
     #[account(
-    mut,
-    seeds = [
-    LIQUIDITY_VAULT_SEED,
-    liab_bank.key().as_ref(),
-    ],
-    bump = liab_bank.load()?.liquidity_vault_bump
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_SEED,
+            liab_bank.key().as_ref(),
+        ],
+        bump = liab_bank.load()?.liquidity_vault_bump
     )]
     pub bank_liquidity_vault: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: Seed constraint
     #[account(
-    mut,
-    seeds = [
-    INSURANCE_VAULT_SEED,
-    liab_bank.key().as_ref(),
-    ],
-    bump = liab_bank.load()?.insurance_vault_bump
+        mut,
+        seeds = [
+            INSURANCE_VAULT_SEED,
+            liab_bank.key().as_ref(),
+        ],
+        bump = liab_bank.load()?.insurance_vault_bump
     )]
     pub bank_insurance_vault: AccountInfo<'info>,
 
