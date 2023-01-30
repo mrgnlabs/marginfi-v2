@@ -501,17 +501,26 @@ impl Bank {
         Ok(())
     }
 
-    pub fn assert_operational_mode(&self, metric_increasing: Option<bool>) -> Result<()> {
+    pub fn assert_operational_mode(
+        &self,
+        is_asset_or_liability_amount_increasing: Option<bool>,
+    ) -> Result<()> {
         match self.config.operational_state {
-            BankOperationalState::Paused => return Err(MarginfiError::BankPaused.into()),
-            BankOperationalState::Operational => (),
-            BankOperationalState::ReduceOnly => check!(
-                !metric_increasing.unwrap_or(false),
-                MarginfiError::BankReduceOnly
-            ),
-        }
+            BankOperationalState::Paused => Err(MarginfiError::BankPaused.into()),
+            BankOperationalState::Operational => Ok(()),
+            BankOperationalState::ReduceOnly => {
+                if let Some(is_asset_or_liability_amount_increasing) =
+                    is_asset_or_liability_amount_increasing
+                {
+                    check!(
+                        !is_asset_or_liability_amount_increasing,
+                        MarginfiError::BankReduceOnly
+                    );
+                }
 
-        Ok(())
+                Ok(())
+            }
+        }
     }
 }
 

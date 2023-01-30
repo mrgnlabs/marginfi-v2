@@ -44,6 +44,16 @@ pub enum MarginfiError {
     BankPaused,
     #[msg("Bank is ReduceOnly mode")]
     BankReduceOnly,
+    #[msg("Bank is missing")]
+    BankAccoutNotFound,
+    #[msg("Operation is deposit-only")]
+    OperationDepositOnly,
+    #[msg("Operation is withdraw-only")]
+    OperationWithdrawOnly,
+    #[msg("Operation is borrow-only")]
+    OperationBorrowOnly,
+    #[msg("Operation is repay-only")]
+    OperationRepayOnly,
     #[msg("Invalid oracle setup")]
     InvalidOracleSetup,
     #[msg("Invalid bank utilization ratio")]

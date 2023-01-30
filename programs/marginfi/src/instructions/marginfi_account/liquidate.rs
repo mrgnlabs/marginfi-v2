@@ -1,238 +1,21 @@
+use crate::constants::{
+    INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
+};
+use crate::prelude::*;
+use crate::state::marginfi_account::{
+    calc_asset_quantity, calc_asset_value, get_price, RiskEngine, RiskRequirementType,
+};
+use crate::state::marginfi_group::{Bank, BankVaultType};
 use crate::{
     bank_signer,
-    constants::{
-        INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
-        LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-    },
-    prelude::MarginfiResult,
-    state::{
-        marginfi_account::{
-            calc_asset_quantity, calc_asset_value, get_price, BankAccountWrapper, MarginfiAccount,
-            RiskEngine, RiskRequirementType,
-        },
-        marginfi_group::{Bank, BankVaultType, MarginfiGroup},
-    },
+    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
+    state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
-
-pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
-    let InitializeMarginfiAccount {
-        signer,
-        marginfi_group,
-        marginfi_account,
-        ..
-    } = ctx.accounts;
-
-    let mut marginfi_account = marginfi_account.load_init()?;
-
-    marginfi_account.initialize(marginfi_group.key(), signer.key());
-
-    Ok(())
-}
-
-#[derive(Accounts)]
-pub struct InitializeMarginfiAccount<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
-    #[account(
-        init,
-        payer = signer,
-        space = 8 + std::mem::size_of::<MarginfiAccount>()
-    )]
-    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-
-    #[account(mut)]
-    pub signer: Signer<'info>,
-
-    pub system_program: Program<'info, System>,
-}
-
-///
-/// Deposit into a bank account
-/// 1. Add collateral to the margin accounts lending account
-///     - Create a bank account if it doesn't exist for the deposited asset
-/// 2. Transfer collateral from signer to bank liquidity vault
-pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
-    let BankDeposit {
-        marginfi_account,
-        signer,
-        signer_token_account,
-        bank_liquidity_vault,
-        token_program,
-        bank: bank_loader,
-        ..
-    } = ctx.accounts;
-
-    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
-
-    let mut bank = bank_loader.load_mut()?;
-    let mut marginfi_account = marginfi_account.load_mut()?;
-
-    let mut bank_account = BankAccountWrapper::find_or_create(
-        &bank_loader.key(),
-        &mut bank,
-        &mut marginfi_account.lending_account,
-    )?;
-
-    bank_account.account_deposit(I80F48::from_num(amount))?;
-    bank_account.deposit_spl_transfer(
-        amount,
-        Transfer {
-            from: signer_token_account.to_account_info(),
-            to: bank_liquidity_vault.to_account_info(),
-            authority: signer.to_account_info(),
-        },
-        token_program.to_account_info(),
-    )?;
-
-    Ok(())
-}
-
-#[derive(Accounts)]
-pub struct BankDeposit<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
-    #[account(
-        mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
-    )]
-    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-
-    #[account(
-        address = marginfi_account.load()?.authority,
-    )]
-    pub signer: Signer<'info>,
-
-    #[account(
-        mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
-    )]
-    pub bank: AccountLoader<'info, Bank>,
-
-    /// CHECK: Token mint/authority are checked at transfer
-    #[account(mut)]
-    pub signer_token_account: AccountInfo<'info>,
-
-    /// CHECK: Seed constraint check
-    #[account(
-        mut,
-        seeds = [
-            LIQUIDITY_VAULT_SEED,
-            bank.key().as_ref(),
-        ],
-        bump = bank.load()?.liquidity_vault_bump,
-    )]
-    pub bank_liquidity_vault: AccountInfo<'info>,
-
-    pub token_program: Program<'info, Token>,
-}
-
-/// Withdraw from a bank account, if the user has deposits in the bank account withdraw those,
-/// otherwise borrow from the bank if the user has sufficient collateral.
-///
-/// 1. Remove collateral from the margin accounts lending account
-///     - Create a bank account if it doesn't exist for the deposited asset
-/// 2. Transfer collateral from bank liquidity vault to signer
-/// 3. Verify that the users account is in a healthy state
-pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult {
-    let BankWithdraw {
-        marginfi_account,
-        destination_token_account,
-        bank_liquidity_vault,
-        token_program,
-        bank_liquidity_vault_authority,
-        bank: bank_loader,
-        ..
-    } = ctx.accounts;
-
-    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
-
-    let mut marginfi_account = marginfi_account.load_mut()?;
-
-    {
-        let mut bank = bank_loader.load_mut()?;
-        let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
-
-        let mut bank_account = BankAccountWrapper::find_or_create(
-            &bank_loader.key(),
-            &mut bank,
-            &mut marginfi_account.lending_account,
-        )?;
-
-        bank_account.account_borrow(I80F48::from_num(amount))?;
-        bank_account.withdraw_spl_transfer(
-            amount,
-            Transfer {
-                from: bank_liquidity_vault.to_account_info(),
-                to: destination_token_account.to_account_info(),
-                authority: bank_liquidity_vault_authority.to_account_info(),
-            },
-            token_program.to_account_info(),
-            bank_signer!(
-                BankVaultType::Liquidity,
-                bank_loader.key(),
-                liquidity_vault_authority_bump
-            ),
-        )?;
-    }
-
-    // Check account health, if below threshold fail transaction
-    // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?
-        .check_account_health(RiskRequirementType::Initial)?;
-
-    Ok(())
-}
-
-#[derive(Accounts)]
-pub struct BankWithdraw<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
-    #[account(
-        mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
-    )]
-    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-
-    #[account(
-        address = marginfi_account.load()?.authority,
-    )]
-    pub signer: Signer<'info>,
-
-    #[account(
-        mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
-    )]
-    pub bank: AccountLoader<'info, Bank>,
-
-    #[account(mut)]
-    pub destination_token_account: Account<'info, TokenAccount>,
-
-    /// CHECK: Seed constraint check
-    #[account(
-        mut,
-        seeds = [
-            LIQUIDITY_VAULT_AUTHORITY_SEED,
-            bank.key().as_ref(),
-        ],
-        bump = bank.load()?.liquidity_vault_authority_bump,
-    )]
-    pub bank_liquidity_vault_authority: AccountInfo<'info>,
-
-    #[account(
-        mut,
-        seeds = [
-            LIQUIDITY_VAULT_SEED,
-            bank.key().as_ref(),
-        ],
-        bump = bank.load()?.liquidity_vault_bump,
-    )]
-    pub bank_liquidity_vault: Account<'info, TokenAccount>,
-
-    pub token_program: Program<'info, Token>,
-}
+use solana_program::clock::Clock;
+use solana_program::sysvar::Sysvar;
 
 /// Instruction liquidates a position owned by a margin account that is in a unhealthy state.
 /// The liquidator can purchase discounted collateral from the unhealthy account, in exchange for paying its debt.
@@ -384,7 +167,7 @@ pub fn lending_account_liquidate(
             &mut liab_bank,
             &mut liquidator_marginfi_account.lending_account,
         )?
-        .account_borrow(liab_quantity_liquidator)?;
+        .decrease_balance(liab_quantity_liquidator)?;
 
         // Liquidator receives `asset_quantity` amount of collateral
         BankAccountWrapper::find_or_create(
@@ -392,15 +175,15 @@ pub fn lending_account_liquidate(
             &mut asset_bank,
             &mut liquidator_marginfi_account.lending_account,
         )?
-        .account_deposit(asset_quantity)?;
+        .increase_balance(asset_quantity)?;
 
         // Liquidatee pays off `asset_quantity` amount of collateral
-        BankAccountWrapper::find_or_create(
+        BankAccountWrapper::find(
             &ctx.accounts.asset_bank.key(),
             &mut asset_bank,
             &mut liquidatee_marginfi_account.lending_account,
         )?
-        .account_withdraw(asset_quantity)?;
+        .withdraw(asset_quantity)?;
 
         // Liquidatee receives liability payment
         let liab_bank_liquidity_authority_bump = liab_bank.liquidity_vault_authority_bump;
@@ -411,7 +194,7 @@ pub fn lending_account_liquidate(
             &mut liquidatee_marginfi_account.lending_account,
         )?;
 
-        liquidatee_liab_bank_account.account_deposit(liab_quantity_final)?;
+        liquidatee_liab_bank_account.increase_balance(liab_quantity_final)?;
 
         // ## SPL transfer ##
         // Insurance fund receives fee
@@ -458,65 +241,64 @@ pub struct LendingAccountLiquidate<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        mut,
-        constraint = asset_bank.load()?.group == marginfi_group.key()
+    mut,
+    constraint = asset_bank.load()?.group == marginfi_group.key()
     )]
     pub asset_bank: AccountLoader<'info, Bank>,
 
     #[account(
-        mut,
-        constraint = liab_bank.load()?.group == marginfi_group.key()
+    mut,
+    constraint = liab_bank.load()?.group == marginfi_group.key()
     )]
     pub liab_bank: AccountLoader<'info, Bank>,
 
     #[account(
-        mut,
-        constraint = liquidator_marginfi_account.load()?.group == marginfi_group.key()
+    mut,
+    constraint = liquidator_marginfi_account.load()?.group == marginfi_group.key()
     )]
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
-        address = liquidator_marginfi_account.load()?.authority
+    address = liquidator_marginfi_account.load()?.authority
     )]
     pub signer: Signer<'info>,
 
     #[account(
-        mut,
-        constraint = liquidatee_marginfi_account.load()?.group == marginfi_group.key()
+    mut,
+    constraint = liquidatee_marginfi_account.load()?.group == marginfi_group.key()
     )]
     pub liquidatee_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     /// CHECK: Seed constraint
     #[account(
-        mut,
-        seeds = [
-            LIQUIDITY_VAULT_AUTHORITY_SEED,
-            liab_bank.key().as_ref(),
-        ],
-        bump = liab_bank.load()?.liquidity_vault_authority_bump
+    mut,
+    seeds = [
+    LIQUIDITY_VAULT_AUTHORITY_SEED,
+    liab_bank.key().as_ref(),
+    ],
+    bump = liab_bank.load()?.liquidity_vault_authority_bump
     )]
     pub bank_liquidity_vault_authority: AccountInfo<'info>,
 
     /// CHECK: Seed constraint
     #[account(
-        mut,
-        seeds = [
-            LIQUIDITY_VAULT_SEED,
-            liab_bank.key().as_ref(),
-        ],
-        bump = liab_bank.load()?.liquidity_vault_bump
+    mut,
+    seeds = [
+    LIQUIDITY_VAULT_SEED,
+    liab_bank.key().as_ref(),
+    ],
+    bump = liab_bank.load()?.liquidity_vault_bump
     )]
     pub bank_liquidity_vault: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: Seed constraint
     #[account(
-        mut,
-        seeds = [
-            INSURANCE_VAULT_SEED,
-            liab_bank.key().as_ref(),
-        ],
-        bump = liab_bank.load()?.insurance_vault_bump
-
+    mut,
+    seeds = [
+    INSURANCE_VAULT_SEED,
+    liab_bank.key().as_ref(),
+    ],
+    bump = liab_bank.load()?.insurance_vault_bump
     )]
     pub bank_insurance_vault: AccountInfo<'info>,
 

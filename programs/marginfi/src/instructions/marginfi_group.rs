@@ -463,7 +463,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
         &mut bank,
         &mut marginfi_account.lending_account,
     )?
-    .account_deposit(bad_debt)?;
+    .repay(bad_debt)?;
 
     Ok(())
 }

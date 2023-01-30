@@ -82,6 +82,20 @@ fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResu
     Ok(price)
 }
 
+#[derive(Debug)]
+pub enum BalanceIncreaseType {
+    Any,
+    RepayOnly,
+    DepositOnly,
+}
+
+#[derive(Debug)]
+pub enum BalanceDecreaseType {
+    Any,
+    WithdrawOnly,
+    BorrowOnly,
+}
+
 pub enum WeightType {
     Initial,
     Maintenance,
@@ -173,17 +187,9 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         ))
     }
 
-    /// Check wether a balance is empty while accounting for any rounding errors
-    /// that might have occured during depositing/withdrawing.
     #[inline]
     pub fn is_empty(&self, side: BalanceSide) -> bool {
-        let shares: I80F48 = match side {
-            BalanceSide::Deposits => self.balance.deposit_shares,
-            BalanceSide::Liabilities => self.balance.liability_shares,
-        }
-        .into();
-
-        shares < EMPTY_BALANCE_THRESHOLD
+        self.balance.is_empty(side)
     }
 }
 
@@ -493,6 +499,10 @@ impl LendingAccount {
     pub fn get_active_balances_iter(&self) -> impl Iterator<Item = &Balance> {
         self.balances.iter().filter(|b| b.active)
     }
+
+    pub fn get_active_balances_iter_mut(&mut self) -> impl Iterator<Item = &mut Balance> {
+        self.balances.iter_mut().filter(|b| b.active)
+    }
 }
 
 #[zero_copy]
@@ -508,6 +518,19 @@ pub struct Balance {
 }
 
 impl Balance {
+    /// Check whether a balance is empty while accounting for any rounding errors
+    /// that might have occured during depositing/withdrawing.
+    #[inline]
+    pub fn is_empty(&self, side: BalanceSide) -> bool {
+        let shares: I80F48 = match side {
+            BalanceSide::Deposits => self.deposit_shares,
+            BalanceSide::Liabilities => self.liability_shares,
+        }
+        .into();
+
+        shares < EMPTY_BALANCE_THRESHOLD
+    }
+
     pub fn change_deposit_shares(&mut self, delta: I80F48) -> MarginfiResult {
         let deposit_shares: I80F48 = self.deposit_shares.into();
         self.deposit_shares = deposit_shares
@@ -528,28 +551,33 @@ impl Balance {
 }
 
 pub struct BankAccountWrapper<'a> {
-    balance: &'a mut Balance,
+    pub balance: &'a mut Balance,
     bank: &'a mut Bank,
 }
 
 impl<'a> BankAccountWrapper<'a> {
+    pub fn find<'b>(
+        bank_pk: &Pubkey,
+        bank: &'a mut Bank,
+        lending_account: &'a mut LendingAccount,
+    ) -> MarginfiResult<BankAccountWrapper<'a>> {
+        // Find existing user lending account balance by bank address.
+        let balance = lending_account
+            .get_active_balances_iter_mut()
+            .find(|balance| balance.bank_pk.eq(bank_pk))
+            .ok_or_else(|| error!(MarginfiError::BankAccoutNotFound))?;
+
+        Ok(Self { balance, bank })
+    }
+
     pub fn find_or_create<'b>(
         bank_pk: &Pubkey,
         bank: &'a mut Bank,
         lending_account: &'a mut LendingAccount,
     ) -> MarginfiResult<BankAccountWrapper<'a>> {
-        // Find the user lending account balance by `bank_index`.
-        // The balance account might not exist.
-        let balance_index = lending_account
-            .get_active_balances_iter()
-            .position(|balance| balance.bank_pk.eq(bank_pk));
-
-        let balance = if let Some(index) = balance_index {
-            lending_account
-                .balances // active_balances?
-                .get_mut(index)
-                .unwrap()
-        } else {
+        // Find existing user lending account balance by bank address.
+        // Create it if not found.
+        BankAccountWrapper::find(bank_pk, bank, lending_account).or({
             let empty_index = lending_account
                 .get_first_empty_balance()
                 .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
@@ -561,106 +589,180 @@ impl<'a> BankAccountWrapper<'a> {
                 liability_shares: I80F48::ZERO.into(),
             };
 
-            lending_account.balances.get_mut(empty_index).unwrap()
-        };
-
-        Ok(Self { balance, bank })
+            Ok(Self {
+                balance: lending_account.balances.get_mut(empty_index).unwrap(),
+                bank,
+            })
+        })
     }
 
-    pub fn account_deposit(&mut self, amount: I80F48) -> MarginfiResult {
+    // ------------ Borrow / Lend primitives
+
+    /// Deposit an asset, will error if there is an existing liability - repaying is not allowed.
+    pub fn deposit(&mut self, amount: I80F48) -> MarginfiResult {
+        self.increase_balance_internal(amount, BalanceIncreaseType::DepositOnly)
+    }
+
+    /// Withdraw an asset, will error if there is not enough asset - borrowing is not allowed.
+    pub fn withdraw(&mut self, amount: I80F48) -> MarginfiResult {
+        self.decrease_balance_internal(amount, BalanceDecreaseType::WithdrawOnly)
+    }
+
+    /// Incur a borrow, will error if there is an existing asset - withdrawing is not allowed.
+    pub fn borrow(&mut self, amount: I80F48) -> MarginfiResult {
+        self.decrease_balance_internal(amount, BalanceDecreaseType::BorrowOnly)
+    }
+
+    /// Repay a liability, will error if there is not enough liability - depositing is not allowed.
+    pub fn repay(&mut self, amount: I80F48) -> MarginfiResult {
+        self.increase_balance_internal(amount, BalanceIncreaseType::RepayOnly)
+    }
+
+    // ------------ Hybrid operations for seamless repay + deposit / withdraw + borrow
+
+    /// Repay liability and deposit/increase asset depending on
+    /// the specified deposit amount and the existing balance.
+    pub fn increase_balance(&mut self, amount: I80F48) -> MarginfiResult {
+        self.increase_balance_internal(amount, BalanceIncreaseType::Any)
+    }
+
+    /// Withdraw asset and create/increase liability depending on
+    /// the specified deposit amount and the existing balance.
+    pub fn decrease_balance(&mut self, amount: I80F48) -> MarginfiResult {
+        self.decrease_balance_internal(amount, BalanceDecreaseType::Any)
+    }
+
+    // ------------ Internal accounting logic
+
+    fn increase_balance_internal(
+        &mut self,
+        balance_delta: I80F48,
+        operation_type: BalanceIncreaseType,
+    ) -> MarginfiResult {
+        msg!(
+            "Balance increase: {} of {} in {} (type: {:?})",
+            balance_delta,
+            self.bank.mint,
+            self.balance.bank_pk,
+            operation_type
+        );
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
-        msg!("Account deposit: {} to {}", amount, balance.bank_pk);
+        let current_liability_shares: I80F48 = balance.liability_shares.into();
+        let current_liability_amount = bank.get_liability_amount(current_liability_shares)?;
 
-        let liability_value = bank.get_liability_amount(balance.liability_shares.into())?;
-
-        let (deposit_value_delta, liability_replay_value_delta) = (
+        let (liability_amount_decrease, asset_amount_increase) = (
+            min(current_liability_amount, balance_delta),
             max(
-                amount
-                    .checked_sub(liability_value)
+                balance_delta
+                    .checked_sub(current_liability_amount)
                     .ok_or_else(math_error!())?,
                 I80F48::ZERO,
             ),
-            min(liability_value, amount),
         );
 
-        {
-            let is_deposit_increasing = !deposit_value_delta.is_zero();
-            bank.assert_operational_mode(Some(is_deposit_increasing))?;
+        match operation_type {
+            BalanceIncreaseType::RepayOnly => {
+                check!(
+                    asset_amount_increase.is_zero(),
+                    MarginfiError::OperationRepayOnly
+                );
+            }
+            BalanceIncreaseType::DepositOnly => {
+                check!(
+                    liability_amount_decrease.is_zero(),
+                    MarginfiError::OperationDepositOnly
+                );
+            }
+            BalanceIncreaseType::Any => {}
         }
 
-        let deposit_shares_delta = bank.get_deposit_shares(deposit_value_delta)?;
+        {
+            let is_asset_amount_increasing = asset_amount_increase.is_positive();
+            bank.assert_operational_mode(Some(is_asset_amount_increasing))?;
+        }
 
-        balance.change_deposit_shares(deposit_shares_delta)?;
-        bank.change_deposit_shares(deposit_shares_delta)?;
+        let asset_shares_increase = bank.get_deposit_shares(asset_amount_increase)?;
 
-        let liability_shares_delta = bank.get_liability_shares(liability_replay_value_delta)?;
+        balance.change_deposit_shares(asset_shares_increase)?;
+        bank.change_deposit_shares(asset_shares_increase)?;
 
-        balance.change_liability_shares(-liability_shares_delta)?;
-        bank.change_liability_shares(-liability_shares_delta)?;
+        let liability_shares_decrease = bank.get_liability_shares(liability_amount_decrease)?;
+
+        balance.change_liability_shares(-liability_shares_decrease)?;
+        bank.change_liability_shares(-liability_shares_decrease)?;
 
         Ok(())
     }
 
-    /// Borrow an asset, will withdraw existing deposits if they exist.
-    pub fn account_borrow(&mut self, amount: I80F48) -> MarginfiResult {
-        self.account_credit_asset(amount, true)
-    }
-
-    /// Withdraw a deposit, will error if there is not enough deposit.
-    /// Borrowing is not allowed.
-    pub fn account_withdraw(&mut self, amount: I80F48) -> MarginfiResult {
-        self.account_credit_asset(amount, false)
-    }
-
-    fn account_credit_asset(&mut self, amount: I80F48, allow_borrow: bool) -> MarginfiResult {
+    fn decrease_balance_internal(
+        &mut self,
+        balance_delta: I80F48,
+        operation_type: BalanceDecreaseType,
+    ) -> MarginfiResult {
         msg!(
-            "Account remove: {} of {} (borrow: {})",
-            amount,
+            "Balance decrease: {} of {} in {} (type: {:?})",
+            balance_delta,
             self.bank.mint,
-            allow_borrow
+            self.balance.bank_pk,
+            operation_type
         );
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
-        let deposit_shares: I80F48 = balance.deposit_shares.into();
+        let current_asset_shares: I80F48 = balance.deposit_shares.into();
+        let current_asset_amount = bank.get_deposit_amount(current_asset_shares)?;
 
-        let deposit_value = bank.get_deposit_amount(deposit_shares)?;
-
-        let (deposit_remove_value_delta, liability_value_delta) = (
-            min(deposit_value, amount),
+        let (asset_amount_decrease, liability_amount_increase) = (
+            min(current_asset_amount, balance_delta),
             max(
-                amount
-                    .checked_sub(deposit_value)
+                balance_delta
+                    .checked_sub(current_asset_amount)
                     .ok_or_else(math_error!())?,
                 I80F48::ZERO,
             ),
         );
 
-        {
-            let is_liability_increasing = liability_value_delta.is_zero().not();
-
-            check!(
-                allow_borrow || !is_liability_increasing,
-                MarginfiError::BorrowingNotAllowed
-            );
-
-            bank.assert_operational_mode(Some(is_liability_increasing))?;
+        match operation_type {
+            BalanceDecreaseType::WithdrawOnly => {
+                check!(
+                    liability_amount_increase.is_zero(),
+                    MarginfiError::OperationWithdrawOnly
+                );
+            }
+            BalanceDecreaseType::BorrowOnly => {
+                check!(
+                    asset_amount_decrease.is_zero(),
+                    MarginfiError::OperationBorrowOnly
+                );
+            }
+            BalanceDecreaseType::Any => {}
         }
 
-        let deposit_shares_delta = bank.get_deposit_shares(deposit_remove_value_delta)?;
-        balance.change_deposit_shares(-deposit_shares_delta)?;
-        bank.change_deposit_shares(-deposit_shares_delta)?;
+        {
+            let is_liability_amount_increasing = liability_amount_increase.is_positive();
+            bank.assert_operational_mode(Some(is_liability_amount_increasing))?;
+        }
 
-        let liability_shares_delta = bank.get_liability_shares(liability_value_delta)?;
-        balance.change_liability_shares(liability_shares_delta)?;
-        bank.change_liability_shares(liability_shares_delta)?;
+        let asset_shares_decrease = bank.get_deposit_shares(asset_amount_decrease)?;
+
+        balance.change_deposit_shares(-asset_shares_decrease)?;
+        bank.change_deposit_shares(-asset_shares_decrease)?;
+
+        let liability_shares_increase = bank.get_liability_shares(liability_amount_increase)?;
+
+        balance.change_liability_shares(liability_shares_increase)?;
+        bank.change_liability_shares(liability_shares_increase)?;
 
         bank.check_utilization_ratio()?;
 
         Ok(())
     }
+
+    // ------------ SPL helpers
 
     pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
         &self,
