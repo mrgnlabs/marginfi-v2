@@ -251,10 +251,8 @@ impl MarginfiAccountFixture {
                 ]
             })
             .collect::<Vec<_>>();
-
         ams
     }
-
     pub async fn set_account(&self, mfi_account: &MarginfiAccount) -> anyhow::Result<()> {
         let mut ctx = self.ctx.borrow_mut();
         let mut account = ctx.banks_client.get_account(self.key).await?.unwrap();

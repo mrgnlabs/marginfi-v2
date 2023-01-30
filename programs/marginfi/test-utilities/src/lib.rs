@@ -1,6 +1,3 @@
-#![cfg(feature = "test-bpf")]
-#![allow(dead_code)]
-
 pub mod bank;
 pub mod marginfi_account;
 pub mod marginfi_group;

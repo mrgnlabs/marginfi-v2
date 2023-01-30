@@ -1,10 +1,4 @@
-#![cfg(feature = "test-bpf")]
-#![allow(dead_code)]
-
-use crate::{
-    fixtures::{marginfi_group::*, spl::*, utils::*},
-    native,
-};
+use crate::{marginfi_group::*, native, spl::*, utils::*};
 use anchor_lang::prelude::*;
 use bincode::deserialize;
 
