@@ -186,31 +186,25 @@ impl TokenAccountFixture {
 
     pub async fn new_account(&self) -> Pubkey {
         let keypair = Keypair::new();
+        let mut ctx = self.ctx.borrow_mut();
+
         let ixs = Self::create_ixs(
-            self.ctx.borrow_mut().banks_client.get_rent().await.unwrap(),
+            ctx.banks_client.get_rent().await.unwrap(),
             &self.token.mint,
-            &self.ctx.borrow().payer.pubkey(),
-            &self.ctx.borrow().payer.pubkey(),
+            &ctx.payer.pubkey(),
+            &ctx.payer.pubkey(),
             &keypair,
         )
         .await;
 
-        let tx = {
-            let ctx = self.ctx.borrow();
-            Transaction::new_signed_with_payer(
-                &ixs,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer, &keypair],
-                ctx.last_blockhash,
-            )
-        };
+        let tx = Transaction::new_signed_with_payer(
+            &ixs,
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer, &keypair],
+            ctx.last_blockhash,
+        );
 
-        self.ctx
-            .borrow_mut()
-            .banks_client
-            .process_transaction(tx)
-            .await
-            .unwrap();
+        ctx.banks_client.process_transaction(tx).await.unwrap();
 
         keypair.pubkey()
     }
@@ -248,7 +242,6 @@ impl TokenAccountFixture {
         }
     }
 
-    #[allow(unused)]
     pub async fn new(
         ctx: Rc<RefCell<ProgramTestContext>>,
         mint_pk: &Pubkey,

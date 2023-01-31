@@ -132,7 +132,6 @@ impl BankFixture {
         let bank = self.load().await;
 
         let (shares_token_mint, _) = get_shares_token_mint(&self.key);
-        let (shares_token_mint_authority, _) = get_shares_token_mint_authority(&self.key);
 
         let ix = Instruction {
             program_id: marginfi::id(),

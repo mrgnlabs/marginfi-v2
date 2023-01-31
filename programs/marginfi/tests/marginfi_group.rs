@@ -1122,8 +1122,8 @@ async fn bank_mint_shares_success() -> anyhow::Result<()> {
         )
         .await?;
 
-    let sol_token_account = sol_mint_fixture
-        .create_and_mint_to(native!(100, "SOL"))
+    let usdc_token_account = usdc_mint_fixture
+        .create_and_mint_to(native!(100, "USDC"))
         .await;
 
     let shares_fixture = TokenAccountFixture::new(
@@ -1133,29 +1133,11 @@ async fn bank_mint_shares_success() -> anyhow::Result<()> {
     )
     .await;
 
-    let shares_token_account = shares_fixture.new_account().await;
-
     let res = usdc_bank
-        .try_mint_shares(
-            native!(100, "USDC"),
-            sol_token_account,
-            shares_token_account,
-        )
+        .try_mint_shares(native!(100, "USDC"), usdc_token_account, shares_fixture.key)
         .await;
 
-    let shares_token_amount = token::accessor::amount(
-        &(
-            &shares_token_account,
-            &mut test_f
-                .context
-                .borrow_mut()
-                .banks_client
-                .get_account(shares_token_account)
-                .await?
-                .unwrap(),
-        )
-            .into_account_info(),
-    )?;
+    let shares_token_amount = shares_fixture.balance().await;
 
     let bank_vault_pk = &usdc_bank.get_vault(BankVaultType::Liquidity).0;
     let vault_token_amount = token::accessor::amount(
@@ -1172,28 +1154,16 @@ async fn bank_mint_shares_success() -> anyhow::Result<()> {
             .into_account_info(),
     )?;
 
+    assert!(res.is_ok());
+
     assert_eq!(shares_token_amount, native!(100, "USDC"));
     assert_eq!(vault_token_amount, native!(100, "USDC"));
 
-    assert!(res.is_ok());
-
     let res = usdc_bank
-        .try_redeem_shares(native!(99, "USDC"), sol_token_account, shares_token_account)
+        .try_redeem_shares(native!(99, "USDC"), usdc_token_account, shares_fixture.key)
         .await;
 
-    let shares_token_amount = token::accessor::amount(
-        &(
-            &shares_token_account,
-            &mut test_f
-                .context
-                .borrow_mut()
-                .banks_client
-                .get_account(shares_token_account)
-                .await?
-                .unwrap(),
-        )
-            .into_account_info(),
-    )?;
+    let shares_token_amount = shares_fixture.balance().await;
 
     let vault_token_amount = token::accessor::amount(
         &(
@@ -1212,7 +1182,6 @@ async fn bank_mint_shares_success() -> anyhow::Result<()> {
     assert!(res.is_ok());
 
     assert_eq!(shares_token_amount, native!(1, "USDC"));
-
     assert_eq!(vault_token_amount, native!(1, "USDC"));
 
     Ok(())

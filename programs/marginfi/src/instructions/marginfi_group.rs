@@ -648,6 +648,7 @@ pub fn bank_redeem_shares(ctx: Context<BankRedeemShares>, shares_amount: u64) ->
         signer,
         user_shares_token_account,
         liquidity_vault,
+        bank_liquidity_vault_authority,
         shares_token_mint,
         user_deposit_token_account,
         token_program,
@@ -676,7 +677,7 @@ pub fn bank_redeem_shares(ctx: Context<BankRedeemShares>, shares_amount: u64) ->
         Transfer {
             from: liquidity_vault.to_account_info(),
             to: user_deposit_token_account.to_account_info(),
-            authority: signer.to_account_info(),
+            authority: bank_liquidity_vault_authority.to_account_info(),
         },
         token_program.to_account_info(),
         bank_signer!(

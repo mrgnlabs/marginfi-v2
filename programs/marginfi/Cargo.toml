@@ -42,4 +42,4 @@ pretty_assertions = "1.2.1"
 solana-logger = "1.14.11"
 solana-program-test = "1.14.11"
 solana-sdk = "1.14.11"
-fixtures = { path = "./test-utilities", package = "test-utilities"}
+fixtures = { path = "./test-utilities", package = "test-utilities" }
