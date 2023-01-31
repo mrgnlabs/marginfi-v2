@@ -1,0 +1,22 @@
+[package]
+name = "liquidity-incentive-program"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "liquidity_incentive_program"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.26.0"
+anchor-spl = "0.26.0"
+fixed = "1.12.0"
+marginfi = { path = "../marginfi/", features = ["cpi"] }
