@@ -28,8 +28,6 @@ pub enum MarginfiError {
     LendingAccountBalanceSlotsFull,
     #[msg("Bank already exists")]
     BankAlreadyExists,
-    #[msg("Borrowing not allowed")]
-    BorrowingNotAllowed,
     #[msg("Illegal post liquidation state, account is either not unhealthy or liquidation was too big")]
     IllegalLiquidation,
     #[msg("Account is not bankrupt")]

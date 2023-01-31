@@ -122,7 +122,7 @@ impl MintFixture {
         .unwrap()
     }
 
-    pub async fn create_and_mint_to(&self, amount: u64) -> Pubkey {
+    pub async fn create_token_account_and_mint_to(&self, amount: u64) -> Pubkey {
         let keypair = Keypair::new();
         let mint_to_ix = self.make_mint_to_ix(&keypair.pubkey(), amount);
 

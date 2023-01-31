@@ -1,7 +1,7 @@
 use super::utils::load_and_deserialize;
 use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
-    AccountDeserialize, InstructionData, ToAccountMetas,
+    InstructionData, ToAccountMetas,
 };
 use marginfi::{
     state::marginfi_group::{Bank, BankConfigOpt, BankVaultType},

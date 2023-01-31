@@ -180,7 +180,8 @@ pub fn liquidate(ctx: Context<MarginfiAccountLiquidate>, asset_quantity: u64) ->
             &mut asset_bank,
             &mut liquidatee_marginfi_account.lending_account,
         )?
-        .withdraw(asset_quantity)?;
+        .withdraw(asset_quantity)
+        .or_else(|_| Err(MarginfiError::IllegalLiquidation))?;
 
         // Liquidatee receives liability payment
         let liab_bank_liquidity_authority_bump = liab_bank.liquidity_vault_authority_bump;

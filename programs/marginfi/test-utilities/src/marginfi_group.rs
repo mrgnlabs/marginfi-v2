@@ -1,26 +1,18 @@
-use crate::{spl::*, utils::*};
+use super::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
+use crate::utils::*;
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 use anchor_spl::token;
 use anyhow::Result;
 use marginfi::{
-    constants::*,
-    prelude::{MarginfiGroup, MarginfiResult},
+    prelude::MarginfiGroup,
     state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
 };
 use solana_program::sysvar;
 use solana_program_test::*;
 use solana_sdk::{
-    account::AccountSharedData, instruction::Instruction, signature::Keypair, signer::Signer,
-    system_instruction, transaction::Transaction, transport::TransportError,
+    instruction::Instruction, signature::Keypair, signer::Signer, transaction::Transaction,
 };
-use std::{
-    cell::{RefCell, RefMut},
-    convert::TryInto,
-    mem,
-    rc::Rc,
-};
-
-use super::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
+use std::{cell::RefCell, mem, rc::Rc};
 
 pub struct MarginfiGroupFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
@@ -30,7 +22,7 @@ pub struct MarginfiGroupFixture {
 impl MarginfiGroupFixture {
     pub async fn new(
         ctx: Rc<RefCell<ProgramTestContext>>,
-        config_arg: GroupConfig,
+        config: GroupConfig,
     ) -> MarginfiGroupFixture {
         let ctx_ref = ctx.clone();
         let group_key = Keypair::new();
@@ -38,28 +30,29 @@ impl MarginfiGroupFixture {
         {
             let mut ctx = ctx.borrow_mut();
 
-            let accounts = marginfi::accounts::InitializeMarginfiGroup {
-                marginfi_group: group_key.pubkey(),
-                admin: ctx.payer.pubkey(),
-                system_program: system_program::id(),
-            };
-            let init_marginfi_group_ix = Instruction {
+            let initialize_marginfi_group_ix = Instruction {
                 program_id: marginfi::id(),
-                accounts: accounts.to_account_metas(Some(true)),
+                accounts: marginfi::accounts::InitializeMarginfiGroup {
+                    marginfi_group: group_key.pubkey(),
+                    admin: ctx.payer.pubkey(),
+                    system_program: system_program::id(),
+                }
+                .to_account_metas(Some(true)),
                 data: marginfi::instruction::InitializeMarginfiGroup {}.data(),
             };
-            let rent = ctx.banks_client.get_rent().await.unwrap();
-            let size = MarginfiGroupFixture::get_size();
-            let create_marginfi_group_ix = system_instruction::create_account(
-                &ctx.payer.pubkey(),
-                &group_key.pubkey(),
-                rent.minimum_balance(size),
-                size as u64,
-                &marginfi::id(),
-            );
+
+            let configure_marginfi_group_ix = Instruction {
+                program_id: marginfi::id(),
+                accounts: marginfi::accounts::ConfigureMarginfiGroup {
+                    marginfi_group: group_key.pubkey(),
+                    admin: ctx.payer.pubkey(),
+                }
+                .to_account_metas(Some(true)),
+                data: marginfi::instruction::ConfigureMarginfiGroup { config }.data(),
+            };
 
             let tx = Transaction::new_signed_with_payer(
-                &[init_marginfi_group_ix],
+                &[initialize_marginfi_group_ix, configure_marginfi_group_ix],
                 Some(&ctx.payer.pubkey().clone()),
                 &[&ctx.payer, &group_key],
                 ctx.last_blockhash,
@@ -78,7 +71,6 @@ impl MarginfiGroupFixture {
         bank_asset_mint: Pubkey,
         bank_config: BankConfig,
     ) -> Result<BankFixture, BanksClientError> {
-        let rent = self.ctx.borrow_mut().banks_client.get_rent().await.unwrap();
         let bank_key = Keypair::new();
         let bank_fixture = BankFixture::new(self.ctx.clone(), bank_key.pubkey());
 
@@ -143,7 +135,7 @@ impl MarginfiGroupFixture {
                 ..Default::default()
             },
         )
-        .await;
+        .await?;
 
         Ok(bank_fixture)
     }

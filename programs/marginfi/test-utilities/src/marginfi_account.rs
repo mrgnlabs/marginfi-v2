@@ -79,7 +79,7 @@ impl MarginfiAccountFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::BankDeposit {
+            accounts: marginfi::accounts::MarginfiAccountDeposit {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: ctx.payer.pubkey(),
@@ -89,7 +89,7 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::BankDeposit { amount }.data(),
+            data: marginfi::instruction::MarginfiAccountDeposit { amount }.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -109,12 +109,13 @@ impl MarginfiAccountFixture {
         destination_account: Pubkey,
         bank: &BankFixture,
         amount: u64,
+        withdraw_all: Option<bool>,
     ) -> anyhow::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::BankWithdraw {
+            accounts: marginfi::accounts::MarginfiAccountWithdraw {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: self.ctx.borrow().payer.pubkey(),
@@ -127,13 +128,96 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::BankWithdraw { amount }.data(),
+            data: marginfi::instruction::MarginfiAccountWithdraw {
+                amount,
+                withdraw_all,
+            }
+            .data(),
         };
 
         ix.accounts
             .extend_from_slice(&self.load_observation_account_metas(vec![bank.key]).await);
 
         let mut ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_bank_borrow(
+        &self,
+        destination_account: Pubkey,
+        bank: &BankFixture,
+        amount: u64,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let marginfi_account = self.load().await;
+
+        let mut ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::MarginfiAccountBorrow {
+                marginfi_group: marginfi_account.group,
+                marginfi_account: self.key,
+                signer: self.ctx.borrow().payer.pubkey(),
+                bank: bank.key,
+                destination_token_account: destination_account,
+                bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+                bank_liquidity_vault_authority: bank
+                    .get_vault_authority(BankVaultType::Liquidity)
+                    .0,
+                token_program: token::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::MarginfiAccountBorrow { amount }.data(),
+        };
+
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas(vec![bank.key]).await);
+
+        let mut ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_bank_repay(
+        &self,
+        funding_account: Pubkey,
+        bank: &BankFixture,
+        amount: u64,
+        repay_all: Option<bool>,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let marginfi_account = self.load().await;
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::MarginfiAccountRepay {
+                marginfi_group: marginfi_account.group,
+                marginfi_account: self.key,
+                signer: ctx.payer.pubkey(),
+                bank: bank.key,
+                signer_token_account: funding_account,
+                bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+                token_program: token::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::MarginfiAccountRepay { amount, repay_all }.data(),
+        };
+
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -158,7 +242,7 @@ impl MarginfiAccountFixture {
         let asset_bank = asset_bank_fixture.load().await;
         let liab_bank = liab_bank_fixture.load().await;
 
-        let mut accounts = marginfi::accounts::LendingAccountLiquidate {
+        let mut accounts = marginfi::accounts::MarginfiAccountLiquidate {
             marginfi_group: marginfi_account.group,
             asset_bank: asset_bank_fixture.key,
             liab_bank: liab_bank_fixture.key,
@@ -182,7 +266,7 @@ impl MarginfiAccountFixture {
         let mut ix = Instruction {
             program_id: marginfi::id(),
             accounts,
-            data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
+            data: marginfi::instruction::MarginfiAccountLiquidate { asset_amount }.data(),
         };
 
         ix.accounts.extend_from_slice(
