@@ -176,7 +176,7 @@ impl MarginfiGroupFixture {
         bank: &BankFixture,
         bank_config_opt: BankConfigOpt,
     ) -> Result<(), BanksClientError> {
-        let ix = self.make_lending_pool_configure_bank_ix(&bank, bank_config_opt);
+        let ix = self.make_lending_pool_configure_bank_ix(bank, bank_config_opt);
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.ctx.borrow().payer.pubkey().clone()),
@@ -275,7 +275,7 @@ impl MarginfiGroupFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: accounts,
+            accounts,
             data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
         };
 

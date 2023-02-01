@@ -219,6 +219,7 @@ pub struct Bank {
 }
 
 impl Bank {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         marginfi_group_pk: Pubkey,
         config: BankConfig,

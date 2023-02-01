@@ -28,7 +28,7 @@ impl MintFixture {
         mint_decimals: Option<u8>,
     ) -> MintFixture {
         let ctx_ref = Rc::clone(&ctx);
-        let keypair = mint_keypair.unwrap_or(Keypair::new());
+        let keypair = mint_keypair.unwrap_or_else(Keypair::new);
         let mint = {
             let mut ctx = ctx.borrow_mut();
 

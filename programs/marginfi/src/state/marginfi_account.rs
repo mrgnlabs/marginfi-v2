@@ -560,7 +560,7 @@ pub struct BankAccountWrapper<'a> {
 
 impl<'a> BankAccountWrapper<'a> {
     // Find existing user lending account balance by bank address.
-    pub fn find<'b>(
+    pub fn find(
         bank_pk: &Pubkey,
         bank: &'a mut Bank,
         lending_account: &'a mut LendingAccount,
@@ -575,7 +575,7 @@ impl<'a> BankAccountWrapper<'a> {
 
     // Find existing user lending account balance by bank address.
     // Create it if not found.
-    pub fn find_or_create<'b>(
+    pub fn find_or_create(
         bank_pk: &Pubkey,
         bank: &'a mut Bank,
         lending_account: &'a mut LendingAccount,

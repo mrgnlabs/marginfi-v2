@@ -325,7 +325,7 @@ impl MarginfiAccountFixture {
             .lending_account
             .balances
             .iter()
-            .filter_map(|balance| balance.active.then(|| balance.bank_pk))
+            .filter_map(|balance| balance.active.then_some(balance.bank_pk))
             .collect::<Vec<_>>();
 
         for bank_pk in include_banks {
@@ -364,9 +364,9 @@ impl MarginfiAccountFixture {
     pub async fn set_account(&self, mfi_account: &MarginfiAccount) -> anyhow::Result<()> {
         let mut ctx = self.ctx.borrow_mut();
         let mut account = ctx.banks_client.get_account(self.key).await?.unwrap();
-        let discriminator = account.data[..8].to_vec();
+        let mut discriminator = account.data[..8].to_vec();
         let mut new_data = vec![];
-        new_data.append(&mut discriminator.clone());
+        new_data.append(&mut discriminator);
         new_data.append(&mut bytemuck::bytes_of(mfi_account).to_vec());
         account.data = new_data;
         ctx.set_account(&self.key, &account.into());
