@@ -1,0 +1,49 @@
+name: main
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "*"
+
+defaults:
+  run:
+    shell: bash
+    working-directory: .
+
+env:
+  CARGO_TERM_COLOR: always
+  SOLANA_VERSION: "1.14.13"
+  PROGRAM_PATH: "programs/marginfi/"
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    container: mrgnlabs/solana-dev:0.0.2-alpha
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cargo Format
+        run: cargo fmt -- --check
+      - name: Cargo Clippy
+        run: cargo clippy --features=test,test-bpf
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Anchor Build
+        uses: mrgnlabs/anchor-build-action@v0.1
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cargo Test BPF
+        uses: mrgnlabs/test-bpf-action@v0.1
+        with:
+          args: "--features=test"
