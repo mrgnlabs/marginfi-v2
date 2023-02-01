@@ -169,6 +169,8 @@ impl BankFixture {
             .process_transaction(tx)
             .await?)
     }
+
+    // pub async fn try_create_campaign(&self) ->
 }
 
 impl Debug for BankFixture {

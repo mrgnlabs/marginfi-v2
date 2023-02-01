@@ -213,3 +213,33 @@ pub fn get_shares_token_mint_authority(bank_key: &Pubkey) -> (Pubkey, u8) {
         &marginfi::id(),
     )
 }
+
+pub fn get_reward_vault_address(campaign_key: Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[CAMPAIGN_SEED, campaign_key.as_ref()], &lip::id())
+}
+
+pub fn get_reward_vault_authority_address(campaign_key: Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[CAMPAIGN_AUTH_SEED, campaign_key.as_ref()], &lip::id())
+}
+
+pub fn get_deposit_shares_vault_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[DEPOSIT_SEED, deposit_key.as_ref()], &lip::id())
+}
+
+pub fn get_deposit_shares_vault_authority_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[DEPOSIT_AUTH_SEED, deposit_key.as_ref()], &lip::id())
+}
+
+pub fn get_ephemeral_token_account_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[EPHEMERAL_TOKEN_ACCOUNT_SEED, deposit_key.as_ref()],
+        &lip::id(),
+    )
+}
+
+pub fn get_ephemeral_token_account_authority_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED, deposit_key.as_ref()],
+        &lip::id(),
+    )
+}

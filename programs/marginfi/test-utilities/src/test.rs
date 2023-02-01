@@ -82,6 +82,12 @@ impl TestFixture {
     pub async fn new(ix_arg: Option<GroupConfig>) -> TestFixture {
         let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
 
+        program.add_program(
+            "liquidity-incentive-program",
+            liquidity_incentive_program::ID,
+            processor!(liquidity_incentive_program::entry),
+        );
+
         let usdc_keypair = Keypair::new();
         let sol_keypair = Keypair::new();
         let sol_equivalent_keypair = Keypair::new();

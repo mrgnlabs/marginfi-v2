@@ -31,6 +31,10 @@ solana-sdk = "1.14.11"
 path = ".."
 features = ["client"]
 
+[dependencies.lip]
+path = "../../liquidity-incentive-program"
+package = "liquidity-incentive-program"
+
 # Prevent this from interfering with workspaces
 # [workspace]
 # members = ["."]

@@ -14,6 +14,8 @@ no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
 default = []
+devnet = ["marginfi/devnet"]
+mainnet-beta = ["marginfi/devnet"]
 
 [dependencies]
 anchor-lang = "0.26.0"

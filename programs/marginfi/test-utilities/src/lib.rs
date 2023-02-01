@@ -1,4 +1,5 @@
 pub mod bank;
+pub mod lip;
 pub mod marginfi_account;
 pub mod marginfi_group;
 pub mod prelude;

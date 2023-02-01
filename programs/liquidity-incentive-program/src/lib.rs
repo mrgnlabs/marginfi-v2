@@ -11,7 +11,6 @@ declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 #[program]
 pub mod liquidity_incentive_program {
-
     use super::*;
 
     pub fn create_campaing(
@@ -42,6 +41,8 @@ pub mod liquidity_incentive_program {
             marginfi_bank_pk: ctx.accounts.marginfi_bank.key(),
         };
 
+        msg!("Created campaing\n{:?}", ctx.accounts.campaign);
+
         Ok(())
     }
 
@@ -53,6 +54,8 @@ pub mod liquidity_incentive_program {
             amount,
             LIPError::DepositAmountTooLarge
         );
+
+        msg!("User depositing {} tokens", amount);
 
         *ctx.accounts.deposit = Deposit {
             owner: ctx.accounts.signer.key(),
@@ -96,6 +99,11 @@ pub mod liquidity_incentive_program {
             Clock::get()?.unix_timestamp,
             ctx.accounts.deposit.start_time + ctx.accounts.campaign.lockup_period as i64,
             LIPError::DepositNotMature
+        );
+
+        msg!(
+            "Redeeming {} shares from marginfi",
+            ctx.accounts.deposit_shares_vault.amount
         );
 
         // Redeem the shares with marginfi
@@ -145,8 +153,16 @@ pub mod liquidity_incentive_program {
                 / I80F48::from_num(ctx.accounts.campaign.max_deposits))
             .to_num::<u64>();
 
+            msg!(
+                "Base yield: {}, max reward for deposit: {}",
+                base_yield,
+                max_reward_for_deposit
+            );
+
             max_reward_for_deposit.saturating_sub(base_yield)
         };
+
+        msg!("Additional reward amount: {}", additional_reward_amount);
 
         // Transfer any additional rewards to the ephemeral token account
         if additional_reward_amount > 0 {
@@ -172,6 +188,11 @@ pub mod liquidity_incentive_program {
 
             ctx.accounts.ephemeral_token_account.reload()?;
         }
+
+        msg!(
+            "Transferring {} tokens to user",
+            ctx.accounts.ephemeral_token_account.amount
+        );
 
         // Transfer the total amount to the user
         transfer(
@@ -216,11 +237,17 @@ pub mod liquidity_incentive_program {
     }
 }
 
+#[constant]
 pub const CAMPAIGN_SEED: &[u8] = b"campaign";
+#[constant]
 pub const CAMPAIGN_AUTH_SEED: &[u8] = b"campaign_auth";
+#[constant]
 pub const DEPOSIT_SEED: &[u8] = b"deposit";
+#[constant]
 pub const DEPOSIT_AUTH_SEED: &[u8] = b"deposit_auth";
+#[constant]
 pub const EPHEMERAL_TOKEN_ACCOUNT_SEED: &[u8] = b"ephemeral_token_account";
+#[constant]
 pub const EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED: &[u8] = b"ephemeral_token_account_auth";
 
 #[derive(Accounts)]
@@ -237,7 +264,7 @@ pub struct CreateCampaign<'info> {
         token::mint = asset_mint,
         token::authority = campaign_reward_vault_authority,
         seeds = [
-            CAMPAIGN_AUTH_SEED,
+            CAMPAIGN_SEED,
             campaign.key().as_ref(),
         ],
         bump,
@@ -344,6 +371,7 @@ pub struct CloseDeposit<'info> {
         ],
         bump,
     )]
+    /// CHECK: Asserted by PDA derivation
     pub campaign_reward_vault_authority: AccountInfo<'info>,
     #[account(mut, address = deposit.owner)]
     pub signer: Signer<'info>,
@@ -369,6 +397,7 @@ pub struct CloseDeposit<'info> {
         ],
         bump,
     )]
+    /// CHECK: Asserted by PDA derivation
     pub deposit_shares_vault_authority: AccountInfo<'info>,
     #[account(
         init,
@@ -385,23 +414,30 @@ pub struct CloseDeposit<'info> {
     #[account(
         seeds = [
             EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED,
-            ephemeral_token_account.key().as_ref(),
+            deposit.key().as_ref(),
         ],
         bump,
     )]
+    /// CHECK: Asserted by PDA derivation
     pub ephemeral_token_account_authority: AccountInfo<'info>,
     #[account(mut)]
+    /// CHECK: Asserted by token transfer
     pub destination_account: AccountInfo<'info>,
     #[account(address = marginfi_bank.load()?.mint)]
+    /// CHECK: Asserted by constraint
     pub asset_mint: AccountInfo<'info>,
+    /// CHECK: Asserted by CPI call
     pub marginfi_group: AccountInfo<'info>,
     #[account(
         mut,
         address = campaign.marginfi_bank_pk,
     )]
     pub marginfi_bank: AccountLoader<'info, Bank>,
+    /// CHECK: Asserted by CPI call
     pub marginfi_bank_vault: AccountInfo<'info>,
+    /// CHECK: Asserted by CPI call
     pub marginfi_bank_vault_authority: AccountInfo<'info>,
+    /// CHECK: Asserted by CPI call
     pub marginfi_shares_mint: AccountInfo<'info>,
     pub marginfi_program: Program<'info, Marginfi>,
     pub token_program: Program<'info, Token>,
