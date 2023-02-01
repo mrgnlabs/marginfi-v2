@@ -481,10 +481,11 @@ pub struct LendingAccount {
 }
 
 impl LendingAccount {
-    pub fn get_balance(&self, mint_pk: &Pubkey, bank: &Bank) -> Option<&Balance> {
+    #[cfg(any(feature = "test", feature = "client"))]
+    pub fn get_balance(&self, bank_pk: &Pubkey) -> Option<&Balance> {
         self.balances
             .iter()
-            .find(|balance| balance.active && bank.mint.eq(mint_pk))
+            .find(|balance| balance.active && balance.bank_pk.eq(bank_pk))
     }
 
     pub fn get_first_empty_balance(&self) -> Option<usize> {
@@ -705,7 +706,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         check!(
-            current_liability_amount.is_zero(),
+            current_liability_amount.is_positive(),
             MarginfiError::NoLiabilityFound
         );
 

@@ -1,4 +1,5 @@
 use super::{bank::BankFixture, prelude::*};
+use crate::ui_to_native;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 use anchor_spl::token;
 use marginfi::state::{
@@ -19,18 +20,12 @@ pub struct MarginfiAccountConfig {}
 pub struct MarginfiAccountFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
-    usdc_mint: Pubkey,
-    sol_mint: Pubkey,
-    sol_equivalent_mint: Pubkey,
 }
 
 impl MarginfiAccountFixture {
     pub async fn new(
         ctx: Rc<RefCell<ProgramTestContext>>,
         marginfi_group: &Pubkey,
-        usdc_mint: &Pubkey,
-        sol_mint: &Pubkey,
-        sol_equivalent_mint: &Pubkey,
     ) -> MarginfiAccountFixture {
         let ctx_ref = ctx.clone();
         let account_key = Keypair::new();
@@ -62,17 +57,14 @@ impl MarginfiAccountFixture {
         MarginfiAccountFixture {
             ctx: ctx_ref,
             key: account_key.pubkey(),
-            usdc_mint: *usdc_mint,
-            sol_mint: *sol_mint,
-            sol_equivalent_mint: *sol_equivalent_mint,
         }
     }
 
-    pub async fn try_bank_deposit(
+    pub async fn try_bank_deposit<T: Into<f64>>(
         &self,
         funding_account: Pubkey,
         bank: &BankFixture,
-        amount: u64,
+        ui_amount: T,
     ) -> anyhow::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
         let mut ctx = self.ctx.borrow_mut();
@@ -89,7 +81,10 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::MarginfiAccountDeposit { amount }.data(),
+            data: marginfi::instruction::MarginfiAccountDeposit {
+                amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+            }
+            .data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -104,11 +99,11 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
-    pub async fn try_bank_withdraw(
+    pub async fn try_bank_withdraw<T: Into<f64>>(
         &self,
         destination_account: Pubkey,
         bank: &BankFixture,
-        amount: u64,
+        ui_amount: T,
         withdraw_all: Option<bool>,
     ) -> anyhow::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
@@ -129,14 +124,21 @@ impl MarginfiAccountFixture {
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::MarginfiAccountWithdraw {
-                amount,
+                amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
                 withdraw_all,
             }
             .data(),
         };
 
-        ix.accounts
-            .extend_from_slice(&self.load_observation_account_metas(vec![bank.key]).await);
+        let exclude_vec = match withdraw_all.unwrap_or(false) {
+            true => vec![bank.key],
+            false => vec![],
+        };
+        ix.accounts.extend_from_slice(
+            &self
+                .load_observation_account_metas(vec![], exclude_vec)
+                .await,
+        );
 
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
@@ -151,11 +153,11 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
-    pub async fn try_bank_borrow(
+    pub async fn try_bank_borrow<T: Into<f64>>(
         &self,
         destination_account: Pubkey,
         bank: &BankFixture,
-        amount: u64,
+        ui_amount: T,
     ) -> anyhow::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
 
@@ -174,11 +176,17 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::MarginfiAccountBorrow { amount }.data(),
+            data: marginfi::instruction::MarginfiAccountBorrow {
+                amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+            }
+            .data(),
         };
 
-        ix.accounts
-            .extend_from_slice(&self.load_observation_account_metas(vec![bank.key]).await);
+        ix.accounts.extend_from_slice(
+            &self
+                .load_observation_account_metas(vec![bank.key], vec![])
+                .await,
+        );
 
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
@@ -193,11 +201,11 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
-    pub async fn try_bank_repay(
+    pub async fn try_bank_repay<T: Into<f64>>(
         &self,
         funding_account: Pubkey,
         bank: &BankFixture,
-        amount: u64,
+        ui_amount: T,
         repay_all: Option<bool>,
     ) -> anyhow::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
@@ -215,7 +223,11 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::MarginfiAccountRepay { amount, repay_all }.data(),
+            data: marginfi::instruction::MarginfiAccountRepay {
+                amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+                repay_all,
+            }
+            .data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -230,11 +242,11 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
-    pub async fn try_liquidate(
+    pub async fn try_liquidate<T: Into<f64>>(
         &self,
         liquidatee: &MarginfiAccountFixture,
         asset_bank_fixture: &BankFixture,
-        asset_amount: u64,
+        asset_ui_amount: T,
         liab_bank_fixture: &BankFixture,
     ) -> std::result::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
@@ -266,17 +278,29 @@ impl MarginfiAccountFixture {
         let mut ix = Instruction {
             program_id: marginfi::id(),
             accounts,
-            data: marginfi::instruction::MarginfiAccountLiquidate { asset_amount }.data(),
+            data: marginfi::instruction::MarginfiAccountLiquidate {
+                asset_amount: ui_to_native!(
+                    asset_ui_amount.into(),
+                    asset_bank_fixture.mint.mint.decimals
+                ),
+            }
+            .data(),
         };
 
         ix.accounts.extend_from_slice(
             &self
-                .load_observation_account_metas(vec![asset_bank_fixture.key, liab_bank_fixture.key])
+                .load_observation_account_metas(
+                    vec![asset_bank_fixture.key, liab_bank_fixture.key],
+                    vec![],
+                )
                 .await,
         );
 
-        ix.accounts
-            .extend_from_slice(&liquidatee.load_observation_account_metas(vec![]).await);
+        ix.accounts.extend_from_slice(
+            &liquidatee
+                .load_observation_account_metas(vec![], vec![])
+                .await,
+        );
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
@@ -294,6 +318,7 @@ impl MarginfiAccountFixture {
     pub async fn load_observation_account_metas(
         &self,
         include_banks: Vec<Pubkey>,
+        exclude_banks: Vec<Pubkey>,
     ) -> Vec<AccountMeta> {
         let marginfi_account = self.load().await;
         let mut bank_pks = marginfi_account
@@ -308,6 +333,7 @@ impl MarginfiAccountFixture {
                 bank_pks.push(bank_pk);
             }
         }
+        bank_pks.retain(|bank_pk| !exclude_banks.contains(bank_pk));
 
         let mut banks = vec![];
         for bank_pk in bank_pks.clone() {
@@ -315,9 +341,7 @@ impl MarginfiAccountFixture {
             banks.push(bank);
         }
 
-        println!("Lending account banks: {}", banks.len());
-
-        let ams = banks
+        let account_metas = banks
             .iter()
             .zip(bank_pks.iter())
             .flat_map(|(bank, bank_pk)| {
@@ -335,7 +359,7 @@ impl MarginfiAccountFixture {
                 ]
             })
             .collect::<Vec<_>>();
-        ams
+        account_metas
     }
     pub async fn set_account(&self, mfi_account: &MarginfiAccount) -> anyhow::Result<()> {
         let mut ctx = self.ctx.borrow_mut();

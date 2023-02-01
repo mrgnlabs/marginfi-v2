@@ -51,7 +51,10 @@ impl MarginfiGroup {
     }
 }
 
-#[cfg_attr(any(feature = "test", feature = "client"), derive(Debug, TypeLayout))]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, Clone, TypeLayout)
+)]
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]
 pub struct GroupConfig {
     pub admin: Option<Pubkey>,

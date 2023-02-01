@@ -1,4 +1,5 @@
 use super::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
+use crate::prelude::MintFixture;
 use crate::utils::*;
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 use anchor_spl::token;
@@ -68,16 +69,18 @@ impl MarginfiGroupFixture {
 
     pub async fn try_lending_pool_add_bank(
         &self,
-        bank_asset_mint: Pubkey,
+        bank_asset_mint_fixture: &MintFixture,
         bank_config: BankConfig,
     ) -> Result<BankFixture, BanksClientError> {
         let bank_key = Keypair::new();
-        let bank_fixture = BankFixture::new(self.ctx.clone(), bank_key.pubkey());
+        let bank_mint = bank_asset_mint_fixture.key;
+        let bank_fixture =
+            BankFixture::new(self.ctx.clone(), bank_key.pubkey(), bank_asset_mint_fixture);
 
         let mut accounts = marginfi::accounts::LendingPoolAddBank {
             marginfi_group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
-            bank_mint: bank_asset_mint,
+            bank_mint,
             bank: bank_key.pubkey(),
             liquidity_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Liquidity).0,
             liquidity_vault: bank_fixture.get_vault(BankVaultType::Liquidity).0,
@@ -264,7 +267,7 @@ impl MarginfiGroupFixture {
 
         accounts.append(
             &mut marginfi_account
-                .load_observation_account_metas(vec![])
+                .load_observation_account_metas(vec![], vec![])
                 .await,
         );
 

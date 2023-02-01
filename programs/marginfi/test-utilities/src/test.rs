@@ -3,8 +3,10 @@ use anchor_lang::prelude::*;
 use bincode::deserialize;
 
 use super::marginfi_account::MarginfiAccountFixture;
+use crate::bank::BankFixture;
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
+use marginfi::state::marginfi_group::{BankConfigOpt, BankOperationalState};
 use marginfi::{
     constants::MAX_ORACLE_KEYS,
     state::marginfi_group::{BankConfig, GroupConfig, InterestRateConfig, OracleSetup},
@@ -12,11 +14,55 @@ use marginfi::{
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
 use solana_sdk::{account::Account, pubkey, signature::Keypair, signer::Signer};
+use std::collections::HashMap;
 use std::{cell::RefCell, rc::Rc};
+
+#[derive(Default, Debug, Clone)]
+pub struct TestSettings {
+    pub group_config: Option<GroupConfig>,
+    pub banks: Vec<TestBankSetting>,
+}
+
+impl TestSettings {
+    pub fn all_banks_payer_not_admin() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent,
+                    ..TestBankSetting::default()
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct TestBankSetting {
+    pub mint: BankMint,
+    pub config: Option<BankConfig>,
+}
+
+#[derive(Default, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub enum BankMint {
+    #[default]
+    USDC,
+    SOL,
+    SolEquivalent,
+}
 
 pub struct TestFixture {
     pub context: Rc<RefCell<ProgramTestContext>>,
     pub marginfi_group: MarginfiGroupFixture,
+    pub banks: HashMap<BankMint, BankFixture>,
     pub usdc_mint: MintFixture,
     pub sol_mint: MintFixture,
     pub sol_equivalent_mint: MintFixture,
@@ -37,7 +83,18 @@ pub fn create_oracle_key_array(pyth_oracle: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS]
 }
 
 lazy_static! {
-    pub static ref DEFAULT_CONFIG: BankConfig = BankConfig {
+    pub static ref DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG: InterestRateConfig =
+        InterestRateConfig {
+            insurance_fee_fixed_apr: I80F48!(0).into(),
+            insurance_ir_fee: I80F48!(0).into(),
+            protocol_ir_fee: I80F48!(0).into(),
+            protocol_fixed_fee_apr: I80F48!(0).into(),
+
+            optimal_utilization_rate: I80F48!(0.5).into(),
+            plateau_interest_rate: I80F48!(0.6).into(),
+            max_interest_rate: I80F48!(3).into(),
+        };
+    pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
         oracle_setup: OracleSetup::Pyth,
         asset_weight_maint: I80F48!(1).into(),
         asset_weight_init: I80F48!(1).into(),
@@ -59,27 +116,31 @@ lazy_static! {
     pub static ref DEFAULT_USDC_TEST_BANK_CONFIG: BankConfig = BankConfig {
         max_capacity: native!(1_000_000_000, "USDC"),
         oracle_keys: create_oracle_key_array(PYTH_USDC_FEED),
-        ..DEFAULT_CONFIG.clone()
+        ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_TEST_BANK_CONFIG: BankConfig = BankConfig {
         max_capacity: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_FEED),
-        ..DEFAULT_CONFIG.clone()
+        ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG: BankConfig = BankConfig {
         max_capacity: native!(1_000_000, "SOL_EQ"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_EQUIVALENT_FEED),
-        ..DEFAULT_CONFIG.clone()
+        ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_MNDE_TEST_BANK_CONFIG: BankConfig = BankConfig {
         max_capacity: native!(1_000_000, "MNDE"),
         oracle_keys: create_oracle_key_array(PYTH_MNDE_FEED),
-        ..DEFAULT_CONFIG.clone()
+        ..*DEFAULT_TEST_BANK_CONFIG
     };
 }
 
+pub const USDC_MINT_DECIMALS: u8 = 6;
+pub const SOL_MINT_DECIMALS: u8 = 9;
+pub const MNDE_MINT_DECIMALS: u8 = 9;
+
 impl TestFixture {
-    pub async fn new(ix_arg: Option<GroupConfig>) -> TestFixture {
+    pub async fn new(test_settings: Option<TestSettings>) -> TestFixture {
         let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
 
         let usdc_keypair = Keypair::new();
@@ -89,19 +150,23 @@ impl TestFixture {
 
         program.add_account(
             PYTH_USDC_FEED,
-            craft_pyth_price_account(usdc_keypair.pubkey(), 1, 6),
+            craft_pyth_price_account(usdc_keypair.pubkey(), 1, USDC_MINT_DECIMALS.into()),
         );
         program.add_account(
             PYTH_SOL_FEED,
-            craft_pyth_price_account(sol_keypair.pubkey(), 10, 9),
+            craft_pyth_price_account(sol_keypair.pubkey(), 10, SOL_MINT_DECIMALS.into()),
         );
         program.add_account(
             PYTH_SOL_EQUIVALENT_FEED,
-            craft_pyth_price_account(sol_equivalent_keypair.pubkey(), 10, 9),
+            craft_pyth_price_account(
+                sol_equivalent_keypair.pubkey(),
+                10,
+                SOL_MINT_DECIMALS.into(),
+            ),
         );
         program.add_account(
             PYTH_MNDE_FEED,
-            craft_pyth_price_account(mnde_keypair.pubkey(), 10, 9),
+            craft_pyth_price_account(mnde_keypair.pubkey(), 10, MNDE_MINT_DECIMALS.into()),
         );
 
         let context = Rc::new(RefCell::new(program.start_with_context().await));
@@ -115,21 +180,66 @@ impl TestFixture {
 
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 
-        let usdc_mint_f = MintFixture::new(Rc::clone(&context), Some(usdc_keypair), None).await;
-        let sol_mint_f = MintFixture::new(Rc::clone(&context), Some(sol_keypair), Some(9)).await;
-        let sol_equivalent_mint_f =
-            MintFixture::new(Rc::clone(&context), Some(sol_equivalent_keypair), Some(9)).await;
-        let mnde_mint_f = MintFixture::new(Rc::clone(&context), Some(mnde_keypair), Some(9)).await;
+        let usdc_mint_f = MintFixture::new(
+            Rc::clone(&context),
+            Some(usdc_keypair),
+            Some(USDC_MINT_DECIMALS),
+        )
+        .await;
+        let sol_mint_f = MintFixture::new(
+            Rc::clone(&context),
+            Some(sol_keypair),
+            Some(SOL_MINT_DECIMALS),
+        )
+        .await;
+        let sol_equivalent_mint_f = MintFixture::new(
+            Rc::clone(&context),
+            Some(sol_equivalent_keypair),
+            Some(SOL_MINT_DECIMALS),
+        )
+        .await;
+        let mnde_mint_f = MintFixture::new(
+            Rc::clone(&context),
+            Some(mnde_keypair),
+            Some(MNDE_MINT_DECIMALS),
+        )
+        .await;
 
         let tester_group = MarginfiGroupFixture::new(
             Rc::clone(&context),
-            ix_arg.unwrap_or(GroupConfig { admin: None }),
+            test_settings
+                .clone()
+                .map(|ts| ts.group_config.unwrap_or(GroupConfig { admin: None }))
+                .unwrap_or(GroupConfig { admin: None }),
         )
         .await;
+
+        let mut banks = HashMap::new();
+        if let Some(test_settings) = test_settings.clone() {
+            for bank in test_settings.banks.iter() {
+                let (bank_mint, default_config) = match bank.mint {
+                    BankMint::USDC => (&usdc_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
+                    BankMint::SOL => (&sol_mint_f, *DEFAULT_SOL_TEST_BANK_CONFIG),
+                    BankMint::SolEquivalent => (
+                        &sol_equivalent_mint_f,
+                        *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
+                    ),
+                };
+
+                banks.insert(
+                    bank.mint.clone(),
+                    tester_group
+                        .try_lending_pool_add_bank(bank_mint, bank.config.unwrap_or(default_config))
+                        .await
+                        .unwrap(),
+                );
+            }
+        };
 
         TestFixture {
             context: Rc::clone(&context),
             marginfi_group: tester_group,
+            banks,
             usdc_mint: usdc_mint_f,
             sol_mint: sol_mint_f,
             sol_equivalent_mint: sol_equivalent_mint_f,
@@ -138,14 +248,23 @@ impl TestFixture {
     }
 
     pub async fn create_marginfi_account(&self) -> MarginfiAccountFixture {
-        MarginfiAccountFixture::new(
-            Rc::clone(&self.context),
-            &self.marginfi_group.key,
-            &self.usdc_mint.key,
-            &self.sol_mint.key,
-            &self.sol_equivalent_mint.key,
-        )
-        .await
+        MarginfiAccountFixture::new(Rc::clone(&self.context), &self.marginfi_group.key).await
+    }
+
+    pub async fn set_bank_operational_state(
+        &self,
+        bank_fixture: &BankFixture,
+        state: BankOperationalState,
+    ) -> anyhow::Result<(), BanksClientError> {
+        self.marginfi_group
+            .try_lending_pool_configure_bank(
+                bank_fixture,
+                BankConfigOpt {
+                    operational_state: Some(state),
+                    ..BankConfigOpt::default()
+                },
+            )
+            .await
     }
 
     pub async fn try_load(
@@ -183,8 +302,16 @@ impl TestFixture {
         clone_keypair(&self.context.borrow().payer)
     }
 
+    pub fn get_bank(&self, bank_mint: &BankMint) -> &BankFixture {
+        self.banks.get(bank_mint).unwrap()
+    }
+
+    pub fn get_bank_mut(&mut self, bank_mint: &BankMint) -> &mut BankFixture {
+        self.banks.get_mut(bank_mint).unwrap()
+    }
+
     pub fn set_time(&self, timestamp: i64) {
-        let clock = sysvar::clock::Clock {
+        let clock = Clock {
             unix_timestamp: timestamp,
             ..Default::default()
         };

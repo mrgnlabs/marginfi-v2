@@ -1,4 +1,6 @@
 use super::utils::load_and_deserialize;
+use crate::prelude::MintFixture;
+use crate::spl::TokenAccountFixture;
 use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
     InstructionData, ToAccountMetas,
@@ -16,11 +18,20 @@ use std::{cell::RefCell, fmt::Debug, rc::Rc};
 pub struct BankFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
+    pub mint: MintFixture,
 }
 
 impl BankFixture {
-    pub fn new(ctx: Rc<RefCell<ProgramTestContext>>, key: Pubkey) -> Self {
-        Self { ctx, key }
+    pub fn new(
+        ctx: Rc<RefCell<ProgramTestContext>>,
+        key: Pubkey,
+        mint_fixture: &MintFixture,
+    ) -> Self {
+        Self {
+            ctx,
+            key,
+            mint: mint_fixture.clone(),
+        }
     }
 
     pub fn get_vault(&self, vault_type: BankVaultType) -> (Pubkey, u8) {
@@ -75,6 +86,12 @@ impl BankFixture {
             .await?;
 
         Ok(())
+    }
+
+    pub async fn get_vault_token_account(&self, vault_type: BankVaultType) -> TokenAccountFixture {
+        let (vault, _) = self.get_vault(vault_type);
+
+        TokenAccountFixture::fetch(self.ctx.clone(), vault).await
     }
 }
 
