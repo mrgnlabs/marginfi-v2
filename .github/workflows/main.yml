@@ -44,5 +44,7 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
           solana-keygen new -o "$HOME/.config/solana/id.json" --no-passphrase --silent
+      - name: install anchor cli
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.25.0 anchor-cli --locked
       - run: anchor build
       - run: cargo test-bpf --features=test,test-bpf
