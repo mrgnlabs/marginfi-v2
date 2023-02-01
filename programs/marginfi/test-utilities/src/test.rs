@@ -84,8 +84,8 @@ impl TestFixture {
 
         program.add_program(
             "liquidity-incentive-program",
-            liquidity_incentive_program::ID,
-            processor!(liquidity_incentive_program::entry),
+            lip::ID,
+            processor!(lip::entry),
         );
 
         let usdc_keypair = Keypair::new();
