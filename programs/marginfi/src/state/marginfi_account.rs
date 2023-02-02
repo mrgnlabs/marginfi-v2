@@ -792,6 +792,7 @@ impl<'a> BankAccountWrapper<'a> {
         bank.change_asset_shares(asset_shares_increase)?;
 
         let liability_shares_decrease = bank.get_liability_shares(liability_amount_decrease)?;
+        // TODO: Use `IncreaseType` to skip certain balance updates, and save on compute.
         balance.change_liability_shares(-liability_shares_decrease)?;
         bank.change_liability_shares(-liability_shares_decrease)?;
 
