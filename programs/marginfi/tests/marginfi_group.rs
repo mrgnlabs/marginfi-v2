@@ -1110,7 +1110,7 @@ async fn lending_pool_bank_reduce_only_success_deposit() -> anyhow::Result<()> {
 async fn bank_mint_shares_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
     let usdc_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
-    let sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let _sol_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
     let usdc_bank = test_f
         .marginfi_group

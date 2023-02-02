@@ -3,7 +3,7 @@ use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{prelude::*, *};
-use marginfi::prelude::MarginfiResult;
+
 use marginfi::{
     prelude::MarginfiError,
     state::{
@@ -127,7 +127,7 @@ async fn failure_deposit_capacity_exceeded() -> anyhow::Result<()> {
             test_f.usdc_mint.key,
             BankConfig {
                 max_capacity: native!(100, "USDC"),
-                ..DEFAULT_USDC_TEST_BANK_CONFIG.clone()
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
         )
         .await?;

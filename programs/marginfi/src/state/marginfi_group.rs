@@ -304,7 +304,7 @@ impl Bank {
 
         self.check_utilization_ratio()?;
 
-        Ok(self.get_deposit_amount(shares)?)
+        self.get_deposit_amount(shares)
     }
 
     pub fn change_deposit_shares(&mut self, shares: I80F48) -> MarginfiResult {
