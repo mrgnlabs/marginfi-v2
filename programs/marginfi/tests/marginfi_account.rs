@@ -5,6 +5,7 @@ use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
 use fixtures::{assert_custom_error, assert_eq_noise, native};
 use marginfi::prelude::*;
+use marginfi::state::marginfi_account::BankAccountWrapper;
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
@@ -13,6 +14,8 @@ use pretty_assertions::assert_eq;
 use solana_program::{instruction::Instruction, system_program};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+
+// Feature baseline
 
 #[tokio::test]
 async fn marginfi_account_create_success() -> anyhow::Result<()> {
@@ -1064,6 +1067,61 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
         native!(0.00001, "SOL", f64)
     );
     // TODO: check health is sane
+
+    Ok(())
+}
+
+// Regression
+
+#[tokio::test]
+async fn marginfi_account_correct_balance_selection_after_closing_position() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+
+    let lender_mfi_account_f = test_f.create_marginfi_account().await;
+    let lender_token_account_sol = test_f
+        .sol_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    lender_mfi_account_f
+        .try_bank_deposit(lender_token_account_sol.key, &sol_bank_f, 1_000)
+        .await?;
+    let lender_token_account_usdc = test_f
+        .usdc_mint
+        .create_token_account_and_mint_to(2_000)
+        .await;
+    lender_mfi_account_f
+        .try_bank_deposit(lender_token_account_usdc.key, &usdc_bank_f, 2_000)
+        .await?;
+
+    lender_mfi_account_f
+        .try_bank_withdraw(lender_token_account_sol.key, &sol_bank_f, 0, Some(true))
+        .await
+        .unwrap();
+
+    let mut marginfi_account = lender_mfi_account_f.load().await;
+    let mut usdc_bank = usdc_bank_f.load().await;
+
+    let bank_account = BankAccountWrapper::find(
+        &usdc_bank_f.key,
+        &mut usdc_bank,
+        &mut marginfi_account.lending_account,
+    );
+
+    assert!(bank_account.is_ok());
+
+    let bank_account = bank_account.unwrap();
+
+    assert_eq!(
+        bank_account
+            .bank
+            .get_asset_amount(bank_account.balance.asset_shares.into())
+            .unwrap()
+            .to_num::<u64>(),
+        native!(2_000, "USDC")
+    );
 
     Ok(())
 }

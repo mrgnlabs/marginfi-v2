@@ -559,7 +559,7 @@ impl Balance {
 
 pub struct BankAccountWrapper<'a> {
     pub balance: &'a mut Balance,
-    bank: &'a mut Bank,
+    pub bank: &'a mut Bank,
 }
 
 impl<'a> BankAccountWrapper<'a> {
@@ -788,12 +788,10 @@ impl<'a> BankAccountWrapper<'a> {
         }
 
         let asset_shares_increase = bank.get_asset_shares(asset_amount_increase)?;
-
         balance.change_asset_shares(asset_shares_increase)?;
         bank.change_asset_shares(asset_shares_increase)?;
 
         let liability_shares_decrease = bank.get_liability_shares(liability_amount_decrease)?;
-
         balance.change_liability_shares(-liability_shares_decrease)?;
         bank.change_liability_shares(-liability_shares_decrease)?;
 
@@ -851,12 +849,10 @@ impl<'a> BankAccountWrapper<'a> {
         }
 
         let asset_shares_decrease = bank.get_asset_shares(asset_amount_decrease)?;
-
         balance.change_asset_shares(-asset_shares_decrease)?;
         bank.change_asset_shares(-asset_shares_decrease)?;
 
         let liability_shares_increase = bank.get_liability_shares(liability_amount_increase)?;
-
         balance.change_liability_shares(liability_shares_increase)?;
         bank.change_liability_shares(liability_shares_increase)?;
 
