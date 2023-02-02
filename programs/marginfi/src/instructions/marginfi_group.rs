@@ -19,7 +19,7 @@ use fixed::types::I80F48;
 
 use std::cmp::{max, min};
 
-pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
+pub fn initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_init()?;
 
     marginfi_group.set_initial_configuration(ctx.accounts.admin.key());
@@ -28,7 +28,7 @@ pub fn initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
 }
 
 #[derive(Accounts)]
-pub struct InitializeMarginfiGroup<'info> {
+pub struct MarginfiGroupInitialize<'info> {
     #[account(
         init,
         payer = admin,
@@ -45,7 +45,7 @@ pub struct InitializeMarginfiGroup<'info> {
 /// Configure margin group
 ///
 /// Admin only
-pub fn configure(ctx: Context<ConfigureMarginfiGroup>, config: GroupConfig) -> MarginfiResult {
+pub fn configure(ctx: Context<MarginfiGroupConfigure>, config: GroupConfig) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_mut()?;
 
     marginfi_group.configure(config)?;
@@ -54,7 +54,7 @@ pub fn configure(ctx: Context<ConfigureMarginfiGroup>, config: GroupConfig) -> M
 }
 
 #[derive(Accounts)]
-pub struct ConfigureMarginfiGroup<'info> {
+pub struct MarginfiGroupConfigure<'info> {
     #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
@@ -238,8 +238,8 @@ pub struct LendingPoolConfigureBank<'info> {
     pub bank: AccountLoader<'info, Bank>,
 }
 
-pub fn lending_pool_bank_accrue_interest(
-    ctx: Context<LendingPoolBankAccrueInterest>,
+pub fn lending_pool_accrue_bank_interest(
+    ctx: Context<LendingPoolAccrueBankInterest>,
 ) -> MarginfiResult {
     let clock = Clock::get()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
@@ -250,7 +250,7 @@ pub fn lending_pool_bank_accrue_interest(
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolBankAccrueInterest<'info> {
+pub struct LendingPoolAccrueBankInterest<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -260,8 +260,8 @@ pub struct LendingPoolBankAccrueInterest<'info> {
     pub bank: AccountLoader<'info, Bank>,
 }
 
-pub fn lending_pool_collect_fees(ctx: Context<LendingPoolCollectFees>) -> MarginfiResult {
-    let LendingPoolCollectFees {
+pub fn lending_pool_collect_bank_fees(ctx: Context<LendingPoolCollectBankFees>) -> MarginfiResult {
+    let LendingPoolCollectBankFees {
         liquidity_vault_authority,
         insurance_vault,
         fee_vault,
@@ -334,7 +334,7 @@ pub fn lending_pool_collect_fees(ctx: Context<LendingPoolCollectFees>) -> Margin
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolCollectFees<'info> {
+pub struct LendingPoolCollectBankFees<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -388,6 +388,7 @@ pub struct LendingPoolCollectFees<'info> {
 
     pub token_program: Program<'info, Token>,
 }
+
 /// Handle a bankrupt marginfi account.
 /// 1. Verify account is bankrupt, and lending account belonging to account contains bad debt.
 /// 2. Determine the amount of bad debt covered by the insurance fund and the amount socialized between depositors.
@@ -463,7 +464,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
         &mut bank,
         &mut marginfi_account.lending_account,
     )?
-    .account_deposit(bad_debt)?;
+    .repay(bad_debt)?;
 
     Ok(())
 }

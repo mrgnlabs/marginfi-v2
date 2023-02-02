@@ -66,9 +66,9 @@ pub enum GroupCommand {
         #[clap(long)]
         mint: Pubkey,
         #[clap(long)]
-        deposit_weight_init: f64,
+        asset_weight_init: f64,
         #[clap(long)]
-        deposit_weight_maint: f64,
+        asset_weight_maint: f64,
         #[clap(long)]
         liability_weight_init: f64,
         #[clap(long)]
@@ -122,9 +122,9 @@ pub enum BankCommand {
     Update {
         bank_pk: Pubkey,
         #[clap(long)]
-        deposit_weight_init: Option<f32>,
+        asset_weight_init: Option<f32>,
         #[clap(long)]
-        deposit_weight_maint: Option<f32>,
+        asset_weight_maint: Option<f32>,
 
         #[clap(long)]
         liability_weight_init: Option<f32>,
@@ -253,8 +253,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         GroupCommand::Update { admin } => processor::group_configure(config, profile, admin),
         GroupCommand::AddBank {
             mint: bank_mint,
-            deposit_weight_init,
-            deposit_weight_maint,
+            asset_weight_init,
+            asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
             max_capacity,
@@ -271,8 +271,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             profile,
             bank_mint,
             pyth_oracle,
-            deposit_weight_init,
-            deposit_weight_maint,
+            asset_weight_init,
+            asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
             max_capacity,
@@ -301,8 +301,8 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         BankCommand::Get { bank } => processor::bank_get(config, bank),
         BankCommand::GetAll { marginfi_group } => processor::bank_get_all(config, marginfi_group),
         BankCommand::Update {
-            deposit_weight_init,
-            deposit_weight_maint,
+            asset_weight_init,
+            asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
             max_capacity,
@@ -313,8 +313,8 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             profile, //
             bank_pk,
             BankConfigOpt {
-                deposit_weight_init: deposit_weight_init.map(|x| I80F48::from_num(x).into()),
-                deposit_weight_maint: deposit_weight_maint.map(|x| I80F48::from_num(x).into()),
+                asset_weight_init: asset_weight_init.map(|x| I80F48::from_num(x).into()),
+                asset_weight_maint: asset_weight_maint.map(|x| I80F48::from_num(x).into()),
                 liability_weight_init: liability_weight_init.map(|x| I80F48::from_num(x).into()),
                 liability_weight_maint: liability_weight_maint.map(|x| I80F48::from_num(x).into()),
                 max_capacity,

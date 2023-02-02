@@ -1,4 +1,5 @@
 use super::{bank::BankFixture, prelude::*};
+use crate::ui_to_native;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 use anchor_spl::token;
 use marginfi::state::{
@@ -19,18 +20,12 @@ pub struct MarginfiAccountConfig {}
 pub struct MarginfiAccountFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
-    usdc_mint: Pubkey,
-    sol_mint: Pubkey,
-    sol_equivalent_mint: Pubkey,
 }
 
 impl MarginfiAccountFixture {
     pub async fn new(
         ctx: Rc<RefCell<ProgramTestContext>>,
         marginfi_group: &Pubkey,
-        usdc_mint: &Pubkey,
-        sol_mint: &Pubkey,
-        sol_equivalent_mint: &Pubkey,
     ) -> MarginfiAccountFixture {
         let ctx_ref = ctx.clone();
         let account_key = Keypair::new();
@@ -38,7 +33,7 @@ impl MarginfiAccountFixture {
         {
             let mut ctx = ctx.borrow_mut();
 
-            let accounts = marginfi::accounts::InitializeMarginfiAccount {
+            let accounts = marginfi::accounts::MarginfiAccountInitialize {
                 marginfi_account: account_key.pubkey(),
                 marginfi_group: *marginfi_group,
                 signer: ctx.payer.pubkey(),
@@ -47,7 +42,7 @@ impl MarginfiAccountFixture {
             let init_marginfi_account_ix = Instruction {
                 program_id: marginfi::id(),
                 accounts: accounts.to_account_metas(Some(true)),
-                data: marginfi::instruction::InitializeMarginfiAccount {}.data(),
+                data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
             };
 
             let tx = Transaction::new_signed_with_payer(
@@ -62,24 +57,21 @@ impl MarginfiAccountFixture {
         MarginfiAccountFixture {
             ctx: ctx_ref,
             key: account_key.pubkey(),
-            usdc_mint: *usdc_mint,
-            sol_mint: *sol_mint,
-            sol_equivalent_mint: *sol_equivalent_mint,
         }
     }
 
-    pub async fn try_bank_deposit(
+    pub async fn try_bank_deposit<T: Into<f64>>(
         &self,
         funding_account: Pubkey,
         bank: &BankFixture,
-        amount: u64,
+        ui_amount: T,
     ) -> anyhow::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
         let mut ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::BankDeposit {
+            accounts: marginfi::accounts::LendingPoolDeposit {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: ctx.payer.pubkey(),
@@ -89,7 +81,10 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::BankDeposit { amount }.data(),
+            data: marginfi::instruction::LendingPoolDeposit {
+                amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+            }
+            .data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -104,17 +99,18 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
-    pub async fn try_bank_withdraw(
+    pub async fn try_bank_withdraw<T: Into<f64>>(
         &self,
         destination_account: Pubkey,
         bank: &BankFixture,
-        amount: u64,
+        ui_amount: T,
+        withdraw_all: Option<bool>,
     ) -> anyhow::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::BankWithdraw {
+            accounts: marginfi::accounts::LendingPoolWithdraw {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: self.ctx.borrow().payer.pubkey(),
@@ -127,11 +123,22 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::BankWithdraw { amount }.data(),
+            data: marginfi::instruction::LendingPoolWithdraw {
+                amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+                withdraw_all,
+            }
+            .data(),
         };
 
-        ix.accounts
-            .extend_from_slice(&self.load_observation_account_metas(vec![bank.key]).await);
+        let exclude_vec = match withdraw_all.unwrap_or(false) {
+            true => vec![bank.key],
+            false => vec![],
+        };
+        ix.accounts.extend_from_slice(
+            &self
+                .load_observation_account_metas(vec![], exclude_vec)
+                .await,
+        );
 
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
@@ -146,11 +153,100 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
-    pub async fn try_liquidate(
+    pub async fn try_bank_borrow<T: Into<f64>>(
+        &self,
+        destination_account: Pubkey,
+        bank: &BankFixture,
+        ui_amount: T,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let marginfi_account = self.load().await;
+
+        let mut ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolBorrow {
+                marginfi_group: marginfi_account.group,
+                marginfi_account: self.key,
+                signer: self.ctx.borrow().payer.pubkey(),
+                bank: bank.key,
+                destination_token_account: destination_account,
+                bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+                bank_liquidity_vault_authority: bank
+                    .get_vault_authority(BankVaultType::Liquidity)
+                    .0,
+                token_program: token::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolBorrow {
+                amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+            }
+            .data(),
+        };
+
+        ix.accounts.extend_from_slice(
+            &self
+                .load_observation_account_metas(vec![bank.key], vec![])
+                .await,
+        );
+
+        let mut ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_bank_repay<T: Into<f64>>(
+        &self,
+        funding_account: Pubkey,
+        bank: &BankFixture,
+        ui_amount: T,
+        repay_all: Option<bool>,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let marginfi_account = self.load().await;
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolRepay {
+                marginfi_group: marginfi_account.group,
+                marginfi_account: self.key,
+                signer: ctx.payer.pubkey(),
+                bank: bank.key,
+                signer_token_account: funding_account,
+                bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+                token_program: token::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolRepay {
+                amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+                repay_all,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_liquidate<T: Into<f64>>(
         &self,
         liquidatee: &MarginfiAccountFixture,
         asset_bank_fixture: &BankFixture,
-        asset_amount: u64,
+        asset_ui_amount: T,
         liab_bank_fixture: &BankFixture,
     ) -> std::result::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
@@ -158,7 +254,7 @@ impl MarginfiAccountFixture {
         let asset_bank = asset_bank_fixture.load().await;
         let liab_bank = liab_bank_fixture.load().await;
 
-        let mut accounts = marginfi::accounts::LendingAccountLiquidate {
+        let mut accounts = marginfi::accounts::MarginfiAccountLiquidate {
             marginfi_group: marginfi_account.group,
             asset_bank: asset_bank_fixture.key,
             liab_bank: liab_bank_fixture.key,
@@ -182,17 +278,29 @@ impl MarginfiAccountFixture {
         let mut ix = Instruction {
             program_id: marginfi::id(),
             accounts,
-            data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
+            data: marginfi::instruction::MarginfiAccountLiquidate {
+                asset_amount: ui_to_native!(
+                    asset_ui_amount.into(),
+                    asset_bank_fixture.mint.mint.decimals
+                ),
+            }
+            .data(),
         };
 
         ix.accounts.extend_from_slice(
             &self
-                .load_observation_account_metas(vec![asset_bank_fixture.key, liab_bank_fixture.key])
+                .load_observation_account_metas(
+                    vec![asset_bank_fixture.key, liab_bank_fixture.key],
+                    vec![],
+                )
                 .await,
         );
 
-        ix.accounts
-            .extend_from_slice(&liquidatee.load_observation_account_metas(vec![]).await);
+        ix.accounts.extend_from_slice(
+            &liquidatee
+                .load_observation_account_metas(vec![], vec![])
+                .await,
+        );
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
@@ -210,13 +318,14 @@ impl MarginfiAccountFixture {
     pub async fn load_observation_account_metas(
         &self,
         include_banks: Vec<Pubkey>,
+        exclude_banks: Vec<Pubkey>,
     ) -> Vec<AccountMeta> {
         let marginfi_account = self.load().await;
         let mut bank_pks = marginfi_account
             .lending_account
             .balances
             .iter()
-            .filter_map(|balance| balance.active.then(|| balance.bank_pk))
+            .filter_map(|balance| balance.active.then_some(balance.bank_pk))
             .collect::<Vec<_>>();
 
         for bank_pk in include_banks {
@@ -224,6 +333,7 @@ impl MarginfiAccountFixture {
                 bank_pks.push(bank_pk);
             }
         }
+        bank_pks.retain(|bank_pk| !exclude_banks.contains(bank_pk));
 
         let mut banks = vec![];
         for bank_pk in bank_pks.clone() {
@@ -231,9 +341,7 @@ impl MarginfiAccountFixture {
             banks.push(bank);
         }
 
-        println!("Lending account banks: {}", banks.len());
-
-        let ams = banks
+        let account_metas = banks
             .iter()
             .zip(bank_pks.iter())
             .flat_map(|(bank, bank_pk)| {
@@ -251,14 +359,14 @@ impl MarginfiAccountFixture {
                 ]
             })
             .collect::<Vec<_>>();
-        ams
+        account_metas
     }
     pub async fn set_account(&self, mfi_account: &MarginfiAccount) -> anyhow::Result<()> {
         let mut ctx = self.ctx.borrow_mut();
         let mut account = ctx.banks_client.get_account(self.key).await?.unwrap();
-        let discriminator = account.data[..8].to_vec();
+        let mut discriminator = account.data[..8].to_vec();
         let mut new_data = vec![];
-        new_data.append(&mut discriminator.clone());
+        new_data.append(&mut discriminator);
         new_data.append(&mut bytemuck::bytes_of(mfi_account).to_vec());
         account.data = new_data;
         ctx.set_account(&self.key, &account.into());

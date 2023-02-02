@@ -51,7 +51,10 @@ impl MarginfiGroup {
     }
 }
 
-#[cfg_attr(any(feature = "test", feature = "client"), derive(Debug, TypeLayout))]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, Clone, TypeLayout)
+)]
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]
 pub struct GroupConfig {
     pub admin: Option<Pubkey>,
@@ -190,7 +193,7 @@ pub struct Bank {
 
     pub group: Pubkey,
 
-    pub deposit_share_value: WrappedI80F48,
+    pub asset_share_value: WrappedI80F48,
     pub liability_share_value: WrappedI80F48,
 
     pub liquidity_vault: Pubkey,
@@ -208,7 +211,7 @@ pub struct Bank {
     pub collected_group_fees_outstanding: WrappedI80F48,
 
     pub total_liability_shares: WrappedI80F48,
-    pub total_deposit_shares: WrappedI80F48,
+    pub total_asset_shares: WrappedI80F48,
 
     pub last_update: i64,
 
@@ -216,6 +219,7 @@ pub struct Bank {
 }
 
 impl Bank {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         marginfi_group_pk: Pubkey,
         config: BankConfig,
@@ -235,14 +239,14 @@ impl Bank {
         Bank {
             mint,
             mint_decimals,
-            deposit_share_value: I80F48::ONE.into(),
+            asset_share_value: I80F48::ONE.into(),
             liability_share_value: I80F48::ONE.into(),
             liquidity_vault,
             insurance_vault,
             fee_vault,
             config,
             total_liability_shares: I80F48::ZERO.into(),
-            total_deposit_shares: I80F48::ZERO.into(),
+            total_asset_shares: I80F48::ZERO.into(),
             last_update: current_timestamp,
             group: marginfi_group_pk,
             liquidity_vault_bump,
@@ -268,9 +272,9 @@ impl Bank {
             .ok_or_else(math_error!())?)
     }
 
-    pub fn get_deposit_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
+    pub fn get_asset_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
-            .checked_mul(self.deposit_share_value.into())
+            .checked_mul(self.asset_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
@@ -280,26 +284,26 @@ impl Bank {
             .ok_or_else(math_error!())?)
     }
 
-    pub fn get_deposit_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
+    pub fn get_asset_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
         Ok(value
-            .checked_div(self.deposit_share_value.into())
+            .checked_div(self.asset_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
-    pub fn change_deposit_shares(&mut self, shares: I80F48) -> MarginfiResult {
-        let total_deposit_shares: I80F48 = self.total_deposit_shares.into();
-        self.total_deposit_shares = total_deposit_shares
+    pub fn change_asset_shares(&mut self, shares: I80F48) -> MarginfiResult {
+        let total_asset_shares: I80F48 = self.total_asset_shares.into();
+        self.total_asset_shares = total_asset_shares
             .checked_add(shares)
             .ok_or_else(math_error!())?
             .into();
 
         if shares.is_positive() {
-            let total_shares_value = self.get_deposit_amount(self.total_deposit_shares.into())?;
-            let max_deposit_capacity = self.get_deposit_amount(self.config.max_capacity.into())?;
+            let total_shares_value = self.get_asset_amount(self.total_asset_shares.into())?;
+            let max_asset_capacity = self.get_asset_amount(self.config.max_capacity.into())?;
 
             check!(
-                total_shares_value < max_deposit_capacity,
-                crate::prelude::MarginfiError::BankDepositCapacityExceeded
+                total_shares_value < max_asset_capacity,
+                crate::prelude::MarginfiError::BankAssetCapacityExceeded
             )
         }
 
@@ -316,11 +320,11 @@ impl Bank {
     }
 
     pub fn check_utilization_ratio(&self) -> MarginfiResult {
-        let total_deposits = self.get_deposit_amount(self.total_deposit_shares.into())?;
+        let total_assets = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
         check!(
-            total_deposits >= total_liabilities,
+            total_assets >= total_liabilities,
             crate::prelude::MarginfiError::IllegalUtilizationRatio
         );
 
@@ -328,11 +332,8 @@ impl Bank {
     }
 
     pub fn configure(&mut self, config: &BankConfigOpt) -> MarginfiResult {
-        set_if_some!(self.config.deposit_weight_init, config.deposit_weight_init);
-        set_if_some!(
-            self.config.deposit_weight_maint,
-            config.deposit_weight_maint
-        );
+        set_if_some!(self.config.asset_weight_init, config.asset_weight_init);
+        set_if_some!(self.config.asset_weight_maint, config.asset_weight_maint);
         set_if_some!(
             self.config.liability_weight_init,
             config.liability_weight_init
@@ -393,28 +394,28 @@ impl Bank {
             return Ok(());
         }
 
-        let total_deposits = self.get_deposit_amount(self.total_deposit_shares.into())?;
+        let total_assets = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
-        if (total_deposits == I80F48::ZERO) || (total_liabilities == I80F48::ZERO) {
+        if (total_assets == I80F48::ZERO) || (total_liabilities == I80F48::ZERO) {
             return Ok(());
         }
 
-        let (deposit_share_value, liability_share_value, fees_collected, insurance_collected) =
+        let (asset_share_value, liability_share_value, fees_collected, insurance_collected) =
             calc_interest_rate_accrual_state_changes(
                 time_delta,
-                total_deposits,
+                total_assets,
                 total_liabilities,
                 &self.config.interest_rate_config,
-                self.deposit_share_value.into(),
+                self.asset_share_value.into(),
                 self.liability_share_value.into(),
             )
             .ok_or_else(math_error!())?;
 
         debug!("deposit share value: {}\nliability share value: {}\nfees collected: {}\ninsurance collected: {}",
-            deposit_share_value, liability_share_value, fees_collected, insurance_collected);
+            asset_share_value, liability_share_value, fees_collected, insurance_collected);
 
-        self.deposit_share_value = deposit_share_value.into();
+        self.asset_share_value = asset_share_value.into();
         self.liability_share_value = liability_share_value.into();
 
         self.last_update = clock.unix_timestamp;
@@ -485,33 +486,42 @@ impl Bank {
     /// the `total_deposit_shares` stays the same, but total value of deposits is
     /// reduced by `loss_amount`;
     pub fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult {
-        let total_deposit_shares: I80F48 = self.total_deposit_shares.into();
-        let old_deposit_share_vaule: I80F48 = self.deposit_share_value.into();
+        let total_asset_shares: I80F48 = self.total_asset_shares.into();
+        let old_asset_share_value: I80F48 = self.asset_share_value.into();
 
-        let new_share_value = total_deposit_shares
-            .checked_mul(old_deposit_share_vaule)
+        let new_share_value = total_asset_shares
+            .checked_mul(old_asset_share_value)
             .ok_or_else(math_error!())?
             .checked_sub(loss_amount)
             .ok_or_else(math_error!())?
-            .checked_div(total_deposit_shares)
+            .checked_div(total_asset_shares)
             .ok_or_else(math_error!())?;
 
-        self.deposit_share_value = new_share_value.into();
+        self.asset_share_value = new_share_value.into();
 
         Ok(())
     }
 
-    pub fn assert_operational_mode(&self, metric_increasing: Option<bool>) -> Result<()> {
+    pub fn assert_operational_mode(
+        &self,
+        is_asset_or_liability_amount_increasing: Option<bool>,
+    ) -> Result<()> {
         match self.config.operational_state {
-            BankOperationalState::Paused => return Err(MarginfiError::BankPaused.into()),
-            BankOperationalState::Operational => (),
-            BankOperationalState::ReduceOnly => check!(
-                !metric_increasing.unwrap_or(false),
-                MarginfiError::BankReduceOnly
-            ),
-        }
+            BankOperationalState::Paused => Err(MarginfiError::BankPaused.into()),
+            BankOperationalState::Operational => Ok(()),
+            BankOperationalState::ReduceOnly => {
+                if let Some(is_asset_or_liability_amount_increasing) =
+                    is_asset_or_liability_amount_increasing
+                {
+                    check!(
+                        !is_asset_or_liability_amount_increasing,
+                        MarginfiError::BankReduceOnly
+                    );
+                }
 
-        Ok(())
+                Ok(())
+            }
+        }
     }
 }
 
@@ -544,13 +554,13 @@ impl Bank {
 ///
 fn calc_interest_rate_accrual_state_changes(
     time_delta: u64,
-    total_deposits: I80F48,
+    total_assets: I80F48,
     total_liabilities: I80F48,
     interest_rate_config: &InterestRateConfig,
-    deposit_share_value: I80F48,
+    asset_share_value: I80F48,
     liability_share_value: I80F48,
 ) -> Option<(I80F48, I80F48, I80F48, I80F48)> {
-    let utilization_rate = total_liabilities.checked_div(total_deposits)?;
+    let utilization_rate = total_liabilities.checked_div(total_assets)?;
     let (lending_apr, borrowing_apr, group_fee_apr, insurance_fee_apr) =
         interest_rate_config.calc_interest_rate(utilization_rate)?;
 
@@ -563,7 +573,7 @@ fn calc_interest_rate_accrual_state_changes(
         insurance_fee_apr);
 
     Some((
-        calc_accrued_interest_payment_per_period(lending_apr, time_delta, deposit_share_value)?,
+        calc_accrued_interest_payment_per_period(lending_apr, time_delta, asset_share_value)?,
         calc_accrued_interest_payment_per_period(borrowing_apr, time_delta, liability_share_value)?,
         calc_interest_payment_for_period(group_fee_apr, time_delta, total_liabilities)?,
         calc_interest_payment_for_period(insurance_fee_apr, time_delta, total_liabilities)?,
@@ -632,8 +642,8 @@ pub enum OracleKey {
 #[derive(AnchorDeserialize, AnchorSerialize)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
-    pub deposit_weight_init: WrappedI80F48,
-    pub deposit_weight_maint: WrappedI80F48,
+    pub asset_weight_init: WrappedI80F48,
+    pub asset_weight_maint: WrappedI80F48,
 
     pub liability_weight_init: WrappedI80F48,
     pub liability_weight_maint: WrappedI80F48,
@@ -650,8 +660,8 @@ pub struct BankConfig {
 impl Default for BankConfig {
     fn default() -> Self {
         Self {
-            deposit_weight_init: I80F48::ZERO.into(),
-            deposit_weight_maint: I80F48::ZERO.into(),
+            asset_weight_init: I80F48::ZERO.into(),
+            asset_weight_maint: I80F48::ZERO.into(),
             liability_weight_init: I80F48::ONE.into(),
             liability_weight_maint: I80F48::ONE.into(),
             max_capacity: 0,
@@ -668,28 +678,25 @@ impl BankConfig {
     pub fn get_weights(&self, weight_type: WeightType) -> (I80F48, I80F48) {
         match weight_type {
             WeightType::Initial => (
-                self.deposit_weight_init.into(),
+                self.asset_weight_init.into(),
                 self.liability_weight_init.into(),
             ),
             WeightType::Maintenance => (
-                self.deposit_weight_maint.into(),
+                self.asset_weight_maint.into(),
                 self.liability_weight_maint.into(),
             ),
         }
     }
 
     pub fn validate(&self) -> MarginfiResult {
-        let deposit_init_w = I80F48::from(self.deposit_weight_init);
-        let deposit_maint_w = I80F48::from(self.deposit_weight_maint);
+        let asset_init_w = I80F48::from(self.asset_weight_init);
+        let asset_maint_w = I80F48::from(self.asset_weight_maint);
 
         check!(
-            deposit_init_w >= I80F48::ZERO && deposit_init_w <= I80F48::ONE,
+            asset_init_w >= I80F48::ZERO && asset_init_w <= I80F48::ONE,
             MarginfiError::InvalidConfig
         );
-        check!(
-            deposit_maint_w >= deposit_init_w,
-            MarginfiError::InvalidConfig
-        );
+        check!(asset_maint_w >= asset_init_w, MarginfiError::InvalidConfig);
 
         let liab_init_w = I80F48::from(self.liability_weight_init);
         let liab_maint_w = I80F48::from(self.liability_weight_maint);
@@ -775,8 +782,8 @@ impl From<WrappedI80F48> for I80F48 {
 )]
 #[derive(AnchorDeserialize, AnchorSerialize, Default)]
 pub struct BankConfigOpt {
-    pub deposit_weight_init: Option<WrappedI80F48>,
-    pub deposit_weight_maint: Option<WrappedI80F48>,
+    pub asset_weight_init: Option<WrappedI80F48>,
+    pub asset_weight_maint: Option<WrappedI80F48>,
 
     pub liability_weight_init: Option<WrappedI80F48>,
     pub liability_weight_maint: Option<WrappedI80F48>,
