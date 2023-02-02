@@ -100,12 +100,12 @@ pub fn group_create(
         .program
         .request()
         .signer(&config.payer)
-        .accounts(marginfi::accounts::InitializeMarginfiGroup {
+        .accounts(marginfi::accounts::MarginfiGroupInitialize {
             marginfi_group: marginfi_group_keypair.pubkey(),
             admin,
             system_program: system_program::id(),
         })
-        .args(marginfi::instruction::InitializeMarginfiGroup {})
+        .args(marginfi::instruction::MarginfiGroupInitialize {})
         .instructions()?;
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
@@ -143,11 +143,11 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
         .program
         .request()
         .signer(&config.payer)
-        .accounts(marginfi::accounts::ConfigureMarginfiGroup {
+        .accounts(marginfi::accounts::MarginfiGroupConfigure {
             marginfi_group: profile.marginfi_group.unwrap(),
             admin: config.payer.pubkey(),
         })
-        .args(marginfi::instruction::ConfigureMarginfiGroup {
+        .args(marginfi::instruction::MarginfiGroupConfigure {
             config: GroupConfig { admin },
         })
         .instructions()?;
