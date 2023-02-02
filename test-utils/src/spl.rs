@@ -266,3 +266,9 @@ pub async fn get_and_deserialize<T: anchor_lang::AccountDeserialize>(
     let account = ctx.banks_client.get_account(pubkey).await.unwrap().unwrap();
     T::try_deserialize(&mut account.data.as_slice()).unwrap()
 }
+
+pub async fn balance_of(ctx: Rc<RefCell<ProgramTestContext>>, pubkey: Pubkey) -> u64 {
+    let token_account: TokenAccount = get_and_deserialize(ctx, pubkey).await;
+
+    token_account.amount
+}

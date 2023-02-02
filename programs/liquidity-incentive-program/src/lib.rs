@@ -1,13 +1,13 @@
-use ::marginfi::program::Marginfi;
 use anchor_lang::prelude::*;
 use anchor_spl::token::close_account;
 use anchor_spl::token::{transfer, Transfer};
 use anchor_spl::token::{Token, TokenAccount};
 use fixed::types::I80F48;
+use marginfi::program::Marginfi;
 use marginfi::state::marginfi_group::Bank;
 use std::mem::size_of;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("LipLzUxQftzq77XGVJW5c7UhxbS9ZLyZM9EGiF4Dxs4");
 
 #[program]
 pub mod liquidity_incentive_program {
@@ -41,7 +41,7 @@ pub mod liquidity_incentive_program {
             marginfi_bank_pk: ctx.accounts.marginfi_bank.key(),
         };
 
-        msg!("Created campaing\n{:?}", ctx.accounts.campaign);
+        msg!("Created campaing\n{:#?}", ctx.accounts.campaign);
 
         Ok(())
     }
@@ -220,7 +220,7 @@ pub mod liquidity_incentive_program {
             ctx.accounts.token_program.to_account_info(),
             anchor_spl::token::CloseAccount {
                 account: ctx.accounts.ephemeral_token_account.to_account_info(),
-                destination: ctx.accounts.destination_account.to_account_info(),
+                destination: ctx.accounts.signer.to_account_info(),
                 authority: ctx
                     .accounts
                     .ephemeral_token_account_authority
@@ -230,6 +230,23 @@ pub mod liquidity_incentive_program {
                 EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED,
                 ctx.accounts.deposit.key().as_ref(),
                 &[*ctx.bumps.get("ephemeral_token_account_authority").unwrap()],
+            ]],
+        ))?;
+
+        close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            anchor_spl::token::CloseAccount {
+                account: ctx.accounts.deposit_shares_vault.to_account_info(),
+                destination: ctx.accounts.signer.to_account_info(),
+                authority: ctx
+                    .accounts
+                    .deposit_shares_vault_authority
+                    .to_account_info(),
+            },
+            &[&[
+                DEPOSIT_AUTH_SEED,
+                ctx.accounts.deposit.key().as_ref(),
+                &[*ctx.bumps.get("deposit_shares_vault_authority").unwrap()],
             ]],
         ))?;
 
@@ -288,6 +305,7 @@ pub struct CreateCampaign<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
     /// CHECK: Asserted by token check
+    #[account(mut)]
     pub funding_account: AccountInfo<'info>,
     pub rent: Sysvar<'info, Rent>,
     pub token_program: Program<'info, Token>,
@@ -357,8 +375,9 @@ pub struct CloseDeposit<'info> {
     #[account(address = deposit.campaign)]
     pub campaign: Box<Account<'info, Campaign>>,
     #[account(
+        mut,
         seeds = [
-            CAMPAIGN_AUTH_SEED,
+            CAMPAIGN_SEED,
             campaign.key().as_ref(),
         ],
         bump,
@@ -387,7 +406,6 @@ pub struct CloseDeposit<'info> {
             deposit.key().as_ref(),
         ],
         bump,
-        close = signer,
     )]
     pub deposit_shares_vault: Box<Account<'info, TokenAccount>>,
     #[account(
@@ -434,10 +452,13 @@ pub struct CloseDeposit<'info> {
     )]
     pub marginfi_bank: AccountLoader<'info, Bank>,
     /// CHECK: Asserted by CPI call
+    #[account(mut)]
     pub marginfi_bank_vault: AccountInfo<'info>,
     /// CHECK: Asserted by CPI call
+    #[account(mut)]
     pub marginfi_bank_vault_authority: AccountInfo<'info>,
     /// CHECK: Asserted by CPI call
+    #[account(mut)]
     pub marginfi_shares_mint: AccountInfo<'info>,
     pub marginfi_program: Program<'info, Marginfi>,
     pub token_program: Program<'info, Token>,

@@ -1,10 +1,13 @@
-use crate::utils::*;
+#![cfg(feature = "lip")]
+
+use crate::utils::lip::*;
+use anchor_lang::AnchorDeserialize;
 use anchor_lang::{
     prelude::{Pubkey, ToAccountMetas},
     InstructionData,
 };
 use anyhow::Result;
-pub use lip::{self as program, *};
+use liquidity_incentive_program as lip;
 use solana_program::instruction::Instruction;
 use solana_program_test::{BanksClientError, ProgramTestContext, ProgramTestError};
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
@@ -30,7 +33,7 @@ impl LipCampaignFixture {
         &self,
         funding_account: Pubkey,
         amount: u64,
-    ) -> Result<(), BanksClientError> {
+    ) -> Result<Pubkey, BanksClientError> {
         let bank = self.bank_f.load().await;
         let deposit_key = Keypair::new();
 
@@ -40,9 +43,9 @@ impl LipCampaignFixture {
                 campaign: self.key,
                 signer: self.ctx.borrow().payer.pubkey(),
                 deposit: deposit_key.pubkey(),
-                deposit_shares_vault: get_deposit_shares_vault_address(self.key).0,
+                deposit_shares_vault: get_deposit_shares_vault_address(deposit_key.pubkey()).0,
                 deposit_shares_vault_authority: get_deposit_shares_vault_authority_address(
-                    self.key,
+                    deposit_key.pubkey(),
                 )
                 .0,
                 funding_account,
@@ -73,7 +76,7 @@ impl LipCampaignFixture {
             .process_transaction(tx)
             .await?;
 
-        Ok(())
+        Ok(deposit_key.pubkey())
     }
 
     pub async fn try_end_deposit(
@@ -130,9 +133,34 @@ impl LipCampaignFixture {
             .borrow_mut()
             .banks_client
             .process_transaction(tx)
-            .await
-            .unwrap();
+            .await?;
 
         Ok(())
+    }
+
+    pub async fn load(&self) -> lip::Campaign {
+        let account = self
+            .ctx
+            .borrow_mut()
+            .banks_client
+            .get_account(self.key)
+            .await
+            .unwrap()
+            .unwrap();
+
+        lip::Campaign::deserialize(&mut &account.data[8..]).unwrap()
+    }
+
+    pub async fn load_deposit(&self, deposit_key: Pubkey) -> lip::Deposit {
+        let account = self
+            .ctx
+            .borrow_mut()
+            .banks_client
+            .get_account(deposit_key)
+            .await
+            .unwrap()
+            .unwrap();
+
+        lip::Deposit::deserialize(&mut &account.data[8..]).unwrap()
     }
 }

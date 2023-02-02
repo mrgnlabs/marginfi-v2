@@ -2011,8 +2011,18 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "anyhow",
+ "assert_matches",
+ "bincode",
  "fixed",
+ "futures",
  "marginfi",
+ "pretty_assertions",
+ "solana-logger",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "test-utilities",
 ]
 
 [[package]]

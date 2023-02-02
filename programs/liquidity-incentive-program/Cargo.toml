@@ -16,9 +16,26 @@ cpi = ["no-entrypoint"]
 default = []
 devnet = ["marginfi/devnet"]
 mainnet-beta = ["marginfi/devnet"]
+test = []
+test-bpf = []
 
 [dependencies]
 anchor-lang = "0.26.0"
 anchor-spl = "0.26.0"
 fixed = "1.12.0"
-marginfi = { path = "../marginfi/", features = ["cpi"] }
+
+[dependencies.marginfi]
+path = "../marginfi"
+features = [ "cpi" ]
+
+[dev-dependencies]
+anyhow = "1.0.66"
+assert_matches = "1.5.0"
+bincode = "1.3.3"
+futures = "0.3.25"
+pretty_assertions = "1.2.1"
+solana-logger = "1.14.11"
+solana-program = "1.14.11"
+solana-program-test = "1.14.11"
+solana-sdk = "1.14.11"
+fixtures = { path = "../../test-utils", package = "test-utilities", features = [ "lip" ] }
