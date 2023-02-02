@@ -117,27 +117,33 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         lending_account: &'a LendingAccount,
         remaining_ais: &'b [AccountInfo<'info>],
     ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
-        msg!(
-            "Expecting {} remaining accounts",
-            lending_account.get_active_balances_iter().count() * 2
-        );
+        let active_balances = lending_account
+            .balances
+            .iter()
+            .filter(|balance| balance.active)
+            .collect::<Vec<_>>();
+
+        msg!("Expecting {} remaining accounts", active_balances.len() * 2);
         msg!("Got {} remaining accounts", remaining_ais.len());
 
         check!(
-            lending_account.get_active_balances_iter().count() * 2 == remaining_ais.len(),
+            active_balances.len() * 2 == remaining_ais.len(),
             MarginfiError::MissingPythOrBankAccount
         );
 
-        lending_account
-            .get_active_balances_iter()
+        active_balances
+            .iter()
             .enumerate()
-            .map(|(i, b)| {
+            .map(|(i, balance)| {
                 let bank_index = i * 2;
                 let pyth_index = bank_index + 1;
 
                 let bank_ai = remaining_ais.get(bank_index).unwrap();
 
-                check!(b.bank_pk.eq(bank_ai.key), MarginfiError::InvalidBankAccount);
+                check!(
+                    balance.bank_pk.eq(bank_ai.key),
+                    MarginfiError::InvalidBankAccount
+                );
                 let pyth_ai = remaining_ais.get(pyth_index).unwrap();
 
                 let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
@@ -148,7 +154,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 Ok(BankAccountWithPriceFeed {
                     bank: *bank,
                     price_feed,
-                    balance: b,
+                    balance,
                 })
             })
             .collect::<Result<Vec<_>>>()
@@ -481,23 +487,21 @@ pub struct LendingAccount {
 }
 
 impl LendingAccount {
-    #[cfg(any(feature = "test", feature = "client"))]
+    pub fn get_first_empty_balance(&self) -> Option<usize> {
+        self.balances.iter().position(|b| !b.active)
+    }
+}
+
+#[cfg(any(feature = "test", feature = "client"))]
+impl LendingAccount {
     pub fn get_balance(&self, bank_pk: &Pubkey) -> Option<&Balance> {
         self.balances
             .iter()
             .find(|balance| balance.active && balance.bank_pk.eq(bank_pk))
     }
 
-    pub fn get_first_empty_balance(&self) -> Option<usize> {
-        self.balances.iter().position(|b| !b.active)
-    }
-
     pub fn get_active_balances_iter(&self) -> impl Iterator<Item = &Balance> {
         self.balances.iter().filter(|b| b.active)
-    }
-
-    pub fn get_active_balances_iter_mut(&mut self) -> impl Iterator<Item = &mut Balance> {
-        self.balances.iter_mut().filter(|b| b.active)
     }
 }
 
@@ -566,8 +570,9 @@ impl<'a> BankAccountWrapper<'a> {
         lending_account: &'a mut LendingAccount,
     ) -> MarginfiResult<BankAccountWrapper<'a>> {
         let balance = lending_account
-            .get_active_balances_iter_mut()
-            .find(|balance| balance.bank_pk.eq(bank_pk))
+            .balances
+            .iter_mut()
+            .find(|balance| balance.active && balance.bank_pk.eq(bank_pk))
             .ok_or_else(|| error!(MarginfiError::BankAccoutNotFound))?;
 
         Ok(Self { balance, bank })
@@ -581,14 +586,15 @@ impl<'a> BankAccountWrapper<'a> {
         lending_account: &'a mut LendingAccount,
     ) -> MarginfiResult<BankAccountWrapper<'a>> {
         let balance_index = lending_account
-            .get_active_balances_iter()
-            .position(|balance| balance.bank_pk.eq(bank_pk));
+            .balances
+            .iter()
+            .position(|balance| balance.active && balance.bank_pk.eq(bank_pk));
 
         match balance_index {
-            Some(_) => {
+            Some(balance_index) => {
                 let balance = lending_account
-                    .get_active_balances_iter_mut()
-                    .find(|balance| balance.bank_pk.eq(bank_pk))
+                    .balances
+                    .get_mut(balance_index)
                     .ok_or_else(|| error!(MarginfiError::BankAccoutNotFound))?;
 
                 Ok(Self { balance, bank })
