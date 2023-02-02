@@ -3,8 +3,8 @@ use crate::state::marginfi_account::MarginfiAccount;
 use anchor_lang::prelude::*;
 use solana_program::sysvar::Sysvar;
 
-pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
-    let InitializeMarginfiAccount {
+pub fn initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
+    let MarginfiAccountInitialize {
         signer,
         marginfi_group,
         marginfi_account,
@@ -19,7 +19,7 @@ pub fn initialize(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
 }
 
 #[derive(Accounts)]
-pub struct InitializeMarginfiAccount<'info> {
+pub struct MarginfiAccountInitialize<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

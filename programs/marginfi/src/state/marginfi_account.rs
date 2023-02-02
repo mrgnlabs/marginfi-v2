@@ -620,6 +620,11 @@ impl<'a> BankAccountWrapper<'a> {
         self.increase_balance_internal(amount, BalanceIncreaseType::DepositOnly)
     }
 
+    /// Repay a liability, will error if there is not enough liability - depositing is not allowed.
+    pub fn repay(&mut self, amount: I80F48) -> MarginfiResult {
+        self.increase_balance_internal(amount, BalanceIncreaseType::RepayOnly)
+    }
+
     /// Withdraw an asset, will error if there is not enough asset - borrowing is not allowed.
     pub fn withdraw(&mut self, amount: I80F48) -> MarginfiResult {
         self.decrease_balance_internal(amount, BalanceDecreaseType::WithdrawOnly)
@@ -628,11 +633,6 @@ impl<'a> BankAccountWrapper<'a> {
     /// Incur a borrow, will error if there is an existing asset - withdrawing is not allowed.
     pub fn borrow(&mut self, amount: I80F48) -> MarginfiResult {
         self.decrease_balance_internal(amount, BalanceDecreaseType::BorrowOnly)
-    }
-
-    /// Repay a liability, will error if there is not enough liability - depositing is not allowed.
-    pub fn repay(&mut self, amount: I80F48) -> MarginfiResult {
-        self.increase_balance_internal(amount, BalanceIncreaseType::RepayOnly)
     }
 
     // ------------ Hybrid operations for seamless repay + deposit / withdraw + borrow

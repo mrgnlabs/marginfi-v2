@@ -260,8 +260,8 @@ pub struct LendingPoolBankAccrueInterest<'info> {
     pub bank: AccountLoader<'info, Bank>,
 }
 
-pub fn lending_pool_collect_fees(ctx: Context<LendingPoolCollectFees>) -> MarginfiResult {
-    let LendingPoolCollectFees {
+pub fn lending_pool_bank_collect_fees(ctx: Context<LendingPoolBankCollectFees>) -> MarginfiResult {
+    let LendingPoolBankCollectFees {
         liquidity_vault_authority,
         insurance_vault,
         fee_vault,
@@ -334,7 +334,7 @@ pub fn lending_pool_collect_fees(ctx: Context<LendingPoolCollectFees>) -> Margin
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolCollectFees<'info> {
+pub struct LendingPoolBankCollectFees<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

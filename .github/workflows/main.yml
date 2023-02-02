@@ -47,4 +47,4 @@ jobs:
       - name: install anchor cli
         run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.25.0 anchor-cli --locked
       - run: anchor build
-      - run: cargo test-bpf --features=test,test-bpf
+      - run: cargo test-bpf --features=test,test-bpf -- --test-threads=1

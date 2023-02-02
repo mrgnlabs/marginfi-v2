@@ -22,7 +22,7 @@ async fn marginfi_account_create_success() -> anyhow::Result<()> {
 
     // Create & initialize marginfi account
     let marginfi_account_key = Keypair::new();
-    let accounts = marginfi::accounts::InitializeMarginfiAccount {
+    let accounts = marginfi::accounts::MarginfiAccountInitialize {
         marginfi_group: test_f.marginfi_group.key,
         marginfi_account: marginfi_account_key.pubkey(),
         signer: test_f.payer(),
@@ -31,7 +31,7 @@ async fn marginfi_account_create_success() -> anyhow::Result<()> {
     let init_marginfi_account_ix = Instruction {
         program_id: marginfi::id(),
         accounts: accounts.to_account_metas(Some(true)),
-        data: marginfi::instruction::InitializeMarginfiAccount {}.data(),
+        data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
     };
 
     let tx = Transaction::new_signed_with_payer(

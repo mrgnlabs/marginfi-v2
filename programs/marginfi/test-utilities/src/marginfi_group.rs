@@ -39,7 +39,7 @@ impl MarginfiGroupFixture {
                     system_program: system_program::id(),
                 }
                 .to_account_metas(Some(true)),
-                data: marginfi::instruction::InitializeMarginfiGroup {}.data(),
+                data: marginfi::instruction::MarginfiGroupInitialize {}.data(),
             };
 
             let configure_marginfi_group_ix = Instruction {
@@ -49,7 +49,7 @@ impl MarginfiGroupFixture {
                     admin: ctx.payer.pubkey(),
                 }
                 .to_account_metas(Some(true)),
-                data: marginfi::instruction::ConfigureMarginfiGroup { config }.data(),
+                data: marginfi::instruction::MarginfiGroupConfigure { config }.data(),
             };
 
             let tx = Transaction::new_signed_with_payer(
@@ -203,7 +203,7 @@ impl MarginfiGroupFixture {
                 bank: bank.key,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::BankAccrueInterest {}.data(),
+            data: marginfi::instruction::LendingPoolBankAccrueInterest {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -223,7 +223,7 @@ impl MarginfiGroupFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolCollectFees {
+            accounts: marginfi::accounts::LendingPoolBankCollectFees {
                 marginfi_group: self.key,
                 bank: bank.key,
                 liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
@@ -233,7 +233,7 @@ impl MarginfiGroupFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::BankCollectFees {}.data(),
+            data: marginfi::instruction::LendingPoolBankCollectFees {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(

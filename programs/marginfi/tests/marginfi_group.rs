@@ -29,7 +29,7 @@ async fn marginfi_group_create_success() -> anyhow::Result<()> {
     let init_marginfi_group_ix = Instruction {
         program_id: marginfi::id(),
         accounts: accounts.to_account_metas(Some(true)),
-        data: marginfi::instruction::InitializeMarginfiGroup {}.data(),
+        data: marginfi::instruction::MarginfiGroupInitialize {}.data(),
     };
     let tx = Transaction::new_signed_with_payer(
         &[init_marginfi_group_ix],

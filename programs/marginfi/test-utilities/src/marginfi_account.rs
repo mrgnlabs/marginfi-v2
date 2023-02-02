@@ -33,7 +33,7 @@ impl MarginfiAccountFixture {
         {
             let mut ctx = ctx.borrow_mut();
 
-            let accounts = marginfi::accounts::InitializeMarginfiAccount {
+            let accounts = marginfi::accounts::MarginfiAccountInitialize {
                 marginfi_account: account_key.pubkey(),
                 marginfi_group: *marginfi_group,
                 signer: ctx.payer.pubkey(),
@@ -42,7 +42,7 @@ impl MarginfiAccountFixture {
             let init_marginfi_account_ix = Instruction {
                 program_id: marginfi::id(),
                 accounts: accounts.to_account_metas(Some(true)),
-                data: marginfi::instruction::InitializeMarginfiAccount {}.data(),
+                data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
             };
 
             let tx = Transaction::new_signed_with_payer(
@@ -71,7 +71,7 @@ impl MarginfiAccountFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::MarginfiAccountDeposit {
+            accounts: marginfi::accounts::LendingPoolDeposit {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: ctx.payer.pubkey(),
@@ -81,7 +81,7 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::MarginfiAccountDeposit {
+            data: marginfi::instruction::LendingPoolDeposit {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
             }
             .data(),
@@ -110,7 +110,7 @@ impl MarginfiAccountFixture {
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::MarginfiAccountWithdraw {
+            accounts: marginfi::accounts::LendingPoolWithdraw {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: self.ctx.borrow().payer.pubkey(),
@@ -123,7 +123,7 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::MarginfiAccountWithdraw {
+            data: marginfi::instruction::LendingPoolWithdraw {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
                 withdraw_all,
             }
@@ -163,7 +163,7 @@ impl MarginfiAccountFixture {
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::MarginfiAccountBorrow {
+            accounts: marginfi::accounts::LendingPoolBorrow {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: self.ctx.borrow().payer.pubkey(),
@@ -176,7 +176,7 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::MarginfiAccountBorrow {
+            data: marginfi::instruction::LendingPoolBorrow {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
             }
             .data(),
@@ -213,7 +213,7 @@ impl MarginfiAccountFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::MarginfiAccountRepay {
+            accounts: marginfi::accounts::LendingPoolRepay {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: ctx.payer.pubkey(),
@@ -223,7 +223,7 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::MarginfiAccountRepay {
+            data: marginfi::instruction::LendingPoolRepay {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
                 repay_all,
             }
