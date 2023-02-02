@@ -33,7 +33,7 @@ impl MarginfiGroupFixture {
 
             let initialize_marginfi_group_ix = Instruction {
                 program_id: marginfi::id(),
-                accounts: marginfi::accounts::InitializeMarginfiGroup {
+                accounts: marginfi::accounts::MarginfiGroupInitialize {
                     marginfi_group: group_key.pubkey(),
                     admin: ctx.payer.pubkey(),
                     system_program: system_program::id(),
@@ -44,7 +44,7 @@ impl MarginfiGroupFixture {
 
             let configure_marginfi_group_ix = Instruction {
                 program_id: marginfi::id(),
-                accounts: marginfi::accounts::ConfigureMarginfiGroup {
+                accounts: marginfi::accounts::MarginfiGroupConfigure {
                     marginfi_group: group_key.pubkey(),
                     admin: ctx.payer.pubkey(),
                 }
@@ -198,12 +198,12 @@ impl MarginfiGroupFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolBankAccrueInterest {
+            accounts: marginfi::accounts::LendingPoolAccrueBankInterest {
                 marginfi_group: self.key,
                 bank: bank.key,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingPoolBankAccrueInterest {}.data(),
+            data: marginfi::instruction::LendingPoolAccrueBankInterest {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -223,7 +223,7 @@ impl MarginfiGroupFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolBankCollectFees {
+            accounts: marginfi::accounts::LendingPoolCollectBankFees {
                 marginfi_group: self.key,
                 bank: bank.key,
                 liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
@@ -233,7 +233,7 @@ impl MarginfiGroupFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingPoolBankCollectFees {}.data(),
+            data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(

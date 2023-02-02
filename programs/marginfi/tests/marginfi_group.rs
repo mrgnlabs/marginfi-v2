@@ -21,7 +21,7 @@ async fn marginfi_group_create_success() -> anyhow::Result<()> {
     // Create & initialize marginfi group
     let marginfi_group_key = Keypair::new();
 
-    let accounts = marginfi::accounts::InitializeMarginfiGroup {
+    let accounts = marginfi::accounts::MarginfiGroupInitialize {
         marginfi_group: marginfi_group_key.pubkey(),
         admin: test_f.payer(),
         system_program: system_program::id(),

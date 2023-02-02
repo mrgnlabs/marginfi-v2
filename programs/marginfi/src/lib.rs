@@ -32,12 +32,12 @@ assert_cfg!(
 pub mod marginfi {
     use super::*;
 
-    pub fn marginfi_group_initialize(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
+    pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
         marginfi_group::initialize(ctx)
     }
 
     pub fn marginfi_group_configure(
-        ctx: Context<ConfigureMarginfiGroup>,
+        ctx: Context<MarginfiGroupConfigure>,
         config: GroupConfig,
     ) -> MarginfiResult {
         marginfi_group::configure(ctx, config)
@@ -104,15 +104,15 @@ pub mod marginfi {
     }
 
     // Operational instructions
-    pub fn lending_pool_bank_accrue_interest(
-        ctx: Context<LendingPoolBankAccrueInterest>,
+    pub fn lending_pool_accrue_bank_interest(
+        ctx: Context<LendingPoolAccrueBankInterest>,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_bank_accrue_interest(ctx)
+        marginfi_group::lending_pool_accrue_bank_interest(ctx)
     }
 
-    pub fn lending_pool_bank_collect_fees(
-        ctx: Context<LendingPoolBankCollectFees>,
+    pub fn lending_pool_collect_bank_fees(
+        ctx: Context<LendingPoolCollectBankFees>,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_bank_collect_fees(ctx)
+        marginfi_group::lending_pool_collect_bank_fees(ctx)
     }
 }
