@@ -2,14 +2,12 @@ use anchor_lang::prelude::Clock;
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use fixtures::{prelude::*, *};
-use marginfi::prelude::GroupConfig;
-use marginfi::{
-    prelude::MarginfiError,
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
-    },
+use fixtures::prelude::*;
+use fixtures::{assert_custom_error, assert_eq_noise, native};
+use marginfi::prelude::*;
+use marginfi::state::{
+    marginfi_account::MarginfiAccount,
+    marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
 };
 use pretty_assertions::assert_eq;
 use solana_program::{instruction::Instruction, system_program};

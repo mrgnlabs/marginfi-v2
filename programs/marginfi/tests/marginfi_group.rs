@@ -2,7 +2,7 @@ use anchor_lang::{prelude::Clock, InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
-use fixtures::*;
+use fixtures::{assert_custom_error, assert_eq_noise, native};
 use marginfi::prelude::GroupConfig;
 use marginfi::state::marginfi_group::{BankVaultType, InterestRateConfig};
 use marginfi::{
