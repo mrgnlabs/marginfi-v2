@@ -654,7 +654,8 @@ impl<'a> BankAccountWrapper<'a> {
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
-        let current_asset_amount = bank.get_asset_amount(balance.asset_shares.into())?;
+        let total_asset_shares: I80F48 = balance.asset_shares.into();
+        let current_asset_amount = bank.get_asset_amount(total_asset_shares)?;
 
         msg!(
             "Withdrawing all: {} of {} in {}",
@@ -669,8 +670,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         balance.close();
-        let asset_shares_decrease = bank.get_asset_shares(current_asset_amount)?;
-        bank.change_asset_shares(-asset_shares_decrease)?;
+        bank.change_asset_shares(-total_asset_shares)?;
 
         bank.check_utilization_ratio()?;
 
@@ -695,8 +695,8 @@ impl<'a> BankAccountWrapper<'a> {
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
-        let current_liability_amount =
-            bank.get_liability_amount(balance.liability_shares.into())?;
+        let total_liability_shares: I80F48 = balance.liability_shares.into();
+        let current_liability_amount = bank.get_liability_amount(total_liability_shares)?;
 
         msg!(
             "Repaying all: {} of {} in {}",
@@ -711,8 +711,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         balance.close();
-        let liability_shares_decrease = bank.get_liability_shares(current_liability_amount)?;
-        bank.change_liability_shares(-liability_shares_decrease)?;
+        bank.change_liability_shares(-total_liability_shares)?;
 
         let spl_deposit_amount = current_liability_amount
             .checked_ceil()
