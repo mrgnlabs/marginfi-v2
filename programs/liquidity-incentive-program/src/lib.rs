@@ -13,7 +13,7 @@ declare_id!("LipLzUxQftzq77XGVJW5c7UhxbS9ZLyZM9EGiF4Dxs4");
 pub mod liquidity_incentive_program {
     use super::*;
 
-    pub fn create_campaing(
+    pub fn create_campaign(
         ctx: Context<CreateCampaign>,
         lockup_period: u64,
         max_deposits: u64,
@@ -41,7 +41,7 @@ pub mod liquidity_incentive_program {
             marginfi_bank_pk: ctx.accounts.marginfi_bank.key(),
         };
 
-        msg!("Created campaing\n{:#?}", ctx.accounts.campaign);
+        msg!("Created campaign\n{:#?}", ctx.accounts.campaign);
 
         Ok(())
     }
