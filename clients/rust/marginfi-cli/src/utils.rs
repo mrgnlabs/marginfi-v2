@@ -50,30 +50,28 @@ pub fn find_bank_vault_authority_pda(
     Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
 }
 
+pub fn get_shares_token_mint(bank_key: &Pubkey, program_id: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            marginfi::constants::SHARES_TOKEN_MINT_SEED.as_ref(),
+            bank_key.as_ref(),
+        ],
+        program_id,
+    )
+}
+
+pub fn get_shares_token_mint_authority(bank_key: &Pubkey, program_id: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            marginfi::constants::SHARES_TOKEN_MINT_AUTHORITY_SEED.as_ref(),
+            bank_key.as_ref(),
+        ],
+        program_id,
+    )
+}
+
 pub fn create_oracle_key_array(oracle_key: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
     let mut oracle_keys = [Pubkey::default(); MAX_ORACLE_KEYS];
     oracle_keys[0] = oracle_key;
     oracle_keys
 }
-// const SCALE: u128 = 10_u128.pow(14);
-
-// pub fn ui_to_native(value: f64) -> u128 {
-//     let integer_part = value.floor();
-//     let fractional_part = value - integer_part;
-
-//     let integer_part_u128 = (integer_part as u128) * SCALE;
-//     let fractional_part_u128 = (fractional_part * SCALE as f64) as u128;
-
-//     integer_part_u128 + fractional_part_u128
-// }
-
-// pub fn native_to_ui(value: u128) -> f64 {
-//     let integer_part = value.checked_div_euclid(SCALE).unwrap() as f64;
-//     let fractional_part = (value.checked_rem_euclid(SCALE).unwrap() as f64) / (SCALE as f64);
-
-//     integer_part + fractional_part
-// }
-
-// pub fn ui_to_native_u64(value: f64) -> u64 {
-//     (value * 1_000_000f64) as u64
-// }

@@ -4,7 +4,8 @@ use crate::{
     utils::{get_shares_token_mint, get_shares_token_mint_authority},
 };
 use anchor_lang::{
-    prelude::{AccountMeta, Pubkey}, InstructionData, ToAccountMetas,
+    prelude::{AccountMeta, Pubkey},
+    InstructionData, ToAccountMetas,
 };
 use anchor_spl::token::spl_token;
 use marginfi::{
@@ -125,8 +126,7 @@ impl BankFixture {
             self.ctx.borrow().last_blockhash,
         );
 
-        self
-            .ctx
+        self.ctx
             .borrow_mut()
             .banks_client
             .process_transaction(tx)
@@ -172,8 +172,7 @@ impl BankFixture {
             self.ctx.borrow().last_blockhash,
         );
 
-        self
-            .ctx
+        self.ctx
             .borrow_mut()
             .banks_client
             .process_transaction(tx)

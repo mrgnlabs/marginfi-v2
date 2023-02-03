@@ -3,7 +3,7 @@ use crate::{
     profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
     utils::{
         create_oracle_key_array, find_bank_vault_authority_pda, find_bank_vault_pda,
-        process_transaction,
+        get_shares_token_mint, get_shares_token_mint_authority, process_transaction,
     },
 };
 use anchor_client::Cluster;
@@ -21,13 +21,8 @@ use marginfi::{
 
 use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
 use solana_sdk::{
-    commitment_config::CommitmentLevel,
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-    signature::Keypair,
-    signer::Signer,
-    system_program, sysvar,
-    transaction::Transaction,
+    commitment_config::CommitmentLevel, instruction::AccountMeta, pubkey::Pubkey,
+    signature::Keypair, signer::Signer, system_program, sysvar, transaction::Transaction,
 };
 use std::{fs, mem::size_of};
 
@@ -267,6 +262,12 @@ pub fn group_add_bank(
             rent: sysvar::rent::id(),
             token_program: token::ID,
             system_program: system_program::id(),
+            shares_token_mint: get_shares_token_mint(&bank_keypair.pubkey(), &config.program_id).0,
+            shares_token_mint_authority: get_shares_token_mint_authority(
+                &bank_keypair.pubkey(),
+                &config.program_id,
+            )
+            .0,
         })
         .accounts(AccountMeta::new_readonly(pyth_oracle, false))
         .args(marginfi::instruction::LendingPoolAddBank {
@@ -393,7 +394,7 @@ pub fn create_profile(
         let cli_config_file = cli_config_dir.join("config.json");
 
         fs::write(
-            &cli_config_file,
+            cli_config_file,
             serde_json::to_string(&CliConfig {
                 profile_name: profile.name.clone(),
             })?,

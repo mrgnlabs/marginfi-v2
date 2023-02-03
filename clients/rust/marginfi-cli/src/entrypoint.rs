@@ -101,9 +101,9 @@ pub enum BankOperationalStateArg {
     ReduceOnly,
 }
 
-impl Into<BankOperationalState> for BankOperationalStateArg {
-    fn into(self) -> BankOperationalState {
-        match self {
+impl From<BankOperationalStateArg> for BankOperationalState {
+    fn from(val: BankOperationalStateArg) -> Self {
+        match val {
             BankOperationalStateArg::Paused => BankOperationalState::Paused,
             BankOperationalStateArg::Operational => BankOperationalState::Operational,
             BankOperationalStateArg::ReduceOnly => BankOperationalState::ReduceOnly,
