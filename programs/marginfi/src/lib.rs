@@ -32,20 +32,17 @@ assert_cfg!(
 pub mod marginfi {
     use super::*;
 
-    /// Initialize a new Marginfi Group with initial config
-    pub fn initialize_marginfi_group(ctx: Context<InitializeMarginfiGroup>) -> MarginfiResult {
+    pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
         marginfi_group::initialize(ctx)
     }
 
-    /// Configure a Marginfi Group
-    pub fn configure_marginfi_group(
-        ctx: Context<ConfigureMarginfiGroup>,
+    pub fn marginfi_group_configure(
+        ctx: Context<MarginfiGroupConfigure>,
         config: GroupConfig,
     ) -> MarginfiResult {
         marginfi_group::configure(ctx, config)
     }
 
-    /// Add a new bank to the Marginfi Group
     pub fn lending_pool_add_bank(
         ctx: Context<LendingPoolAddBank>,
         bank_config: BankConfig,
@@ -53,7 +50,6 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank(ctx, bank_config)
     }
 
-    /// Configure a bank in the Marginfi Group
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
         bank_config_opt: BankConfigOpt,
@@ -69,39 +65,55 @@ pub mod marginfi {
     }
 
     // User instructions
+
     /// Initialize a marginfi account for a given group
-    pub fn initialize_marginfi_account(ctx: Context<InitializeMarginfiAccount>) -> MarginfiResult {
+    pub fn marginfi_account_initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
         marginfi_account::initialize(ctx)
     }
 
-    /// Deposit assets into a lending account
-    /// Repay borrowed assets, if any exist.
-    pub fn bank_deposit(ctx: Context<BankDeposit>, amount: u64) -> MarginfiResult {
-        marginfi_account::bank_deposit(ctx, amount)
+    pub fn lending_pool_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiResult {
+        marginfi_account::lending_pool_deposit(ctx, amount)
     }
 
-    /// Withdraw assets from a lending account
-    /// Withdraw deposited assets, if any exist, otherwise borrow assets.
-    /// Account health checked.
-    pub fn bank_withdraw(ctx: Context<BankWithdraw>, amount: u64) -> MarginfiResult {
-        marginfi_account::bank_withdraw(ctx, amount)
+    pub fn lending_pool_repay(
+        ctx: Context<LendingPoolRepay>,
+        amount: u64,
+        repay_all: Option<bool>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_pool_repay(ctx, amount, repay_all)
+    }
+
+    pub fn lending_pool_withdraw(
+        ctx: Context<LendingPoolWithdraw>,
+        amount: u64,
+        withdraw_all: Option<bool>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_pool_withdraw(ctx, amount, withdraw_all)
+    }
+
+    pub fn lending_pool_borrow(ctx: Context<LendingPoolBorrow>, amount: u64) -> MarginfiResult {
+        marginfi_account::lending_pool_borrow(ctx, amount)
     }
 
     /// Liquidate a lending account balance of an unhealthy marginfi account
-    pub fn lending_account_liquidate(
-        ctx: Context<LendingAccountLiquidate>,
+    pub fn marginfi_account_liquidate(
+        ctx: Context<MarginfiAccountLiquidate>,
         asset_amount: u64,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_liquidate(ctx, asset_amount)
+        marginfi_account::liquidate(ctx, asset_amount)
     }
 
     // Operational instructions
-    pub fn bank_accrue_interest(ctx: Context<LendingPoolBankAccrueInterest>) -> MarginfiResult {
-        marginfi_group::lending_pool_bank_accrue_interest(ctx)
+    pub fn lending_pool_accrue_bank_interest(
+        ctx: Context<LendingPoolAccrueBankInterest>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_accrue_bank_interest(ctx)
     }
 
-    pub fn bank_collect_fees(ctx: Context<LendingPoolCollectFees>) -> MarginfiResult {
-        marginfi_group::lending_pool_collect_fees(ctx)
+    pub fn lending_pool_collect_bank_fees(
+        ctx: Context<LendingPoolCollectBankFees>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_collect_bank_fees(ctx)
     }
 
     pub fn bank_mint_shares(ctx: Context<BankMintShares>, amount: u64) -> MarginfiResult {

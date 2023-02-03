@@ -1,3 +1,4 @@
+use crate::ui_to_native;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{
     spl_token::{
@@ -13,6 +14,7 @@ use solana_sdk::{
 };
 use std::{cell::RefCell, rc::Rc};
 
+#[derive(Clone)]
 pub struct MintFixture {
     pub ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
@@ -26,7 +28,7 @@ impl MintFixture {
         mint_decimals: Option<u8>,
     ) -> MintFixture {
         let ctx_ref = Rc::clone(&ctx);
-        let keypair = mint_keypair.unwrap_or(Keypair::new());
+        let keypair = mint_keypair.unwrap_or_else(Keypair::new);
         let mint = {
             let mut ctx = ctx.borrow_mut();
 
@@ -87,10 +89,11 @@ impl MintFixture {
         self.mint = Mint::try_deserialize(&mut mint_account.data.as_slice()).unwrap();
     }
 
-    pub async fn mint_to(&mut self, dest: &Pubkey, amount: u64) {
+    pub async fn mint_to<T: Into<f64>>(&mut self, dest: &Pubkey, ui_amount: T) {
         let tx = {
             let ctx = self.ctx.borrow();
-            let mint_to_ix = self.make_mint_to_ix(dest, amount);
+            let mint_to_ix =
+                self.make_mint_to_ix(dest, ui_to_native!(ui_amount.into(), self.mint.decimals));
             Transaction::new_signed_with_payer(
                 &[mint_to_ix],
                 Some(&ctx.payer.pubkey()),
@@ -122,32 +125,30 @@ impl MintFixture {
         .unwrap()
     }
 
-    pub async fn create_and_mint_to(&self, amount: u64) -> Pubkey {
-        let keypair = Keypair::new();
-        let mint_to_ix = self.make_mint_to_ix(&keypair.pubkey(), amount);
+    pub async fn create_token_account_and_mint_to<T: Into<f64>>(
+        &self,
+        ui_amount: T,
+    ) -> TokenAccountFixture {
+        let payer = self.ctx.borrow().payer.pubkey();
+        let token_account_f = TokenAccountFixture::new(self.ctx.clone(), &self.key, &payer).await;
+
+        let mint_to_ix = self.make_mint_to_ix(
+            &token_account_f.key,
+            ui_to_native!(ui_amount.into(), self.mint.decimals),
+        );
 
         let mut ctx = self.ctx.borrow_mut();
 
-        let rent = ctx.banks_client.get_rent().await.unwrap();
-        let [init_account_ix, init_token_ix] = TokenAccountFixture::create_ixs(
-            rent,
-            &self.key,
-            &ctx.payer.pubkey(),
-            &ctx.payer.pubkey(),
-            &keypair,
-        )
-        .await;
-
         let tx = Transaction::new_signed_with_payer(
-            &[init_account_ix, init_token_ix, mint_to_ix],
+            &[mint_to_ix],
             Some(&ctx.payer.pubkey()),
-            &[&ctx.payer, &keypair],
+            &[&ctx.payer],
             ctx.last_blockhash,
         );
 
         ctx.banks_client.process_transaction(tx).await.unwrap();
 
-        keypair.pubkey()
+        token_account_f
     }
 }
 
@@ -215,7 +216,7 @@ impl TokenAccountFixture {
         mint_pk: &Pubkey,
         owner_pk: &Pubkey,
         keypair: &Keypair,
-    ) -> TokenAccountFixture {
+    ) -> Self {
         let ctx_ref = ctx.clone();
 
         {
@@ -235,7 +236,7 @@ impl TokenAccountFixture {
             ctx.banks_client.process_transaction(tx).await.unwrap();
         }
 
-        TokenAccountFixture {
+        Self {
             ctx: ctx_ref.clone(),
             key: keypair.pubkey(),
             token: get_and_deserialize(ctx_ref.clone(), keypair.pubkey()).await,
@@ -251,6 +252,19 @@ impl TokenAccountFixture {
         TokenAccountFixture::new_with_keypair(ctx, mint_pk, owner_pk, &keypair).await
     }
 
+    pub async fn fetch(
+        ctx: Rc<RefCell<ProgramTestContext>>,
+        address: Pubkey,
+    ) -> TokenAccountFixture {
+        let token = get_and_deserialize(ctx.clone(), address).await;
+
+        Self {
+            ctx: ctx.clone(),
+            key: address,
+            token,
+        }
+    }
+
     pub async fn balance(&self) -> u64 {
         let token_account: TokenAccount = get_and_deserialize(self.ctx.clone(), self.key).await;
 
@@ -258,7 +272,7 @@ impl TokenAccountFixture {
     }
 }
 
-pub async fn get_and_deserialize<T: anchor_lang::AccountDeserialize>(
+pub async fn get_and_deserialize<T: AccountDeserialize>(
     ctx: Rc<RefCell<ProgramTestContext>>,
     pubkey: Pubkey,
 ) -> T {
