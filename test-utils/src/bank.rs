@@ -4,8 +4,7 @@ use crate::{
     utils::{get_shares_token_mint, get_shares_token_mint_authority},
 };
 use anchor_lang::{
-    prelude::{AccountMeta, Pubkey},
-    AccountDeserialize, InstructionData, ToAccountMetas,
+    prelude::{AccountMeta, Pubkey}, InstructionData, ToAccountMetas,
 };
 use anchor_spl::token::spl_token;
 use marginfi::{
@@ -13,7 +12,7 @@ use marginfi::{
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
 use solana_program::instruction::Instruction;
-use solana_program_test::{BanksClientError, ProgramTestContext, ProgramTestError};
+use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
@@ -126,12 +125,12 @@ impl BankFixture {
             self.ctx.borrow().last_blockhash,
         );
 
-        Ok(self
+        self
             .ctx
             .borrow_mut()
             .banks_client
             .process_transaction(tx)
-            .await?)
+            .await
     }
 
     pub async fn try_redeem_shares(
@@ -173,12 +172,12 @@ impl BankFixture {
             self.ctx.borrow().last_blockhash,
         );
 
-        Ok(self
+        self
             .ctx
             .borrow_mut()
             .banks_client
             .process_transaction(tx)
-            .await?)
+            .await
     }
 
     #[cfg(feature = "lip")]

@@ -9,7 +9,7 @@ use anchor_lang::{
 use anyhow::Result;
 use liquidity_incentive_program as lip;
 use solana_program::instruction::Instruction;
-use solana_program_test::{BanksClientError, ProgramTestContext, ProgramTestError};
+use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, rc::Rc};
 
