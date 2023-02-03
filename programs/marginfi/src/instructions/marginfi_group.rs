@@ -136,7 +136,7 @@ pub struct LendingPoolAddBank<'info> {
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         seeds = [
-            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump
@@ -149,7 +149,7 @@ pub struct LendingPoolAddBank<'info> {
         token::mint = bank_mint,
         token::authority = liquidity_vault_authority,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump,
@@ -159,7 +159,7 @@ pub struct LendingPoolAddBank<'info> {
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         seeds = [
-            INSURANCE_VAULT_AUTHORITY_SEED,
+            INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump
@@ -172,7 +172,7 @@ pub struct LendingPoolAddBank<'info> {
         token::mint = bank_mint,
         token::authority = insurance_vault_authority,
         seeds = [
-            INSURANCE_VAULT_SEED,
+            INSURANCE_VAULT_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump,
@@ -182,7 +182,7 @@ pub struct LendingPoolAddBank<'info> {
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         seeds = [
-            FEE_VAULT_AUTHORITY_SEED,
+            FEE_VAULT_AUTHORITY_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump
@@ -195,7 +195,7 @@ pub struct LendingPoolAddBank<'info> {
         token::mint = bank_mint,
         token::authority = fee_vault_authority,
         seeds = [
-            FEE_VAULT_SEED,
+            FEE_VAULT_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump,
@@ -346,7 +346,7 @@ pub struct LendingPoolCollectBankFees<'info> {
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         seeds = [
-            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump = bank.load()?.liquidity_vault_authority_bump
@@ -357,7 +357,7 @@ pub struct LendingPoolCollectBankFees<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump = bank.load()?.liquidity_vault_bump
@@ -368,7 +368,7 @@ pub struct LendingPoolCollectBankFees<'info> {
     #[account(
         mut,
         seeds = [
-            INSURANCE_VAULT_SEED,
+            INSURANCE_VAULT_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump = bank.load()?.insurance_vault_bump
@@ -379,7 +379,7 @@ pub struct LendingPoolCollectBankFees<'info> {
     #[account(
         mut,
         seeds = [
-            FEE_VAULT_SEED,
+            FEE_VAULT_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump = bank.load()?.fee_vault_bump
@@ -492,7 +492,7 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump = bank.load()?.liquidity_vault_bump
@@ -502,7 +502,7 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     #[account(
         mut,
         seeds = [
-            INSURANCE_VAULT_SEED,
+            INSURANCE_VAULT_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump = bank.load()?.insurance_vault_bump
@@ -512,7 +512,7 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     /// CHECK: Seed constraint
     #[account(
         seeds = [
-            INSURANCE_VAULT_AUTHORITY_SEED,
+            INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump = bank.load()?.insurance_vault_authority_bump

@@ -81,7 +81,7 @@ pub struct LendingPoolDeposit<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump = bank.load()?.liquidity_vault_bump,

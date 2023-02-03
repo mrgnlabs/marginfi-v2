@@ -815,17 +815,17 @@ pub enum BankVaultType {
 impl BankVaultType {
     pub fn get_seed(self) -> &'static [u8] {
         match self {
-            BankVaultType::Liquidity => LIQUIDITY_VAULT_SEED,
-            BankVaultType::Insurance => INSURANCE_VAULT_SEED,
-            BankVaultType::Fee => FEE_VAULT_SEED,
+            BankVaultType::Liquidity => LIQUIDITY_VAULT_SEED.as_bytes(),
+            BankVaultType::Insurance => INSURANCE_VAULT_SEED.as_bytes(),
+            BankVaultType::Fee => FEE_VAULT_SEED.as_bytes(),
         }
     }
 
     pub fn get_authority_seed(self) -> &'static [u8] {
         match self {
-            BankVaultType::Liquidity => LIQUIDITY_VAULT_AUTHORITY_SEED,
-            BankVaultType::Insurance => INSURANCE_VAULT_AUTHORITY_SEED,
-            BankVaultType::Fee => FEE_VAULT_AUTHORITY_SEED,
+            BankVaultType::Liquidity => LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
+            BankVaultType::Insurance => INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
+            BankVaultType::Fee => FEE_VAULT_AUTHORITY_SEED.as_bytes(),
         }
     }
 }

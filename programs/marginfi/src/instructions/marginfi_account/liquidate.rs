@@ -271,7 +271,7 @@ pub struct MarginfiAccountLiquidate<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             liab_bank.key().as_ref(),
         ],
         bump = liab_bank.load()?.liquidity_vault_authority_bump
@@ -282,7 +282,7 @@ pub struct MarginfiAccountLiquidate<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             liab_bank.key().as_ref(),
         ],
         bump = liab_bank.load()?.liquidity_vault_bump
@@ -293,7 +293,7 @@ pub struct MarginfiAccountLiquidate<'info> {
     #[account(
         mut,
         seeds = [
-            INSURANCE_VAULT_SEED,
+            INSURANCE_VAULT_SEED.as_bytes(),
             liab_bank.key().as_ref(),
         ],
         bump = liab_bank.load()?.insurance_vault_bump

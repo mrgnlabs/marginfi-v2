@@ -99,7 +99,7 @@ pub struct LendingPoolBorrow<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_AUTHORITY_SEED,
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump = bank.load() ?.liquidity_vault_authority_bump,
@@ -109,7 +109,7 @@ pub struct LendingPoolBorrow<'info> {
     #[account(
         mut,
         seeds = [
-            LIQUIDITY_VAULT_SEED,
+            LIQUIDITY_VAULT_SEED.as_bytes(),
             bank.key().as_ref(),
         ],
         bump = bank.load() ?.liquidity_vault_bump,
