@@ -170,7 +170,7 @@ pub mod liquidity_incentive_program {
                     token_program: ctx.accounts.token_program.to_account_info(),
                 },
                 &[&[
-                    DEPOSIT_AUTH_SEED,
+                    DEPOSIT_AUTH_SEED.as_bytes(),
                     ctx.accounts.deposit.key().as_ref(),
                     &[*ctx.bumps.get("deposit_shares_vault_authority").unwrap()],
                 ]],
@@ -216,7 +216,7 @@ pub mod liquidity_incentive_program {
                             .to_account_info(),
                     },
                     &[&[
-                        CAMPAIGN_AUTH_SEED,
+                        CAMPAIGN_AUTH_SEED.as_bytes(),
                         ctx.accounts.campaign.key().as_ref(),
                         &[*ctx.bumps.get("campaign_reward_vault_authority").unwrap()],
                     ]],
@@ -245,7 +245,7 @@ pub mod liquidity_incentive_program {
                         .to_account_info(),
                 },
                 &[&[
-                    EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED,
+                    EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
                     ctx.accounts.deposit.key().as_ref(),
                     &[*ctx.bumps.get("ephemeral_token_account_authority").unwrap()],
                 ]],
@@ -265,7 +265,7 @@ pub mod liquidity_incentive_program {
                     .to_account_info(),
             },
             &[&[
-                EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED,
+                EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
                 ctx.accounts.deposit.key().as_ref(),
                 &[*ctx.bumps.get("ephemeral_token_account_authority").unwrap()],
             ]],
@@ -282,7 +282,7 @@ pub mod liquidity_incentive_program {
                     .to_account_info(),
             },
             &[&[
-                DEPOSIT_AUTH_SEED,
+                DEPOSIT_AUTH_SEED.as_bytes(),
                 ctx.accounts.deposit.key().as_ref(),
                 &[*ctx.bumps.get("deposit_shares_vault_authority").unwrap()],
             ]],
@@ -293,17 +293,17 @@ pub mod liquidity_incentive_program {
 }
 
 #[constant]
-pub const CAMPAIGN_SEED: &[u8] = b"campaign";
+pub const CAMPAIGN_SEED: &str = "campaign";
 #[constant]
-pub const CAMPAIGN_AUTH_SEED: &[u8] = b"campaign_auth";
+pub const CAMPAIGN_AUTH_SEED: &str = "campaign_auth";
 #[constant]
-pub const DEPOSIT_SEED: &[u8] = b"deposit";
+pub const DEPOSIT_SEED: &str = "deposit";
 #[constant]
-pub const DEPOSIT_AUTH_SEED: &[u8] = b"deposit_auth";
+pub const DEPOSIT_AUTH_SEED: &str = "deposit_auth";
 #[constant]
-pub const EPHEMERAL_TOKEN_ACCOUNT_SEED: &[u8] = b"ephemeral_token_account";
+pub const EPHEMERAL_TOKEN_ACCOUNT_SEED: &str = "ephemeral_token_account";
 #[constant]
-pub const EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED: &[u8] = b"ephemeral_token_account_auth";
+pub const EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED: &str = "ephemeral_token_account_auth";
 
 #[derive(Accounts)]
 pub struct CreateCampaign<'info> {
@@ -319,7 +319,7 @@ pub struct CreateCampaign<'info> {
         token::mint = asset_mint,
         token::authority = campaign_reward_vault_authority,
         seeds = [
-            CAMPAIGN_SEED,
+            CAMPAIGN_SEED.as_bytes(),
             campaign.key().as_ref(),
         ],
         bump,
@@ -327,7 +327,7 @@ pub struct CreateCampaign<'info> {
     pub campaign_reward_vault: Account<'info, TokenAccount>,
     #[account(
         seeds = [
-            CAMPAIGN_AUTH_SEED,
+            CAMPAIGN_AUTH_SEED.as_bytes(),
             campaign.key().as_ref(),
         ],
         bump,
@@ -368,7 +368,7 @@ pub struct CreateDeposit<'info> {
         token::mint = marginfi_shares_mint,
         token::authority = deposit_shares_vault_authority,
         seeds = [
-            DEPOSIT_SEED,
+            DEPOSIT_SEED.as_bytes(),
             deposit.key().as_ref(),
         ],
         bump,
@@ -376,7 +376,7 @@ pub struct CreateDeposit<'info> {
     pub deposit_shares_vault: Account<'info, TokenAccount>,
     #[account(
         seeds = [
-            DEPOSIT_AUTH_SEED,
+            DEPOSIT_AUTH_SEED.as_bytes(),
             deposit.key().as_ref(),
         ],
         bump,
@@ -415,7 +415,7 @@ pub struct CloseDeposit<'info> {
     #[account(
         mut,
         seeds = [
-            CAMPAIGN_SEED,
+            CAMPAIGN_SEED.as_bytes(),
             campaign.key().as_ref(),
         ],
         bump,
@@ -423,7 +423,7 @@ pub struct CloseDeposit<'info> {
     pub campaign_reward_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         seeds = [
-            CAMPAIGN_AUTH_SEED,
+            CAMPAIGN_AUTH_SEED.as_bytes(),
             campaign.key().as_ref(),
         ],
         bump,
@@ -440,7 +440,7 @@ pub struct CloseDeposit<'info> {
     #[account(
         mut,
         seeds = [
-            DEPOSIT_SEED,
+            DEPOSIT_SEED.as_bytes(),
             deposit.key().as_ref(),
         ],
         bump,
@@ -448,7 +448,7 @@ pub struct CloseDeposit<'info> {
     pub deposit_shares_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         seeds = [
-            DEPOSIT_AUTH_SEED,
+            DEPOSIT_AUTH_SEED.as_bytes(),
             deposit.key().as_ref(),
         ],
         bump,
@@ -461,7 +461,7 @@ pub struct CloseDeposit<'info> {
         token::mint = asset_mint,
         token::authority = ephemeral_token_account_authority,
         seeds = [
-            EPHEMERAL_TOKEN_ACCOUNT_SEED,
+            EPHEMERAL_TOKEN_ACCOUNT_SEED.as_bytes(),
             deposit.key().as_ref(),
         ],
         bump,
@@ -469,7 +469,7 @@ pub struct CloseDeposit<'info> {
     pub ephemeral_token_account: Box<Account<'info, TokenAccount>>,
     #[account(
         seeds = [
-            EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED,
+            EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
             deposit.key().as_ref(),
         ],
         bump,
