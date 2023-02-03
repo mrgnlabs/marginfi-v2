@@ -228,6 +228,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump
     )]
+    /// CHECK: Asserted by seed derivation
     pub shares_token_mint_authority: AccountInfo<'info>,
 
     pub rent: Sysvar<'info, Rent>,
@@ -611,6 +612,7 @@ pub struct BankMintShares<'info> {
         ],
         bump = bank.load()?.shares_token_mint_bump
     )]
+    /// CHECK: Asserted by seed derivation
     pub shares_token_mint: AccountInfo<'info>,
 
     #[account(
@@ -620,6 +622,7 @@ pub struct BankMintShares<'info> {
         ],
         bump = bank.load()?.shares_token_mint_authority_bump
     )]
+    /// CHECK: Asserted by seed derivation
     pub shares_token_mint_authority: AccountInfo<'info>,
 
     #[account(
@@ -630,14 +633,17 @@ pub struct BankMintShares<'info> {
         ],
         bump = bank.load()?.liquidity_vault_bump
     )]
+    /// CHECK: Asserted by seed derivation
     pub liquidity_vault: AccountInfo<'info>,
 
     pub signer: Signer<'info>,
 
     #[account(mut)]
+    /// CHECK: Asserted by CPI transfer call
     pub user_deposit_token_account: AccountInfo<'info>,
 
     #[account(mut)]
+    /// CHECK: Asserted by CPI mint call
     pub user_shares_token_account: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
@@ -709,6 +715,7 @@ pub struct BankRedeemShares<'info> {
         ],
         bump = bank.load()?.shares_token_mint_bump,
     )]
+    /// CHECK: Asserted by seed derivation
     pub shares_token_mint: AccountInfo<'info>,
 
     /// CHECK: Seed constraint check
@@ -720,6 +727,7 @@ pub struct BankRedeemShares<'info> {
         ],
         bump = bank.load()?.liquidity_vault_authority_bump,
     )]
+    /// CHECK: Asserted by seed derivation
     pub bank_liquidity_vault_authority: AccountInfo<'info>,
 
     #[account(
@@ -730,14 +738,17 @@ pub struct BankRedeemShares<'info> {
         ],
         bump = bank.load()?.liquidity_vault_bump
     )]
+    /// CHECK: Asserted by seed derivation
     pub liquidity_vault: AccountInfo<'info>,
 
     pub signer: Signer<'info>,
 
     #[account(mut)]
+    /// CHECK: Asserted by CPI burn call
     pub user_shares_token_account: AccountInfo<'info>,
 
     #[account(mut)]
+    /// CHECK: Asserted by CPI transfer call
     pub user_deposit_token_account: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
