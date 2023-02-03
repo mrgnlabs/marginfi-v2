@@ -180,7 +180,7 @@ pub mod liquidity_incentive_program {
 
         ctx.accounts.ephemeral_token_account.reload()?;
 
-        // Calulate additional rewards that need to be paid out, based on guaranteed yield.
+        // Calculate additional rewards that need to be paid out, based on guaranteed yield.
         // This is done by calculating the difference between guaranteed yield and actual yield.
         let additional_reward_amount = {
             let base_yield =
