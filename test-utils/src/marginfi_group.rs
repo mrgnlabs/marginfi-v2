@@ -1,26 +1,19 @@
-use crate::{spl::*, utils::*};
+use super::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
+use crate::prelude::MintFixture;
+use crate::utils::*;
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 use anchor_spl::token;
 use anyhow::Result;
 use marginfi::{
-    constants::*,
-    prelude::{MarginfiGroup, MarginfiResult},
+    prelude::MarginfiGroup,
     state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
 };
 use solana_program::sysvar;
 use solana_program_test::*;
 use solana_sdk::{
-    account::AccountSharedData, instruction::Instruction, signature::Keypair, signer::Signer,
-    system_instruction, transaction::Transaction, transport::TransportError,
+    instruction::Instruction, signature::Keypair, signer::Signer, transaction::Transaction,
 };
-use std::{
-    cell::{RefCell, RefMut},
-    convert::TryInto,
-    mem,
-    rc::Rc,
-};
-
-use super::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
+use std::{cell::RefCell, mem, rc::Rc};
 
 pub struct MarginfiGroupFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
@@ -30,7 +23,7 @@ pub struct MarginfiGroupFixture {
 impl MarginfiGroupFixture {
     pub async fn new(
         ctx: Rc<RefCell<ProgramTestContext>>,
-        config_arg: GroupConfig,
+        config: GroupConfig,
     ) -> MarginfiGroupFixture {
         let ctx_ref = ctx.clone();
         let group_key = Keypair::new();
@@ -38,28 +31,29 @@ impl MarginfiGroupFixture {
         {
             let mut ctx = ctx.borrow_mut();
 
-            let accounts = marginfi::accounts::InitializeMarginfiGroup {
-                marginfi_group: group_key.pubkey(),
-                admin: ctx.payer.pubkey(),
-                system_program: system_program::id(),
-            };
-            let init_marginfi_group_ix = Instruction {
+            let initialize_marginfi_group_ix = Instruction {
                 program_id: marginfi::id(),
-                accounts: accounts.to_account_metas(Some(true)),
-                data: marginfi::instruction::InitializeMarginfiGroup {}.data(),
+                accounts: marginfi::accounts::MarginfiGroupInitialize {
+                    marginfi_group: group_key.pubkey(),
+                    admin: ctx.payer.pubkey(),
+                    system_program: system_program::id(),
+                }
+                .to_account_metas(Some(true)),
+                data: marginfi::instruction::MarginfiGroupInitialize {}.data(),
             };
-            let rent = ctx.banks_client.get_rent().await.unwrap();
-            let size = MarginfiGroupFixture::get_size();
-            let create_marginfi_group_ix = system_instruction::create_account(
-                &ctx.payer.pubkey(),
-                &group_key.pubkey(),
-                rent.minimum_balance(size),
-                size as u64,
-                &marginfi::id(),
-            );
+
+            let configure_marginfi_group_ix = Instruction {
+                program_id: marginfi::id(),
+                accounts: marginfi::accounts::MarginfiGroupConfigure {
+                    marginfi_group: group_key.pubkey(),
+                    admin: ctx.payer.pubkey(),
+                }
+                .to_account_metas(Some(true)),
+                data: marginfi::instruction::MarginfiGroupConfigure { config }.data(),
+            };
 
             let tx = Transaction::new_signed_with_payer(
-                &[init_marginfi_group_ix],
+                &[initialize_marginfi_group_ix, configure_marginfi_group_ix],
                 Some(&ctx.payer.pubkey().clone()),
                 &[&ctx.payer, &group_key],
                 ctx.last_blockhash,
@@ -75,17 +69,18 @@ impl MarginfiGroupFixture {
 
     pub async fn try_lending_pool_add_bank(
         &self,
-        bank_asset_mint: Pubkey,
+        bank_asset_mint_fixture: &MintFixture,
         bank_config: BankConfig,
     ) -> Result<BankFixture, BanksClientError> {
-        let rent = self.ctx.borrow_mut().banks_client.get_rent().await.unwrap();
         let bank_key = Keypair::new();
-        let bank_fixture = BankFixture::new(self.ctx.clone(), bank_key.pubkey());
+        let bank_mint = bank_asset_mint_fixture.key;
+        let bank_fixture =
+            BankFixture::new(self.ctx.clone(), bank_key.pubkey(), bank_asset_mint_fixture);
 
         let mut accounts = marginfi::accounts::LendingPoolAddBank {
             marginfi_group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
-            bank_mint: bank_asset_mint,
+            bank_mint,
             bank: bank_key.pubkey(),
             liquidity_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Liquidity).0,
             liquidity_vault: bank_fixture.get_vault(BankVaultType::Liquidity).0,
@@ -145,7 +140,7 @@ impl MarginfiGroupFixture {
                 ..Default::default()
             },
         )
-        .await;
+        .await?;
 
         Ok(bank_fixture)
     }
@@ -183,7 +178,7 @@ impl MarginfiGroupFixture {
         bank: &BankFixture,
         bank_config_opt: BankConfigOpt,
     ) -> Result<(), BanksClientError> {
-        let ix = self.make_lending_pool_configure_bank_ix(&bank, bank_config_opt);
+        let ix = self.make_lending_pool_configure_bank_ix(bank, bank_config_opt);
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.ctx.borrow().payer.pubkey().clone()),
@@ -205,12 +200,12 @@ impl MarginfiGroupFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolBankAccrueInterest {
+            accounts: marginfi::accounts::LendingPoolAccrueBankInterest {
                 marginfi_group: self.key,
                 bank: bank.key,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::BankAccrueInterest {}.data(),
+            data: marginfi::instruction::LendingPoolAccrueBankInterest {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -230,7 +225,7 @@ impl MarginfiGroupFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolCollectFees {
+            accounts: marginfi::accounts::LendingPoolCollectBankFees {
                 marginfi_group: self.key,
                 bank: bank.key,
                 liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
@@ -240,7 +235,7 @@ impl MarginfiGroupFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::BankCollectFees {}.data(),
+            data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -274,7 +269,7 @@ impl MarginfiGroupFixture {
 
         accounts.append(
             &mut marginfi_account
-                .load_observation_account_metas(vec![])
+                .load_observation_account_metas(vec![], vec![])
                 .await,
         );
 
@@ -282,7 +277,7 @@ impl MarginfiGroupFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: accounts,
+            accounts,
             data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
         };
 

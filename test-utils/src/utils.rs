@@ -150,6 +150,13 @@ macro_rules! assert_eq_noise {
 }
 
 #[macro_export]
+macro_rules! ui_to_native {
+    ($val: expr, $mint_decimals: expr) => {
+        ($val * 10_u64.pow($mint_decimals as u32) as f64) as u64
+    };
+}
+
+#[macro_export]
 macro_rules! native {
     ($val: expr, "USDC") => {
         $val * 10_u64.pow(6)

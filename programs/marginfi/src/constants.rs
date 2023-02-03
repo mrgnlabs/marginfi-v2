@@ -3,16 +3,16 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use solana_program::pubkey;
 
-pub const LIQUIDITY_VAULT_AUTHORITY_SEED: &[u8] = b"liquidity_vault_auth";
-pub const INSURANCE_VAULT_AUTHORITY_SEED: &[u8] = b"insurance_vault_auth";
-pub const FEE_VAULT_AUTHORITY_SEED: &[u8] = b"fee_vault_auth";
+pub const LIQUIDITY_VAULT_AUTHORITY_SEED: &str = "liquidity_vault_auth";
+pub const INSURANCE_VAULT_AUTHORITY_SEED: &str = "insurance_vault_auth";
+pub const FEE_VAULT_AUTHORITY_SEED: &str = "fee_vault_auth";
 
-pub const LIQUIDITY_VAULT_SEED: &[u8] = b"liquidity_vault";
-pub const INSURANCE_VAULT_SEED: &[u8] = b"insurance_vault";
-pub const FEE_VAULT_SEED: &[u8] = b"fee_vault";
+pub const LIQUIDITY_VAULT_SEED: &str = "liquidity_vault";
+pub const INSURANCE_VAULT_SEED: &str = "insurance_vault";
+pub const FEE_VAULT_SEED: &str = "fee_vault";
 
-pub const SHARES_TOKEN_MINT_SEED: &[u8] = b"shares_token_mint";
-pub const SHARES_TOKEN_MINT_AUTHORITY_SEED: &[u8] = b"shares_token_mint_auth";
+pub const SHARES_TOKEN_MINT_SEED: &str = "shares_token_mint";
+pub const SHARES_TOKEN_MINT_AUTHORITY_SEED: &str = "shares_token_mint_auth";
 
 #[cfg(feature = "mainnet-beta")] // mainnet
 pub const PYTH_ID: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");

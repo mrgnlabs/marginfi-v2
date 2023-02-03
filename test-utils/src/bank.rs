@@ -1,5 +1,8 @@
 use super::utils::load_and_deserialize;
-use crate::utils::{get_shares_token_mint, get_shares_token_mint_authority};
+use crate::{
+    prelude::MintFixture,
+    utils::{get_shares_token_mint, get_shares_token_mint_authority},
+};
 use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
     AccountDeserialize, InstructionData, ToAccountMetas,
@@ -18,11 +21,20 @@ use std::{cell::RefCell, fmt::Debug, rc::Rc};
 pub struct BankFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
+    pub mint: MintFixture,
 }
 
 impl BankFixture {
-    pub fn new(ctx: Rc<RefCell<ProgramTestContext>>, key: Pubkey) -> Self {
-        Self { ctx, key }
+    pub fn new(
+        ctx: Rc<RefCell<ProgramTestContext>>,
+        key: Pubkey,
+        mint_fixture: &MintFixture,
+    ) -> Self {
+        Self {
+            ctx,
+            key,
+            mint: mint_fixture.clone(),
+        }
     }
 
     pub fn get_vault(&self, vault_type: BankVaultType) -> (Pubkey, u8) {

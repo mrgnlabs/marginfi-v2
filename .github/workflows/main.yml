@@ -1,0 +1,51 @@
+name: main
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "*"
+
+defaults:
+  run:
+    shell: bash
+    working-directory: .
+
+env:
+  CARGO_TERM_COLOR: always
+  SOLANA_VERSION: "1.14.13"
+  RUST_TOOLCHAIN: '1.65.0'
+  PROGRAM_PATH: "programs/marginfi/"
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: rustup toolchain install ${{ env.RUST_TOOLCHAIN }} --component rustfmt clippy
+      - run: cargo fmt -- --check
+      - run: cargo clippy --features=test,test-bpf -- --allow clippy::result_large_err --allow clippy::await_holding_refcell_ref --allow clippy::comparison_chain --allow clippy::bind_instead_of_map
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: cache dependencies
+        uses: Swatinem/rust-cache@v2
+      - run: rustup toolchain install ${{ env.RUST_TOOLCHAIN }}
+      - name: install solana
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${{ env.SOLANA_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          solana-keygen new -o "$HOME/.config/solana/id.json" --no-passphrase --silent
+      - name: install anchor cli
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.25.0 anchor-cli --locked
+      - run: anchor build
+      - run: cargo test-bpf --features=test,test-bpf -- --test-threads=1
