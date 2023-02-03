@@ -13,6 +13,16 @@ declare_id!("LipLzUxQftzq77XGVJW5c7UhxbS9ZLyZM9EGiF4Dxs4");
 pub mod liquidity_incentive_program {
     use super::*;
 
+    /// Creates a new liquidity incentive campaign (LIP).
+    ///
+    /// # Arguments
+    /// * `ctx`: Context struct containing the relevant accounts for the campaign.
+    /// * `lockup_period`: The length of time (in seconds) that a deposit must be locked up for in order to earn the full reward.
+    /// * `max_deposits`: The maximum number of tokens that can be deposited into the campaign by liquidity providers.
+    /// * `max_rewards`: The maximum amount of rewards that will be distributed to depositors, and also the amount of token rewards transferred into the vault by the campaign creator.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the campaign was successfully created, or an error otherwise.
     pub fn create_campaing(
         ctx: Context<CreateCampaign>,
         lockup_period: u64,
@@ -46,6 +56,18 @@ pub mod liquidity_incentive_program {
         Ok(())
     }
 
+    /// Creates a new deposit in an active liquidity incentive campaign (LIP).
+    ///
+    /// # Arguments
+    /// * `ctx`: Context struct containing the relevant accounts for the new deposit
+    /// * `amount`: The amount of tokens to be deposited.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the deposit was successfully made, or an error otherwise.
+    ///
+    /// # Errors
+    /// * `LIPError::CampaignNotActive` if the relevant campaign is not active.
+    /// * `LIPError::DepositAmountTooLarge` is the deposit amount exceeds the amount of remaining deposits that can be made into the campaign.
     pub fn create_deposit(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
         require!(ctx.accounts.campaign.active, LIPError::CampaignNotActive);
 
@@ -91,6 +113,22 @@ pub mod liquidity_incentive_program {
         Ok(())
     }
 
+    /// After a lockup period has ended, closes a deposit and returns the initial deposit + earned rewards from a liquidity incentive campaign back to the liquidity depositor.
+    ///
+    /// # Arguments
+    /// * ctx: Context of the deposit to be closed
+    ///
+    /// # Returns
+    /// * A Result object which is Ok(()) if the deposit is closed and tokens are transferred successfully.
+    ///
+    /// # Errors
+    /// Returns an error if:
+    ///
+    /// * Solana clock timestamp is less than the deposit start time plus the lockup period (i.e. the lockup has not been reached)
+    /// * Bank redeem shares operation fails
+    /// * Reloading ephemeral token account fails
+    /// * Transferring additional reward to ephemeral token account fails
+    /// * Reloading ephemeral token account after transfer fails
     pub fn close_deposit(ctx: Context<CloseDeposit>) -> Result<()> {
         // Solana clock isn't the most precise, but an offset of a few hours on a half year lockup is fine
         //
