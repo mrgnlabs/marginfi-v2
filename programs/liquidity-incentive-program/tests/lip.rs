@@ -8,7 +8,6 @@ use fixtures::{
 use liquidity_incentive_program::LIPError;
 
 use solana_program_test::tokio;
-use solana_sdk::signer::Signer;
 
 #[tokio::test]
 async fn lip_create_campaign() -> Result<()> {
@@ -20,10 +19,6 @@ async fn lip_create_campaign() -> Result<()> {
         .marginfi_group
         .try_lending_pool_add_bank(&test_f.usdc_mint, *DEFAULT_USDC_TEST_BANK_CONFIG)
         .await?;
-
-    let _marginfi_account_f = test_f.create_marginfi_account().await;
-
-    let _owner = test_f.context.borrow().payer.pubkey();
 
     let campaign_reward_funding_account = test_f
         .usdc_mint

@@ -1,4 +1,5 @@
 use anchor_lang::{prelude::Clock, InstructionData, ToAccountMetas};
+use anchor_spl::token;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
@@ -7,9 +8,10 @@ use marginfi::prelude::GroupConfig;
 use marginfi::state::marginfi_group::{BankVaultType, InterestRateConfig};
 use marginfi::{
     prelude::{MarginfiError, MarginfiGroup},
-    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType},
+    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankOperationalState},
 };
 use pretty_assertions::assert_eq;
+use solana_program::account_info::IntoAccountInfo;
 use solana_program::{instruction::Instruction, system_program};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
@@ -111,6 +113,7 @@ async fn marginfi_group_add_bank_failure_fake_pyth_feed() -> anyhow::Result<()> 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
+        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::USDC,
@@ -131,7 +134,6 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
     }))
     .await;
 
@@ -410,6 +412,7 @@ async fn marginfi_group_handle_bankruptcy_success_no_debt() -> anyhow::Result<()
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings {
+        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::USDC,
@@ -423,7 +426,6 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
     }))
     .await;
 
@@ -1044,7 +1046,7 @@ async fn bank_mint_shares_success() -> anyhow::Result<()> {
     let usdc_bank = test_f
         .marginfi_group
         .try_lending_pool_add_bank(
-            usdc_mint_fixture.key,
+            &usdc_mint_fixture,
             BankConfig {
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
@@ -1052,7 +1054,7 @@ async fn bank_mint_shares_success() -> anyhow::Result<()> {
         .await?;
 
     let usdc_token_account = usdc_mint_fixture
-        .create_and_mint_to(native!(100, "USDC"))
+        .create_token_account_and_mint_to(100)
         .await;
 
     let shares_fixture = TokenAccountFixture::new(
@@ -1063,7 +1065,11 @@ async fn bank_mint_shares_success() -> anyhow::Result<()> {
     .await;
 
     let res = usdc_bank
-        .try_mint_shares(native!(100, "USDC"), usdc_token_account, shares_fixture.key)
+        .try_mint_shares(
+            native!(100, "USDC"),
+            usdc_token_account.key,
+            shares_fixture.key,
+        )
         .await;
 
     let shares_token_amount = shares_fixture.balance().await;
@@ -1089,7 +1095,11 @@ async fn bank_mint_shares_success() -> anyhow::Result<()> {
     assert_eq!(vault_token_amount, native!(100, "USDC"));
 
     let res = usdc_bank
-        .try_redeem_shares(native!(99, "USDC"), usdc_token_account, shares_fixture.key)
+        .try_redeem_shares(
+            native!(99, "USDC"),
+            usdc_token_account.key,
+            shares_fixture.key,
+        )
         .await;
 
     let shares_token_amount = shares_fixture.balance().await;

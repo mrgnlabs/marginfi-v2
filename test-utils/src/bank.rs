@@ -1,6 +1,6 @@
 use super::utils::load_and_deserialize;
 use crate::{
-    prelude::MintFixture,
+    prelude::{MintFixture, TokenAccountFixture},
     utils::{get_shares_token_mint, get_shares_token_mint_authority},
 };
 use anchor_lang::{
@@ -243,6 +243,12 @@ impl BankFixture {
             self.clone(),
             campaign_key.pubkey(),
         ))
+    }
+
+    pub async fn get_vault_token_account(&self, vault_type: BankVaultType) -> TokenAccountFixture {
+        let (vault, _) = self.get_vault(vault_type);
+
+        TokenAccountFixture::fetch(self.ctx.clone(), vault).await
     }
 }
 
