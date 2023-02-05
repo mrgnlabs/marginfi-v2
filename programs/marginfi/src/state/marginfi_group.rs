@@ -14,7 +14,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
-use solana_program::log::sol_log_compute_units;
+
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Formatter},

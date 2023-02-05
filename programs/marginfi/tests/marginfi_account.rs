@@ -88,7 +88,7 @@ async fn marginfi_account_deposit_success() -> anyhow::Result<()> {
     let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
 
     let res = marginfi_account_f
-        .try_bank_deposit(token_account_f.key, &usdc_bank_f, 1_000)
+        .try_bank_deposit(token_account_f.key, usdc_bank_f, 1_000)
         .await;
     assert!(res.is_ok());
 
@@ -125,7 +125,7 @@ async fn marginfi_account_deposit_failure_existing_liability() -> anyhow::Result
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, &sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -135,16 +135,16 @@ async fn marginfi_account_deposit_failure_existing_liability() -> anyhow::Result
         .await;
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, &usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, &sol_bank, 99)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 99)
         .await
         .unwrap();
 
     let res = borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol.key, &sol_bank, 10)
+        .try_bank_deposit(borrower_token_account_f_sol.key, sol_bank, 10)
         .await;
 
     assert!(res.is_err());
@@ -161,7 +161,7 @@ async fn marginfi_account_deposit_failure_capacity_exceeded() -> anyhow::Result<
             mint: BankMint::USDC,
             config: Some(BankConfig {
                 max_capacity: native!(100, "USDC"),
-                ..DEFAULT_USDC_TEST_BANK_CONFIG.clone()
+                ..*DEFAULT_USDC_TEST_BANK_CONFIG
             }),
         }],
         group_config: Some(GroupConfig { admin: None }),
@@ -179,14 +179,14 @@ async fn marginfi_account_deposit_failure_capacity_exceeded() -> anyhow::Result<
 
     // Make unlawful deposit
     let res = user_mfi_account_f
-        .try_bank_deposit(user_token_account.key, &usdc_bank, 100)
+        .try_bank_deposit(user_token_account.key, usdc_bank, 100)
         .await;
 
     assert_custom_error!(res.unwrap_err(), MarginfiError::BankAssetCapacityExceeded);
 
     // Make lawful deposit
     let res = user_mfi_account_f
-        .try_bank_deposit(user_token_account.key, &usdc_bank, 99)
+        .try_bank_deposit(user_token_account.key, usdc_bank, 99)
         .await;
 
     assert!(res.is_ok());
@@ -215,12 +215,12 @@ async fn marginfi_account_withdraw_success() -> anyhow::Result<()> {
     let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
 
     marginfi_account_f
-        .try_bank_deposit(token_account_f.key, &usdc_bank_f, 1_000)
+        .try_bank_deposit(token_account_f.key, usdc_bank_f, 1_000)
         .await
         .unwrap();
 
     let res = marginfi_account_f
-        .try_bank_withdraw(token_account_f.key, &usdc_bank_f, 900, None)
+        .try_bank_withdraw(token_account_f.key, usdc_bank_f, 900, None)
         .await;
 
     assert!(res.is_ok());
@@ -276,12 +276,12 @@ async fn marginfi_account_withdraw_failure_withdrawing_too_much() -> anyhow::Res
     let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
 
     marginfi_account_f
-        .try_bank_deposit(token_account_f.key, &usdc_bank_f, 1_000)
+        .try_bank_deposit(token_account_f.key, usdc_bank_f, 1_000)
         .await
         .unwrap();
 
     let res = marginfi_account_f
-        .try_bank_withdraw(token_account_f.key, &usdc_bank_f, 1_001, None)
+        .try_bank_withdraw(token_account_f.key, usdc_bank_f, 1_001, None)
         .await;
 
     assert!(res.is_err());
@@ -312,12 +312,12 @@ async fn marginfi_account_withdraw_all_success() -> anyhow::Result<()> {
     let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
 
     marginfi_account_f
-        .try_bank_deposit(token_account_f.key, &usdc_bank_f, 1_000)
+        .try_bank_deposit(token_account_f.key, usdc_bank_f, 1_000)
         .await
         .unwrap();
 
     let res = marginfi_account_f
-        .try_bank_withdraw(token_account_f.key, &usdc_bank_f, 0, Some(true))
+        .try_bank_withdraw(token_account_f.key, usdc_bank_f, 0, Some(true))
         .await;
 
     assert!(res.is_ok());
@@ -356,7 +356,7 @@ async fn marginfi_account_repay_success() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, &sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
         .await?;
 
     // Fund SOL borrower
@@ -367,17 +367,17 @@ async fn marginfi_account_repay_success() -> anyhow::Result<()> {
         .await;
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, &usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
         .await?;
 
     // Borrow SOL
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, &sol_bank, 99)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 99)
         .await
         .unwrap();
 
     let res = borrower_mfi_account_f
-        .try_bank_repay(borrower_token_account_f_sol.key, &sol_bank, 80, None)
+        .try_bank_repay(borrower_token_account_f_sol.key, sol_bank, 80, None)
         .await;
 
     assert!(res.is_ok());
@@ -412,7 +412,7 @@ async fn marginfi_account_repay_failure_repaying_too_much() -> anyhow::Result<()
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, &sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
         .await?;
 
     // Fund SOL borrower
@@ -423,17 +423,17 @@ async fn marginfi_account_repay_failure_repaying_too_much() -> anyhow::Result<()
         .await;
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, &usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
         .await?;
 
     // Borrow SOL
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, &sol_bank, 99)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 99)
         .await
         .unwrap();
 
     let res = borrower_mfi_account_f
-        .try_bank_repay(borrower_token_account_f_sol.key, &sol_bank, 110, None)
+        .try_bank_repay(borrower_token_account_f_sol.key, sol_bank, 110, None)
         .await;
 
     assert!(res.is_err());
@@ -457,7 +457,7 @@ async fn marginfi_account_repay_all_success() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, &sol_bank_f, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000)
         .await?;
 
     // Fund SOL borrower
@@ -468,17 +468,17 @@ async fn marginfi_account_repay_all_success() -> anyhow::Result<()> {
         .await;
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, &usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
         .await?;
 
     // Borrow SOL
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, &sol_bank_f, 99)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank_f, 99)
         .await
         .unwrap();
 
     let res = borrower_mfi_account_f
-        .try_bank_repay(borrower_token_account_f_sol.key, &sol_bank_f, 0, Some(true))
+        .try_bank_repay(borrower_token_account_f_sol.key, sol_bank_f, 0, Some(true))
         .await;
 
     assert!(res.is_ok());
@@ -516,7 +516,7 @@ async fn marginfi_account_borrow_success() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, &sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
         .await?;
 
     // Fund SOL borrower
@@ -527,12 +527,12 @@ async fn marginfi_account_borrow_success() -> anyhow::Result<()> {
         .await;
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, &usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
         .await?;
 
     // Borrow SOL
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, &sol_bank, 99)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 99)
         .await;
 
     assert!(res.is_ok());
@@ -567,7 +567,7 @@ async fn marginfi_account_borrow_failure_existing_asset() -> anyhow::Result<()> 
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, &sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
         .await?;
 
     // Fund SOL borrower
@@ -578,15 +578,15 @@ async fn marginfi_account_borrow_failure_existing_asset() -> anyhow::Result<()> 
         .await;
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, &usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
         .await?;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol.key, &sol_bank, 10)
+        .try_bank_deposit(borrower_token_account_f_sol.key, sol_bank, 10)
         .await?;
 
     // Borrow SOL
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, &sol_bank, 50)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 50)
         .await;
 
     assert!(res.is_err());
@@ -611,7 +611,7 @@ async fn marginfi_account_borrow_failure_not_enough_collateral() -> anyhow::Resu
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, &sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
         .await?;
 
     // Fund SOL borrower
@@ -622,18 +622,18 @@ async fn marginfi_account_borrow_failure_not_enough_collateral() -> anyhow::Resu
         .create_token_account_and_mint_to(1_000)
         .await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, &usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
         .await?;
 
     // Borrow SOL
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, &sol_bank, 101)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 101)
         .await;
 
     assert_custom_error!(res.unwrap_err(), MarginfiError::BadAccountHealth);
 
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, &sol_bank, 100)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 100)
         .await;
 
     assert!(res.is_ok());
@@ -671,7 +671,7 @@ async fn marginfi_account_liquidation_success() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(2_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, &usdc_bank_f, 2_000)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -680,12 +680,12 @@ async fn marginfi_account_liquidation_success() -> anyhow::Result<()> {
 
     // Borrower deposits 100 SOL worth of $1000
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, &sol_bank_f, 100)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100)
         .await?;
 
     // Borrower borrows $999
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_usdc.key, &usdc_bank_f, 999)
+        .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 999)
         .await?;
 
     // Synthetically bring down the borrower account health by reducing the asset weights of the SOL bank
@@ -698,7 +698,7 @@ async fn marginfi_account_liquidation_success() -> anyhow::Result<()> {
         .await?;
 
     lender_mfi_account_f
-        .try_liquidate(&borrower_mfi_account_f, &sol_bank_f, 1, &usdc_bank_f)
+        .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_bank_f)
         .await?;
 
     // Checks
@@ -790,7 +790,7 @@ async fn marginfi_account_liquidation_failure_liquidatee_not_unhealthy() -> anyh
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, &usdc_bank_f, 200)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 200)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -798,15 +798,15 @@ async fn marginfi_account_liquidation_failure_liquidatee_not_unhealthy() -> anyh
     let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, &sol_bank_f, 100)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_usdc.key, &usdc_bank_f, 100)
+        .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 100)
         .await?;
 
     let res = lender_mfi_account_f
-        .try_liquidate(&borrower_mfi_account_f, &sol_bank_f, 1, &usdc_bank_f)
+        .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_bank_f)
         .await;
 
     assert!(res.is_err());
@@ -826,17 +826,17 @@ async fn marginfi_account_liquidation_failure_liquidation_too_severe() -> anyhow
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, &usdc_bank_f, 200)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 200)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(10).await;
     let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, &sol_bank_f, 10)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 10)
         .await?;
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_usdc.key, &usdc_bank_f, 61)
+        .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 61)
         .await?;
 
     sol_bank_f
@@ -848,13 +848,13 @@ async fn marginfi_account_liquidation_failure_liquidation_too_severe() -> anyhow
         .await?;
 
     let res = lender_mfi_account_f
-        .try_liquidate(&borrower_mfi_account_f, &sol_bank_f, 10, &usdc_bank_f)
+        .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 10, usdc_bank_f)
         .await;
 
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalLiquidation);
 
     let res = lender_mfi_account_f
-        .try_liquidate(&borrower_mfi_account_f, &sol_bank_f, 1, &usdc_bank_f)
+        .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_bank_f)
         .await;
 
     assert!(res.is_ok());
@@ -894,7 +894,7 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, &usdc_bank_f, 200)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 200)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -905,13 +905,13 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
         .await;
     let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, &sol_bank_f, 10)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 10)
         .await?;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol_eq.key, &sol_eq_bank_f, 1)
+        .try_bank_deposit(borrower_token_account_sol_eq.key, sol_eq_bank_f, 1)
         .await?;
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_usdc.key, &usdc_bank_f, 60)
+        .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 60)
         .await?;
 
     sol_bank_f
@@ -923,13 +923,13 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
         .await?;
 
     let res = lender_mfi_account_f
-        .try_liquidate(&borrower_mfi_account_f, &sol_eq_bank_f, 2, &usdc_bank_f)
+        .try_liquidate(&borrower_mfi_account_f, sol_eq_bank_f, 2, usdc_bank_f)
         .await;
 
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalLiquidation);
 
     let res = lender_mfi_account_f
-        .try_liquidate(&borrower_mfi_account_f, &sol_eq_bank_f, 1, &usdc_bank_f)
+        .try_liquidate(&borrower_mfi_account_f, sol_eq_bank_f, 1, usdc_bank_f)
         .await;
 
     assert!(res.is_ok());
@@ -948,7 +948,7 @@ async fn marginfi_account_liquidation_failure_bank_not_liquidatable() -> anyhow:
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, &usdc_bank_f, 200)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 200)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -959,13 +959,13 @@ async fn marginfi_account_liquidation_failure_bank_not_liquidatable() -> anyhow:
         .await;
     let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, &sol_bank_f, 10)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 10)
         .await?;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol_eq.key, &sol_eq_bank_f, 1)
+        .try_bank_deposit(borrower_token_account_sol_eq.key, sol_eq_bank_f, 1)
         .await?;
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_usdc.key, &usdc_bank_f, 60)
+        .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 60)
         .await?;
 
     sol_bank_f
@@ -977,13 +977,13 @@ async fn marginfi_account_liquidation_failure_bank_not_liquidatable() -> anyhow:
         .await?;
 
     let res = lender_mfi_account_f
-        .try_liquidate(&borrower_mfi_account_f, &sol_eq_bank_f, 1, &sol_bank_f)
+        .try_liquidate(&borrower_mfi_account_f, sol_eq_bank_f, 1, sol_bank_f)
         .await;
 
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalLiquidation);
 
     let res = lender_mfi_account_f
-        .try_liquidate(&borrower_mfi_account_f, &sol_bank_f, 1, &usdc_bank_f)
+        .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_bank_f)
         .await;
 
     assert!(res.is_ok());
@@ -1006,7 +1006,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, &sol_bank_f, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000)
         .await?;
 
     // Create borrower user accounts and deposit USDC asset
@@ -1016,12 +1016,12 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_usdc.key, &usdc_bank_f, 1_000)
+        .try_bank_deposit(borrower_token_account_usdc.key, usdc_bank_f, 1_000)
         .await?;
 
     // Borrow SOL from borrower mfi account
     borrower_mfi_account_f
-        .try_bank_borrow(lender_token_account_sol.key, &sol_bank_f, 99)
+        .try_bank_borrow(lender_token_account_sol.key, sol_bank_f, 99)
         .await?;
 
     // Let a year go by
@@ -1035,7 +1035,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
 
     // Repay principal, leaving only the accrued interest
     borrower_mfi_account_f
-        .try_bank_repay(lender_token_account_sol.key, &sol_bank_f, 99, None)
+        .try_bank_repay(lender_token_account_sol.key, sol_bank_f, 99, None)
         .await?;
 
     let sol_bank = sol_bank_f.load().await;
@@ -1086,18 +1086,18 @@ async fn marginfi_account_correct_balance_selection_after_closing_position() -> 
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, &sol_bank_f, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000)
         .await?;
     let lender_token_account_usdc = test_f
         .usdc_mint
         .create_token_account_and_mint_to(2_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, &usdc_bank_f, 2_000)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000)
         .await?;
 
     lender_mfi_account_f
-        .try_bank_withdraw(lender_token_account_sol.key, &sol_bank_f, 0, Some(true))
+        .try_bank_withdraw(lender_token_account_sol.key, sol_bank_f, 0, Some(true))
         .await
         .unwrap();
 

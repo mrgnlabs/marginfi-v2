@@ -167,7 +167,7 @@ impl Profile {
         let cli_profiles_dir = cli_config_dir.join("profiles");
         let profile_file = cli_profiles_dir.join(self.name.clone() + ".json");
 
-        fs::write(&profile_file, serde_json::to_string(&self)?)?;
+        fs::write(profile_file, serde_json::to_string(&self)?)?;
 
         Ok(())
     }

@@ -6,7 +6,7 @@ use crate::{
 use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
-use fixed::types::I80F48;
+
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
     state::{
@@ -109,9 +109,9 @@ pub enum BankOperationalStateArg {
     ReduceOnly,
 }
 
-impl Into<BankOperationalState> for BankOperationalStateArg {
-    fn into(self) -> BankOperationalState {
-        match self {
+impl From<BankOperationalStateArg> for BankOperationalState {
+    fn from(val: BankOperationalStateArg) -> Self {
+        match val {
             BankOperationalStateArg::Paused => BankOperationalState::Paused,
             BankOperationalStateArg::Operational => BankOperationalState::Operational,
             BankOperationalStateArg::ReduceOnly => BankOperationalState::ReduceOnly,

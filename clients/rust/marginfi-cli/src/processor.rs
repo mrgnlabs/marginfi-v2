@@ -16,7 +16,6 @@ use anyhow::{anyhow, bail};
 use fixed::types::I80F48;
 use log::info;
 use marginfi::{
-    instructions::marginfi_account,
     prelude::{GroupConfig, MarginfiGroup},
     state::{
         marginfi_account::MarginfiAccount,
@@ -45,7 +44,7 @@ use std::{
     collections::HashMap,
     fs,
     mem::size_of,
-    ops::{Mul, Neg, Not},
+    ops::{Neg, Not},
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -425,7 +424,7 @@ pub fn create_profile(
         let cli_config_file = cli_config_dir.join("config.json");
 
         fs::write(
-            &cli_config_file,
+            cli_config_file,
             serde_json::to_string(&CliConfig {
                 profile_name: profile.name.clone(),
             })?,
@@ -612,7 +611,7 @@ pub fn print_account(
     println!(
         "Address: {} {}",
         address,
-        default.then(|| "(default)").unwrap_or("")
+        if default { "(default)" } else { "" }
     );
     println!("Lending Account Balances:");
     marginfi_account
@@ -852,14 +851,14 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
 
     let ix = Instruction {
         program_id: config.program_id,
-        accounts: marginfi::accounts::InitializeMarginfiAccount {
+        accounts: marginfi::accounts::MarginfiAccountInitialize {
             marginfi_group: profile.marginfi_group.unwrap(),
             marginfi_account: marginfi_account_key.pubkey(),
             system_program: system_program::ID,
             signer: config.payer.pubkey(),
         }
         .to_account_metas(Some(true)),
-        data: marginfi::instruction::InitializeMarginfiAccount {}.data(),
+        data: marginfi::instruction::MarginfiAccountInitialize.data(),
     };
 
     let tx = Transaction::new_signed_with_payer(
