@@ -1,12 +1,20 @@
+use std::collections::HashMap;
+
 use anyhow::{bail, Result};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi::{
-    bank_authority_seed, bank_seed, constants::MAX_ORACLE_KEYS,
-    state::marginfi_group::BankVaultType,
+    bank_authority_seed, bank_seed,
+    constants::MAX_ORACLE_KEYS,
+    state::{
+        marginfi_account::MarginfiAccount,
+        marginfi_group::{Bank, BankVaultType},
+    },
 };
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::Transaction};
+use solana_sdk::{
+    instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,
+};
 
 pub fn process_transaction(
     tx: &Transaction,
@@ -75,6 +83,54 @@ pub const EXP_10_I80F48: [I80F48; 15] = [
     I80F48!(10_000_000_000_000),
     I80F48!(100_000_000_000_000),
 ];
+
+pub fn load_observation_account_metas(
+    marginfi_account: &MarginfiAccount,
+    banks_map: &HashMap<Pubkey, Bank>,
+    include_banks: Vec<Pubkey>,
+    exclude_banks: Vec<Pubkey>,
+) -> Vec<AccountMeta> {
+    let mut bank_pks = marginfi_account
+        .lending_account
+        .balances
+        .iter()
+        .filter_map(|balance| balance.active.then_some(balance.bank_pk))
+        .collect::<Vec<_>>();
+
+    for bank_pk in include_banks {
+        if !bank_pks.contains(&bank_pk) {
+            bank_pks.push(bank_pk);
+        }
+    }
+
+    bank_pks.retain(|bank_pk| !exclude_banks.contains(bank_pk));
+
+    let mut banks = vec![];
+    for bank_pk in bank_pks.clone() {
+        let bank = banks_map.get(&bank_pk).unwrap();
+        banks.push(bank);
+    }
+
+    let account_metas = banks
+        .iter()
+        .zip(bank_pks.iter())
+        .flat_map(|(bank, bank_pk)| {
+            vec![
+                AccountMeta {
+                    pubkey: *bank_pk,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                AccountMeta {
+                    pubkey: bank.config.get_pyth_oracle_key(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+            ]
+        })
+        .collect::<Vec<_>>();
+    account_metas
+}
 
 // const SCALE: u128 = 10_u128.pow(14);
 
