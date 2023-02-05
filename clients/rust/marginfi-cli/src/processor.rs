@@ -678,3 +678,26 @@ pub fn marginfi_account_use(
 
     Ok(())
 }
+
+/// Print the marginfi account for the provided address or the default marginfi account if none is provided
+///
+/// If marginfi account address is provided use the group in the marginfi account data, otherwise use the profile defaults
+pub fn marginfi_account_get(
+    profile: Profile,
+    config: &Config,
+    marginfi_account_pk: Option<Pubkey>,
+) -> Result<()> {
+    let marginfi_account_pk = marginfi_account_pk.unwrap_or(profile.marginfi_account.unwrap());
+
+    let marginfi_account = config
+        .program
+        .account::<MarginfiAccount>(marginfi_account_pk)?;
+
+    let group = marginfi_account.group;
+
+    let banks = HashMap::from_iter(load_all_banks(config, Some(group))?);
+
+    print_account(marginfi_account_pk, marginfi_account, banks, false)?;
+
+    Ok(())
+}

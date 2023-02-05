@@ -190,7 +190,7 @@ pub enum ProfileCommand {
 pub enum AccountCommand {
     List,
     Use { account: Pubkey },
-    Get,
+    Get { account: Option<Pubkey> },
     Deposit { bank: Pubkey, ui_amount: f64 },
     Withdraw { bank: Pubkey, ui_amount: f64 },
 }
@@ -378,7 +378,9 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
         AccountCommand::Use { account } => {
             processor::marginfi_account_use(profile, &config, account)
         }
-        AccountCommand::Get => todo!(),
+        AccountCommand::Get { account } => {
+            processor::marginfi_account_get(profile, &config, account)
+        }
         AccountCommand::Deposit { bank, ui_amount } => todo!(),
         AccountCommand::Withdraw { bank, ui_amount } => todo!(),
     }?;
