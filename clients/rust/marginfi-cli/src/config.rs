@@ -21,6 +21,15 @@ pub struct GlobalOptions {
     /// Dry run for any transactions involved.
     #[clap(global = true, long = "dry-run", action, default_value_t = false)]
     pub dry_run: bool,
+
+    #[clap(
+        global = true,
+        long = "skip-confimation",
+        short = 'y',
+        action,
+        default_value_t = false
+    )]
+    pub skip_confirmation: bool,
 }
 
 pub struct Config {

@@ -205,6 +205,7 @@ pub enum AccountCommand {
         #[clap(short = 'a', long = "all")]
         withdraw_all: bool,
     },
+    Create,
 }
 
 pub fn entry(opts: Opts) -> Result<()> {
@@ -269,10 +270,12 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
     let profile = load_profile()?;
     let config = profile.get_config(Some(global_options))?;
 
-    match subcmd {
-        GroupCommand::Get { marginfi_group: _ } => (),
-        GroupCommand::GetAll {} => (),
-        _ => get_consent(&subcmd, &profile)?,
+    if !global_options.skip_confirmation {
+        match subcmd {
+            GroupCommand::Get { marginfi_group: _ } => (),
+            GroupCommand::GetAll {} => (),
+            _ => get_consent(&subcmd, &profile)?,
+        }
     }
 
     match subcmd {
@@ -325,10 +328,12 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     let profile = load_profile()?;
     let config = profile.get_config(Some(global_options))?;
 
-    match subcmd {
-        BankCommand::Get { bank: _ } => (),
-        BankCommand::GetAll { marginfi_group: _ } => (),
-        _ => get_consent(&subcmd, &profile)?,
+    if !global_options.skip_confirmation {
+        match subcmd {
+            BankCommand::Get { bank: _ } => (),
+            BankCommand::GetAll { marginfi_group: _ } => (),
+            _ => get_consent(&subcmd, &profile)?,
+        }
     }
 
     match subcmd {
@@ -380,9 +385,11 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
     let profile = load_profile()?;
     let config = profile.get_config(Some(global_options))?;
 
-    match subcmd {
-        AccountCommand::Get { .. } | AccountCommand::List => (),
-        _ => get_consent(&subcmd, &profile)?,
+    if !global_options.skip_confirmation {
+        match subcmd {
+            AccountCommand::Get { .. } | AccountCommand::List => (),
+            _ => get_consent(&subcmd, &profile)?,
+        }
     }
 
     match subcmd {
@@ -401,6 +408,7 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
             ui_amount,
             withdraw_all,
         } => processor::marginfi_account_withdraw(&profile, &config, bank, ui_amount, withdraw_all),
+        AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
     }?;
 
     Ok(())

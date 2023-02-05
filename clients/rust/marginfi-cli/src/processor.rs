@@ -846,3 +846,45 @@ pub fn marginfi_account_withdraw(
 
     Ok(())
 }
+
+pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()> {
+    let marginfi_account_key = Keypair::new();
+
+    let ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::InitializeMarginfiAccount {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            marginfi_account: marginfi_account_key.pubkey(),
+            system_program: system_program::ID,
+            signer: config.payer.pubkey(),
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::InitializeMarginfiAccount {}.data(),
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&config.payer.pubkey()),
+        &[&config.payer, &marginfi_account_key],
+        config.program.rpc().get_latest_blockhash()?,
+    );
+
+    match process_transaction(&tx, &config.program.rpc(), config.dry_run) {
+        Ok(sig) => println!("Initialize successful: {}", sig),
+        Err(err) => println!("Error during initialize:\n{:#?}", err),
+    }
+
+    let mut profile = profile.clone();
+
+    profile.config(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(marginfi_account_key.pubkey()),
+    )?;
+
+    Ok(())
+}
