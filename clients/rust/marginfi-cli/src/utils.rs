@@ -1,4 +1,6 @@
 use anyhow::{bail, Result};
+use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
 use marginfi::{
     bank_authority_seed, bank_seed, constants::MAX_ORACLE_KEYS,
     state::marginfi_group::BankVaultType,
@@ -55,6 +57,25 @@ pub fn create_oracle_key_array(oracle_key: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] 
     oracle_keys[0] = oracle_key;
     oracle_keys
 }
+
+pub const EXP_10_I80F48: [I80F48; 15] = [
+    I80F48!(1),
+    I80F48!(10),
+    I80F48!(100),
+    I80F48!(1_000),
+    I80F48!(10_000),
+    I80F48!(100_000),
+    I80F48!(1_000_000),
+    I80F48!(10_000_000),
+    I80F48!(100_000_000),
+    I80F48!(1_000_000_000),
+    I80F48!(10_000_000_000),
+    I80F48!(100_000_000_000),
+    I80F48!(1_000_000_000_000),
+    I80F48!(10_000_000_000_000),
+    I80F48!(100_000_000_000_000),
+];
+
 // const SCALE: u128 = 10_u128.pow(14);
 
 // pub fn ui_to_native(value: f64) -> u128 {

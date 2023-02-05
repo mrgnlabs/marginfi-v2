@@ -2153,6 +2153,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "marginfi-v2-cli"
+version = "0.1.0"
+dependencies = [
+ "anchor-client",
+ "anchor-spl",
+ "anyhow",
+ "bytemuck",
+ "clap 3.2.23",
+ "dirs",
+ "env_logger",
+ "fixed",
+ "fixed-macro",
+ "log",
+ "marginfi",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "solana-account-decoder",
+ "solana-client",
+ "solana-sdk",
+ "type-layout",
+]
+
+[[package]]
 name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
