@@ -32,7 +32,55 @@ use solana_sdk::{
     system_program, sysvar,
     transaction::Transaction,
 };
-use std::{fs, mem::size_of};
+use std::{collections::HashMap, fs, mem::size_of, ops::Not};
+
+pub fn marginfi_account_get_all(profile: Profile, config: Config) -> Result<()> {
+    let group = profile.marginfi_group.expect("Group missing");
+    let authority = config.payer.pubkey();
+
+    let accounts = config.program.accounts::<MarginfiAccount>(vec![
+        RpcFilterType::Memcmp(Memcmp::new_raw_bytes(8, group.to_bytes().to_vec())),
+        RpcFilterType::Memcmp(Memcmp::new_raw_bytes(8 + 32, authority.to_bytes().to_vec())),
+    ])?;
+
+    Ok(())
+}
+
+pub fn print_account(
+    address: Pubkey,
+    marginfi_account: MarginfiAccount,
+    banks: HashMap<Pubkey, Bank>,
+) -> Result<()> {
+    println!("Address: {}", address);
+    println!("Lending Account Balances");
+    marginfi_account
+        .lending_account
+        .get_active_balances_iter()
+        .for_each(|balance| {
+            let bank = banks.get(&balance.bank_pk).unwrap();
+            println!("Bank: {}", balance.bank_pk);
+            if balance
+                .is_empty(marginfi::state::marginfi_account::BalanceSide::Assets)
+                .not()
+            {
+                let native_value = bank.get_asset_amount(balance.asset_shares.into())?;
+                println!(
+                    "Deposits: {}",
+                    native_value / EXP_10_I80F48[bank.mint_decimals as usize]
+                )
+            } else if balance
+                .is_empty(marginfi::state::marginfi_account::BalanceSide::Liabilities)
+                .not()
+            {
+                let native_value = bank.get_liability_amount(balance.liability_shares.into())?;
+                println!(
+                    "Borrows: {}",
+                    native_value / EXP_10_I80F48[bank.mint_decimals as usize]
+                )
+            }
+        });
+    Ok(())
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 // marginfi group
