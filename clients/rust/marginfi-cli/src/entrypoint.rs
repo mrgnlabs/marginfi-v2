@@ -45,6 +45,7 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: ProfileCommand,
     },
+    #[cfg(feature = "debugging")]
     InspectPadding {},
     Account {
         #[clap(subcommand)]
@@ -58,14 +59,17 @@ pub enum GroupCommand {
         marginfi_group: Option<Pubkey>,
     },
     GetAll {},
+    #[cfg(feature = "admin")]
     Create {
         admin: Option<Pubkey>,
         #[clap(short = 'f', long = "override")]
         override_existing_profile_group: bool,
     },
+    #[cfg(feature = "admin")]
     Update {
         admin: Option<Pubkey>,
     },
+    #[cfg(feature = "admin")]
     AddBank {
         #[clap(long)]
         mint: Pubkey,
@@ -123,6 +127,7 @@ pub enum BankCommand {
     GetAll {
         marginfi_group: Option<Pubkey>,
     },
+    #[cfg(feature = "admin")]
     Update {
         bank_pk: Pubkey,
         #[clap(long)]
@@ -215,6 +220,7 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Group { subcmd } => group(subcmd, &opts.cfg_override),
         Command::Bank { subcmd } => bank(subcmd, &opts.cfg_override),
         Command::Profile { subcmd } => profile(subcmd),
+        #[cfg(feature = "debugging")]
         Command::InspectPadding {} => inspect_padding(),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
     }
@@ -283,11 +289,14 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             processor::group_get(config, marginfi_group.or(profile.marginfi_group))
         }
         GroupCommand::GetAll {} => processor::group_get_all(config),
+        #[cfg(feature = "admin")]
         GroupCommand::Create {
             admin,
             override_existing_profile_group,
         } => processor::group_create(config, profile, admin, override_existing_profile_group),
+        #[cfg(feature = "admin")]
         GroupCommand::Update { admin } => processor::group_configure(config, profile, admin),
+        #[cfg(feature = "admin")]
         GroupCommand::AddBank {
             mint: bank_mint,
             asset_weight_init,
@@ -339,6 +348,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     match subcmd {
         BankCommand::Get { bank } => processor::bank_get(config, bank),
         BankCommand::GetAll { marginfi_group } => processor::bank_get_all(config, marginfi_group),
+        #[cfg(feature = "admin")]
         BankCommand::Update {
             asset_weight_init,
             asset_weight_maint,
