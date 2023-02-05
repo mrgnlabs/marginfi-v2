@@ -23,6 +23,7 @@ pub struct Profile {
     pub program_id: Option<Pubkey>,
     pub commitment: Option<CommitmentLevel>,
     pub marginfi_group: Option<Pubkey>,
+    pub marginfi_account: Option<Pubkey>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -39,6 +40,7 @@ impl Profile {
         program_id: Option<Pubkey>,
         commitment: Option<CommitmentLevel>,
         marginfi_group: Option<Pubkey>,
+        marginfi_account: Option<Pubkey>,
     ) -> Self {
         Profile {
             name,
@@ -48,6 +50,7 @@ impl Profile {
             program_id,
             commitment,
             marginfi_group,
+            marginfi_account,
         }
     }
 
@@ -103,6 +106,7 @@ impl Profile {
         program_id: Option<Pubkey>,
         commitment: Option<CommitmentLevel>,
         group: Option<Pubkey>,
+        account: Option<Pubkey>,
     ) -> Result<()> {
         if let Some(cluster) = cluster {
             self.cluster = cluster;
@@ -126,6 +130,10 @@ impl Profile {
 
         if let Some(group) = group {
             self.marginfi_group = Some(group);
+        }
+
+        if let Some(account) = account {
+            self.marginfi_account = Some(account);
         }
 
         self.write_to_file()?;
@@ -221,6 +229,7 @@ Profile:
     Name: {}
     Program: {}
     Marginfi Group: {}
+    Marginfi Account: {}
     Cluster: {}
     Rpc URL: {}
     Signer: {}
@@ -229,6 +238,9 @@ Profile:
             self.name,
             config.program_id,
             self.marginfi_group
+                .map(|x| x.to_string())
+                .unwrap_or("None".to_owned()),
+            self.marginfi_account
                 .map(|x| x.to_string())
                 .unwrap_or("None".to_owned()),
             self.cluster,

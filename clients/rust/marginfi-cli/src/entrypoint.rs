@@ -159,6 +159,8 @@ pub enum ProfileCommand {
         commitment: Option<CommitmentLevel>,
         #[clap(long)]
         group: Option<Pubkey>,
+        #[clap(long)]
+        account: Option<Pubkey>,
     },
     Show,
     List,
@@ -179,6 +181,8 @@ pub enum ProfileCommand {
         commitment: Option<CommitmentLevel>,
         #[clap(long)]
         group: Option<Pubkey>,
+        #[clap(long)]
+        account: Option<Pubkey>,
     },
 }
 
@@ -213,6 +217,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             program_id,
             commitment,
             group,
+            account,
         } => processor::create_profile(
             name,
             cluster,
@@ -221,6 +226,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             program_id,
             commitment,
             group,
+            account,
         ),
         ProfileCommand::Show => processor::show_profile(),
         ProfileCommand::List => processor::list_profiles(),
@@ -233,6 +239,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             commitment,
             group,
             name,
+            account,
         } => processor::configure_profile(
             name,
             cluster,
@@ -241,6 +248,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             program_id,
             commitment,
             group,
+            account,
         ),
     }
 }
@@ -361,8 +369,15 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
     let config = profile.get_config(Some(global_options))?;
 
     match subcmd {
+        AccountCommand::Get { .. } | AccountCommand::List => (),
+        _ => get_consent(&subcmd, &profile)?,
+    }
+
+    match subcmd {
         AccountCommand::List => processor::marginfi_account_list(profile, &config),
-        AccountCommand::Use { account } => todo!(),
+        AccountCommand::Use { account } => {
+            processor::marginfi_account_use(profile, &config, account)
+        }
         AccountCommand::Get => todo!(),
         AccountCommand::Deposit { bank, ui_amount } => todo!(),
         AccountCommand::Withdraw { bank, ui_amount } => todo!(),

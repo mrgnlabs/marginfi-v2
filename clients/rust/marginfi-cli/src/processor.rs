@@ -402,6 +402,7 @@ pub fn create_profile(
     program_id: Option<Pubkey>,
     commitment: Option<CommitmentLevel>,
     marginfi_group: Option<Pubkey>,
+    marginfi_account: Option<Pubkey>,
 ) -> Result<()> {
     let cli_config_dir = get_cli_config_dir();
     let profile = Profile::new(
@@ -412,6 +413,7 @@ pub fn create_profile(
         program_id,
         commitment,
         marginfi_group,
+        marginfi_account,
     );
     if !cli_config_dir.exists() {
         fs::create_dir(&cli_config_dir)?;
@@ -516,6 +518,7 @@ pub fn configure_profile(
     program_id: Option<Pubkey>,
     commitment: Option<CommitmentLevel>,
     group: Option<Pubkey>,
+    account: Option<Pubkey>,
 ) -> Result<()> {
     let mut profile = profile::load_profile_by_name(&name)?;
     profile.config(
@@ -525,6 +528,7 @@ pub fn configure_profile(
         program_id,
         commitment,
         group,
+        account,
     )?;
 
     Ok(())
@@ -582,7 +586,14 @@ pub fn marginfi_account_list(profile: Profile, config: &Config) -> Result<()> {
     }
 
     for (address, marginfi_account) in accounts {
-        print_account(address, marginfi_account, banks.clone())?;
+        print_account(
+            address,
+            marginfi_account,
+            banks.clone(),
+            profile
+                .marginfi_account
+                .map_or(false, |default_account| default_account == address),
+        )?;
     }
 
     Ok(())
@@ -592,8 +603,13 @@ pub fn print_account(
     address: Pubkey,
     marginfi_account: MarginfiAccount,
     banks: HashMap<Pubkey, Bank>,
+    default: bool,
 ) -> Result<()> {
-    println!("Address: {}", address);
+    println!(
+        "Address: {} {}",
+        address,
+        default.then(|| "(default)").unwrap_or("")
+    );
     println!("Lending Account Balances:");
     marginfi_account
         .lending_account
@@ -625,5 +641,40 @@ pub fn print_account(
                 balance_amount, balance.bank_pk, bank.mint
             )
         });
+    Ok(())
+}
+
+pub fn marginfi_account_use(
+    mut profile: Profile,
+    config: &Config,
+    marginfi_account_pk: Pubkey,
+) -> Result<()> {
+    let group = profile.marginfi_group.expect("Missing marginfi group");
+    let authority = config.payer.pubkey();
+
+    let marginfi_account = config
+        .program
+        .account::<MarginfiAccount>(marginfi_account_pk)?;
+
+    if marginfi_account.group != group {
+        return Err(anyhow!("Marginfi account does not belong to group"));
+    }
+
+    if marginfi_account.authority != authority {
+        return Err(anyhow!("Marginfi account does not belong to authority"));
+    }
+
+    profile.config(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(marginfi_account_pk),
+    )?;
+
+    println!("Default marginfi account set to: {}", marginfi_account_pk);
+
     Ok(())
 }
