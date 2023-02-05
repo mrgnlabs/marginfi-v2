@@ -10,7 +10,7 @@ path = "src/bin/main.rs"
 [features]
 devnet = ["marginfi/devnet"]
 admin = []
-debugging = []
+dev = []
 
 [dependencies]
 clap = { version = "3.2.6", features = ["derive"] }

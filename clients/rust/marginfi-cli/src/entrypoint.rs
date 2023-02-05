@@ -45,7 +45,7 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: ProfileCommand,
     },
-    #[cfg(feature = "debugging")]
+    #[cfg(feature = "dev")]
     InspectPadding {},
     Account {
         #[clap(subcommand)]
@@ -220,7 +220,7 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Group { subcmd } => group(subcmd, &opts.cfg_override),
         Command::Bank { subcmd } => bank(subcmd, &opts.cfg_override),
         Command::Profile { subcmd } => profile(subcmd),
-        #[cfg(feature = "debugging")]
+        #[cfg(feature = "dev")]
         Command::InspectPadding {} => inspect_padding(),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
     }
