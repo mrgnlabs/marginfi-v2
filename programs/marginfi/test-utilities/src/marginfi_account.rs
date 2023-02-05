@@ -71,7 +71,7 @@ impl MarginfiAccountFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolDeposit {
+            accounts: marginfi::accounts::LendingAccountDeposit {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: ctx.payer.pubkey(),
@@ -81,7 +81,7 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingPoolDeposit {
+            data: marginfi::instruction::LendingAccountDeposit {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
             }
             .data(),
@@ -110,7 +110,7 @@ impl MarginfiAccountFixture {
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolWithdraw {
+            accounts: marginfi::accounts::LendingAccountWithdraw {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: self.ctx.borrow().payer.pubkey(),
@@ -123,7 +123,7 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingPoolWithdraw {
+            data: marginfi::instruction::LendingAccountWithdraw {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
                 withdraw_all,
             }
@@ -163,7 +163,7 @@ impl MarginfiAccountFixture {
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolBorrow {
+            accounts: marginfi::accounts::LendingAccountBorrow {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: self.ctx.borrow().payer.pubkey(),
@@ -176,7 +176,7 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingPoolBorrow {
+            data: marginfi::instruction::LendingAccountBorrow {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
             }
             .data(),
@@ -213,7 +213,7 @@ impl MarginfiAccountFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolRepay {
+            accounts: marginfi::accounts::LendingAccountRepay {
                 marginfi_group: marginfi_account.group,
                 marginfi_account: self.key,
                 signer: ctx.payer.pubkey(),
@@ -223,7 +223,7 @@ impl MarginfiAccountFixture {
                 token_program: token::ID,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingPoolRepay {
+            data: marginfi::instruction::LendingAccountRepay {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
                 repay_all,
             }
@@ -254,7 +254,7 @@ impl MarginfiAccountFixture {
         let asset_bank = asset_bank_fixture.load().await;
         let liab_bank = liab_bank_fixture.load().await;
 
-        let mut accounts = marginfi::accounts::MarginfiAccountLiquidate {
+        let mut accounts = marginfi::accounts::LendingAccountLiquidate {
             marginfi_group: marginfi_account.group,
             asset_bank: asset_bank_fixture.key,
             liab_bank: liab_bank_fixture.key,
@@ -278,7 +278,7 @@ impl MarginfiAccountFixture {
         let mut ix = Instruction {
             program_id: marginfi::id(),
             accounts,
-            data: marginfi::instruction::MarginfiAccountLiquidate {
+            data: marginfi::instruction::LendingAccountLiquidate {
                 asset_amount: ui_to_native!(
                     asset_ui_amount.into(),
                     asset_bank_fixture.mint.mint.decimals

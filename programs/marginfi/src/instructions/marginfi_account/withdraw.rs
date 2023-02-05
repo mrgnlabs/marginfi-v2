@@ -22,12 +22,12 @@ use solana_program::sysvar::Sysvar;
 /// 5. Verify that the user account is in a healthy state
 ///
 /// Will error if there is no existing asset <=> borrowing is not allowed.
-pub fn lending_pool_withdraw(
-    ctx: Context<LendingPoolWithdraw>,
+pub fn lending_account_withdraw(
+    ctx: Context<LendingAccountWithdraw>,
     amount: u64,
     withdraw_all: Option<bool>,
 ) -> MarginfiResult {
-    let LendingPoolWithdraw {
+    let LendingAccountWithdraw {
         marginfi_account,
         destination_token_account,
         bank_liquidity_vault,
@@ -86,7 +86,7 @@ pub fn lending_pool_withdraw(
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolWithdraw<'info> {
+pub struct LendingAccountWithdraw<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
