@@ -381,7 +381,9 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
         AccountCommand::Get { account } => {
             processor::marginfi_account_get(profile, &config, account)
         }
-        AccountCommand::Deposit { bank, ui_amount } => todo!(),
+        AccountCommand::Deposit { bank, ui_amount } => {
+            processor::marginfi_account_deposit(&profile, &config, bank, ui_amount)
+        }
         AccountCommand::Withdraw { bank, ui_amount } => todo!(),
     }?;
 

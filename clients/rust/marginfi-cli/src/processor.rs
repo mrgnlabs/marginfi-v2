@@ -6,7 +6,10 @@ use crate::{
         process_transaction, EXP_10_I80F48,
     },
 };
-use anchor_client::Cluster;
+use anchor_client::{
+    anchor_lang::{InstructionData, ToAccountMetas},
+    Cluster,
+};
 use anchor_spl::token;
 use anyhow::Result;
 use anyhow::{anyhow, bail};
@@ -41,7 +44,7 @@ use std::{
     collections::HashMap,
     fs,
     mem::size_of,
-    ops::{Neg, Not},
+    ops::{Mul, Neg, Not},
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -698,6 +701,60 @@ pub fn marginfi_account_get(
     let banks = HashMap::from_iter(load_all_banks(config, Some(group))?);
 
     print_account(marginfi_account_pk, marginfi_account, banks, false)?;
+
+    Ok(())
+}
+
+pub fn marginfi_account_deposit(
+    profile: &Profile,
+    config: &Config,
+    bank_pk: Pubkey,
+    ui_amount: f64,
+) -> Result<()> {
+    let marginfi_account_pk = profile.get_marginfi_account();
+
+    let bank = config.program.account::<Bank>(bank_pk)?;
+
+    let amount = (I80F48::from_num(ui_amount) * EXP_10_I80F48[bank.mint_decimals as usize])
+        .floor()
+        .to_num::<u64>();
+
+    // Check that bank belongs to the correct group
+    if bank.group != profile.marginfi_group.unwrap() {
+        bail!("Bank does not belong to group")
+    }
+
+    let deposit_ata = anchor_spl::associated_token::get_associated_token_address(
+        &config.payer.pubkey(),
+        &bank.mint,
+    );
+
+    let ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::LendingPoolDeposit {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            marginfi_account: marginfi_account_pk,
+            signer: config.payer.pubkey(),
+            bank: bank_pk,
+            signer_token_account: deposit_ata,
+            bank_liquidity_vault: bank.liquidity_vault,
+            token_program: anchor_spl::token::ID,
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::LendingPoolDeposit { amount }.data(),
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&config.payer.pubkey()),
+        &[&config.payer],
+        config.program.rpc().get_latest_blockhash()?,
+    );
+
+    match process_transaction(&tx, &config.program.rpc(), config.dry_run) {
+        Ok(sig) => println!("Deposit successful: {}", sig),
+        Err(err) => println!("Error during deposit:\n{:#?}", err),
+    }
 
     Ok(())
 }

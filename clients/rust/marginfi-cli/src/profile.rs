@@ -141,6 +141,11 @@ impl Profile {
         Ok(())
     }
 
+    pub fn get_marginfi_account(&self) -> Pubkey {
+        self.marginfi_account
+            .unwrap_or_else(|| panic!("No marginfi account set for profile \"{}\"", self.name))
+    }
+
     pub fn get_marginfi_group(&self) -> Pubkey {
         self.marginfi_group.unwrap_or_else(|| {
             panic!(
