@@ -46,6 +46,10 @@ pub enum Command {
         subcmd: ProfileCommand,
     },
     InspectPadding {},
+    Account {
+        #[clap(subcommand)]
+        subcmd: AccountCommand,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -178,6 +182,15 @@ pub enum ProfileCommand {
     },
 }
 
+#[derive(Debug, Parser)]
+pub enum AccountCommand {
+    List,
+    Use { account: Pubkey },
+    Get,
+    Deposit { bank: Pubkey, ui_amount: f64 },
+    Withdraw { bank: Pubkey, ui_amount: f64 },
+}
+
 pub fn entry(opts: Opts) -> Result<()> {
     env_logger::init();
 
@@ -186,6 +199,7 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Bank { subcmd } => bank(subcmd, &opts.cfg_override),
         Command::Profile { subcmd } => profile(subcmd),
         Command::InspectPadding {} => inspect_padding(),
+        Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
     }
 }
 
@@ -338,6 +352,21 @@ fn inspect_padding() -> Result<()> {
     println!("MarginfiAccount: {}", MarginfiAccount::type_layout());
     println!("LendingAccount: {}", LendingAccount::type_layout());
     println!("Balance: {}", Balance::type_layout());
+
+    Ok(())
+}
+
+fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions) -> Result<()> {
+    let profile = load_profile()?;
+    let config = profile.get_config(Some(global_options))?;
+
+    match subcmd {
+        AccountCommand::List => processor::marginfi_account_list(profile, &config),
+        AccountCommand::Use { account } => todo!(),
+        AccountCommand::Get => todo!(),
+        AccountCommand::Deposit { bank, ui_amount } => todo!(),
+        AccountCommand::Withdraw { bank, ui_amount } => todo!(),
+    }?;
 
     Ok(())
 }
