@@ -11,6 +11,7 @@ use anchor_spl::token;
 use anyhow::Result;
 use anyhow::{anyhow, bail};
 use fixed::types::I80F48;
+use log::info;
 use marginfi::{
     instructions::marginfi_account,
     prelude::{GroupConfig, MarginfiGroup},
@@ -25,15 +26,23 @@ use marginfi::{
 
 use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
 use solana_sdk::{
+    account_info::IntoAccountInfo,
+    clock::Clock,
     commitment_config::CommitmentLevel,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    system_program, sysvar,
+    system_program,
+    sysvar::{self, Sysvar},
     transaction::Transaction,
 };
-use std::{collections::HashMap, fs, mem::size_of, ops::Not};
+use std::{
+    collections::HashMap,
+    fs,
+    mem::size_of,
+    ops::{Neg, Not},
+};
 
 // --------------------------------------------------------------------------------------------------------------------
 // marginfi group
@@ -352,15 +361,25 @@ pub fn bank_get(config: Config, bank: Option<Pubkey>) -> Result<()> {
 }
 
 fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec<(Pubkey, Bank)>> {
+    info!("Loading banks for group {:?}", marginfi_group);
     let filters = match marginfi_group {
         Some(marginfi_group) => vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-            8,
+            8 + size_of::<Pubkey>() + size_of::<u8>(),
             marginfi_group.to_bytes().to_vec(),
         ))],
         None => vec![],
     };
 
-    Ok(config.program.accounts(filters)?)
+    let mut clock = config.program.rpc().get_account(&sysvar::clock::ID)?;
+    let clock = Clock::from_account_info(&(&sysvar::clock::ID, &mut clock).into_account_info())?;
+
+    let mut banks_with_addresses = config.program.accounts::<Bank>(filters)?;
+
+    banks_with_addresses.iter_mut().for_each(|(_, bank)| {
+        bank.accrue_interest(&clock).unwrap();
+    });
+
+    Ok(banks_with_addresses)
 }
 
 pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
@@ -575,22 +594,19 @@ pub fn print_account(
     banks: HashMap<Pubkey, Bank>,
 ) -> Result<()> {
     println!("Address: {}", address);
-    println!("Lending Account Balances");
+    println!("Lending Account Balances:");
     marginfi_account
         .lending_account
         .get_active_balances_iter()
         .for_each(|balance| {
-            let bank = banks.get(&balance.bank_pk).unwrap();
-            println!("Bank: {}", balance.bank_pk);
-            if balance
+            let bank = banks.get(&balance.bank_pk).expect("Bank not found");
+            let balance_amount = if balance
                 .is_empty(marginfi::state::marginfi_account::BalanceSide::Assets)
                 .not()
             {
                 let native_value = bank.get_asset_amount(balance.asset_shares.into()).unwrap();
-                println!(
-                    "Deposits: {}",
-                    native_value / EXP_10_I80F48[bank.mint_decimals as usize]
-                )
+
+                native_value / EXP_10_I80F48[bank.mint_decimals as usize]
             } else if balance
                 .is_empty(marginfi::state::marginfi_account::BalanceSide::Liabilities)
                 .not()
@@ -598,11 +614,16 @@ pub fn print_account(
                 let native_value = bank
                     .get_liability_amount(balance.liability_shares.into())
                     .unwrap();
-                println!(
-                    "Borrows: {}",
-                    native_value / EXP_10_I80F48[bank.mint_decimals as usize]
-                )
-            }
+
+                (native_value / EXP_10_I80F48[bank.mint_decimals as usize]).neg()
+            } else {
+                I80F48::ZERO
+            };
+
+            println!(
+                "\tBalance: {:.3}, Bank: {} (mint: {})",
+                balance_amount, balance.bank_pk, bank.mint
+            )
         });
     Ok(())
 }

@@ -385,6 +385,7 @@ impl Bank {
     /// Collected protocol and insurance fees are stored in state.
     /// A separate instruction is required to withdraw these fees.
     pub fn accrue_interest(&mut self, clock: &Clock) -> MarginfiResult<()> {
+        #[cfg(not(feature = "client"))]
         sol_log_compute_units();
         let time_delta: u64 = (clock.unix_timestamp - self.last_update)
             .try_into()
@@ -434,6 +435,7 @@ impl Bank {
                 .into()
         };
 
+        #[cfg(not(feature = "client"))]
         sol_log_compute_units();
 
         Ok(())
