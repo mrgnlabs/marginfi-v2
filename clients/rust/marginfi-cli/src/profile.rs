@@ -32,6 +32,7 @@ pub struct CliConfig {
 }
 
 impl Profile {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: String,
         cluster: Cluster,
@@ -98,6 +99,7 @@ impl Profile {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn config(
         &mut self,
         cluster: Option<Cluster>,
@@ -146,15 +148,7 @@ impl Profile {
             .unwrap_or_else(|| panic!("No marginfi account set for profile \"{}\"", self.name))
     }
 
-    pub fn get_marginfi_group(&self) -> Pubkey {
-        self.marginfi_group.unwrap_or_else(|| {
-            panic!(
-                "marginfi group address not set in profile \"{}\"",
-                self.name
-            )
-        })
-    }
-
+    #[cfg(feature = "admin")]
     pub fn set_marginfi_group(&mut self, address: Pubkey) -> Result<()> {
         self.marginfi_group = Some(address);
         self.write_to_file()?;
@@ -244,10 +238,10 @@ Profile:
             config.program_id,
             self.marginfi_group
                 .map(|x| x.to_string())
-                .unwrap_or("None".to_owned()),
+                .unwrap_or_else(|| "None".to_owned()),
             self.marginfi_account
                 .map(|x| x.to_string())
-                .unwrap_or("None".to_owned()),
+                .unwrap_or_else(|| "None".to_owned()),
             self.cluster,
             self.rpc_url,
             config.payer.pubkey(),
