@@ -3,33 +3,49 @@ use crate::{
     profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
     utils::{
         create_oracle_key_array, find_bank_vault_authority_pda, find_bank_vault_pda,
-        process_transaction,
+        load_observation_account_metas, process_transaction, EXP_10_I80F48,
     },
 };
-use anchor_client::Cluster;
+use anchor_client::{
+    anchor_lang::{InstructionData, ToAccountMetas},
+    Cluster,
+};
 use anchor_spl::token;
 use anyhow::Result;
 use anyhow::{anyhow, bail};
 use fixed::types::I80F48;
+use log::info;
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
-    state::marginfi_group::{
-        Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType, InterestRateConfig,
-        OracleSetup, WrappedI80F48,
+    state::{
+        marginfi_account::MarginfiAccount,
+        marginfi_group::{
+            Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
+            InterestRateConfig, OracleSetup, WrappedI80F48,
+        },
     },
 };
 
 use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
 use solana_sdk::{
+    account_info::IntoAccountInfo,
+    clock::Clock,
     commitment_config::CommitmentLevel,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    system_program, sysvar,
+    system_program,
+    sysvar::{self, Sysvar},
     transaction::Transaction,
 };
-use std::{fs, mem::size_of};
+use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
+use std::{
+    collections::HashMap,
+    fs,
+    mem::size_of,
+    ops::{Neg, Not},
+};
 
 // --------------------------------------------------------------------------------------------------------------------
 // marginfi group
@@ -349,17 +365,30 @@ pub fn bank_get(config: Config, bank: Option<Pubkey>) -> Result<()> {
     Ok(())
 }
 
-pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
+fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec<(Pubkey, Bank)>> {
+    info!("Loading banks for group {:?}", marginfi_group);
     let filters = match marginfi_group {
-        Some(marginfi_group) => vec![RpcFilterType::Memcmp(Memcmp {
-            bytes: MemcmpEncodedBytes::Base58(marginfi_group.to_string()),
-            offset: 8,
-            encoding: None,
-        })],
+        Some(marginfi_group) => vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+            8 + size_of::<Pubkey>() + size_of::<u8>(),
+            marginfi_group.to_bytes().to_vec(),
+        ))],
         None => vec![],
     };
 
-    let accounts: Vec<(Pubkey, Bank)> = config.program.accounts(filters)?;
+    let mut clock = config.program.rpc().get_account(&sysvar::clock::ID)?;
+    let clock = Clock::from_account_info(&(&sysvar::clock::ID, &mut clock).into_account_info())?;
+
+    let mut banks_with_addresses = config.program.accounts::<Bank>(filters)?;
+
+    banks_with_addresses.iter_mut().for_each(|(_, bank)| {
+        bank.accrue_interest(&clock).unwrap();
+    });
+
+    Ok(banks_with_addresses)
+}
+
+pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
+    let accounts = load_all_banks(&config, marginfi_group)?;
     for (address, state) in accounts {
         println!("-> {}:\n{:#?}\n", address, state);
     }
@@ -378,6 +407,7 @@ pub fn create_profile(
     program_id: Option<Pubkey>,
     commitment: Option<CommitmentLevel>,
     marginfi_group: Option<Pubkey>,
+    marginfi_account: Option<Pubkey>,
 ) -> Result<()> {
     let cli_config_dir = get_cli_config_dir();
     let profile = Profile::new(
@@ -388,6 +418,7 @@ pub fn create_profile(
         program_id,
         commitment,
         marginfi_group,
+        marginfi_account,
     );
     if !cli_config_dir.exists() {
         fs::create_dir(&cli_config_dir)?;
@@ -395,7 +426,7 @@ pub fn create_profile(
         let cli_config_file = cli_config_dir.join("config.json");
 
         fs::write(
-            &cli_config_file,
+            cli_config_file,
             serde_json::to_string(&CliConfig {
                 profile_name: profile.name.clone(),
             })?,
@@ -492,6 +523,7 @@ pub fn configure_profile(
     program_id: Option<Pubkey>,
     commitment: Option<CommitmentLevel>,
     group: Option<Pubkey>,
+    account: Option<Pubkey>,
 ) -> Result<()> {
     let mut profile = profile::load_profile_by_name(&name)?;
     profile.config(
@@ -501,6 +533,7 @@ pub fn configure_profile(
         program_id,
         commitment,
         group,
+        account,
     )?;
 
     Ok(())
@@ -534,6 +567,325 @@ pub fn bank_configure(
     let sig = process_transaction(&transaction, &config.program.rpc(), config.dry_run)?;
 
     println!("Transaction signature: {}", sig);
+
+    Ok(())
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// Marginfi Accounts
+// --------------------------------------------------------------------------------------------------------------------
+
+pub fn marginfi_account_list(profile: Profile, config: &Config) -> Result<()> {
+    let group = profile.marginfi_group.expect("Missing marginfi group");
+    let authority = config.payer.pubkey();
+
+    let banks = HashMap::from_iter(load_all_banks(config, Some(group))?);
+
+    let accounts = config.program.accounts::<MarginfiAccount>(vec![
+        RpcFilterType::Memcmp(Memcmp::new_raw_bytes(8, group.to_bytes().to_vec())),
+        RpcFilterType::Memcmp(Memcmp::new_raw_bytes(8 + 32, authority.to_bytes().to_vec())),
+    ])?;
+
+    if accounts.is_empty() {
+        println!("No marginfi accounts found");
+    }
+
+    for (address, marginfi_account) in accounts {
+        print_account(
+            address,
+            marginfi_account,
+            banks.clone(),
+            profile
+                .marginfi_account
+                .map_or(false, |default_account| default_account == address),
+        )?;
+    }
+
+    Ok(())
+}
+
+pub fn print_account(
+    address: Pubkey,
+    marginfi_account: MarginfiAccount,
+    banks: HashMap<Pubkey, Bank>,
+    default: bool,
+) -> Result<()> {
+    println!(
+        "Address: {} {}",
+        address,
+        if default { "(default)" } else { "" }
+    );
+    println!("Lending Account Balances:");
+    marginfi_account
+        .lending_account
+        .get_active_balances_iter()
+        .for_each(|balance| {
+            let bank = banks.get(&balance.bank_pk).expect("Bank not found");
+            let balance_amount = if balance
+                .is_empty(marginfi::state::marginfi_account::BalanceSide::Assets)
+                .not()
+            {
+                let native_value = bank.get_asset_amount(balance.asset_shares.into()).unwrap();
+
+                native_value / EXP_10_I80F48[bank.mint_decimals as usize]
+            } else if balance
+                .is_empty(marginfi::state::marginfi_account::BalanceSide::Liabilities)
+                .not()
+            {
+                let native_value = bank
+                    .get_liability_amount(balance.liability_shares.into())
+                    .unwrap();
+
+                (native_value / EXP_10_I80F48[bank.mint_decimals as usize]).neg()
+            } else {
+                I80F48::ZERO
+            };
+
+            println!(
+                "\tBalance: {:.3}, Bank: {} (mint: {})",
+                balance_amount, balance.bank_pk, bank.mint
+            )
+        });
+    Ok(())
+}
+
+pub fn marginfi_account_use(
+    mut profile: Profile,
+    config: &Config,
+    marginfi_account_pk: Pubkey,
+) -> Result<()> {
+    let group = profile.marginfi_group.expect("Missing marginfi group");
+    let authority = config.payer.pubkey();
+
+    let marginfi_account = config
+        .program
+        .account::<MarginfiAccount>(marginfi_account_pk)?;
+
+    if marginfi_account.group != group {
+        return Err(anyhow!("Marginfi account does not belong to group"));
+    }
+
+    if marginfi_account.authority != authority {
+        return Err(anyhow!("Marginfi account does not belong to authority"));
+    }
+
+    profile.config(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(marginfi_account_pk),
+    )?;
+
+    println!("Default marginfi account set to: {}", marginfi_account_pk);
+
+    Ok(())
+}
+
+/// Print the marginfi account for the provided address or the default marginfi account if none is provided
+///
+/// If marginfi account address is provided use the group in the marginfi account data, otherwise use the profile defaults
+pub fn marginfi_account_get(
+    profile: Profile,
+    config: &Config,
+    marginfi_account_pk: Option<Pubkey>,
+) -> Result<()> {
+    let marginfi_account_pk = marginfi_account_pk.unwrap_or(profile.marginfi_account.unwrap());
+
+    let marginfi_account = config
+        .program
+        .account::<MarginfiAccount>(marginfi_account_pk)?;
+
+    let group = marginfi_account.group;
+
+    let banks = HashMap::from_iter(load_all_banks(config, Some(group))?);
+
+    print_account(marginfi_account_pk, marginfi_account, banks, false)?;
+
+    Ok(())
+}
+
+pub fn marginfi_account_deposit(
+    profile: &Profile,
+    config: &Config,
+    bank_pk: Pubkey,
+    ui_amount: f64,
+) -> Result<()> {
+    let marginfi_account_pk = profile.get_marginfi_account();
+
+    let bank = config.program.account::<Bank>(bank_pk)?;
+
+    let amount = (I80F48::from_num(ui_amount) * EXP_10_I80F48[bank.mint_decimals as usize])
+        .floor()
+        .to_num::<u64>();
+
+    // Check that bank belongs to the correct group
+    if bank.group != profile.marginfi_group.unwrap() {
+        bail!("Bank does not belong to group")
+    }
+
+    let deposit_ata = anchor_spl::associated_token::get_associated_token_address(
+        &config.payer.pubkey(),
+        &bank.mint,
+    );
+
+    let ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::LendingPoolDeposit {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            marginfi_account: marginfi_account_pk,
+            signer: config.payer.pubkey(),
+            bank: bank_pk,
+            signer_token_account: deposit_ata,
+            bank_liquidity_vault: bank.liquidity_vault,
+            token_program: anchor_spl::token::ID,
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::LendingPoolDeposit { amount }.data(),
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&config.payer.pubkey()),
+        &[&config.payer],
+        config.program.rpc().get_latest_blockhash()?,
+    );
+
+    match process_transaction(&tx, &config.program.rpc(), config.dry_run) {
+        Ok(sig) => println!("Deposit successful: {}", sig),
+        Err(err) => println!("Error during deposit:\n{:#?}", err),
+    }
+
+    Ok(())
+}
+
+pub fn marginfi_account_withdraw(
+    profile: &Profile,
+    config: &Config,
+    bank_pk: Pubkey,
+    ui_amount: f64,
+    withdraw_all: bool,
+) -> Result<()> {
+    let marginfi_account_pk = profile.get_marginfi_account();
+
+    let banks = HashMap::from_iter(load_all_banks(
+        config,
+        Some(profile.marginfi_group.unwrap()),
+    )?);
+    let bank = banks.get(&bank_pk).expect("Bank not found");
+
+    let marginfi_account = config
+        .program
+        .account::<MarginfiAccount>(marginfi_account_pk)?;
+
+    let amount = (I80F48::from_num(ui_amount) * EXP_10_I80F48[bank.mint_decimals as usize])
+        .floor()
+        .to_num::<u64>();
+
+    // Check that bank belongs to the correct group
+    if bank.group != profile.marginfi_group.unwrap() {
+        bail!("Bank does not belong to group")
+    }
+
+    let withdraw_ata = anchor_spl::associated_token::get_associated_token_address(
+        &config.payer.pubkey(),
+        &bank.mint,
+    );
+
+    let mut ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::LendingPoolWithdraw {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            marginfi_account: marginfi_account_pk,
+            signer: config.payer.pubkey(),
+            bank: bank_pk,
+            bank_liquidity_vault: bank.liquidity_vault,
+            token_program: anchor_spl::token::ID,
+            destination_token_account: withdraw_ata,
+            bank_liquidity_vault_authority: find_bank_vault_authority_pda(
+                &bank_pk,
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::LendingPoolWithdraw {
+            amount,
+            withdraw_all: if withdraw_all { Some(true) } else { None },
+        }
+        .data(),
+    };
+
+    ix.accounts.extend(load_observation_account_metas(
+        &marginfi_account,
+        &banks,
+        vec![],
+        if withdraw_all { vec![bank_pk] } else { vec![] },
+    ));
+
+    let create_ide_ata_ix = create_associated_token_account_idempotent(
+        &config.payer.pubkey(),
+        &config.payer.pubkey(),
+        &bank.mint,
+        &spl_token::ID,
+    );
+
+    let tx = Transaction::new_signed_with_payer(
+        &[create_ide_ata_ix, ix],
+        Some(&config.payer.pubkey()),
+        &[&config.payer],
+        config.program.rpc().get_latest_blockhash()?,
+    );
+
+    match process_transaction(&tx, &config.program.rpc(), config.dry_run) {
+        Ok(sig) => println!("Withdraw successful: {}", sig),
+        Err(err) => println!("Error during withdraw:\n{:#?}", err),
+    }
+
+    Ok(())
+}
+
+pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()> {
+    let marginfi_account_key = Keypair::new();
+
+    let ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::MarginfiAccountInitialize {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            marginfi_account: marginfi_account_key.pubkey(),
+            system_program: system_program::ID,
+            signer: config.payer.pubkey(),
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::MarginfiAccountInitialize.data(),
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&config.payer.pubkey()),
+        &[&config.payer, &marginfi_account_key],
+        config.program.rpc().get_latest_blockhash()?,
+    );
+
+    match process_transaction(&tx, &config.program.rpc(), config.dry_run) {
+        Ok(sig) => println!("Initialize successful: {}", sig),
+        Err(err) => println!("Error during initialize:\n{:#?}", err),
+    }
+
+    let mut profile = profile.clone();
+
+    profile.config(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(marginfi_account_key.pubkey()),
+    )?;
 
     Ok(())
 }

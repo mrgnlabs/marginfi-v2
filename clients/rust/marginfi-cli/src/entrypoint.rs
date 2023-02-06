@@ -6,7 +6,7 @@ use crate::{
 use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
-use fixed::types::I80F48;
+
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
     state::{
@@ -45,7 +45,12 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: ProfileCommand,
     },
+    #[cfg(feature = "dev")]
     InspectPadding {},
+    Account {
+        #[clap(subcommand)]
+        subcmd: AccountCommand,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -54,14 +59,17 @@ pub enum GroupCommand {
         marginfi_group: Option<Pubkey>,
     },
     GetAll {},
+    #[cfg(feature = "admin")]
     Create {
         admin: Option<Pubkey>,
         #[clap(short = 'f', long = "override")]
         override_existing_profile_group: bool,
     },
+    #[cfg(feature = "admin")]
     Update {
         admin: Option<Pubkey>,
     },
+    #[cfg(feature = "admin")]
     AddBank {
         #[clap(long)]
         mint: Pubkey,
@@ -101,9 +109,9 @@ pub enum BankOperationalStateArg {
     ReduceOnly,
 }
 
-impl Into<BankOperationalState> for BankOperationalStateArg {
-    fn into(self) -> BankOperationalState {
-        match self {
+impl From<BankOperationalStateArg> for BankOperationalState {
+    fn from(val: BankOperationalStateArg) -> Self {
+        match val {
             BankOperationalStateArg::Paused => BankOperationalState::Paused,
             BankOperationalStateArg::Operational => BankOperationalState::Operational,
             BankOperationalStateArg::ReduceOnly => BankOperationalState::ReduceOnly,
@@ -119,6 +127,7 @@ pub enum BankCommand {
     GetAll {
         marginfi_group: Option<Pubkey>,
     },
+    #[cfg(feature = "admin")]
     Update {
         bank_pk: Pubkey,
         #[clap(long)]
@@ -155,6 +164,8 @@ pub enum ProfileCommand {
         commitment: Option<CommitmentLevel>,
         #[clap(long)]
         group: Option<Pubkey>,
+        #[clap(long)]
+        account: Option<Pubkey>,
     },
     Show,
     List,
@@ -175,7 +186,31 @@ pub enum ProfileCommand {
         commitment: Option<CommitmentLevel>,
         #[clap(long)]
         group: Option<Pubkey>,
+        #[clap(long)]
+        account: Option<Pubkey>,
     },
+}
+
+#[derive(Debug, Parser)]
+pub enum AccountCommand {
+    List,
+    Use {
+        account: Pubkey,
+    },
+    Get {
+        account: Option<Pubkey>,
+    },
+    Deposit {
+        bank: Pubkey,
+        ui_amount: f64,
+    },
+    Withdraw {
+        bank: Pubkey,
+        ui_amount: f64,
+        #[clap(short = 'a', long = "all")]
+        withdraw_all: bool,
+    },
+    Create,
 }
 
 pub fn entry(opts: Opts) -> Result<()> {
@@ -185,7 +220,9 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Group { subcmd } => group(subcmd, &opts.cfg_override),
         Command::Bank { subcmd } => bank(subcmd, &opts.cfg_override),
         Command::Profile { subcmd } => profile(subcmd),
+        #[cfg(feature = "dev")]
         Command::InspectPadding {} => inspect_padding(),
+        Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
     }
 }
 
@@ -199,6 +236,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             program_id,
             commitment,
             group,
+            account,
         } => processor::create_profile(
             name,
             cluster,
@@ -207,6 +245,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             program_id,
             commitment,
             group,
+            account,
         ),
         ProfileCommand::Show => processor::show_profile(),
         ProfileCommand::List => processor::list_profiles(),
@@ -219,6 +258,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             commitment,
             group,
             name,
+            account,
         } => processor::configure_profile(
             name,
             cluster,
@@ -227,6 +267,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             program_id,
             commitment,
             group,
+            account,
         ),
     }
 }
@@ -235,10 +276,12 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
     let profile = load_profile()?;
     let config = profile.get_config(Some(global_options))?;
 
-    match subcmd {
-        GroupCommand::Get { marginfi_group: _ } => (),
-        GroupCommand::GetAll {} => (),
-        _ => get_consent(&subcmd, &profile)?,
+    if !global_options.skip_confirmation {
+        match subcmd {
+            GroupCommand::Get { marginfi_group: _ } => (),
+            GroupCommand::GetAll {} => (),
+            _ => get_consent(&subcmd, &profile)?,
+        }
     }
 
     match subcmd {
@@ -246,11 +289,14 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             processor::group_get(config, marginfi_group.or(profile.marginfi_group))
         }
         GroupCommand::GetAll {} => processor::group_get_all(config),
+        #[cfg(feature = "admin")]
         GroupCommand::Create {
             admin,
             override_existing_profile_group,
         } => processor::group_create(config, profile, admin, override_existing_profile_group),
+        #[cfg(feature = "admin")]
         GroupCommand::Update { admin } => processor::group_configure(config, profile, admin),
+        #[cfg(feature = "admin")]
         GroupCommand::AddBank {
             mint: bank_mint,
             asset_weight_init,
@@ -291,15 +337,18 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     let profile = load_profile()?;
     let config = profile.get_config(Some(global_options))?;
 
-    match subcmd {
-        BankCommand::Get { bank: _ } => (),
-        BankCommand::GetAll { marginfi_group: _ } => (),
-        _ => get_consent(&subcmd, &profile)?,
+    if !global_options.skip_confirmation {
+        match subcmd {
+            BankCommand::Get { bank: _ } => (),
+            BankCommand::GetAll { marginfi_group: _ } => (),
+            _ => get_consent(&subcmd, &profile)?,
+        }
     }
 
     match subcmd {
         BankCommand::Get { bank } => processor::bank_get(config, bank),
         BankCommand::GetAll { marginfi_group } => processor::bank_get_all(config, marginfi_group),
+        #[cfg(feature = "admin")]
         BankCommand::Update {
             asset_weight_init,
             asset_weight_maint,
@@ -338,6 +387,39 @@ fn inspect_padding() -> Result<()> {
     println!("MarginfiAccount: {}", MarginfiAccount::type_layout());
     println!("LendingAccount: {}", LendingAccount::type_layout());
     println!("Balance: {}", Balance::type_layout());
+
+    Ok(())
+}
+
+fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions) -> Result<()> {
+    let profile = load_profile()?;
+    let config = profile.get_config(Some(global_options))?;
+
+    if !global_options.skip_confirmation {
+        match subcmd {
+            AccountCommand::Get { .. } | AccountCommand::List => (),
+            _ => get_consent(&subcmd, &profile)?,
+        }
+    }
+
+    match subcmd {
+        AccountCommand::List => processor::marginfi_account_list(profile, &config),
+        AccountCommand::Use { account } => {
+            processor::marginfi_account_use(profile, &config, account)
+        }
+        AccountCommand::Get { account } => {
+            processor::marginfi_account_get(profile, &config, account)
+        }
+        AccountCommand::Deposit { bank, ui_amount } => {
+            processor::marginfi_account_deposit(&profile, &config, bank, ui_amount)
+        }
+        AccountCommand::Withdraw {
+            bank,
+            ui_amount,
+            withdraw_all,
+        } => processor::marginfi_account_withdraw(&profile, &config, bank, ui_amount, withdraw_all),
+        AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
+    }?;
 
     Ok(())
 }
