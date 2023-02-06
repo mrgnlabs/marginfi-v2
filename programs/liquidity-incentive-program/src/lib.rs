@@ -11,6 +11,8 @@ declare_id!("LipLzUxQftzq77XGVJW5c7UhxbS9ZLyZM9EGiF4Dxs4");
 
 #[program]
 pub mod liquidity_incentive_program {
+    use anchor_spl::token::CloseAccount;
+
     use super::*;
 
     /// Creates a new liquidity incentive campaign (LIP).
@@ -79,6 +81,62 @@ pub mod liquidity_incentive_program {
 
         msg!("User depositing {} tokens", amount);
 
+        transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.funding_account.to_account_info(),
+                    to: ctx.accounts.temp_token_account.to_account_info(),
+                    authority: ctx.accounts.signer.to_account_info(),
+                },
+            ),
+            amount,
+        )?;
+
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
+            ctx.accounts.deposit.key().as_ref(),
+            &[*ctx.bumps.get("deposit_marginfi_pda_signer").unwrap()],
+        ]];
+
+        marginfi::cpi::marginfi_account_initialize(CpiContext::new_with_signer(
+            ctx.accounts.marginfi_program.to_account_info(),
+            marginfi::cpi::accounts::MarginfiAccountInitialize {
+                marginfi_group: ctx.accounts.marginfi_group.to_account_info(),
+                signer: ctx.accounts.deposit_marginfi_pda_signer.to_account_info(),
+                marginfi_account: ctx.accounts.marginfi_account.to_account_info(),
+                system_program: ctx.accounts.system_program.to_account_info(),
+            },
+            signer_seeds,
+        ))?;
+
+        marginfi::cpi::lending_pool_deposit(
+            CpiContext::new_with_signer(
+                ctx.accounts.marginfi_program.to_account_info(),
+                marginfi::cpi::accounts::LendingPoolDeposit {
+                    marginfi_group: ctx.accounts.marginfi_group.to_account_info(),
+                    marginfi_account: ctx.accounts.marginfi_account.to_account_info(),
+                    signer: ctx.accounts.deposit_marginfi_pda_signer.to_account_info(),
+                    bank: ctx.accounts.marginfi_bank.to_account_info(),
+                    signer_token_account: ctx.accounts.temp_token_account.to_account_info(),
+                    bank_liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            amount,
+        )?;
+
+        close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.temp_token_account.to_account_info(),
+                destination: ctx.accounts.signer.to_account_info(),
+                authority: ctx.accounts.deposit_marginfi_pda_signer.to_account_info(),
+            },
+            signer_seeds,
+        ))?;
+
         *ctx.accounts.deposit = Deposit {
             owner: ctx.accounts.signer.key(),
             campaign: ctx.accounts.campaign.key(),
@@ -87,28 +145,6 @@ pub mod liquidity_incentive_program {
         };
 
         ctx.accounts.campaign.outstanding_deposits -= amount;
-
-        marginfi::cpi::bank_mint_shares(
-            CpiContext::new(
-                ctx.accounts.marginfi_program.to_account_info(),
-                marginfi::cpi::accounts::BankMintShares {
-                    marginfi_group: ctx.accounts.marginfi_group.to_account_info(),
-                    bank: ctx.accounts.marginfi_bank.to_account_info(),
-                    shares_token_mint: ctx.accounts.marginfi_shares_mint.to_account_info(),
-                    shares_token_mint_authority: ctx
-                        .accounts
-                        .marginfi_shares_mint_authority
-                        .to_account_info()
-                        .clone(),
-                    signer: ctx.accounts.signer.to_account_info(),
-                    liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
-                    user_deposit_token_account: ctx.accounts.funding_account.to_account_info(),
-                    user_shares_token_account: ctx.accounts.deposit_shares_vault.to_account_info(),
-                    token_program: ctx.accounts.token_program.to_account_info(),
-                },
-            ),
-            amount,
-        )?;
 
         Ok(())
     }
@@ -170,7 +206,7 @@ pub mod liquidity_incentive_program {
                     token_program: ctx.accounts.token_program.to_account_info(),
                 },
                 &[&[
-                    DEPOSIT_AUTH_SEED.as_bytes(),
+                    DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
                     ctx.accounts.deposit.key().as_ref(),
                     &[*ctx.bumps.get("deposit_shares_vault_authority").unwrap()],
                 ]],
@@ -282,7 +318,7 @@ pub mod liquidity_incentive_program {
                     .to_account_info(),
             },
             &[&[
-                DEPOSIT_AUTH_SEED.as_bytes(),
+                DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
                 ctx.accounts.deposit.key().as_ref(),
                 &[*ctx.bumps.get("deposit_shares_vault_authority").unwrap()],
             ]],
@@ -297,9 +333,7 @@ pub const CAMPAIGN_SEED: &str = "campaign";
 #[constant]
 pub const CAMPAIGN_AUTH_SEED: &str = "campaign_auth";
 #[constant]
-pub const DEPOSIT_SEED: &str = "deposit";
-#[constant]
-pub const DEPOSIT_AUTH_SEED: &str = "deposit_auth";
+pub const DEPOSIT_MFI_AUTH_SIGNER_SEED: &str = "deposit_mfi_auth";
 #[constant]
 pub const EPHEMERAL_TOKEN_ACCOUNT_SEED: &str = "ephemeral_token_account";
 #[constant]
@@ -363,30 +397,26 @@ pub struct CreateDeposit<'info> {
     )]
     pub deposit: Account<'info, Deposit>,
     #[account(
-        init,
-        payer = signer,
-        token::mint = marginfi_shares_mint,
-        token::authority = deposit_shares_vault_authority,
         seeds = [
-            DEPOSIT_SEED.as_bytes(),
-            deposit.key().as_ref(),
-        ],
-        bump,
-    )]
-    pub deposit_shares_vault: Account<'info, TokenAccount>,
-    #[account(
-        seeds = [
-            DEPOSIT_AUTH_SEED.as_bytes(),
+            DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
             deposit.key().as_ref(),
         ],
         bump,
     )]
     /// CHECK: Asserted by PDA derivation
-    pub deposit_shares_vault_authority: AccountInfo<'info>,
+    pub deposit_marginfi_pda_signer: AccountInfo<'info>,
     #[account(mut)]
     /// CHECK: Asserted by token transfer
     pub funding_account: AccountInfo<'info>,
+    #[account(
+        init,
+        payer = signer,
+        token::mint = asset_mint,
+        token::authority = deposit_marginfi_pda_signer,
+    )]
+    pub temp_token_account: Account<'info, TokenAccount>,
     /// CHECK: Asserted by mfi cpi call
+    pub asset_mint: AccountInfo<'info>,
     pub marginfi_group: AccountInfo<'info>,
     #[account(
         mut,
@@ -394,14 +424,13 @@ pub struct CreateDeposit<'info> {
     )]
     /// CHECK: Asserted by stored address
     pub marginfi_bank: AccountInfo<'info>,
+    /// CHECK: Asserted by CPI call
+    pub marginfi_account: AccountInfo<'info>,
     #[account(mut)]
     /// CHECK: Asserted by CPI call
     pub marginfi_bank_vault: AccountInfo<'info>,
     #[account(mut)]
     /// CHECK: Asserted by CPI call
-    pub marginfi_shares_mint: AccountInfo<'info>,
-    /// CHECK: Asserted by CPI call
-    pub marginfi_shares_mint_authority: AccountInfo<'info>,
     pub marginfi_program: Program<'info, Marginfi>,
     pub token_program: Program<'info, Token>,
     pub rent: Sysvar<'info, Rent>,
@@ -448,7 +477,7 @@ pub struct CloseDeposit<'info> {
     pub deposit_shares_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         seeds = [
-            DEPOSIT_AUTH_SEED.as_bytes(),
+            DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
             deposit.key().as_ref(),
         ],
         bump,
