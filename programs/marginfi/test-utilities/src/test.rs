@@ -93,6 +93,7 @@ lazy_static! {
             optimal_utilization_rate: I80F48!(0.5).into(),
             plateau_interest_rate: I80F48!(0.6).into(),
             max_interest_rate: I80F48!(3).into(),
+            ..Default::default()
         };
     pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
         oracle_setup: OracleSetup::Pyth,
@@ -110,6 +111,7 @@ lazy_static! {
             optimal_utilization_rate: I80F48!(0.5).into(),
             plateau_interest_rate: I80F48!(0.6).into(),
             max_interest_rate: I80F48!(3).into(),
+            ..Default::default()
         },
         ..Default::default()
     };

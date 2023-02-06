@@ -215,6 +215,7 @@ pub fn group_add_bank(
         insurance_ir_fee,
         protocol_fixed_fee_apr,
         protocol_ir_fee,
+        ..InterestRateConfig::default()
     };
 
     let bank_keypair = Keypair::new();
@@ -280,6 +281,7 @@ pub fn group_add_bank(
                 operational_state: BankOperationalState::Operational,
                 oracle_setup: OracleSetup::Pyth,
                 oracle_keys: create_oracle_key_array(pyth_oracle),
+                ..BankConfig::default()
             },
         })
         .instructions()?;

@@ -26,6 +26,8 @@ pub struct MarginfiAccount {
     pub group: Pubkey,
     pub authority: Pubkey,
     pub lending_account: LendingAccount,
+
+    pub _padding: [u64; 64], // 4 * 64 = 256
 }
 
 impl MarginfiAccount {
@@ -102,8 +104,8 @@ pub enum WeightType {
 }
 
 pub struct BankAccountWithPriceFeed<'a> {
-    bank: Bank,
-    price_feed: PriceFeed,
+    bank: Box<Bank>,
+    price_feed: Box<PriceFeed>,
     balance: &'a Balance,
 }
 
@@ -149,10 +151,10 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
                 let bank = bank_al.load()?;
 
-                let price_feed = bank.load_price_feed_from_account_info(pyth_ai)?;
+                let price_feed = Box::new(bank.load_price_feed_from_account_info(pyth_ai)?);
 
                 Ok(BankAccountWithPriceFeed {
-                    bank: *bank,
+                    bank: Box::new(*bank),
                     price_feed,
                     balance,
                 })
@@ -484,6 +486,7 @@ const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 )]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES],
+    pub _padding: [u64; 8], // 4 * 8 = 32
 }
 
 impl LendingAccount {
@@ -515,6 +518,7 @@ pub struct Balance {
     pub bank_pk: Pubkey,
     pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
+    pub _padding: [u64; 4], // 8 * 4 = 32
 }
 
 impl Balance {
@@ -609,6 +613,7 @@ impl<'a> BankAccountWrapper<'a> {
                     bank_pk: *bank_pk,
                     asset_shares: I80F48::ZERO.into(),
                     liability_shares: I80F48::ZERO.into(),
+                    _padding: [0; 4],
                 };
 
                 Ok(Self {

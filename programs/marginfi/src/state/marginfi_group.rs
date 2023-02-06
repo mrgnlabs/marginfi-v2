@@ -30,6 +30,8 @@ use type_layout::TypeLayout;
 #[derive(Default)]
 pub struct MarginfiGroup {
     pub admin: Pubkey,
+    pub _padding_0: [u128; 32],
+    pub _padding_1: [u128; 32],
 }
 
 impl MarginfiGroup {
@@ -86,6 +88,8 @@ pub struct InterestRateConfig {
     pub insurance_ir_fee: WrappedI80F48,
     pub protocol_fixed_fee_apr: WrappedI80F48,
     pub protocol_ir_fee: WrappedI80F48,
+
+    pub _padding: [u128; 8], // 16 * 8 = 128 bytes
 }
 
 impl InterestRateConfig {
@@ -133,6 +137,8 @@ impl InterestRateConfig {
         assert!(borrowing_rate >= I80F48::ZERO);
         assert!(group_fees_apr >= I80F48::ZERO);
         assert!(insurance_fees_apr >= I80F48::ZERO);
+
+        // TODO: Add liquidation discount check
 
         Some((
             lending_rate,
@@ -216,6 +222,9 @@ pub struct Bank {
     pub last_update: i64,
 
     pub config: BankConfig,
+
+    pub _padding_0: [u128; 32],
+    pub _padding_1: [u128; 32], // 16 * 2 * 32 = 1024B
 }
 
 impl Bank {
@@ -257,6 +266,8 @@ impl Bank {
             fee_vault_bump,
             fee_vault_authority_bump,
             collected_group_fees_outstanding: I80F48::ZERO.into(),
+            _padding_0: [0; 32],
+            _padding_1: [0; 32],
         }
     }
 
@@ -655,6 +666,8 @@ pub struct BankConfig {
 
     pub oracle_setup: OracleSetup,
     pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS],
+
+    pub _padding: [u128; 4], // 16 * 4 = 64 bytes
 }
 
 impl Default for BankConfig {
@@ -669,6 +682,7 @@ impl Default for BankConfig {
             operational_state: BankOperationalState::Paused,
             oracle_setup: OracleSetup::None,
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
+            _padding: [0; 4],
         }
     }
 }
