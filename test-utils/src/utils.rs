@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+// use lip::*;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
@@ -191,6 +192,41 @@ macro_rules! native {
 }
 
 #[macro_export]
+macro_rules! time {
+    ($val: expr) => {
+        $val
+    };
+
+    ($val: expr, "s") => {
+        $val
+    };
+
+    ($val: expr, "m") => {
+        $val * 60
+    };
+
+    ($val: expr, "h") => {
+        $val * 60 * 60
+    };
+
+    ($val: expr, "d") => {
+        $val * 60 * 60 * 24
+    };
+
+    ($val: expr, "w") => {
+        $val * 60 * 60 * 24 * 7
+    };
+
+    ($val: expr, "y") => {
+        $val * 60 * 60 * 24 * 365
+    };
+
+    ($val: expr, "M") => {
+        $val * 60 * 60 * 24 * 30
+    };
+}
+
+#[macro_export]
 macro_rules! f_native {
     ($val: expr) => {
         I80F48::from_num($val * 10_u64.pow(6))
@@ -199,4 +235,68 @@ macro_rules! f_native {
 
 pub fn clone_keypair(keypair: &Keypair) -> Keypair {
     Keypair::from_bytes(&keypair.to_bytes()).unwrap()
+}
+
+#[cfg(feature = "lip")]
+pub mod lip {
+    use super::*;
+    pub fn get_reward_vault_address(campaign_key: Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                liquidity_incentive_program::CAMPAIGN_SEED.as_bytes(),
+                campaign_key.as_ref(),
+            ],
+            &liquidity_incentive_program::id(),
+        )
+    }
+
+    pub fn get_reward_vault_authority_address(campaign_key: Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                liquidity_incentive_program::CAMPAIGN_AUTH_SEED.as_bytes(),
+                campaign_key.as_ref(),
+            ],
+            &liquidity_incentive_program::id(),
+        )
+    }
+
+    pub fn get_deposit_shares_vault_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                liquidity_incentive_program::DEPOSIT_SEED.as_bytes(),
+                deposit_key.as_ref(),
+            ],
+            &liquidity_incentive_program::id(),
+        )
+    }
+
+    pub fn get_deposit_shares_vault_authority_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                liquidity_incentive_program::DEPOSIT_AUTH_SEED.as_bytes(),
+                deposit_key.as_ref(),
+            ],
+            &liquidity_incentive_program::id(),
+        )
+    }
+
+    pub fn get_ephemeral_token_account_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                liquidity_incentive_program::EPHEMERAL_TOKEN_ACCOUNT_SEED.as_bytes(),
+                deposit_key.as_ref(),
+            ],
+            &liquidity_incentive_program::id(),
+        )
+    }
+
+    pub fn get_ephemeral_token_account_authority_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                liquidity_incentive_program::EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
+                deposit_key.as_ref(),
+            ],
+            &liquidity_incentive_program::id(),
+        )
+    }
 }

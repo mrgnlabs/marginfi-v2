@@ -1,4 +1,5 @@
 use anchor_lang::{prelude::Clock, InstructionData, ToAccountMetas};
+use anchor_spl::token;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
@@ -10,6 +11,7 @@ use marginfi::{
     state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankOperationalState},
 };
 use pretty_assertions::assert_eq;
+use solana_program::account_info::IntoAccountInfo;
 use solana_program::{instruction::Instruction, system_program};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
@@ -111,6 +113,7 @@ async fn marginfi_group_add_bank_failure_fake_pyth_feed() -> anyhow::Result<()> 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
+        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::USDC,
@@ -131,7 +134,6 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
     }))
     .await;
 
@@ -410,6 +412,7 @@ async fn marginfi_group_handle_bankruptcy_success_no_debt() -> anyhow::Result<()
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings {
+        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::USDC,
@@ -423,7 +426,6 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
     }))
     .await;
 

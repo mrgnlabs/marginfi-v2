@@ -11,7 +11,7 @@ use crate::{
     set_if_some, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, Transfer};
+use anchor_spl::token::{burn, mint_to, transfer, Burn, MintTo, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 
@@ -269,12 +269,6 @@ impl Bank {
             _padding_0: [0; 32],
             _padding_1: [0; 32],
         }
-    }
-
-    #[inline]
-    pub fn load_from_account_info(bank_account_ai: &AccountInfo) -> MarginfiResult<Self> {
-        let bank = *bytemuck::from_bytes::<Bank>(&bank_account_ai.data.borrow());
-        Ok(bank)
     }
 
     pub fn get_liability_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {

@@ -2057,6 +2057,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
+name = "liquidity-incentive-program"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "anyhow",
+ "assert_matches",
+ "bincode",
+ "fixed",
+ "futures",
+ "marginfi",
+ "pretty_assertions",
+ "solana-logger",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "test-utilities",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4618,6 +4638,7 @@ dependencies = [
  "fixed-macro",
  "futures",
  "lazy_static",
+ "liquidity-incentive-program",
  "marginfi",
  "pretty_assertions",
  "pyth-sdk-solana",

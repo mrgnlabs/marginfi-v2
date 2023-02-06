@@ -145,6 +145,13 @@ impl TestFixture {
     pub async fn new(test_settings: Option<TestSettings>) -> TestFixture {
         let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
 
+        #[cfg(feature = "lip")]
+        program.add_program(
+            "liquidity_incentive_program",
+            liquidity_incentive_program::ID,
+            processor!(liquidity_incentive_program::entry),
+        );
+
         let usdc_keypair = Keypair::new();
         let sol_keypair = Keypair::new();
         let sol_equivalent_keypair = Keypair::new();
@@ -317,6 +324,18 @@ impl TestFixture {
             unix_timestamp: timestamp,
             ..Default::default()
         };
+        self.context.borrow_mut().set_sysvar(&clock);
+    }
+
+    pub async fn advance_time(&self, seconds: i64) {
+        let mut clock: Clock = self
+            .context
+            .borrow_mut()
+            .banks_client
+            .get_sysvar()
+            .await
+            .unwrap();
+        clock.unix_timestamp += seconds;
         self.context.borrow_mut().set_sysvar(&clock);
     }
 
