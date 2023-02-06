@@ -89,51 +89,51 @@ pub struct LendingPoolCollectBankFees<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-    mut,
-    constraint = bank.load()?.group == marginfi_group.key(),
+        mut,
+        constraint = bank.load()?.group == marginfi_group.key(),
     )]
     pub bank: AccountLoader<'info, Bank>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
-    seeds = [
-    LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump = bank.load()?.liquidity_vault_authority_bump
+        seeds = [
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.liquidity_vault_authority_bump
     )]
     pub liquidity_vault_authority: AccountInfo<'info>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
-    mut,
-    seeds = [
-    LIQUIDITY_VAULT_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump = bank.load()?.liquidity_vault_bump
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.liquidity_vault_bump
     )]
     pub liquidity_vault: Account<'info, TokenAccount>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
-    mut,
-    seeds = [
-    INSURANCE_VAULT_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump = bank.load()?.insurance_vault_bump
+        mut,
+        seeds = [
+            INSURANCE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.insurance_vault_bump
     )]
     pub insurance_vault: AccountInfo<'info>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
-    mut,
-    seeds = [
-    FEE_VAULT_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump = bank.load()?.fee_vault_bump
+        mut,
+        seeds = [
+            FEE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.fee_vault_bump
     )]
     pub fee_vault: AccountInfo<'info>,
 

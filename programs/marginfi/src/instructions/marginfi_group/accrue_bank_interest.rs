@@ -20,8 +20,8 @@ pub struct LendingPoolAccrueBankInterest<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-    mut,
-    constraint = bank.load()?.group == marginfi_group.key(),
+        mut,
+        constraint = bank.load()?.group == marginfi_group.key(),
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

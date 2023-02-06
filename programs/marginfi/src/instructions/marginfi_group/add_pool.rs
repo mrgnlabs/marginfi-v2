@@ -64,86 +64,86 @@ pub struct LendingPoolAddBank<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-    mut,
-    address = marginfi_group.load()?.admin,
+        mut,
+        address = marginfi_group.load()?.admin,
     )]
     pub admin: Signer<'info>,
 
     pub bank_mint: Box<Account<'info, Mint>>,
 
     #[account(
-    init,
-    space = 8 + std::mem::size_of::<Bank>(),
-    payer = admin,
+        init,
+        space = 8 + std::mem::size_of::<Bank>(),
+        payer = admin,
     )]
     pub bank: AccountLoader<'info, Bank>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
-    seeds = [
-    LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump
+        seeds = [
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump
     )]
     pub liquidity_vault_authority: AccountInfo<'info>,
 
     #[account(
-    init,
-    payer = admin,
-    token::mint = bank_mint,
-    token::authority = liquidity_vault_authority,
-    seeds = [
-    LIQUIDITY_VAULT_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump,
+        init,
+        payer = admin,
+        token::mint = bank_mint,
+        token::authority = liquidity_vault_authority,
+        seeds = [
+            LIQUIDITY_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump,
     )]
     pub liquidity_vault: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
-    seeds = [
-    INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump
+        seeds = [
+            INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump
     )]
     pub insurance_vault_authority: AccountInfo<'info>,
 
     #[account(
-    init,
-    payer = admin,
-    token::mint = bank_mint,
-    token::authority = insurance_vault_authority,
-    seeds = [
-    INSURANCE_VAULT_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump,
+        init,
+        payer = admin,
+        token::mint = bank_mint,
+        token::authority = insurance_vault_authority,
+        seeds = [
+            INSURANCE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump,
     )]
     pub insurance_vault: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
-    seeds = [
-    FEE_VAULT_AUTHORITY_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump
+        seeds = [
+            FEE_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump
     )]
     pub fee_vault_authority: AccountInfo<'info>,
 
     #[account(
-    init,
-    payer = admin,
-    token::mint = bank_mint,
-    token::authority = fee_vault_authority,
-    seeds = [
-    FEE_VAULT_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump,
+        init,
+        payer = admin,
+        token::mint = bank_mint,
+        token::authority = fee_vault_authority,
+        seeds = [
+            FEE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump,
     )]
     pub fee_vault: Box<Account<'info, TokenAccount>>,
 

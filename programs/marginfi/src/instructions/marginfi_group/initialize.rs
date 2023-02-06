@@ -12,9 +12,9 @@ pub fn initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
 #[derive(Accounts)]
 pub struct MarginfiGroupInitialize<'info> {
     #[account(
-    init,
-    payer = admin,
-    space = 8 + std::mem::size_of::<MarginfiGroup>(),
+        init,
+        payer = admin,
+        space = 8 + std::mem::size_of::<MarginfiGroup>(),
     )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 

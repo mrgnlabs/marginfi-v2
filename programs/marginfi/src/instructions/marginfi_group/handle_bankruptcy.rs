@@ -101,45 +101,45 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     pub admin: Signer<'info>,
 
     #[account(
-    mut,
-    constraint = bank.load()?.group == marginfi_group.key(),
+        mut,
+        constraint = bank.load()?.group == marginfi_group.key(),
     )]
     pub bank: AccountLoader<'info, Bank>,
 
     #[account(
-    mut,
-    constraint = marginfi_account.load()?.group == marginfi_group.key(),
+        mut,
+        constraint = marginfi_account.load()?.group == marginfi_group.key(),
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     /// CHECK: Seed constraint
     #[account(
-    mut,
-    seeds = [
-    LIQUIDITY_VAULT_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump = bank.load()?.liquidity_vault_bump
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.liquidity_vault_bump
     )]
     pub liquidity_vault: AccountInfo<'info>,
 
     #[account(
-    mut,
-    seeds = [
-    INSURANCE_VAULT_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump = bank.load()?.insurance_vault_bump
+        mut,
+        seeds = [
+            INSURANCE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.insurance_vault_bump
     )]
     pub insurance_vault: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: Seed constraint
     #[account(
-    seeds = [
-    INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
-    bank.key().as_ref(),
-    ],
-    bump = bank.load()?.insurance_vault_authority_bump
+        seeds = [
+            INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.insurance_vault_authority_bump
     )]
     pub insurance_vault_authority: AccountInfo<'info>,
 

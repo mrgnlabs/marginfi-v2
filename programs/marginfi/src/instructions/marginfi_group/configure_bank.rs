@@ -24,13 +24,13 @@ pub struct LendingPoolConfigureBank<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-    address = marginfi_group.load()?.admin,
+        address = marginfi_group.load()?.admin,
     )]
     pub admin: Signer<'info>,
 
     #[account(
-    mut,
-    constraint = bank.load()?.group == marginfi_group.key(),
+        mut,
+        constraint = bank.load()?.group == marginfi_group.key(),
     )]
     pub bank: AccountLoader<'info, Bank>,
 }
