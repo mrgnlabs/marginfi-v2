@@ -5,7 +5,7 @@ use solana_program::sysvar::Sysvar;
 
 pub fn initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
     let MarginfiAccountInitialize {
-        signer,
+        authority,
         marginfi_group,
         marginfi_account,
         ..
@@ -13,7 +13,7 @@ pub fn initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
 
     let mut marginfi_account = marginfi_account.load_init()?;
 
-    marginfi_account.initialize(marginfi_group.key(), signer.key());
+    marginfi_account.initialize(marginfi_group.key(), authority.key());
 
     Ok(())
 }
@@ -24,13 +24,15 @@ pub struct MarginfiAccountInitialize<'info> {
 
     #[account(
         init,
-        payer = signer,
+        payer = fee_payer,
         space = 8 + std::mem::size_of::<MarginfiAccount>()
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
+    pub authority: Signer<'info>,
+
     #[account(mut)]
-    pub signer: Signer<'info>,
+    pub fee_payer: Signer<'info>,
 
     pub system_program: Program<'info, System>,
 }

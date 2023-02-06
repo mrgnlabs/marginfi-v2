@@ -36,7 +36,8 @@ impl MarginfiAccountFixture {
             let accounts = marginfi::accounts::MarginfiAccountInitialize {
                 marginfi_account: account_key.pubkey(),
                 marginfi_group: *marginfi_group,
-                signer: ctx.payer.pubkey(),
+                authority: ctx.payer.pubkey(),
+                fee_payer: ctx.payer.pubkey(),
                 system_program: system_program::ID,
             };
             let init_marginfi_account_ix = Instruction {
