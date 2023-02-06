@@ -1,37 +1,44 @@
+#[cfg(feature = "admin")]
+use crate::utils::{create_oracle_key_array, find_bank_vault_pda};
 use crate::{
     config::Config,
     profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
     utils::{
-        create_oracle_key_array, find_bank_vault_authority_pda, find_bank_vault_pda,
-        load_observation_account_metas, process_transaction, EXP_10_I80F48,
+        find_bank_vault_authority_pda, load_observation_account_metas, process_transaction,
+        EXP_10_I80F48,
     },
 };
 use anchor_client::{
     anchor_lang::{InstructionData, ToAccountMetas},
     Cluster,
 };
-use anchor_spl::token;
-use anyhow::Result;
-use anyhow::{anyhow, bail};
+use anchor_spl::token::{self, spl_token};
+use anyhow::{anyhow, bail, Result};
 use fixed::types::I80F48;
 use log::info;
+#[cfg(feature = "admin")]
 use marginfi::{
-    prelude::{GroupConfig, MarginfiGroup},
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{
-            Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
-            InterestRateConfig, OracleSetup, WrappedI80F48,
-        },
+    prelude::GroupConfig,
+    state::marginfi_group::{
+        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, OracleSetup,
+        WrappedI80F48,
     },
 };
-
-use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
+use marginfi::{
+    prelude::MarginfiGroup,
+    state::{
+        marginfi_account::MarginfiAccount,
+        marginfi_group::{Bank, BankVaultType},
+    },
+};
+use solana_client::rpc_filter::{Memcmp, RpcFilterType};
+#[cfg(feature = "admin")]
+use solana_sdk::instruction::AccountMeta;
 use solana_sdk::{
     account_info::IntoAccountInfo,
     clock::Clock,
     commitment_config::CommitmentLevel,
-    instruction::{AccountMeta, Instruction},
+    instruction::Instruction,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
@@ -77,13 +84,13 @@ pub fn group_get_all(config: Config) -> Result<()> {
 }
 
 pub fn print_group_banks(config: Config, marginfi_group: Pubkey) -> Result<()> {
-    let banks = config
-        .program
-        .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp {
-            offset: 8 + size_of::<Pubkey>() + size_of::<u8>(),
-            bytes: MemcmpEncodedBytes::Bytes(marginfi_group.to_bytes().to_vec()),
-            encoding: None,
-        })])?;
+    let banks =
+        config
+            .program
+            .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+                8 + size_of::<Pubkey>() + size_of::<u8>(),
+                marginfi_group.to_bytes().to_vec(),
+            ))])?;
 
     println!("--------\nBanks:");
 
@@ -94,6 +101,7 @@ pub fn print_group_banks(config: Config, marginfi_group: Pubkey) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "admin")]
 pub fn group_create(
     config: Config,
     profile: Profile,
@@ -148,6 +156,7 @@ pub fn group_create(
     Ok(())
 }
 
+#[cfg(feature = "admin")]
 pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) -> Result<()> {
     let rpc_client = config.program.rpc();
 
@@ -186,6 +195,7 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
     Ok(())
 }
 
+#[cfg(feature = "admin")]
 pub fn group_add_bank(
     config: Config,
     profile: Profile,
@@ -399,6 +409,7 @@ pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()
 // Profile
 // --------------------------------------------------------------------------------------------------------------------
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_profile(
     name: String,
     cluster: Cluster,
@@ -515,6 +526,7 @@ pub fn list_profiles() -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn configure_profile(
     name: String,
     cluster: Option<Cluster>,
@@ -539,6 +551,7 @@ pub fn configure_profile(
     Ok(())
 }
 
+#[cfg(feature = "admin")]
 pub fn bank_configure(
     config: Config,
     profile: Profile,
@@ -692,7 +705,8 @@ pub fn marginfi_account_get(
     config: &Config,
     marginfi_account_pk: Option<Pubkey>,
 ) -> Result<()> {
-    let marginfi_account_pk = marginfi_account_pk.unwrap_or(profile.marginfi_account.unwrap());
+    let marginfi_account_pk =
+        marginfi_account_pk.unwrap_or_else(|| profile.marginfi_account.unwrap());
 
     let marginfi_account = config
         .program
@@ -733,17 +747,17 @@ pub fn marginfi_account_deposit(
 
     let ix = Instruction {
         program_id: config.program_id,
-        accounts: marginfi::accounts::LendingPoolDeposit {
+        accounts: marginfi::accounts::LendingAccountDeposit {
             marginfi_group: profile.marginfi_group.unwrap(),
             marginfi_account: marginfi_account_pk,
             signer: config.payer.pubkey(),
             bank: bank_pk,
             signer_token_account: deposit_ata,
             bank_liquidity_vault: bank.liquidity_vault,
-            token_program: anchor_spl::token::ID,
+            token_program: token::ID,
         }
         .to_account_metas(Some(true)),
-        data: marginfi::instruction::LendingPoolDeposit { amount }.data(),
+        data: marginfi::instruction::LendingAccountDeposit { amount }.data(),
     };
 
     let tx = Transaction::new_signed_with_payer(
@@ -796,13 +810,13 @@ pub fn marginfi_account_withdraw(
 
     let mut ix = Instruction {
         program_id: config.program_id,
-        accounts: marginfi::accounts::LendingPoolWithdraw {
+        accounts: marginfi::accounts::LendingAccountWithdraw {
             marginfi_group: profile.marginfi_group.unwrap(),
             marginfi_account: marginfi_account_pk,
             signer: config.payer.pubkey(),
             bank: bank_pk,
             bank_liquidity_vault: bank.liquidity_vault,
-            token_program: anchor_spl::token::ID,
+            token_program: token::ID,
             destination_token_account: withdraw_ata,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
                 &bank_pk,
@@ -812,7 +826,7 @@ pub fn marginfi_account_withdraw(
             .0,
         }
         .to_account_metas(Some(true)),
-        data: marginfi::instruction::LendingPoolWithdraw {
+        data: marginfi::instruction::LendingAccountWithdraw {
             amount,
             withdraw_all: if withdraw_all { Some(true) } else { None },
         }

@@ -7,17 +7,21 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 
+#[cfg(feature = "admin")]
+use fixed::types::I80F48;
+use marginfi::state::marginfi_group::BankOperationalState;
+#[cfg(feature = "dev")]
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
     state::{
         marginfi_account::{Balance, LendingAccount, MarginfiAccount},
         marginfi_group::{
-            Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
-            OracleConfig, WrappedI80F48,
+            Bank, BankConfig, BankConfigOpt, InterestRateConfig, OracleConfig, WrappedI80F48,
         },
     },
 };
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
+#[cfg(feature = "dev")]
 use type_layout::TypeLayout;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -374,6 +378,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     }
 }
 
+#[cfg(feature = "dev")]
 fn inspect_padding() -> Result<()> {
     println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
     println!("GroupConfig: {}", GroupConfig::type_layout());

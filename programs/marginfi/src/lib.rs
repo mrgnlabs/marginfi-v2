@@ -71,36 +71,42 @@ pub mod marginfi {
         marginfi_account::initialize(ctx)
     }
 
-    pub fn lending_pool_deposit(ctx: Context<LendingPoolDeposit>, amount: u64) -> MarginfiResult {
-        marginfi_account::lending_pool_deposit(ctx, amount)
+    pub fn lending_account_deposit(
+        ctx: Context<LendingAccountDeposit>,
+        amount: u64,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_deposit(ctx, amount)
     }
 
-    pub fn lending_pool_repay(
-        ctx: Context<LendingPoolRepay>,
+    pub fn lending_account_repay(
+        ctx: Context<LendingAccountRepay>,
         amount: u64,
         repay_all: Option<bool>,
     ) -> MarginfiResult {
-        marginfi_account::lending_pool_repay(ctx, amount, repay_all)
+        marginfi_account::lending_account_repay(ctx, amount, repay_all)
     }
 
-    pub fn lending_pool_withdraw(
-        ctx: Context<LendingPoolWithdraw>,
+    pub fn lending_account_withdraw(
+        ctx: Context<LendingAccountWithdraw>,
         amount: u64,
         withdraw_all: Option<bool>,
     ) -> MarginfiResult {
-        marginfi_account::lending_pool_withdraw(ctx, amount, withdraw_all)
+        marginfi_account::lending_account_withdraw(ctx, amount, withdraw_all)
     }
 
-    pub fn lending_pool_borrow(ctx: Context<LendingPoolBorrow>, amount: u64) -> MarginfiResult {
-        marginfi_account::lending_pool_borrow(ctx, amount)
+    pub fn lending_account_borrow(
+        ctx: Context<LendingAccountBorrow>,
+        amount: u64,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_borrow(ctx, amount)
     }
 
     /// Liquidate a lending account balance of an unhealthy marginfi account
-    pub fn marginfi_account_liquidate(
-        ctx: Context<MarginfiAccountLiquidate>,
+    pub fn lending_account_liquidate(
+        ctx: Context<LendingAccountLiquidate>,
         asset_amount: u64,
     ) -> MarginfiResult {
-        marginfi_account::liquidate(ctx, asset_amount)
+        marginfi_account::lending_account_liquidate(ctx, asset_amount)
     }
 
     // Operational instructions

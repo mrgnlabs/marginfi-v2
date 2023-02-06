@@ -44,6 +44,7 @@ pub fn process_transaction(
     }
 }
 
+#[cfg(feature = "admin")]
 pub fn find_bank_vault_pda(
     bank_pk: &Pubkey,
     vault_type: BankVaultType,
@@ -60,6 +61,7 @@ pub fn find_bank_vault_authority_pda(
     Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
 }
 
+#[cfg(feature = "admin")]
 pub fn create_oracle_key_array(oracle_key: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
     let mut oracle_keys = [Pubkey::default(); MAX_ORACLE_KEYS];
     oracle_keys[0] = oracle_key;
