@@ -1,3 +1,4 @@
+use crate::events::LendingAccountWithdrawEvent;
 use crate::prelude::*;
 use crate::state::marginfi_account::{RiskEngine, RiskRequirementType};
 use crate::state::marginfi_group::Bank;
@@ -28,7 +29,7 @@ pub fn lending_account_withdraw(
     withdraw_all: Option<bool>,
 ) -> MarginfiResult {
     let LendingAccountWithdraw {
-        marginfi_account,
+        marginfi_account: marginfi_account_loader,
         destination_token_account,
         bank_liquidity_vault,
         token_program,
@@ -38,10 +39,9 @@ pub fn lending_account_withdraw(
     } = ctx.accounts;
 
     let withdraw_all = withdraw_all.unwrap_or(false);
+    let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
     bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
-
-    let mut marginfi_account = marginfi_account.load_mut()?;
 
     {
         let mut bank = bank_loader.load_mut()?;
@@ -75,6 +75,16 @@ pub fn lending_account_withdraw(
                 liquidity_vault_authority_bump
             ),
         )?;
+
+        emit!(LendingAccountWithdrawEvent {
+            amount,
+            close_balance: withdraw_all,
+            bank: bank_loader.key(),
+            mint: bank.mint,
+            signer: ctx.accounts.signer.key(),
+            marginfi_account: marginfi_account_loader.key(),
+            marginfi_group: marginfi_account.group,
+        });
     }
 
     // Check account health, if below threshold fail transaction

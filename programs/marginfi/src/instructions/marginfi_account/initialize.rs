@@ -1,3 +1,4 @@
+use crate::events::MarginfiAccountCreateEvent;
 use crate::prelude::*;
 use crate::state::marginfi_account::MarginfiAccount;
 use anchor_lang::prelude::*;
@@ -7,13 +8,19 @@ pub fn initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
     let MarginfiAccountInitialize {
         authority,
         marginfi_group,
-        marginfi_account,
+        marginfi_account: marginfi_account_loader,
         ..
     } = ctx.accounts;
 
-    let mut marginfi_account = marginfi_account.load_init()?;
+    let mut marginfi_account = marginfi_account_loader.load_init()?;
 
     marginfi_account.initialize(marginfi_group.key(), authority.key());
+
+    emit!(MarginfiAccountCreateEvent {
+        signer: signer.key(),
+        marginfi_account: marginfi_account_loader.key(),
+        marginfi_group: marginfi_account.group,
+    });
 
     Ok(())
 }

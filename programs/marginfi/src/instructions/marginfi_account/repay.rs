@@ -1,3 +1,4 @@
+use crate::events::LendingAccountRepayEvent;
 use crate::prelude::{MarginfiGroup, MarginfiResult};
 use crate::state::marginfi_group::Bank;
 use crate::{
@@ -22,7 +23,7 @@ pub fn lending_account_repay(
     repay_all: Option<bool>,
 ) -> MarginfiResult {
     let LendingAccountRepay {
-        marginfi_account,
+        marginfi_account: marginfi_account_loader,
         signer,
         signer_token_account,
         bank_liquidity_vault,
@@ -32,11 +33,10 @@ pub fn lending_account_repay(
     } = ctx.accounts;
 
     let repay_all = repay_all.unwrap_or(false);
-
-    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
-
     let mut bank = bank_loader.load_mut()?;
-    let mut marginfi_account = marginfi_account.load_mut()?;
+    let mut marginfi_account = marginfi_account_loader.load_mut()?;
+
+    bank.accrue_interest(&Clock::get()?)?;
 
     let mut bank_account = BankAccountWrapper::find(
         &bank_loader.key(),
@@ -61,6 +61,16 @@ pub fn lending_account_repay(
         },
         token_program.to_account_info(),
     )?;
+
+    emit!(LendingAccountRepayEvent {
+        amount,
+        close_balance: repay_all,
+        bank: bank_loader.key(),
+        mint: bank.mint,
+        signer: signer.key(),
+        marginfi_account: marginfi_account_loader.key(),
+        marginfi_group: marginfi_account.group,
+    });
 
     Ok(())
 }

@@ -1,4 +1,5 @@
 use crate::bank_signer;
+use crate::events::LendingAccountBorrowEvent;
 use crate::prelude::{MarginfiGroup, MarginfiResult};
 use crate::state::marginfi_group::Bank;
 use crate::{
@@ -23,7 +24,7 @@ use solana_program::sysvar::Sysvar;
 /// Will error if there is an existing asset <=> withdrawing is not allowed.
 pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -> MarginfiResult {
     let LendingAccountBorrow {
-        marginfi_account,
+        marginfi_account: marginfi_account_loader,
         destination_token_account,
         bank_liquidity_vault,
         token_program,
@@ -32,9 +33,9 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
         ..
     } = ctx.accounts;
 
-    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
+    let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    let mut marginfi_account = marginfi_account.load_mut()?;
+    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
 
     {
         let mut bank = bank_loader.load_mut()?;
@@ -61,6 +62,15 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
                 liquidity_vault_authority_bump
             ),
         )?;
+
+        emit!(LendingAccountBorrowEvent {
+            amount,
+            bank: bank_loader.key(),
+            mint: bank.mint,
+            signer: ctx.accounts.signer.key(),
+            marginfi_account: marginfi_account_loader.key(),
+            marginfi_group: marginfi_account.group,
+        });
     }
 
     // Check account health, if below threshold fail transaction
