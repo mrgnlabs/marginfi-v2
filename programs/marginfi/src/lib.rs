@@ -13,7 +13,7 @@ use state::marginfi_group::{BankConfig, BankConfigOpt};
 use static_assertions::assert_cfg;
 
 #[cfg(feature = "mainnet-beta")] // mainnet
-declare_id!("yyyxaNHJP5FiDhmQW8RkBkp1jTL2cyxJmhMdWpJfsiy");
+declare_id!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 #[cfg(feature = "devnet")] // devnet
 declare_id!("uwuyG6VmYrDk8Q3FfQ7wZhuhbi8ExweW74BrmT3vM1i");
 #[cfg(all(not(feature = "mainnet-beta"), not(feature = "devnet")))] // other
