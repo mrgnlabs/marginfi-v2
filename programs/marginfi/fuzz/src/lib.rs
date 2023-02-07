@@ -697,10 +697,31 @@ fn allocate_dex_owned_account(unpadded_size: usize, bump: &Bump) -> &mut [u8] {
     data
 }
 
+/// Creates a new solana account with random pubkey
+///
+/// # Arguments
+///
+/// * `lamports` - The amount of lamports to allocate to the account
+/// * `bump` - The bump allocator for allocating the account
+///
+/// # Returns
+///
+/// A new AccountInfo struct with the specified lamports and a random pubkey
 pub fn new_sol_account(lamports: u64, bump: &Bump) -> AccountInfo {
     new_sol_account_with_pubkey(random_pubkey(bump), lamports, bump)
 }
 
+/// Creates a new solana account with specified pubkey
+///
+/// # Arguments
+///
+/// * `pubkey` - The pubkey to assign to the account
+/// * `lamports` - The amount of lamports to allocate to the account
+/// * `bump` - The bump allocator for allocating the account
+///
+/// # Returns
+///
+/// A new AccountInfo struct with the specified lamports and pubkey
 pub fn new_sol_account_with_pubkey<'bump>(
     pubkey: &'bump Pubkey,
     lamports: u64,
@@ -918,6 +939,22 @@ pub fn set_discriminator<T: Discriminator>(ai: AccountInfo) {
     data[..8].copy_from_slice(&T::DISCRIMINATOR);
 }
 
+/// Creates a new `AccountInfo` for the Rent sysvar with the specified `lamports` and `rent` values.
+///
+/// # Arguments
+///
+/// * `lamports` - The number of lamports the Rent sysvar account should have.
+/// * `rent` - The rent value for the Rent sysvar account.
+/// * `bump` - A `Bump` allocator for allocating memory.
+///
+/// # Returns
+///
+/// A new `AccountInfo` struct representing the Rent sysvar account.
+///
+/// # Panics
+///
+/// This function may panic if the `to_account_info` method fails to set the Rent sysvar account information
+/// in the `AccountInfo` struct.
 fn new_rent_sysvar_account(lamports: u64, rent: Rent, bump: &Bump) -> AccountInfo {
     let data = bump.alloc_slice_fill_copy(size_of::<Rent>(), 0u8);
     let mut account_info = AccountInfo::new(
