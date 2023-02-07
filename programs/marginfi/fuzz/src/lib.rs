@@ -97,6 +97,25 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         }
     }
 
+    /// Initialize a number of banks and store them in the `banks` vec.
+    ///
+    /// # Arguments
+    ///
+    /// * `bump` - An instance of `Bump` used for allocating memory.
+    /// * `rent` - The Rent struct representing the rental fees for this run.
+    /// * `n_banks` - The number of banks to initialize.
+    /// * `initial_bank_configs` - An array of `BankAndOracleConfig` structs representing the initial
+    /// configurations for each bank.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut system = System::new();
+    /// let bump = &Bump::new();
+    /// let rent = Rent::default();
+    /// let initial_bank_configs = [BankAndOracleConfig::default()];
+    /// system.setup_banks(bump, rent, 1, &initial_bank_configs);
+    /// ```
     pub fn setup_banks(
         &mut self,
         bump: &'bump Bump,
@@ -110,6 +129,24 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         }
     }
 
+    /// This function sets up a number of marginfi accounts and adds them to `self.marginfi_accounts`.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `bump` - A bump allocator that allows for the allocation of new accounts.
+    /// * `rent` - Rent to be paid for the newly created accounts.
+    /// * `n_users` - The number of accounts (i.e. users) to be created.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// let mut state = State::default();
+    /// let bump = &Bump::new();
+    /// let rent = Rent::default();
+    /// let n_users = 3;
+    /// state.setup_users(bump, rent, n_users);
+    /// assert_eq!(state.marginfi_accounts.len(), n_users);
+    /// ```
     pub fn setup_users(&mut self, bump: &'bump Bump, rent: Rent, n_users: usize) {
         let token_vec = self.banks.iter().map(|b| *b.mint.key).collect();
 
