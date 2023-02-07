@@ -287,6 +287,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
 
         set_discriminator::<Bank>(bank.clone());
 
+        // Each bank
         BankAccounts {
             bank,
             oracle,
@@ -841,6 +842,7 @@ pub fn new_owned_account<'bump>(
     )
 }
 
+/// @todo
 pub fn new_dex_owned_account_with_lamports<'bump>(
     unpadded_len: usize,
     lamports: u64,
