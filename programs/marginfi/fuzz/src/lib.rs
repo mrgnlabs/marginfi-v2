@@ -158,6 +158,17 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         }
     }
 
+    /// This function sets up a bank with given configuration and adds it to the lending pool
+    ///
+    /// # Arguments
+    ///
+    /// * `bump` - The bump allocator reference
+    /// * `rent` - Rent sysvar instance
+    /// * `initial_bank_config` - Configuration used to initialize bank accounts
+    ///
+    /// # Returns
+    ///
+    /// A struct containing all the bank-related accounts
     fn setup_bank(
         &self,
         bump: &'bump Bump,
