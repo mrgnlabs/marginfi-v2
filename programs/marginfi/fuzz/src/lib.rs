@@ -788,6 +788,32 @@ pub fn new_dex_owned_account_with_lamports<'bump>(
     )
 }
 
+/// New program instantiations
+
+/// Each of the functions in this section 
+/// creates a new `AccountInfo` instance with specific properties.
+/// All arguments are the same, with the only exception being
+/// the program referenced via program ID.
+///
+/// Every function has the following attributes:
+///
+/// # Arguments
+///
+/// * `bump` - A reference to a `Bump` instance.
+///
+/// # Returns
+///
+/// An `AccountInfo` instance with the following properties:
+/// * `program_id`
+/// * `is_signed` - `false`
+/// * `is_writable` - `false`
+/// * `data` - A `Bump` allocation with a size of 0.
+/// * `account_keys` - An empty mutable slice.
+/// * `associated_program` - `bpf_loader::ID`
+/// * `is_signer` - `true`
+/// * `rent_epoch` - The default value of `Epoch`.
+
+/// Create a new instance of a SPL token program.
 pub fn new_spl_token_program(bump: &Bump) -> AccountInfo {
     AccountInfo::new(
         &spl_token::ID,
@@ -801,6 +827,7 @@ pub fn new_spl_token_program(bump: &Bump) -> AccountInfo {
     )
 }
 
+/// Create a new instance of the system program.
 pub fn new_system_program(bump: &Bump) -> AccountInfo {
     AccountInfo::new(
         &system_program::ID,
@@ -814,23 +841,7 @@ pub fn new_system_program(bump: &Bump) -> AccountInfo {
     )
 }
 
-/// Creates a new `AccountInfo` instance with specific properties.
-///
-/// # Arguments
-///
-/// * `bump` - A reference to a `Bump` instance.
-///
-/// # Returns
-///
-/// An `AccountInfo` instance with the following properties:
-/// * `program_id` - `marginfi::ID`
-/// * `is_signed` - `false`
-/// * `is_writable` - `false`
-/// * `data` - A `Bump` allocation with a size of 0.
-/// * `account_keys` - An empty mutable slice.
-/// * `associated_program` - `bpf_loader::ID`
-/// * `is_signer` - `true`
-/// * `rent_epoch` - The default value of `Epoch`.
+/// Create a new instance of the marginfi program.
 pub fn new_marginfi_program(bump: &Bump) -> AccountInfo {
     AccountInfo::new(
         &marginfi::ID,
