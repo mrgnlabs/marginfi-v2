@@ -6,6 +6,13 @@ use anyhow::Result;
 use marginfi::prelude::MarginfiGroup;
 use marginfi_fuzz::{setup_marginfi_group, AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx};
 
+/// Runs a fresh fuzz test.
+/// Sets up:
+///
+/// 1) Marginfi group
+/// 2) Banks
+/// 3) Users
+/// 4) Deposit and withdraw simulations.
 fn main() -> Result<()> {
     let bump = bumpalo::Bump::new();
     let mut a = setup_marginfi_group(&bump);

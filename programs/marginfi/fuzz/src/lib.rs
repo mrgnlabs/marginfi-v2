@@ -54,6 +54,17 @@ pub struct MarginfiGroupAccounts<'info> {
 }
 
 impl<'bump> MarginfiGroupAccounts<'bump> {
+    /// This function sets up the `MarginfiGroupAccounts` struct and initializes its fields.
+    /// This sets up the marginfi group, system program, token program, admin user, and rent sysvar.
+    /// Then, it initializes the marginfi group.
+    ///
+    /// # Arguments
+    ///
+    /// * `bump` - A reference to a `Bump` struct used for allocating memory.
+    ///
+    /// # Returns
+    ///
+    /// A fully initialized `MarginfiGroupAccounts` struct.
     pub fn setup(bump: &'bump Bump) -> Self {
         let marginfi_program = new_marginfi_program(bump);
         let system_program = new_system_program(bump);
@@ -803,6 +814,23 @@ pub fn new_system_program(bump: &Bump) -> AccountInfo {
     )
 }
 
+/// Creates a new `AccountInfo` instance with specific properties.
+///
+/// # Arguments
+///
+/// * `bump` - A reference to a `Bump` instance.
+///
+/// # Returns
+///
+/// An `AccountInfo` instance with the following properties:
+/// * `program_id` - `marginfi::ID`
+/// * `is_signed` - `false`
+/// * `is_writable` - `false`
+/// * `data` - A `Bump` allocation with a size of 0.
+/// * `account_keys` - An empty mutable slice.
+/// * `associated_program` - `bpf_loader::ID`
+/// * `is_signer` - `true`
+/// * `rent_epoch` - The default value of `Epoch`.
 pub fn new_marginfi_program(bump: &Bump) -> AccountInfo {
     AccountInfo::new(
         &marginfi::ID,
