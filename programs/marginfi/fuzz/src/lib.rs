@@ -80,11 +80,13 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
 
         MarginfiGroupAccounts {
             marginfi_group,
+            // Marginfi group is initially set up with no banks
             banks: vec![],
             owner: admin,
             system_program,
             rent_sysvar,
             token_program,
+            // Marginfi group is initially set up with no accounts (i.e. users)
             marginfi_accounts: vec![],
             last_sysvar_current_timestamp: RwLock::new(
                 SystemTime::now()
@@ -1083,6 +1085,38 @@ pub fn setup_marginfi_group(bump: &Bump) -> MarginfiGroupAccounts {
     }
 }
 
+/// Initialize the `MarginfiGroup` account and set its discriminator.
+///
+/// # Arguments
+///
+/// * `bump` - The memory arena for allocating the new `MarginfiGroup` account.
+/// * `program_id` - The program identifier for the `Marginfi` program.
+/// * `admin` - The admin account information.
+/// * `system_program` - The system program account information.
+///
+/// # Returns
+///
+/// A new `AccountInfo` instance representing the `MarginfiGroup` account.
+///
+/// # Examples
+///
+/// ```
+/// use solana_sdk::{
+///     account::AccountInfo,
+///     instruction::{AccountLoader, Program, Signer},
+///     sysvar::rent::Rent,
+/// };
+/// use solana_stake_program::stake_state::StakeState;
+///
+/// fn main() {
+///     let bump = &Bump::new();
+///     let program_id = &Pubkey::default();
+///     let admin = AccountInfo::default();
+///     let system_program = AccountInfo::default();
+///     let stake_state = initialize_marginfi_group(bump, program_id, admin, system_program);
+///     assert_eq!(*stake_state.key, Pubkey::default());
+/// }
+/// ```
 fn initialize_marginfi_group<'bump>(
     bump: &'bump Bump,
     program_id: &'bump Pubkey,
