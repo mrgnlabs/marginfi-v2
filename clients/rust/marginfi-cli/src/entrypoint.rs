@@ -9,15 +9,15 @@ use clap::{clap_derive::ArgEnum, Parser};
 
 #[cfg(feature = "admin")]
 use fixed::types::I80F48;
+#[cfg(any(feature = "admin", feature = "dev"))]
+use marginfi::state::marginfi_group::BankConfigOpt;
 use marginfi::state::marginfi_group::BankOperationalState;
 #[cfg(feature = "dev")]
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
     state::{
         marginfi_account::{Balance, LendingAccount, MarginfiAccount},
-        marginfi_group::{
-            Bank, BankConfig, BankConfigOpt, InterestRateConfig, OracleConfig, WrappedI80F48,
-        },
+        marginfi_group::{Bank, BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
     },
 };
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
