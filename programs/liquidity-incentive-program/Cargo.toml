@@ -15,13 +15,14 @@ no-log-ix-name = []
 cpi = ["no-entrypoint"]
 default = []
 devnet = ["marginfi/devnet"]
-mainnet-beta = ["marginfi/devnet"]
+mainnet-beta = ["marginfi/mainnet-beta"]
 test = []
 test-bpf = []
 
 [dependencies]
 anchor-lang = "0.26.0"
 anchor-spl = "0.26.0"
+cfg-if = "1.0.0"
 fixed = "1.12.0"
 
 [dependencies.marginfi]

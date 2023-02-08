@@ -35,7 +35,7 @@ pub fn process(
         marginfi_bank_pk: ctx.accounts.marginfi_bank.key(),
     };
 
-    msg!("Created campaing\n{:#?}", ctx.accounts.campaign);
+    msg!("Created campaing\n{:?}", ctx.accounts.campaign);
 
     Ok(())
 }

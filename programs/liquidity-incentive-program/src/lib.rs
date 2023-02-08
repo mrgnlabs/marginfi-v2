@@ -1,12 +1,20 @@
 use anchor_lang::prelude::*;
 use instructions::*;
 
-declare_id!("LipLzUxQftzq77XGVJW5c7UhxbS9ZLyZM9EGiF4Dxs4");
+cfg_if::cfg_if! {
+    if #[cfg(feature = "mainnet-beta")] {
+        declare_id!("Lip1111111111111111111111111111111111111111");
+    } else if #[cfg(feature = "devnet")] {
+        declare_id!("Lip1111111111111111111111111111111111111111");
+    } else {
+        declare_id!("Lip1111111111111111111111111111111111111111");
+    }
+}
 
-mod constants;
-mod errors;
+pub mod constants;
+pub mod errors;
 mod instructions;
-mod state;
+pub mod state;
 
 #[program]
 pub mod liquidity_incentive_program {

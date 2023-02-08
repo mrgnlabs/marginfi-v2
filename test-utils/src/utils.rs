@@ -243,57 +243,47 @@ pub mod lip {
     pub fn get_reward_vault_address(campaign_key: Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
-                liquidity_incentive_program::CAMPAIGN_SEED.as_bytes(),
+                liquidity_incentive_program::constants::CAMPAIGN_SEED.as_bytes(),
                 campaign_key.as_ref(),
             ],
             &liquidity_incentive_program::id(),
         )
     }
 
-    pub fn get_reward_vault_authority_address(campaign_key: Pubkey) -> (Pubkey, u8) {
+    pub fn get_reward_vault_authority(campaign_key: Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
-                liquidity_incentive_program::CAMPAIGN_AUTH_SEED.as_bytes(),
+                liquidity_incentive_program::constants::CAMPAIGN_AUTH_SEED.as_bytes(),
                 campaign_key.as_ref(),
             ],
             &liquidity_incentive_program::id(),
         )
     }
 
-    pub fn get_deposit_shares_vault_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+    pub fn get_temp_token_account_authority(deposit_key: Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
-                liquidity_incentive_program::DEPOSIT_SEED.as_bytes(),
+                liquidity_incentive_program::constants::TEMP_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
                 deposit_key.as_ref(),
             ],
             &liquidity_incentive_program::id(),
         )
     }
 
-    pub fn get_deposit_shares_vault_authority_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+    pub fn get_deposit_mfi_authority(deposit_key: Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
-                liquidity_incentive_program::DEPOSIT_AUTH_SEED.as_bytes(),
+                liquidity_incentive_program::constants::DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
                 deposit_key.as_ref(),
             ],
             &liquidity_incentive_program::id(),
         )
     }
 
-    pub fn get_ephemeral_token_account_address(deposit_key: Pubkey) -> (Pubkey, u8) {
+    pub fn get_marginfi_account_address(deposit_key: Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
-                liquidity_incentive_program::EPHEMERAL_TOKEN_ACCOUNT_SEED.as_bytes(),
-                deposit_key.as_ref(),
-            ],
-            &liquidity_incentive_program::id(),
-        )
-    }
-
-    pub fn get_ephemeral_token_account_authority_address(deposit_key: Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                liquidity_incentive_program::EPHEMERAL_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
+                liquidity_incentive_program::constants::MARGINFI_ACCOUNT_SEED.as_bytes(),
                 deposit_key.as_ref(),
             ],
             &liquidity_incentive_program::id(),

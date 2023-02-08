@@ -1,19 +1,19 @@
 use super::utils::load_and_deserialize;
-use crate::{
-    prelude::{MintFixture, TokenAccountFixture},
-};
+use crate::prelude::{MintFixture, TokenAccountFixture};
 use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
     InstructionData, ToAccountMetas,
 };
-use anchor_spl::token::spl_token;
+
 use marginfi::{
     state::marginfi_group::{Bank, BankConfigOpt, BankVaultType},
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
 use solana_program::instruction::Instruction;
-use solana_program_test::{BanksClientError, ProgramTestContext};
-use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+use solana_program_test::BanksClientError;
+use solana_program_test::ProgramTestContext;
+use solana_sdk::signature::Keypair;
+use solana_sdk::{signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 #[derive(Clone)]
@@ -109,10 +109,8 @@ impl BankFixture {
             accounts: liquidity_incentive_program::accounts::CreateCampaign {
                 campaign: campaign_key.pubkey(),
                 campaign_reward_vault: get_reward_vault_address(campaign_key.pubkey()).0,
-                campaign_reward_vault_authority: get_reward_vault_authority_address(
-                    campaign_key.pubkey(),
-                )
-                .0,
+                campaign_reward_vault_authority: get_reward_vault_authority(campaign_key.pubkey())
+                    .0,
                 asset_mint: bank.mint,
                 marginfi_bank: self.key,
                 admin: self.ctx.borrow().payer.pubkey(),

@@ -47,20 +47,31 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
 
     let signer_seeds: &[&[&[u8]]] = &[&[
         DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
-        ctx.accounts.deposit.key().as_ref(),
-        &[*ctx.bumps.get("deposit_marginfi_pda_signer").unwrap()],
+        &ctx.accounts.deposit.key().to_bytes(),
+        &[*ctx.bumps.get("mfi_pda_signer").unwrap()],
     ]];
 
     marginfi::cpi::marginfi_account_initialize(CpiContext::new_with_signer(
         ctx.accounts.marginfi_program.to_account_info(),
         marginfi::cpi::accounts::MarginfiAccountInitialize {
             marginfi_group: ctx.accounts.marginfi_group.to_account_info(),
-            authority: ctx.accounts.deposit_marginfi_pda_signer.to_account_info(),
+            authority: ctx.accounts.mfi_pda_signer.to_account_info(),
             marginfi_account: ctx.accounts.marginfi_account.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
             fee_payer: ctx.accounts.signer.to_account_info(),
         },
-        signer_seeds,
+        &[
+            &[
+                DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
+                &ctx.accounts.deposit.key().to_bytes(),
+                &[*ctx.bumps.get("mfi_pda_signer").unwrap()],
+            ],
+            &[
+                MARGINFI_ACCOUNT_SEED.as_bytes(),
+                &ctx.accounts.deposit.key().to_bytes(),
+                &[*ctx.bumps.get("marginfi_account").unwrap()],
+            ],
+        ],
     ))?;
 
     marginfi::cpi::lending_account_deposit(
@@ -69,7 +80,7 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
             marginfi::cpi::accounts::LendingAccountDeposit {
                 marginfi_group: ctx.accounts.marginfi_group.to_account_info(),
                 marginfi_account: ctx.accounts.marginfi_account.to_account_info(),
-                signer: ctx.accounts.deposit_marginfi_pda_signer.to_account_info(),
+                signer: ctx.accounts.mfi_pda_signer.to_account_info(),
                 bank: ctx.accounts.marginfi_bank.to_account_info(),
                 signer_token_account: ctx.accounts.temp_token_account.to_account_info(),
                 bank_liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
@@ -85,7 +96,7 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
         CloseAccount {
             account: ctx.accounts.temp_token_account.to_account_info(),
             destination: ctx.accounts.signer.to_account_info(),
-            authority: ctx.accounts.deposit_marginfi_pda_signer.to_account_info(),
+            authority: ctx.accounts.mfi_pda_signer.to_account_info(),
         },
         signer_seeds,
     ))?;
@@ -122,7 +133,7 @@ pub struct CreateDeposit<'info> {
         bump,
     )]
     /// CHECK: Asserted by PDA derivation
-    pub deposit_marginfi_pda_signer: AccountInfo<'info>,
+    pub mfi_pda_signer: AccountInfo<'info>,
     #[account(mut)]
     /// CHECK: Asserted by token transfer
     pub funding_account: AccountInfo<'info>,
@@ -130,7 +141,7 @@ pub struct CreateDeposit<'info> {
         init,
         payer = signer,
         token::mint = asset_mint,
-        token::authority = deposit_marginfi_pda_signer,
+        token::authority = mfi_pda_signer,
     )]
     pub temp_token_account: Account<'info, TokenAccount>,
     /// CHECK: Asserted by mfi cpi call
@@ -155,7 +166,6 @@ pub struct CreateDeposit<'info> {
     #[account(mut)]
     /// CHECK: Asserted by CPI call
     pub marginfi_bank_vault: AccountInfo<'info>,
-    #[account(mut)]
     /// CHECK: Asserted by CPI call
     pub marginfi_program: Program<'info, Marginfi>,
     pub token_program: Program<'info, Token>,

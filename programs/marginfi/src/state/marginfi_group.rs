@@ -11,7 +11,7 @@ use crate::{
     set_if_some, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{burn, mint_to, transfer, Burn, MintTo, Transfer};
+use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 

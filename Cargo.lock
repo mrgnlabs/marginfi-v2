@@ -2065,6 +2065,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "bincode",
+ "cfg-if",
  "fixed",
  "futures",
  "marginfi",

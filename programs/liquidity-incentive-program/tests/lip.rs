@@ -5,8 +5,7 @@ use fixtures::{
     test::{TestFixture, DEFAULT_USDC_TEST_BANK_CONFIG},
     time,
 };
-use liquidity_incentive_program::LIPError;
-
+use liquidity_incentive_program::errors::LIPError;
 use solana_program_test::tokio;
 
 #[tokio::test]
@@ -44,14 +43,14 @@ async fn lip_create_campaign() -> Result<()> {
         .await;
 
     let res = campaign_f
-        .try_deposit(deposit_funding_account.key, native!(1001, "USDC"))
+        .try_create_deposit(deposit_funding_account.key, native!(1001, "USDC"))
         .await;
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), LIPError::DepositAmountTooLarge);
 
     let res = campaign_f
-        .try_deposit(deposit_funding_account.key, native!(1000, "USDC"))
+        .try_create_deposit(deposit_funding_account.key, native!(1000, "USDC"))
         .await;
 
     assert!(res.is_ok());

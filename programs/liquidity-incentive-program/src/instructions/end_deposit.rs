@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{close_account, transfer, Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
-use marginfi::program::Marginfi;
+use marginfi::{program::Marginfi, state::marginfi_group::Bank};
 
 use crate::{
     constants::{
@@ -57,7 +57,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
             &[&[
                 DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
                 ctx.accounts.deposit.key().as_ref(),
-                &[*ctx.bumps.get("deposit_marginfi_pda_signer").unwrap()],
+                &[*ctx.bumps.get("mfi_pda_signer").unwrap()],
             ]],
         ),
         0,
@@ -131,7 +131,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
             &[&[
                 TEMP_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
                 ctx.accounts.deposit.key().as_ref(),
-                &[*ctx.bumps.get("ephemeral_token_account_authority").unwrap()],
+                &[*ctx.bumps.get("campaign_reward_vault_authority").unwrap()],
             ]],
         ),
         ctx.accounts.temp_token_account.amount,
@@ -148,7 +148,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
         &[&[
             TEMP_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
             ctx.accounts.deposit.key().as_ref(),
-            &[*ctx.bumps.get("ephemeral_token_account_authority").unwrap()],
+            &[*ctx.bumps.get("campaign_reward_vault_authority").unwrap()],
         ]],
     ))?;
 
@@ -238,8 +238,6 @@ pub struct EndDeposit<'info> {
     #[account(mut)]
     pub marginfi_bank_vault_authority: AccountInfo<'info>,
     /// CHECK: Asserted by CPI call
-    #[account(mut)]
-    pub marginfi_shares_mint: AccountInfo<'info>,
     pub marginfi_program: Program<'info, Marginfi>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
