@@ -69,9 +69,11 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
 
     // Calulate additional rewards that need to be payed out, based on guaranteed yield.
     // This is done by calculating the difference between guaranteed yield and actual yield.
-    // FIXME: Bound the payout in case of bad debt
     let additional_reward_amount = {
-        let base_yield = ctx.accounts.temp_token_account.amount - ctx.accounts.deposit.amount;
+        let initial_deposit = ctx.accounts.deposit.amount;
+        let end_deposit = ctx.accounts.temp_token_account.amount;
+
+        let base_yield = end_deposit.saturating_sub(initial_deposit);
 
         let max_reward_for_deposit = (I80F48::from_num(ctx.accounts.campaign.max_rewards)
             * I80F48::from_num(ctx.accounts.deposit.amount)
