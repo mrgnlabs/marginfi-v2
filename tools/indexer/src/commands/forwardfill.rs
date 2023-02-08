@@ -1,0 +1,482 @@
+use crate::utils::{
+    big_query::DATE_FORMAT_STR,
+    protos::{
+        gcp_pubsub,
+        geyser::{
+            geyser_client::GeyserClient, subscribe_update::UpdateOneof, SubscribeRequest,
+            SubscribeRequestFilterSlots, SubscribeRequestFilterTransactions,
+            SubscribeUpdateSlotStatus,
+        },
+    },
+};
+use anyhow::Result;
+use base64::{engine::general_purpose, Engine};
+use chrono::{DateTime, Utc};
+use envconfig::Envconfig;
+use futures::{future::join_all, stream, StreamExt};
+use google_cloud_auth::{credentials::CredentialsFile, Project};
+use google_cloud_gax::project::ProjectOptions;
+use google_cloud_googleapis::pubsub::v1::PubsubMessage;
+use google_cloud_pubsub::client::{Client, ClientConfig};
+use itertools::Itertools;
+use log::{error, info, warn};
+use solana_measure::measure::Measure;
+use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::TransactionVersion};
+use solana_transaction_status::{UiTransactionStatusMeta, VersionedTransactionWithStatusMeta};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    },
+    time::Duration,
+};
+use tonic::{
+    codegen::InterceptedService,
+    service::Interceptor,
+    transport::{Channel, ClientTlsConfig, Endpoint},
+    Request, Status,
+};
+use uuid::Uuid;
+
+#[derive(Envconfig, Debug, Clone)]
+pub struct ForwardfillConfig {
+    #[envconfig(from = "FORWARDFILL_RPC_ENDPOINT")]
+    pub rpc_endpoint: String,
+    #[envconfig(from = "FORWARDFILL_RPC_TOKEN")]
+    pub rpc_token: String,
+    #[envconfig(from = "FORWARDFILL_SLOTS_BUFFER_SIZE")]
+    pub slots_buffer_size: u32,
+    #[envconfig(from = "FORWARDFILL_MAX_CONCURRENT_REQUESTS")]
+    pub max_concurrent_requests: usize,
+    #[envconfig(from = "FORWARDFILL_MONITOR_INTERVAL")]
+    pub monitor_interval: u64,
+    #[envconfig(from = "FORWARDFILL_PROGRAM_ID")]
+    pub program_id: Pubkey,
+
+    #[envconfig(from = "FORWARDFILL_PROJECT_ID")]
+    pub project_id: String,
+    #[envconfig(from = "FORWARDFILL_PUBSUB_TOPIC_NAME")]
+    pub topic_name: String,
+    #[envconfig(from = "GOOGLE_APPLICATION_CREDENTIALS_JSON")]
+    pub gcp_sa_key: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransactionData {
+    pub timestamp: DateTime<Utc>,
+    pub slot: u64,
+    pub signature: Signature,
+    pub indexing_addresses: Vec<String>,
+    pub transaction: VersionedTransactionWithStatusMeta,
+}
+
+#[derive(Clone)]
+pub struct Context {
+    pub config: Arc<ForwardfillConfig>,
+    transactions_queue: Arc<Mutex<BTreeMap<u64, Vec<TransactionData>>>>,
+    transactions_counter: Arc<AtomicU64>,
+    latest_slots_with_commitment: Arc<Mutex<BTreeSet<u64>>>,
+    stream_disconnection_count: Arc<AtomicU64>,
+    update_processing_error_count: Arc<AtomicU64>,
+}
+
+impl Context {
+    pub async fn new(config: &ForwardfillConfig) -> Self {
+        Self {
+            config: Arc::new(config.clone()),
+            transactions_queue: Arc::new(Mutex::new(BTreeMap::new())),
+            transactions_counter: Arc::new(AtomicU64::new(0)),
+            latest_slots_with_commitment: Arc::new(Mutex::new(BTreeSet::new())),
+            stream_disconnection_count: Arc::new(AtomicU64::new(0)),
+            update_processing_error_count: Arc::new(AtomicU64::new(0)),
+        }
+    }
+}
+
+pub async fn forwardfill(config: ForwardfillConfig) -> Result<()> {
+    let context = Arc::new(Context::new(&config).await);
+
+    let listen_to_updates_handle = tokio::spawn({
+        let context = context.clone();
+        async move { listen_to_updates(context).await }
+    });
+    let process_transactions_handle = tokio::spawn({
+        let context = context.clone();
+        async move { push_transactions_to_pubsub(context).await }
+    });
+    let monitor_handle = tokio::spawn({
+        let context = context.clone();
+        async move { monitor(context).await }
+    });
+
+    join_all([
+        listen_to_updates_handle,
+        process_transactions_handle,
+        monitor_handle,
+    ])
+    .await;
+
+    Ok(())
+}
+
+struct RequestInterceptor {
+    auth_token: String,
+}
+
+impl Interceptor for RequestInterceptor {
+    fn call(&mut self, mut request: Request<()>) -> Result<Request<()>, Status> {
+        request
+            .metadata_mut()
+            .insert("x-token", self.auth_token.parse().unwrap());
+        Ok(request)
+    }
+}
+
+async fn get_geyser_client(
+    url: String,
+    auth_token: String,
+) -> Result<GeyserClient<InterceptedService<Channel, RequestInterceptor>>> {
+    let mut endpoint = Endpoint::from_shared(url.clone())?;
+
+    if url.contains("https") {
+        endpoint = endpoint.tls_config(ClientTlsConfig::new())?;
+    }
+    let channel = endpoint.connect().await.unwrap();
+
+    Ok(GeyserClient::with_interceptor(
+        channel,
+        RequestInterceptor { auth_token },
+    ))
+}
+
+fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) -> Result<()> {
+    match update {
+        UpdateOneof::Transaction(transaction_update) => {
+            if let Some(transaction_info) = transaction_update.transaction {
+                let signature = transaction_info.signature.clone();
+                let transaction: VersionedTransactionWithStatusMeta = transaction_info.into();
+                println!("{:?}: {:?}", signature, transaction);
+                let mut transactions_queue = ctx.transactions_queue.lock().unwrap();
+
+                let slot_transactions = match transactions_queue.get_mut(&transaction_update.slot) {
+                    Some(slot_transactions) => slot_transactions,
+                    None => {
+                        transactions_queue.insert(transaction_update.slot, vec![]);
+                        transactions_queue
+                            .get_mut(&transaction_update.slot)
+                            .unwrap()
+                    }
+                };
+
+                slot_transactions.push(TransactionData {
+                    timestamp: Utc::now(),
+                    signature: Signature::new(&signature),
+                    slot: transaction_update.slot,
+                    indexing_addresses: filters.to_vec(),
+                    transaction,
+                });
+                // println!("slot_transactions for {:?} at {}: {}", filters.to_vec(), transaction_update.slot, slot_transactions.len());
+            } else {
+                anyhow::bail!("Expected `transaction` in `UpdateOneof::Transaction` update");
+            }
+        }
+        UpdateOneof::Slot(slot) => {
+            println!("slot: {:?}", slot);
+            if slot.status == SubscribeUpdateSlotStatus::Confirmed as i32
+                || slot.status == SubscribeUpdateSlotStatus::Finalized as i32
+            {
+                let mut latest_slots = ctx.latest_slots_with_commitment.lock().unwrap();
+                let slot_inserted = latest_slots.insert(slot.slot);
+                if slot_inserted && latest_slots.len() > ctx.config.slots_buffer_size as usize {
+                    let oldest_slot = *latest_slots.first().unwrap();
+                    latest_slots.remove(&oldest_slot);
+                }
+            }
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
+async fn listen_to_updates(ctx: Arc<Context>) {
+    loop {
+        info!("Instantiating geyser client");
+        match get_geyser_client(
+            ctx.config.rpc_endpoint.to_string(),
+            ctx.config.rpc_token.to_string(),
+        )
+        .await
+        {
+            Ok(mut geyser_client) => {
+                info!("Subscribing to updates");
+                let stream_request = geyser_client
+                    .subscribe(stream::iter([SubscribeRequest {
+                        accounts: HashMap::default(),
+                        slots: HashMap::from_iter([(
+                            "slots".to_string(),
+                            SubscribeRequestFilterSlots {},
+                        )]),
+                        transactions: HashMap::from_iter([(
+                            ctx.config.program_id.to_string(),
+                            SubscribeRequestFilterTransactions {
+                                vote: Some(false),
+                                failed: Some(true),
+                                account_include: vec![ctx.config.program_id.to_string()],
+                                account_exclude: vec![],
+                            },
+                        )]),
+                        blocks: HashMap::default(),
+                    }]))
+                    .await;
+
+                match stream_request {
+                    Ok(stream_response) => {
+                        let mut stream = stream_response.into_inner();
+                        while let Some(received) = stream.next().await {
+                            match received {
+                                Ok(received) => {
+                                    if let Some(update) = received.update_oneof {
+                                        match process_update(ctx.clone(), &received.filters, update)
+                                        {
+                                            Ok(_) => {}
+                                            Err(err) => {
+                                                error!("Error processing update: {}", err);
+                                                ctx.update_processing_error_count
+                                                    .fetch_add(1, Ordering::Relaxed);
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    error!("Error pulling next update: {}", err);
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                    break;
+                                }
+                            }
+                        }
+
+                        error!("Stream got disconnected");
+                        ctx.stream_disconnection_count
+                            .fetch_add(1, Ordering::Relaxed);
+                    }
+                    Err(err) => {
+                        error!("Error establishing geyser sub: {}", err);
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                }
+            }
+            Err(err) => {
+                error!("Error creating geyser client: {}", err);
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
+    let topic_name = ctx.config.topic_name.as_str();
+
+    let client = Client::new(ClientConfig {
+        project_id: Some(ctx.config.project_id.clone()),
+        project: ProjectOptions::Project(Some(Project::FromFile(Box::new(
+            CredentialsFile::new().await.unwrap(),
+        )))),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let topic = client.topic(topic_name);
+    topic
+        .exists(None, None)
+        .await
+        .unwrap_or_else(|_| panic!("topic {} not found", topic_name));
+
+    let publisher = topic.new_publisher(None);
+
+    loop {
+        let mut transactions_data: Vec<TransactionData> = vec![];
+        {
+            let mut transactions_per_slot = ctx.transactions_queue.lock().unwrap();
+            let latest_slots_with_commitment = ctx.latest_slots_with_commitment.lock().unwrap();
+
+            // Remove all transactions received in a slot that has not been confirmed in allotted time
+            if let Some(oldest_slot_with_commitment) = latest_slots_with_commitment.first() {
+                transactions_per_slot.retain(|slot, transactions| {
+                    if slot < oldest_slot_with_commitment {
+                        warn!(
+                            "throwing away txs {:?} from slot {}",
+                            transactions
+                                .iter()
+                                .map(|tx| tx.signature.to_string())
+                                .collect_vec(),
+                            slot
+                        );
+                    }
+
+                    slot >= oldest_slot_with_commitment
+                });
+            }
+
+            // Add transactions from confirmed slots to the queue of transactions to be indexed
+            for (slot, slot_transactions) in transactions_per_slot.clone().iter() {
+                if let Some(latest_slot_with_commitment) = latest_slots_with_commitment.last() {
+                    if slot > latest_slot_with_commitment {
+                        break; // Ok because transactions_per_slot is sorted (BtreeMap)
+                    }
+                }
+
+                if latest_slots_with_commitment.contains(slot) {
+                    transactions_data.extend(slot_transactions.clone());
+                    transactions_per_slot.remove(slot);
+                }
+            }
+        }
+
+        if transactions_data.is_empty() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            continue;
+        }
+
+        let mut messages = vec![];
+
+        transactions_data.iter().for_each(|transaction_data| {
+            ctx.transactions_counter.fetch_add(1, Ordering::Relaxed);
+            // println!(
+            //     "{:?} - {}",
+            //     transaction_data.indexing_addresses,
+            //     transaction_data
+            //         .transaction
+            //         .transaction
+            //         .signatures
+            //         .first()
+            //         .unwrap()
+            // );
+
+            let now = Utc::now();
+
+            transaction_data
+                .indexing_addresses
+                .iter()
+                .for_each(|indexing_address| {
+                    let message = gcp_pubsub::PubsubTransaction {
+                        id: Uuid::new_v4().to_string(),
+                        created_at: now.format(DATE_FORMAT_STR).to_string(),
+                        timestamp: transaction_data
+                            .timestamp
+                            .format(DATE_FORMAT_STR)
+                            .to_string(),
+                        signature: transaction_data.signature.to_string(),
+                        indexing_address: indexing_address.to_string(),
+                        slot: transaction_data.slot,
+                        signer: transaction_data
+                            .transaction
+                            .transaction
+                            .message
+                            .static_account_keys()
+                            .first()
+                            .unwrap()
+                            .to_string(),
+                        success: transaction_data.transaction.meta.status.is_ok(),
+                        version: match transaction_data.transaction.transaction.version() {
+                            TransactionVersion::Legacy(_) => "legacy".to_string(),
+                            TransactionVersion::Number(version) => version.to_string(),
+                        },
+
+                        fee: transaction_data.transaction.meta.fee,
+                        meta: serde_json::to_string(&UiTransactionStatusMeta::from(
+                            transaction_data.transaction.meta.clone(),
+                        ))
+                        .unwrap(),
+                        message: general_purpose::STANDARD
+                            .encode(transaction_data.transaction.transaction.message.serialize()),
+                    };
+
+                    messages.push(PubsubMessage {
+                        data: serde_json::to_string(&message).unwrap().as_bytes().to_vec(),
+                        ..PubsubMessage::default()
+                    });
+                });
+        });
+
+        // Send a message. There are also `publish_bulk` and `publish_immediately` methods.
+        let awaiters = publisher.publish_bulk(messages).await;
+
+        // The get method blocks until a server-generated ID or an error is returned for the published message.
+        let pub_results: Vec<Result<String, Status>> = join_all(
+            awaiters
+                .into_iter()
+                .map(|awaiter| awaiter.get(None))
+                .collect_vec(),
+        )
+        .await;
+
+        pub_results.into_iter().for_each(|result| match result {
+            Ok(_) => {}
+            Err(status) => {
+                error!(
+                    "Error sending tx to pubsub (code {:?}): {:?}",
+                    status.code(),
+                    status.message()
+                )
+            }
+        });
+    }
+}
+
+async fn monitor(ctx: Arc<Context>) {
+    let mut main_timing = Measure::start("main");
+    let mut last_fetch_count = 0u64;
+    let mut last_fetch_time = 0f32;
+
+    loop {
+        tokio::time::sleep(Duration::from_secs(ctx.config.monitor_interval)).await;
+        main_timing.stop();
+        let latest_slots = ctx.latest_slots_with_commitment.lock().unwrap().clone();
+        let tx_queue = ctx.transactions_queue.lock().unwrap().clone();
+        let earliest_block_with_commitment = latest_slots.first().unwrap_or(&0);
+        let latest_block_with_commitment = latest_slots.last().unwrap_or(&u64::MAX);
+        let earliest_pending_slot = tx_queue
+            .first_key_value()
+            .map(|(slot, _)| slot)
+            .unwrap_or(&0);
+        let latest_pending_slot = tx_queue
+            .first_key_value()
+            .map(|(slot, _)| slot)
+            .unwrap_or(&u64::MAX);
+        let current_fetch_count = ctx.transactions_counter.load(Ordering::Relaxed);
+        let stream_disconnection_count = ctx.stream_disconnection_count.load(Ordering::Relaxed);
+        let update_processing_error_count =
+            ctx.update_processing_error_count.load(Ordering::Relaxed);
+        let current_fetch_time = main_timing.as_s();
+
+        let ingest_rate = if (current_fetch_time - last_fetch_time) > 0.0 {
+            (current_fetch_count - last_fetch_count) as f32 / (current_fetch_time - last_fetch_time)
+        } else {
+            f32::INFINITY
+        };
+        let tx_queue_size = ctx.transactions_queue.lock().unwrap().len();
+
+        info!(
+            "Time: {:.1}s | Total txs: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {}\n\tEarliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
+            current_fetch_time,
+            current_fetch_count,
+            current_fetch_time - last_fetch_time,
+            current_fetch_count - last_fetch_count,
+            current_fetch_time - last_fetch_time,
+            ingest_rate,
+            tx_queue_size,
+            stream_disconnection_count,
+            update_processing_error_count,
+            earliest_block_with_commitment,
+            latest_block_with_commitment,
+            earliest_pending_slot,
+            latest_pending_slot,
+        );
+
+        last_fetch_count = current_fetch_count;
+        last_fetch_time = current_fetch_time;
+    }
+}
