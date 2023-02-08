@@ -4,7 +4,7 @@ use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
     InstructionData, ToAccountMetas,
 };
-
+use fixed::types::I80F48;
 use marginfi::{
     state::marginfi_group::{Bank, BankConfigOpt, BankVaultType},
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
@@ -156,6 +156,24 @@ impl BankFixture {
         let (vault, _) = self.get_vault(vault_type);
 
         TokenAccountFixture::fetch(self.ctx.clone(), vault).await
+    }
+
+    pub async fn set_asset_share_value(&self, value: I80F48) {
+        let mut bank_ai = self
+            .ctx
+            .borrow_mut()
+            .banks_client
+            .get_account(self.key)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut bank = bytemuck::from_bytes_mut::<Bank>(&mut bank_ai.data.as_mut_slice()[8..]);
+
+        bank.asset_share_value = value.into();
+
+        self.ctx
+            .borrow_mut()
+            .set_account(&self.key, &bank_ai.into());
     }
 }
 
