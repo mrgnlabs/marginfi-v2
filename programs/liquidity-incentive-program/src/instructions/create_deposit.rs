@@ -146,6 +146,7 @@ pub struct CreateDeposit<'info> {
     pub temp_token_account: Account<'info, TokenAccount>,
     /// CHECK: Asserted by mfi cpi call
     pub asset_mint: Account<'info, Mint>,
+    /// CHECK: Asserted by mfi cpi call
     pub marginfi_group: AccountInfo<'info>,
     #[account(
         mut,

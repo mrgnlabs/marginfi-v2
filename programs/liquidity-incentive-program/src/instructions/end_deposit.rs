@@ -225,6 +225,7 @@ pub struct EndDeposit<'info> {
         ],
         bump,
     )]
+    /// CHECK: Asserted by PDA derivation
     pub marginfi_account: AccountInfo<'info>,
     /// CHECK: Asserted by CPI call
     pub marginfi_group: AccountInfo<'info>,
