@@ -133,7 +133,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
             &[&[
                 TEMP_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
                 ctx.accounts.deposit.key().as_ref(),
-                &[*ctx.bumps.get("campaign_reward_vault_authority").unwrap()],
+                &[*ctx.bumps.get("temp_token_account_authority").unwrap()],
             ]],
         ),
         ctx.accounts.temp_token_account.amount,
@@ -150,7 +150,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
         &[&[
             TEMP_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
             ctx.accounts.deposit.key().as_ref(),
-            &[*ctx.bumps.get("campaign_reward_vault_authority").unwrap()],
+            &[*ctx.bumps.get("temp_token_account_authority").unwrap()],
         ]],
     ))?;
 
