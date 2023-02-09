@@ -25,7 +25,7 @@ pub fn process(
         max_rewards,
     )?;
 
-    *ctx.accounts.campaign = Campaign {
+    ctx.accounts.campaign.set_inner(Campaign {
         admin: ctx.accounts.admin.key(),
         lockup_period,
         active: true,
@@ -33,7 +33,8 @@ pub fn process(
         remaining_capacity: max_deposits,
         max_rewards,
         marginfi_bank_pk: ctx.accounts.marginfi_bank.key(),
-    };
+        _padding: [0; 16],
+    });
 
     msg!("Created campaing\n{:?}", ctx.accounts.campaign);
 
@@ -47,7 +48,7 @@ pub struct CreateCampaign<'info> {
         payer = admin,
         space = size_of::<Campaign>() + 8,
     )]
-    pub campaign: Account<'info, Campaign>,
+    pub campaign: Box<Account<'info, Campaign>>,
     #[account(
         init,
         payer = admin,
@@ -59,7 +60,7 @@ pub struct CreateCampaign<'info> {
         ],
         bump,
     )]
-    pub campaign_reward_vault: Account<'info, TokenAccount>,
+    pub campaign_reward_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         seeds = [
             CAMPAIGN_AUTH_SEED.as_bytes(),

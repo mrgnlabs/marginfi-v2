@@ -101,12 +101,13 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
         signer_seeds,
     ))?;
 
-    *ctx.accounts.deposit = Deposit {
+    ctx.accounts.deposit.set_inner(Deposit {
         owner: ctx.accounts.signer.key(),
         campaign: ctx.accounts.campaign.key(),
         amount,
         start_time: Clock::get()?.unix_timestamp,
-    };
+        _padding: [0; 16],
+    });
 
     ctx.accounts.campaign.remaining_capacity = ctx
         .accounts
@@ -121,7 +122,7 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
 #[derive(Accounts)]
 pub struct CreateDeposit<'info> {
     #[account(mut)]
-    pub campaign: Account<'info, Campaign>,
+    pub campaign: Box<Account<'info, Campaign>>,
     #[account(mut)]
     pub signer: Signer<'info>,
     #[account(
@@ -129,7 +130,7 @@ pub struct CreateDeposit<'info> {
         payer = signer,
         space = size_of::<Deposit>() + 8,
     )]
-    pub deposit: Account<'info, Deposit>,
+    pub deposit: Box<Account<'info, Deposit>>,
     #[account(
         seeds = [
             DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
@@ -148,9 +149,9 @@ pub struct CreateDeposit<'info> {
         token::mint = asset_mint,
         token::authority = mfi_pda_signer,
     )]
-    pub temp_token_account: Account<'info, TokenAccount>,
+    pub temp_token_account: Box<Account<'info, TokenAccount>>,
     /// CHECK: Asserted by mfi cpi call
-    pub asset_mint: Account<'info, Mint>,
+    pub asset_mint: Box<Account<'info, Mint>>,
     /// CHECK: Asserted by mfi cpi call
     pub marginfi_group: AccountInfo<'info>,
     #[account(
@@ -162,7 +163,6 @@ pub struct CreateDeposit<'info> {
     /// CHECK: Asserted by CPI call
     #[account(
         mut,
-        zero,
         seeds = [
             MARGINFI_ACCOUNT_SEED.as_bytes(),
             deposit.key().as_ref(),
