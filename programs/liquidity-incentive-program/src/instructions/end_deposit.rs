@@ -34,6 +34,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
     // Check if the lockup period has passed
     require_gte!(
         Clock::get()?.unix_timestamp,
+        // Skipping checked math here as numbers should be small enough to not overflow
         ctx.accounts.deposit.start_time + ctx.accounts.campaign.lockup_period as i64,
         LIPError::DepositNotMature
     );
@@ -75,10 +76,17 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
 
         let base_yield = end_deposit.saturating_sub(initial_deposit);
 
-        let max_reward_for_deposit = (I80F48::from_num(ctx.accounts.campaign.max_rewards)
-            * I80F48::from_num(ctx.accounts.deposit.amount)
-            / I80F48::from_num(ctx.accounts.campaign.max_deposits))
-        .to_num::<u64>();
+        let max_rewards_pre_campaign = I80F48::from_num(ctx.accounts.campaign.max_rewards);
+        let max_deposits_pre_campaign = I80F48::from_num(ctx.accounts.campaign.max_deposits);
+        let deposit_amount = I80F48::from_num(ctx.accounts.deposit.amount);
+
+        let max_reward_for_deposit = deposit_amount
+            .checked_div(max_deposits_pre_campaign)
+            .unwrap()
+            .checked_mul(max_rewards_pre_campaign)
+            .unwrap()
+            .checked_to_num::<u64>()
+            .unwrap();
 
         msg!(
             "Base yield: {}, max reward for deposit: {}",

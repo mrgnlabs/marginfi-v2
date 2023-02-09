@@ -26,7 +26,7 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
     require!(ctx.accounts.campaign.active, LIPError::CampaignNotActive);
 
     require_gte!(
-        ctx.accounts.campaign.outstanding_deposits,
+        ctx.accounts.campaign.remaining_capacity,
         amount,
         LIPError::DepositAmountTooLarge
     );
@@ -108,7 +108,12 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
         start_time: Clock::get()?.unix_timestamp,
     };
 
-    ctx.accounts.campaign.outstanding_deposits -= amount;
+    ctx.accounts.campaign.remaining_capacity = ctx
+        .accounts
+        .campaign
+        .remaining_capacity
+        .checked_sub(amount)
+        .unwrap();
 
     Ok(())
 }
@@ -157,6 +162,7 @@ pub struct CreateDeposit<'info> {
     /// CHECK: Asserted by CPI call
     #[account(
         mut,
+        zero,
         seeds = [
             MARGINFI_ACCOUNT_SEED.as_bytes(),
             deposit.key().as_ref(),

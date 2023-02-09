@@ -7,7 +7,7 @@ pub struct Campaign {
     pub lockup_period: u64,
     pub active: bool,
     pub max_deposits: u64,
-    pub outstanding_deposits: u64,
+    pub remaining_capacity: u64,
     pub max_rewards: u64,
     pub marginfi_bank_pk: Pubkey,
 }

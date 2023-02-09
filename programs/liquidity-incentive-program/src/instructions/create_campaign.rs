@@ -30,7 +30,7 @@ pub fn process(
         lockup_period,
         active: true,
         max_deposits,
-        outstanding_deposits: max_deposits,
+        remaining_capacity: max_deposits,
         max_rewards,
         marginfi_bank_pk: ctx.accounts.marginfi_bank.key(),
     };
