@@ -169,6 +169,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
 pub struct EndDeposit<'info> {
     #[account(address = deposit.campaign)]
     pub campaign: Box<Account<'info, Campaign>>,
+
     #[account(
         mut,
         seeds = [
@@ -178,6 +179,7 @@ pub struct EndDeposit<'info> {
         bump,
     )]
     pub campaign_reward_vault: Box<Account<'info, TokenAccount>>,
+
     #[account(
         seeds = [
             CAMPAIGN_AUTH_SEED.as_bytes(),
@@ -187,13 +189,16 @@ pub struct EndDeposit<'info> {
     )]
     /// CHECK: Asserted by PDA derivation
     pub campaign_reward_vault_authority: AccountInfo<'info>,
+
     #[account(mut, address = deposit.owner)]
     pub signer: Signer<'info>,
+
     #[account(
         mut,
         close = signer,
     )]
     pub deposit: Box<Account<'info, Deposit>>,
+
     #[account(
         seeds = [
             DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
@@ -203,6 +208,7 @@ pub struct EndDeposit<'info> {
     )]
     /// CHECK: Asserted by PDA derivation
     pub mfi_pda_signer: AccountInfo<'info>,
+
     #[account(
         init,
         payer = signer,
@@ -210,6 +216,7 @@ pub struct EndDeposit<'info> {
         token::authority = temp_token_account_authority,
     )]
     pub temp_token_account: Box<Account<'info, TokenAccount>>,
+
     #[account(
         seeds = [
             TEMP_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
@@ -219,12 +226,15 @@ pub struct EndDeposit<'info> {
     )]
     /// CHECK: Asserted by PDA derivation
     pub temp_token_account_authority: AccountInfo<'info>,
+
     #[account(mut)]
     /// CHECK: Asserted by token transfer
     pub destination_account: AccountInfo<'info>,
+
     #[account(address = marginfi_bank.load()?.mint)]
     /// CHECK: Asserted by constraint
     pub asset_mint: AccountInfo<'info>,
+
     #[account(
         mut,
         seeds = [
@@ -235,19 +245,24 @@ pub struct EndDeposit<'info> {
     )]
     /// CHECK: Asserted by PDA derivation
     pub marginfi_account: AccountInfo<'info>,
+
     /// CHECK: Asserted by CPI call
     pub marginfi_group: AccountInfo<'info>,
+
     #[account(
         mut,
         address = campaign.marginfi_bank_pk,
     )]
     pub marginfi_bank: AccountLoader<'info, Bank>,
+
     /// CHECK: Asserted by CPI call
     #[account(mut)]
     pub marginfi_bank_vault: AccountInfo<'info>,
+
     /// CHECK: Asserted by CPI call
     #[account(mut)]
     pub marginfi_bank_vault_authority: AccountInfo<'info>,
+
     /// CHECK: Asserted by CPI call
     pub marginfi_program: Program<'info, Marginfi>,
     pub token_program: Program<'info, Token>,

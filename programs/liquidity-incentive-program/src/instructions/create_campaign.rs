@@ -13,6 +13,8 @@ pub fn process(
     max_deposits: u64,
     max_rewards: u64,
 ) -> Result<()> {
+    require_gt!(max_deposits, 0);
+
     transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -35,8 +37,6 @@ pub fn process(
         marginfi_bank_pk: ctx.accounts.marginfi_bank.key(),
         _padding: [0; 16],
     });
-
-    msg!("Created campaing\n{:?}", ctx.accounts.campaign);
 
     Ok(())
 }
@@ -73,7 +73,8 @@ pub struct CreateCampaign<'info> {
     #[account(
         address = marginfi_bank.load()?.mint,
     )]
-    /// CHECK: Asserted by constraint
+    /// CHECK: Must match the mint of the marginfi bank,
+    /// asserted by comparing the mint of the marginfi bank
     pub asset_mint: AccountInfo<'info>,
     pub marginfi_bank: AccountLoader<'info, Bank>,
     #[account(mut)]

@@ -7,7 +7,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{
     close_account, transfer, CloseAccount, Mint, Token, TokenAccount, Transfer,
 };
-use marginfi::program::Marginfi;
+use marginfi::{program::Marginfi, state::marginfi_group::Bank};
 use std::mem::size_of;
 
 /// Creates a new deposit in an active liquidity incentive campaign (LIP).
@@ -31,6 +31,8 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
         LIPError::DepositAmountTooLarge
     );
 
+    require_gt!(amount, 0);
+
     msg!("User depositing {} tokens", amount);
 
     transfer(
@@ -45,11 +47,11 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
         amount,
     )?;
 
-    let signer_seeds: &[&[&[u8]]] = &[&[
+    let mfi_signer_seeds: &[&[u8]] = &[
         DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
         &ctx.accounts.deposit.key().to_bytes(),
         &[*ctx.bumps.get("mfi_pda_signer").unwrap()],
-    ]];
+    ];
 
     marginfi::cpi::marginfi_account_initialize(CpiContext::new_with_signer(
         ctx.accounts.marginfi_program.to_account_info(),
@@ -61,11 +63,7 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
             fee_payer: ctx.accounts.signer.to_account_info(),
         },
         &[
-            &[
-                DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
-                &ctx.accounts.deposit.key().to_bytes(),
-                &[*ctx.bumps.get("mfi_pda_signer").unwrap()],
-            ],
+            mfi_signer_seeds,
             &[
                 MARGINFI_ACCOUNT_SEED.as_bytes(),
                 &ctx.accounts.deposit.key().to_bytes(),
@@ -86,7 +84,7 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
                 bank_liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
             },
-            signer_seeds,
+            &[mfi_signer_seeds],
         ),
         amount,
     )?;
@@ -98,7 +96,7 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
             destination: ctx.accounts.signer.to_account_info(),
             authority: ctx.accounts.mfi_pda_signer.to_account_info(),
         },
-        signer_seeds,
+        &[mfi_signer_seeds],
     ))?;
 
     ctx.accounts.deposit.set_inner(Deposit {
@@ -123,14 +121,17 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
 pub struct CreateDeposit<'info> {
     #[account(mut)]
     pub campaign: Box<Account<'info, Campaign>>,
+
     #[account(mut)]
     pub signer: Signer<'info>,
+
     #[account(
         init,
         payer = signer,
         space = size_of::<Deposit>() + 8,
     )]
     pub deposit: Box<Account<'info, Deposit>>,
+
     #[account(
         seeds = [
             DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
@@ -140,9 +141,11 @@ pub struct CreateDeposit<'info> {
     )]
     /// CHECK: Asserted by PDA derivation
     pub mfi_pda_signer: AccountInfo<'info>,
+
     #[account(mut)]
     /// CHECK: Asserted by token transfer
     pub funding_account: AccountInfo<'info>,
+
     #[account(
         init,
         payer = signer,
@@ -150,16 +153,21 @@ pub struct CreateDeposit<'info> {
         token::authority = mfi_pda_signer,
     )]
     pub temp_token_account: Box<Account<'info, TokenAccount>>,
-    /// CHECK: Asserted by mfi cpi call
+
+    #[account(address = marginfi_bank.load()?.mint)]
     pub asset_mint: Box<Account<'info, Mint>>,
+
     /// CHECK: Asserted by mfi cpi call
+    /// marginfi_bank is tied to a specific marginfi_group
     pub marginfi_group: AccountInfo<'info>,
+
     #[account(
         mut,
         address = campaign.marginfi_bank_pk,
     )]
     /// CHECK: Asserted by stored address
-    pub marginfi_bank: AccountInfo<'info>,
+    pub marginfi_bank: AccountLoader<'info, Bank>,
+
     /// CHECK: Asserted by CPI call
     #[account(
         mut,
@@ -170,9 +178,13 @@ pub struct CreateDeposit<'info> {
         bump,
     )]
     pub marginfi_account: AccountInfo<'info>,
+
     #[account(mut)]
-    /// CHECK: Asserted by CPI call
+    /// CHECK: Asserted by CPI call,
+    /// marginfi_bank_vault is tied to a specific marginfi_bank,
+    /// passing in an incorrect vault will fail the CPI call
     pub marginfi_bank_vault: AccountInfo<'info>,
+
     /// CHECK: Asserted by CPI call
     pub marginfi_program: Program<'info, Marginfi>,
     pub token_program: Program<'info, Token>,

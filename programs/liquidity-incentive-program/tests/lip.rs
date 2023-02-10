@@ -65,7 +65,7 @@ async fn campaign_no_yield() -> Result<()> {
 
     assert_eq!(deposit.amount, native!(1000, "USDC"));
     assert_eq!(campaign.max_deposits, native!(1000, "USDC"));
-    assert_eq!(campaign.outstanding_deposits, 0);
+    assert_eq!(campaign.remaining_capacity, 0);
 
     let destination_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
     let res = campaign_f
