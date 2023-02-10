@@ -154,7 +154,7 @@ pub fn lending_account_liquidate(
         );
 
         msg!(
-            "liab_quantity_liq: {}, liab_q_final: {}, asset_quantity: {}, insurance_fund_fee: {}",
+            "liab_quantity_liq: {:?}, liab_q_final: {:?}, asset_quantity: {:?}, insurance_fund_fee: {:?}",
             liab_quantity_liquidator,
             liab_quantity_final,
             asset_quantity,
