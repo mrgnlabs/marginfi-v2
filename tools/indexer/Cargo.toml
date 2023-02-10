@@ -8,12 +8,12 @@ name = "mfi-index"
 path = "src/bin/main.rs"
 
 [dependencies]
-solana-client = "1.13"
-solana-measure = "1.13"
-solana-metrics = "1.13"
-solana-sdk = "1.13"
-solana-transaction-status = "1.13"
-solana-account-decoder = "1.13"
+solana-client = "=1.14.3"
+solana-measure = "=1.14.3"
+solana-metrics = "=1.14.3"
+solana-sdk = "=1.14.3"
+solana-transaction-status = "=1.14.3"
+solana-account-decoder = "=1.14.3"
 
 gcp-bigquery-client = "0.16.2"
 google-cloud-auth = "0.8.1"

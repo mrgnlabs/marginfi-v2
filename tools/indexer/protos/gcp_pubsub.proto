@@ -16,4 +16,16 @@ message PubsubTransaction {
   required string meta = 11;
   required string message = 12;
 }
-  
+
+message PubsubAccountUpdate {
+  required string id = 1;
+  required string created_at = 2;
+  required string timestamp = 3;
+  required string owner = 4;
+  required uint64 slot = 5;
+  required string pubkey = 6;
+  required uint64 lamports = 7;
+  required bool executable = 8;
+  required uint64 rent_epoch = 9;
+  required string data = 10;
+}

@@ -10,6 +10,8 @@ use marginfi::{
         marginfi_group::{Bank, BankVaultType},
     },
 };
+#[cfg(feature = "admin")]
+use marginfi::{bank_seed, constants::MAX_ORACLE_KEYS};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,

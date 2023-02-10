@@ -1,7 +1,7 @@
 use crate::commands::{
     backfill::{backfill, BackfillConfig},
-    create_table::{create_table, CreateTableConfig},
-    forwardfill::{forwardfill, ForwardfillConfig},
+    create_table::{create_table},
+    index_transactions::{index_transactions, IndexTransactionsConfig},
 };
 use anyhow::Result;
 use clap::Parser;
@@ -9,6 +9,8 @@ use dotenv::dotenv;
 use envconfig::Envconfig;
 use log::debug;
 use std::{panic, process};
+use crate::commands::create_table::TableType;
+use crate::commands::index_accounts::{index_accounts, IndexAccountsConfig};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -26,9 +28,23 @@ pub struct Opts {
 
 #[derive(Debug, Parser)]
 pub enum Command {
-    CreateTable,
+    CreateTable {
+        #[clap(long)]
+        table_type: TableType,
+        #[clap(long)]
+        project_id: String,
+        #[clap(long)]
+        dataset_id: String,
+        #[clap(long)]
+        table_id: String,
+        #[clap(long)]
+        table_friendly_name: Option<String>,
+        #[clap(long)]
+        table_description: Option<String>,
+    },
     Backfill,
-    Forwardfill,
+    IndexTransactions,
+    IndexAccounts,
 }
 
 #[tokio::main]
@@ -43,11 +59,8 @@ pub async fn entry(opts: Opts) -> Result<()> {
     env_logger::init();
 
     match opts.command {
-        Command::CreateTable => {
-            let config = CreateTableConfig::init_from_env().unwrap();
-            debug!("Config -> {:#?}", &config.clone());
-
-            create_table(config).await
+        Command::CreateTable { project_id, dataset_id, table_type, table_id, table_friendly_name, table_description } => {
+            create_table(project_id, dataset_id, table_id, table_type, table_friendly_name, table_description).await
         }
         Command::Backfill => {
             let config = BackfillConfig::init_from_env().unwrap();
@@ -55,11 +68,17 @@ pub async fn entry(opts: Opts) -> Result<()> {
 
             backfill(config).await
         }
-        Command::Forwardfill => {
-            let config = ForwardfillConfig::init_from_env().unwrap();
+        Command::IndexTransactions => {
+            let config = IndexTransactionsConfig::init_from_env().unwrap();
             debug!("Config -> {:#?}", &config.clone());
 
-            forwardfill(config).await
+            index_transactions(config).await
+        }
+        Command::IndexAccounts => {
+            let config = IndexAccountsConfig::init_from_env().unwrap();
+            debug!("Config -> {:#?}", &config.clone());
+
+            index_accounts(config).await
         }
     }
 }

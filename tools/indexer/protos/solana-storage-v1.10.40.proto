@@ -106,7 +106,7 @@ message Reward {
 }
 
 message Rewards {
-  repeated Reward rewards = 1;
+    repeated Reward rewards = 1;
 }
 
 message UnixTimestamp {

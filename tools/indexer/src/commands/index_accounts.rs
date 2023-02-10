@@ -1,11 +1,13 @@
-use crate::utils::{
-    big_query::DATE_FORMAT_STR,
-    protos::{
-        gcp_pubsub,
-        geyser::{
-            geyser_client::GeyserClient, subscribe_update::UpdateOneof, SubscribeRequest,
-            SubscribeRequestFilterSlots, SubscribeRequestFilterTransactions,
-            SubscribeUpdateSlotStatus,
+use crate::{
+    commands::geyser_client::get_geyser_client,
+    utils::{
+        big_query::DATE_FORMAT_STR,
+        protos::{
+            gcp_pubsub,
+            geyser::{
+                subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterAccounts,
+                SubscribeRequestFilterSlots, SubscribeUpdateSlotStatus,
+            },
         },
     },
 };
@@ -19,10 +21,9 @@ use google_cloud_gax::project::ProjectOptions;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::client::{Client, ClientConfig};
 use itertools::Itertools;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use solana_measure::measure::Measure;
-use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::TransactionVersion};
-use solana_transaction_status::{UiTransactionStatusMeta, VersionedTransactionWithStatusMeta};
+use solana_sdk::{account::Account, pubkey::Pubkey};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     sync::{
@@ -31,62 +32,56 @@ use std::{
     },
     time::Duration,
 };
-use tonic::{
-    codegen::InterceptedService,
-    service::Interceptor,
-    transport::{Channel, ClientTlsConfig, Endpoint},
-    Request, Status,
-};
+use tonic::Status;
 use uuid::Uuid;
 
 #[derive(Envconfig, Debug, Clone)]
-pub struct ForwardfillConfig {
-    #[envconfig(from = "FORWARDFILL_RPC_ENDPOINT")]
+pub struct IndexAccountsConfig {
+    #[envconfig(from = "INDEX_ACCOUNTS_RPC_ENDPOINT")]
     pub rpc_endpoint: String,
-    #[envconfig(from = "FORWARDFILL_RPC_TOKEN")]
+    #[envconfig(from = "INDEX_ACCOUNTS_RPC_TOKEN")]
     pub rpc_token: String,
-    #[envconfig(from = "FORWARDFILL_SLOTS_BUFFER_SIZE")]
+    #[envconfig(from = "INDEX_ACCOUNTS_SLOTS_BUFFER_SIZE")]
     pub slots_buffer_size: u32,
-    #[envconfig(from = "FORWARDFILL_MAX_CONCURRENT_REQUESTS")]
+    #[envconfig(from = "INDEX_ACCOUNTS_MAX_CONCURRENT_REQUESTS")]
     pub max_concurrent_requests: usize,
-    #[envconfig(from = "FORWARDFILL_MONITOR_INTERVAL")]
+    #[envconfig(from = "INDEX_ACCOUNTS_MONITOR_INTERVAL")]
     pub monitor_interval: u64,
-    #[envconfig(from = "FORWARDFILL_PROGRAM_ID")]
+    #[envconfig(from = "INDEX_ACCOUNTS_PROGRAM_ID")]
     pub program_id: Pubkey,
 
-    #[envconfig(from = "FORWARDFILL_PROJECT_ID")]
+    #[envconfig(from = "INDEX_ACCOUNTS_PROJECT_ID")]
     pub project_id: String,
-    #[envconfig(from = "FORWARDFILL_PUBSUB_TOPIC_NAME")]
+    #[envconfig(from = "INDEX_ACCOUNTS_PUBSUB_TOPIC_NAME")]
     pub topic_name: String,
     #[envconfig(from = "GOOGLE_APPLICATION_CREDENTIALS_JSON")]
     pub gcp_sa_key: String,
 }
 
 #[derive(Debug, Clone)]
-pub struct TransactionData {
+pub struct AccountUpdateData {
     pub timestamp: DateTime<Utc>,
     pub slot: u64,
-    pub signature: Signature,
-    pub indexing_addresses: Vec<String>,
-    pub transaction: VersionedTransactionWithStatusMeta,
+    pub address: Pubkey,
+    pub account_data: Account,
 }
 
 #[derive(Clone)]
 pub struct Context {
-    pub config: Arc<ForwardfillConfig>,
-    transactions_queue: Arc<Mutex<BTreeMap<u64, Vec<TransactionData>>>>,
-    transactions_counter: Arc<AtomicU64>,
+    pub config: Arc<IndexAccountsConfig>,
+    account_updates_queue: Arc<Mutex<BTreeMap<u64, HashMap<Pubkey, AccountUpdateData>>>>,
+    account_updates_counter: Arc<AtomicU64>,
     latest_slots_with_commitment: Arc<Mutex<BTreeSet<u64>>>,
     stream_disconnection_count: Arc<AtomicU64>,
     update_processing_error_count: Arc<AtomicU64>,
 }
 
 impl Context {
-    pub async fn new(config: &ForwardfillConfig) -> Self {
+    pub async fn new(config: &IndexAccountsConfig) -> Self {
         Self {
             config: Arc::new(config.clone()),
-            transactions_queue: Arc::new(Mutex::new(BTreeMap::new())),
-            transactions_counter: Arc::new(AtomicU64::new(0)),
+            account_updates_queue: Arc::new(Mutex::new(BTreeMap::new())),
+            account_updates_counter: Arc::new(AtomicU64::new(0)),
             latest_slots_with_commitment: Arc::new(Mutex::new(BTreeSet::new())),
             stream_disconnection_count: Arc::new(AtomicU64::new(0)),
             update_processing_error_count: Arc::new(AtomicU64::new(0)),
@@ -94,14 +89,14 @@ impl Context {
     }
 }
 
-pub async fn forwardfill(config: ForwardfillConfig) -> Result<()> {
+pub async fn index_accounts(config: IndexAccountsConfig) -> Result<()> {
     let context = Arc::new(Context::new(&config).await);
 
     let listen_to_updates_handle = tokio::spawn({
         let context = context.clone();
         async move { listen_to_updates(context).await }
     });
-    let process_transactions_handle = tokio::spawn({
+    let process_account_updates_handle = tokio::spawn({
         let context = context.clone();
         async move { push_transactions_to_pubsub(context).await }
     });
@@ -112,90 +107,10 @@ pub async fn forwardfill(config: ForwardfillConfig) -> Result<()> {
 
     join_all([
         listen_to_updates_handle,
-        process_transactions_handle,
+        process_account_updates_handle,
         monitor_handle,
     ])
     .await;
-
-    Ok(())
-}
-
-struct RequestInterceptor {
-    auth_token: String,
-}
-
-impl Interceptor for RequestInterceptor {
-    fn call(&mut self, mut request: Request<()>) -> Result<Request<()>, Status> {
-        request
-            .metadata_mut()
-            .insert("x-token", self.auth_token.parse().unwrap());
-        Ok(request)
-    }
-}
-
-async fn get_geyser_client(
-    url: String,
-    auth_token: String,
-) -> Result<GeyserClient<InterceptedService<Channel, RequestInterceptor>>> {
-    let mut endpoint = Endpoint::from_shared(url.clone())?;
-
-    if url.contains("https") {
-        endpoint = endpoint.tls_config(ClientTlsConfig::new())?;
-    }
-    let channel = endpoint.connect().await.unwrap();
-
-    Ok(GeyserClient::with_interceptor(
-        channel,
-        RequestInterceptor { auth_token },
-    ))
-}
-
-fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) -> Result<()> {
-    match update {
-        UpdateOneof::Transaction(transaction_update) => {
-            if let Some(transaction_info) = transaction_update.transaction {
-                let signature = transaction_info.signature.clone();
-                let transaction: VersionedTransactionWithStatusMeta = transaction_info.into();
-                println!("{:?}: {:?}", signature, transaction);
-                let mut transactions_queue = ctx.transactions_queue.lock().unwrap();
-
-                let slot_transactions = match transactions_queue.get_mut(&transaction_update.slot) {
-                    Some(slot_transactions) => slot_transactions,
-                    None => {
-                        transactions_queue.insert(transaction_update.slot, vec![]);
-                        transactions_queue
-                            .get_mut(&transaction_update.slot)
-                            .unwrap()
-                    }
-                };
-
-                slot_transactions.push(TransactionData {
-                    timestamp: Utc::now(),
-                    signature: Signature::new(&signature),
-                    slot: transaction_update.slot,
-                    indexing_addresses: filters.to_vec(),
-                    transaction,
-                });
-                // println!("slot_transactions for {:?} at {}: {}", filters.to_vec(), transaction_update.slot, slot_transactions.len());
-            } else {
-                anyhow::bail!("Expected `transaction` in `UpdateOneof::Transaction` update");
-            }
-        }
-        UpdateOneof::Slot(slot) => {
-            println!("slot: {:?}", slot);
-            if slot.status == SubscribeUpdateSlotStatus::Confirmed as i32
-                || slot.status == SubscribeUpdateSlotStatus::Finalized as i32
-            {
-                let mut latest_slots = ctx.latest_slots_with_commitment.lock().unwrap();
-                let slot_inserted = latest_slots.insert(slot.slot);
-                if slot_inserted && latest_slots.len() > ctx.config.slots_buffer_size as usize {
-                    let oldest_slot = *latest_slots.first().unwrap();
-                    latest_slots.remove(&oldest_slot);
-                }
-            }
-        }
-        _ => {}
-    }
 
     Ok(())
 }
@@ -210,36 +125,34 @@ async fn listen_to_updates(ctx: Arc<Context>) {
         .await
         {
             Ok(mut geyser_client) => {
-                info!("Subscribing to updates");
+                info!("Subscribing to updates for {:?}", ctx.config.program_id);
                 let stream_request = geyser_client
                     .subscribe(stream::iter([SubscribeRequest {
-                        accounts: HashMap::default(),
+                        accounts: HashMap::from_iter([(
+                            ctx.config.program_id.to_string(),
+                            SubscribeRequestFilterAccounts {
+                                owner: vec![ctx.config.program_id.to_string()],
+                                account: vec![],
+                            },
+                        )]),
                         slots: HashMap::from_iter([(
                             "slots".to_string(),
                             SubscribeRequestFilterSlots {},
                         )]),
-                        transactions: HashMap::from_iter([(
-                            ctx.config.program_id.to_string(),
-                            SubscribeRequestFilterTransactions {
-                                vote: Some(false),
-                                failed: Some(true),
-                                account_include: vec![ctx.config.program_id.to_string()],
-                                account_exclude: vec![],
-                            },
-                        )]),
+                        transactions: HashMap::default(),
                         blocks: HashMap::default(),
                     }]))
                     .await;
 
                 match stream_request {
                     Ok(stream_response) => {
+                        info!("Subscribed to updates");
                         let mut stream = stream_response.into_inner();
                         while let Some(received) = stream.next().await {
                             match received {
                                 Ok(received) => {
                                     if let Some(update) = received.update_oneof {
-                                        match process_update(ctx.clone(), &received.filters, update)
-                                        {
+                                        match process_update(ctx.clone(), update) {
                                             Ok(_) => {}
                                             Err(err) => {
                                                 error!("Error processing update: {}", err);
@@ -275,6 +188,63 @@ async fn listen_to_updates(ctx: Arc<Context>) {
     }
 }
 
+fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
+    match update {
+        UpdateOneof::Account(account_update) => {
+            let update_slot = account_update.slot;
+            if let Some(account_info) = account_update.account {
+                let address = Pubkey::new(&account_info.pubkey);
+                let mut account_updates_queue = ctx.account_updates_queue.lock().unwrap();
+
+                let slot_account_updates = match account_updates_queue.get_mut(&update_slot) {
+                    Some(slot_account_updates) => slot_account_updates,
+                    None => {
+                        account_updates_queue.insert(update_slot, HashMap::default());
+                        account_updates_queue.get_mut(&update_slot).unwrap()
+                    }
+                };
+
+                let insert_res = slot_account_updates.insert(
+                    address,
+                    AccountUpdateData {
+                        address,
+                        timestamp: Utc::now(),
+                        slot: update_slot,
+                        account_data: account_info.into(),
+                    },
+                );
+
+                if insert_res.is_some() {
+                    println!("Overwriting existing account update for {}", address);
+                }
+                // println!("slot_transactions for {:?} at {}: {}", filters.to_vec(), transaction_update.slot, slot_transactions.len());
+            } else {
+                anyhow::bail!("Expected `transaction` in `UpdateOneof::Transaction` update");
+            }
+        }
+        UpdateOneof::Slot(slot) => {
+            if slot.status == SubscribeUpdateSlotStatus::Confirmed as i32
+                || slot.status == SubscribeUpdateSlotStatus::Finalized as i32
+            {
+                let mut latest_slots = ctx.latest_slots_with_commitment.lock().unwrap();
+                let slot_inserted = latest_slots.insert(slot.slot);
+                if slot_inserted && latest_slots.len() > ctx.config.slots_buffer_size as usize {
+                    let oldest_slot = *latest_slots.first().unwrap();
+                    latest_slots.remove(&oldest_slot);
+                }
+            }
+        }
+        UpdateOneof::Ping(_) => {
+            debug!("ping");
+        }
+        _ => {
+            warn!("unknown update");
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
     let topic_name = ctx.config.topic_name.as_str();
 
@@ -297,20 +267,20 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
     let publisher = topic.new_publisher(None);
 
     loop {
-        let mut transactions_data: Vec<TransactionData> = vec![];
+        let mut account_updates_data: Vec<AccountUpdateData> = vec![];
         {
-            let mut transactions_per_slot = ctx.transactions_queue.lock().unwrap();
+            let mut account_updates_per_slot = ctx.account_updates_queue.lock().unwrap();
             let latest_slots_with_commitment = ctx.latest_slots_with_commitment.lock().unwrap();
 
             // Remove all transactions received in a slot that has not been confirmed in allotted time
             if let Some(oldest_slot_with_commitment) = latest_slots_with_commitment.first() {
-                transactions_per_slot.retain(|slot, transactions| {
+                account_updates_per_slot.retain(|slot, account_updates| {
                     if slot < oldest_slot_with_commitment {
                         warn!(
                             "throwing away txs {:?} from slot {}",
-                            transactions
+                            account_updates
                                 .iter()
-                                .map(|tx| tx.signature.to_string())
+                                .map(|(address, _)| address.to_string())
                                 .collect_vec(),
                             slot
                         );
@@ -321,7 +291,7 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
             }
 
             // Add transactions from confirmed slots to the queue of transactions to be indexed
-            for (slot, slot_transactions) in transactions_per_slot.clone().iter() {
+            for (slot, slot_account_updates) in account_updates_per_slot.clone().iter() {
                 if let Some(latest_slot_with_commitment) = latest_slots_with_commitment.last() {
                     if slot > latest_slot_with_commitment {
                         break; // Ok because transactions_per_slot is sorted (BtreeMap)
@@ -329,76 +299,48 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
                 }
 
                 if latest_slots_with_commitment.contains(slot) {
-                    transactions_data.extend(slot_transactions.clone());
-                    transactions_per_slot.remove(slot);
+                    account_updates_data.extend(slot_account_updates.values().cloned());
+                    account_updates_per_slot.remove(slot);
                 }
             }
         }
 
-        if transactions_data.is_empty() {
+        if account_updates_data.is_empty() {
             tokio::time::sleep(Duration::from_millis(10)).await;
             continue;
         }
 
         let mut messages = vec![];
 
-        transactions_data.iter().for_each(|transaction_data| {
-            ctx.transactions_counter.fetch_add(1, Ordering::Relaxed);
-            // println!(
-            //     "{:?} - {}",
-            //     transaction_data.indexing_addresses,
-            //     transaction_data
-            //         .transaction
-            //         .transaction
-            //         .signatures
-            //         .first()
-            //         .unwrap()
-            // );
+        account_updates_data.iter().for_each(|account_update_data| {
+            ctx.account_updates_counter.fetch_add(1, Ordering::Relaxed);
+            info!(
+                "{:?} - {}",
+                account_update_data.account_data.owner, account_update_data.address
+            );
 
             let now = Utc::now();
 
-            transaction_data
-                .indexing_addresses
-                .iter()
-                .for_each(|indexing_address| {
-                    let message = gcp_pubsub::PubsubTransaction {
-                        id: Uuid::new_v4().to_string(),
-                        created_at: now.format(DATE_FORMAT_STR).to_string(),
-                        timestamp: transaction_data
-                            .timestamp
-                            .format(DATE_FORMAT_STR)
-                            .to_string(),
-                        signature: transaction_data.signature.to_string(),
-                        indexing_address: indexing_address.to_string(),
-                        slot: transaction_data.slot,
-                        signer: transaction_data
-                            .transaction
-                            .transaction
-                            .message
-                            .static_account_keys()
-                            .first()
-                            .unwrap()
-                            .to_string(),
-                        success: transaction_data.transaction.meta.status.is_ok(),
-                        version: match transaction_data.transaction.transaction.version() {
-                            TransactionVersion::Legacy(_) => "legacy".to_string(),
-                            TransactionVersion::Number(version) => version.to_string(),
-                        },
+            let message = gcp_pubsub::PubsubAccountUpdate {
+                id: Uuid::new_v4().to_string(),
+                created_at: now.format(DATE_FORMAT_STR).to_string(),
+                timestamp: account_update_data
+                    .timestamp
+                    .format(DATE_FORMAT_STR)
+                    .to_string(),
+                owner: account_update_data.account_data.owner.to_string(),
+                slot: account_update_data.slot,
+                pubkey: account_update_data.address.to_string(),
+                lamports: account_update_data.account_data.lamports,
+                executable: account_update_data.account_data.executable,
+                rent_epoch: account_update_data.account_data.rent_epoch,
+                data: general_purpose::STANDARD.encode(&account_update_data.account_data.data),
+            };
 
-                        fee: transaction_data.transaction.meta.fee,
-                        meta: serde_json::to_string(&UiTransactionStatusMeta::from(
-                            transaction_data.transaction.meta.clone(),
-                        ))
-                        .unwrap(),
-                        message: general_purpose::STANDARD
-                            .encode(transaction_data.transaction.transaction.message.serialize()),
-                    };
-
-                    messages.push(PubsubMessage {
-                        data: serde_json::to_string(&message).unwrap().as_bytes().to_vec(),
-                        ..PubsubMessage::default()
-                    });
-                });
+            messages.push(PubsubMessage {
+                data: serde_json::to_string(&message).unwrap().as_bytes().to_vec(),
+                ..PubsubMessage::default()
+            });
         });
 
         // Send a message. There are also `publish_bulk` and `publish_immediately` methods.
@@ -435,18 +377,18 @@ async fn monitor(ctx: Arc<Context>) {
         tokio::time::sleep(Duration::from_secs(ctx.config.monitor_interval)).await;
         main_timing.stop();
         let latest_slots = ctx.latest_slots_with_commitment.lock().unwrap().clone();
-        let tx_queue = ctx.transactions_queue.lock().unwrap().clone();
+        let account_updates_queue = ctx.account_updates_queue.lock().unwrap().clone();
         let earliest_block_with_commitment = latest_slots.first().unwrap_or(&0);
         let latest_block_with_commitment = latest_slots.last().unwrap_or(&u64::MAX);
-        let earliest_pending_slot = tx_queue
+        let earliest_pending_slot = account_updates_queue
             .first_key_value()
             .map(|(slot, _)| slot)
             .unwrap_or(&0);
-        let latest_pending_slot = tx_queue
+        let latest_pending_slot = account_updates_queue
             .first_key_value()
             .map(|(slot, _)| slot)
             .unwrap_or(&u64::MAX);
-        let current_fetch_count = ctx.transactions_counter.load(Ordering::Relaxed);
+        let current_fetch_count = ctx.account_updates_counter.load(Ordering::Relaxed);
         let stream_disconnection_count = ctx.stream_disconnection_count.load(Ordering::Relaxed);
         let update_processing_error_count =
             ctx.update_processing_error_count.load(Ordering::Relaxed);
@@ -457,17 +399,17 @@ async fn monitor(ctx: Arc<Context>) {
         } else {
             f32::INFINITY
         };
-        let tx_queue_size = ctx.transactions_queue.lock().unwrap().len();
+        let account_updates_queue_size = ctx.account_updates_queue.lock().unwrap().len();
 
         info!(
-            "Time: {:.1}s | Total txs: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {}\n\tEarliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
+            "Time: {:.1}s | Total account udpates: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {}\n\tEarliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
             current_fetch_time,
             current_fetch_count,
             current_fetch_time - last_fetch_time,
             current_fetch_count - last_fetch_count,
             current_fetch_time - last_fetch_time,
             ingest_rate,
-            tx_queue_size,
+            account_updates_queue_size,
             stream_disconnection_count,
             update_processing_error_count,
             earliest_block_with_commitment,
