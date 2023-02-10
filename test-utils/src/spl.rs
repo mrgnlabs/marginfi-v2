@@ -185,6 +185,31 @@ impl TokenAccountFixture {
         [init_account_ix, init_token_ix]
     }
 
+    pub async fn new_account(&self) -> Pubkey {
+        let keypair = Keypair::new();
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ixs = Self::create_ixs(
+            ctx.banks_client.get_rent().await.unwrap(),
+            &self.token.mint,
+            &ctx.payer.pubkey(),
+            &ctx.payer.pubkey(),
+            &keypair,
+        )
+        .await;
+
+        let tx = Transaction::new_signed_with_payer(
+            &ixs,
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer, &keypair],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await.unwrap();
+
+        keypair.pubkey()
+    }
+
     #[allow(unused)]
     pub async fn new_with_keypair(
         ctx: Rc<RefCell<ProgramTestContext>>,
@@ -254,4 +279,10 @@ pub async fn get_and_deserialize<T: AccountDeserialize>(
     let mut ctx = ctx.borrow_mut();
     let account = ctx.banks_client.get_account(pubkey).await.unwrap().unwrap();
     T::try_deserialize(&mut account.data.as_slice()).unwrap()
+}
+
+pub async fn balance_of(ctx: Rc<RefCell<ProgramTestContext>>, pubkey: Pubkey) -> u64 {
+    let token_account: TokenAccount = get_and_deserialize(ctx, pubkey).await;
+
+    token_account.amount
 }

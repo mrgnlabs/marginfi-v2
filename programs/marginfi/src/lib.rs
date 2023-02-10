@@ -17,7 +17,7 @@ declare_id!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 #[cfg(feature = "devnet")] // devnet
 declare_id!("uwuyG6VmYrDk8Q3FfQ7wZhuhbi8ExweW74BrmT3vM1i");
 #[cfg(all(not(feature = "mainnet-beta"), not(feature = "devnet")))] // other
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("Mfi1111111111111111111111111111111111111111");
 
 assert_cfg!(
     not(all(feature = "mainnet-beta", feature = "devnet")),

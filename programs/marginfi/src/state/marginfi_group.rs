@@ -271,12 +271,6 @@ impl Bank {
         }
     }
 
-    #[inline]
-    pub fn load_from_account_info(bank_account_ai: &AccountInfo) -> MarginfiResult<Self> {
-        let bank = *bytemuck::from_bytes::<Bank>(&bank_account_ai.data.borrow());
-        Ok(bank)
-    }
-
     pub fn get_liability_amount(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
             .checked_mul(self.liability_share_value.into())

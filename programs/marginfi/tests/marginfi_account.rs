@@ -26,7 +26,8 @@ async fn marginfi_account_create_success() -> anyhow::Result<()> {
     let accounts = marginfi::accounts::MarginfiAccountInitialize {
         marginfi_group: test_f.marginfi_group.key,
         marginfi_account: marginfi_account_key.pubkey(),
-        signer: test_f.payer(),
+        authority: test_f.payer(),
+        fee_payer: test_f.payer(),
         system_program: system_program::id(),
     };
     let init_marginfi_account_ix = Instruction {

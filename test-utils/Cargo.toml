@@ -4,10 +4,12 @@ version = "0.1.0"
 publish = false
 edition = "2021"
 
+[features]
+lip = [ "liquidity-incentive-program" ]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# marginfi = { path = ".." }
 anchor-lang = "0.26.0"
 anchor-spl = "0.26.0"
 bytemuck = "1.9.1"
@@ -28,9 +30,9 @@ solana-program-test = "1.14.13"
 solana-sdk = "1.14.13"
 
 [dependencies.marginfi]
-path = ".."
-features = ["client"]
+path = "../programs/marginfi"
+features = [ "client" ]
 
-# Prevent this from interfering with workspaces
-# [workspace]
-# members = ["."]
+[dependencies.liquidity-incentive-program]
+path = "../programs/liquidity-incentive-program"
+optional = true

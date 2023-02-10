@@ -871,7 +871,8 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
             marginfi_group: profile.marginfi_group.unwrap(),
             marginfi_account: marginfi_account_key.pubkey(),
             system_program: system_program::ID,
-            signer: config.payer.pubkey(),
+            authority: config.payer.pubkey(),
+            fee_payer: config.payer.pubkey(),
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::MarginfiAccountInitialize.data(),
