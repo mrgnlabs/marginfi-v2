@@ -199,7 +199,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
             TestBankSetting {
                 mint: BankMint::USDC,
                 config: Some(BankConfig {
-                    max_capacity: native!(1_000_000_000, "USDC"),
+                    deposit_limit: native!(1_000_000_000, "USDC"),
                     interest_rate_config: InterestRateConfig {
                         optimal_utilization_rate: I80F48!(0.9).into(),
                         plateau_interest_rate: I80F48!(1).into(),
@@ -214,7 +214,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
                 mint: BankMint::SOL,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
-                    max_capacity: native!(200_000_000, "SOL"),
+                    deposit_limit: native!(200_000_000, "SOL"),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
                 }),
             },

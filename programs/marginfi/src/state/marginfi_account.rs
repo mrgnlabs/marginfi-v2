@@ -96,6 +96,7 @@ pub enum BalanceDecreaseType {
     Any,
     WithdrawOnly,
     BorrowOnly,
+    BypassBorrowLimit,
 }
 
 pub enum WeightType {
@@ -660,6 +661,15 @@ impl<'a> BankAccountWrapper<'a> {
         self.decrease_balance_internal(amount, BalanceDecreaseType::Any)
     }
 
+    /// Withdraw asset and create/increase liability depending on
+    /// the specified deposit amount and the existing balance.
+    ///
+    /// This function will also bypass borrow limits
+    /// so liquidations can happen in banks with maxed out borrows.
+    pub fn decrease_balance_in_liquidation(&mut self, amount: I80F48) -> MarginfiResult {
+        self.decrease_balance_internal(amount, BalanceDecreaseType::BypassBorrowLimit)
+    }
+
     /// Withdraw existing asset in full - will error if there is no asset.
     pub fn withdraw_all(&mut self) -> MarginfiResult<u64> {
         let balance = &mut self.balance;
@@ -722,7 +732,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         balance.close();
-        bank.change_liability_shares(-total_liability_shares)?;
+        bank.change_liability_shares(-total_liability_shares, false)?;
 
         let spl_deposit_amount = current_liability_amount
             .checked_ceil()
@@ -799,7 +809,7 @@ impl<'a> BankAccountWrapper<'a> {
         let liability_shares_decrease = bank.get_liability_shares(liability_amount_decrease)?;
         // TODO: Use `IncreaseType` to skip certain balance updates, and save on compute.
         balance.change_liability_shares(-liability_shares_decrease)?;
-        bank.change_liability_shares(-liability_shares_decrease)?;
+        bank.change_liability_shares(-liability_shares_decrease, true)?;
 
         Ok(())
     }
@@ -846,7 +856,7 @@ impl<'a> BankAccountWrapper<'a> {
                     MarginfiError::OperationBorrowOnly
                 );
             }
-            BalanceDecreaseType::Any => {}
+            _ => {}
         }
 
         {
@@ -860,7 +870,10 @@ impl<'a> BankAccountWrapper<'a> {
 
         let liability_shares_increase = bank.get_liability_shares(liability_amount_increase)?;
         balance.change_liability_shares(liability_shares_increase)?;
-        bank.change_liability_shares(liability_shares_increase)?;
+        bank.change_liability_shares(
+            liability_shares_increase,
+            matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit),
+        )?;
 
         bank.check_utilization_ratio()?;
 

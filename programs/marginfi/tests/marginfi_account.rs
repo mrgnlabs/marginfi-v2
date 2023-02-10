@@ -161,7 +161,7 @@ async fn marginfi_account_deposit_failure_capacity_exceeded() -> anyhow::Result<
         banks: vec![TestBankSetting {
             mint: BankMint::USDC,
             config: Some(BankConfig {
-                max_capacity: native!(100, "USDC"),
+                deposit_limit: native!(100, "USDC"),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             }),
         }],

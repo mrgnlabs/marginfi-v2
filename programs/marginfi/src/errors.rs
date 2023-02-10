@@ -61,6 +61,8 @@ pub enum MarginfiError {
     InvalidOracleSetup,
     #[msg("Invalid bank utilization ratio")] // 6028
     IllegalUtilizationRatio,
+    #[msg("Bank borrow cap exceeded")] // 6029
+    BankLiabilityCapacityExceeded,
 }
 
 impl From<MarginfiError> for ProgramError {

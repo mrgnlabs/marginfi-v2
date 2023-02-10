@@ -116,22 +116,22 @@ lazy_static! {
         ..Default::default()
     };
     pub static ref DEFAULT_USDC_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        max_capacity: native!(1_000_000_000, "USDC"),
+        deposit_limit: native!(1_000_000_000, "USDC"),
         oracle_keys: create_oracle_key_array(PYTH_USDC_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        max_capacity: native!(1_000_000, "SOL"),
+        deposit_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        max_capacity: native!(1_000_000, "SOL_EQ"),
+        deposit_limit: native!(1_000_000, "SOL_EQ"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_EQUIVALENT_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_MNDE_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        max_capacity: native!(1_000_000, "MNDE"),
+        deposit_limit: native!(1_000_000, "MNDE"),
         oracle_keys: create_oracle_key_array(PYTH_MNDE_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
