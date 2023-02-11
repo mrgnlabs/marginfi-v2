@@ -1,6 +1,7 @@
 use crate::{
     bank_signer, check,
     constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED},
+    math_error,
     prelude::MarginfiError,
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine},
@@ -64,7 +65,9 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
 
     // Cover bad debt with insurance funds.
     bank.withdraw_spl_transfer(
-        covered_by_insurance.to_num(),
+        covered_by_insurance
+            .checked_to_num()
+            .ok_or_else(math_error!())?,
         Transfer {
             from: ctx.accounts.insurance_vault.to_account_info(),
             to: ctx.accounts.liquidity_vault.to_account_info(),

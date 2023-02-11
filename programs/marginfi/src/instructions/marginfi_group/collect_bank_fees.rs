@@ -3,6 +3,7 @@ use crate::{
     constants::{
         FEE_VAULT_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
+    math_error,
     state::marginfi_group::{Bank, BankVaultType, MarginfiGroup},
     MarginfiResult,
 };
@@ -52,7 +53,9 @@ pub fn lending_pool_collect_bank_fees(ctx: Context<LendingPoolCollectBankFees>) 
     // );
 
     bank.withdraw_spl_transfer(
-        group_fee_transfer_amount.to_num(),
+        group_fee_transfer_amount
+            .checked_to_num()
+            .ok_or_else(math_error!())?,
         Transfer {
             from: liquidity_vault.to_account_info(),
             to: fee_vault.to_account_info(),
@@ -67,7 +70,9 @@ pub fn lending_pool_collect_bank_fees(ctx: Context<LendingPoolCollectBankFees>) 
     )?;
 
     bank.withdraw_spl_transfer(
-        insurance_fee_transfer_amount.to_num(),
+        insurance_fee_transfer_amount
+            .checked_to_num()
+            .ok_or_else(math_error!())?,
         Transfer {
             from: liquidity_vault.to_account_info(),
             to: insurance_vault.to_account_info(),

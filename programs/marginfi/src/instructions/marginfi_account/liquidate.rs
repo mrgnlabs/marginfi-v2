@@ -1,7 +1,6 @@
 use crate::constants::{
     INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
 };
-use crate::prelude::*;
 use crate::state::marginfi_account::{
     calc_asset_quantity, calc_asset_value, get_price, RiskEngine, RiskRequirementType,
 };
@@ -11,6 +10,7 @@ use crate::{
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
 };
+use crate::{math_error, prelude::*};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
@@ -200,7 +200,9 @@ pub fn lending_account_liquidate(
         // ## SPL transfer ##
         // Insurance fund receives fee
         liquidatee_liab_bank_account.withdraw_spl_transfer(
-            insurance_fund_fee.to_num(),
+            insurance_fund_fee
+                .checked_to_num()
+                .ok_or_else(math_error!())?,
             Transfer {
                 from: ctx.accounts.bank_liquidity_vault.to_account_info(),
                 to: ctx.accounts.bank_insurance_vault.to_account_info(),
