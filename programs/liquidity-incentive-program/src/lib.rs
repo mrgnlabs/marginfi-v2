@@ -30,7 +30,7 @@ pub mod liquidity_incentive_program {
     ///
     /// # Returns
     /// * `Ok(())` if the campaign was successfully created, or an error otherwise.
-    pub fn create_campaing(
+    pub fn create_campaign(
         ctx: Context<CreateCampaign>,
         lockup_period: u64,
         max_deposits: u64,

@@ -120,7 +120,7 @@ impl BankFixture {
                 system_program: solana_program::system_program::id(),
             }
             .to_account_metas(Some(true)),
-            data: liquidity_incentive_program::instruction::CreateCampaing {
+            data: liquidity_incentive_program::instruction::CreateCampaign {
                 lockup_period,
                 max_deposits,
                 max_rewards,
