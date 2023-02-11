@@ -106,18 +106,7 @@ impl MarginfiGroupFixture {
         };
 
         let tx = Transaction::new_signed_with_payer(
-            &[
-                ix,
-                self.make_lending_pool_configure_bank_ix(
-                    &bank_fixture,
-                    BankConfigOpt {
-                        operational_state: Some(
-                            marginfi::state::marginfi_group::BankOperationalState::Operational,
-                        ),
-                        ..Default::default()
-                    },
-                ),
-            ],
+            &[ix],
             Some(&self.ctx.borrow().payer.pubkey().clone()),
             &[&self.ctx.borrow().payer, &bank_key],
             self.ctx.borrow().last_blockhash,
@@ -128,17 +117,6 @@ impl MarginfiGroupFixture {
             .banks_client
             .process_transaction(tx)
             .await?;
-
-        self.try_lending_pool_configure_bank(
-            &bank_fixture,
-            BankConfigOpt {
-                operational_state: Some(
-                    marginfi::state::marginfi_group::BankOperationalState::Operational,
-                ),
-                ..Default::default()
-            },
-        )
-        .await?;
 
         Ok(bank_fixture)
     }

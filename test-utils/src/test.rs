@@ -102,6 +102,8 @@ lazy_static! {
         liability_weight_init: I80F48!(1).into(),
         liability_weight_maint: I80F48!(1).into(),
 
+        operational_state: BankOperationalState::Operational,
+
         interest_rate_config: InterestRateConfig {
             insurance_fee_fixed_apr: I80F48!(0).into(),
             insurance_ir_fee: I80F48!(0).into(),
@@ -117,21 +119,25 @@ lazy_static! {
     };
     pub static ref DEFAULT_USDC_TEST_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000_000, "USDC"),
+        borrow_limit: native!(1_000_000_000, "USDC"),
         oracle_keys: create_oracle_key_array(PYTH_USDC_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_TEST_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000, "SOL"),
+        borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000, "SOL_EQ"),
+        borrow_limit: native!(1_000_000, "SOL_EQ"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_EQUIVALENT_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_MNDE_TEST_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000, "MNDE"),
+        borrow_limit: native!(1_000_000, "MNDE"),
         oracle_keys: create_oracle_key_array(PYTH_MNDE_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
