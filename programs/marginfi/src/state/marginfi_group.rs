@@ -1,6 +1,6 @@
 use super::marginfi_account::WeightType;
 use crate::{
-    check,
+    assert_struct_size, check,
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
@@ -14,10 +14,10 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
-
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Formatter},
+    ops::Not,
 };
 #[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
@@ -186,6 +186,7 @@ impl InterestRateConfig {
     }
 }
 
+assert_struct_size!(Bank, 1856);
 #[account(zero_copy)]
 #[repr(C)]
 #[cfg_attr(
@@ -302,12 +303,12 @@ impl Bank {
             .ok_or_else(math_error!())?
             .into();
 
-        if shares.is_positive() {
-            let total_shares_value = self.get_asset_amount(self.total_asset_shares.into())?;
-            let max_asset_capacity = self.get_asset_amount(self.config.max_capacity.into())?;
+        if shares.is_positive() && self.config.is_deposit_limit_active() {
+            let total_deposits_amount = self.get_asset_amount(self.total_asset_shares.into())?;
+            let deposit_limit = I80F48::from_num(self.config.deposit_limit);
 
             check!(
-                total_shares_value < max_asset_capacity,
+                total_deposits_amount < deposit_limit,
                 crate::prelude::MarginfiError::BankAssetCapacityExceeded
             )
         }
@@ -315,12 +316,29 @@ impl Bank {
         Ok(())
     }
 
-    pub fn change_liability_shares(&mut self, shares: I80F48) -> MarginfiResult {
+    pub fn change_liability_shares(
+        &mut self,
+        shares: I80F48,
+        bypass_borrow_limit: bool,
+    ) -> MarginfiResult {
         let total_liability_shares: I80F48 = self.total_liability_shares.into();
         self.total_liability_shares = total_liability_shares
             .checked_add(shares)
             .ok_or_else(math_error!())?
             .into();
+
+        if bypass_borrow_limit.not() && shares.is_positive() && self.config.is_borrow_limit_active()
+        {
+            let total_liablity_amount =
+                self.get_liability_amount(self.total_liability_shares.into())?;
+            let borrow_limit = I80F48::from_num(self.config.borrow_limit);
+
+            check!(
+                total_liablity_amount < borrow_limit,
+                crate::prelude::MarginfiError::BankLiabilityCapacityExceeded
+            )
+        }
+
         Ok(())
     }
 
@@ -347,7 +365,9 @@ impl Bank {
             self.config.liability_weight_maint,
             config.liability_weight_maint
         );
-        set_if_some!(self.config.max_capacity, config.max_capacity);
+        set_if_some!(self.config.deposit_limit, config.deposit_limit);
+
+        set_if_some!(self.config.borrow_limit, config.borrow_limit);
 
         set_if_some!(self.config.operational_state, config.operational_state);
 
@@ -640,6 +660,7 @@ pub enum OracleKey {
     Pyth(Pubkey),
 }
 
+assert_struct_size!(BankConfig, 544);
 #[zero_copy]
 #[repr(C)]
 #[cfg_attr(
@@ -655,7 +676,7 @@ pub struct BankConfig {
     pub liability_weight_init: WrappedI80F48,
     pub liability_weight_maint: WrappedI80F48,
 
-    pub max_capacity: u64,
+    pub deposit_limit: u64,
 
     pub interest_rate_config: InterestRateConfig,
     pub operational_state: BankOperationalState,
@@ -663,7 +684,9 @@ pub struct BankConfig {
     pub oracle_setup: OracleSetup,
     pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS],
 
-    pub _padding: [u128; 4], // 16 * 4 = 64 bytes
+    pub borrow_limit: u64,
+
+    pub _padding: [u64; 7], // 16 * 4 = 64 bytes
 }
 
 impl Default for BankConfig {
@@ -673,12 +696,13 @@ impl Default for BankConfig {
             asset_weight_maint: I80F48::ZERO.into(),
             liability_weight_init: I80F48::ONE.into(),
             liability_weight_maint: I80F48::ONE.into(),
-            max_capacity: 0,
+            deposit_limit: 0,
+            borrow_limit: 0,
             interest_rate_config: Default::default(),
             operational_state: BankOperationalState::Paused,
             oracle_setup: OracleSetup::None,
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
-            _padding: [0; 4],
+            _padding: [0; 7],
         }
     }
 }
@@ -755,6 +779,16 @@ impl BankConfig {
             OracleKey::Pyth(key) => key,
         }
     }
+
+    #[inline]
+    pub fn is_deposit_limit_active(&self) -> bool {
+        self.deposit_limit != u64::MAX
+    }
+
+    #[inline]
+    pub fn is_borrow_limit_active(&self) -> bool {
+        self.borrow_limit != u64::MAX
+    }
 }
 
 #[zero_copy]
@@ -798,7 +832,8 @@ pub struct BankConfigOpt {
     pub liability_weight_init: Option<WrappedI80F48>,
     pub liability_weight_maint: Option<WrappedI80F48>,
 
-    pub max_capacity: Option<u64>,
+    pub deposit_limit: Option<u64>,
+    pub borrow_limit: Option<u64>,
 
     pub operational_state: Option<BankOperationalState>,
 

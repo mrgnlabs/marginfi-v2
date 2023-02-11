@@ -167,7 +167,7 @@ pub fn lending_account_liquidate(
             &mut liab_bank,
             &mut liquidator_marginfi_account.lending_account,
         )?
-        .decrease_balance(liab_quantity_liquidator)?;
+        .decrease_balance_in_liquidation(liab_quantity_liquidator)?;
 
         // Liquidator receives `asset_quantity` amount of collateral
         BankAccountWrapper::find_or_create(
