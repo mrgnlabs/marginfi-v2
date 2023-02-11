@@ -4,8 +4,7 @@ use anyhow::{bail, Result};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi::{
-    bank_authority_seed, bank_seed,
-    constants::MAX_ORACLE_KEYS,
+    bank_authority_seed,
     state::{
         marginfi_account::MarginfiAccount,
         marginfi_group::{Bank, BankVaultType},
