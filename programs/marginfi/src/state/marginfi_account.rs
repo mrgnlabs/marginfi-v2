@@ -708,7 +708,9 @@ impl<'a> BankAccountWrapper<'a> {
                 .into()
         };
 
-        Ok(spl_withdraw_amount.to_num())
+        Ok(spl_withdraw_amount
+            .checked_to_num()
+            .ok_or_else(math_error!())?)
     }
 
     /// Repay existing liability in full - will error if there is no liability.
@@ -747,7 +749,7 @@ impl<'a> BankAccountWrapper<'a> {
                 .into()
         };
 
-        Ok(spl_deposit_amount.to_num())
+        Ok(spl_deposit_amount.checked_to_num().ok_or(math_error!()())?)
     }
 
     // ------------ Internal accounting logic
