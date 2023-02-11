@@ -86,7 +86,9 @@ pub enum GroupCommand {
         #[clap(long)]
         liability_weight_maint: f64,
         #[clap(long)]
-        max_capacity: u64,
+        deposit_limit: u64,
+        #[clap(long)]
+        borrow_limit: u64,
         #[clap(long)]
         pyth_oracle: Pubkey,
         #[clap(long)]
@@ -145,7 +147,11 @@ pub enum BankCommand {
         liability_weight_maint: Option<f32>,
 
         #[clap(long)]
-        max_capacity: Option<u64>,
+        deposit_limit: Option<u64>,
+
+        #[clap(long)]
+        borrow_limit: Option<u64>,
+
         #[clap(long, arg_enum)]
         operational_state: Option<BankOperationalStateArg>,
     },
@@ -307,7 +313,6 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            max_capacity,
             pyth_oracle,
             optimal_utilization_rate,
             plateau_interest_rate,
@@ -316,6 +321,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             insurance_ir_fee,
             protocol_fixed_fee_apr,
             protocol_ir_fee,
+            deposit_limit,
+            borrow_limit,
         } => processor::group_add_bank(
             config,
             profile,
@@ -325,7 +332,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            max_capacity,
+            deposit_limit,
+            borrow_limit,
             optimal_utilization_rate,
             plateau_interest_rate,
             max_interest_rate,
@@ -358,7 +366,8 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            max_capacity,
+            deposit_limit,
+            borrow_limit,
             operational_state,
             bank_pk,
         } => processor::bank_configure(
@@ -370,7 +379,8 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                 asset_weight_maint: asset_weight_maint.map(|x| I80F48::from_num(x).into()),
                 liability_weight_init: liability_weight_init.map(|x| I80F48::from_num(x).into()),
                 liability_weight_maint: liability_weight_maint.map(|x| I80F48::from_num(x).into()),
-                max_capacity,
+                deposit_limit,
+                borrow_limit,
                 operational_state: operational_state.map(|x| x.into()),
                 oracle: None,
             },
