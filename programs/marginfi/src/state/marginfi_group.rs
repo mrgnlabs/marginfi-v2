@@ -304,11 +304,11 @@ impl Bank {
             .into();
 
         if shares.is_positive() && self.config.is_deposit_limit_active() {
-            let total_deposits_value = self.get_asset_amount(self.total_asset_shares.into())?;
+            let total_deposits_amount = self.get_asset_amount(self.total_asset_shares.into())?;
             let deposit_limit = I80F48::from_num(self.config.deposit_limit);
 
             check!(
-                total_deposits_value < deposit_limit,
+                total_deposits_amount < deposit_limit,
                 crate::prelude::MarginfiError::BankAssetCapacityExceeded
             )
         }
@@ -329,12 +329,12 @@ impl Bank {
 
         if bypass_borrow_limit.not() && shares.is_positive() && self.config.is_borrow_limit_active()
         {
-            let total_liablity_value =
+            let total_liablity_amount =
                 self.get_liability_amount(self.total_liability_shares.into())?;
             let borrow_limit = I80F48::from_num(self.config.borrow_limit);
 
             check!(
-                total_liablity_value < borrow_limit,
+                total_liablity_amount < borrow_limit,
                 crate::prelude::MarginfiError::BankLiabilityCapacityExceeded
             )
         }
