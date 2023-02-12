@@ -864,6 +864,88 @@ pub fn marginfi_account_withdraw(
     Ok(())
 }
 
+pub fn marginfi_account_borrow(
+    profile: &Profile,
+    config: &Config,
+    bank_pk: Pubkey,
+    ui_amount: f64,
+) -> Result<()> {
+    let marginfi_account_pk = profile.get_marginfi_account();
+
+    let banks = HashMap::from_iter(load_all_banks(
+        config,
+        Some(profile.marginfi_group.unwrap()),
+    )?);
+    let bank = banks.get(&bank_pk).expect("Bank not found");
+
+    let marginfi_account = config
+        .program
+        .account::<MarginfiAccount>(marginfi_account_pk)?;
+
+    let amount = (I80F48::from_num(ui_amount) * EXP_10_I80F48[bank.mint_decimals as usize])
+        .floor()
+        .to_num::<u64>();
+
+    // Check that bank belongs to the correct group
+    if bank.group != profile.marginfi_group.unwrap() {
+        bail!("Bank does not belong to group")
+    }
+
+    let withdraw_ata = anchor_spl::associated_token::get_associated_token_address(
+        &config.payer.pubkey(),
+        &bank.mint,
+    );
+
+    let mut ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::LendingAccountBorrow {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            marginfi_account: marginfi_account_pk,
+            signer: config.payer.pubkey(),
+            bank: bank_pk,
+            bank_liquidity_vault: bank.liquidity_vault,
+            token_program: token::ID,
+            destination_token_account: withdraw_ata,
+            bank_liquidity_vault_authority: find_bank_vault_authority_pda(
+                &bank_pk,
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::LendingAccountBorrow { amount }.data(),
+    };
+
+    ix.accounts.extend(load_observation_account_metas(
+        &marginfi_account,
+        &banks,
+        vec![bank_pk],
+        vec![],
+    ));
+
+    let create_ide_ata_ix = create_associated_token_account_idempotent(
+        &config.payer.pubkey(),
+        &config.payer.pubkey(),
+        &bank.mint,
+        &spl_token::ID,
+    );
+
+    let tx = Transaction::new_signed_with_payer(
+        &[create_ide_ata_ix, ix],
+        Some(&config.payer.pubkey()),
+        &[&config.payer],
+        config.program.rpc().get_latest_blockhash()?,
+    );
+
+    match process_transaction(&tx, &config.program.rpc(), config.dry_run) {
+        Ok(sig) => println!("Withdraw successful: {}", sig),
+        Err(err) => println!("Error during withdraw:\n{:#?}", err),
+    }
+
+    Ok(())
+}
+
 pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()> {
     let marginfi_account_key = Keypair::new();
 
