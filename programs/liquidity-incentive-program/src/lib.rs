@@ -3,7 +3,7 @@ use instructions::*;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet-beta")] {
-        declare_id!("Lip1111111111111111111111111111111111111111");
+        declare_id!("LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW");
     } else if #[cfg(feature = "devnet")] {
         declare_id!("sexyDKo4Khm38YdJeiRdNNd5aMQqNtfDkxv7MnYNFeU");
     } else {
