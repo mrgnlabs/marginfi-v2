@@ -1,6 +1,8 @@
-use crate::events::MarginfiAccountCreateEvent;
-use crate::prelude::*;
-use crate::state::marginfi_account::MarginfiAccount;
+use crate::{
+    events::{AccountEventHeader, MarginfiAccountCreateEvent},
+    prelude::*,
+    state::marginfi_account::MarginfiAccount,
+};
 use anchor_lang::prelude::*;
 use solana_program::sysvar::Sysvar;
 
@@ -17,9 +19,11 @@ pub fn initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
     marginfi_account.initialize(marginfi_group.key(), authority.key());
 
     emit!(MarginfiAccountCreateEvent {
-        signer: signer.key(),
-        marginfi_account: marginfi_account_loader.key(),
-        marginfi_group: marginfi_account.group,
+        header: AccountEventHeader {
+            signer: authority.key(),
+            marginfi_account: marginfi_account_loader.key(),
+            marginfi_group: marginfi_account.group,
+        }
     });
 
     Ok(())

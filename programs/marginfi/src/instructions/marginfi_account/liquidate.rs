@@ -79,12 +79,15 @@ pub fn lending_account_liquidate(
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account.load_mut()?;
 
     {
-        let clock = Clock::get()?;
+        let current_timestamp = Clock::get()?.unix_timestamp;
         ctx.accounts
             .asset_bank
             .load_mut()?
-            .accrue_interest(&clock)?;
-        ctx.accounts.liab_bank.load_mut()?.accrue_interest(&clock)?;
+            .accrue_interest(current_timestamp)?;
+        ctx.accounts
+            .liab_bank
+            .load_mut()?
+            .accrue_interest(current_timestamp)?;
     }
 
     let pre_liquidation_health = {

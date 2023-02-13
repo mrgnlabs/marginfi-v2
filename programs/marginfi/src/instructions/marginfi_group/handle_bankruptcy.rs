@@ -35,7 +35,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
 
     let mut bank = bank_loader.load_mut()?;
 
-    bank.accrue_interest(&Clock::get()?)?;
+    bank.accrue_interest(Clock::get()?.unix_timestamp)?;
 
     let lending_account_balance = marginfi_account
         .lending_account

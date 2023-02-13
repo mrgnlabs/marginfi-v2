@@ -1,15 +1,16 @@
-use crate::events::LendingAccountRepayEvent;
-use crate::prelude::{MarginfiGroup, MarginfiResult};
-use crate::state::marginfi_group::Bank;
 use crate::{
     constants::LIQUIDITY_VAULT_SEED,
-    state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
+    events::{AccountEventHeader, LendingAccountRepayEvent},
+    prelude::{MarginfiGroup, MarginfiResult},
+    state::{
+        marginfi_account::{BankAccountWrapper, MarginfiAccount},
+        marginfi_group::Bank,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, Transfer};
 use fixed::types::I80F48;
-use solana_program::clock::Clock;
-use solana_program::sysvar::Sysvar;
+use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset repaid
@@ -36,7 +37,7 @@ pub fn lending_account_repay(
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    bank.accrue_interest(&Clock::get()?)?;
+    bank.accrue_interest(Clock::get()?.unix_timestamp)?;
 
     let mut bank_account = BankAccountWrapper::find(
         &bank_loader.key(),
@@ -63,13 +64,15 @@ pub fn lending_account_repay(
     )?;
 
     emit!(LendingAccountRepayEvent {
-        amount,
-        close_balance: repay_all,
+        header: AccountEventHeader {
+            signer: ctx.accounts.signer.key(),
+            marginfi_account: marginfi_account_loader.key(),
+            marginfi_group: marginfi_account.group,
+        },
         bank: bank_loader.key(),
         mint: bank.mint,
-        signer: signer.key(),
-        marginfi_account: marginfi_account_loader.key(),
-        marginfi_group: marginfi_account.group,
+        amount: spl_deposit_amount,
+        close_balance: repay_all,
     });
 
     Ok(())

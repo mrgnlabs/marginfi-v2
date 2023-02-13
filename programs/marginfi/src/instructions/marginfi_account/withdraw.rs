@@ -1,20 +1,17 @@
-use crate::events::LendingAccountWithdrawEvent;
-use crate::prelude::*;
-use crate::state::marginfi_account::{RiskEngine, RiskRequirementType};
-use crate::state::marginfi_group::Bank;
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
+    events::{AccountEventHeader, LendingAccountWithdrawEvent},
+    prelude::*,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount},
-        marginfi_group::BankVaultType,
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType},
+        marginfi_group::{Bank, BankVaultType},
     },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
-use solana_program::clock::Clock;
-use solana_program::sysvar::Sysvar;
+use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset withdrawn
@@ -41,7 +38,9 @@ pub fn lending_account_withdraw(
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
+    bank_loader
+        .load_mut()?
+        .accrue_interest(Clock::get()?.unix_timestamp)?;
 
     {
         let mut bank = bank_loader.load_mut()?;
@@ -77,13 +76,15 @@ pub fn lending_account_withdraw(
         )?;
 
         emit!(LendingAccountWithdrawEvent {
-            amount,
-            close_balance: withdraw_all,
+            header: AccountEventHeader {
+                signer: ctx.accounts.signer.key(),
+                marginfi_account: marginfi_account_loader.key(),
+                marginfi_group: marginfi_account.group,
+            },
             bank: bank_loader.key(),
             mint: bank.mint,
-            signer: ctx.accounts.signer.key(),
-            marginfi_account: marginfi_account_loader.key(),
-            marginfi_group: marginfi_account.group,
+            amount: spl_withdraw_amount,
+            close_balance: withdraw_all,
         });
     }
 

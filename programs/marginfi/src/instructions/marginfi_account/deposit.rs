@@ -1,9 +1,8 @@
-use crate::prelude::{MarginfiGroup, MarginfiResult};
-use crate::state::marginfi_group::Bank;
 use crate::{
     constants::LIQUIDITY_VAULT_SEED,
-    events::LendingAccountDepositEvent,
-    state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
+    events::{AccountEventHeader, LendingAccountDepositEvent},
+    prelude::{MarginfiGroup, MarginfiResult},
+    state::marginfi_account::{Bank, BankAccountWrapper, MarginfiAccount},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, Transfer};
@@ -31,7 +30,7 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    bank.accrue_interest(&Clock::get()?)?;
+    bank.accrue_interest(Clock::get()?.unix_timestamp)?;
 
     let mut bank_account = BankAccountWrapper::find_or_create(
         &bank_loader.key(),
@@ -51,12 +50,14 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
     )?;
 
     emit!(LendingAccountDepositEvent {
-        amount,
+        header: AccountEventHeader {
+            signer: signer.key(),
+            marginfi_account: marginfi_account_loader.key(),
+            marginfi_group: marginfi_account.group,
+        },
         bank: bank_loader.key(),
         mint: bank.mint,
-        signer: signer.key(),
-        marginfi_account: marginfi_account_loader.key(),
-        marginfi_group: marginfi_account.group,
+        amount,
     });
 
     Ok(())

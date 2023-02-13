@@ -1,4 +1,6 @@
 use super::marginfi_account::WeightType;
+#[cfg(not(feature = "client"))]
+use crate::events::{AccrueInterestEvent, GroupEventHeader};
 use crate::{
     assert_struct_size, check,
     constants::{
@@ -431,12 +433,10 @@ impl Bank {
     ///
     /// Collected protocol and insurance fees are stored in state.
     /// A separate instruction is required to withdraw these fees.
-    pub fn accrue_interest(&mut self, clock: &Clock) -> MarginfiResult<()> {
+    pub fn accrue_interest(&mut self, current_timestamp: i64) -> MarginfiResult<()> {
         #[cfg(not(feature = "client"))]
         solana_program::log::sol_log_compute_units();
-        let time_delta: u64 = (clock.unix_timestamp - self.last_update)
-            .try_into()
-            .unwrap();
+        let time_delta: u64 = (current_timestamp - self.last_update).try_into().unwrap();
 
         if time_delta == 0 {
             return Ok(());
@@ -445,7 +445,7 @@ impl Bank {
         let total_assets = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
-        self.last_update = clock.unix_timestamp;
+        self.last_update = current_timestamp;
 
         if (total_assets == I80F48::ZERO) || (total_liabilities == I80F48::ZERO) {
             return Ok(());
@@ -483,7 +483,20 @@ impl Bank {
         };
 
         #[cfg(not(feature = "client"))]
-        solana_program::log::sol_log_compute_units();
+        {
+            solana_program::log::sol_log_compute_units();
+
+            emit!(LendingPoolBankAccrueInterestEvent {
+                header: GroupEventHeader {
+                    marginfi_group: self.group
+                    signer: None
+                },
+                mint: self.mint,
+                delta: time_delta,
+                fees_collected: fees_collected.to_num::<f64>(),
+                insurance_collected: insurance_collected.to_num::<f64>(),
+            });
+        }
 
         Ok(())
     }

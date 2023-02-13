@@ -1,19 +1,17 @@
-use crate::bank_signer;
-use crate::events::LendingAccountBorrowEvent;
-use crate::prelude::{MarginfiGroup, MarginfiResult};
-use crate::state::marginfi_group::Bank;
 use crate::{
+    bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
+    events::{AccountEventHeader, LendingAccountBorrowEvent},
+    prelude::{MarginfiGroup, MarginfiResult},
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType},
-        marginfi_group::BankVaultType,
+        marginfi_group::{Bank, BankVaultType},
     },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
-use solana_program::clock::Clock;
-use solana_program::sysvar::Sysvar;
+use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
 /// 2. Create the user's bank account for the asset borrowed if it does not exist yet
@@ -35,7 +33,9 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
+    bank_loader
+        .load_mut()?
+        .accrue_interest(Clock::get()?.unix_timestamp)?;
 
     {
         let mut bank = bank_loader.load_mut()?;
@@ -64,12 +64,14 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
         )?;
 
         emit!(LendingAccountBorrowEvent {
-            amount,
+            header: AccountEventHeader {
+                signer: ctx.accounts.signer.key(),
+                marginfi_account: marginfi_account_loader.key(),
+                marginfi_group: marginfi_account.group,
+            },
             bank: bank_loader.key(),
             mint: bank.mint,
-            signer: ctx.accounts.signer.key(),
-            marginfi_account: marginfi_account_loader.key(),
-            marginfi_group: marginfi_account.group,
+            amount,
         });
     }
 
