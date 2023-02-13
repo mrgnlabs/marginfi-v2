@@ -1,8 +1,11 @@
 use crate::{
     constants::LIQUIDITY_VAULT_SEED,
     events::{AccountEventHeader, LendingAccountDepositEvent},
-    prelude::{MarginfiGroup, MarginfiResult},
-    state::marginfi_account::{Bank, BankAccountWrapper, MarginfiAccount},
+    prelude::*,
+    state::{
+        marginfi_account::{BankAccountWrapper, MarginfiAccount},
+        marginfi_group::Bank,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, Transfer};
