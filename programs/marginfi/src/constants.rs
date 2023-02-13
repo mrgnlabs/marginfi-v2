@@ -38,3 +38,6 @@ pub const MAX_ORACLE_KEYS: usize = 5;
 /// Any balance below 1 SPL token amount is treated as none,
 /// this is to account for any artifacts resulting from binary fraction arithemtic.
 pub const EMPTY_BALANCE_THRESHOLD: I80F48 = I80F48!(1);
+
+/// Comparios threshold used to account for arithmetic artifacts on balances
+pub const ZERO_AMOUNT_THRESHOLD: I80F48 = I80F48!(0.0001);

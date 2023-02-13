@@ -1,9 +1,12 @@
 use super::marginfi_group::{Bank, WrappedI80F48};
 use crate::{
     check,
-    constants::{CONF_INTERVAL_MULTIPLE, EMPTY_BALANCE_THRESHOLD, MAX_PRICE_AGE_SEC},
-    math_error,
+    constants::{
+        CONF_INTERVAL_MULTIPLE, EMPTY_BALANCE_THRESHOLD, MAX_PRICE_AGE_SEC, ZERO_AMOUNT_THRESHOLD,
+    },
+    debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
+    utils::NumTraitsWithTolerance,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::Transfer;
@@ -677,16 +680,21 @@ impl<'a> BankAccountWrapper<'a> {
 
         let total_asset_shares: I80F48 = balance.asset_shares.into();
         let current_asset_amount = bank.get_asset_amount(total_asset_shares)?;
+        let current_liability_amount =
+            bank.get_liability_amount(balance.liability_shares.into())?;
 
-        msg!(
+        debug!(
             "Withdrawing all: {} of {} in {}",
-            current_asset_amount,
-            bank.mint,
-            balance.bank_pk,
+            current_asset_amount, bank.mint, balance.bank_pk,
         );
 
         check!(
-            current_asset_amount.is_positive(),
+            current_asset_amount.is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD),
+            MarginfiError::NoAssetFound
+        );
+
+        check!(
+            current_liability_amount.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
             MarginfiError::NoAssetFound
         );
 
@@ -720,16 +728,20 @@ impl<'a> BankAccountWrapper<'a> {
 
         let total_liability_shares: I80F48 = balance.liability_shares.into();
         let current_liability_amount = bank.get_liability_amount(total_liability_shares)?;
+        let current_asset_amount = bank.get_asset_amount(balance.asset_shares.into())?;
 
-        msg!(
+        debug!(
             "Repaying all: {} of {} in {}",
-            current_liability_amount,
-            bank.mint,
-            balance.bank_pk,
+            current_liability_amount, bank.mint, balance.bank_pk,
         );
 
         check!(
-            current_liability_amount.is_positive(),
+            current_liability_amount.is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD),
+            MarginfiError::NoLiabilityFound
+        );
+
+        check!(
+            current_asset_amount.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
             MarginfiError::NoLiabilityFound
         );
 
@@ -786,13 +798,13 @@ impl<'a> BankAccountWrapper<'a> {
         match operation_type {
             BalanceIncreaseType::RepayOnly => {
                 check!(
-                    asset_amount_increase.is_zero(),
+                    asset_amount_increase.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
                     MarginfiError::OperationRepayOnly
                 );
             }
             BalanceIncreaseType::DepositOnly => {
                 check!(
-                    liability_amount_decrease.is_zero(),
+                    liability_amount_decrease.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
                     MarginfiError::OperationDepositOnly
                 );
             }
@@ -800,7 +812,8 @@ impl<'a> BankAccountWrapper<'a> {
         }
 
         {
-            let is_asset_amount_increasing = asset_amount_increase.is_positive();
+            let is_asset_amount_increasing =
+                asset_amount_increase.is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
             bank.assert_operational_mode(Some(is_asset_amount_increasing))?;
         }
 
@@ -848,13 +861,13 @@ impl<'a> BankAccountWrapper<'a> {
         match operation_type {
             BalanceDecreaseType::WithdrawOnly => {
                 check!(
-                    liability_amount_increase.is_zero(),
+                    liability_amount_increase.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
                     MarginfiError::OperationWithdrawOnly
                 );
             }
             BalanceDecreaseType::BorrowOnly => {
                 check!(
-                    asset_amount_decrease.is_zero(),
+                    asset_amount_decrease.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
                     MarginfiError::OperationBorrowOnly
                 );
             }
@@ -862,7 +875,8 @@ impl<'a> BankAccountWrapper<'a> {
         }
 
         {
-            let is_liability_amount_increasing = liability_amount_increase.is_positive();
+            let is_liability_amount_increasing =
+                liability_amount_increase.is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
             bank.assert_operational_mode(Some(is_liability_amount_increasing))?;
         }
 
