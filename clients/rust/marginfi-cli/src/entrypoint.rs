@@ -220,6 +220,10 @@ pub enum AccountCommand {
         #[clap(short = 'a', long = "all")]
         withdraw_all: bool,
     },
+    Borrow {
+        bank: Pubkey,
+        ui_amount: f64,
+    },
     Create,
 }
 
@@ -433,6 +437,9 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
             ui_amount,
             withdraw_all,
         } => processor::marginfi_account_withdraw(&profile, &config, bank, ui_amount, withdraw_all),
+        AccountCommand::Borrow { bank, ui_amount } => {
+            processor::marginfi_account_borrow(&profile, &config, bank, ui_amount)
+        }
         AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
     }?;
 
