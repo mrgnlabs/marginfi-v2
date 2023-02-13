@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "event-parsing-etl-batch"
+version = "0.1.0"
+description = ""
+authors = ["man0s <95379755+losman0s@users.noreply.github.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+wheel = "^0.38.4"
+apache-beam = { extras = ["gcp"], version = "2.44.0" }
+solders = "^0.14.0"
+anchorpy = { git = "https://github.com/mrgnlabs/anchorpy", branch = "bump-zstandard"}
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,2 @@
+solders==0.14.3
+anchorpy==0.15.0

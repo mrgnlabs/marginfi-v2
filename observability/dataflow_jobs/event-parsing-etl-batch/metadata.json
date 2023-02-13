@@ -1,0 +1,36 @@
+{
+  "name": "event-parsing-etl-batch",
+  "description": "Parses individual raw transactions from a BigQuery table and stores them in another BigQuery table.",
+  "parameters": [
+    {
+      "name": "input_table",
+      "label": "BigQuery input table name.",
+      "helpText": "Name of the input table to consume from.",
+      "regexes": [
+        "([^.]+.)?[^.]+[.].+"
+      ]
+    },
+    {
+      "name": "output_table",
+      "label": "BigQuery output table name.",
+      "helpText": "Name of the BigQuery output table name.",
+      "regexes": [
+        "([^:]+:)?[^.]+[.].+"
+      ]
+    },
+    {
+      "name": "start_date",
+      "label": "Start date.",
+      "isOptional": true,
+      "helpText": "Start date to consider (inclusive).",
+      "regexes": []
+    },
+    {
+      "name": "end_date",
+      "label": "End date.",
+      "isOptional": true,
+      "helpText": "End date to consider (exclusive).",
+      "regexes": []
+    }
+  ]
+}
