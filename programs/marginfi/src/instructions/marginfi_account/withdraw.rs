@@ -77,6 +77,7 @@ pub fn lending_account_withdraw(
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {
+                version: "0.1.0".to_string(),
                 signer: ctx.accounts.signer.key(),
                 marginfi_account: marginfi_account_loader.key(),
                 marginfi_group: marginfi_account.group,

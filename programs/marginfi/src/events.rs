@@ -3,15 +3,17 @@ use anchor_lang::prelude::*;
 // Event headers
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct AccountEventHeader {
-    pub signer: Pubkey,
-    pub marginfi_account: Pubkey,
+pub struct GroupEventHeader {
+    pub version: String,
+    pub signer: Option<Pubkey>,
     pub marginfi_group: Pubkey,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct GroupEventHeader {
-    pub signer: Option<Pubkey>,
+pub struct AccountEventHeader {
+    pub version: String,
+    pub signer: Pubkey,
+    pub marginfi_account: Pubkey,
     pub marginfi_group: Pubkey,
 }
 

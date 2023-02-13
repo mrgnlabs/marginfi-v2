@@ -488,6 +488,7 @@ impl Bank {
 
             emit!(LendingPoolBankAccrueInterestEvent {
                 header: GroupEventHeader {
+                    version: "0.1.0".to_string(),
                     marginfi_group: self.group
                     signer: None
                 },
