@@ -458,7 +458,7 @@ fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec
     let mut banks_with_addresses = config.mfi_program.accounts::<Bank>(filters)?;
 
     banks_with_addresses.iter_mut().for_each(|(_, bank)| {
-        bank.accrue_interest(&clock).unwrap();
+        bank.accrue_interest(clock.unix_timestamp).unwrap();
     });
 
     Ok(banks_with_addresses)
