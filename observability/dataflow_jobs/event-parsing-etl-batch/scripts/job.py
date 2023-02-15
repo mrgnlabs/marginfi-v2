@@ -4,15 +4,13 @@ import json
 import types
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict, Union
 from pathlib import Path
-from anchorpy import Idl, Program
+from anchorpy import Idl, Program, EventParser, Event
 from attr import dataclass
 from solders.pubkey import Pubkey
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
-
-from event_parsing_etl_batch.event_parser import EventParser, Event
 
 # Defines the BigQuery schema for the output table.
 PROCESSED_TRANSACTION_SCHEMA = ",".join(
@@ -26,9 +24,17 @@ PROCESSED_TRANSACTION_SCHEMA = ",".join(
     ]
 )
 
+LENDING_ACCOUNT_DEPOSIT_EVENT = 'LendingAccountDepositEvent'
+LENDING_ACCOUNT_WITHDRAW_EVENT = 'LendingAccountWithdrawEvent'
+LENDING_ACCOUNT_BORROW_EVENT = 'LendingAccountBorrowEvent'
+LENDING_ACCOUNT_REPAY_EVENT = 'LendingAccountRepayEvent'
+MARGINFI_ACCOUNT_CREATE_EVENT = 'MarginfiAccountCreateEvent'
+
 
 @dataclass
 class LiquidityChangeRecord:
+    NAME = "LiquidityChange"
+
     version: str
     marginfi_group: Pubkey
     marginfi_account: Pubkey
@@ -37,42 +43,10 @@ class LiquidityChangeRecord:
     amount: int
     balance_closed: bool
 
-
-@dataclass
-class MarginfiAccountCreationRecord:
-    version: str
-    marginfi_group: Pubkey
-    marginfi_account: Pubkey
-    authority: Pubkey
-
-
-class DispatchEventsDoFn(beam.DoFn):
-    # Event names
-    LENDING_ACCOUNT_DEPOSIT_EVENT = 'LendingAccountDepositEvent'
-    LENDING_ACCOUNT_WITHDRAW_EVENT = 'LendingAccountWithdrawEvent'
-    LENDING_ACCOUNT_BORROW_EVENT = 'LendingAccountBorrowEvent'
-    LENDING_ACCOUNT_REPAY_EVENT = 'LendingAccountRepayEvent'
-    MARGINFI_ACCOUNT_CREATE_EVENT = 'MarginfiAccountCreateEvent'
-
-    # Event category
-    LIQUIDITY_CHANGE_CATEGORY = 'LIQUIDITY_CHANGE_CATEGORY'
-    MARGINFI_ACCOUNT_CREATION_CATEGORY = 'MARGINFI_ACCOUNT_CREATION_CATEGORY'
-    LENDING_POOL_BANK_ACCRUE_INTEREST_CATEGORY = 'LENDING_POOL_BANK_ACCRUE_INTEREST_CATEGORY'
-    LENDING_POOL_BANK_ADD_CATEGORY = 'LENDING_POOL_BANK_ADD_CATEGORY'
-
     @staticmethod
-    def is_liquidity_change_event(event_name: str):
-        return event_name in [
-            DispatchEventsDoFn.LENDING_ACCOUNT_DEPOSIT_EVENT,
-            DispatchEventsDoFn.LENDING_ACCOUNT_WITHDRAW_EVENT,
-            DispatchEventsDoFn.LENDING_ACCOUNT_BORROW_EVENT,
-            DispatchEventsDoFn.LENDING_ACCOUNT_REPAY_EVENT,
-        ]
-
-    @staticmethod
-    def shape_liquidity_change_event(event: Event) -> LiquidityChangeRecord:
+    def from_event(event: Event) -> "LiquidityChangeRecord":
         balance_closed = None
-        if event.name == DispatchEventsDoFn.LENDING_ACCOUNT_REPAY_EVENT or event.name == DispatchEventsDoFn.LENDING_ACCOUNT_WITHDRAW_EVENT:
+        if event.name == LENDING_ACCOUNT_REPAY_EVENT or event.name == LENDING_ACCOUNT_WITHDRAW_EVENT:
             balance_closed = event.data.close_balance
 
         return LiquidityChangeRecord(operation=event.name,
@@ -83,22 +57,55 @@ class DispatchEventsDoFn(beam.DoFn):
                                      amount=event.data.amount,
                                      balance_closed=balance_closed)
 
+
+@dataclass
+class MarginfiAccountCreationRecord:
+    NAME = "MarginfiAccountCreation"
+
+    version: str
+    marginfi_group: Pubkey
+    marginfi_account: Pubkey
+    authority: Pubkey
+
     @staticmethod
-    def shape_marginfi_account_creation_event(event: Event) -> MarginfiAccountCreationRecord:
+    def from_event(event: Event) -> "MarginfiAccountCreationRecord":
         return MarginfiAccountCreationRecord(version=event.data.header.version,
                                              marginfi_account=event.data.header.marginfi_account,
                                              marginfi_group=event.data.header.marginfi_group,
                                              authority=event.data.header.signer)
 
-    def process(self, event, *args, **kwargs):
-        if self.is_liquidity_change_event(event.name):
-            processed_event = self.shape_liquidity_change_event(event)
-            yield beam.pvalue.TaggedOutput(self.LIQUIDITY_CHANGE_CATEGORY, processed_event)
-        elif event.name == self.MARGINFI_ACCOUNT_CREATE_EVENT:
-            processed_event = self.shape_marginfi_account_creation_event(event)
-            yield beam.pvalue.TaggedOutput(self.MARGINFI_ACCOUNT_CREATION_CATEGORY, processed_event)
-        else:
-            print("discarding unsupported event:", event.name)
+
+Record = Union[LiquidityChangeRecord, MarginfiAccountCreationRecord]
+
+
+def is_liquidity_change_event(event_name: str) -> bool:
+    return event_name in [
+        LENDING_ACCOUNT_DEPOSIT_EVENT,
+        LENDING_ACCOUNT_WITHDRAW_EVENT,
+        LENDING_ACCOUNT_BORROW_EVENT,
+        LENDING_ACCOUNT_REPAY_EVENT,
+    ]
+
+
+def event_to_record(event: Event) -> Optional[Record]:
+    if is_liquidity_change_event(event.name):
+        return LiquidityChangeRecord.from_event(event)
+    elif event.name == MARGINFI_ACCOUNT_CREATE_EVENT:
+        return MarginfiAccountCreationRecord.from_event(event)
+    else:
+        print("discarding unsupported event:", event.name)
+        return None
+
+
+def process_event(record_list: List[Record], event: Event) -> None:
+    maybe_record = event_to_record(event)
+    if maybe_record is not None:
+        record_list.append(maybe_record)
+
+
+class DispatchEventsDoFn(beam.DoFn):
+    def process(self, record: Record, *args, **kwargs):
+        yield beam.pvalue.TaggedOutput(record.NAME, record)
 
 
 def run(
@@ -116,11 +123,13 @@ def run(
         indexed_program = tx["indexing_address"]
         program = Program(idl, Pubkey.from_string(indexed_program))
         event_parser = EventParser(program.program_id, program.coder)
+        # instruction_coder = program.coder.instruction
+        # program_ixs = [instruction_coder.parse(raw_ix) for raw_ix in tx[""]]
         meta = json.loads(tx["meta"], object_hook=lambda d: types.SimpleNamespace(**d))
 
-        events = []
-        event_parser.parse_logs(meta.logMessages, lambda event: events.append(event))
-        return events
+        records_list: List[Record] = []
+        event_parser.parse_logs(meta.logMessages, lambda event: process_event(records_list, event))
+        return records_list
 
     """Build and run the pipeline."""
     pipeline_options = PipelineOptions(beam_args, save_main_session=True)
@@ -145,8 +154,8 @@ def run(
         extract_events = beam.FlatMap(extract_events_from_tx)
 
         dispatch_events = beam.ParDo(DispatchEventsDoFn()).with_outputs(
-            DispatchEventsDoFn.LIQUIDITY_CHANGE_CATEGORY,
-            DispatchEventsDoFn.MARGINFI_ACCOUNT_CREATION_CATEGORY
+            LiquidityChangeRecord.NAME,
+            MarginfiAccountCreationRecord.NAME,
         )
 
         if target_dataset == "local_file":  # For testing purposes
@@ -169,8 +178,8 @@ def run(
                 | "DispatchEvents" >> dispatch_events
         )
 
-        tagged_events.LIQUIDITY_CHANGE_CATEGORY | "WriteLiquidityChangeEvent" >> write_liquidity_change_events
-        tagged_events.MARGINFI_ACCOUNT_CREATION_CATEGORY | "WriteMarginfiAccountCreationEvent" >> write_marginfi_account_creation_events
+        tagged_events[LiquidityChangeRecord.NAME] | "WriteLiquidityChangeEvent" >> write_liquidity_change_events
+        tagged_events[MarginfiAccountCreationRecord.NAME] | "WriteMarginfiAccountCreationEvent" >> write_marginfi_account_creation_events
 
 
 def main():

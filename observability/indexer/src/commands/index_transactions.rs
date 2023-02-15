@@ -1,3 +1,4 @@
+use crate::commands::geyser_client::get_geyser_client;
 use crate::utils::{
     big_query::DATE_FORMAT_STR,
     protos::{
@@ -32,7 +33,6 @@ use std::{
 };
 use tonic::Status;
 use uuid::Uuid;
-use crate::commands::geyser_client::get_geyser_client;
 
 #[derive(Envconfig, Debug, Clone)]
 pub struct IndexTransactionsConfig {
