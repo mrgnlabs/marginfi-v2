@@ -1565,6 +1565,28 @@
   ],
   "events": [
     {
+      "name": "LendingPoolBankAddEvent",
+      "fields": [
+        {
+          "name": "header",
+          "type": {
+            "defined": "GroupEventHeader"
+          },
+          "index": false
+        },
+        {
+          "name": "bank",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "mint",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
       "name": "LendingPoolBankAccrueInterestEvent",
       "fields": [
         {
@@ -1592,28 +1614,6 @@
         {
           "name": "insuranceCollected",
           "type": "f64",
-          "index": false
-        }
-      ]
-    },
-    {
-      "name": "LendingPoolBankAddEvent",
-      "fields": [
-        {
-          "name": "header",
-          "type": {
-            "defined": "GroupEventHeader"
-          },
-          "index": false
-        },
-        {
-          "name": "bank",
-          "type": "publicKey",
-          "index": false
-        },
-        {
-          "name": "mint",
-          "type": "publicKey",
           "index": false
         }
       ]

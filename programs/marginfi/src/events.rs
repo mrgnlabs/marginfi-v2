@@ -20,19 +20,19 @@ pub struct AccountEventHeader {
 // marginfi group events
 
 #[event]
+pub struct LendingPoolBankAddEvent {
+    pub header: GroupEventHeader,
+    pub bank: Pubkey,
+    pub mint: Pubkey,
+}
+
+#[event]
 pub struct LendingPoolBankAccrueInterestEvent {
     pub header: GroupEventHeader,
     pub mint: Pubkey,
     pub delta: u64,
     pub fees_collected: f64,
     pub insurance_collected: f64,
-}
-
-#[event]
-pub struct LendingPoolBankAddEvent {
-    pub header: GroupEventHeader,
-    pub bank: Pubkey,
-    pub mint: Pubkey,
 }
 
 // marginfi account events
