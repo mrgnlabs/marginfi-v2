@@ -2,4 +2,4 @@ __pycache__
 .venv
 poetry.lock
 local_file*
-scripts/playground.py
+.idea*
