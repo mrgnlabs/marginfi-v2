@@ -411,7 +411,7 @@ impl Bank {
     /// A separate instruction is required to withdraw these fees.
     pub fn accrue_interest(&mut self, clock: &Clock) -> MarginfiResult<()> {
         #[cfg(not(feature = "client"))]
-        sol_log_compute_units();
+        solana_program::log::sol_log_compute_units();
         let time_delta: u64 = (clock.unix_timestamp - self.last_update)
             .try_into()
             .unwrap();
@@ -461,7 +461,7 @@ impl Bank {
         };
 
         #[cfg(not(feature = "client"))]
-        sol_log_compute_units();
+        solana_program::log::sol_log_compute_units();
 
         Ok(())
     }

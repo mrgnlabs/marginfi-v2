@@ -22,7 +22,19 @@ enum Action {
         bank: BankIdx,
         asset_amount: AssetAmount,
     },
+    Repay {
+        account: AccountIdx,
+        bank: BankIdx,
+        asset_amount: AssetAmount,
+        repay_all: bool,
+    },
     Withdraw {
+        account: AccountIdx,
+        bank: BankIdx,
+        asset_amount: AssetAmount,
+        withdraw_all: bool,
+    },
+    Borrow {
         account: AccountIdx,
         bank: BankIdx,
         asset_amount: AssetAmount,
@@ -30,10 +42,6 @@ enum Action {
     UpdateOracle {
         bank: BankIdx,
         price: PriceChange,
-    },
-    AccrueInterest {
-        bank: BankIdx,
-        time_delta: u8,
     },
     Liquidate {
         liquidator: AccountIdx,
@@ -53,7 +61,7 @@ pub struct ActionSequence(Vec<Action>);
 
 impl<'a> Arbitrary<'a> for ActionSequence {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let n_actions = u.int_in_range(0..=10)? * 20;
+        let n_actions = u.int_in_range(1..=10)? * 100;
         let mut actions = Vec::with_capacity(n_actions);
 
         for _ in 0..n_actions {
@@ -75,10 +83,7 @@ fuzz_target!(|data: FuzzerContext| { process_actions(data).unwrap() });
 
 fn process_actions(ctx: FuzzerContext) -> Result<()> {
     let mut bump = bumpalo::Bump::new();
-    let mut mga = MarginfiGroupAccounts::setup(&bump);
-
-    mga.setup_banks(&bump, Rent::free(), N_BANKS, &ctx.initial_bank_configs);
-    mga.setup_users(&bump, Rent::free(), N_USERS as usize);
+    let mut mga = MarginfiGroupAccounts::setup(&bump, &ctx.initial_bank_configs, N_USERS as usize);
 
     let al =
         AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &mga.marginfi_group)
@@ -102,7 +107,7 @@ fn verify_end_state(mga: &MarginfiGroupAccounts) -> anyhow::Result<()> {
         let bank_loader = AccountLoader::<Bank>::try_from(&bank.bank)?;
         let bank_data = bank_loader.load()?;
 
-        let total_deposits = bank_data.get_deposit_amount(bank_data.total_deposit_shares.into())?;
+        let total_deposits = bank_data.get_asset_amount(bank_data.total_asset_shares.into())?;
         let total_liabilities =
             bank_data.get_liability_amount(bank_data.total_liability_shares.into())?;
 
@@ -130,7 +135,8 @@ fn verify_end_state(mga: &MarginfiGroupAccounts) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn process_action(action: &Action, mga: &MarginfiGroupAccounts) -> Result<()> {
+fn process_action<'bump>(action: &Action, mga: &'bump MarginfiGroupAccounts<'bump>) -> Result<()> {
+    // println!("Action {:#?}", action);
     match action {
         Action::Deposit {
             account,
@@ -141,12 +147,24 @@ fn process_action(action: &Action, mga: &MarginfiGroupAccounts) -> Result<()> {
             account,
             bank,
             asset_amount,
-        } => mga.process_action_withdraw(account, bank, asset_amount)?,
-        Action::AccrueInterest { bank, time_delta } => {
-            mga.process_accrue_interest(bank, *time_delta)?
-        }
+            withdraw_all,
+        } => mga.process_action_withdraw(account, bank, asset_amount, Some(*withdraw_all))?,
+        Action::Borrow {
+            account,
+            bank,
+            asset_amount,
+        } => mga.process_action_borrow(account, bank, asset_amount)?,
+        Action::Repay {
+            account,
+            bank,
+            asset_amount,
+            repay_all,
+        } => mga.process_action_repay(account, bank, asset_amount, *repay_all)?,
+        Action::UpdateOracle { bank, price } => mga.process_update_oracle(bank, price)?,
         _ => (),
     };
+
+    mga.advance_time();
 
     Ok(())
 }
