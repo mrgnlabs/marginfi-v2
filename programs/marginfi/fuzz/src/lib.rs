@@ -1030,7 +1030,7 @@ pub fn new_oracle_account(
     mint: Pubkey,
     mint_decimals: i32,
 ) -> AccountInfo {
-    let data = bytemuck::bytes_of(&PriceAccount {
+    let price_account = PriceAccount {
         prod: mint,
         agg: PriceInfo {
             conf: 0,
@@ -1050,15 +1050,22 @@ pub fn new_oracle_account(
             denom: 1,
         },
         ..Default::default()
-    })
-    .to_vec();
+    };
+
+    let price_data = bytemuck::bytes_of(&price_account);
+
+    let rent_amount = rent.minimum_balance(price_data.len());
+
+    let data  = bump.alloc_slice_fill_copy(size_of::<PriceAccount>(), 0);
+
+    data.clone_from_slice(price_data);
 
     AccountInfo::new(
         random_pubkey(bump),
         false,
         true,
-        bump.alloc(rent.minimum_balance(data.len())),
-        bump.alloc(data),
+        bump.alloc(rent_amount),
+        data,
         &PYTH_ID,
         false,
         Epoch::default(),
