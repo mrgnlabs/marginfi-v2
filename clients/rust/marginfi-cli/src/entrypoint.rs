@@ -1,6 +1,6 @@
 use crate::{
     config::GlobalOptions,
-    processor,
+    processor::{self, process_list_deposits, process_list_lip_campaigns},
     profile::{load_profile, Profile},
 };
 use anchor_client::Cluster;
@@ -54,6 +54,10 @@ pub enum Command {
     Account {
         #[clap(subcommand)]
         subcmd: AccountCommand,
+    },
+    Lip {
+        #[clap(subcommand)]
+        subcmd: LipCommand,
     },
 }
 
@@ -227,6 +231,12 @@ pub enum AccountCommand {
     Create,
 }
 
+#[derive(Debug, Parser)]
+pub enum LipCommand {
+    ListCampaigns,
+    ListDeposits,
+}
+
 pub fn entry(opts: Opts) -> Result<()> {
     env_logger::init();
 
@@ -237,6 +247,7 @@ pub fn entry(opts: Opts) -> Result<()> {
         #[cfg(feature = "dev")]
         Command::InspectPadding {} => inspect_padding(),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
+        Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
     }
 }
 
@@ -442,6 +453,21 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
         }
         AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
     }?;
+
+    Ok(())
+}
+
+fn process_lip_subcmd(
+    subcmd: LipCommand,
+    cfg_override: &GlobalOptions,
+) -> Result<(), anyhow::Error> {
+    let profile = load_profile()?;
+    let config = profile.get_config(Some(cfg_override))?;
+
+    match subcmd {
+        LipCommand::ListCampaigns => process_list_lip_campaigns(&config),
+        LipCommand::ListDeposits => process_list_deposits(&config),
+    }
 
     Ok(())
 }

@@ -15,6 +15,7 @@ use anchor_client::{
 use anchor_spl::token::{self, spl_token};
 use anyhow::{anyhow, bail, Result};
 use fixed::types::I80F48;
+use liquidity_incentive_program::state::{Campaign, Deposit};
 use log::info;
 #[cfg(feature = "admin")]
 use marginfi::{
@@ -52,6 +53,7 @@ use std::{
     fs,
     mem::size_of,
     ops::{Neg, Not},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -62,7 +64,7 @@ pub fn group_get(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
     if let Some(marginfi_group) = marginfi_group {
         // let rpc_client = config.program.rpc();
 
-        let account: MarginfiGroup = config.program.account(marginfi_group)?;
+        let account: MarginfiGroup = config.mfi_program.account(marginfi_group)?;
         println!("Address: {}", marginfi_group);
         println!("=============");
         println!("Raw data:");
@@ -76,7 +78,7 @@ pub fn group_get(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
 }
 
 pub fn group_get_all(config: Config) -> Result<()> {
-    let accounts: Vec<(Pubkey, MarginfiGroup)> = config.program.accounts(vec![])?;
+    let accounts: Vec<(Pubkey, MarginfiGroup)> = config.mfi_program.accounts(vec![])?;
     for (address, state) in accounts {
         println!("-> {}:\n{:#?}\n", address, state);
     }
@@ -84,13 +86,12 @@ pub fn group_get_all(config: Config) -> Result<()> {
 }
 
 pub fn print_group_banks(config: Config, marginfi_group: Pubkey) -> Result<()> {
-    let banks =
-        config
-            .program
-            .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-                8 + size_of::<Pubkey>() + size_of::<u8>(),
-                marginfi_group.to_bytes().to_vec(),
-            ))])?;
+    let banks = config
+        .mfi_program
+        .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+            8 + size_of::<Pubkey>() + size_of::<u8>(),
+            marginfi_group.to_bytes().to_vec(),
+        ))])?;
 
     println!("--------\nBanks:");
 
@@ -108,7 +109,7 @@ pub fn group_create(
     admin: Option<Pubkey>,
     override_existing_profile_group: bool,
 ) -> Result<()> {
-    let rpc_client = config.program.rpc();
+    let rpc_client = config.mfi_program.rpc();
     let admin = admin.unwrap_or_else(|| config.payer.pubkey());
 
     if profile.marginfi_group.is_some() && !override_existing_profile_group {
@@ -121,7 +122,7 @@ pub fn group_create(
     let marginfi_group_keypair = Keypair::new();
 
     let init_marginfi_group_ix = config
-        .program
+        .mfi_program
         .request()
         .signer(&config.payer)
         .accounts(marginfi::accounts::MarginfiGroupInitialize {
@@ -158,14 +159,14 @@ pub fn group_create(
 
 #[cfg(feature = "admin")]
 pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) -> Result<()> {
-    let rpc_client = config.program.rpc();
+    let rpc_client = config.mfi_program.rpc();
 
     if profile.marginfi_group.is_none() {
         bail!("Marginfi group not specified in profile [{}]", profile.name);
     }
 
     let configure_marginfi_group_ix = config
-        .program
+        .mfi_program
         .request()
         .signer(&config.payer)
         .accounts(marginfi::accounts::MarginfiGroupConfigure {
@@ -215,7 +216,7 @@ pub fn group_add_bank(
     protocol_fixed_fee_apr: f64,
     protocol_ir_fee: f64,
 ) -> Result<()> {
-    let rpc_client = config.program.rpc();
+    let rpc_client = config.mfi_program.rpc();
 
     if profile.marginfi_group.is_none() {
         bail!("Marginfi group not specified in profile [{}]", profile.name);
@@ -248,7 +249,7 @@ pub fn group_add_bank(
     let bank_keypair = Keypair::new();
 
     let add_bank_ix = config
-        .program
+        .mfi_program
         .request()
         .signer(&config.payer)
         .accounts(marginfi::accounts::LendingPoolAddBank {
@@ -339,10 +340,10 @@ pub fn group_add_bank(
 // --------------------------------------------------------------------------------------------------------------------
 
 pub fn bank_get(config: Config, bank: Option<Pubkey>) -> Result<()> {
-    let rpc_client = config.program.rpc();
+    let rpc_client = config.mfi_program.rpc();
 
     if let Some(bank) = bank {
-        let account: Bank = config.program.account(bank)?;
+        let account: Bank = config.mfi_program.account(bank)?;
         println!("Address: {}", bank);
         println!("=============");
         println!("Raw data:");
@@ -387,10 +388,10 @@ fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec
         None => vec![],
     };
 
-    let mut clock = config.program.rpc().get_account(&sysvar::clock::ID)?;
+    let mut clock = config.mfi_program.rpc().get_account(&sysvar::clock::ID)?;
     let clock = Clock::from_account_info(&(&sysvar::clock::ID, &mut clock).into_account_info())?;
 
-    let mut banks_with_addresses = config.program.accounts::<Bank>(filters)?;
+    let mut banks_with_addresses = config.mfi_program.accounts::<Bank>(filters)?;
 
     banks_with_addresses.iter_mut().for_each(|(_, bank)| {
         bank.accrue_interest(&clock).unwrap();
@@ -561,7 +562,7 @@ pub fn bank_configure(
     bank_config_opt: BankConfigOpt,
 ) -> Result<()> {
     let configure_bank_ix = config
-        .program
+        .mfi_program
         .request()
         .signer(&config.payer)
         .accounts(marginfi::accounts::LendingPoolConfigureBank {
@@ -576,10 +577,10 @@ pub fn bank_configure(
         &configure_bank_ix,
         Some(&config.payer.pubkey()),
         &[&config.payer],
-        config.program.rpc().get_latest_blockhash().unwrap(),
+        config.mfi_program.rpc().get_latest_blockhash().unwrap(),
     );
 
-    let sig = process_transaction(&transaction, &config.program.rpc(), config.dry_run)?;
+    let sig = process_transaction(&transaction, &config.mfi_program.rpc(), config.dry_run)?;
 
     println!("Transaction signature: {}", sig);
 
@@ -596,7 +597,7 @@ pub fn marginfi_account_list(profile: Profile, config: &Config) -> Result<()> {
 
     let banks = HashMap::from_iter(load_all_banks(config, Some(group))?);
 
-    let accounts = config.program.accounts::<MarginfiAccount>(vec![
+    let accounts = config.mfi_program.accounts::<MarginfiAccount>(vec![
         RpcFilterType::Memcmp(Memcmp::new_raw_bytes(8, group.to_bytes().to_vec())),
         RpcFilterType::Memcmp(Memcmp::new_raw_bytes(8 + 32, authority.to_bytes().to_vec())),
     ])?;
@@ -673,7 +674,7 @@ pub fn marginfi_account_use(
     let authority = config.payer.pubkey();
 
     let marginfi_account = config
-        .program
+        .mfi_program
         .account::<MarginfiAccount>(marginfi_account_pk)?;
 
     if marginfi_account.group != group {
@@ -711,7 +712,7 @@ pub fn marginfi_account_get(
         marginfi_account_pk.unwrap_or_else(|| profile.marginfi_account.unwrap());
 
     let marginfi_account = config
-        .program
+        .mfi_program
         .account::<MarginfiAccount>(marginfi_account_pk)?;
 
     let group = marginfi_account.group;
@@ -731,7 +732,7 @@ pub fn marginfi_account_deposit(
 ) -> Result<()> {
     let marginfi_account_pk = profile.get_marginfi_account();
 
-    let bank = config.program.account::<Bank>(bank_pk)?;
+    let bank = config.mfi_program.account::<Bank>(bank_pk)?;
 
     let amount = (I80F48::from_num(ui_amount) * EXP_10_I80F48[bank.mint_decimals as usize])
         .floor()
@@ -766,10 +767,10 @@ pub fn marginfi_account_deposit(
         &[ix],
         Some(&config.payer.pubkey()),
         &[&config.payer],
-        config.program.rpc().get_latest_blockhash()?,
+        config.mfi_program.rpc().get_latest_blockhash()?,
     );
 
-    match process_transaction(&tx, &config.program.rpc(), config.dry_run) {
+    match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
         Ok(sig) => println!("Deposit successful: {}", sig),
         Err(err) => println!("Error during deposit:\n{:#?}", err),
     }
@@ -793,7 +794,7 @@ pub fn marginfi_account_withdraw(
     let bank = banks.get(&bank_pk).expect("Bank not found");
 
     let marginfi_account = config
-        .program
+        .mfi_program
         .account::<MarginfiAccount>(marginfi_account_pk)?;
 
     let amount = (I80F48::from_num(ui_amount) * EXP_10_I80F48[bank.mint_decimals as usize])
@@ -853,10 +854,10 @@ pub fn marginfi_account_withdraw(
         &[create_ide_ata_ix, ix],
         Some(&config.payer.pubkey()),
         &[&config.payer],
-        config.program.rpc().get_latest_blockhash()?,
+        config.mfi_program.rpc().get_latest_blockhash()?,
     );
 
-    match process_transaction(&tx, &config.program.rpc(), config.dry_run) {
+    match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
         Ok(sig) => println!("Withdraw successful: {}", sig),
         Err(err) => println!("Error during withdraw:\n{:#?}", err),
     }
@@ -879,7 +880,7 @@ pub fn marginfi_account_borrow(
     let bank = banks.get(&bank_pk).expect("Bank not found");
 
     let marginfi_account = config
-        .program
+        .mfi_program
         .account::<MarginfiAccount>(marginfi_account_pk)?;
 
     let amount = (I80F48::from_num(ui_amount) * EXP_10_I80F48[bank.mint_decimals as usize])
@@ -935,10 +936,10 @@ pub fn marginfi_account_borrow(
         &[create_ide_ata_ix, ix],
         Some(&config.payer.pubkey()),
         &[&config.payer],
-        config.program.rpc().get_latest_blockhash()?,
+        config.mfi_program.rpc().get_latest_blockhash()?,
     );
 
-    match process_transaction(&tx, &config.program.rpc(), config.dry_run) {
+    match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
         Ok(sig) => println!("Withdraw successful: {}", sig),
         Err(err) => println!("Error during withdraw:\n{:#?}", err),
     }
@@ -966,10 +967,10 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
         &[ix],
         Some(&config.payer.pubkey()),
         &[&config.payer, &marginfi_account_key],
-        config.program.rpc().get_latest_blockhash()?,
+        config.mfi_program.rpc().get_latest_blockhash()?,
     );
 
-    match process_transaction(&tx, &config.program.rpc(), config.dry_run) {
+    match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
         Ok(sig) => println!("Initialize successful: {}", sig),
         Err(err) => println!("Error during initialize:\n{:#?}", err),
     }
@@ -987,4 +988,77 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
     )?;
 
     Ok(())
+}
+/// LIP
+///
+
+pub fn process_list_lip_campaigns(config: &Config) {
+    let campaings = config.lip_program.accounts::<Campaign>(vec![]).unwrap();
+
+    print!("Found {} campaigns", campaings.len());
+
+    campaings.iter().for_each(|(address, campaign)| {
+        let bank = config
+            .mfi_program
+            .account::<Bank>(campaign.marginfi_bank_pk)
+            .unwrap();
+
+        print!(
+            r#"
+Campaign: {}
+Bank: {}
+Mint: {}
+Total Capacity: {}
+Remaining Capacity: {}
+Lockup Period: {} days
+Max Rewards: {}
+"#,
+            address,
+            campaign.marginfi_bank_pk,
+            bank.mint,
+            campaign.max_deposits as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
+            campaign.remaining_capacity as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
+            campaign.lockup_period / (24 * 60 * 60),
+            campaign.max_rewards as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
+        );
+    });
+}
+
+pub fn process_list_deposits(config: &Config) {
+    let deposits = config.lip_program.accounts::<Deposit>(vec![]).unwrap();
+    let campaings = HashMap::<Pubkey, Campaign>::from_iter(
+        config.lip_program.accounts::<Campaign>(vec![]).unwrap(),
+    );
+    let banks =
+        HashMap::<Pubkey, Bank>::from_iter(config.mfi_program.accounts::<Bank>(vec![]).unwrap());
+
+    deposits.iter().for_each(|(address, deposit)| {
+        let campaign = campaings.get(&deposit.campaign).unwrap();
+        let bank = banks.get(&campaign.marginfi_bank_pk).unwrap();
+
+        println!(
+            r#"
+Deposit: {},
+Campaign: {},
+Asset Mint: {},
+Owner: {},
+Amount: {},
+Matures: in {} days,
+"#,
+            address,
+            deposit.campaign,
+            bank.mint,
+            deposit.owner,
+            deposit.amount as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
+            {
+                ((campaign.lockup_period as i64
+                    - (SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs() as i64
+                        - deposit.start_time)) as f32
+                        / (24 * 60 * 60) as f32)
+            }
+        )
+    })
 }

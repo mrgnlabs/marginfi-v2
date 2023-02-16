@@ -39,7 +39,8 @@ pub struct Config {
     pub commitment: CommitmentConfig,
     pub dry_run: bool,
     pub client: Client,
-    pub program: Program,
+    pub mfi_program: Program,
+    pub lip_program: Program,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

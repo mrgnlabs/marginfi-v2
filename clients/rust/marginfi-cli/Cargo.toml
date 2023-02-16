@@ -27,6 +27,7 @@ marginfi = { path = "../../../programs/marginfi", version = "0.1.0", features = 
     "client",
     "no-entrypoint",
 ] }
+liquidity-incentive-program = { path = "../../../programs/liquidity-incentive-program", features = ["no-entrypoint"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.81"
 fixed = "1.12.0"
