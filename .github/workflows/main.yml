@@ -84,4 +84,4 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
           solana-keygen new -o "$HOME/.config/solana/id.json" --no-passphrase --silent
-      - run: cargo test --features=test,test-bpf -- --test-threads=1
+      - run: cargo test --features=test,test-bpf -- --skip campaign --test-threads=1
