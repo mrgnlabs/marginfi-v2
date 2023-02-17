@@ -62,14 +62,8 @@ use std::{
 
 pub fn group_get(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
     if let Some(marginfi_group) = marginfi_group {
-        // let rpc_client = config.program.rpc();
-
-        let account: MarginfiGroup = config.mfi_program.account(marginfi_group)?;
         println!("Address: {}", marginfi_group);
         println!("=============");
-        println!("Raw data:");
-        println!("{:#?}", account);
-
         print_group_banks(config, marginfi_group)?;
     } else {
         group_get_all(config)?;
@@ -107,11 +101,67 @@ pub fn print_group_banks(config: Config, marginfi_group: Pubkey) -> Result<()> {
 
     println!("--------\nBanks:");
 
-    for (address, state) in banks {
-        println!("{}:\n{:#?}\n", address, state);
-    }
+    banks
+        .iter()
+        .for_each(|(address, bank)| print_bank(address, bank));
 
     Ok(())
+}
+
+fn print_bank(address: &Pubkey, bank: &Bank) {
+    println!(
+        r#"
+Bank: {}
+Mint: {},
+Total Deposits: {}
+Total Liabilities: {}
+Config:
+  State: {:?}
+  Asset:
+    Weight Init: {:?}, Maint: {:?}
+    Limit: {}
+  Liab:
+    Weight Init: {:?}, Maint: {:?}
+    Limit: {}
+  Interest Rate Config:
+    Curve: opt_ur: {:?} pl_ir: {:?} max_ir: {:?}
+    Fees - Insurance: ir: {:?} fix: {:?}, Group: ir: {:?} fix: {:?}
+  Oracle Setup:
+    Type: {:?}
+    Keys: {:#?}
+Last Update: {:?}h ago ({})
+"#,
+        address,
+        bank.mint,
+        bank.get_asset_amount(bank.total_asset_shares.into())
+            .unwrap()
+            / EXP_10_I80F48[bank.mint_decimals as usize],
+        bank.get_liability_amount(bank.total_liability_shares.into())
+            .unwrap()
+            / EXP_10_I80F48[bank.mint_decimals as usize],
+        bank.config.operational_state,
+        bank.config.asset_weight_init,
+        bank.config.asset_weight_maint,
+        I80F48::from_num(bank.config.deposit_limit) / EXP_10_I80F48[bank.mint_decimals as usize],
+        bank.config.liability_weight_init,
+        bank.config.liability_weight_maint,
+        I80F48::from_num(bank.config.borrow_limit) / EXP_10_I80F48[bank.mint_decimals as usize],
+        bank.config.interest_rate_config.optimal_utilization_rate,
+        bank.config.interest_rate_config.plateau_interest_rate,
+        bank.config.interest_rate_config.max_interest_rate,
+        bank.config.interest_rate_config.insurance_ir_fee,
+        bank.config.interest_rate_config.insurance_fee_fixed_apr,
+        bank.config.interest_rate_config.protocol_ir_fee,
+        bank.config.interest_rate_config.protocol_fixed_fee_apr,
+        bank.config.oracle_setup,
+        bank.config.oracle_keys,
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH + Duration::from_secs(bank.last_update as u64))
+            .unwrap()
+            .as_secs_f32()
+            / 3600_f32,
+        bank.last_update
+    )
 }
 
 #[cfg(feature = "admin")]
@@ -1071,7 +1121,7 @@ Matures: in {} days,
                         .unwrap()
                         .as_secs() as i64
                         - deposit.start_time)) as f32
-                        / (24 * 60 * 60) as f32)
+                    / (24 * 60 * 60) as f32)
             }
         )
     })
