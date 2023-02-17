@@ -423,6 +423,8 @@ impl Bank {
         let total_assets = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
+        self.last_update = clock.unix_timestamp;
+
         if (total_assets == I80F48::ZERO) || (total_liabilities == I80F48::ZERO) {
             return Ok(());
         }
@@ -443,8 +445,6 @@ impl Bank {
 
         self.asset_share_value = asset_share_value.into();
         self.liability_share_value = liability_share_value.into();
-
-        self.last_update = clock.unix_timestamp;
 
         self.collected_group_fees_outstanding = {
             fees_collected
