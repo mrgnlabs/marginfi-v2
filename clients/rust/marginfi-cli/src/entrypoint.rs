@@ -21,6 +21,7 @@ use marginfi::{
     },
 };
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
+use spl_token::ui_amount_to_amount;
 #[cfg(feature = "dev")]
 use type_layout::TypeLayout;
 
@@ -152,10 +153,10 @@ pub enum BankCommand {
         liability_weight_maint: Option<f32>,
 
         #[clap(long)]
-        deposit_limit: Option<u64>,
+        deposit_limit_ui: Option<f64>,
 
         #[clap(long)]
-        borrow_limit: Option<u64>,
+        borrow_limit_ui: Option<f64>,
 
         #[clap(long, arg_enum)]
         operational_state: Option<BankOperationalStateArg>,
@@ -384,25 +385,32 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            deposit_limit,
-            borrow_limit,
+            deposit_limit_ui,
+            borrow_limit_ui,
             operational_state,
             bank_pk,
-        } => processor::bank_configure(
-            config,
-            profile, //
-            bank_pk,
-            BankConfigOpt {
-                asset_weight_init: asset_weight_init.map(|x| I80F48::from_num(x).into()),
-                asset_weight_maint: asset_weight_maint.map(|x| I80F48::from_num(x).into()),
-                liability_weight_init: liability_weight_init.map(|x| I80F48::from_num(x).into()),
-                liability_weight_maint: liability_weight_maint.map(|x| I80F48::from_num(x).into()),
-                deposit_limit,
-                borrow_limit,
-                operational_state: operational_state.map(|x| x.into()),
-                oracle: None,
-            },
-        ),
+        } => {
+            let bank = config.mfi_program.account::<Bank>(bank_pk).unwrap();
+            processor::bank_configure(
+                config,
+                profile, //
+                bank_pk,
+                BankConfigOpt {
+                    asset_weight_init: asset_weight_init.map(|x| I80F48::from_num(x).into()),
+                    asset_weight_maint: asset_weight_maint.map(|x| I80F48::from_num(x).into()),
+                    liability_weight_init: liability_weight_init
+                        .map(|x| I80F48::from_num(x).into()),
+                    liability_weight_maint: liability_weight_maint
+                        .map(|x| I80F48::from_num(x).into()),
+                    deposit_limit: deposit_limit_ui
+                        .map(|ui_amount| ui_amount_to_amount(ui_amount, bank.mint_decimals)),
+                    borrow_limit: borrow_limit_ui
+                        .map(|ui_amount| ui_amount_to_amount(ui_amount, bank.mint_decimals)),
+                    operational_state: operational_state.map(|x| x.into()),
+                    oracle: None,
+                },
+            )
+        }
     }
 }
 

@@ -79,10 +79,22 @@ pub fn group_get(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
 
 pub fn group_get_all(config: Config) -> Result<()> {
     let accounts: Vec<(Pubkey, MarginfiGroup)> = config.mfi_program.accounts(vec![])?;
-    for (address, state) in accounts {
-        println!("-> {}:\n{:#?}\n", address, state);
-    }
+
+    accounts
+        .iter()
+        .for_each(|(address, group)| print_group(address, group));
+
     Ok(())
+}
+
+fn print_group(address: &Pubkey, group: &MarginfiGroup) {
+    println!(
+        r#"
+Group: {}
+Admin: {}
+"#,
+        address, group.admin
+    );
 }
 
 pub fn print_group_banks(config: Config, marginfi_group: Pubkey) -> Result<()> {
