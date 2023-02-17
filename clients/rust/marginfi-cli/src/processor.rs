@@ -15,7 +15,7 @@ use anchor_client::{
 use anchor_spl::token::{self, spl_token};
 use anyhow::{anyhow, bail, Result};
 use fixed::types::I80F48;
-use liquidity_incentive_program::state::{Campaign, Deposit};
+
 use log::info;
 #[cfg(feature = "admin")]
 use marginfi::{
@@ -62,7 +62,7 @@ use std::{
 
 pub fn group_get(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
     if let Some(marginfi_group) = marginfi_group {
-        println!("Address: {}", marginfi_group);
+        println!("Address: {marginfi_group}");
         println!("=============");
         print_group_banks(config, marginfi_group)?;
     } else {
@@ -406,10 +406,10 @@ pub fn bank_get(config: Config, bank: Option<Pubkey>) -> Result<()> {
 
     if let Some(bank) = bank {
         let account: Bank = config.mfi_program.account(bank)?;
-        println!("Address: {}", bank);
+        println!("Address: {bank}");
         println!("=============");
         println!("Raw data:");
-        println!("{:#?}", account);
+        println!("{account:#?}");
 
         let liquidity_vault_balance =
             rpc_client.get_token_account_balance(&account.liquidity_vault)?;
@@ -465,7 +465,7 @@ fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec
 pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
     let accounts = load_all_banks(&config, marginfi_group)?;
     for (address, state) in accounts {
-        println!("-> {}:\n{:#?}\n", address, state);
+        println!("-> {address}:\n{state:#?}\n");
     }
     Ok(())
 }
@@ -520,7 +520,7 @@ pub fn create_profile(
         return Err(anyhow!("Profile {} already exists", profile.name));
     }
 
-    println!("Creating profile {:#?}", profile);
+    println!("Creating profile {profile:#?}");
 
     fs::write(&profile_file, serde_json::to_string(&profile)?)?;
 
@@ -529,7 +529,7 @@ pub fn create_profile(
 
 pub fn show_profile() -> Result<()> {
     let profile = load_profile()?;
-    println!("{:?}", profile);
+    println!("{profile:?}");
     Ok(())
 }
 
@@ -541,9 +541,7 @@ pub fn set_profile(name: String) -> Result<()> {
         return Err(anyhow!("Profiles not configured, run `mfi profile create`"));
     }
 
-    let profile_file = cli_config_dir
-        .join("profiles")
-        .join(format!("{}.json", name));
+    let profile_file = cli_config_dir.join("profiles").join(format!("{name}.json"));
 
     if !profile_file.exists() {
         return Err(anyhow!("Profile {} does not exist", name));
@@ -585,7 +583,7 @@ pub fn list_profiles() -> Result<()> {
 
     println!("Found {} profiles", profiles.len());
     for profile in profiles {
-        println!("{}", profile);
+        println!("{profile}");
     }
 
     Ok(())
@@ -757,7 +755,7 @@ pub fn marginfi_account_use(
         Some(marginfi_account_pk),
     )?;
 
-    println!("Default marginfi account set to: {}", marginfi_account_pk);
+    println!("Default marginfi account set to: {marginfi_account_pk}");
 
     Ok(())
 }
@@ -833,8 +831,8 @@ pub fn marginfi_account_deposit(
     );
 
     match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
-        Ok(sig) => println!("Deposit successful: {}", sig),
-        Err(err) => println!("Error during deposit:\n{:#?}", err),
+        Ok(sig) => println!("Deposit successful: {sig}"),
+        Err(err) => println!("Error during deposit:\n{err:#?}"),
     }
 
     Ok(())
@@ -920,8 +918,8 @@ pub fn marginfi_account_withdraw(
     );
 
     match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
-        Ok(sig) => println!("Withdraw successful: {}", sig),
-        Err(err) => println!("Error during withdraw:\n{:#?}", err),
+        Ok(sig) => println!("Withdraw successful: {sig}"),
+        Err(err) => println!("Error during withdraw:\n{err:#?}"),
     }
 
     Ok(())
@@ -1002,8 +1000,8 @@ pub fn marginfi_account_borrow(
     );
 
     match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
-        Ok(sig) => println!("Withdraw successful: {}", sig),
-        Err(err) => println!("Error during withdraw:\n{:#?}", err),
+        Ok(sig) => println!("Withdraw successful: {sig}"),
+        Err(err) => println!("Error during withdraw:\n{err:#?}"),
     }
 
     Ok(())
@@ -1033,8 +1031,8 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
     );
 
     match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
-        Ok(sig) => println!("Initialize successful: {}", sig),
-        Err(err) => println!("Error during initialize:\n{:#?}", err),
+        Ok(sig) => println!("Initialize successful: {sig}"),
+        Err(err) => println!("Error during initialize:\n{err:#?}"),
     }
 
     let mut profile = profile.clone();

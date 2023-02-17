@@ -206,9 +206,7 @@ pub fn load_profile() -> Result<Profile> {
 
 pub fn load_profile_by_name(name: &str) -> Result<Profile> {
     let cli_config_dir = get_cli_config_dir();
-    let profile_file = cli_config_dir
-        .join("profiles")
-        .join(format!("{}.json", name));
+    let profile_file = cli_config_dir.join("profiles").join(format!("{name}.json"));
 
     if !profile_file.exists() {
         return Err(anyhow!("Profile {} does not exist", name));

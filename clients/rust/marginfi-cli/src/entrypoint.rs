@@ -21,7 +21,7 @@ use marginfi::{
     },
 };
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
-use spl_token::ui_amount_to_amount;
+
 #[cfg(feature = "dev")]
 use type_layout::TypeLayout;
 
@@ -486,8 +486,8 @@ fn process_lip_subcmd(
 
 fn get_consent<T: std::fmt::Debug>(cmd: T, profile: &Profile) -> Result<()> {
     let mut input = String::new();
-    println!("Command: {:#?}", cmd);
-    println!("{:#?}", profile);
+    println!("Command: {cmd:#?}");
+    println!("{profile:#?}");
     println!(
         "Type the name of the profile [{}] to continue",
         profile.name.clone()
