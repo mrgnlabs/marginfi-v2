@@ -11,6 +11,7 @@ path = "src/bin/main.rs"
 devnet = ["marginfi/devnet"]
 admin = []
 dev = []
+lip = []
 
 [dependencies]
 clap = { version = "3.2.6", features = ["derive"] }

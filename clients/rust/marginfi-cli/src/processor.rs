@@ -992,6 +992,7 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
 /// LIP
 ///
 
+#[cfg(feature = "lip")]
 pub fn process_list_lip_campaigns(config: &Config) {
     let campaings = config.lip_program.accounts::<Campaign>(vec![]).unwrap();
 
@@ -1024,6 +1025,7 @@ Max Rewards: {}
     });
 }
 
+#[cfg(feature = "lip")]
 pub fn process_list_deposits(config: &Config) {
     let deposits = config.lip_program.accounts::<Deposit>(vec![]).unwrap();
     let campaings = HashMap::<Pubkey, Campaign>::from_iter(
