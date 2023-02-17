@@ -20,6 +20,7 @@ ipython = "^8.10.0"
 autoflake = "^2.0.1"
 black = "^23.1.0"
 genpy = "^2022.1"
+solana = "^0.29.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

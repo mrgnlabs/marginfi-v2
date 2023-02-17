@@ -1,16 +1,20 @@
 import argparse
-import logging
+import base64
 import json
-import types
+import logging
 from typing import List, Optional
-from pathlib import Path
-from anchorpy import Idl, Program, EventParser, Event
-from solders.pubkey import Pubkey
+from anchorpy import Event
+from anchorpy.coder.event import EVENT_DISCRIMINATOR_SIZE
+from solders.message import MessageV0, Message
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
+from solders.pubkey import Pubkey
 
 from event_parsing_etl_batch.event_records import event_to_record, Record, LiquidityChangeRecord, \
     MarginfiAccountCreationRecord
+from event_parsing_etl_batch.transaction_log_parser import reconcile_instruction_logs, \
+    merge_instructions_and_cpis, expand_instructions, InstructionWithLogs, PROGRAM_DATA
+from event_parsing_etl_batch.client_generated.events import *
 
 # Defines the BigQuery schema for the output table.
 PROCESSED_TRANSACTION_SCHEMA = ",".join(
@@ -36,6 +40,54 @@ class DispatchEventsDoFn(beam.DoFn):
         yield beam.pvalue.TaggedOutput(record.NAME, record)
 
 
+def create_records_from_ix(ix: InstructionWithLogs) -> List[Record]:
+    records = []
+    for log in ix.logs:
+        if log.startswith(PROGRAM_DATA):
+            event_encoded = log[len(PROGRAM_DATA):]
+            event_bytes = base64.b64decode(event_encoded)
+
+            disc = event_bytes[:EVENT_DISCRIMINATOR_SIZE]
+            if disc == MarginfiAccountCreateEvent.discriminator:
+                event = Event(name="MarginfiAccountCreateEvent", data=MarginfiAccountCreateEvent.decode(event_bytes))
+            elif disc == LendingAccountDepositEvent.discriminator:
+                event = Event(name="LendingAccountDepositEvent", data=LendingAccountDepositEvent.decode(event_bytes))
+            elif disc == LendingAccountWithdrawEvent.discriminator:
+                event = Event(name="LendingAccountWithdrawEvent", data=LendingAccountWithdrawEvent.decode(event_bytes))
+            elif disc == LendingAccountBorrowEvent.discriminator:
+                event = Event(name="LendingAccountBorrowEvent", data=LendingAccountBorrowEvent.decode(event_bytes))
+            elif disc == LendingAccountRepayEvent.discriminator:
+                event = Event(name="LendingAccountRepayEvent", data=LendingAccountRepayEvent.decode(event_bytes))
+            elif disc == LendingAccountWithdrawEvent.discriminator:
+                event = Event(name="LendingAccountWithdrawEvent", data=LendingAccountWithdrawEvent.decode(event_bytes))
+            elif disc == LendingPoolBankAddEvent.discriminator:
+                event = Event(name="LendingPoolBankAddEvent", data=LendingPoolBankAddEvent.decode(event_bytes))
+            elif disc == LendingPoolBankAccrueInterestEvent.discriminator:
+                event = Event(name="LendingPoolBankAccrueInterestEvent",
+                              data=LendingPoolBankAccrueInterestEvent.decode(event_bytes))
+            else:
+                print("Program event not supported", event_bytes, log)
+                event = None
+
+            # todo: decode ix and enrich when needed ^
+            if event is not None:
+                print(event.name)
+
+    return records
+
+
+def extract_events_from_ix(ix: InstructionWithLogs, program_id: Pubkey) -> List[Record]:
+    ix_events = []
+
+    if ix.message.program_id == program_id:
+        ix_events.extend(create_records_from_ix(ix))
+
+    for inner_ix in ix.inner_instructions:
+        ix_events.extend(extract_events_from_ix(inner_ix, program_id))
+
+    return ix_events
+
+
 def run(
         input_table: str,
         target_dataset: str,
@@ -43,20 +95,33 @@ def run(
         end_date: Optional[str] = None,
         beam_args: List[str] = None,
 ) -> None:
-    path = Path("marginfi.json")
-    raw = path.read_text()
+    # path = Path("marginfi.json")
+    # raw = path.read_text()
 
     def extract_events_from_tx(tx):
-        idl = Idl.from_json(raw)
-        indexed_program = tx["indexing_address"]
-        program = Program(idl, Pubkey.from_string(indexed_program))
-        event_parser = EventParser(program.program_id, program.coder)
-        # instruction_coder = program.coder.instruction
-        # program_ixs = [instruction_coder.parse(raw_ix) for raw_ix in tx[""]]
-        meta = json.loads(tx["meta"], object_hook=lambda d: types.SimpleNamespace(**d))
+        # idl = Idl.from_json(raw)
+        indexed_program_id = Pubkey.from_string(tx["indexing_address"])
+        # program = Program(idl, Pubkey.from_string(indexed_program))
 
-        records_list: List[Record] = []
-        event_parser.parse_logs(meta.logMessages, lambda event: process_event(records_list, event))
+        meta = json.loads(tx["meta"])
+        message_bytes = base64.b64decode(tx["message"])
+
+        tx_version = tx["version"]
+        if tx_version == "legacy":
+            message_decoded = Message.from_bytes(message_bytes)
+        elif tx_version == "0":
+            message_decoded = MessageV0.from_bytes(message_bytes[1:])
+        else:
+            return []
+
+        merged_instructions = merge_instructions_and_cpis(message_decoded.instructions, meta["innerInstructions"])
+        expanded_instructions = expand_instructions(message_decoded.account_keys, merged_instructions)
+        ixs_with_logs = reconcile_instruction_logs(expanded_instructions, meta["logMessages"])
+
+        records_list = []
+        for ix_with_logs in ixs_with_logs:
+            records_list.extend(extract_events_from_ix(ix_with_logs, indexed_program_id))
+
         return records_list
 
     """Build and run the pipeline."""
