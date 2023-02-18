@@ -4,14 +4,12 @@ use anchor_lang::prelude::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct GroupEventHeader {
-    pub version: String,
     pub signer: Option<Pubkey>,
     pub marginfi_group: Pubkey,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct AccountEventHeader {
-    pub version: String,
     pub signer: Pubkey,
     pub marginfi_account: Pubkey,
     pub marginfi_group: Pubkey,

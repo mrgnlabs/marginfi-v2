@@ -59,7 +59,6 @@ pub fn lending_pool_add_bank(
 
     emit!(LendingPoolBankAddEvent {
         header: GroupEventHeader {
-            version: "0.1.0".to_string(),
             marginfi_group: ctx.accounts.marginfi_group.key(),
             signer: Some(*ctx.accounts.admin.key)
         },

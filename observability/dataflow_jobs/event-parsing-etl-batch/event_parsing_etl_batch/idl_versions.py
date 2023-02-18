@@ -15,7 +15,8 @@ class VersionedProgram(Program):
     version: str
     cluster: Cluster
 
-    def __init__(self, cluster: Cluster, version: str, idl: Idl, program_id: Pubkey, provider: Optional[Provider] = None):
+    def __init__(self, cluster: Cluster, version: str, idl: Idl, program_id: Pubkey,
+                 provider: Optional[Provider] = None):
         self.version = version
         self.cluster = cluster
         super(VersionedProgram, self).__init__(idl, program_id, provider)
@@ -23,7 +24,7 @@ class VersionedProgram(Program):
 
 class VersionedIdl:
     VERSIONS: ClusterIdlBoundaries = {"devnet": {
-        "A7vUDErNPCTt9qrB6SSM4F6GkxzUe9d8P3cXSmRg4eY4": [(196494976, 0)]
+        "A7vUDErNPCTt9qrB6SSM4F6GkxzUe9d8P3cXSmRg4eY4": [(196494976, 0), (196520454, 1)]
     }}
 
     @staticmethod

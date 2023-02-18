@@ -20,7 +20,6 @@ pub fn initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
 
     emit!(MarginfiAccountCreateEvent {
         header: AccountEventHeader {
-            version: "0.1.0".to_string(),
             signer: authority.key(),
             marginfi_account: marginfi_account_loader.key(),
             marginfi_group: marginfi_account.group,

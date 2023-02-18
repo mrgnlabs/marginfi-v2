@@ -1061,6 +1061,10 @@
         "kind": "struct",
         "fields": [
           {
+            "name": "version",
+            "type": "u16"
+          },
+          {
             "name": "signer",
             "type": {
               "option": "publicKey"
@@ -1078,6 +1082,10 @@
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "version",
+            "type": "u16"
+          },
           {
             "name": "signer",
             "type": "publicKey"

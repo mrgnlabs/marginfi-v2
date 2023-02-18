@@ -65,7 +65,6 @@ pub fn lending_account_repay(
 
     emit!(LendingAccountRepayEvent {
         header: AccountEventHeader {
-            version: "0.1.0".to_string(),
             signer: ctx.accounts.signer.key(),
             marginfi_account: marginfi_account_loader.key(),
             marginfi_group: marginfi_account.group,
