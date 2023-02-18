@@ -14,8 +14,8 @@ use anchor_client::{
 };
 use anchor_spl::token::{self, spl_token};
 use anyhow::{anyhow, bail, Result};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use fixed::types::I80F48;
-
 #[cfg(feature = "lip")]
 use liquidity_incentive_program::state::{Campaign, Deposit};
 use log::info;
@@ -1089,16 +1089,36 @@ Max Rewards: {}
 
 #[cfg(feature = "lip")]
 pub fn process_list_deposits(config: &Config) {
-    let deposits = config.lip_program.accounts::<Deposit>(vec![]).unwrap();
+    
+    use solana_sdk::clock::SECONDS_PER_DAY;
+
+    let mut deposits = config.lip_program.accounts::<Deposit>(vec![]).unwrap();
     let campaings = HashMap::<Pubkey, Campaign>::from_iter(
         config.lip_program.accounts::<Campaign>(vec![]).unwrap(),
     );
     let banks =
         HashMap::<Pubkey, Bank>::from_iter(config.mfi_program.accounts::<Bank>(vec![]).unwrap());
 
+    deposits.sort_by(|(_, a), (_, b)| a.start_time.cmp(&b.start_time));
+
     deposits.iter().for_each(|(address, deposit)| {
         let campaign = campaings.get(&deposit.campaign).unwrap();
         let bank = banks.get(&campaign.marginfi_bank_pk).unwrap();
+
+        let time_now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let end_time = deposit.start_time as u64 + campaign.lockup_period;
+        let maturity_string = {
+            if time_now > end_time {
+                "mature".to_owned()
+            } else {
+                let days_to_maturity = end_time.saturating_sub(time_now) / SECONDS_PER_DAY;
+                format!("mature in {} days", days_to_maturity)
+            }
+        };
 
         println!(
             r#"
@@ -1107,22 +1127,25 @@ Campaign: {},
 Asset Mint: {},
 Owner: {},
 Amount: {},
-Matures: in {} days,
+Deposit start {}, end {} ({})
 "#,
             address,
             deposit.campaign,
             bank.mint,
             deposit.owner,
             deposit.amount as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
-            {
-                ((campaign.lockup_period as i64
-                    - (SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs() as i64
-                        - deposit.start_time)) as f32
-                    / (24 * 60 * 60) as f32)
-            }
+            timestamp_to_string(deposit.start_time),
+            timestamp_to_string(end_time as i64),
+            maturity_string,
         )
     })
+}
+
+fn timestamp_to_string(timestamp: i64) -> String {
+    DateTime::<Utc>::from_utc(
+        NaiveDateTime::from_timestamp_opt(timestamp, 0).unwrap(),
+        Utc,
+    )
+    .format("%Y-%m-%d %H:%M:%S")
+    .to_string()
 }
