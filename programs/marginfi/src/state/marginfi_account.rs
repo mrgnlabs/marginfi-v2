@@ -761,7 +761,9 @@ impl<'a> BankAccountWrapper<'a> {
                 .into()
         };
 
-        Ok(spl_deposit_amount.checked_to_num().ok_or(math_error!()())?)
+        Ok(spl_deposit_amount
+            .checked_to_num()
+            .ok_or_else(math_error!())?)
     }
 
     // ------------ Internal accounting logic

@@ -36,7 +36,7 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     mem::size_of,
     ops::{Add, AddAssign},
-    sync::RwLock,
+    sync::{atomic::AtomicU64, Arc, RwLock},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -59,6 +59,7 @@ pub struct Metrics {
     price_update: u64,
 }
 
+#[derive(Debug)]
 pub enum MetricAction {
     Deposit,
     Withdraw,
@@ -70,6 +71,8 @@ pub enum MetricAction {
 
 impl Metrics {
     pub fn update_metric(&mut self, metric: MetricAction, success: bool) {
+        log!("Result {:?} {}", metric, success);
+
         let metric = match (metric, success) {
             (MetricAction::Deposit, true) => &mut self.deposit_s,
             (MetricAction::Deposit, false) => &mut self.deposit_e,
@@ -89,7 +92,12 @@ impl Metrics {
     }
 
     pub fn print(&self) {
-        log!("\nDeposit\t{}\t{}\nWithd\t{}\t{}\nBorrow\t{}\t{}\nRepay\t{}\t{}\nLiq\t{}\t{}\nBank\t{}\t{}\nUpdate\t{}\n",
+        print!("\r");
+        print!("{}", self.get_print_string());
+    }
+
+    pub fn get_print_string(&self) -> String {
+        format!("Deposit\t{}\t{}\tWithd\t{}\t{}\tBorrow\t{}\t{}\tRepay\t{}\t{}\tLiq\t{}\t{}\tBank\t{}\t{}\tUpdate\t{}",
             self.deposit_s,
             self.deposit_e,
             self.withdraw_s,
@@ -102,12 +110,15 @@ impl Metrics {
             self.liquidate_e,
             self.handle_bankruptcy_s,
             self.handle_bankruptcy_e,
-            self.price_update,
-        );
+            self.price_update)
+    }
+
+    pub fn log(&self) {
+        log!("{}", self.get_print_string())
     }
 }
 
-pub struct MarginfiGroupAccounts<'info> {
+pub struct MarginfiFuzzContext<'info> {
     pub marginfi_group: AccountInfo<'info>,
     pub banks: Vec<BankAccounts<'info>>,
     pub marginfi_accounts: Vec<UserAccount<'info>>,
@@ -116,19 +127,35 @@ pub struct MarginfiGroupAccounts<'info> {
     pub rent_sysvar: AccountInfo<'info>,
     pub token_program: AccountInfo<'info>,
     pub last_sysvar_current_timestamp: RwLock<u64>,
-    pub metrics: RwLock<Metrics>,
+    pub metrics: Arc<RwLock<Metrics>>,
+}
+
+lazy_static! {
+    pub static ref LOG_COUNTER: AtomicU64 = AtomicU64::new(0);
 }
 
 #[macro_export]
 macro_rules! log {
     ($($arg:tt)*) => {
-        #[cfg(feature = "capture_log")]
-        log::info!($($arg)*);
+        #[cfg(feature = "capture_log")] {
+            let mut ct = LOG_COUNTER.load(std::sync::atomic::Ordering::Acquire);
+
+            let header = format!("{} -", ct);
+            let msg = format!($($arg)*);
+            log::info!("{} {}", header, msg);
+
+            ct += 1;
+            LOG_COUNTER.store(ct, std::sync::atomic::Ordering::Release);
+        }
     }
 }
 
-impl<'bump> MarginfiGroupAccounts<'bump> {
-    pub fn setup(bump: &'bump Bump, bank_configs: &[BankAndOracleConfig], n_users: usize) -> Self {
+impl<'bump> MarginfiFuzzContext<'bump> {
+    pub fn setup(
+        bump: &'bump Bump,
+        bank_configs: &[BankAndOracleConfig],
+        user_bank_layout: &[UserBankLayout],
+    ) -> Self {
         let marginfi_program = new_marginfi_program(bump);
         let system_program = new_system_program(bump);
         let token_program = new_spl_token_program(bump);
@@ -141,7 +168,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             system_program.clone(),
         );
 
-        let mut mga = MarginfiGroupAccounts {
+        let mut marginfi_state = MarginfiFuzzContext {
             marginfi_group,
             banks: vec![],
             owner: admin,
@@ -155,37 +182,73 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
                     .unwrap()
                     .as_secs(),
             ),
-            metrics: RwLock::new(Metrics::default()),
+            metrics: Arc::new(RwLock::new(Metrics::default())),
         };
 
         let banks = bank_configs
             .iter()
-            .map(|config| mga.setup_bank(&bump, Rent::free(), config))
+            .map(|config| marginfi_state.setup_bank(&bump, Rent::free(), config))
             .collect();
 
-        mga.banks = banks;
+        marginfi_state.banks = banks;
 
-        let token_vec = mga.banks.iter().map(|b| *b.mint.key).collect();
+        let token_vec = marginfi_state.banks.iter().map(|b| *b.mint.key).collect();
 
-        mga.marginfi_accounts = (0..n_users)
-            .into_iter()
-            .map(|_| {
-                mga.create_marginfi_account(bump, Rent::free(), &token_vec)
+        marginfi_state.marginfi_accounts = user_bank_layout
+            .iter()
+            .map(|layout| {
+                marginfi_state
+                    .create_marginfi_account(bump, Rent::free(), &token_vec, layout)
                     .unwrap()
             })
-            .collect();
+            .collect::<Vec<_>>();
 
-        // Fund initial banks to streamline deposits
-        mga.banks.iter().enumerate().for_each(|(idx, _)| {
-            mga.process_action_deposit(
-                &AccountIdx((n_users - 1) as u8),
-                &BankIdx(idx as u8),
-                &AssetAmount(bank_configs[idx].deposit_limit / 2),
+        // Create an extra account for seeding the banks
+        let funding_account = marginfi_state
+            .create_marginfi_account(
+                bump,
+                Rent::free(),
+                &token_vec,
+                &UserBankLayout([true; N_BANKS]),
             )
             .unwrap();
-        });
 
-        mga
+        marginfi_state.marginfi_accounts.push(funding_account);
+
+        // Seed the banks
+        for bank_idx in 0..marginfi_state.banks.len() {
+            marginfi_state
+                .process_action_deposit(
+                    &AccountIdx(marginfi_state.marginfi_accounts.len() as u8 - 1),
+                    &BankIdx(bank_idx as u8),
+                    &AssetAmount(
+                        1_000
+                            * 10_u64
+                                .pow(marginfi_state.banks[bank_idx as usize].mint_decimals.into()),
+                    ),
+                )
+                .unwrap();
+        }
+
+        // // Fund initial banks to streamline deposit
+        // for account_idx in 0..marginfi_state.marginfi_accounts.len() {
+        //     for bank_idx in 0..marginfi_state.banks.len() {
+        //         marginfi_state
+        //             .process_action_deposit(
+        //                 &AccountIdx(account_idx as u8),
+        //                 &BankIdx(bank_idx as u8),
+        //                 &AssetAmount(
+        //                     1_000
+        //                         * 10_u64.pow(
+        //                             marginfi_state.banks[bank_idx as usize].mint_decimals.into(),
+        //                         ),
+        //                 ),
+        //             )
+        //             .unwrap();
+        //     }
+        // }
+
+        marginfi_state
     }
 
     fn get_bank_map(&'bump self) -> HashMap<Pubkey, &'bump BankAccounts<'bump>> {
@@ -213,6 +276,10 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             .write()
             .unwrap()
             .add_assign(time);
+
+        test_syscall_stubs(Some(
+            *self.last_sysvar_current_timestamp.read().unwrap() as i64
+        ));
     }
 
     pub fn setup_bank(
@@ -355,6 +422,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         bump: &'bump Bump,
         rent: Rent,
         token_mints: &Vec<Pubkey>,
+        layout: &UserBankLayout,
     ) -> anyhow::Result<UserAccount<'bump>> {
         let marginfi_account =
             new_owned_account(size_of::<MarginfiAccount>(), &marginfi::ID, bump, rent);
@@ -385,7 +453,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
 
         set_discriminator::<MarginfiAccount>(marginfi_account.clone());
 
-        Ok(UserAccount::new(marginfi_account, token_accounts))
+        Ok(UserAccount::new(marginfi_account, token_accounts, *layout))
     }
 
     pub fn process_action_deposit(
@@ -395,6 +463,9 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         asset_amount: &AssetAmount,
     ) -> anyhow::Result<()> {
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
+
+        let bank_idx = marginfi_account.get_bank_idx(bank_idx, true);
+
         let bank = &self.banks[bank_idx.0 as usize];
 
         let cache = AccountInfoCache::new(&[
@@ -443,6 +514,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         repay_all: bool,
     ) -> anyhow::Result<()> {
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
+        let bank_idx = marginfi_account.get_bank_idx(bank_idx, false);
         let bank = &self.banks[bank_idx.0 as usize];
 
         let cache = AccountInfoCache::new(&[
@@ -493,6 +565,8 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
     ) -> anyhow::Result<()> {
         self.refresh_oracle_accounts();
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
+
+        let bank_idx = marginfi_account.get_bank_idx(bank_idx, true);
         let bank = &self.banks[bank_idx.0 as usize];
 
         let cache = AccountInfoCache::new(&[
@@ -557,7 +631,10 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         asset_amount: &AssetAmount,
     ) -> anyhow::Result<()> {
         self.refresh_oracle_accounts();
+
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
+
+        let bank_idx = marginfi_account.get_bank_idx(bank_idx, false);
         let bank = &self.banks[bank_idx.0 as usize];
 
         let cache = AccountInfoCache::new(&[
@@ -592,14 +669,17 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             asset_amount.0,
         );
 
-        if res.is_err() {
+        let is_ok = res.is_ok();
+
+        if !is_ok {
+            log!("{}", res.unwrap_err());
             cache.revert();
         }
 
         self.metrics
             .write()
             .unwrap()
-            .update_metric(MetricAction::Borrow, res.is_ok());
+            .update_metric(MetricAction::Borrow, is_ok);
 
         Ok(())
     }
@@ -780,10 +860,10 @@ impl<'info> AccountInfoCache<'info> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AccountIdx(pub u8);
-pub const N_USERS: u8 = 4;
+pub const N_USERS: usize = 4;
 impl<'a> Arbitrary<'a> for AccountIdx {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        let i: u8 = u.int_in_range(0..=N_USERS - 1)?;
+        let i: u8 = u.int_in_range(0..=N_USERS as u8 - 1)?;
         Ok(AccountIdx(i))
     }
 
@@ -810,6 +890,32 @@ impl<'a> Arbitrary<'a> for BankIdx {
 
     fn arbitrary_take_rest(mut u: arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         Self::arbitrary(&mut u)
+    }
+}
+
+/// Layout determining which banks are used for depositing or borrowing;
+///
+/// TODO: Support changing bank purpose
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UserBankLayout(pub [bool; N_BANKS]);
+
+impl UserBankLayout {
+    pub fn into_inner(&self) -> [bool; N_BANKS] {
+        self.0
+    }
+}
+
+impl<'a> Arbitrary<'a> for UserBankLayout {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mut layout = [false; N_BANKS];
+
+        layout[0] = true;
+
+        for e in &mut layout[2..] {
+            *e = u.arbitrary::<bool>().unwrap();
+        }
+
+        Ok(UserBankLayout(layout))
     }
 }
 
@@ -970,17 +1076,33 @@ pub fn get_vault_authority(bank: &Pubkey, vault_type: BankVaultType) -> (Pubkey,
 pub struct UserAccount<'info> {
     pub margin_account: AccountInfo<'info>,
     pub token_accounts: Vec<AccountInfo<'info>>,
+    pub bank_layout: UserBankLayout,
 }
 
 impl<'info> UserAccount<'info> {
     pub fn new(
         margin_account: AccountInfo<'info>,
         token_accounts: Vec<AccountInfo<'info>>,
+        bank_layout: UserBankLayout,
     ) -> Self {
         Self {
             margin_account,
             token_accounts,
+            bank_layout,
         }
+    }
+
+    pub fn get_bank_idx(&self, base_idx: &BankIdx, asset: bool) -> BankIdx {
+        let idxs = self
+            .bank_layout
+            .0
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, is_asset)| if *is_asset == asset { Some(idx) } else { None })
+            .collect::<Vec<_>>();
+        let projected_idx = base_idx.0 as usize % idxs.len();
+
+        BankIdx(idxs[projected_idx] as u8)
     }
 
     pub fn get_remaining_accounts(
@@ -1309,7 +1431,7 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
 
     fn sol_log(&self, message: &str) {
         if *VERBOSE != 0 {
-            println!("Program Log: {}", message);
+            log!("Program Log: {}", message);
         }
     }
 
@@ -1387,7 +1509,7 @@ mod tests {
     fn deposit_test() {
         let bump = bumpalo::Bump::new();
 
-        let a = MarginfiGroupAccounts::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 2);
+        let a = MarginfiFuzzContext::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 2);
 
         let al =
             AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &a.marginfi_group)
@@ -1415,7 +1537,7 @@ mod tests {
     fn borrow_test() {
         let bump = bumpalo::Bump::new();
 
-        let a = MarginfiGroupAccounts::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 2);
+        let a = MarginfiFuzzContext::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 2);
 
         a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
             .unwrap();
@@ -1458,7 +1580,7 @@ mod tests {
     fn liquidation_test() {
         let bump = bumpalo::Bump::new();
 
-        let a = MarginfiGroupAccounts::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 3);
+        let a = MarginfiFuzzContext::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 3);
 
         a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
             .unwrap();
@@ -1524,7 +1646,7 @@ mod tests {
     fn liquidation_and_bankruptcy() {
         let bump = bumpalo::Bump::new();
 
-        let a = MarginfiGroupAccounts::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 3);
+        let a = MarginfiFuzzContext::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 3);
 
         a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
             .unwrap();

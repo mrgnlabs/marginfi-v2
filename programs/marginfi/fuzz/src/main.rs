@@ -4,12 +4,12 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi::{prelude::MarginfiGroup, state::marginfi_account::MarginfiAccount};
 use marginfi_fuzz::{
-    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, MarginfiGroupAccounts, N_BANKS, N_USERS,
+    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, MarginfiFuzzContext, N_BANKS, N_USERS,
 };
 
 fn main() -> Result<()> {
     let bump = bumpalo::Bump::new();
-    let a = MarginfiGroupAccounts::setup(
+    let a = MarginfiFuzzContext::setup(
         &bump,
         &[BankAndOracleConfig::dummy(); N_BANKS],
         N_USERS as usize,

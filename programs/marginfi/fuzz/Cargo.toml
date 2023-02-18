@@ -32,6 +32,7 @@ capture_log = ["log", "log4rs"]
 
 [dependencies.marginfi]
 path = ".."
+features = ["no-entrypoint", "debug"]
 
 # Prevent this from interfering with workspaces
 [workspace]
