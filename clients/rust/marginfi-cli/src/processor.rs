@@ -16,6 +16,8 @@ use anchor_spl::token::{self, spl_token};
 use anyhow::{anyhow, bail, Result};
 use fixed::types::I80F48;
 
+#[cfg(feature = "lip")]
+use liquidity_incentive_program::state::{Campaign, Deposit};
 use log::info;
 #[cfg(feature = "admin")]
 use marginfi::{

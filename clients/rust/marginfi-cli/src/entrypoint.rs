@@ -402,10 +402,12 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                         .map(|x| I80F48::from_num(x).into()),
                     liability_weight_maint: liability_weight_maint
                         .map(|x| I80F48::from_num(x).into()),
-                    deposit_limit: deposit_limit_ui
-                        .map(|ui_amount| ui_amount_to_amount(ui_amount, bank.mint_decimals)),
-                    borrow_limit: borrow_limit_ui
-                        .map(|ui_amount| ui_amount_to_amount(ui_amount, bank.mint_decimals)),
+                    deposit_limit: deposit_limit_ui.map(|ui_amount| {
+                        spl_token::ui_amount_to_amount(ui_amount, bank.mint_decimals)
+                    }),
+                    borrow_limit: borrow_limit_ui.map(|ui_amount| {
+                        spl_token::ui_amount_to_amount(ui_amount, bank.mint_decimals)
+                    }),
                     operational_state: operational_state.map(|x| x.into()),
                     oracle: None,
                 },
