@@ -4,17 +4,16 @@ import json
 import logging
 from typing import List, Optional
 from anchorpy import Event
-from anchorpy.coder.event import EVENT_DISCRIMINATOR_SIZE
 from solders.message import MessageV0, Message
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 from solders.pubkey import Pubkey
 
-from event_parsing_etl_batch.event_records import event_to_record, Record, LiquidityChangeRecord, \
-    MarginfiAccountCreationRecord
+from event_parsing_etl_batch.orm import event_to_record, Record, LiquidityChangeRecord, \
+    MarginfiAccountCreationRecord, is_liquidity_change_event, MARGINFI_ACCOUNT_CREATE_EVENT
+from event_parsing_etl_batch.idl_versions import VersionedIdl, VersionedProgram, Cluster
 from event_parsing_etl_batch.transaction_log_parser import reconcile_instruction_logs, \
     merge_instructions_and_cpis, expand_instructions, InstructionWithLogs, PROGRAM_DATA
-from event_parsing_etl_batch.client_generated.events import *
 
 # Defines the BigQuery schema for the output table.
 PROCESSED_TRANSACTION_SCHEMA = ",".join(
@@ -40,50 +39,46 @@ class DispatchEventsDoFn(beam.DoFn):
         yield beam.pvalue.TaggedOutput(record.NAME, record)
 
 
-def create_records_from_ix(ix: InstructionWithLogs) -> List[Record]:
+def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -> List[Record]:
     records = []
     for log in ix.logs:
-        if log.startswith(PROGRAM_DATA):
-            event_encoded = log[len(PROGRAM_DATA):]
+        if not log.startswith(PROGRAM_DATA):
+            continue
+
+        event_encoded = log[len(PROGRAM_DATA):]
+        try:
             event_bytes = base64.b64decode(event_encoded)
+        except Exception as e:
+            raise Exception("Failed to decode base64 event string", e)
 
-            disc = event_bytes[:EVENT_DISCRIMINATOR_SIZE]
-            if disc == MarginfiAccountCreateEvent.discriminator:
-                event = Event(name="MarginfiAccountCreateEvent", data=MarginfiAccountCreateEvent.decode(event_bytes))
-            elif disc == LendingAccountDepositEvent.discriminator:
-                event = Event(name="LendingAccountDepositEvent", data=LendingAccountDepositEvent.decode(event_bytes))
-            elif disc == LendingAccountWithdrawEvent.discriminator:
-                event = Event(name="LendingAccountWithdrawEvent", data=LendingAccountWithdrawEvent.decode(event_bytes))
-            elif disc == LendingAccountBorrowEvent.discriminator:
-                event = Event(name="LendingAccountBorrowEvent", data=LendingAccountBorrowEvent.decode(event_bytes))
-            elif disc == LendingAccountRepayEvent.discriminator:
-                event = Event(name="LendingAccountRepayEvent", data=LendingAccountRepayEvent.decode(event_bytes))
-            elif disc == LendingAccountWithdrawEvent.discriminator:
-                event = Event(name="LendingAccountWithdrawEvent", data=LendingAccountWithdrawEvent.decode(event_bytes))
-            elif disc == LendingPoolBankAddEvent.discriminator:
-                event = Event(name="LendingPoolBankAddEvent", data=LendingPoolBankAddEvent.decode(event_bytes))
-            elif disc == LendingPoolBankAccrueInterestEvent.discriminator:
-                event = Event(name="LendingPoolBankAccrueInterestEvent",
-                              data=LendingPoolBankAccrueInterestEvent.decode(event_bytes))
-            else:
-                print("Program event not supported", event_bytes, log)
-                event = None
+        event = program.coder.events.parse(event_bytes)
+        instruction_data = program.coder.instruction.parse(ix.message.data)
 
-            # todo: decode ix and enrich when needed ^
-            if event is not None:
-                print(event.name)
+        print(f"info decoded with IDL {program.version}", instruction_data)
+
+        # todo: decode ix and enrich when needed
+        if is_liquidity_change_event(event.name):
+            record = LiquidityChangeRecord.from_event(event)
+        elif event.name == MARGINFI_ACCOUNT_CREATE_EVENT:
+            record = MarginfiAccountCreationRecord.from_event(event)
+        else:
+            print("discarding unsupported event:", event.name)
+            record = None
+
+        if record is not None:
+            records.append(record)
 
     return records
 
 
-def extract_events_from_ix(ix: InstructionWithLogs, program_id: Pubkey) -> List[Record]:
+def extract_events_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -> List[Record]:
     ix_events = []
 
-    if ix.message.program_id == program_id:
-        ix_events.extend(create_records_from_ix(ix))
+    if ix.message.program_id == program.program_id:
+        ix_events.extend(create_records_from_ix(ix, program))
 
     for inner_ix in ix.inner_instructions:
-        ix_events.extend(extract_events_from_ix(inner_ix, program_id))
+        ix_events.extend(extract_events_from_ix(inner_ix, program))
 
     return ix_events
 
@@ -91,17 +86,17 @@ def extract_events_from_ix(ix: InstructionWithLogs, program_id: Pubkey) -> List[
 def run(
         input_table: str,
         target_dataset: str,
+        cluster: Cluster,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         beam_args: List[str] = None,
 ) -> None:
-    # path = Path("marginfi.json")
-    # raw = path.read_text()
-
     def extract_events_from_tx(tx):
-        # idl = Idl.from_json(raw)
-        indexed_program_id = Pubkey.from_string(tx["indexing_address"])
-        # program = Program(idl, Pubkey.from_string(indexed_program))
+        indexed_program_id_str = tx["indexing_address"]
+        indexed_program_id = Pubkey.from_string(indexed_program_id_str)
+        tx_slot = int(tx["slot"])
+        idl, idl_version = VersionedIdl.get_idl_for_slot(cluster, indexed_program_id_str, tx_slot)
+        program = VersionedProgram(cluster, idl_version, idl, indexed_program_id)
 
         meta = json.loads(tx["meta"])
         message_bytes = base64.b64decode(tx["message"])
@@ -120,7 +115,7 @@ def run(
 
         records_list = []
         for ix_with_logs in ixs_with_logs:
-            records_list.extend(extract_events_from_ix(ix_with_logs, indexed_program_id))
+            records_list.extend(extract_events_from_ix(ix_with_logs, program))
 
         return records_list
 
@@ -194,6 +189,13 @@ def main():
         help="Output BigQuery dataset where event tables are located: PROJECT:DATASET",
     )
     parser.add_argument(
+        "--cluster",
+        type=str,
+        required=False,
+        default="mainnet",
+        help="Solana cluster being indexed: mainnet | devnet",
+    )
+    parser.add_argument(
         "--start_date",
         type=str,
         help="Start date to consider (inclusive) as: YYYY-MM-DD",
@@ -208,6 +210,7 @@ def main():
     run(
         input_table=known_args.input_table,
         target_dataset=known_args.target_dataset,
+        cluster=known_args.cluster,
         start_date=known_args.start_date,
         end_date=known_args.end_date,
         beam_args=remaining_args,

@@ -15,7 +15,6 @@ MARGINFI_ACCOUNT_CREATE_EVENT = 'MarginfiAccountCreateEvent'
 class LiquidityChangeRecord:
     NAME = "LiquidityChange"
 
-    version: str
     marginfi_group: Pubkey
     marginfi_account: Pubkey
     authority: Pubkey
@@ -30,7 +29,6 @@ class LiquidityChangeRecord:
             balance_closed = event.data.close_balance
 
         return LiquidityChangeRecord(operation=event.name,
-                                     version=event.data.header.version,
                                      marginfi_account=event.data.header.marginfi_account,
                                      marginfi_group=event.data.header.marginfi_group,
                                      authority=event.data.header.signer,
@@ -51,15 +49,13 @@ def is_liquidity_change_event(event_name: str) -> bool:
 class MarginfiAccountCreationRecord:
     NAME = "MarginfiAccountCreation"
 
-    version: str
     marginfi_group: Pubkey
     marginfi_account: Pubkey
     authority: Pubkey
 
     @staticmethod
     def from_event(event: Event) -> "MarginfiAccountCreationRecord":
-        return MarginfiAccountCreationRecord(version=event.data.header.version,
-                                             marginfi_account=event.data.header.marginfi_account,
+        return MarginfiAccountCreationRecord(marginfi_account=event.data.header.marginfi_account,
                                              marginfi_group=event.data.header.marginfi_group,
                                              authority=event.data.header.signer)
 

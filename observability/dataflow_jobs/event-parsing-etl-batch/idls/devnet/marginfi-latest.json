@@ -1062,7 +1062,7 @@
         "fields": [
           {
             "name": "version",
-            "type": "string"
+            "type": "u16"
           },
           {
             "name": "signer",
@@ -1084,7 +1084,7 @@
         "fields": [
           {
             "name": "version",
-            "type": "string"
+            "type": "u16"
           },
           {
             "name": "signer",
