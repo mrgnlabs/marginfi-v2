@@ -1361,9 +1361,9 @@ pub fn update_oracle_account(ai: AccountInfo, price_change: i64) -> Result<(), P
     let mut data = ai.try_borrow_mut_data()?;
     let data = bytemuck::from_bytes_mut::<PriceAccount>(&mut data);
 
-    data.agg.price += price_change;
-    data.ema_price.val += price_change;
-    data.ema_price.numer += price_change;
+    data.agg.price = data.agg.price.saturating_add(price_change);
+    data.agg.price = data.ema_price.val.saturating_add(price_change);
+    data.agg.price = data.ema_price.numer.saturating_add(price_change);
 
     Ok(())
 }
