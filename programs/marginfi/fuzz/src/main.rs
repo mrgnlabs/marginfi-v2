@@ -23,8 +23,8 @@ fn main() -> Result<()> {
 
     assert_eq!(al.load().unwrap().admin, a.owner.key());
 
-    a.process_action_deposits(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))?;
-    a.process_action_deposits(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))?;
+    a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))?;
+    a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))?;
     // a.process_action_withdraw(&AccountIdx(0), &BankIdx(0), &AssetAmount(999), Some(false))?;
     a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(999))?;
 

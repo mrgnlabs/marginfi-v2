@@ -50,10 +50,6 @@ enum Action {
         liability_bank: BankIdx,
         asset_amount: AssetAmount,
     },
-    HandleBankruptcy {
-        account: AccountIdx,
-        bank: BankIdx,
-    },
 }
 
 #[derive(Debug)]
@@ -121,14 +117,6 @@ fn verify_end_state(mga: &MarginfiGroupAccounts) -> anyhow::Result<()> {
             net_accounted_balance.to_num::<u64>(),
         );
 
-        // println!(
-        //     "bank: {:?} total_deposits: {:?} total_liabilities: {:?} net_accounted_balance: {:?}",
-        //     bank.bank.key(),
-        //     total_deposits,
-        //     total_liabilities,
-        //     net_accounted_balance,
-        // );
-
         Ok::<_, anyhow::Error>(())
     })?;
 
@@ -136,13 +124,12 @@ fn verify_end_state(mga: &MarginfiGroupAccounts) -> anyhow::Result<()> {
 }
 
 fn process_action<'bump>(action: &Action, mga: &'bump MarginfiGroupAccounts<'bump>) -> Result<()> {
-    // println!("Action {:#?}", action);
     match action {
         Action::Deposit {
             account,
             bank,
             asset_amount,
-        } => mga.process_action_deposits(account, bank, asset_amount)?,
+        } => mga.process_action_deposit(account, bank, asset_amount)?,
         Action::Withdraw {
             account,
             bank,
@@ -161,7 +148,19 @@ fn process_action<'bump>(action: &Action, mga: &'bump MarginfiGroupAccounts<'bum
             repay_all,
         } => mga.process_action_repay(account, bank, asset_amount, *repay_all)?,
         Action::UpdateOracle { bank, price } => mga.process_update_oracle(bank, price)?,
-        _ => (),
+        Action::Liquidate {
+            liquidator,
+            liquidatee,
+            asset_bank,
+            liability_bank,
+            asset_amount,
+        } => mga.process_liquidate_account(
+            liquidator,
+            liquidatee,
+            asset_bank,
+            liability_bank,
+            asset_amount,
+        )?,
     };
 
     mga.advance_time();

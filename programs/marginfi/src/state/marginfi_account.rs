@@ -384,7 +384,7 @@ impl<'a> RiskEngine<'a> {
             .bank_accounts_with_price
             .iter()
             .find(|a| a.balance.bank_pk == *bank_pk)
-            .unwrap();
+            .ok_or(MarginfiError::LendingAccountBalanceNotFound)?;
 
         check!(
             liability_bank_balance

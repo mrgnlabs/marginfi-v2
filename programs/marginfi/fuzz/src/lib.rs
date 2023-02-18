@@ -303,7 +303,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         Ok(UserAccount::new(marginfi_account, token_accounts))
     }
 
-    pub fn process_action_deposits(
+    pub fn process_action_deposit(
         &self,
         account_idx: &AccountIdx,
         bank_idx: &BankIdx,
@@ -567,6 +567,50 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             account_cache.revert();
         }
 
+        if res.is_ok() {
+            self.process_handle_bankruptcy(liquidatee_idx, liab_bank_idx)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn process_handle_bankruptcy(
+        &'bump self,
+        account_idx: &AccountIdx,
+        bank_idx: &BankIdx,
+    ) -> anyhow::Result<()> {
+        let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
+        let bank = &self.banks[bank_idx.0 as usize];
+
+        let cache = AccountInfoCache::new(&[
+            bank.bank.clone(),
+            marginfi_account.margin_account.clone(),
+            bank.liquidity_vault.clone(),
+            bank.insurance_vault.clone(),
+        ]);
+
+        let res = marginfi::instructions::lending_pool_handle_bankruptcy(Context::new(
+            &marginfi::ID,
+            &mut marginfi::instructions::LendingPoolHandleBankruptcy {
+                marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
+                admin: Signer::try_from(&self.owner)?,
+                bank: AccountLoader::try_from(&bank.bank.clone())?,
+                marginfi_account: AccountLoader::try_from(
+                    &marginfi_account.margin_account.clone(),
+                )?,
+                liquidity_vault: bank.liquidity_vault.clone(),
+                insurance_vault: Box::new(Account::try_from(&bank.insurance_vault.clone())?),
+                insurance_vault_authority: bank.insurance_vault_authority.clone(),
+                token_program: Program::try_from(&self.token_program)?,
+            },
+            &marginfi_account.get_remaining_accounts(&self.get_bank_map(), vec![], vec![]),
+            BTreeMap::new(),
+        ));
+
+        if res.is_err() {
+            cache.revert();
+        }
+
         Ok(())
     }
 
@@ -697,10 +741,10 @@ impl<'a> Arbitrary<'a> for BankAndOracleConfig {
         Ok(Self {
             oracle_native_price: u.int_in_range(1..=10)? * max_price,
             mint_decimals,
-            asset_weight_init: I80F48!(1).into(),
-            asset_weight_maint: I80F48!(1).into(),
-            liability_weight_init: I80F48!(1).into(),
-            liability_weight_maint: I80F48!(1).into(),
+            asset_weight_init: I80F48!(0.5).into(),
+            asset_weight_maint: I80F48!(0.75).into(),
+            liability_weight_init: I80F48!(1.5).into(),
+            liability_weight_maint: I80F48!(1.25).into(),
             deposit_limit,
             borrow_limit,
         })
@@ -710,12 +754,12 @@ impl<'a> Arbitrary<'a> for BankAndOracleConfig {
 impl BankAndOracleConfig {
     pub fn dummy() -> Self {
         Self {
-            oracle_native_price: 20 * 10u64.pow(6),
+            oracle_native_price: 10 * 10u64.pow(6),
             mint_decimals: 6,
-            asset_weight_init: I80F48!(1).into(),
-            asset_weight_maint: I80F48!(1).into(),
-            liability_weight_init: I80F48!(1).into(),
-            liability_weight_maint: I80F48!(1).into(),
+            asset_weight_init: I80F48!(0.75).into(),
+            asset_weight_maint: I80F48!(0.8).into(),
+            liability_weight_init: I80F48!(1.2).into(),
+            liability_weight_maint: I80F48!(1.1).into(),
             deposit_limit: 1_000_000_000_000 * 10u64.pow(6),
             borrow_limit: 1_000_000_000_000 * 10u64.pow(6),
         }
@@ -1056,7 +1100,7 @@ pub fn new_oracle_account(
 
     let rent_amount = rent.minimum_balance(price_data.len());
 
-    let data  = bump.alloc_slice_fill_copy(size_of::<PriceAccount>(), 0);
+    let data = bump.alloc_slice_fill_copy(size_of::<PriceAccount>(), 0);
 
     data.clone_from_slice(price_data);
 
@@ -1144,10 +1188,10 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
         solana_program::entrypoint::SUCCESS
     }
 
-    fn sol_log(&self, _message: &str) {
-        if *VERBOSE >= 1 {}
-
-        // println!("Program Log: {}", message);
+    fn sol_log(&self, message: &str) {
+        if *VERBOSE != 0 {
+            println!("Program Log: {}", message);
+        }
     }
 
     fn sol_invoke_signed(
@@ -1193,43 +1237,6 @@ fn test_syscall_stubs(unix_timestamp: Option<i64>) {
     program_stubs::set_syscall_stubs(Box::new(TestSyscallStubs { unix_timestamp }));
 }
 
-pub fn setup_marginfi_group(bump: &Bump) -> MarginfiGroupAccounts {
-    test_syscall_stubs(Some(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64,
-    ));
-
-    let marginfi_program = new_marginfi_program(bump);
-    let system_program = new_system_program(bump);
-    let token_program = new_spl_token_program(bump);
-    let admin = new_sol_account(1_000_000, bump);
-    let rent_sysvar = new_rent_sysvar_account(0, Rent::free(), bump);
-    let marginfi_group = initialize_marginfi_group(
-        bump,
-        marginfi_program.key,
-        admin.clone(),
-        system_program.clone(),
-    );
-
-    MarginfiGroupAccounts {
-        marginfi_group,
-        banks: vec![],
-        marginfi_accounts: vec![],
-        owner: admin,
-        system_program,
-        rent_sysvar,
-        token_program,
-        last_sysvar_current_timestamp: RwLock::new(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-        ),
-    }
-}
-
 fn initialize_marginfi_group<'bump>(
     bump: &'bump Bump,
     program_id: &'bump Pubkey,
@@ -1260,17 +1267,14 @@ fn initialize_marginfi_group<'bump>(
 #[cfg(test)]
 mod tests {
     use fixed::types::I80F48;
+    use marginfi::{instructions::marginfi_account, state::marginfi_account::RiskEngine};
 
     use super::*;
     #[test]
-    fn memory_sanity_check() {
+    fn deposit_test() {
         let bump = bumpalo::Bump::new();
 
-        let mut a = setup_marginfi_group(&bump);
-
-        a.setup_banks(&bump, Rent::free(), 8, &[BankAndOracleConfig::dummy(); 8]);
-
-        a.setup_users(&bump, Rent::free(), 1);
+        let a = MarginfiGroupAccounts::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 2);
 
         let al =
             AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &a.marginfi_group)
@@ -1278,7 +1282,7 @@ mod tests {
 
         assert_eq!(al.load().unwrap().admin, a.owner.key());
 
-        a.process_action_deposits(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
@@ -1291,6 +1295,173 @@ mod tests {
         assert_eq!(
             I80F48::from(marginfi_account.lending_account.balances[0].asset_shares),
             I80F48!(1000)
+        );
+    }
+
+    #[test]
+    fn borrow_test() {
+        let bump = bumpalo::Bump::new();
+
+        let a = MarginfiGroupAccounts::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 2);
+
+        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
+            .unwrap();
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+            .unwrap();
+        a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(100))
+            .unwrap();
+
+        let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
+            &marginfi::id(),
+            &a.marginfi_accounts[0].margin_account,
+        )
+        .unwrap();
+
+        let marginfi_account = marginfi_account_ai.load().unwrap();
+
+        assert_eq!(
+            I80F48::from(marginfi_account.lending_account.balances[0].asset_shares),
+            I80F48!(1000)
+        );
+        assert_eq!(
+            I80F48::from(marginfi_account.lending_account.balances[1].liability_shares),
+            I80F48!(100)
+        );
+    }
+
+    #[test]
+    fn liquidation_test() {
+        let bump = bumpalo::Bump::new();
+
+        let a = MarginfiGroupAccounts::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 3);
+
+        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
+            .unwrap();
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+            .unwrap();
+        a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(500))
+            .unwrap();
+
+        a.process_update_oracle(&BankIdx(1), &PriceChange(190))
+            .unwrap();
+
+        let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
+            &marginfi::id(),
+            &a.marginfi_accounts[0].margin_account,
+        )
+        .unwrap();
+
+        {
+            let marginfi_account = marginfi_account_ai.load().unwrap();
+            let margin_account = &a.marginfi_accounts[0];
+            let bank_map = a.get_bank_map();
+            let remaining_accounts =
+                &margin_account.get_remaining_accounts(&bank_map, vec![], vec![]);
+
+            let re = RiskEngine::new(&marginfi_account, &remaining_accounts).unwrap();
+
+            let health = re
+                .get_account_health(
+                    marginfi::state::marginfi_account::RiskRequirementType::Maintenance,
+                )
+                .unwrap();
+
+            println!("Health {health}");
+        }
+
+        a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000))
+            .unwrap();
+
+        a.process_liquidate_account(
+            &AccountIdx(2),
+            &AccountIdx(0),
+            &BankIdx(0),
+            &BankIdx(1),
+            &AssetAmount(50),
+        )
+        .unwrap();
+
+        let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
+            &marginfi::id(),
+            &a.marginfi_accounts[0].margin_account,
+        )
+        .unwrap();
+
+        let marginfi_account = marginfi_account_ai.load().unwrap();
+
+        assert_eq!(
+            I80F48::from(marginfi_account.lending_account.balances[0].asset_shares),
+            I80F48!(950)
+        );
+    }
+
+    #[test]
+    fn liquidation_and_bankruptcy() {
+        let bump = bumpalo::Bump::new();
+
+        let a = MarginfiGroupAccounts::setup(&bump, &[BankAndOracleConfig::dummy(); 2], 3);
+
+        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
+            .unwrap();
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+            .unwrap();
+        a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(500))
+            .unwrap();
+
+        a.process_update_oracle(&BankIdx(1), &PriceChange(10000))
+            .unwrap();
+
+        let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
+            &marginfi::id(),
+            &a.marginfi_accounts[0].margin_account,
+        )
+        .unwrap();
+
+        {
+            let marginfi_account = marginfi_account_ai.load().unwrap();
+            let margin_account = &a.marginfi_accounts[0];
+            let bank_map = a.get_bank_map();
+            let remaining_accounts =
+                &margin_account.get_remaining_accounts(&bank_map, vec![], vec![]);
+
+            let re = RiskEngine::new(&marginfi_account, &remaining_accounts).unwrap();
+
+            let health = re
+                .get_account_health(
+                    marginfi::state::marginfi_account::RiskRequirementType::Maintenance,
+                )
+                .unwrap();
+
+            println!("Health {health}");
+        }
+
+        a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000))
+            .unwrap();
+
+        a.process_liquidate_account(
+            &AccountIdx(2),
+            &AccountIdx(0),
+            &BankIdx(0),
+            &BankIdx(1),
+            &AssetAmount(1000),
+        )
+        .unwrap();
+
+        let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
+            &marginfi::id(),
+            &a.marginfi_accounts[0].margin_account,
+        )
+        .unwrap();
+
+        let marginfi_account = marginfi_account_ai.load().unwrap();
+
+        assert_eq!(
+            I80F48::from(marginfi_account.lending_account.balances[0].asset_shares),
+            I80F48!(0)
+        );
+        assert_eq!(
+            I80F48::from(marginfi_account.lending_account.balances[0].liability_shares),
+            I80F48!(0)
         );
     }
 }
