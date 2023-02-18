@@ -1,17 +1,17 @@
 #![no_main]
 
-use std::time::{Duration, SystemTime};
+
 
 use anchor_lang::{prelude::AccountLoader, Key};
 use anyhow::Result;
 use arbitrary::Arbitrary;
 
-use bumpalo::Bump;
-use lazy_static::{lazy::Lazy, lazy_static};
+
+
 use libfuzzer_sys::fuzz_target;
 use marginfi::{prelude::MarginfiGroup, state::marginfi_group::Bank};
 use marginfi_fuzz::{
-    log, AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, MarginfiGroupAccounts, PriceChange,
+    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, MarginfiGroupAccounts, PriceChange,
     N_BANKS, N_USERS,
 };
 use solana_program::program_pack::Pack;
