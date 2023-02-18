@@ -1,21 +1,17 @@
-use anchor_lang::{
-    prelude::{AccountLoader, Rent},
-    Key,
-};
+use anchor_lang::{prelude::AccountLoader, Key};
 use anyhow::Result;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi::{prelude::MarginfiGroup, state::marginfi_account::MarginfiAccount};
 use marginfi_fuzz::{
-    setup_marginfi_group, AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx,
-    MarginfiGroupAccounts, N_BANKS, N_USERS,
+    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, MarginfiGroupAccounts, N_BANKS, N_USERS,
 };
 
 fn main() -> Result<()> {
     let bump = bumpalo::Bump::new();
     let a = MarginfiGroupAccounts::setup(
         &bump,
-        &[BankAndOracleConfig::dummy(); N_BANKS as usize],
+        &[BankAndOracleConfig::dummy(); N_BANKS],
         N_USERS as usize,
     );
     let al = AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &a.marginfi_group)
@@ -25,7 +21,6 @@ fn main() -> Result<()> {
 
     a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))?;
     a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))?;
-    // a.process_action_withdraw(&AccountIdx(0), &BankIdx(0), &AssetAmount(999), Some(false))?;
     a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(999))?;
 
     let mfial = AccountLoader::<MarginfiAccount>::try_from(&a.marginfi_accounts[0].margin_account)?;

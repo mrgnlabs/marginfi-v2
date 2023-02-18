@@ -1,9 +1,6 @@
 #![no_main]
 
-use anchor_lang::{
-    prelude::{AccountLoader, Rent},
-    Key,
-};
+use anchor_lang::{prelude::AccountLoader, Key};
 use anyhow::Result;
 use arbitrary::Arbitrary;
 
@@ -79,7 +76,7 @@ fuzz_target!(|data: FuzzerContext| { process_actions(data).unwrap() });
 
 fn process_actions(ctx: FuzzerContext) -> Result<()> {
     let mut bump = bumpalo::Bump::new();
-    let mut mga = MarginfiGroupAccounts::setup(&bump, &ctx.initial_bank_configs, N_USERS as usize);
+    let mga = MarginfiGroupAccounts::setup(&bump, &ctx.initial_bank_configs, N_USERS as usize);
 
     let al =
         AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &mga.marginfi_group)
