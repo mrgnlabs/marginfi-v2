@@ -42,6 +42,71 @@ use std::{
 
 type SplAccount = spl_token::state::Account;
 
+#[derive(Default, Debug)]
+pub struct Metrics {
+    deposit_s: u64,
+    deposit_e: u64,
+    withdraw_s: u64,
+    withdraw_e: u64,
+    borrow_s: u64,
+    borrow_e: u64,
+    repay_s: u64,
+    repay_e: u64,
+    liquidate_e: u64,
+    liquidate_s: u64,
+    handle_bankruptcy_s: u64,
+    handle_bankruptcy_e: u64,
+    price_update: u64,
+}
+
+pub enum MetricAction {
+    Deposit,
+    Withdraw,
+    Borrow,
+    Repay,
+    Liquidate,
+    Bankruptcy,
+}
+
+impl Metrics {
+    pub fn update_metric(&mut self, metric: MetricAction, success: bool) {
+        let metric = match (metric, success) {
+            (MetricAction::Deposit, true) => &mut self.deposit_s,
+            (MetricAction::Deposit, false) => &mut self.deposit_e,
+            (MetricAction::Withdraw, true) => &mut self.withdraw_s,
+            (MetricAction::Withdraw, false) => &mut self.withdraw_e,
+            (MetricAction::Borrow, true) => &mut self.borrow_s,
+            (MetricAction::Borrow, false) => &mut self.borrow_e,
+            (MetricAction::Repay, true) => &mut self.repay_s,
+            (MetricAction::Repay, false) => &mut self.repay_e,
+            (MetricAction::Liquidate, true) => &mut self.liquidate_s,
+            (MetricAction::Liquidate, false) => &mut self.liquidate_e,
+            (MetricAction::Bankruptcy, true) => &mut self.handle_bankruptcy_s,
+            (MetricAction::Bankruptcy, false) => &mut self.handle_bankruptcy_e,
+        };
+
+        *metric += 1;
+    }
+
+    pub fn print(&self) {
+        log!("\nDeposit\t{}\t{}\nWithd\t{}\t{}\nBorrow\t{}\t{}\nRepay\t{}\t{}\nLiq\t{}\t{}\nBank\t{}\t{}\nUpdate\t{}\n",
+            self.deposit_s,
+            self.deposit_e,
+            self.withdraw_s,
+            self.withdraw_e,
+            self.borrow_s,
+            self.borrow_e,
+            self.repay_s,
+            self.repay_e,
+            self.liquidate_s,
+            self.liquidate_e,
+            self.handle_bankruptcy_s,
+            self.handle_bankruptcy_e,
+            self.price_update,
+        );
+    }
+}
+
 pub struct MarginfiGroupAccounts<'info> {
     pub marginfi_group: AccountInfo<'info>,
     pub banks: Vec<BankAccounts<'info>>,
@@ -51,6 +116,15 @@ pub struct MarginfiGroupAccounts<'info> {
     pub rent_sysvar: AccountInfo<'info>,
     pub token_program: AccountInfo<'info>,
     pub last_sysvar_current_timestamp: RwLock<u64>,
+    pub metrics: RwLock<Metrics>,
+}
+
+#[macro_export]
+macro_rules! log {
+    ($($arg:tt)*) => {
+        #[cfg(feature = "capture_log")]
+        log::info!($($arg)*);
+    }
 }
 
 impl<'bump> MarginfiGroupAccounts<'bump> {
@@ -81,6 +155,7 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
                     .unwrap()
                     .as_secs(),
             ),
+            metrics: RwLock::new(Metrics::default()),
         };
 
         let banks = bank_configs
@@ -99,6 +174,16 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
                     .unwrap()
             })
             .collect();
+
+        // Fund initial banks to streamline deposits
+        mga.banks.iter().enumerate().for_each(|(idx, _)| {
+            mga.process_action_deposit(
+                &AccountIdx((n_users - 1) as u8),
+                &BankIdx(idx as u8),
+                &AssetAmount(bank_configs[idx].deposit_limit / 2),
+            )
+            .unwrap();
+        });
 
         mga
     }
@@ -342,6 +427,11 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             cache.revert();
         }
 
+        self.metrics
+            .write()
+            .unwrap()
+            .update_metric(MetricAction::Deposit, res.is_ok());
+
         Ok(())
     }
 
@@ -385,6 +475,11 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         if res.is_err() {
             cache.revert();
         }
+
+        self.metrics
+            .write()
+            .unwrap()
+            .update_metric(MetricAction::Repay, res.is_ok());
 
         Ok(())
     }
@@ -447,6 +542,11 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             cache.revert();
         }
 
+        self.metrics
+            .write()
+            .unwrap()
+            .update_metric(MetricAction::Withdraw, res.is_ok());
+
         Ok(())
     }
 
@@ -495,6 +595,11 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         if res.is_err() {
             cache.revert();
         }
+
+        self.metrics
+            .write()
+            .unwrap()
+            .update_metric(MetricAction::Borrow, res.is_ok());
 
         Ok(())
     }
@@ -571,6 +676,11 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             self.process_handle_bankruptcy(liquidatee_idx, liab_bank_idx)?;
         }
 
+        self.metrics
+            .write()
+            .unwrap()
+            .update_metric(MetricAction::Liquidate, res.is_ok());
+
         Ok(())
     }
 
@@ -611,6 +721,11 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             cache.revert();
         }
 
+        self.metrics
+            .write()
+            .unwrap()
+            .update_metric(MetricAction::Bankruptcy, res.is_ok());
+
         Ok(())
     }
 
@@ -626,6 +741,8 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
             price_oracle,
             price_change.0 * 10_i64.pow(bank.mint_decimals as u32),
         )?;
+
+        self.metrics.write().unwrap().price_update += 1;
 
         Ok(())
     }
@@ -663,7 +780,7 @@ impl<'info> AccountInfoCache<'info> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AccountIdx(pub u8);
-pub const N_USERS: u8 = 8;
+pub const N_USERS: u8 = 4;
 impl<'a> Arbitrary<'a> for AccountIdx {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
         let i: u8 = u.int_in_range(0..=N_USERS - 1)?;
@@ -681,7 +798,7 @@ impl<'a> Arbitrary<'a> for AccountIdx {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BankIdx(pub u8);
-pub const N_BANKS: usize = 8;
+pub const N_BANKS: usize = 4;
 impl<'a> Arbitrary<'a> for BankIdx {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
         Ok(BankIdx(u.int_in_range(0..=N_BANKS - 1)? as u8))
@@ -699,10 +816,12 @@ impl<'a> Arbitrary<'a> for BankIdx {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AssetAmount(pub u64);
 
-pub const MAX_ASSET_AMOUNT: u64 = 1_000_000_000;
+pub const MAX_ASSET_AMOUNT: u64 = 100_000;
 impl<'a> Arbitrary<'a> for AssetAmount {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        Ok(AssetAmount(u.int_in_range(1..=10)? * MAX_ASSET_AMOUNT))
+        Ok(AssetAmount(
+            1_000 + u.int_in_range(1..=10)? * MAX_ASSET_AMOUNT,
+        ))
     }
 
     fn size_hint(_: usize) -> (usize, Option<usize>) {
@@ -731,10 +850,10 @@ pub struct BankAndOracleConfig {
 
 impl<'a> Arbitrary<'a> for BankAndOracleConfig {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let mint_decimals = u.int_in_range(0..=4)? * 3;
-        let top_limit = 1_000_000_000 * 10u64.pow(mint_decimals as u32);
-        let borrow_limit = u.int_in_range(0..=10)? * top_limit;
-        let deposit_limit = borrow_limit + u.int_in_range(0..=10)? * top_limit;
+        let mint_decimals = u.int_in_range(1..=3)? * 3;
+        let top_limit = 1_000_000 * 10u64.pow(mint_decimals as u32);
+        let borrow_limit = u.int_in_range(1..=10)? * top_limit;
+        let deposit_limit = borrow_limit + u.int_in_range(1..=10)? * top_limit;
 
         let max_price = 100 * 10u64.pow(mint_decimals as u32);
 
@@ -1202,12 +1321,6 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
     ) -> ProgramResult {
         let mut new_account_infos = vec![];
 
-        // // mimic check for token program in accounts
-        // if !account_infos.iter().any(|x| *x.key == spl_token::id()) {
-        //     println!("No token program account found");
-        //     return Err(ProgramError::InvalidAccountData);
-        // }
-
         for meta in instruction.accounts.iter() {
             for account_info in account_infos.iter() {
                 if meta.pubkey == *account_info.key {
@@ -1317,15 +1430,27 @@ mod tests {
         )
         .unwrap();
 
+        {
+            let marginfi_account = marginfi_account_ai.load().unwrap();
+
+            assert_eq!(
+                I80F48::from(marginfi_account.lending_account.balances[0].asset_shares),
+                I80F48!(1000)
+            );
+            assert_eq!(
+                I80F48::from(marginfi_account.lending_account.balances[1].liability_shares),
+                I80F48!(100)
+            );
+        }
+
+        a.process_action_repay(&AccountIdx(0), &BankIdx(1), &AssetAmount(100), false)
+            .unwrap();
+
         let marginfi_account = marginfi_account_ai.load().unwrap();
 
         assert_eq!(
-            I80F48::from(marginfi_account.lending_account.balances[0].asset_shares),
-            I80F48!(1000)
-        );
-        assert_eq!(
             I80F48::from(marginfi_account.lending_account.balances[1].liability_shares),
-            I80F48!(100)
+            I80F48!(0)
         );
     }
 

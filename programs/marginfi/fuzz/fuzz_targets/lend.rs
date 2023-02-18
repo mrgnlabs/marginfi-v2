@@ -1,13 +1,17 @@
 #![no_main]
 
+use std::time::{Duration, SystemTime};
+
 use anchor_lang::{prelude::AccountLoader, Key};
 use anyhow::Result;
 use arbitrary::Arbitrary;
 
+use bumpalo::Bump;
+use lazy_static::{lazy::Lazy, lazy_static};
 use libfuzzer_sys::fuzz_target;
 use marginfi::{prelude::MarginfiGroup, state::marginfi_group::Bank};
 use marginfi_fuzz::{
-    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, MarginfiGroupAccounts, PriceChange,
+    log, AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, MarginfiGroupAccounts, PriceChange,
     N_BANKS, N_USERS,
 };
 use solana_program::program_pack::Pack;
@@ -18,6 +22,15 @@ enum Action {
         account: AccountIdx,
         bank: BankIdx,
         asset_amount: AssetAmount,
+    },
+    Borrow {
+        account: AccountIdx,
+        bank: BankIdx,
+        asset_amount: AssetAmount,
+    },
+    UpdateOracle {
+        bank: BankIdx,
+        price: PriceChange,
     },
     Repay {
         account: AccountIdx,
@@ -30,15 +43,6 @@ enum Action {
         bank: BankIdx,
         asset_amount: AssetAmount,
         withdraw_all: bool,
-    },
-    Borrow {
-        account: AccountIdx,
-        bank: BankIdx,
-        asset_amount: AssetAmount,
-    },
-    UpdateOracle {
-        bank: BankIdx,
-        price: PriceChange,
     },
     Liquidate {
         liquidator: AccountIdx,
@@ -54,7 +58,7 @@ pub struct ActionSequence(Vec<Action>);
 
 impl<'a> Arbitrary<'a> for ActionSequence {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let n_actions = u.int_in_range(1..=10)? * 100;
+        let n_actions = 1_000;
         let mut actions = Vec::with_capacity(n_actions);
 
         for _ in 0..n_actions {
@@ -76,6 +80,11 @@ fuzz_target!(|data: FuzzerContext| { process_actions(data).unwrap() });
 
 fn process_actions(ctx: FuzzerContext) -> Result<()> {
     let mut bump = bumpalo::Bump::new();
+
+    if !*GET_LOGGER {
+        println!("Setting up logger");
+    }
+
     let mga = MarginfiGroupAccounts::setup(&bump, &ctx.initial_bank_configs, N_USERS as usize);
 
     let al =
@@ -88,9 +97,44 @@ fn process_actions(ctx: FuzzerContext) -> Result<()> {
         process_action(action, &mga)?;
     }
 
+    // log! ();
+    //
+    mga.metrics.read().unwrap().print();
+
     verify_end_state(&mga)?;
 
     bump.reset();
+
+    Ok(())
+}
+
+static GET_LOGGER: once_cell::sync::Lazy<bool> = once_cell::sync::Lazy::new(|| {
+    #[cfg(feature = "capture_log")]
+    setup_logging().unwrap();
+    true
+});
+
+#[cfg(feature = "capture_log")]
+fn setup_logging() -> anyhow::Result<()> {
+    let logfile = log4rs::append::file::FileAppender::builder()
+        .encoder(Box::new(log4rs::encode::pattern::PatternEncoder::new(
+            "{l} - {m}\n",
+        )))
+        .build("log/history.log")?;
+
+    let config = log4rs::Config::builder()
+        .appender(log4rs::config::Appender::builder().build("logfile", Box::new(logfile)))
+        .build(
+            log4rs::config::Root::builder()
+                .appender("logfile")
+                .build(log::LevelFilter::Info),
+        )?;
+
+    log4rs::init_config(config)?;
+
+    println!("Starging logger");
+
+    log::info!("===========START========");
 
     Ok(())
 }
