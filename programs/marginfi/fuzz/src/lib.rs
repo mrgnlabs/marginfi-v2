@@ -208,11 +208,11 @@ impl<'bump> MarginfiGroupAccounts<'bump> {
         });
     }
 
-    pub fn advance_time(&self) {
+    pub fn advance_time(&self, time: u64) {
         self.last_sysvar_current_timestamp
             .write()
             .unwrap()
-            .add_assign(10);
+            .add_assign(time);
     }
 
     pub fn setup_bank(

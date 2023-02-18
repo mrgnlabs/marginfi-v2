@@ -1,13 +1,17 @@
 #![no_main]
 
+use std::sync::{RwLock, Arc};
 
-
-use anchor_lang::{prelude::AccountLoader, Key};
+use anchor_lang::{
+    prelude::{AccountLoader, Clock},
+    Key,
+};
 use anyhow::Result;
 use arbitrary::Arbitrary;
 
-
-
+use bumpalo::Bump;
+use fixed::types::I80F48;
+use lazy_static::lazy_static;
 use libfuzzer_sys::fuzz_target;
 use marginfi::{prelude::MarginfiGroup, state::marginfi_group::Bank};
 use marginfi_fuzz::{
@@ -58,7 +62,7 @@ pub struct ActionSequence(Vec<Action>);
 
 impl<'a> Arbitrary<'a> for ActionSequence {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let n_actions = 1_000;
+        let n_actions = u.int_in_range(1..=4)? * 25;
         let mut actions = Vec::with_capacity(n_actions);
 
         for _ in 0..n_actions {
@@ -142,9 +146,19 @@ fn setup_logging() -> anyhow::Result<()> {
 fn verify_end_state(mga: &MarginfiGroupAccounts) -> anyhow::Result<()> {
     mga.banks.iter().try_for_each(|bank| {
         let bank_loader = AccountLoader::<Bank>::try_from(&bank.bank)?;
-        let bank_data = bank_loader.load()?;
+        let mut bank_data = bank_loader.load_mut()?;
 
-        let total_deposits = bank_data.get_asset_amount(bank_data.total_asset_shares.into())?;
+        let latest_timestamp = mga.last_sysvar_current_timestamp.read().unwrap().clone();
+
+        let mut clock = Clock::default();
+
+        clock.unix_timestamp = latest_timestamp as i64 + 3600;
+
+        bank_data.accrue_interest(&clock)?;
+
+        let outstanding_fees = I80F48::from(bank_data.collected_group_fees_outstanding) + I80F48::from(bank_data.collected_group_fees_outstanding);
+        let total_deposits = bank_data.get_asset_amount(bank_data.total_asset_shares.into())? - outstanding_fees;
+
         let total_liabilities =
             bank_data.get_liability_amount(bank_data.total_liability_shares.into())?;
 
@@ -204,7 +218,7 @@ fn process_action<'bump>(action: &Action, mga: &'bump MarginfiGroupAccounts<'bum
         )?,
     };
 
-    mga.advance_time();
+    mga.advance_time(3600);
 
     Ok(())
 }
