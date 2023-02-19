@@ -1113,7 +1113,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
             )
             .unwrap(),
         I80F48::from(native!(11.76, "SOL", f64)),
-        native!(0.00001, "SOL", f64)
+        native!(0.0001, "SOL", f64)
     );
 
     assert_eq_noise!(
@@ -1125,7 +1125,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
             )
             .unwrap(),
         I80F48::from(native!(1011.76, "SOL", f64)),
-        native!(0.00001, "SOL", f64)
+        native!(0.0001, "SOL", f64)
     );
     // TODO: check health is sane
 

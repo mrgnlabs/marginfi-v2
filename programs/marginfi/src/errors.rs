@@ -28,7 +28,7 @@ pub enum MarginfiError {
     LendingAccountBalanceSlotsFull,
     #[msg("Bank already exists")] // 6012
     BankAlreadyExists,
-    // 60013
+    // 6013
     #[msg("Illegal post liquidation state, account is either not unhealthy or liquidation was too big")]
     IllegalLiquidation,
     #[msg("Account is not bankrupt")] // 6014
@@ -63,6 +63,8 @@ pub enum MarginfiError {
     IllegalUtilizationRatio,
     #[msg("Bank borrow cap exceeded")] // 6029
     BankLiabilityCapacityExceeded,
+    #[msg("Invalid Price")] // 6030
+    InvalidPrice,
 }
 
 impl From<MarginfiError> for ProgramError {
