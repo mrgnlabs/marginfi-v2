@@ -1,5 +1,7 @@
+import uuid
 from dataclasses import dataclass
-from typing import Union
+from datetime import datetime, timezone
+from typing import Union, Optional
 from anchorpy import Event, NamedInstruction
 from solders.pubkey import Pubkey
 
@@ -15,15 +17,36 @@ LENDING_POOL_BANK_ADD_EVENT = 'LendingPoolBankAddEvent'
 LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT = 'LendingPoolBankAccrueInterestEvent'
 
 
+def time_str(dt: Optional[datetime] = None) -> str:
+    if dt is None:
+        dt = datetime.now(timezone.utc)
+    return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+
 @dataclass
-class LiquidityChangeRecord:
-    NAME = "LiquidityChange"
+class RecordBase:
     SCHEMA = ",".join(
         [
             "id:STRING",
+            "created_at:TIMESTAMP",
             "timestamp:TIMESTAMP",
             "signature:STRING",
             "indexing_address:STRING",
+        ]
+    )
+
+    id: str
+    created_at: str
+    timestamp: str
+    signature: str
+    indexing_address: str
+
+
+@dataclass
+class LiquidityChangeRecord(RecordBase):
+    NAME = "LiquidityChange"
+    SCHEMA = RecordBase.SCHEMA + "," + ",".join(
+        [
             "marginfi_group:STRING",
             "marginfi_account:STRING",
             "authority:STRING",
@@ -41,12 +64,18 @@ class LiquidityChangeRecord:
     balance_closed: bool
 
     @staticmethod
-    def from_event(event: Event) -> "LiquidityChangeRecord":
+    def from_event(event: Event, instruction: InstructionWithLogs,
+                   _instruction_args: NamedInstruction) -> "LiquidityChangeRecord":
         balance_closed = None
         if event.name == LENDING_ACCOUNT_REPAY_EVENT or event.name == LENDING_ACCOUNT_WITHDRAW_EVENT:
             balance_closed = event.data.close_balance
 
-        return LiquidityChangeRecord(operation=event.name,
+        return LiquidityChangeRecord(id=str(uuid.uuid4()),
+                                     created_at=time_str(),
+                                     timestamp=time_str(instruction.timestamp),
+                                     signature=instruction.signature,
+                                     indexing_address=str(instruction.message.program_id),
+                                     operation=event.name,
                                      marginfi_account=event.data.header.marginfi_account,
                                      marginfi_group=event.data.header.marginfi_group,
                                      authority=event.data.header.signer,
@@ -64,14 +93,10 @@ def is_liquidity_change_event(event_name: str) -> bool:
 
 
 @dataclass
-class MarginfiAccountCreationRecord:
+class MarginfiAccountCreationRecord(RecordBase):
     NAME = "MarginfiAccountCreation"
-    SCHEMA = ",".join(
+    SCHEMA = RecordBase.SCHEMA + "," + ",".join(
         [
-            "id:STRING",
-            "timestamp:TIMESTAMP",
-            "signature:STRING",
-            "indexing_address:STRING",
             "marginfi_group:STRING",
             "marginfi_account:STRING",
             "authority:STRING",
@@ -83,21 +108,23 @@ class MarginfiAccountCreationRecord:
     authority: Pubkey
 
     @staticmethod
-    def from_event(event: Event) -> "MarginfiAccountCreationRecord":
-        return MarginfiAccountCreationRecord(marginfi_account=event.data.header.marginfi_account,
+    def from_event(event: Event, instruction: InstructionWithLogs,
+                   _instruction_args: NamedInstruction) -> "MarginfiAccountCreationRecord":
+        return MarginfiAccountCreationRecord(id=str(uuid.uuid4()),
+                                             created_at=time_str(),
+                                             timestamp=time_str(instruction.timestamp),
+                                             signature=instruction.signature,
+                                             indexing_address=str(instruction.message.program_id),
+                                             marginfi_account=event.data.header.marginfi_account,
                                              marginfi_group=event.data.header.marginfi_group,
                                              authority=event.data.header.signer)
 
 
 @dataclass
-class LendingPoolBankAddRecord:
+class LendingPoolBankAddRecord(RecordBase):
     NAME = "LendingPoolBankAdd"
-    SCHEMA = ",".join(
+    SCHEMA = RecordBase.SCHEMA + "," + ",".join(
         [
-            "id:STRING",
-            "timestamp:TIMESTAMP",
-            "signature:STRING",
-            "indexing_address:STRING",
             "marginfi_group:STRING",
             "bank:STRING",
             "mint:STRING",
@@ -111,22 +138,24 @@ class LendingPoolBankAddRecord:
     authority: Pubkey
 
     @staticmethod
-    def from_event(event: Event) -> "LendingPoolBankAddRecord":
-        return LendingPoolBankAddRecord(marginfi_group=event.data.header.marginfi_group,
+    def from_event(event: Event, instruction: InstructionWithLogs,
+                   _instruction_args: NamedInstruction) -> "LendingPoolBankAddRecord":
+        return LendingPoolBankAddRecord(id=str(uuid.uuid4()),
+                                        created_at=time_str(),
+                                        timestamp=time_str(instruction.timestamp),
+                                        signature=instruction.signature,
+                                        indexing_address=str(instruction.message.program_id),
+                                        marginfi_group=event.data.header.marginfi_group,
                                         authority=event.data.header.signer,
                                         bank=event.data.bank,
                                         mint=event.data.mint)
 
 
 @dataclass
-class LendingPoolBankAccrueInterestRecord:
+class LendingPoolBankAccrueInterestRecord(RecordBase):
     NAME = "LendingPoolBankAccrueInterest"
-    SCHEMA = ",".join(
+    SCHEMA = RecordBase.SCHEMA + "," + ",".join(
         [
-            "id:STRING",
-            "timestamp:TIMESTAMP",
-            "signature:STRING",
-            "indexing_address:STRING",
             "marginfi_group:STRING",
             "authority:STRING",
             "bank:STRING",
@@ -153,7 +182,12 @@ class LendingPoolBankAccrueInterestRecord:
 
         bank_account_index = 1
 
-        return LendingPoolBankAccrueInterestRecord(marginfi_group=event.data.header.marginfi_group,
+        return LendingPoolBankAccrueInterestRecord(id=str(uuid.uuid4()),
+                                                   created_at=time_str(),
+                                                   timestamp=time_str(instruction.timestamp),
+                                                   signature=instruction.signature,
+                                                   indexing_address=str(instruction.message.program_id),
+                                                   marginfi_group=event.data.header.marginfi_group,
                                                    authority=event.data.header.signer,
                                                    bank=instruction.message.accounts[bank_account_index],
                                                    mint=event.data.mint,

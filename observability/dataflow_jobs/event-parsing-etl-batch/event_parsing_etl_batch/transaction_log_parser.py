@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import List, Any, Callable, Optional
 from based58 import based58
 from solders.instruction import CompiledInstruction
@@ -15,6 +16,7 @@ class Instruction:
 
 @dataclass
 class InstructionWithLogs:
+    timestamp: datetime
     signature: str
     message: Instruction
     logs: List[str]
@@ -67,8 +69,8 @@ def get_latest_ix_ref(instructions: List[InstructionWithLogs], stack_depth: int)
     return target_instruction_list[-1]
 
 
-def reconcile_instruction_logs(signature: str, instructions: List[Instruction], logs: List[str]) -> List[
-    InstructionWithLogs]:
+def reconcile_instruction_logs(timestamp: str, signature: str, instructions: List[Instruction], logs: List[str]) -> \
+        List[InstructionWithLogs]:
     depth = 0
     instructions_consumed = 0
     instructions_with_logs: List[InstructionWithLogs] = []
@@ -85,7 +87,8 @@ def reconcile_instruction_logs(signature: str, instructions: List[Instruction], 
                 for i in range(depth):
                     target_instruction_list = target_instruction_list[-1].inner_instructions
                 target_instruction_list.append(
-                    InstructionWithLogs(signature=signature, logs=[log], message=instructions[instructions_consumed],
+                    InstructionWithLogs(timestamp=timestamp, signature=signature, logs=[log],
+                                        message=instructions[instructions_consumed],
                                         inner_instructions=[], logs_truncated=False))
                 depth += 1
                 instructions_consumed += 1

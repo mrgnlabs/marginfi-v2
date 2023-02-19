@@ -50,11 +50,11 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
             continue
 
         if is_liquidity_change_event(event.name):
-            record = LiquidityChangeRecord.from_event(event)
+            record = LiquidityChangeRecord.from_event(event, ix, instruction_data)
         elif event.name == MARGINFI_ACCOUNT_CREATE_EVENT:
-            record = MarginfiAccountCreationRecord.from_event(event)
+            record = MarginfiAccountCreationRecord.from_event(event, ix, instruction_data)
         elif event.name == LENDING_POOL_BANK_ADD_EVENT:
-            record = LendingPoolBankAddRecord.from_event(event)
+            record = LendingPoolBankAddRecord.from_event(event, ix, instruction_data)
         elif event.name == LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT:
             record = LendingPoolBankAccrueInterestRecord.from_event(event, ix, instruction_data)
         else:
@@ -107,7 +107,8 @@ def run(
 
         merged_instructions = merge_instructions_and_cpis(message_decoded.instructions, meta["innerInstructions"])
         expanded_instructions = expand_instructions(message_decoded.account_keys, merged_instructions)
-        ixs_with_logs = reconcile_instruction_logs(tx["signature"], expanded_instructions, meta["logMessages"])
+        ixs_with_logs = reconcile_instruction_logs(tx["timestamp"], tx["signature"], expanded_instructions,
+                                                   meta["logMessages"])
 
         records_list = []
         for ix_with_logs in ixs_with_logs:
