@@ -87,6 +87,14 @@ impl Profile {
             commitment,
         );
         let program = client.program(program_id);
+        let lip_program = client.program(match cluster {
+            Cluster::Mainnet => pubkey!("LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"),
+            Cluster::Devnet => pubkey!("sexyDKo4Khm38YdJeiRdNNd5aMQqNtfDkxv7MnYNFeU"),
+            _ => bail!(
+                "cluster {:?} doesn't have a default program ID for the LIP",
+                cluster
+            ),
+        });
 
         Ok(Config {
             cluster,
@@ -95,7 +103,8 @@ impl Profile {
             commitment,
             dry_run,
             client,
-            program,
+            mfi_program: program,
+            lip_program,
         })
     }
 
@@ -197,9 +206,7 @@ pub fn load_profile() -> Result<Profile> {
 
 pub fn load_profile_by_name(name: &str) -> Result<Profile> {
     let cli_config_dir = get_cli_config_dir();
-    let profile_file = cli_config_dir
-        .join("profiles")
-        .join(format!("{}.json", name));
+    let profile_file = cli_config_dir.join("profiles").join(format!("{name}.json"));
 
     if !profile_file.exists() {
         return Err(anyhow!("Profile {} does not exist", name));
