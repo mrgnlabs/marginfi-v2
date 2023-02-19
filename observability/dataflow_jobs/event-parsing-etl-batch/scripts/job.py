@@ -15,18 +15,6 @@ from event_parsing_etl_batch.idl_versions import VersionedIdl, VersionedProgram,
 from event_parsing_etl_batch.transaction_log_parser import reconcile_instruction_logs, \
     merge_instructions_and_cpis, expand_instructions, InstructionWithLogs, PROGRAM_DATA
 
-# Defines the BigQuery schema for the output table.
-PROCESSED_TRANSACTION_SCHEMA = ",".join(
-    [
-        "id:STRING",
-        "timestamp:TIMESTAMP",
-        "signature:STRING",
-        "signer:STRING",
-        "indexing_address:STRING",
-        "fee:BIGNUMERIC",
-    ]
-)
-
 
 class DispatchEventsDoFn(beam.DoFn):
     def process(self, record: Record, *args, **kwargs):
@@ -141,11 +129,16 @@ def run(
         dispatch_events = beam.ParDo(DispatchEventsDoFn()).with_outputs(
             LiquidityChangeRecord.NAME,
             MarginfiAccountCreationRecord.NAME,
+            LendingPoolBankAddRecord.NAME,
+            LendingPoolBankAccrueInterestRecord.NAME,
         )
 
         if target_dataset == "local_file":  # For testing purposes
             write_liquidity_change_events = beam.io.WriteToText("local_file_liquidity_change_events")
             write_marginfi_account_creation_events = beam.io.WriteToText("local_file_marginfi_account_creation_events")
+            write_lending_pool_bank_add_events = beam.io.WriteToText("local_file_lending_pool_bank_add_events")
+            write_lending_pool_bank_accrue_interest_events = beam.io.WriteToText(
+                "local_file_lending_pool_bank_accrue_interest_events")
         else:
             print("TODOOOOO")
             exit(1)
@@ -166,6 +159,10 @@ def run(
         tagged_events[LiquidityChangeRecord.NAME] | "WriteLiquidityChangeEvent" >> write_liquidity_change_events
         tagged_events[
             MarginfiAccountCreationRecord.NAME] | "WriteMarginfiAccountCreationEvent" >> write_marginfi_account_creation_events
+        tagged_events[
+            LendingPoolBankAddRecord.NAME] | "WriteLendingPoolBankAddEvent" >> write_lending_pool_bank_add_events
+        tagged_events[
+            LendingPoolBankAccrueInterestRecord.NAME] | "WriteLendingPoolBankAccrueInterestEvent" >> write_lending_pool_bank_accrue_interest_events
 
 
 def main():

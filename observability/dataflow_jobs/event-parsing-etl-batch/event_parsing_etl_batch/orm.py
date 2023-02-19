@@ -5,6 +5,7 @@ from solders.pubkey import Pubkey
 
 from event_parsing_etl_batch.transaction_log_parser import InstructionWithLogs
 
+# IDL event names
 LENDING_ACCOUNT_DEPOSIT_EVENT = 'LendingAccountDepositEvent'
 LENDING_ACCOUNT_WITHDRAW_EVENT = 'LendingAccountWithdrawEvent'
 LENDING_ACCOUNT_BORROW_EVENT = 'LendingAccountBorrowEvent'
@@ -17,6 +18,20 @@ LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT = 'LendingPoolBankAccrueInterestEvent'
 @dataclass
 class LiquidityChangeRecord:
     NAME = "LiquidityChange"
+    SCHEMA = ",".join(
+        [
+            "id:STRING",
+            "timestamp:TIMESTAMP",
+            "signature:STRING",
+            "indexing_address:STRING",
+            "marginfi_group:STRING",
+            "marginfi_account:STRING",
+            "authority:STRING",
+            "operation:STRING",
+            "amount:BIGNUMERIC",
+            "balance_closed:BOOLEAN"
+        ]
+    )
 
     marginfi_group: Pubkey
     marginfi_account: Pubkey
@@ -51,6 +66,17 @@ def is_liquidity_change_event(event_name: str) -> bool:
 @dataclass
 class MarginfiAccountCreationRecord:
     NAME = "MarginfiAccountCreation"
+    SCHEMA = ",".join(
+        [
+            "id:STRING",
+            "timestamp:TIMESTAMP",
+            "signature:STRING",
+            "indexing_address:STRING",
+            "marginfi_group:STRING",
+            "marginfi_account:STRING",
+            "authority:STRING",
+        ]
+    )
 
     marginfi_group: Pubkey
     marginfi_account: Pubkey
@@ -66,11 +92,23 @@ class MarginfiAccountCreationRecord:
 @dataclass
 class LendingPoolBankAddRecord:
     NAME = "LendingPoolBankAdd"
+    SCHEMA = ",".join(
+        [
+            "id:STRING",
+            "timestamp:TIMESTAMP",
+            "signature:STRING",
+            "indexing_address:STRING",
+            "marginfi_group:STRING",
+            "bank:STRING",
+            "mint:STRING",
+            "authority:STRING",
+        ]
+    )
 
     marginfi_group: Pubkey
-    authority: Pubkey
     bank: Pubkey
     mint: Pubkey
+    authority: Pubkey
 
     @staticmethod
     def from_event(event: Event) -> "LendingPoolBankAddRecord":
@@ -83,6 +121,21 @@ class LendingPoolBankAddRecord:
 @dataclass
 class LendingPoolBankAccrueInterestRecord:
     NAME = "LendingPoolBankAccrueInterest"
+    SCHEMA = ",".join(
+        [
+            "id:STRING",
+            "timestamp:TIMESTAMP",
+            "signature:STRING",
+            "indexing_address:STRING",
+            "marginfi_group:STRING",
+            "authority:STRING",
+            "bank:STRING",
+            "mint:STRING",
+            "delta:BIGDECIMAL",
+            "fees_collected:BIGDECIMAL",
+            "insurance_collected:BIGDECIMAL",
+        ]
+    )
 
     marginfi_group: Pubkey
     authority: Pubkey
