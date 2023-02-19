@@ -3,14 +3,14 @@ import base64
 import json
 import logging
 from typing import List, Optional
-from anchorpy import Event
 from solders.message import MessageV0, Message
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 from solders.pubkey import Pubkey
 
-from event_parsing_etl_batch.orm import event_to_record, Record, LiquidityChangeRecord, \
-    MarginfiAccountCreationRecord, is_liquidity_change_event, MARGINFI_ACCOUNT_CREATE_EVENT
+from event_parsing_etl_batch.orm import Record, LiquidityChangeRecord, \
+    MarginfiAccountCreationRecord, is_liquidity_change_event, MARGINFI_ACCOUNT_CREATE_EVENT, LendingPoolBankAddRecord, \
+    LendingPoolBankAccrueInterestRecord, LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT, LENDING_POOL_BANK_ADD_EVENT
 from event_parsing_etl_batch.idl_versions import VersionedIdl, VersionedProgram, Cluster
 from event_parsing_etl_batch.transaction_log_parser import reconcile_instruction_logs, \
     merge_instructions_and_cpis, expand_instructions, InstructionWithLogs, PROGRAM_DATA
@@ -26,12 +26,6 @@ PROCESSED_TRANSACTION_SCHEMA = ",".join(
         "fee:BIGNUMERIC",
     ]
 )
-
-
-def process_event(record_list: List[Record], event: Event) -> None:
-    maybe_record = event_to_record(event)
-    if maybe_record is not None:
-        record_list.append(maybe_record)
 
 
 class DispatchEventsDoFn(beam.DoFn):
@@ -56,11 +50,14 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
 
         print(f"info decoded with IDL {program.version}", instruction_data)
 
-        # todo: decode ix and enrich when needed
         if is_liquidity_change_event(event.name):
             record = LiquidityChangeRecord.from_event(event)
         elif event.name == MARGINFI_ACCOUNT_CREATE_EVENT:
             record = MarginfiAccountCreationRecord.from_event(event)
+        elif event.name == LENDING_POOL_BANK_ADD_EVENT:
+            record = LendingPoolBankAddRecord.from_event(event)
+        elif event.name == LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT:
+            record = LendingPoolBankAccrueInterestRecord.from_event(event, ix, instruction_data)
         else:
             print("discarding unsupported event:", event.name)
             record = None
