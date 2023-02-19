@@ -381,19 +381,6 @@ impl Bank {
     }
 
     #[inline]
-    pub fn load_price_feed(
-        &self,
-        pyth_account_map: &BTreeMap<Pubkey, &AccountInfo>,
-    ) -> MarginfiResult<PriceFeed> {
-        let pyth_account = pyth_account_map
-            .get(&self.config.get_pyth_oracle_key())
-            .ok_or(MarginfiError::MissingPythAccount)?;
-
-        Ok(load_price_feed_from_account_info(pyth_account)
-            .map_err(|_| MarginfiError::InvalidOracleAccount)?)
-    }
-
-    #[inline]
     pub fn load_price_feed_from_account_info(&self, ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
         check!(
             self.config.get_pyth_oracle_key().eq(ai.key),
@@ -411,7 +398,7 @@ impl Bank {
     /// A separate instruction is required to withdraw these fees.
     pub fn accrue_interest(&mut self, clock: &Clock) -> MarginfiResult<()> {
         #[cfg(not(feature = "client"))]
-        sol_log_compute_units();
+        solana_program::log::sol_log_compute_units();
         let time_delta: u64 = (clock.unix_timestamp - self.last_update)
             .try_into()
             .unwrap();
@@ -461,7 +448,7 @@ impl Bank {
         };
 
         #[cfg(not(feature = "client"))]
-        sol_log_compute_units();
+        solana_program::log::sol_log_compute_units();
 
         Ok(())
     }
@@ -581,29 +568,31 @@ impl Bank {
 ///
 fn calc_interest_rate_accrual_state_changes(
     time_delta: u64,
-    total_assets: I80F48,
-    total_liabilities: I80F48,
+    total_assets_amount: I80F48,
+    total_liabilities_amount: I80F48,
     interest_rate_config: &InterestRateConfig,
     asset_share_value: I80F48,
     liability_share_value: I80F48,
 ) -> Option<(I80F48, I80F48, I80F48, I80F48)> {
-    let utilization_rate = total_liabilities.checked_div(total_assets)?;
+    let utilization_rate = total_liabilities_amount.checked_div(total_assets_amount)?;
     let (lending_apr, borrowing_apr, group_fee_apr, insurance_fee_apr) =
         interest_rate_config.calc_interest_rate(utilization_rate)?;
 
-    debug!(        "Accruing interest for {} seconds. Utilization rate: {}. Lending APR: {}. Borrowing APR: {}. Group fee APR: {}. Insurance fee APR: {}",
+    debug!(
+        "Accruing interest for {} seconds. Utilization rate: {}. Lending APR: {}. Borrowing APR: {}. Group fee APR: {}. Insurance fee APR: {}.",
         time_delta,
         utilization_rate,
         lending_apr,
         borrowing_apr,
         group_fee_apr,
-        insurance_fee_apr);
+        insurance_fee_apr
+    );
 
     Some((
         calc_accrued_interest_payment_per_period(lending_apr, time_delta, asset_share_value)?,
         calc_accrued_interest_payment_per_period(borrowing_apr, time_delta, liability_share_value)?,
-        calc_interest_payment_for_period(group_fee_apr, time_delta, total_liabilities)?,
-        calc_interest_payment_for_period(insurance_fee_apr, time_delta, total_liabilities)?,
+        calc_interest_payment_for_period(group_fee_apr, time_delta, total_liabilities_amount)?,
+        calc_interest_payment_for_period(insurance_fee_apr, time_delta, total_liabilities_amount)?,
     ))
 }
 
@@ -622,9 +611,11 @@ fn calc_accrued_interest_payment_per_period(
     time_delta: u64,
     value: I80F48,
 ) -> Option<I80F48> {
-    let ir_per_second = apr.checked_div(SECONDS_PER_YEAR)?;
-    let new_value = value
-        .checked_mul(I80F48::ONE.checked_add(ir_per_second.checked_mul(time_delta.into())?)?)?;
+    let ir_per_period = apr
+        .checked_mul(time_delta.into())?
+        .checked_div(SECONDS_PER_YEAR)?;
+
+    let new_value = value.checked_mul(I80F48::ONE.checked_add(ir_per_period)?)?;
 
     Some(new_value)
 }
@@ -632,10 +623,11 @@ fn calc_accrued_interest_payment_per_period(
 /// Calculates the interest payment for a given period `time_delta` in a principal value `value` for interest rate (in APR) `arp`.
 /// Result is the interest payment.
 fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48) -> Option<I80F48> {
-    let ir_per_second = apr.checked_div(SECONDS_PER_YEAR)?;
     let interest_payment = value
-        .checked_mul(ir_per_second)?
-        .checked_mul(time_delta.into())?;
+        .checked_mul(apr)?
+        .checked_mul(time_delta.into())?
+        .checked_div(SECONDS_PER_YEAR)?;
+
     Some(interest_payment)
 }
 
@@ -890,6 +882,8 @@ macro_rules! assert_eq_with_tolerance {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use super::*;
     use fixed_macro::types::I80F48;
 
@@ -1042,5 +1036,167 @@ mod tests {
         assert_eq_with_tolerance!(borrow_apr, I80F48!(1.88), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
         assert_eq_with_tolerance!(insurance_apr, I80F48!(0.17), I80F48!(0.001));
+    }
+
+    #[test]
+    fn ir_accrual_failing_fuzz_test_example() -> anyhow::Result<()> {
+        let ir_config = InterestRateConfig {
+            optimal_utilization_rate: I80F48!(0.4).into(),
+            plateau_interest_rate: I80F48!(0.4).into(),
+            protocol_fixed_fee_apr: I80F48!(0.01).into(),
+            max_interest_rate: I80F48!(3).into(),
+            insurance_ir_fee: I80F48!(0.1).into(),
+            ..Default::default()
+        };
+
+        let current_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let mut bank = Bank {
+            asset_share_value: I80F48::ONE.into(),
+            liability_share_value: I80F48::ONE.into(),
+            total_liability_shares: I80F48!(207_112_621_602).into(),
+            total_asset_shares: I80F48!(10_000_000_000_000).into(),
+            last_update: current_timestamp,
+            config: BankConfig {
+                asset_weight_init: I80F48!(0.5).into(),
+                asset_weight_maint: I80F48!(0.75).into(),
+                liability_weight_init: I80F48!(1.5).into(),
+                liability_weight_maint: I80F48!(1.25).into(),
+                borrow_limit: u64::MAX,
+                deposit_limit: u64::MAX,
+                interest_rate_config: ir_config,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let pre_net_assets = bank.get_asset_amount(bank.total_asset_shares.into())?
+            - bank.get_liability_amount(bank.total_liability_shares.into())?;
+
+        let mut clock = Clock::default();
+
+        clock.unix_timestamp = current_timestamp + 3600;
+
+        bank.accrue_interest(&clock).unwrap();
+
+        let post_collected_fees = I80F48::from(bank.collected_group_fees_outstanding)
+            + I80F48::from(bank.collected_insurance_fees_outstanding);
+
+        let post_net_assets = bank.get_asset_amount(bank.total_asset_shares.into())?
+            + post_collected_fees
+            - bank.get_liability_amount(bank.total_liability_shares.into())?;
+
+        let post_assets = bank.get_asset_amount(bank.total_asset_shares.into())?;
+        let post_liabilities = bank.get_liability_amount(bank.total_liability_shares.into())?;
+        let post_fees = I80F48::from(bank.collected_group_fees_outstanding)
+            + I80F48::from(bank.collected_insurance_fees_outstanding);
+
+        assert_eq_with_tolerance!(pre_net_assets, post_net_assets, I80F48!(1));
+
+        Ok(())
+    }
+
+    #[test]
+    fn interest_rate_accrual_test_0() -> anyhow::Result<()> {
+        let ir_config = InterestRateConfig {
+            optimal_utilization_rate: I80F48!(0.4).into(),
+            plateau_interest_rate: I80F48!(0.4).into(),
+            protocol_fixed_fee_apr: I80F48!(0.01).into(),
+            max_interest_rate: I80F48!(3).into(),
+            insurance_ir_fee: I80F48!(0.1).into(),
+            ..Default::default()
+        };
+
+        let ur = I80F48!(207_112_621_602) / I80F48!(10_000_000_000_000);
+
+        let (lending_apr, borrow_apr, fees_apr, insurance_apr) = ir_config
+            .calc_interest_rate(ur)
+            .expect("interest rate calculation failed");
+
+        println!("ur: {}", ur);
+        println!("lending_apr: {}", lending_apr);
+        println!("borrow_apr: {}", borrow_apr);
+        println!("fees_apr: {}", fees_apr);
+        println!("insurance_apr: {}", insurance_apr);
+
+        assert_eq_with_tolerance!(
+            borrow_apr,
+            (lending_apr / ur) + fees_apr + insurance_apr,
+            I80F48!(0.001)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_accruing_interest() -> anyhow::Result<()> {
+        let ir_config = InterestRateConfig {
+            optimal_utilization_rate: I80F48!(0.4).into(),
+            plateau_interest_rate: I80F48!(0.4).into(),
+            protocol_fixed_fee_apr: I80F48!(0.01).into(),
+            max_interest_rate: I80F48!(3).into(),
+            insurance_ir_fee: I80F48!(0.1).into(),
+            ..Default::default()
+        };
+
+        let liab_share_value = I80F48!(1.0);
+        let asset_share_value = I80F48!(1.0);
+
+        let total_liability_shares = I80F48!(207_112_621_602);
+        let total_asset_shares = I80F48!(10_000_000_000_000);
+
+        let old_total_liability_amount = liab_share_value * total_liability_shares;
+        let old_total_asset_amount = asset_share_value * total_asset_shares;
+
+        let (new_asset_share_value, new_liab_share_value, fees_collected, insurance_collected) =
+            calc_interest_rate_accrual_state_changes(
+                3600,
+                total_asset_shares,
+                total_liability_shares,
+                &ir_config,
+                asset_share_value,
+                liab_share_value,
+            )
+            .unwrap();
+
+        let new_total_liability_amount = total_liability_shares * new_liab_share_value;
+        let new_total_asset_amount = total_asset_shares * new_asset_share_value;
+
+        println!("new_asset_share_value: {}", new_asset_share_value);
+        println!("new_liab_share_value: {}", new_liab_share_value);
+        println!("fees_collected: {}", fees_collected);
+        println!("insurance_collected: {}", insurance_collected);
+
+        println!("new_total_liability_amount: {}", new_total_liability_amount);
+        println!("new_total_asset_amount: {}", new_total_asset_amount);
+
+        println!("old_total_liability_amount: {}", old_total_liability_amount);
+        println!("old_total_asset_amount: {}", old_total_asset_amount);
+
+        println!(
+            "total_fee_collected: {}",
+            fees_collected + insurance_collected
+        );
+
+        println!(
+            "diff: {}",
+            ((new_total_asset_amount - new_total_liability_amount)
+                + fees_collected
+                + insurance_collected)
+                - (old_total_asset_amount - old_total_liability_amount)
+        );
+
+        assert_eq_with_tolerance!(
+            (new_total_asset_amount - new_total_liability_amount)
+                + fees_collected
+                + insurance_collected,
+            old_total_asset_amount - old_total_liability_amount,
+            I80F48::ONE
+        );
+
+        Ok(())
     }
 }

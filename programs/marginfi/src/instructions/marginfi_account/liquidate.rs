@@ -186,38 +186,51 @@ pub fn lending_account_liquidate(
         .withdraw(asset_quantity)
         .map_err(|_| MarginfiError::IllegalLiquidation)?;
 
-        // Liquidatee receives liability payment
-        let liab_bank_liquidity_authority_bump = liab_bank.liquidity_vault_authority_bump;
-
-        let mut liquidatee_liab_bank_account = BankAccountWrapper::find_or_create(
-            &ctx.accounts.liab_bank.key(),
-            &mut liab_bank,
-            &mut liquidatee_marginfi_account.lending_account,
-        )?;
-
-        liquidatee_liab_bank_account.increase_balance(liab_quantity_final)?;
-
-        // ## SPL transfer ##
-        // Insurance fund receives fee
-        liquidatee_liab_bank_account.withdraw_spl_transfer(
+        let (insurance_fee_to_transfer, insurance_fee_dust) = (
             insurance_fund_fee
-                .checked_to_num()
-                .ok_or_else(math_error!())?,
-            Transfer {
-                from: ctx.accounts.bank_liquidity_vault.to_account_info(),
-                to: ctx.accounts.bank_insurance_vault.to_account_info(),
-                authority: ctx
-                    .accounts
-                    .bank_liquidity_vault_authority
-                    .to_account_info(),
-            },
-            ctx.accounts.token_program.to_account_info(),
-            bank_signer!(
-                BankVaultType::Liquidity,
-                ctx.accounts.liab_bank.key(),
-                liab_bank_liquidity_authority_bump
-            ),
-        )?;
+                .checked_to_num::<u64>()
+                .ok_or(MarginfiError::MathError)?,
+            insurance_fund_fee.frac(),
+        );
+
+        {
+            // Liquidatee receives liability payment
+            let liab_bank_liquidity_authority_bump = liab_bank.liquidity_vault_authority_bump;
+
+            let mut liquidatee_liab_bank_account = BankAccountWrapper::find_or_create(
+                &ctx.accounts.liab_bank.key(),
+                &mut liab_bank,
+                &mut liquidatee_marginfi_account.lending_account,
+            )?;
+
+            liquidatee_liab_bank_account.increase_balance(liab_quantity_final)?;
+
+            // ## SPL transfer ##
+            // Insurance fund receives fee
+            liquidatee_liab_bank_account.withdraw_spl_transfer(
+                insurance_fee_to_transfer,
+                Transfer {
+                    from: ctx.accounts.bank_liquidity_vault.to_account_info(),
+                    to: ctx.accounts.bank_insurance_vault.to_account_info(),
+                    authority: ctx
+                        .accounts
+                        .bank_liquidity_vault_authority
+                        .to_account_info(),
+                },
+                ctx.accounts.token_program.to_account_info(),
+                bank_signer!(
+                    BankVaultType::Liquidity,
+                    ctx.accounts.liab_bank.key(),
+                    liab_bank_liquidity_authority_bump
+                ),
+            )?;
+        }
+
+        liab_bank.collected_insurance_fees_outstanding =
+            I80F48::from(liab_bank.collected_insurance_fees_outstanding)
+                .checked_add(insurance_fee_dust)
+                .ok_or(MarginfiError::MathError)?
+                .into();
     }
 
     // ## Risk checks ##

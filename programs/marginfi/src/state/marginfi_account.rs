@@ -230,7 +230,12 @@ pub fn get_price(pf: &PriceFeed) -> MarginfiResult<I80F48> {
         .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
         .ok_or(MarginfiError::StaleOracle)?;
 
-    pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)
+    let price =
+        pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)?;
+
+    require_gte!(price, I80F48::ZERO, MarginfiError::InvalidPrice);
+
+    Ok(price)
 }
 
 /// Calculate the value of an asset, given its quantity with a decimal exponent, and a price with a decimal exponent, and an optional weight.
@@ -384,7 +389,7 @@ impl<'a> RiskEngine<'a> {
             .bank_accounts_with_price
             .iter()
             .find(|a| a.balance.bank_pk == *bank_pk)
-            .unwrap();
+            .ok_or(MarginfiError::LendingAccountBalanceNotFound)?;
 
         check!(
             liability_bank_balance
@@ -761,7 +766,9 @@ impl<'a> BankAccountWrapper<'a> {
                 .into()
         };
 
-        Ok(spl_deposit_amount.checked_to_num().ok_or(math_error!()())?)
+        Ok(spl_deposit_amount
+            .checked_to_num()
+            .ok_or_else(math_error!())?)
     }
 
     // ------------ Internal accounting logic

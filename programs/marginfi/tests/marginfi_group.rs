@@ -274,7 +274,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
     let assets = usdc_bank.get_asset_amount(lender_bank_account.asset_shares.into())?;
 
     assert_eq_noise!(liabilities, I80F48!(90000174657530), I80F48!(10));
-    assert_eq_noise!(assets, I80F48!(100000171232862), I80F48!(10));
+    assert_eq_noise!(assets, I80F48!(100000171232876), I80F48!(10));
 
     let protocol_fees = usdc_bank_f
         .get_vault_token_account(BankVaultType::Fee)
@@ -283,8 +283,8 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
         .get_vault_token_account(BankVaultType::Insurance)
         .await;
 
-    assert_eq!(protocol_fees.balance().await, 1712326);
-    assert_eq!(insurance_fees.balance().await, 1712326);
+    assert_eq!(protocol_fees.balance().await, 1712328);
+    assert_eq!(insurance_fees.balance().await, 1712328);
 
     Ok(())
 }
