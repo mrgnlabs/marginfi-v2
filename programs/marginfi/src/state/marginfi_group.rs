@@ -381,19 +381,6 @@ impl Bank {
     }
 
     #[inline]
-    pub fn load_price_feed(
-        &self,
-        pyth_account_map: &BTreeMap<Pubkey, &AccountInfo>,
-    ) -> MarginfiResult<PriceFeed> {
-        let pyth_account = pyth_account_map
-            .get(&self.config.get_pyth_oracle_key())
-            .ok_or(MarginfiError::MissingPythAccount)?;
-
-        Ok(load_price_feed_from_account_info(pyth_account)
-            .map_err(|_| MarginfiError::InvalidOracleAccount)?)
-    }
-
-    #[inline]
     pub fn load_price_feed_from_account_info(&self, ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
         check!(
             self.config.get_pyth_oracle_key().eq(ai.key),
@@ -591,13 +578,15 @@ fn calc_interest_rate_accrual_state_changes(
     let (lending_apr, borrowing_apr, group_fee_apr, insurance_fee_apr) =
         interest_rate_config.calc_interest_rate(utilization_rate)?;
 
-    debug!(        "Accruing interest for {} seconds. Utilization rate: {}. Lending APR: {}. Borrowing APR: {}. Group fee APR: {}. Insurance fee APR: {}",
+    debug!(
+        "Accruing interest for {} seconds. Utilization rate: {}. Lending APR: {}. Borrowing APR: {}. Group fee APR: {}. Insurance fee APR: {}.",
         time_delta,
         utilization_rate,
         lending_apr,
         borrowing_apr,
         group_fee_apr,
-        insurance_fee_apr);
+        insurance_fee_apr
+    );
 
     Some((
         calc_accrued_interest_payment_per_period(lending_apr, time_delta, asset_share_value)?,
@@ -890,6 +879,8 @@ macro_rules! assert_eq_with_tolerance {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use super::*;
     use fixed_macro::types::I80F48;
 
@@ -1042,5 +1033,63 @@ mod tests {
         assert_eq_with_tolerance!(borrow_apr, I80F48!(1.88), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
         assert_eq_with_tolerance!(insurance_apr, I80F48!(0.17), I80F48!(0.001));
+    }
+
+    #[test]
+    fn ir_accrual_failing_fuzz_test_example() -> anyhow::Result<()> {
+        let ir_config = InterestRateConfig {
+            optimal_utilization_rate: I80F48!(0.4).into(),
+            plateau_interest_rate: I80F48!(0.4).into(),
+            protocol_fixed_fee_apr: I80F48!(0.01).into(),
+            max_interest_rate: I80F48!(3).into(),
+            insurance_ir_fee: I80F48!(0.1).into(),
+            ..Default::default()
+        };
+
+        let mut bank = Bank {
+            asset_share_value: I80F48::ONE.into(),
+            liability_share_value: I80F48::ONE.into(),
+            total_liability_shares: I80F48!(207112621602).into(),
+            total_asset_shares: I80F48!(10000000000000).into(),
+            config: BankConfig {
+                asset_weight_init: I80F48!(0.5).into(),
+                asset_weight_maint: I80F48!(0.75).into(),
+                liability_weight_init: I80F48!(1.5).into(),
+                liability_weight_maint: I80F48!(1.25).into(),
+                borrow_limit: u64::MAX,
+                deposit_limit: u64::MAX,
+                interest_rate_config: ir_config,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let pre_net_assets = bank.get_asset_amount(bank.total_asset_shares.into())?
+            + pre_collected_fees
+            - bank.get_liability_amount(bank.total_liability_shares.into())?;
+
+        let mut clock = Clock::default();
+        clock.unix_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        bank.accrue_interest(&clock).unwrap();
+
+        let post_collected_fees = I80F48::from(bank.collected_group_fees_outstanding)
+            + I80F48::from(bank.collected_insurance_fees_outstanding);
+
+        let post_net_assets = bank.get_asset_amount(bank.total_asset_shares.into())?
+            + post_collected_fees
+            - bank.get_liability_amount(bank.total_liability_shares.into())?;
+
+        let post_assets = bank.get_asset_amount(bank.total_asset_shares.into())?;
+        let post_liabilities = bank.get_liability_amount(bank.total_liability_shares.into())?;
+        let post_fees = I80F48::from(bank.collected_group_fees_outstanding)
+            + I80F48::from(bank.collected_insurance_fees_outstanding);
+
+        assert_eq!(pre_net_assets, post_net_assets);
+
+        Ok(())
     }
 }

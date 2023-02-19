@@ -230,7 +230,12 @@ pub fn get_price(pf: &PriceFeed) -> MarginfiResult<I80F48> {
         .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
         .ok_or(MarginfiError::StaleOracle)?;
 
-    pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)
+    let price =
+        pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)?;
+
+    require_gte!(price, I80F48::ZERO, MarginfiError::InvalidPrice);
+
+    Ok(price)
 }
 
 /// Calculate the value of an asset, given its quantity with a decimal exponent, and a price with a decimal exponent, and an optional weight.
@@ -398,7 +403,17 @@ impl<'a> RiskEngine<'a> {
             MarginfiError::IllegalLiquidation
         );
 
-        let account_health = self.get_account_health(RiskRequirementType::Maintenance)?;
+        let (assets, liabs) =
+            self.get_account_health_components(RiskRequirementType::Maintenance)?;
+
+        let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
+
+        msg!(
+            "pre_liquidation_health: {} ({} - {})",
+            account_health,
+            assets,
+            liabs
+        );
 
         check!(
             account_health <= I80F48::ZERO,
@@ -440,7 +455,10 @@ impl<'a> RiskEngine<'a> {
             MarginfiError::IllegalLiquidation
         );
 
-        let account_health = self.get_account_health(RiskRequirementType::Maintenance)?;
+        let (assets, liabs) =
+            self.get_account_health_components(RiskRequirementType::Maintenance)?;
+
+        let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 
         check!(
             account_health <= I80F48::ZERO,
@@ -448,9 +466,11 @@ impl<'a> RiskEngine<'a> {
         );
 
         msg!(
-            "account_health: {}, pre_liquidation_health: {}",
+            "account_health: {} ({} - {}), pre_liquidation_health: {}",
             account_health,
-            pre_liquidation_health
+            assets,
+            liabs,
+            pre_liquidation_health,
         );
 
         check!(

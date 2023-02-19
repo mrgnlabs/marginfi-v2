@@ -8,6 +8,7 @@ use anchor_lang::{
 use arbitrary::Arbitrary;
 use bumpalo::Bump;
 
+use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
 use marginfi::{
@@ -33,6 +34,7 @@ use solana_program::{
 };
 use spl_token::state::Mint;
 use std::{
+    cmp::max,
     collections::{BTreeMap, HashMap, HashSet},
     mem::size_of,
     ops::{Add, AddAssign},
@@ -151,11 +153,7 @@ macro_rules! log {
 }
 
 impl<'bump> MarginfiFuzzContext<'bump> {
-    pub fn setup(
-        bump: &'bump Bump,
-        bank_configs: &[BankAndOracleConfig],
-        user_bank_layout: &[UserBankLayout],
-    ) -> Self {
+    pub fn setup(bump: &'bump Bump, bank_configs: &[BankAndOracleConfig], n_users: u8) -> Self {
         let marginfi_program = new_marginfi_program(bump);
         let system_program = new_system_program(bump);
         let token_program = new_spl_token_program(bump);
@@ -194,23 +192,18 @@ impl<'bump> MarginfiFuzzContext<'bump> {
 
         let token_vec = marginfi_state.banks.iter().map(|b| *b.mint.key).collect();
 
-        marginfi_state.marginfi_accounts = user_bank_layout
-            .iter()
-            .map(|layout| {
+        marginfi_state.marginfi_accounts = (0..n_users)
+            .into_iter()
+            .map(|_| {
                 marginfi_state
-                    .create_marginfi_account(bump, Rent::free(), &token_vec, layout)
+                    .create_marginfi_account(bump, Rent::free(), &token_vec)
                     .unwrap()
             })
             .collect::<Vec<_>>();
 
         // Create an extra account for seeding the banks
         let funding_account = marginfi_state
-            .create_marginfi_account(
-                bump,
-                Rent::free(),
-                &token_vec,
-                &UserBankLayout([true; N_BANKS]),
-            )
+            .create_marginfi_account(bump, Rent::free(), &token_vec)
             .unwrap();
 
         marginfi_state.marginfi_accounts.push(funding_account);
@@ -230,33 +223,11 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                 .unwrap();
         }
 
-        // // Fund initial banks to streamline deposit
-        // for account_idx in 0..marginfi_state.marginfi_accounts.len() {
-        //     for bank_idx in 0..marginfi_state.banks.len() {
-        //         marginfi_state
-        //             .process_action_deposit(
-        //                 &AccountIdx(account_idx as u8),
-        //                 &BankIdx(bank_idx as u8),
-        //                 &AssetAmount(
-        //                     1_000
-        //                         * 10_u64.pow(
-        //                             marginfi_state.banks[bank_idx as usize].mint_decimals.into(),
-        //                         ),
-        //                 ),
-        //             )
-        //             .unwrap();
-        //     }
-        // }
-
         marginfi_state
     }
 
     fn get_bank_map(&'bump self) -> HashMap<Pubkey, &'bump BankAccounts<'bump>> {
-        HashMap::from_iter(
-            self.banks
-                .iter()
-                .map(|bank| (bank.bank.key(), bank.clone())),
-        )
+        get_bank_map(&self.banks)
     }
 
     fn refresh_oracle_accounts(&self) {
@@ -422,7 +393,6 @@ impl<'bump> MarginfiFuzzContext<'bump> {
         bump: &'bump Bump,
         rent: Rent,
         token_mints: &Vec<Pubkey>,
-        layout: &UserBankLayout,
     ) -> anyhow::Result<UserAccount<'bump>> {
         let marginfi_account =
             new_owned_account(size_of::<MarginfiAccount>(), &marginfi::ID, bump, rent);
@@ -453,7 +423,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
 
         set_discriminator::<MarginfiAccount>(marginfi_account.clone());
 
-        Ok(UserAccount::new(marginfi_account, token_accounts, *layout))
+        Ok(UserAccount::new(marginfi_account, token_accounts))
     }
 
     pub fn process_action_deposit(
@@ -463,8 +433,6 @@ impl<'bump> MarginfiFuzzContext<'bump> {
         asset_amount: &AssetAmount,
     ) -> anyhow::Result<()> {
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
-
-        let bank_idx = marginfi_account.get_bank_idx(bank_idx, true);
 
         let bank = &self.banks[bank_idx.0 as usize];
 
@@ -514,7 +482,6 @@ impl<'bump> MarginfiFuzzContext<'bump> {
         repay_all: bool,
     ) -> anyhow::Result<()> {
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
-        let bank_idx = marginfi_account.get_bank_idx(bank_idx, false);
         let bank = &self.banks[bank_idx.0 as usize];
 
         let cache = AccountInfoCache::new(&[
@@ -566,7 +533,6 @@ impl<'bump> MarginfiFuzzContext<'bump> {
         self.refresh_oracle_accounts();
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
 
-        let bank_idx = marginfi_account.get_bank_idx(bank_idx, true);
         let bank = &self.banks[bank_idx.0 as usize];
 
         let cache = AccountInfoCache::new(&[
@@ -633,10 +599,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
         self.refresh_oracle_accounts();
 
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
-
-        let bank_idx = marginfi_account.get_bank_idx(bank_idx, false);
         let bank = &self.banks[bank_idx.0 as usize];
-
         let cache = AccountInfoCache::new(&[
             marginfi_account.margin_account.clone(),
             bank.bank.clone(),
@@ -688,13 +651,24 @@ impl<'bump> MarginfiFuzzContext<'bump> {
         &'bump self,
         liquidator_idx: &AccountIdx,
         liquidatee_idx: &AccountIdx,
-        asset_bank_idx: &BankIdx,
-        liab_bank_idx: &BankIdx,
         asset_amount: &AssetAmount,
     ) -> anyhow::Result<()> {
         self.refresh_oracle_accounts();
         let liquidator_account = &self.marginfi_accounts[liquidator_idx.0 as usize];
         let liquidatee_account = &self.marginfi_accounts[liquidatee_idx.0 as usize];
+
+        let (asset_bank_idx, liab_bank_idx) =
+            if let Some(a) = liquidatee_account.get_liquidation_banks(&self.banks) {
+                a
+            } else {
+                self.metrics
+                    .write()
+                    .unwrap()
+                    .update_metric(MetricAction::Liquidate, false);
+
+                return Ok(());
+            };
+
         let asset_bank = &self.banks[asset_bank_idx.0 as usize];
         let liab_bank = &self.banks[liab_bank_idx.0 as usize];
 
@@ -748,18 +722,19 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             asset_amount.0,
         );
 
-        if res.is_err() {
-            account_cache.revert();
-        }
-
-        if res.is_ok() {
-            self.process_handle_bankruptcy(liquidatee_idx, liab_bank_idx)?;
-        }
+        let is_ok = res.is_ok();
 
         self.metrics
             .write()
             .unwrap()
-            .update_metric(MetricAction::Liquidate, res.is_ok());
+            .update_metric(MetricAction::Liquidate, is_ok);
+
+        if !is_ok {
+            account_cache.revert();
+            log!("Error Liquidate {:?}", res.unwrap_err());
+        } else {
+            self.process_handle_bankruptcy(liquidatee_idx, &liab_bank_idx)?;
+        }
 
         Ok(())
     }
@@ -769,6 +744,8 @@ impl<'bump> MarginfiFuzzContext<'bump> {
         account_idx: &AccountIdx,
         bank_idx: &BankIdx,
     ) -> anyhow::Result<()> {
+        log!("Action: Handle Bankruptcy");
+
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
         let bank = &self.banks[bank_idx.0 as usize];
 
@@ -893,41 +870,13 @@ impl<'a> Arbitrary<'a> for BankIdx {
     }
 }
 
-/// Layout determining which banks are used for depositing or borrowing;
-///
-/// TODO: Support changing bank purpose
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct UserBankLayout(pub [bool; N_BANKS]);
-
-impl UserBankLayout {
-    pub fn into_inner(&self) -> [bool; N_BANKS] {
-        self.0
-    }
-}
-
-impl<'a> Arbitrary<'a> for UserBankLayout {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let mut layout = [false; N_BANKS];
-
-        layout[0] = true;
-
-        for e in &mut layout[2..] {
-            *e = u.arbitrary::<bool>().unwrap();
-        }
-
-        Ok(UserBankLayout(layout))
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AssetAmount(pub u64);
 
-pub const MAX_ASSET_AMOUNT: u64 = 100_000;
+pub const ASSET_UNIT: u64 = 1_000_000_000;
 impl<'a> Arbitrary<'a> for AssetAmount {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        Ok(AssetAmount(
-            1_000 + u.int_in_range(1..=10)? * MAX_ASSET_AMOUNT,
-        ))
+        Ok(AssetAmount(u.int_in_range(1..=10)? * ASSET_UNIT))
     }
 
     fn size_hint(_: usize) -> (usize, Option<usize>) {
@@ -956,7 +905,7 @@ pub struct BankAndOracleConfig {
 
 impl<'a> Arbitrary<'a> for BankAndOracleConfig {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let mint_decimals = u.int_in_range(1..=3)? * 3;
+        let mint_decimals = u.int_in_range(2..=3)? * 3;
         let top_limit = 1_000_000 * 10u64.pow(mint_decimals as u32);
         let borrow_limit = u.int_in_range(1..=10)? * top_limit;
         let deposit_limit = borrow_limit + u.int_in_range(1..=10)? * top_limit;
@@ -1076,33 +1025,64 @@ pub fn get_vault_authority(bank: &Pubkey, vault_type: BankVaultType) -> (Pubkey,
 pub struct UserAccount<'info> {
     pub margin_account: AccountInfo<'info>,
     pub token_accounts: Vec<AccountInfo<'info>>,
-    pub bank_layout: UserBankLayout,
+}
+
+fn get_bank_map<'bump>(
+    banks: &'bump [BankAccounts<'bump>],
+) -> HashMap<Pubkey, &'bump BankAccounts<'bump>> {
+    HashMap::from_iter(banks.iter().map(|bank| (bank.bank.key(), bank.clone())))
 }
 
 impl<'info> UserAccount<'info> {
     pub fn new(
         margin_account: AccountInfo<'info>,
         token_accounts: Vec<AccountInfo<'info>>,
-        bank_layout: UserBankLayout,
     ) -> Self {
         Self {
             margin_account,
             token_accounts,
-            bank_layout,
         }
     }
 
-    pub fn get_bank_idx(&self, base_idx: &BankIdx, asset: bool) -> BankIdx {
-        let idxs = self
-            .bank_layout
-            .0
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, is_asset)| if *is_asset == asset { Some(idx) } else { None })
-            .collect::<Vec<_>>();
-        let projected_idx = base_idx.0 as usize % idxs.len();
+    pub fn get_liquidation_banks(&self, banks: &[BankAccounts]) -> Option<(BankIdx, BankIdx)> {
+        let marginfi_account_al =
+            AccountLoader::<MarginfiAccount>::try_from(&self.margin_account).ok()?;
+        let marginfi_account = marginfi_account_al.load().ok()?;
 
-        BankIdx(idxs[projected_idx] as u8)
+        // let bank_map = get_bank_map(banks);
+
+        let mut asset_balances = marginfi_account
+            .lending_account
+            .balances
+            .iter()
+            .filter(|blc| !blc.is_empty(marginfi::state::marginfi_account::BalanceSide::Assets))
+            .collect::<Vec<_>>();
+        let mut liab_balances = marginfi_account
+            .lending_account
+            .balances
+            .iter()
+            .filter(|blc| {
+                !blc.is_empty(marginfi::state::marginfi_account::BalanceSide::Liabilities)
+            })
+            .collect::<Vec<_>>();
+
+        asset_balances
+            .sort_by(|a, b| I80F48::from(a.asset_shares).cmp(&I80F48::from(b.asset_shares)));
+        liab_balances.sort_by(|a, b| {
+            I80F48::from(a.liability_shares).cmp(&I80F48::from(b.liability_shares))
+        });
+
+        let best_asset_bank = asset_balances.first()?.bank_pk;
+        let best_liab_bank = liab_balances.first()?.bank_pk;
+
+        let best_asset_pos = banks
+            .iter()
+            .position(|bank| bank.bank.key.eq(&best_asset_bank))?;
+        let best_liab_pos = banks
+            .iter()
+            .position(|bank| bank.bank.key.eq(&best_liab_bank))?;
+
+        Some((BankIdx(best_asset_pos as u8), BankIdx(best_liab_pos as u8)))
     }
 
     pub fn get_remaining_accounts(
@@ -1361,9 +1341,9 @@ pub fn update_oracle_account(ai: AccountInfo, price_change: i64) -> Result<(), P
     let mut data = ai.try_borrow_mut_data()?;
     let data = bytemuck::from_bytes_mut::<PriceAccount>(&mut data);
 
-    data.agg.price = data.agg.price.saturating_add(price_change);
-    data.agg.price = data.ema_price.val.saturating_add(price_change);
-    data.agg.price = data.ema_price.numer.saturating_add(price_change);
+    data.agg.price = max(data.agg.price + price_change, 0);
+    data.ema_price.val = max(data.ema_price.val + price_change, 0);
+    data.ema_price.numer = max(data.ema_price.numer + price_change, 0);
 
     Ok(())
 }
@@ -1589,7 +1569,7 @@ mod tests {
         a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(500))
             .unwrap();
 
-        a.process_update_oracle(&BankIdx(1), &PriceChange(190))
+        a.process_update_oracle(&BankIdx(1), &PriceChange(10000))
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
@@ -1619,14 +1599,8 @@ mod tests {
         a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000))
             .unwrap();
 
-        a.process_liquidate_account(
-            &AccountIdx(2),
-            &AccountIdx(0),
-            &BankIdx(0),
-            &BankIdx(1),
-            &AssetAmount(50),
-        )
-        .unwrap();
+        a.process_liquidate_account(&AccountIdx(2), &AccountIdx(0), &AssetAmount(50))
+            .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
             &marginfi::id(),
@@ -1685,14 +1659,8 @@ mod tests {
         a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000))
             .unwrap();
 
-        a.process_liquidate_account(
-            &AccountIdx(2),
-            &AccountIdx(0),
-            &BankIdx(0),
-            &BankIdx(1),
-            &AssetAmount(1000),
-        )
-        .unwrap();
+        a.process_liquidate_account(&AccountIdx(2), &AccountIdx(0), &AssetAmount(1000))
+            .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
             &marginfi::id(),
