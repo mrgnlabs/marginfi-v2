@@ -1,6 +1,6 @@
 use super::marginfi_account::WeightType;
 #[cfg(not(feature = "client"))]
-use crate::events::{AccrueInterestEvent, GroupEventHeader};
+use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_size, check,
     constants::{
@@ -55,11 +55,8 @@ impl MarginfiGroup {
     }
 }
 
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, Clone, TypeLayout)
-)]
-#[derive(AnchorSerialize, AnchorDeserialize, Default)]
+#[cfg_attr(any(feature = "test", feature = "client"), derive(TypeLayout))]
+#[derive(AnchorSerialize, AnchorDeserialize, Default, Debug, Clone)]
 pub struct GroupConfig {
     pub admin: Option<Pubkey>,
 }
@@ -76,9 +73,9 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
+    derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Default, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -488,8 +485,7 @@ impl Bank {
 
             emit!(LendingPoolBankAccrueInterestEvent {
                 header: GroupEventHeader {
-                    version: "0.1.0".to_string(),
-                    marginfi_group: self.group
+                    marginfi_group: self.group,
                     signer: None
                 },
                 mint: self.mint,
@@ -706,9 +702,9 @@ assert_struct_size!(BankConfig, 544);
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
+    derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(AnchorDeserialize, AnchorSerialize)]
+#[derive(AnchorDeserialize, AnchorSerialize, Debug)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub asset_weight_init: WrappedI80F48,

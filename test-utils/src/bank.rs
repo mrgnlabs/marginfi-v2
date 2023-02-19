@@ -10,8 +10,10 @@ use marginfi::{
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
 use solana_program::instruction::Instruction;
+#[cfg(feature = "lip")]
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
+#[cfg(feature = "lip")]
 use solana_sdk::signature::Keypair;
 use solana_sdk::{signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
@@ -115,7 +117,7 @@ impl BankFixture {
                 marginfi_bank: self.key,
                 admin: self.ctx.borrow().payer.pubkey(),
                 funding_account: reward_funding_account,
-                rent: anchor_lang::solana_program::sysvar::rent::id(),
+                rent: solana_program::sysvar::rent::id(),
                 token_program: anchor_spl::token::ID,
                 system_program: solana_program::system_program::id(),
             }
