@@ -31,12 +31,23 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
         try:
             event_bytes = base64.b64decode(event_encoded)
         except Exception as e:
-            raise Exception("Failed to decode base64 event string", e)
+            print(f"error: failed to decode base64 event string in tx {ix.signature}", e)
+            continue
 
-        event = program.coder.events.parse(event_bytes)
-        instruction_data = program.coder.instruction.parse(ix.message.data)
+        print(f"info decoded with IDL {program.version}")
 
-        print(f"info decoded with IDL {program.version}", instruction_data)
+        try:
+            event = program.coder.events.parse(event_bytes)
+        except Exception as e:
+            print(f"failed to parse event in tx {ix.signature}", e)
+            continue
+
+        try:
+            instruction_data = program.coder.instruction.parse(ix.message.data)
+        except Exception as e:
+            print(ix)
+            print(f"failed to parse instruction data in tx {ix.signature}", e)
+            continue
 
         if is_liquidity_change_event(event.name):
             record = LiquidityChangeRecord.from_event(event)
@@ -96,7 +107,7 @@ def run(
 
         merged_instructions = merge_instructions_and_cpis(message_decoded.instructions, meta["innerInstructions"])
         expanded_instructions = expand_instructions(message_decoded.account_keys, merged_instructions)
-        ixs_with_logs = reconcile_instruction_logs(expanded_instructions, meta["logMessages"])
+        ixs_with_logs = reconcile_instruction_logs(tx["signature"], expanded_instructions, meta["logMessages"])
 
         records_list = []
         for ix_with_logs in ixs_with_logs:

@@ -1,8 +1,7 @@
-import base64
 import re
 from dataclasses import dataclass
 from typing import List, Any, Callable, Optional
-
+from based58 import based58
 from solders.instruction import CompiledInstruction
 from solders.pubkey import Pubkey
 
@@ -16,6 +15,7 @@ class Instruction:
 
 @dataclass
 class InstructionWithLogs:
+    signature: str
     message: Instruction
     logs: List[str]
     inner_instructions: List["InstructionWithLogs"]
@@ -44,7 +44,7 @@ def merge_instructions_and_cpis(message_instructions: List[CompiledInstruction],
             for ix_raw in inner_instructions[inner_ixs_index]["instructions"]:
                 compiled_instructions.append(
                     CompiledInstruction(program_id_index=ix_raw["programIdIndex"], accounts=bytes(ix_raw["accounts"]),
-                                        data=base64.b85decode(ix_raw["data"])))
+                                        data=based58.b58decode(str.encode(ix_raw["data"]))))
 
     return compiled_instructions
 
@@ -67,7 +67,8 @@ def get_latest_ix_ref(instructions: List[InstructionWithLogs], stack_depth: int)
     return target_instruction_list[-1]
 
 
-def reconcile_instruction_logs(instructions: List[Instruction], logs: List[str]) -> List[InstructionWithLogs]:
+def reconcile_instruction_logs(signature: str, instructions: List[Instruction], logs: List[str]) -> List[
+    InstructionWithLogs]:
     depth = 0
     instructions_consumed = 0
     instructions_with_logs: List[InstructionWithLogs] = []
@@ -84,7 +85,7 @@ def reconcile_instruction_logs(instructions: List[Instruction], logs: List[str])
                 for i in range(depth):
                     target_instruction_list = target_instruction_list[-1].inner_instructions
                 target_instruction_list.append(
-                    InstructionWithLogs(logs=[log], message=instructions[instructions_consumed],
+                    InstructionWithLogs(signature=signature, logs=[log], message=instructions[instructions_consumed],
                                         inner_instructions=[], logs_truncated=False))
                 depth += 1
                 instructions_consumed += 1
