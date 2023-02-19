@@ -1089,7 +1089,6 @@ Max Rewards: {}
 
 #[cfg(feature = "lip")]
 pub fn process_list_deposits(config: &Config) {
-    
     use solana_sdk::clock::SECONDS_PER_DAY;
 
     let mut deposits = config.lip_program.accounts::<Deposit>(vec![]).unwrap();
