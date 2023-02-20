@@ -192,8 +192,8 @@ class LendingPoolBankAccrueInterestRecord(RecordBase):
                                                    bank=instruction.message.accounts[bank_account_index],
                                                    mint=event.data.mint,
                                                    delta=event.data.delta,
-                                                   fees_collected=event.data.feesCollected,
-                                                   insurance_collected=event.data.insuranceCollected)
+                                                   fees_collected=event.data.fees_collected,
+                                                   insurance_collected=event.data.insurance_collected)
 
 
 Record = Union[

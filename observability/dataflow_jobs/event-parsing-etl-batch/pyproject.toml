@@ -13,6 +13,7 @@ wheel = "^0.38.4"
 apache-beam = { extras = ["gcp"], version = "2.44.0" }
 solders = "^0.14.0"
 anchorpy = { git = "https://github.com/mrgnlabs/anchorpy", branch = "bump-zstandard"}
+based58 = "^0.1.1"
 
 [tool.poetry.group.dev.dependencies]
 typer = "^0.7.0"
