@@ -2,26 +2,26 @@ import argparse
 import base64
 import json
 import logging
-from typing import List, Optional
+from typing import List, Optional, Sequence, Union, Generator, Any, Tuple, Dict
 from solders.message import MessageV0, Message
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 from solders.pubkey import Pubkey
 
-from dataflow_etls.dataflow_etls.orm.events import Record, LiquidityChangeRecord, \
+from dataflow_etls.orm.events import Record, LiquidityChangeRecord, \
     MarginfiAccountCreationRecord, is_liquidity_change_event, MARGINFI_ACCOUNT_CREATE_EVENT, LendingPoolBankAddRecord, \
     LendingPoolBankAccrueInterestRecord, LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT, LENDING_POOL_BANK_ADD_EVENT
-from dataflow_etls.dataflow_etls.idl_versions import VersionedIdl, VersionedProgram, Cluster
-from dataflow_etls.dataflow_etls.transaction_log_parser import reconcile_instruction_logs, \
+from dataflow_etls.idl_versions import VersionedIdl, VersionedProgram, Cluster
+from dataflow_etls.transaction_log_parser import reconcile_instruction_logs, \
     merge_instructions_and_cpis, expand_instructions, InstructionWithLogs, PROGRAM_DATA
 
 
 class DispatchEventsDoFn(beam.DoFn):
-    def process(self, record: Record, *args, **kwargs):
+    def process(self, record: Record, *args: Tuple[Any], **kwargs: Dict[str, Tuple[Any]]) -> Generator[str, None, None]:
         yield beam.pvalue.TaggedOutput(record.NAME, record)
 
 
-def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -> List[Record]:
+def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -> Sequence[Record]:
     records = []
     for log in ix.logs:
         if not log.startswith(PROGRAM_DATA):
@@ -49,6 +49,7 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
             print(f"failed to parse instruction data in tx {ix.signature}", e)
             continue
 
+        record: Optional[Record]
         if is_liquidity_change_event(event.name):
             record = LiquidityChangeRecord.from_event(event, ix, instruction_data)
         elif event.name == MARGINFI_ACCOUNT_CREATE_EVENT:
@@ -68,7 +69,7 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
 
 
 def extract_events_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -> List[Record]:
-    ix_events = []
+    ix_events: List[Record] = []
 
     if ix.message.program_id == program.program_id:
         ix_events.extend(create_records_from_ix(ix, program))
@@ -85,9 +86,12 @@ def run(
         cluster: Cluster,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        beam_args: List[str] = None,
+        beam_args: Optional[List[str]] = None,
 ) -> None:
-    def extract_events_from_tx(tx):
+    if beam_args is None:
+        beam_args = []
+
+    def extract_events_from_tx(tx: Any) -> List[Record]:
         indexed_program_id_str = tx["indexing_address"]
         indexed_program_id = Pubkey.from_string(indexed_program_id_str)
         tx_slot = int(tx["slot"])
@@ -98,6 +102,7 @@ def run(
         message_bytes = base64.b64decode(tx["message"])
 
         tx_version = tx["version"]
+        message_decoded: Union[Message, MessageV0]
         if tx_version == "legacy":
             message_decoded = Message.from_bytes(message_bytes)
         elif tx_version == "0":
@@ -108,7 +113,7 @@ def run(
         merged_instructions = merge_instructions_and_cpis(message_decoded.instructions, meta["innerInstructions"])
         expanded_instructions = expand_instructions(message_decoded.account_keys, merged_instructions)
         ixs_with_logs = reconcile_instruction_logs(tx["timestamp"], tx["signature"], expanded_instructions,
-                                                   meta["logMessages"])
+                                                   meta["logMessages"], idl_version)
 
         records_list = []
         for ix_with_logs in ixs_with_logs:
@@ -177,7 +182,7 @@ def run(
             LendingPoolBankAccrueInterestRecord.NAME] | "WriteLendingPoolBankAccrueInterestEvent" >> write_lending_pool_bank_accrue_interest_events
 
 
-def main():
+def main() -> None:
     logging.getLogger().setLevel(logging.INFO)
 
     parser = argparse.ArgumentParser()

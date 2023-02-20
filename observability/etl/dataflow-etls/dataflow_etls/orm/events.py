@@ -1,3 +1,4 @@
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -5,7 +6,7 @@ from typing import Union, Optional
 from anchorpy import Event, NamedInstruction
 from solders.pubkey import Pubkey
 
-from event_parsing_etl_batch.transaction_log_parser import InstructionWithLogs
+from dataflow_etls.transaction_log_parser import InstructionWithLogs
 
 # IDL event names
 LENDING_ACCOUNT_DEPOSIT_EVENT = 'LendingAccountDepositEvent'
@@ -15,6 +16,10 @@ LENDING_ACCOUNT_REPAY_EVENT = 'LendingAccountRepayEvent'
 MARGINFI_ACCOUNT_CREATE_EVENT = 'MarginfiAccountCreateEvent'
 LENDING_POOL_BANK_ADD_EVENT = 'LendingPoolBankAddEvent'
 LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT = 'LendingPoolBankAccrueInterestEvent'
+
+
+def pascal_to_snake_case(string: str) -> str:
+    return  re.sub('(?!^)([A-Z]+)', r'_\1', string).lower()
 
 
 def time_str(dt: Optional[datetime] = None) -> str:
@@ -29,6 +34,8 @@ class RecordBase:
         [
             "id:STRING",
             "created_at:TIMESTAMP",
+            "idl_version:STRING",
+            "is_cpi:BOOLEAN",
             "timestamp:TIMESTAMP",
             "signature:STRING",
             "indexing_address:STRING",
@@ -36,6 +43,9 @@ class RecordBase:
     )
 
     id: str
+    idl_version: str
+    is_cpi: bool
+    # call_stack: List[str]
     created_at: str
     timestamp: str
     signature: str
@@ -56,12 +66,16 @@ class LiquidityChangeRecord(RecordBase):
         ]
     )
 
+    EVENT_TYPES = [LENDING_ACCOUNT_REPAY_EVENT, LENDING_ACCOUNT_DEPOSIT_EVENT,
+                   LENDING_ACCOUNT_BORROW_EVENT, LENDING_ACCOUNT_WITHDRAW_EVENT]
+    INSTRUCTION_TYPES = [pascal_to_snake_case(string.removesuffix("Event")) for string in EVENT_TYPES]
+
     marginfi_group: Pubkey
     marginfi_account: Pubkey
     authority: Pubkey
     operation: str
     amount: int
-    balance_closed: bool
+    balance_closed: Optional[bool]
 
     @staticmethod
     def from_event(event: Event, instruction: InstructionWithLogs,
@@ -73,6 +87,9 @@ class LiquidityChangeRecord(RecordBase):
         return LiquidityChangeRecord(id=str(uuid.uuid4()),
                                      created_at=time_str(),
                                      timestamp=time_str(instruction.timestamp),
+                                     idl_version=instruction.idl_version,
+                                     is_cpi=instruction.is_cpi,
+                                     # call_stack=[str(pk) for pk in instruction.call_stack],
                                      signature=instruction.signature,
                                      indexing_address=str(instruction.message.program_id),
                                      operation=event.name,
@@ -113,6 +130,9 @@ class MarginfiAccountCreationRecord(RecordBase):
         return MarginfiAccountCreationRecord(id=str(uuid.uuid4()),
                                              created_at=time_str(),
                                              timestamp=time_str(instruction.timestamp),
+                                             idl_version=instruction.idl_version,
+                                             is_cpi=instruction.is_cpi,
+                                             # call_stack=[str(pk) for pk in instruction.call_stack],
                                              signature=instruction.signature,
                                              indexing_address=str(instruction.message.program_id),
                                              marginfi_account=event.data.header.marginfi_account,
@@ -143,12 +163,61 @@ class LendingPoolBankAddRecord(RecordBase):
         return LendingPoolBankAddRecord(id=str(uuid.uuid4()),
                                         created_at=time_str(),
                                         timestamp=time_str(instruction.timestamp),
+                                        idl_version=instruction.idl_version,
+                                        is_cpi=instruction.is_cpi,
+                                        # call_stack=[str(pk) for pk in instruction.call_stack],
                                         signature=instruction.signature,
                                         indexing_address=str(instruction.message.program_id),
                                         marginfi_group=event.data.header.marginfi_group,
                                         authority=event.data.header.signer,
                                         bank=event.data.bank,
                                         mint=event.data.mint)
+
+
+@dataclass
+class LendingPoolHandleBankruptcyRecord(RecordBase):
+    NAME = "LendingPoolHandleBankruptcy"
+    SCHEMA = RecordBase.SCHEMA + "," + ",".join(
+        [
+            "marginfi_group:STRING",
+            "marginfi_account:STRING",
+            "bank:STRING",
+            "mint:STRING",
+            "authority:STRING",
+            "bad_debt:BIGNUMERIC",
+            "covered_amount:BIGNUMERIC",
+            "socialized_amount:BIGNUMERIC",
+        ]
+    )
+
+    marginfi_group: Pubkey
+    marginfi_account: Pubkey
+    authority: Pubkey
+    bank: Pubkey
+    mint: Pubkey
+    bad_debt: float
+    covered_amount: float
+    socialized_amount: float
+
+    @staticmethod
+    def from_event(event: Event, instruction: InstructionWithLogs,
+                   _instruction_args: NamedInstruction) -> "LendingPoolHandleBankruptcyRecord":
+        return LendingPoolHandleBankruptcyRecord(id=str(uuid.uuid4()),
+                                                 created_at=time_str(),
+                                                 timestamp=time_str(instruction.timestamp),
+                                                 idl_version=instruction.idl_version,
+                                                 is_cpi=instruction.is_cpi,
+                                                 # call_stack=[str(pk) for pk in instruction.call_stack],
+                                                 signature=instruction.signature,
+                                                 indexing_address=str(instruction.message.program_id),
+                                                 marginfi_group=event.data.header.marginfi_group,
+                                                 marginfi_account=event.data.header.marginfi_account,
+                                                 authority=event.data.header.signer,
+                                                 bank=event.data.bank,
+                                                 mint=event.data.mint,
+                                                 bad_debt=event.data.bad_debt,
+                                                 covered_amount=event.data.covered_amount,
+                                                 socialized_amount=event.data.socialized_amount)
 
 
 @dataclass
@@ -160,9 +229,9 @@ class LendingPoolBankAccrueInterestRecord(RecordBase):
             "authority:STRING",
             "bank:STRING",
             "mint:STRING",
-            "delta:BIGDECIMAL",
-            "fees_collected:BIGDECIMAL",
-            "insurance_collected:BIGDECIMAL",
+            "delta:BIGNUMERIC",
+            "fees_collected:BIGNUMERIC",
+            "insurance_collected:BIGNUMERIC",
         ]
     )
 
@@ -177,19 +246,30 @@ class LendingPoolBankAccrueInterestRecord(RecordBase):
     @staticmethod
     def from_event(event: Event, instruction: InstructionWithLogs,
                    instruction_args: NamedInstruction) -> "LendingPoolBankAccrueInterestRecord":
-        if instruction_args.name != LendingPoolBankAccrueInterestRecord.NAME:
-            print(f"error: event should be logged in ix type {LendingPoolBankAccrueInterestRecord.NAME}")
+        if instruction_args.name == pascal_to_snake_case(LendingPoolBankAccrueInterestRecord.NAME):
+            bank_account_index = 1
+        elif instruction_args.name in LiquidityChangeRecord.INSTRUCTION_TYPES:
+            bank_account_index = 3
+        elif instruction_args.name == pascal_to_snake_case(LendingPoolHandleBankruptcyRecord.NAME):
+            bank_account_index = 2
+        else:
+            print(
+                f"error: event should be logged in {LiquidityChangeRecord.INSTRUCTION_TYPES} ix types but, found in {instruction_args.name}")
+            bank_account_index = None  # todo: handle liquidation case with 2 banks (add bank address to `Bank` struct?)
 
-        bank_account_index = 1
+        bank = instruction.message.accounts[bank_account_index] if bank_account_index is not None else Pubkey.default()
 
         return LendingPoolBankAccrueInterestRecord(id=str(uuid.uuid4()),
                                                    created_at=time_str(),
                                                    timestamp=time_str(instruction.timestamp),
+                                                   idl_version=instruction.idl_version,
+                                                   is_cpi=instruction.is_cpi,
+                                                   # call_stack=[str(pk) for pk in instruction.call_stack],
                                                    signature=instruction.signature,
                                                    indexing_address=str(instruction.message.program_id),
                                                    marginfi_group=event.data.header.marginfi_group,
                                                    authority=event.data.header.signer,
-                                                   bank=instruction.message.accounts[bank_account_index],
+                                                   bank=bank,
                                                    mint=event.data.mint,
                                                    delta=event.data.delta,
                                                    fees_collected=event.data.fees_collected,

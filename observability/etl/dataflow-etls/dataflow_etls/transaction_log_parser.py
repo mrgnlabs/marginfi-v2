@@ -17,11 +17,14 @@ class Instruction:
 @dataclass
 class InstructionWithLogs:
     timestamp: datetime
+    idl_version: str
     signature: str
     message: Instruction
     logs: List[str]
     inner_instructions: List["InstructionWithLogs"]
     logs_truncated: bool
+    is_cpi: bool
+    # call_stack: List[Pubkey]
 
 
 INVOKE_MESSAGE = "Program log: "
@@ -41,7 +44,7 @@ def merge_instructions_and_cpis(message_instructions: List[CompiledInstruction],
     compiled_instructions: List[CompiledInstruction] = []
     for ix_index, instruction in enumerate(message_instructions):
         compiled_instructions.append(instruction)
-        inner_ixs_index = search(inner_instructions, lambda inner_ixs: inner_ixs["index"] == ix_index)
+        inner_ixs_index = search(inner_instructions, lambda inner_ixs: bool(inner_ixs["index"] == ix_index))
         if inner_ixs_index is not None:
             for ix_raw in inner_instructions[inner_ixs_index]["instructions"]:
                 compiled_instructions.append(
@@ -69,7 +72,8 @@ def get_latest_ix_ref(instructions: List[InstructionWithLogs], stack_depth: int)
     return target_instruction_list[-1]
 
 
-def reconcile_instruction_logs(timestamp: datetime, signature: str, instructions: List[Instruction], logs: List[str]) -> \
+def reconcile_instruction_logs(timestamp: datetime, signature: str, instructions: List[Instruction], logs: List[str],
+                               idl_version: str) -> \
         List[InstructionWithLogs]:
     depth = 0
     instructions_consumed = 0
@@ -86,10 +90,12 @@ def reconcile_instruction_logs(timestamp: datetime, signature: str, instructions
                 target_instruction_list = instructions_with_logs
                 for i in range(depth):
                     target_instruction_list = target_instruction_list[-1].inner_instructions
+
+                message = instructions[instructions_consumed]
                 target_instruction_list.append(
-                    InstructionWithLogs(timestamp=timestamp, signature=signature, logs=[log],
-                                        message=instructions[instructions_consumed],
-                                        inner_instructions=[], logs_truncated=False))
+                    InstructionWithLogs(timestamp=timestamp, idl_version=idl_version, signature=signature, logs=[log],
+                                        message=message,
+                                        inner_instructions=[], logs_truncated=False, is_cpi=(depth > 0)))
                 depth += 1
                 instructions_consumed += 1
             else:

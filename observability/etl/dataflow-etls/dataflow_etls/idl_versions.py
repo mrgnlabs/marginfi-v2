@@ -1,3 +1,5 @@
+import glob
+import os
 from pathlib import Path
 from typing import List, Literal, Tuple, Optional
 from anchorpy import Program, Provider
@@ -38,7 +40,10 @@ class VersionedIdl:
                 break
 
         if idl_version is None:
-            idl_version = "latest"
+            sorted_idls = [os.path.basename(path).removesuffix(".json").removeprefix("marginfi-") for path in
+                           glob.glob(f"idls/{cluster}/marginfi-v*.json")]
+            sorted_idls.sort()
+            idl_version = sorted_idls[-1]
 
         path = Path(f"idls/{cluster}/marginfi-{idl_version}.json")
         raw = path.read_text()

@@ -44,14 +44,14 @@ ix_data = message.instructions[0].data
 # expanded_instructions = expand_instructions(message_decoded.account_keys, merged_instructions)
 # ix_with_logs = reconcile_instruction_logs("zrozUUvTujLSCxyT7JHtX48V5MYgkdQi4FAh5HreaH7p8n93bCDCo1huJsVBYiBkNXvFij7QgqYFC5jRRcXxpzi", expanded_instructions, sample_logs)
 
-path = Path("idls/devnet/marginfi-latest.json")
+path = Path("idls/devnet/marginfi-v2.json")
 raw = path.read_text()
 idl = Idl.from_json(raw)
 
 program = Program(idl, Pubkey.from_string("A7vUDErNPCTt9qrB6SSM4F6GkxzUe9d8P3cXSmRg4eY4"))
 print(ix_data)
 # message_bytes = based58.b58decode(b"CkHi86f1tcCVWQEX8TFsY7AwRnzu5ZQsh8Jnva7t4euknF6qyvtJuFDkiNsaraQBtLZcUNRCPJhAwexoH9EbTGFGi6uWVukVidkGz3LTaeevMSN6uqj5xjvVrDZVA5buqKQz86uErcvki7RNvez7QeoaBc19PV4YcLSfHkZpWUGxCCW87cfsShqCJgrsdjW45gkfKxqxb7t8T8FwVpudj2v7hZJzBqHSVvnQKWHW5ENmHHbYfSAFUGjQUhct6AnAWsoJ5XWoAUrm8G3ppN3fJe8vMGCvPfEnz76ea9LYQDeYSCqKg9f8QwZ2jj8z7xNfBUJw3MJh2hSxWxL635Hrx2xKnRpFT7vNugx2fpwwasGfBYkfMivjVfTVKcjJWSK46NXzmqhKX16ct7vpeBasue8eUM9hAtG5KDqs8XXQ3QkqeChm6qX2GJ7ohY6TRZAoQid767qLY84ZHEutqUibTQCtRUT15hHwbRRBAmAStWeBKJDopDUyHvxRXMxsG7dddT4pqNEukFRNu1chj4Sn2k2D8j9gehTESuKxtD6KVKBD3zb1MwpXGJK41TkUtTrDfn81REFmcAATB5srpXdfVig9XFDkZa2CUNrXwmmgMwR2LNx5Fv1mUtXwr93cvULv1VeXc5Qmfy66LK1mDaFVtR5iGqKAD4Tjf7vwJTA4i1Q1EFHrcZfFS3YT3QqVbbnjDGj59rnDtLqoWqzTLMSdnekbLnU98rndUgc8XUL3EX")
-message_bytes = based58.b58decode(str.encode(ix_data))
+message_bytes = based58.b58decode(str.encode(str(ix_data)))
 parsed = program.coder.instruction.parse(message_bytes)
 print(parsed)
 
