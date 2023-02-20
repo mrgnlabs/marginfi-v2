@@ -50,7 +50,7 @@ Think of a `Campaign` as a marketing campaign:
 
 4. In product UIs, each `Campaign` typically highlights a fixed `APY`, but there is no compounding involved in the guarenteed yield. Since `APY` accounts for compounding effects even if there are none, measuring yield in `APY` gives depositors the correct impression that they should expect the yield they see. In the smart contract, yield is specified via the `max_rewards` parameter of each `Campaign`.
 
-5. When users deposit funds into an LIP `Campaign`, funds are stored directly in `marginfi`. Funds earn `marginfi` lender yield. When lockups expire, depositors are paid `min(guarenteed yield, earned lender yield)` for the assets they deposited. As earned lender yield grows above `0%`, it subsidizes the expense that campaign creators pay out of the rewards they've escrowed. **This is a win-win for campaign creators**.
+5. When users deposit funds into an LIP `Campaign`, funds are stored directly in `marginfi`. Funds earn `marginfi` lender yield. When lockups expire, depositors are paid `max(guarenteed yield, earned lender yield)` for the assets they deposited. As earned lender yield grows above `0%`, it subsidizes the expense that campaign creators pay out of the rewards they've escrowed. **This is a win-win for campaign creators**.
 
 ## License
 
