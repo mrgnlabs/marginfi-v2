@@ -23,7 +23,7 @@ A Solana smart contract that allows anyone to incentivize asset deposits into ma
 ## About
 
 
-`liquidity-incentive-program` is a proxy contract for `marginfi-v2` that allows users to create `campaign`s that incentivize other users to lock up deposits into `marginfi-v2` for gaurenteed yields.
+`liquidity-incentive-program` is a proxy contract for `marginfi-v2` that allows users to create `campaign`s that incentivize other users to lock up deposits into `marginfi-v2` for guaranteed yields.
 
 ## Features
 
