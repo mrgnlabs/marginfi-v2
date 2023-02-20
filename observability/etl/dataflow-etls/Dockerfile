@@ -19,7 +19,7 @@ RUN apt-get update \
     && pip install -U apache-beam==2.44.0 \
     && pip install --no-cache-dir -r $FLEX_TEMPLATE_PYTHON_REQUIREMENTS_FILE \
     # Download the requirements to speed up launching the Dataflow job.
-    && pip download --no-cache-dir --dest /tmp/dataflow_etls-requirements-cache -r $FLEX_TEMPLATE_PYTHON_REQUIREMENTS_FILE
+    && pip download --no-cache-dir --dest /tmp/dataflow-etls-requirements-cache -r $FLEX_TEMPLATE_PYTHON_REQUIREMENTS_FILE
 
 # Since we already downloaded all the dependencies, there's no need to rebuild everything.
 ENV PIP_NO_DEPS=True

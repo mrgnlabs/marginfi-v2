@@ -69,7 +69,7 @@ def get_latest_ix_ref(instructions: List[InstructionWithLogs], stack_depth: int)
     return target_instruction_list[-1]
 
 
-def reconcile_instruction_logs(timestamp: str, signature: str, instructions: List[Instruction], logs: List[str]) -> \
+def reconcile_instruction_logs(timestamp: datetime, signature: str, instructions: List[Instruction], logs: List[str]) -> \
         List[InstructionWithLogs]:
     depth = 0
     instructions_consumed = 0

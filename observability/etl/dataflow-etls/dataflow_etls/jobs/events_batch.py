@@ -8,11 +8,11 @@ import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 from solders.pubkey import Pubkey
 
-from event_parsing_etl_batch.orm.events import Record, LiquidityChangeRecord, \
+from dataflow_etls.dataflow_etls.orm.events import Record, LiquidityChangeRecord, \
     MarginfiAccountCreationRecord, is_liquidity_change_event, MARGINFI_ACCOUNT_CREATE_EVENT, LendingPoolBankAddRecord, \
     LendingPoolBankAccrueInterestRecord, LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT, LENDING_POOL_BANK_ADD_EVENT
-from event_parsing_etl_batch.idl_versions import VersionedIdl, VersionedProgram, Cluster
-from event_parsing_etl_batch.transaction_log_parser import reconcile_instruction_logs, \
+from dataflow_etls.dataflow_etls.idl_versions import VersionedIdl, VersionedProgram, Cluster
+from dataflow_etls.dataflow_etls.transaction_log_parser import reconcile_instruction_logs, \
     merge_instructions_and_cpis, expand_instructions, InstructionWithLogs, PROGRAM_DATA
 
 
