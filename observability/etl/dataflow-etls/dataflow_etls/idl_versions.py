@@ -13,10 +13,10 @@ ClusterIdlBoundaries = dict[Cluster, ProgramIdlBoundaries]
 
 
 class VersionedProgram(Program):
-    version: str
+    version: int
     cluster: Cluster
 
-    def __init__(self, cluster: Cluster, version: str, idl: Idl, program_id: Pubkey,
+    def __init__(self, cluster: Cluster, version: int, idl: Idl, program_id: Pubkey,
                  provider: Optional[Provider] = None):
         self.version = version
         self.cluster = cluster
@@ -29,23 +29,23 @@ class VersionedIdl:
     }}
 
     @staticmethod
-    def get_idl_for_slot(cluster: Cluster, program_id: str, slot: int) -> Tuple[Idl, str]:
+    def get_idl_for_slot(cluster: Cluster, program_id: str, slot: int) -> Tuple[Idl, int]:
         idl_boundaries = VersionedIdl.VERSIONS[cluster][program_id]
 
         idl_version = None
         for boundary_slot, version in idl_boundaries:
             # todo: returns latest for upgrade slot, can throw if tx executed in same slot, before upgrade
             if boundary_slot > slot:
-                idl_version = f"v{version}"
+                idl_version = version
                 break
 
         if idl_version is None:
-            sorted_idls = [os.path.basename(path).removesuffix(".json").removeprefix("marginfi-") for path in
+            sorted_idls = [int(os.path.basename(path).removesuffix(".json").removeprefix("marginfi-v")) for path in
                            glob.glob(f"idls/{cluster}/marginfi-v*.json")]
             sorted_idls.sort()
             idl_version = sorted_idls[-1]
 
-        path = Path(f"idls/{cluster}/marginfi-{idl_version}.json")
+        path = Path(f"idls/{cluster}/marginfi-v{idl_version}.json")
         raw = path.read_text()
         idl = Idl.from_json(raw)
 

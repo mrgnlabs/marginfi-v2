@@ -35,7 +35,7 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
 
     bank_loader
         .load_mut()?
-        .accrue_interest(Clock::get()?.unix_timestamp)?;
+        .accrue_interest(Clock::get()?.unix_timestamp, bank_loader.key())?;
 
     {
         let mut bank = bank_loader.load_mut()?;
@@ -67,6 +67,7 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
             header: AccountEventHeader {
                 signer: ctx.accounts.signer.key(),
                 marginfi_account: marginfi_account_loader.key(),
+                marginfi_account_authority: marginfi_account.authority,
                 marginfi_group: marginfi_account.group,
             },
             bank: bank_loader.key(),

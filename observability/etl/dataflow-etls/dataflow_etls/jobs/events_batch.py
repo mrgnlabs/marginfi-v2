@@ -10,7 +10,8 @@ from solders.pubkey import Pubkey
 
 from dataflow_etls.orm.events import Record, LiquidityChangeRecord, \
     MarginfiAccountCreationRecord, is_liquidity_change_event, MARGINFI_ACCOUNT_CREATE_EVENT, LendingPoolBankAddRecord, \
-    LendingPoolBankAccrueInterestRecord, LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT, LENDING_POOL_BANK_ADD_EVENT
+    LendingPoolBankAccrueInterestRecord, LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT, LENDING_POOL_BANK_ADD_EVENT, \
+    LENDING_POOL_HANDLE_BANKRUPTCY_EVENT, LendingPoolHandleBankruptcyRecord
 from dataflow_etls.idl_versions import VersionedIdl, VersionedProgram, Cluster
 from dataflow_etls.transaction_log_parser import reconcile_instruction_logs, \
     merge_instructions_and_cpis, expand_instructions, InstructionWithLogs, PROGRAM_DATA
@@ -58,6 +59,8 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
             record = LendingPoolBankAddRecord.from_event(event, ix, instruction_data)
         elif event.name == LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT:
             record = LendingPoolBankAccrueInterestRecord.from_event(event, ix, instruction_data)
+        elif event.name == LENDING_POOL_HANDLE_BANKRUPTCY_EVENT:
+            record = LendingPoolHandleBankruptcyRecord.from_event(event, ix, instruction_data)
         else:
             print("discarding unsupported event:", event.name)
             record = None
@@ -84,6 +87,7 @@ def run(
         input_table: str,
         target_dataset: str,
         cluster: Cluster,
+        min_idl_version: int,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         beam_args: Optional[List[str]] = None,
@@ -97,6 +101,9 @@ def run(
         tx_slot = int(tx["slot"])
         idl, idl_version = VersionedIdl.get_idl_for_slot(cluster, indexed_program_id_str, tx_slot)
         program = VersionedProgram(cluster, idl_version, idl, indexed_program_id)
+
+        if min_idl_version is not None and idl_version < min_idl_version:
+            return []
 
         meta = json.loads(tx["meta"])
         message_bytes = base64.b64decode(tx["message"])
@@ -207,6 +214,13 @@ def main() -> None:
         help="Solana cluster being indexed: mainnet | devnet",
     )
     parser.add_argument(
+        "--min_idl_version",
+        type=int,
+        required=False,
+        default=0,
+        help="Minimum IDL version to consider: int",
+    )
+    parser.add_argument(
         "--start_date",
         type=str,
         help="Start date to consider (inclusive) as: YYYY-MM-DD",
@@ -222,6 +236,7 @@ def main() -> None:
         input_table=known_args.input_table,
         target_dataset=known_args.target_dataset,
         cluster=known_args.cluster,
+        min_idl_version=known_args.min_idl_version,
         start_date=known_args.start_date,
         end_date=known_args.end_date,
         beam_args=remaining_args,

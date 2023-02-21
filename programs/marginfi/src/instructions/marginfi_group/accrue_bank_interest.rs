@@ -10,7 +10,7 @@ pub fn lending_pool_accrue_bank_interest(
     let clock = Clock::get()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    bank.accrue_interest(clock.unix_timestamp)?;
+    bank.accrue_interest(clock.unix_timestamp, ctx.accounts.bank.key())?;
 
     Ok(())
 }

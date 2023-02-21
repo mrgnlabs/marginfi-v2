@@ -359,12 +359,12 @@ impl Bank {
 
         if bypass_borrow_limit.not() && shares.is_positive() && self.config.is_borrow_limit_active()
         {
-            let total_liablity_amount =
+            let total_liability_amount =
                 self.get_liability_amount(self.total_liability_shares.into())?;
             let borrow_limit = I80F48::from_num(self.config.borrow_limit);
 
             check!(
-                total_liablity_amount < borrow_limit,
+                total_liability_amount < borrow_limit,
                 crate::prelude::MarginfiError::BankLiabilityCapacityExceeded
             )
         }
@@ -430,9 +430,14 @@ impl Bank {
     ///
     /// Collected protocol and insurance fees are stored in state.
     /// A separate instruction is required to withdraw these fees.
-    pub fn accrue_interest(&mut self, current_timestamp: i64) -> MarginfiResult<()> {
+    pub fn accrue_interest(
+        &mut self,
+        current_timestamp: i64,
+        #[cfg(not(feature = "client"))] bank: Pubkey,
+    ) -> MarginfiResult<()> {
         #[cfg(not(feature = "client"))]
         solana_program::log::sol_log_compute_units();
+
         let time_delta: u64 = (current_timestamp - self.last_update).try_into().unwrap();
 
         if time_delta == 0 {
@@ -488,6 +493,7 @@ impl Bank {
                     marginfi_group: self.group,
                     signer: None
                 },
+                bank,
                 mint: self.mint,
                 delta: time_delta,
                 fees_collected: fees_collected.to_num::<f64>(),

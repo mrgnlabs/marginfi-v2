@@ -16,10 +16,7 @@ LENDING_ACCOUNT_REPAY_EVENT = 'LendingAccountRepayEvent'
 MARGINFI_ACCOUNT_CREATE_EVENT = 'MarginfiAccountCreateEvent'
 LENDING_POOL_BANK_ADD_EVENT = 'LendingPoolBankAddEvent'
 LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT = 'LendingPoolBankAccrueInterestEvent'
-
-
-def pascal_to_snake_case(string: str) -> str:
-    return  re.sub('(?!^)([A-Z]+)', r'_\1', string).lower()
+LENDING_POOL_HANDLE_BANKRUPTCY_EVENT = 'LendingPoolHandleBankruptcyEvent'
 
 
 def time_str(dt: Optional[datetime] = None) -> str:
@@ -34,7 +31,7 @@ class RecordBase:
         [
             "id:STRING",
             "created_at:TIMESTAMP",
-            "idl_version:STRING",
+            "idl_version:INTEGER",
             "is_cpi:BOOLEAN",
             "timestamp:TIMESTAMP",
             "signature:STRING",
@@ -43,7 +40,7 @@ class RecordBase:
     )
 
     id: str
-    idl_version: str
+    idl_version: int
     is_cpi: bool
     # call_stack: List[str]
     created_at: str
@@ -59,6 +56,7 @@ class LiquidityChangeRecord(RecordBase):
         [
             "marginfi_group:STRING",
             "marginfi_account:STRING",
+            "marginfi_account_authority:STRING",
             "authority:STRING",
             "operation:STRING",
             "amount:BIGNUMERIC",
@@ -72,6 +70,7 @@ class LiquidityChangeRecord(RecordBase):
 
     marginfi_group: Pubkey
     marginfi_account: Pubkey
+    marginfi_account_authority: Pubkey
     authority: Pubkey
     operation: str
     amount: int
@@ -94,6 +93,7 @@ class LiquidityChangeRecord(RecordBase):
                                      indexing_address=str(instruction.message.program_id),
                                      operation=event.name,
                                      marginfi_account=event.data.header.marginfi_account,
+                                     marginfi_account_authority=event.data.header.marginfi_account_authority,
                                      marginfi_group=event.data.header.marginfi_group,
                                      authority=event.data.header.signer,
                                      amount=event.data.amount,
@@ -116,12 +116,14 @@ class MarginfiAccountCreationRecord(RecordBase):
         [
             "marginfi_group:STRING",
             "marginfi_account:STRING",
+            "marginfi_account_authority:STRING",
             "authority:STRING",
         ]
     )
 
     marginfi_group: Pubkey
     marginfi_account: Pubkey
+    marginfi_account_authority: Pubkey
     authority: Pubkey
 
     @staticmethod
@@ -136,6 +138,7 @@ class MarginfiAccountCreationRecord(RecordBase):
                                              signature=instruction.signature,
                                              indexing_address=str(instruction.message.program_id),
                                              marginfi_account=event.data.header.marginfi_account,
+                                             marginfi_account_authority=event.data.header.marginfi_account_authority,
                                              marginfi_group=event.data.header.marginfi_group,
                                              authority=event.data.header.signer)
 
@@ -181,6 +184,7 @@ class LendingPoolHandleBankruptcyRecord(RecordBase):
         [
             "marginfi_group:STRING",
             "marginfi_account:STRING",
+            "marginfi_account_authority:STRING",
             "bank:STRING",
             "mint:STRING",
             "authority:STRING",
@@ -192,6 +196,7 @@ class LendingPoolHandleBankruptcyRecord(RecordBase):
 
     marginfi_group: Pubkey
     marginfi_account: Pubkey
+    marginfi_account_authority: Pubkey
     authority: Pubkey
     bank: Pubkey
     mint: Pubkey
@@ -212,6 +217,7 @@ class LendingPoolHandleBankruptcyRecord(RecordBase):
                                                  indexing_address=str(instruction.message.program_id),
                                                  marginfi_group=event.data.header.marginfi_group,
                                                  marginfi_account=event.data.header.marginfi_account,
+                                                 marginfi_account_authority=event.data.header.marginfi_account_authority,
                                                  authority=event.data.header.signer,
                                                  bank=event.data.bank,
                                                  mint=event.data.mint,
@@ -245,20 +251,7 @@ class LendingPoolBankAccrueInterestRecord(RecordBase):
 
     @staticmethod
     def from_event(event: Event, instruction: InstructionWithLogs,
-                   instruction_args: NamedInstruction) -> "LendingPoolBankAccrueInterestRecord":
-        if instruction_args.name == pascal_to_snake_case(LendingPoolBankAccrueInterestRecord.NAME):
-            bank_account_index = 1
-        elif instruction_args.name in LiquidityChangeRecord.INSTRUCTION_TYPES:
-            bank_account_index = 3
-        elif instruction_args.name == pascal_to_snake_case(LendingPoolHandleBankruptcyRecord.NAME):
-            bank_account_index = 2
-        else:
-            print(
-                f"error: event should be logged in {LiquidityChangeRecord.INSTRUCTION_TYPES} ix types but, found in {instruction_args.name}")
-            bank_account_index = None  # todo: handle liquidation case with 2 banks (add bank address to `Bank` struct?)
-
-        bank = instruction.message.accounts[bank_account_index] if bank_account_index is not None else Pubkey.default()
-
+                   _instruction_args: NamedInstruction) -> "LendingPoolBankAccrueInterestRecord":
         return LendingPoolBankAccrueInterestRecord(id=str(uuid.uuid4()),
                                                    created_at=time_str(),
                                                    timestamp=time_str(instruction.timestamp),
@@ -269,7 +262,7 @@ class LendingPoolBankAccrueInterestRecord(RecordBase):
                                                    indexing_address=str(instruction.message.program_id),
                                                    marginfi_group=event.data.header.marginfi_group,
                                                    authority=event.data.header.signer,
-                                                   bank=bank,
+                                                   bank=event.data.bank,
                                                    mint=event.data.mint,
                                                    delta=event.data.delta,
                                                    fees_collected=event.data.fees_collected,
@@ -277,4 +270,4 @@ class LendingPoolBankAccrueInterestRecord(RecordBase):
 
 
 Record = Union[
-    LiquidityChangeRecord, MarginfiAccountCreationRecord, LendingPoolBankAddRecord, LendingPoolBankAccrueInterestRecord]
+    LiquidityChangeRecord, MarginfiAccountCreationRecord, LendingPoolBankAddRecord, LendingPoolBankAccrueInterestRecord, LendingPoolHandleBankruptcyRecord]

@@ -17,7 +17,7 @@ class Instruction:
 @dataclass
 class InstructionWithLogs:
     timestamp: datetime
-    idl_version: str
+    idl_version: int
     signature: str
     message: Instruction
     logs: List[str]
@@ -73,7 +73,7 @@ def get_latest_ix_ref(instructions: List[InstructionWithLogs], stack_depth: int)
 
 
 def reconcile_instruction_logs(timestamp: datetime, signature: str, instructions: List[Instruction], logs: List[str],
-                               idl_version: str) -> \
+                               idl_version: int) -> \
         List[InstructionWithLogs]:
     depth = 0
     instructions_consumed = 0

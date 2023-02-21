@@ -1,6 +1,7 @@
 use crate::constants::{
     INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
 };
+use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent};
 use crate::prelude::*;
 use crate::state::marginfi_account::{
     calc_asset_quantity, calc_asset_value, get_price, RiskEngine, RiskRequirementType,
@@ -70,24 +71,24 @@ pub fn lending_account_liquidate(
     asset_quantity: u64,
 ) -> MarginfiResult {
     let LendingAccountLiquidate {
-        liquidator_marginfi_account,
-        liquidatee_marginfi_account,
+        liquidator_marginfi_account: liquidator_marginfi_account_loader,
+        liquidatee_marginfi_account: liquidatee_marginfi_account_loader,
         ..
     } = ctx.accounts;
 
-    let mut liquidator_marginfi_account = liquidator_marginfi_account.load_mut()?;
-    let mut liquidatee_marginfi_account = liquidatee_marginfi_account.load_mut()?;
+    let mut liquidator_marginfi_account = liquidator_marginfi_account_loader.load_mut()?;
+    let mut liquidatee_marginfi_account = liquidatee_marginfi_account_loader.load_mut()?;
 
     {
         let current_timestamp = Clock::get()?.unix_timestamp;
         ctx.accounts
             .asset_bank
             .load_mut()?
-            .accrue_interest(current_timestamp)?;
+            .accrue_interest(current_timestamp, ctx.accounts.asset_bank.key())?;
         ctx.accounts
             .liab_bank
             .load_mut()?
-            .accrue_interest(current_timestamp)?;
+            .accrue_interest(current_timestamp, ctx.accounts.liab_bank.key())?;
     }
 
     let pre_liquidation_health = {
@@ -251,6 +252,21 @@ pub fn lending_account_liquidate(
     // Verify liquidator account health
     RiskEngine::new(&liquidator_marginfi_account, liquidator_remaining_accounts)?
         .check_account_health(RiskRequirementType::Initial)?;
+
+    emit!(LendingAccountLiquidateEvent {
+        header: AccountEventHeader {
+            signer: ctx.accounts.signer.key(),
+            marginfi_account: liquidator_marginfi_account_loader.key(),
+            marginfi_account_authority: liquidator_marginfi_account.authority,
+            marginfi_group: ctx.accounts.marginfi_group.key(),
+        },
+        liquidatee_marginfi_account: liquidatee_marginfi_account_loader.key(),
+        liquidatee_authority: liquidatee_marginfi_account_loader.key(),
+        asset_bank: ctx.accounts.asset_bank.key(),
+        asset_mint: ctx.accounts.asset_bank.load_mut()?.mint,
+        liability_bank: ctx.accounts.liab_bank.key(),
+        liability_mint: ctx.accounts.liab_bank.load_mut()?.mint,
+    });
 
     Ok(())
 }

@@ -33,7 +33,7 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    bank.accrue_interest(Clock::get()?.unix_timestamp)?;
+    bank.accrue_interest(Clock::get()?.unix_timestamp, bank_loader.key())?;
 
     let mut bank_account = BankAccountWrapper::find_or_create(
         &bank_loader.key(),
@@ -56,6 +56,7 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
         header: AccountEventHeader {
             signer: signer.key(),
             marginfi_account: marginfi_account_loader.key(),
+            marginfi_account_authority: marginfi_account.authority,
             marginfi_group: marginfi_account.group,
         },
         bank: bank_loader.key(),
