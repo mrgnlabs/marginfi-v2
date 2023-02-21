@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use anyhow::{bail, Result};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
@@ -16,6 +14,7 @@ use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,
 };
+use std::collections::HashMap;
 
 pub fn process_transaction(
     tx: &Transaction,
@@ -51,7 +50,7 @@ pub fn find_bank_vault_pda(
     vault_type: BankVaultType,
     program_id: &Pubkey,
 ) -> (Pubkey, u8) {
-    Pubkey::find_program_address(marginfi::bank_seed!(vault_type, bank_pk), program_id)
+    Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), program_id)
 }
 
 pub fn find_bank_vault_authority_pda(
@@ -63,10 +62,8 @@ pub fn find_bank_vault_authority_pda(
 }
 
 #[cfg(feature = "admin")]
-pub fn create_oracle_key_array(
-    oracle_key: Pubkey,
-) -> [Pubkey; marginfi::constants::MAX_ORACLE_KEYS] {
-    let mut oracle_keys = [Pubkey::default(); marginfi::constants::MAX_ORACLE_KEYS];
+pub fn create_oracle_key_array(oracle_key: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
+    let mut oracle_keys = [Pubkey::default(); MAX_ORACLE_KEYS];
     oracle_keys[0] = oracle_key;
     oracle_keys
 }

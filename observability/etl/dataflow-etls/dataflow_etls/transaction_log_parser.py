@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Any, Callable, Optional
-from based58 import based58
+from based58 import based58  # type: ignore
 from solders.instruction import CompiledInstruction
 from solders.pubkey import Pubkey
 

@@ -275,7 +275,7 @@ pub fn calc_asset_value(
 }
 
 #[inline]
-pub fn calc_asset_quantity(
+pub fn calc_asset_amount(
     asset_value: I80F48,
     price: I80F48,
     mint_decimals: u8,
@@ -380,7 +380,7 @@ impl<'a> RiskEngine<'a> {
 
     /// Checks
     /// 1. Account is liquidatable
-    /// 2. Account has an outstanding liability for the provided liablity bank
+    /// 2. Account has an outstanding liability for the provided liability bank
     pub fn check_pre_liquidation_condition_and_get_account_health(
         &self,
         bank_pk: &Pubkey,
@@ -432,11 +432,11 @@ impl<'a> RiskEngine<'a> {
     ///
     /// 1. We check that the paid off liability is not zero. Assuming the liquidation always pays off some liability, this ensures that the liquidation was not too large.
     /// 2. We check that the account is still at most at the maintenance requirement level. This ensures that the liquidation was not too large overall.
-    pub fn check_post_liquidation_account_health(
+    pub fn check_post_liquidation_condition_and_get_account_health(
         &self,
         bank_pk: &Pubkey,
         pre_liquidation_health: I80F48,
-    ) -> MarginfiResult {
+    ) -> MarginfiResult<I80F48> {
         let liability_bank_balance = self
             .bank_accounts_with_price
             .iter()
@@ -478,7 +478,7 @@ impl<'a> RiskEngine<'a> {
             MarginfiError::IllegalLiquidation
         );
 
-        Ok(())
+        Ok(account_health)
     }
 
     /// Check that the account is in a bankrupt state.

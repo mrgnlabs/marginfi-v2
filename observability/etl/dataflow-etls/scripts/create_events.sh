@@ -61,10 +61,10 @@ KEYPAIR_PATH=~/.config/solana/id.json
 #    -y \
 #    "$@"
 
-## Configure SOL bank
-#mfi bank update 5dCnHjFUTjuWq2b9hY2J1o94QR1YpiggUC2XKzA1UpYp \
-#    --deposit-limit 100000000000000 \
-#    --borrow-limit 10000000000000 -y
+# Configure SOL bank
+mfi bank update 5dCnHjFUTjuWq2b9hY2J1o94QR1YpiggUC2XKzA1UpYp \
+    --deposit-limit 100000000000000 \
+    --borrow-limit 10000000000000 -y
 
 #mfi account create -y
 mfi account deposit 5dCnHjFUTjuWq2b9hY2J1o94QR1YpiggUC2XKzA1UpYp 0.01 -y

@@ -33,7 +33,11 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    bank.accrue_interest(Clock::get()?.unix_timestamp, bank_loader.key())?;
+    bank.accrue_interest(
+        Clock::get()?.unix_timestamp,
+        #[cfg(not(feature = "client"))]
+        bank_loader.key(),
+    )?;
 
     let mut bank_account = BankAccountWrapper::find_or_create(
         &bank_loader.key(),

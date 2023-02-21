@@ -33,9 +33,11 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    bank_loader
-        .load_mut()?
-        .accrue_interest(Clock::get()?.unix_timestamp, bank_loader.key())?;
+    bank_loader.load_mut()?.accrue_interest(
+        Clock::get()?.unix_timestamp,
+        #[cfg(not(feature = "client"))]
+        bank_loader.key(),
+    )?;
 
     {
         let mut bank = bank_loader.load_mut()?;

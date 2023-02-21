@@ -4,20 +4,21 @@ import json
 import logging
 from typing import List, Optional, Sequence, Union, Generator, Any, Tuple, Dict
 from solders.message import MessageV0, Message
-import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions
+import apache_beam as beam  # type: ignore
+from apache_beam.options.pipeline_options import PipelineOptions  # type: ignore
 from solders.pubkey import Pubkey
 
 from dataflow_etls.orm.events import Record, LiquidityChangeRecord, \
     MarginfiAccountCreationRecord, is_liquidity_change_event, MARGINFI_ACCOUNT_CREATE_EVENT, LendingPoolBankAddRecord, \
     LendingPoolBankAccrueInterestRecord, LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT, LENDING_POOL_BANK_ADD_EVENT, \
-    LENDING_POOL_HANDLE_BANKRUPTCY_EVENT, LendingPoolHandleBankruptcyRecord
+    LENDING_POOL_HANDLE_BANKRUPTCY_EVENT, LendingPoolHandleBankruptcyRecord, LENDING_ACCOUNT_LIQUIDATE_EVENT, \
+    LendingAccountLiquidateRecord
 from dataflow_etls.idl_versions import VersionedIdl, VersionedProgram, Cluster
 from dataflow_etls.transaction_log_parser import reconcile_instruction_logs, \
     merge_instructions_and_cpis, expand_instructions, InstructionWithLogs, PROGRAM_DATA
 
 
-class DispatchEventsDoFn(beam.DoFn):
+class DispatchEventsDoFn(beam.DoFn):  # type: ignore
     def process(self, record: Record, *args: Tuple[Any], **kwargs: Dict[str, Tuple[Any]]) -> Generator[str, None, None]:
         yield beam.pvalue.TaggedOutput(record.NAME, record)
 
@@ -61,6 +62,8 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
             record = LendingPoolBankAccrueInterestRecord.from_event(event, ix, instruction_data)
         elif event.name == LENDING_POOL_HANDLE_BANKRUPTCY_EVENT:
             record = LendingPoolHandleBankruptcyRecord.from_event(event, ix, instruction_data)
+        elif event.name == LENDING_ACCOUNT_LIQUIDATE_EVENT:
+            record = LendingAccountLiquidateRecord.from_event(event, ix, instruction_data)
         else:
             print("discarding unsupported event:", event.name)
             record = None
