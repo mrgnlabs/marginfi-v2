@@ -184,6 +184,37 @@ impl InterestRateConfig {
 
         Ok(())
     }
+
+    pub fn update(&mut self, ir_config: &InterestRateConfigOpt) {
+        set_if_some!(
+            self.optimal_utilization_rate,
+            ir_config.optimal_utilization_rate
+        );
+        set_if_some!(self.plateau_interest_rate, ir_config.plateau_interest_rate);
+        set_if_some!(self.max_interest_rate, ir_config.max_interest_rate);
+        set_if_some!(
+            self.insurance_fee_fixed_apr,
+            ir_config.insurance_fee_fixed_apr
+        );
+        set_if_some!(self.insurance_ir_fee, ir_config.insurance_ir_fee);
+        set_if_some!(
+            self.protocol_fixed_fee_apr,
+            ir_config.protocol_fixed_fee_apr
+        );
+        set_if_some!(self.protocol_ir_fee, ir_config.protocol_ir_fee);
+    }
+}
+
+#[derive(AnchorDeserialize, AnchorSerialize, Default, Eq, PartialEq, Clone)]
+pub struct InterestRateConfigOpt {
+    pub optimal_utilization_rate: Option<WrappedI80F48>,
+    pub plateau_interest_rate: Option<WrappedI80F48>,
+    pub max_interest_rate: Option<WrappedI80F48>,
+
+    pub insurance_fee_fixed_apr: Option<WrappedI80F48>,
+    pub insurance_ir_fee: Option<WrappedI80F48>,
+    pub protocol_fixed_fee_apr: Option<WrappedI80F48>,
+    pub protocol_ir_fee: Option<WrappedI80F48>,
 }
 
 assert_struct_size!(Bank, 1856);
@@ -374,6 +405,10 @@ impl Bank {
         set_if_some!(self.config.oracle_setup, config.oracle.map(|o| o.setup));
 
         set_if_some!(self.config.oracle_keys, config.oracle.map(|o| o.keys));
+
+        if let Some(ir_config) = &config.interest_rate_config {
+            self.config.interest_rate_config.update(ir_config);
+        }
 
         self.config.validate()?;
 
@@ -830,6 +865,8 @@ pub struct BankConfigOpt {
     pub operational_state: Option<BankOperationalState>,
 
     pub oracle: Option<OracleConfig>,
+
+    pub interest_rate_config: Option<InterestRateConfigOpt>,
 }
 
 #[cfg_attr(
