@@ -25,7 +25,7 @@ class VersionedProgram(Program):
 
 class VersionedIdl:
     VERSIONS: ClusterIdlBoundaries = {"devnet": {
-        "A7vUDErNPCTt9qrB6SSM4F6GkxzUe9d8P3cXSmRg4eY4": [(196494976, 0), (196520454, 1)]
+        "A7vUDErNPCTt9qrB6SSM4F6GkxzUe9d8P3cXSmRg4eY4": [(196494976, 0), (196520454, 1), (197246719, 2)]
     }}
 
     @staticmethod
