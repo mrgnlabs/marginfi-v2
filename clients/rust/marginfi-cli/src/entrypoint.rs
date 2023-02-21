@@ -160,6 +160,21 @@ pub enum BankCommand {
 
         #[clap(long, arg_enum)]
         operational_state: Option<BankOperationalStateArg>,
+
+        #[clap(long, help = "Optimal utilization rate")]
+        opr_ur: Option<f64>,
+        #[clap(long, help = "Plateau interest rate")]
+        p_ir: Option<f64>,
+        #[clap(long, help = "Max interest rate")]
+        m_ir: Option<f64>,
+        #[clap(long, help = "Insurance fee fixed APR")]
+        if_fa: Option<f64>,
+        #[clap(long, help = "Insurance IR fee")]
+        if_ir: Option<f64>,
+        #[clap(long, help = "Protocol fixed fee APR")]
+        pf_fa: Option<f64>,
+        #[clap(long, help = "Protocol IR fee")]
+        pf_ir: Option<f64>,
     },
 }
 
@@ -389,6 +404,13 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             borrow_limit_ui,
             operational_state,
             bank_pk,
+            opr_ur,
+            p_ir,
+            m_ir,
+            if_fa,
+            if_ir,
+            pf_fa,
+            pf_ir,
         } => {
             let bank = config.mfi_program.account::<Bank>(bank_pk).unwrap();
             processor::bank_configure(
@@ -410,6 +432,15 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     }),
                     operational_state: operational_state.map(|x| x.into()),
                     oracle: None,
+                    interest_rate_config: Some(InterestRateConfigOpt {
+                        optimal_utilization_rate: opr_ur.map(|x| I80F48::from_num(x).into()),
+                        plateau_interest_rate: p_ir.map(|x| I80F48::from_num(x).into()),
+                        max_interest_rate: m_ir.map(|x| I80F48::from_num(x).into()),
+                        insurance_fee_fixed_apr: if_fa.map(|x| I80F48::from_num(x).into()),
+                        insurance_ir_fee: if_ir.map(|x| I80F48::from_num(x).into()),
+                        protocol_fixed_fee_apr: pf_fa.map(|x| I80F48::from_num(x).into()),
+                        protocol_ir_fee: pf_ir.map(|x| I80F48::from_num(x).into()),
+                    }),
                 },
             )
         }

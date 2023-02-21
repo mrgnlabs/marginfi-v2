@@ -59,6 +59,106 @@ async fn marginfi_group_create_success() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn marginfi_group_config_check() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    // Create & initialize marginfi group
+    let marginfi_group_key = Keypair::new();
+
+    let accounts = marginfi::accounts::MarginfiGroupInitialize {
+        marginfi_group: marginfi_group_key.pubkey(),
+        admin: test_f.payer(),
+        system_program: system_program::id(),
+    };
+    let init_marginfi_group_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: accounts.to_account_metas(Some(true)),
+        data: marginfi::instruction::MarginfiGroupInitialize {}.data(),
+    };
+    let tx = Transaction::new_signed_with_payer(
+        &[init_marginfi_group_ix],
+        Some(&test_f.payer().clone()),
+        &[&test_f.payer_keypair(), &marginfi_group_key],
+        test_f.get_latest_blockhash().await,
+    );
+    test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await?;
+
+    // Fetch & deserialize marginfi group account
+    let marginfi_group: MarginfiGroup = test_f
+        .load_and_deserialize(&marginfi_group_key.pubkey())
+        .await;
+
+    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(&bank_asset_mint_fixture, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await?;
+
+    let res = bank
+        .update_config(BankConfigOpt {
+            interest_rate_config: Some(marginfi::state::marginfi_group::InterestRateConfigOpt {
+                optimal_utilization_rate: Some(I80F48::from_num(0.91).into()),
+                plateau_interest_rate: Some(I80F48::from_num(0.44).into()),
+                max_interest_rate: Some(I80F48::from_num(1.44).into()),
+                insurance_fee_fixed_apr: Some(I80F48::from_num(0.13).into()),
+                insurance_ir_fee: Some(I80F48::from_num(0.11).into()),
+                protocol_fixed_fee_apr: Some(I80F48::from_num(0.51).into()),
+                protocol_ir_fee: Some(I80F48::from_num(0.011).into()),
+            }),
+            ..BankConfigOpt::default()
+        })
+        .await;
+
+    assert!(res.is_ok());
+
+    // Load bank and check each property in config matches
+
+    let bank: Bank = test_f.load_and_deserialize(&bank.key).await;
+
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.optimal_utilization_rate),
+        I80F48::from_num(0.91)
+    );
+
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.plateau_interest_rate),
+        I80F48::from_num(0.44)
+    );
+
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.max_interest_rate),
+        I80F48::from_num(1.44)
+    );
+
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.insurance_fee_fixed_apr),
+        I80F48::from_num(0.13)
+    );
+
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.insurance_ir_fee),
+        I80F48::from_num(0.11)
+    );
+
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.protocol_fixed_fee_apr),
+        I80F48::from_num(0.51)
+    );
+
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
+        I80F48::from_num(0.011)
+    );
+
+    Ok(())
+}
 // #[tokio::test]
 // async fn success_configure_marginfi_group() {
 //     todo!()
