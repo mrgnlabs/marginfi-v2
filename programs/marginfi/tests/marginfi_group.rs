@@ -89,11 +89,6 @@ async fn marginfi_group_config_check() -> anyhow::Result<()> {
         .process_transaction(tx)
         .await?;
 
-    // Fetch & deserialize marginfi group account
-    let marginfi_group: MarginfiGroup = test_f
-        .load_and_deserialize(&marginfi_group_key.pubkey())
-        .await;
-
     let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
 
     let bank = test_f

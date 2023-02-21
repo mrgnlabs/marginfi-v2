@@ -15,7 +15,6 @@ use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 use std::{
-    collections::BTreeMap,
     fmt::{Debug, Formatter},
     ops::Not,
 };
@@ -1125,11 +1124,6 @@ mod tests {
         let post_net_assets = bank.get_asset_amount(bank.total_asset_shares.into())?
             + post_collected_fees
             - bank.get_liability_amount(bank.total_liability_shares.into())?;
-
-        let post_assets = bank.get_asset_amount(bank.total_asset_shares.into())?;
-        let post_liabilities = bank.get_liability_amount(bank.total_liability_shares.into())?;
-        let post_fees = I80F48::from(bank.collected_group_fees_outstanding)
-            + I80F48::from(bank.collected_insurance_fees_outstanding);
 
         assert_eq_with_tolerance!(pre_net_assets, post_net_assets, I80F48!(1));
 
