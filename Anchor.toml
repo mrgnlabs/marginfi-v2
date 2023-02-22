@@ -12,7 +12,7 @@ marginfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "https://devnet.genesysgo.net/"
+cluster = "https://devnet.rpcpool.com/"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

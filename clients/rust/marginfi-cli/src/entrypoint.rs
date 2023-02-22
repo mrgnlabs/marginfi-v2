@@ -9,15 +9,15 @@ use clap::{clap_derive::ArgEnum, Parser};
 
 #[cfg(feature = "admin")]
 use fixed::types::I80F48;
-#[cfg(any(feature = "admin", feature = "dev"))]
-use marginfi::state::marginfi_group::BankConfigOpt;
 use marginfi::state::marginfi_group::BankOperationalState;
+#[cfg(any(feature = "admin", feature = "dev"))]
+use marginfi::state::marginfi_group::{Bank, BankConfigOpt, InterestRateConfigOpt};
 #[cfg(feature = "dev")]
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
     state::{
         marginfi_account::{Balance, LendingAccount, MarginfiAccount},
-        marginfi_group::{Bank, BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
+        marginfi_group::{BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
     },
 };
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
@@ -111,6 +111,13 @@ pub enum GroupCommand {
         protocol_fixed_fee_apr: f64,
         #[clap(long)]
         protocol_ir_fee: f64,
+    },
+    #[cfg(feature = "admin")]
+    HandleBankruptcy {
+        #[clap(long)]
+        bank: Pubkey,
+        #[clap(long)]
+        marginfi_account: Pubkey,
     },
 }
 
@@ -245,6 +252,16 @@ pub enum AccountCommand {
         bank: Pubkey,
         ui_amount: f64,
     },
+    Liquidate {
+        #[clap(long)]
+        liquidatee_marginfi_account: Pubkey,
+        #[clap(long)]
+        asset_bank: Pubkey,
+        #[clap(long)]
+        liability_bank: Pubkey,
+        #[clap(long)]
+        ui_asset_amount: f64,
+    },
     Create,
 }
 
@@ -376,6 +393,11 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_fixed_fee_apr,
             protocol_ir_fee,
         ),
+        #[cfg(feature = "admin")]
+        GroupCommand::HandleBankruptcy {
+            bank,
+            marginfi_account,
+        } => processor::group_handle_bankruptcy(&config, profile, bank, marginfi_account),
     }
 }
 
@@ -495,6 +517,19 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
         AccountCommand::Borrow { bank, ui_amount } => {
             processor::marginfi_account_borrow(&profile, &config, bank, ui_amount)
         }
+        AccountCommand::Liquidate {
+            asset_bank: asset_bank_pk,
+            liability_bank: liability_bank_pk,
+            liquidatee_marginfi_account: liquidatee_marginfi_account_pk,
+            ui_asset_amount,
+        } => processor::marginfi_account_liquidate(
+            &profile,
+            &config,
+            liquidatee_marginfi_account_pk,
+            asset_bank_pk,
+            liability_bank_pk,
+            ui_asset_amount,
+        ),
         AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
     }?;
 

@@ -24,7 +24,7 @@ pub struct GlobalOptions {
 
     #[clap(
         global = true,
-        long = "skip-confimation",
+        long = "skip-confirmation",
         short = 'y',
         action,
         default_value_t = false

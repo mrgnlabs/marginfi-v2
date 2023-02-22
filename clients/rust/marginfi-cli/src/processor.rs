@@ -14,6 +14,7 @@ use anchor_client::{
 };
 use anchor_spl::token::{self, spl_token};
 use anyhow::{anyhow, bail, Result};
+#[cfg(feature = "lip")]
 use chrono::{DateTime, NaiveDateTime, Utc};
 use fixed::types::I80F48;
 #[cfg(feature = "lip")]
@@ -35,6 +36,7 @@ use marginfi::{
     },
 };
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
 #[cfg(feature = "admin")]
 use solana_sdk::instruction::AccountMeta;
 use solana_sdk::{
@@ -200,7 +202,7 @@ pub fn group_create(
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
 
     let signers = vec![&config.payer, &marginfi_group_keypair];
-    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
+    let tx = Transaction::new_signed_with_payer(
         &init_marginfi_group_ix,
         Some(&config.payer.pubkey()),
         &signers,
@@ -245,7 +247,7 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
 
     let signers = vec![&config.payer];
-    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
+    let tx = Transaction::new_signed_with_payer(
         &configure_marginfi_group_ix,
         Some(&config.payer.pubkey()),
         &signers,
@@ -260,6 +262,7 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(feature = "admin")]
 pub fn group_add_bank(
     config: Config,
@@ -382,7 +385,7 @@ pub fn group_add_bank(
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
 
     let signers = vec![&config.payer, &bank_keypair];
-    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
+    let tx = Transaction::new_signed_with_payer(
         &add_bank_ix,
         Some(&config.payer.pubkey()),
         &signers,
@@ -395,6 +398,86 @@ pub fn group_add_bank(
     };
 
     println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg(feature = "admin")]
+pub fn group_handle_bankruptcy(
+    config: &Config,
+    profile: Profile,
+    bank_pk: Pubkey,
+    marginfi_account_pk: Pubkey,
+) -> Result<()> {
+    let rpc_client = config.mfi_program.rpc();
+
+    if profile.marginfi_group.is_none() {
+        bail!("Marginfi group not specified in profile [{}]", profile.name);
+    }
+
+    let banks = HashMap::from_iter(load_all_banks(
+        config,
+        Some(profile.marginfi_group.unwrap()),
+    )?);
+    let marginfi_account = config
+        .mfi_program
+        .account::<MarginfiAccount>(marginfi_account_pk)?;
+
+    let mut handle_bankruptcy_ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            admin: config.payer.pubkey(),
+            bank: bank_pk,
+            marginfi_account: marginfi_account_pk,
+            liquidity_vault: find_bank_vault_pda(
+                &bank_pk,
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+            insurance_vault: find_bank_vault_pda(
+                &bank_pk,
+                BankVaultType::Insurance,
+                &config.program_id,
+            )
+            .0,
+            insurance_vault_authority: find_bank_vault_authority_pda(
+                &bank_pk,
+                BankVaultType::Insurance,
+                &config.program_id,
+            )
+            .0,
+            token_program: token::ID,
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
+    };
+
+    handle_bankruptcy_ix
+        .accounts
+        .extend(load_observation_account_metas(
+            &marginfi_account,
+            &banks,
+            vec![bank_pk],
+            vec![],
+        ));
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+
+    let signers = vec![&config.payer];
+    let tx = Transaction::new_signed_with_payer(
+        &[handle_bankruptcy_ix],
+        Some(&config.payer.pubkey()),
+        &signers,
+        recent_blockhash,
+    );
+
+    match process_transaction(&tx, &rpc_client, config.dry_run) {
+        Ok(sig) => println!("Bankruptcy handled (sig: {})", sig),
+        Err(err) => println!("Error during bankruptcy handling:\n{:#?}", err),
+    };
 
     Ok(())
 }
@@ -1002,8 +1085,111 @@ pub fn marginfi_account_borrow(
     );
 
     match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
-        Ok(sig) => println!("Withdraw successful: {sig}"),
-        Err(err) => println!("Error during withdraw:\n{err:#?}"),
+        Ok(sig) => println!("Borrow successful: {sig}"),
+        Err(err) => println!("Error during borrow:\n{err:#?}"),
+    }
+
+    Ok(())
+}
+
+pub fn marginfi_account_liquidate(
+    profile: &Profile,
+    config: &Config,
+    liquidatee_marginfi_account_pk: Pubkey,
+    asset_bank_pk: Pubkey,
+    liability_bank_pk: Pubkey,
+    ui_asset_amount: f64,
+) -> Result<()> {
+    let marginfi_account_pk = profile.get_marginfi_account();
+
+    let banks = HashMap::from_iter(load_all_banks(
+        config,
+        Some(profile.marginfi_group.unwrap()),
+    )?);
+    let asset_bank = banks.get(&asset_bank_pk).expect("Asset bank not found");
+    let liability_bank = banks
+        .get(&liability_bank_pk)
+        .expect("Liability bank not found");
+
+    let marginfi_account = config
+        .mfi_program
+        .account::<MarginfiAccount>(marginfi_account_pk)?;
+
+    let liquidatee_marginfi_account = config
+        .mfi_program
+        .account::<MarginfiAccount>(liquidatee_marginfi_account_pk)?;
+
+    let asset_amount = (I80F48::from_num(ui_asset_amount)
+        * EXP_10_I80F48[asset_bank.mint_decimals as usize])
+        .floor()
+        .to_num::<u64>();
+
+    // Check that banks belong to the correct group
+    if asset_bank.group != profile.marginfi_group.unwrap() {
+        bail!("Asset bank does not belong to group")
+    }
+    if liability_bank.group != profile.marginfi_group.unwrap() {
+        bail!("Liability bank does not belong to group")
+    }
+
+    let mut ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::LendingAccountLiquidate {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            asset_bank: asset_bank_pk,
+            liab_bank: liability_bank_pk,
+            liquidator_marginfi_account: marginfi_account_pk,
+            signer: config.payer.pubkey(),
+            liquidatee_marginfi_account: liquidatee_marginfi_account_pk,
+            bank_liquidity_vault_authority: find_bank_vault_authority_pda(
+                &liability_bank_pk,
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+            bank_liquidity_vault: liability_bank.liquidity_vault,
+            bank_insurance_vault: liability_bank.insurance_vault,
+            token_program: token::ID,
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
+    };
+
+    ix.accounts.push(AccountMeta {
+        pubkey: asset_bank.config.get_pyth_oracle_key(),
+        is_signer: false,
+        is_writable: false,
+    });
+    ix.accounts.push(AccountMeta {
+        pubkey: liability_bank.config.get_pyth_oracle_key(),
+        is_signer: false,
+        is_writable: false,
+    });
+    ix.accounts.extend(load_observation_account_metas(
+        &marginfi_account,
+        &banks,
+        vec![asset_bank_pk, liability_bank_pk],
+        vec![],
+    ));
+    ix.accounts.extend(load_observation_account_metas(
+        &liquidatee_marginfi_account,
+        &banks,
+        vec![],
+        vec![],
+    ));
+
+    let cu_ix = ComputeBudgetInstruction::set_compute_unit_limit(600_000);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix, cu_ix],
+        Some(&config.payer.pubkey()),
+        &[&config.payer],
+        config.mfi_program.rpc().get_latest_blockhash()?,
+    );
+
+    match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
+        Ok(sig) => println!("Liquidation successful: {sig}"),
+        Err(err) => println!("Error during liquidation:\n{err:#?}"),
     }
 
     Ok(())
@@ -1032,8 +1218,10 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
         config.mfi_program.rpc().get_latest_blockhash()?,
     );
 
+    let marginfi_account_pk = marginfi_account_key.pubkey();
+
     match process_transaction(&tx, &config.mfi_program.rpc(), config.dry_run) {
-        Ok(sig) => println!("Initialize successful: {sig}"),
+        Ok(_sig) => print!("{marginfi_account_pk}"),
         Err(err) => println!("Error during initialize:\n{err:#?}"),
     }
 
@@ -1140,6 +1328,7 @@ Deposit start {}, end {} ({})
     })
 }
 
+#[cfg(feature = "lip")]
 fn timestamp_to_string(timestamp: i64) -> String {
     DateTime::<Utc>::from_utc(
         NaiveDateTime::from_timestamp_opt(timestamp, 0).unwrap(),
