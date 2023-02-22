@@ -239,7 +239,7 @@ pub fn lending_account_liquidate(
             insurance_fund_fee.frac(),
         );
 
-        {
+        let (liquidatee_liability_pre_balance, liquidatee_liability_post_balance) = {
             // Liquidatee receives liability payment
             let liab_bank_liquidity_authority_bump = liab_bank.liquidity_vault_authority_bump;
 
@@ -249,15 +249,17 @@ pub fn lending_account_liquidate(
                 &mut liquidatee_marginfi_account.lending_account,
             )?;
 
-            let liquidatee_liability_pre_balance = liquidatee_liab_bank_account
-                .bank
-                .get_liability_amount(liquidatee_liab_bank_account.balance.liability_shares.into())?;
+            let liquidatee_liability_pre_balance =
+                liquidatee_liab_bank_account.bank.get_liability_amount(
+                    liquidatee_liab_bank_account.balance.liability_shares.into(),
+                )?;
 
             liquidatee_liab_bank_account.increase_balance(liab_amount_final)?;
 
-            let liquidatee_liability_post_balance = liquidatee_liab_bank_account
-                .bank
-                .get_liability_amount(liquidatee_liab_bank_account.balance.liability_shares.into())?;
+            let liquidatee_liability_post_balance =
+                liquidatee_liab_bank_account.bank.get_liability_amount(
+                    liquidatee_liab_bank_account.balance.liability_shares.into(),
+                )?;
 
             // ## SPL transfer ##
             // Insurance fund receives fee
@@ -278,7 +280,12 @@ pub fn lending_account_liquidate(
                     liab_bank_liquidity_authority_bump
                 ),
             )?;
-        }
+
+            (
+                liquidatee_liability_pre_balance,
+                liquidatee_liability_post_balance,
+            )
+        };
 
         liab_bank.collected_insurance_fees_outstanding =
             I80F48::from(liab_bank.collected_insurance_fees_outstanding)

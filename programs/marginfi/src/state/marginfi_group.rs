@@ -17,7 +17,6 @@ use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 use std::{
-    collections::BTreeMap,
     fmt::{Debug, Formatter},
     ops::Not,
 };
@@ -204,7 +203,11 @@ impl InterestRateConfig {
     }
 }
 
-#[derive(AnchorDeserialize, AnchorSerialize, Default, Eq, PartialEq, Clone)]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, PartialEq, Eq, TypeLayout)
+)]
+#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone)]
 pub struct InterestRateConfigOpt {
     pub optimal_utilization_rate: Option<WrappedI80F48>,
     pub plateau_interest_rate: Option<WrappedI80F48>,
@@ -1133,7 +1136,8 @@ mod tests {
 
         clock.unix_timestamp = current_timestamp + 3600;
 
-        bank.accrue_interest(&clock).unwrap();
+        bank.accrue_interest(current_timestamp, Pubkey::default())
+            .unwrap();
 
         let post_collected_fees = I80F48::from(bank.collected_group_fees_outstanding)
             + I80F48::from(bank.collected_insurance_fees_outstanding);
