@@ -3,3 +3,4 @@ __pycache__
 poetry.lock
 local_file*
 .idea*
+beam-temp-*

@@ -1,3 +1,4 @@
+use crate::events::{GroupEventHeader, LendingPoolBankConfigureEvent};
 use crate::{
     state::marginfi_group::{Bank, BankConfigOpt, MarginfiGroup},
     MarginfiResult,
@@ -15,6 +16,16 @@ pub fn lending_pool_configure_bank(
     if bank_config.oracle.is_some() {
         bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
     }
+
+    emit!(LendingPoolBankConfigureEvent {
+        header: GroupEventHeader {
+            marginfi_group: ctx.accounts.marginfi_group.key(),
+            signer: Some(*ctx.accounts.admin.key)
+        },
+        bank: ctx.accounts.bank.key(),
+        mint: bank.mint,
+        config: bank_config,
+    });
 
     Ok(())
 }

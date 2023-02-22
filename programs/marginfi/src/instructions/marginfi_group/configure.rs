@@ -1,3 +1,4 @@
+use crate::events::{GroupEventHeader, MarginfiGroupConfigureEvent};
 use crate::{
     state::marginfi_group::{GroupConfig, MarginfiGroup},
     MarginfiResult,
@@ -10,7 +11,15 @@ use anchor_lang::prelude::*;
 pub fn configure(ctx: Context<MarginfiGroupConfigure>, config: GroupConfig) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_mut()?;
 
-    marginfi_group.configure(config)?;
+    marginfi_group.configure(&config)?;
+
+    emit!(MarginfiGroupConfigureEvent {
+        header: GroupEventHeader {
+            marginfi_group: ctx.accounts.marginfi_group.key(),
+            signer: Some(*ctx.accounts.admin.key)
+        },
+        config,
+    });
 
     Ok(())
 }

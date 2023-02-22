@@ -58,7 +58,7 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
 
     emit!(LendingAccountDepositEvent {
         header: AccountEventHeader {
-            signer: signer.key(),
+            signer: Some(signer.key()),
             marginfi_account: marginfi_account_loader.key(),
             marginfi_account_authority: marginfi_account.authority,
             marginfi_group: marginfi_account.group,

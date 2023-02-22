@@ -39,7 +39,7 @@ impl MarginfiGroup {
     /// Configure the group parameters.
     /// This function validates config values so the group remains in a valid state.
     /// Any modification of group config should happen through this function.
-    pub fn configure(&mut self, config: GroupConfig) -> MarginfiResult {
+    pub fn configure(&mut self, config: &GroupConfig) -> MarginfiResult {
         set_if_some!(self.admin, config.admin);
 
         Ok(())
@@ -453,6 +453,19 @@ impl Bank {
         self.last_update = current_timestamp;
 
         if (total_assets == I80F48::ZERO) || (total_liabilities == I80F48::ZERO) {
+            #[cfg(not(feature = "client"))]
+            emit!(LendingPoolBankAccrueInterestEvent {
+                header: GroupEventHeader {
+                    marginfi_group: self.group,
+                    signer: None
+                },
+                bank,
+                mint: self.mint,
+                delta: time_delta,
+                fees_collected: 0.,
+                insurance_collected: 0.,
+            });
+
             return Ok(());
         }
 

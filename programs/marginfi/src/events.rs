@@ -1,3 +1,4 @@
+use crate::{prelude::*, state::marginfi_group::BankConfigOpt};
 use anchor_lang::prelude::*;
 
 // Event headers
@@ -10,7 +11,7 @@ pub struct GroupEventHeader {
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct AccountEventHeader {
-    pub signer: Pubkey,
+    pub signer: Option<Pubkey>,
     pub marginfi_account: Pubkey,
     pub marginfi_account_authority: Pubkey,
     pub marginfi_group: Pubkey,
@@ -19,10 +20,29 @@ pub struct AccountEventHeader {
 // marginfi group events
 
 #[event]
-pub struct LendingPoolBankAddEvent {
+pub struct MarginfiGroupCreateEvent {
+    pub header: GroupEventHeader,
+}
+
+#[event]
+pub struct MarginfiGroupConfigureEvent {
+    pub header: GroupEventHeader,
+    pub config: GroupConfig,
+}
+
+#[event]
+pub struct LendingPoolBankCreateEvent {
     pub header: GroupEventHeader,
     pub bank: Pubkey,
     pub mint: Pubkey,
+}
+
+#[event]
+pub struct LendingPoolBankConfigureEvent {
+    pub header: GroupEventHeader,
+    pub bank: Pubkey,
+    pub mint: Pubkey,
+    pub config: BankConfigOpt,
 }
 
 #[event]
@@ -33,6 +53,27 @@ pub struct LendingPoolBankAccrueInterestEvent {
     pub delta: u64,
     pub fees_collected: f64,
     pub insurance_collected: f64,
+}
+
+#[event]
+pub struct LendingPoolBankCollectFeesEvent {
+    pub header: GroupEventHeader,
+    pub bank: Pubkey,
+    pub mint: Pubkey,
+    pub group_fees_collected: f64,
+    pub group_fees_outstanding: f64,
+    pub insurance_fees_collected: f64,
+    pub insurance_fees_outstanding: f64,
+}
+
+#[event]
+pub struct LendingPoolBankHandleBankruptcyEvent {
+    pub header: AccountEventHeader,
+    pub bank: Pubkey,
+    pub mint: Pubkey,
+    pub bad_debt: f64,
+    pub covered_amount: f64,
+    pub socialized_amount: f64,
 }
 
 // marginfi account events
@@ -74,16 +115,6 @@ pub struct LendingAccountWithdrawEvent {
     pub mint: Pubkey,
     pub amount: u64,
     pub close_balance: bool,
-}
-
-#[event]
-pub struct LendingPoolHandleBankruptcyEvent {
-    pub header: AccountEventHeader,
-    pub bank: Pubkey,
-    pub mint: Pubkey,
-    pub bad_debt: f64,
-    pub covered_amount: f64,
-    pub socialized_amount: f64,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize)]

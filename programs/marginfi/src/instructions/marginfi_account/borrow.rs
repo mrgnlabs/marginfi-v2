@@ -67,7 +67,7 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
 
         emit!(LendingAccountBorrowEvent {
             header: AccountEventHeader {
-                signer: ctx.accounts.signer.key(),
+                signer: Some(ctx.accounts.signer.key()),
                 marginfi_account: marginfi_account_loader.key(),
                 marginfi_account_authority: marginfi_account.authority,
                 marginfi_group: marginfi_account.group,

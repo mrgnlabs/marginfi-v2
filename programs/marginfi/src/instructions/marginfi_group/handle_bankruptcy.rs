@@ -1,4 +1,4 @@
-use crate::events::{AccountEventHeader, LendingPoolHandleBankruptcyEvent};
+use crate::events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent};
 use crate::{
     bank_signer, check,
     constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED},
@@ -98,9 +98,9 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
     )?
     .repay(bad_debt)?;
 
-    emit!(LendingPoolHandleBankruptcyEvent {
+    emit!(LendingPoolBankHandleBankruptcyEvent {
         header: AccountEventHeader {
-            signer: ctx.accounts.admin.key(),
+            signer: Some(ctx.accounts.admin.key()),
             marginfi_account: marginfi_account_loader.key(),
             marginfi_account_authority: marginfi_account.authority,
             marginfi_group: marginfi_account.group,

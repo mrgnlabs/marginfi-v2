@@ -1,3 +1,4 @@
+use crate::events::{GroupEventHeader, LendingPoolBankCollectFeesEvent};
 use crate::{
     bank_signer,
     constants::{
@@ -85,6 +86,19 @@ pub fn lending_pool_collect_bank_fees(ctx: Context<LendingPoolCollectBankFees>) 
             bank.liquidity_vault_authority_bump
         ),
     )?;
+
+    emit!(LendingPoolBankCollectFeesEvent {
+        header: GroupEventHeader {
+            marginfi_group: ctx.accounts.marginfi_group.key(),
+            signer: None
+        },
+        bank: ctx.accounts.bank.key(),
+        mint: liquidity_vault.mint,
+        insurance_fees_collected: insurance_fee_transfer_amount.to_num::<f64>(),
+        insurance_fees_outstanding: new_outstanding_insurance_fees.to_num::<f64>(),
+        group_fees_collected: group_fee_transfer_amount.to_num::<f64>(),
+        group_fees_outstanding: new_outstanding_group_fees.to_num::<f64>(),
+    });
 
     Ok(())
 }

@@ -3,7 +3,7 @@ use crate::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
-    events::{GroupEventHeader, LendingPoolBankAddEvent},
+    events::{GroupEventHeader, LendingPoolBankCreateEvent},
     state::marginfi_group::{Bank, BankConfig, MarginfiGroup},
     MarginfiResult,
 };
@@ -57,7 +57,7 @@ pub fn lending_pool_add_bank(
     bank.config.validate()?;
     bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
 
-    emit!(LendingPoolBankAddEvent {
+    emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {
             marginfi_group: ctx.accounts.marginfi_group.key(),
             signer: Some(*ctx.accounts.admin.key)

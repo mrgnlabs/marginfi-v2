@@ -329,7 +329,7 @@ pub fn lending_account_liquidate(
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {
-            signer: ctx.accounts.signer.key(),
+            signer: Some(ctx.accounts.signer.key()),
             marginfi_account: liquidator_marginfi_account_loader.key(),
             marginfi_account_authority: liquidator_marginfi_account.authority,
             marginfi_group: ctx.accounts.marginfi_group.key(),

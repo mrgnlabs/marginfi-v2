@@ -3,16 +3,17 @@ import base64
 import json
 import logging
 from typing import List, Optional, Sequence, Union, Generator, Any, Tuple, Dict
+from anchorpy import NamedInstruction
 from solders.message import MessageV0, Message
 import apache_beam as beam  # type: ignore
 from apache_beam.options.pipeline_options import PipelineOptions  # type: ignore
 from solders.pubkey import Pubkey
 
-from dataflow_etls.orm.events import Record, LiquidityChangeRecord, \
-    MarginfiAccountCreationRecord, is_liquidity_change_event, MARGINFI_ACCOUNT_CREATE_EVENT, LendingPoolBankAddRecord, \
-    LendingPoolBankAccrueInterestRecord, LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT, LENDING_POOL_BANK_ADD_EVENT, \
-    LENDING_POOL_HANDLE_BANKRUPTCY_EVENT, LendingPoolHandleBankruptcyRecord, LENDING_ACCOUNT_LIQUIDATE_EVENT, \
-    LendingAccountLiquidateRecord
+from dataflow_etls.orm.events import Record, LendingAccountChangeLiquidityRecord, \
+    MarginfiAccountCreateRecord, LendingPoolBankCreateRecord, \
+    LendingPoolBankAccrueInterestRecord, LendingPoolBankHandleBankruptcyRecord, \
+    LendingAccountLiquidateRecord, EVENT_TO_RECORD_TYPE, LendingPoolBankCollectFeesRecord, \
+    LendingPoolBankConfigureRecord, MarginfiGroupConfigureRecord, MarginfiGroupCreateRecord
 from dataflow_etls.idl_versions import VersionedIdl, VersionedProgram, Cluster
 from dataflow_etls.transaction_log_parser import reconcile_instruction_logs, \
     merge_instructions_and_cpis, expand_instructions, InstructionWithLogs, PROGRAM_DATA
@@ -20,11 +21,19 @@ from dataflow_etls.transaction_log_parser import reconcile_instruction_logs, \
 
 class DispatchEventsDoFn(beam.DoFn):  # type: ignore
     def process(self, record: Record, *args: Tuple[Any], **kwargs: Dict[str, Tuple[Any]]) -> Generator[str, None, None]:
-        yield beam.pvalue.TaggedOutput(record.NAME, record)
+        yield beam.pvalue.TaggedOutput(record.get_tag(), record)
 
 
 def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -> Sequence[Record]:
-    records = []
+    records: List[Record] = []
+
+    try:
+        parsed_ix: NamedInstruction = program.coder.instruction.parse(ix.message.data)
+    except Exception as e:
+        print(ix)
+        print(f"failed to parse instruction data in tx {ix.signature}", e)
+        return records
+
     for log in ix.logs:
         if not log.startswith(PROGRAM_DATA):
             continue
@@ -44,32 +53,12 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
             print(f"failed to parse event in tx {ix.signature}", e)
             continue
 
-        try:
-            instruction_data = program.coder.instruction.parse(ix.message.data)
-        except Exception as e:
-            print(ix)
-            print(f"failed to parse instruction data in tx {ix.signature}", e)
-            continue
-
-        record: Optional[Record]
-        if is_liquidity_change_event(event.name):
-            record = LiquidityChangeRecord.from_event(event, ix, instruction_data)
-        elif event.name == MARGINFI_ACCOUNT_CREATE_EVENT:
-            record = MarginfiAccountCreationRecord.from_event(event, ix, instruction_data)
-        elif event.name == LENDING_POOL_BANK_ADD_EVENT:
-            record = LendingPoolBankAddRecord.from_event(event, ix, instruction_data)
-        elif event.name == LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT:
-            record = LendingPoolBankAccrueInterestRecord.from_event(event, ix, instruction_data)
-        elif event.name == LENDING_POOL_HANDLE_BANKRUPTCY_EVENT:
-            record = LendingPoolHandleBankruptcyRecord.from_event(event, ix, instruction_data)
-        elif event.name == LENDING_ACCOUNT_LIQUIDATE_EVENT:
-            record = LendingAccountLiquidateRecord.from_event(event, ix, instruction_data)
+        if event is None or event.name not in EVENT_TO_RECORD_TYPE:
+            print(f"discarding unsupported event in tx {ix.signature}")
+            print(event)
         else:
-            print("discarding unsupported event:", event.name)
-            record = None
-
-        if record is not None:
-            records.append(record)
+            RecordType = EVENT_TO_RECORD_TYPE[event.name]
+            records.append(RecordType(event, ix, parsed_ix))
 
     return records
 
@@ -154,24 +143,35 @@ def run(
         extract_events = beam.FlatMap(extract_events_from_tx)
 
         dispatch_events = beam.ParDo(DispatchEventsDoFn()).with_outputs(
-            LiquidityChangeRecord.NAME,
-            MarginfiAccountCreationRecord.NAME,
-            LendingPoolBankAddRecord.NAME,
-            LendingPoolBankAccrueInterestRecord.NAME,
-            LendingPoolHandleBankruptcyRecord.NAME,
-            LendingAccountLiquidateRecord.NAME
+            MarginfiGroupCreateRecord.get_tag(),
+            MarginfiGroupConfigureRecord.get_tag(),
+            LendingPoolBankCreateRecord.get_tag(),
+            LendingPoolBankConfigureRecord.get_tag(),
+            LendingPoolBankAccrueInterestRecord.get_tag(),
+            LendingPoolBankCollectFeesRecord.get_tag(),
+            LendingPoolBankHandleBankruptcyRecord.get_tag(),
+            MarginfiAccountCreateRecord.get_tag(),
+            LendingAccountChangeLiquidityRecord.get_tag(),
+            LendingAccountLiquidateRecord.get_tag()
         )
 
         if target_dataset == "local_file":  # For testing purposes
-            write_liquidity_change_events = beam.io.WriteToText("local_file_liquidity_change_events")
-            write_marginfi_account_creation_events = beam.io.WriteToText("local_file_marginfi_account_creation_events")
-            write_lending_pool_bank_add_events = beam.io.WriteToText("local_file_lending_pool_bank_add_events")
-            write_lending_pool_bank_accrue_interest_events = beam.io.WriteToText(
-                "local_file_lending_pool_bank_accrue_interest_events")
-            write_lending_pool_handle_bankruptcy_events = beam.io.WriteToText(
-                "local_file_lending_pool_handle_bankruptcy_events")
-            write_lending_account_liquidate_events = beam.io.WriteToText(
-                "local_file_lending_account_liquidate_events")
+            write_marginfi_group_create_records = beam.io.WriteToText("local_file_marginfi_group_create_records")
+            write_marginfi_group_configure_records = beam.io.WriteToText("local_file_marginfi_group_configure_records")
+            write_lending_pool_bank_create_records = beam.io.WriteToText("local_file_lending_pool_bank_create_records")
+            write_lending_pool_bank_configure_records = beam.io.WriteToText(
+                "local_file_lending_pool_bank_configure_records")
+            write_lending_pool_bank_accrue_interest_records = beam.io.WriteToText(
+                "local_file_lending_pool_bank_accrue_interest_records")
+            write_lending_pool_bank_collect_fees_records = beam.io.WriteToText(
+                "local_file_lending_pool_bank_collect_fees_records")
+            write_lending_pool_bank_handle_bankruptcy_records = beam.io.WriteToText(
+                "local_file_lending_pool_bank_handle_bankruptcy_records")
+            write_marginfi_account_create_records = beam.io.WriteToText("local_file_marginfi_account_create_records")
+            write_lending_account_liquidity_change_records = beam.io.WriteToText(
+                "local_file_lending_account_liquidity_change_records")
+            write_lending_account_liquidate_records = beam.io.WriteToText(
+                "local_file_lending_account_liquidate_records")
         else:
             print("TODOOOOO")
             exit(1)
@@ -189,17 +189,26 @@ def run(
                 | "DispatchEvents" >> dispatch_events
         )
 
-        tagged_events[LiquidityChangeRecord.NAME] | "WriteLiquidityChangeEvent" >> write_liquidity_change_events
-        tagged_events[
-            MarginfiAccountCreationRecord.NAME] | "WriteMarginfiAccountCreationRecord" >> write_marginfi_account_creation_events
-        tagged_events[
-            LendingPoolBankAddRecord.NAME] | "WriteLendingPoolBankAddRecord" >> write_lending_pool_bank_add_events
-        tagged_events[
-            LendingPoolBankAccrueInterestRecord.NAME] | "WriteLendingPoolBankAccrueInterestRecord" >> write_lending_pool_bank_accrue_interest_events
-        tagged_events[
-            LendingPoolHandleBankruptcyRecord.NAME] | "LendingPoolHandleBankruptcyRecord" >> write_lending_pool_handle_bankruptcy_events
-        tagged_events[
-            LendingAccountLiquidateRecord.NAME] | "WriteLendingAccountLiquidateRecord" >> write_lending_account_liquidate_events
+        tagged_events[MarginfiGroupCreateRecord.get_tag()] | (
+                f"Write{MarginfiGroupCreateRecord.get_tag()}" >> write_marginfi_group_create_records)
+        tagged_events[MarginfiGroupConfigureRecord.get_tag()] | (
+                f"Write{MarginfiGroupConfigureRecord.get_tag()}" >> write_marginfi_group_configure_records)
+        tagged_events[LendingPoolBankCreateRecord.get_tag()] | (
+                f"Write{LendingPoolBankCreateRecord.get_tag()}" >> write_lending_pool_bank_create_records)
+        tagged_events[LendingPoolBankConfigureRecord.get_tag()] | (
+                f"Write{LendingPoolBankConfigureRecord.get_tag()}" >> write_lending_pool_bank_configure_records)
+        tagged_events[LendingPoolBankAccrueInterestRecord.get_tag()] | (
+                f"Write{LendingPoolBankAccrueInterestRecord.get_tag()}" >> write_lending_pool_bank_accrue_interest_records)
+        tagged_events[LendingPoolBankCollectFeesRecord.get_tag()] | (
+                f"Write{LendingPoolBankCollectFeesRecord.get_tag()}" >> write_lending_pool_bank_collect_fees_records)
+        tagged_events[LendingPoolBankHandleBankruptcyRecord.get_tag()] | (
+                f"Write{LendingPoolBankHandleBankruptcyRecord.get_tag()}" >> write_lending_pool_bank_handle_bankruptcy_records)
+        tagged_events[MarginfiAccountCreateRecord.get_tag()] | (
+                f"Write{MarginfiAccountCreateRecord.get_tag()}" >> write_marginfi_account_create_records)
+        tagged_events[LendingAccountChangeLiquidityRecord.get_tag()] | (
+                f"Write{LendingAccountChangeLiquidityRecord.get_tag()}" >> write_lending_account_liquidity_change_records)
+        tagged_events[LendingAccountLiquidateRecord.get_tag()] | (
+                f"Write{LendingAccountLiquidateRecord.get_tag()}" >> write_lending_account_liquidate_records)
 
 
 def main() -> None:
