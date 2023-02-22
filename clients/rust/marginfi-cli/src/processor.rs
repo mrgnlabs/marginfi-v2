@@ -37,7 +37,6 @@ use marginfi::{
 };
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
-#[cfg(feature = "admin")]
 use solana_sdk::instruction::AccountMeta;
 use solana_sdk::{
     account_info::IntoAccountInfo,
