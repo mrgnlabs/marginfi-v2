@@ -1,5 +1,5 @@
 [workspace]
-members = [ "programs/*", "clients/rust/*"  ]
+members = ["programs/*", "clients/rust/*"]
 exclude = ["observability/indexer"]
 
 [profile.release]

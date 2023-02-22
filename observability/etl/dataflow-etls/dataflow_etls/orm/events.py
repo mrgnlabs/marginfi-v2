@@ -289,10 +289,10 @@ class LendingAccountLiquidateRecord(AccountSpecificRecord):
                                              liquidatee_liability_pre_balance=event.data.pre_balances.liquidatee_liability_balance,
                                              liquidator_asset_pre_balance=event.data.pre_balances.liquidator_asset_balance,
                                              liquidator_liability_pre_balance=event.data.pre_balances.liquidator_liability_balance,
-                                             liquidatee_asset_post_balance=event.data.pre_balances.liquidatee_asset_balance,
-                                             liquidatee_liability_post_balance=event.data.pre_balances.liquidatee_liability_balance,
-                                             liquidator_asset_post_balance=event.data.pre_balances.liquidator_asset_balance,
-                                             liquidator_liability_post_balance=event.data.pre_balances.liquidator_liability_balance)
+                                             liquidatee_asset_post_balance=event.data.post_balances.liquidatee_asset_balance,
+                                             liquidatee_liability_post_balance=event.data.post_balances.liquidatee_liability_balance,
+                                             liquidator_asset_post_balance=event.data.post_balances.liquidator_asset_balance,
+                                             liquidator_liability_post_balance=event.data.post_balances.liquidator_liability_balance)
 
 
 @dataclass
