@@ -46,9 +46,3 @@ name = "lend"
 path = "fuzz_targets/lend.rs"
 test = false
 doc = false
-
-[[bin]]
-name = "main"
-path = "src/main.rs"
-test = false
-doc = false

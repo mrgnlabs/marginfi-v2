@@ -1,18 +1,14 @@
 #![no_main]
 
-use anchor_lang::{
-    prelude::{AccountLoader, Clock},
-    Key,
-};
+use anchor_lang::prelude::{AccountLoader, Clock};
 use anyhow::Result;
 use arbitrary::Arbitrary;
 use fixed::types::I80F48;
 use lazy_static::lazy_static;
 use libfuzzer_sys::fuzz_target;
-use marginfi::{assert_eq_with_tolerance, prelude::MarginfiGroup, state::marginfi_group::Bank};
+use marginfi::{assert_eq_with_tolerance, state::marginfi_group::Bank};
 use marginfi_fuzz::{
-    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, MarginfiFuzzContext, Metrics,
-    PriceChange, LOG_COUNTER, N_BANKS, N_USERS,
+    account_state::AccountsState, arbitrary_helpers::*, metrics::Metrics, MarginfiFuzzContext,
 };
 use solana_program::program_pack::Pack;
 use std::sync::{Arc, RwLock};
@@ -78,13 +74,14 @@ pub struct FuzzerContext {
 fuzz_target!(|data: FuzzerContext| { process_actions(data).unwrap() });
 
 fn process_actions(ctx: FuzzerContext) -> Result<()> {
-    let mut bump = bumpalo::Bump::new();
+    let mut accounst_state = AccountsState::new();
 
     if !*GET_LOGGER {
         println!("Setting up logger");
     }
 
-    let mut context = MarginfiFuzzContext::setup(&bump, &ctx.initial_bank_configs, N_USERS as u8);
+    let mut context =
+        MarginfiFuzzContext::setup(&accounst_state, &ctx.initial_bank_configs, N_USERS as u8);
 
     context.metrics = METRICS.clone();
 
@@ -97,7 +94,7 @@ fn process_actions(ctx: FuzzerContext) -> Result<()> {
 
     verify_end_state(&context)?;
 
-    bump.reset();
+    accounst_state.reset();
 
     Ok(())
 }
@@ -142,7 +139,7 @@ fn verify_end_state(mga: &MarginfiFuzzContext) -> anyhow::Result<()> {
         let bank_loader = AccountLoader::<Bank>::try_from(&bank.bank)?;
         let mut bank_data = bank_loader.load_mut()?;
 
-        let latest_timestamp = mga.last_sysvar_current_timestamp.read().unwrap().clone();
+        let latest_timestamp = *mga.last_sysvar_current_timestamp.read().unwrap();
 
         let mut clock = Clock::default();
 
