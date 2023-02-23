@@ -61,6 +61,8 @@ impl TestSettings {
                     mint: BankMint::SolEquivalent,
                     config: Some(BankConfig {
                         risk_tranche: RiskTranche::Isolated,
+                        asset_weight_maint: I80F48!(0).into(),
+                        asset_weight_init: I80F48!(0).into(),
                         ..*DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG
                     }),
                 },
@@ -128,6 +130,7 @@ lazy_static! {
         liability_weight_maint: I80F48!(1).into(),
 
         operational_state: BankOperationalState::Operational,
+        risk_tranche: RiskTranche::Collateral,
 
         interest_rate_config: InterestRateConfig {
             insurance_fee_fixed_apr: I80F48!(0).into(),
