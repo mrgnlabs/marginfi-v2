@@ -1,8 +1,9 @@
 import re
 import uuid
+from decimal import Decimal
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Union, Optional, Dict, Type
+from typing import Union, Optional, Dict, Type, NamedTuple, Callable, TypeVar
 from anchorpy import Event, NamedInstruction
 
 from dataflow_etls.transaction_log_parser import InstructionWithLogs
@@ -25,6 +26,27 @@ LENDING_ACCOUNT_LIQUIDATE_EVENT = 'LendingAccountLiquidateEvent'
 
 def pascal_to_snake_case(string: str) -> str:
     return re.sub('(?!^)([A-Z]+)', r'_\1', string).lower()
+
+
+WrappedI80F48 = NamedTuple('WrappedI80F48', [('value', int)])
+
+
+def wrapped_i80f48_to_float(wrapped_i80f48: WrappedI80F48) -> float:
+    nb_of_fractional_bits = 48
+    value = Decimal(wrapped_i80f48.value)
+    value = value / 2 ** nb_of_fractional_bits
+    return float(value)
+
+
+InputType = TypeVar('InputType')
+OutputType = TypeVar('OutputType')
+
+
+def map_optional(element: Optional[InputType], fn: Callable[[InputType], OutputType]) -> Optional[OutputType]:
+    if element is not None:
+        return fn(element)
+    else:
+        return None
 
 
 def time_str(dt: Optional[datetime] = None) -> str:
@@ -67,8 +89,11 @@ class RecordBase:
         self.indexing_address = str(instruction.message.program_id)
 
     @classmethod
-    def get_tag(cls) -> str:
-        return cls.__name__
+    def get_tag(cls, snake_case: bool = False) -> str:
+        if snake_case:
+            return pascal_to_snake_case(cls.__name__)
+        else:
+            return cls.__name__
 
 
 # Event headers
@@ -169,51 +194,49 @@ class LendingPoolBankConfigureRecord(GroupRecordBase):
         [
             "bank:STRING",
             "mint:STRING",
-            # "asset_weight_init:NUMERIC",
-            # "asset_weight_maint:NUMERIC",
-            # "liability_weight_init:NUMERIC",
-            # "liability_weight_maint:NUMERIC",
-            # "deposit_limit:BIGNUMERIC",
-            # "borrow_limit:BIGNUMERIC",
-            # "operational_state:STRING",
-            # "oracle_setup:STRING",
-            # "oracle_keys:STRING",
-            # "optimal_utilization_rate:NUMERIC",
-            # "plateau_interest_rate:NUMERIC",
-            # "max_interest_rate:NUMERIC",
-            # "insurance_fee_fixed_apr:NUMERIC",
-            # "insurance_ir_fee:NUMERIC",
-            # "protocol_fixed_fee_apr:NUMERIC",
-            # "protocol_ir_fee:NUMERIC",
+            "asset_weight_init:NUMERIC",
+            "asset_weight_maint:NUMERIC",
+            "liability_weight_init:NUMERIC",
+            "liability_weight_maint:NUMERIC",
+            "deposit_limit:BIGNUMERIC",
+            "borrow_limit:BIGNUMERIC",
+            "operational_state:STRING",
+            "oracle_setup:STRING",
+            "oracle_keys:STRING",
+            "optimal_utilization_rate:NUMERIC",
+            "plateau_interest_rate:NUMERIC",
+            "max_interest_rate:NUMERIC",
+            "insurance_fee_fixed_apr:NUMERIC",
+            "insurance_ir_fee:NUMERIC",
+            "protocol_fixed_fee_apr:NUMERIC",
+            "protocol_ir_fee:NUMERIC",
         ]
     )
 
     bank: str
     mint: str
 
-    # todo: config
+    asset_weight_init: Optional[float]
+    asset_weight_maint: Optional[float]
 
-    # asset_weight_init: Optional[float]
-    # asset_weight_maint: Optional[float]
-    #
-    # liability_weight_init: Optional[float]
-    # liability_weight_maint: Optional[float]
-    #
-    # deposit_limit: Optional[int]
-    # borrow_limit: Optional[int]
-    #
-    # operational_state: Optional[str]
-    # oracle_setup: Optional[str]
-    # oracle_keys: Optional[str]
-    #
-    # optimal_utilization_rate: Optional[float]
-    # plateau_interest_rate: Optional[float]
-    # max_interest_rate: Optional[float]
-    #
-    # insurance_fee_fixed_apr: Optional[float]
-    # insurance_ir_fee: Optional[float]
-    # protocol_fixed_fee_apr: Optional[float]
-    # protocol_ir_fee: Optional[float]
+    liability_weight_init: Optional[float]
+    liability_weight_maint: Optional[float]
+
+    deposit_limit: Optional[int]
+    borrow_limit: Optional[int]
+
+    operational_state: Optional[str]
+    oracle_setup: Optional[str]
+    oracle_keys: Optional[str]
+
+    optimal_utilization_rate: Optional[float]
+    plateau_interest_rate: Optional[float]
+    max_interest_rate: Optional[float]
+
+    insurance_fee_fixed_apr: Optional[float]
+    insurance_ir_fee: Optional[float]
+    protocol_fixed_fee_apr: Optional[float]
+    protocol_ir_fee: Optional[float]
 
     def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
@@ -221,24 +244,37 @@ class LendingPoolBankConfigureRecord(GroupRecordBase):
         self.bank = str(event.data.bank)
         self.mint = str(event.data.mint)
 
-        # self.asset_weight_init = event.data.config.asset_weight_init
-        # self.asset_weight_maint = event.data.config.asset_weight_maint
-        # self.liability_weight_init = event.data.config.liability_weight_init
-        # self.liability_weight_maint = event.data.config.liability_weight_maint
-        # self.deposit_limit = event.data.config.deposit_limit
-        # self.borrow_limit = event.data.config.borrow_limit
-        #
-        # self.operational_state = str(event.data.config.operational_state)
-        # self.oracle_setup = str(event.data.config.oracle.setup) if event.data.config.oracle is not None else None
+        self.asset_weight_init = map_optional(event.data.config.asset_weight_init, wrapped_i80f48_to_float)
+        self.asset_weight_maint = map_optional(event.data.config.asset_weight_maint, wrapped_i80f48_to_float)
+        self.liability_weight_init = map_optional(event.data.config.liability_weight_init, wrapped_i80f48_to_float)
+        self.liability_weight_maint = map_optional(event.data.config.liability_weight_maint, wrapped_i80f48_to_float)
+        self.deposit_limit = event.data.config.deposit_limit
+        self.borrow_limit = event.data.config.borrow_limit
+
+        self.operational_state = map_optional(event.data.config.operational_state, str)
+        if event.data.config.oracle:
+            self.oracle_setup = str(event.data.config.oracle.setup)
+            self.oracle_keys = str([str(pk) for pk in event.data.config.oracle.keys])
+        else:
+            self.oracle_setup = None
+            self.oracle_keys = None
+
         # self.oracle_keys = str(event.data.config.oracle.keys) if event.data.config.oracle is not None else None
         #
-        # self.optimal_utilization_rate = event.data.config.interest_rate_config.optimal_utilization_rate
-        # self.plateau_interest_rate = event.data.config.interest_rate_config.plateau_interest_rate
-        # self.max_interest_rate = event.data.config.interest_rate_config.max_interest_rate
-        # self.insurance_fee_fixed_apr = event.data.config.interest_rate_config.insurance_fee_fixed_apr
-        # self.insurance_ir_fee = event.data.config.interest_rate_config.insurance_ir_fee
-        # self.protocol_fixed_fee_apr = event.data.config.interest_rate_config.protocol_fixed_fee_apr
-        # self.protocol_ir_fee = event.data.config.interest_rate_config.protocol_ir_fee
+        self.optimal_utilization_rate = map_optional(
+            event.data.config.interest_rate_config.optimal_utilization_rate, wrapped_i80f48_to_float)
+        self.plateau_interest_rate = map_optional(
+            event.data.config.interest_rate_config.plateau_interest_rate, wrapped_i80f48_to_float)
+        self.max_interest_rate = map_optional(
+            event.data.config.interest_rate_config.max_interest_rate, wrapped_i80f48_to_float)
+        self.insurance_fee_fixed_apr = map_optional(
+            event.data.config.interest_rate_config.insurance_fee_fixed_apr, wrapped_i80f48_to_float)
+        self.insurance_ir_fee = map_optional(
+            event.data.config.interest_rate_config.insurance_ir_fee, wrapped_i80f48_to_float)
+        self.protocol_fixed_fee_apr = map_optional(
+            event.data.config.interest_rate_config.protocol_fixed_fee_apr, wrapped_i80f48_to_float)
+        self.protocol_ir_fee = map_optional(
+            event.data.config.interest_rate_config.protocol_ir_fee, wrapped_i80f48_to_float)
 
 
 @dataclass
@@ -422,6 +458,17 @@ class LendingAccountLiquidateRecord(AccountRecordBase):
         self.liquidator_asset_post_balance = event.data.post_balances.liquidator_asset_balance
         self.liquidator_liability_post_balance = event.data.post_balances.liquidator_liability_balance
 
+
+RecordTypes = [MarginfiGroupCreateRecord,
+               MarginfiGroupConfigureRecord,
+               LendingPoolBankCreateRecord,
+               LendingPoolBankConfigureRecord,
+               LendingPoolBankAccrueInterestRecord,
+               LendingPoolBankCollectFeesRecord,
+               LendingPoolBankHandleBankruptcyRecord,
+               MarginfiAccountCreateRecord,
+               LendingAccountChangeLiquidityRecord,
+               LendingAccountLiquidateRecord]
 
 Record = Union[
     MarginfiGroupCreateRecord,

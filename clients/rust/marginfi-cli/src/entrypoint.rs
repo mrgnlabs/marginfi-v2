@@ -6,7 +6,8 @@ use crate::{
 use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
-#[cfg(feature = "admin")]
+
+#[cfg(any(feature = "admin", feature = "dev"))]
 use fixed::types::I80F48;
 #[cfg(any(feature = "admin", feature = "dev"))]
 use marginfi::state::marginfi_group::{BankConfigOpt, InterestRateConfigOpt};
