@@ -1,6 +1,6 @@
 __pycache__
 .venv
 poetry.lock
-local_file*
+parsed_event_*
 .idea*
 beam-temp-*

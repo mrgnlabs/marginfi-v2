@@ -2,6 +2,7 @@ import argparse
 import base64
 import json
 import logging
+from dataclasses import asdict
 from typing import List, Optional, Sequence, Union, Generator, Any, Tuple, Dict
 from anchorpy import NamedInstruction
 from solders.message import MessageV0, Message
@@ -9,11 +10,7 @@ import apache_beam as beam  # type: ignore
 from apache_beam.options.pipeline_options import PipelineOptions  # type: ignore
 from solders.pubkey import Pubkey
 
-from dataflow_etls.orm.events import Record, LendingAccountChangeLiquidityRecord, \
-    MarginfiAccountCreateRecord, LendingPoolBankCreateRecord, \
-    LendingPoolBankAccrueInterestRecord, LendingPoolBankHandleBankruptcyRecord, \
-    LendingAccountLiquidateRecord, EVENT_TO_RECORD_TYPE, LendingPoolBankCollectFeesRecord, \
-    LendingPoolBankConfigureRecord, MarginfiGroupConfigureRecord, MarginfiGroupCreateRecord
+from dataflow_etls.orm.events import Record, EVENT_TO_RECORD_TYPE, RecordTypes
 from dataflow_etls.idl_versions import VersionedIdl, VersionedProgram, Cluster
 from dataflow_etls.transaction_log_parser import reconcile_instruction_logs, \
     merge_instructions_and_cpis, expand_instructions, InstructionWithLogs, PROGRAM_DATA
@@ -74,6 +71,10 @@ def extract_events_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
         ix_events.extend(extract_events_from_ix(inner_ix, program))
 
     return ix_events
+
+
+def dictionify_record(record: Record) -> Dict:
+    return asdict(record)
 
 
 def run(
@@ -143,44 +144,21 @@ def run(
 
         extract_events = beam.FlatMap(extract_events_from_tx)
 
-        dispatch_events = beam.ParDo(DispatchEventsDoFn()).with_outputs(
-            MarginfiGroupCreateRecord.get_tag(),
-            MarginfiGroupConfigureRecord.get_tag(),
-            LendingPoolBankCreateRecord.get_tag(),
-            LendingPoolBankConfigureRecord.get_tag(),
-            LendingPoolBankAccrueInterestRecord.get_tag(),
-            LendingPoolBankCollectFeesRecord.get_tag(),
-            LendingPoolBankHandleBankruptcyRecord.get_tag(),
-            MarginfiAccountCreateRecord.get_tag(),
-            LendingAccountChangeLiquidityRecord.get_tag(),
-            LendingAccountLiquidateRecord.get_tag()
-        )
+        dispatch_events = beam.ParDo(DispatchEventsDoFn()).with_outputs(*[rt.get_tag() for rt in RecordTypes])
 
-        if output_table_namespace == "local_file":  # For testing purposes
-            write_marginfi_group_create_records = beam.io.WriteToText("local_file_marginfi_group_create_records")
-            write_marginfi_group_configure_records = beam.io.WriteToText("local_file_marginfi_group_configure_records")
-            write_lending_pool_bank_create_records = beam.io.WriteToText("local_file_lending_pool_bank_create_records")
-            write_lending_pool_bank_configure_records = beam.io.WriteToText(
-                "local_file_lending_pool_bank_configure_records")
-            write_lending_pool_bank_accrue_interest_records = beam.io.WriteToText(
-                "local_file_lending_pool_bank_accrue_interest_records")
-            write_lending_pool_bank_collect_fees_records = beam.io.WriteToText(
-                "local_file_lending_pool_bank_collect_fees_records")
-            write_lending_pool_bank_handle_bankruptcy_records = beam.io.WriteToText(
-                "local_file_lending_pool_bank_handle_bankruptcy_records")
-            write_marginfi_account_create_records = beam.io.WriteToText("local_file_marginfi_account_create_records")
-            write_lending_account_liquidity_change_records = beam.io.WriteToText(
-                "local_file_lending_account_liquidity_change_records")
-            write_lending_account_liquidate_records = beam.io.WriteToText(
-                "local_file_lending_account_liquidate_records")
-        else:
-            print("TODOOOOO")
-            exit(1)
-            # write_liquidity_change_events = beam.io.WriteToBigQuery(
-            #     output_table,
-            #     schema=PROCESSED_TRANSACTION_SCHEMA,
-            #     write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
-            # )
+        dictionify_events = beam.Map(dictionify_record)
+
+        writers: Dict[str, Union[beam.io.WriteToText, beam.io.WriteToBigQuery]] = {}
+        for rt in RecordTypes:
+            if output_table_namespace == "local_file":  # For testing purposes
+                writers[rt.get_tag()] = beam.io.WriteToText(f"parsed_event_{rt.get_tag()}")
+            else:
+                writers[rt.get_tag()] = beam.io.WriteToBigQuery(
+                    f"{output_table_namespace}_{rt.get_tag(snake_case=True)}",
+                    schema=rt.SCHEMA,
+                    write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
+                    create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
+                )
 
         # Define pipeline
         tagged_events = (
@@ -190,26 +168,11 @@ def run(
                 | "DispatchEvents" >> dispatch_events
         )
 
-        tagged_events[MarginfiGroupCreateRecord.get_tag()] | (
-                f"Write{MarginfiGroupCreateRecord.get_tag()}" >> write_marginfi_group_create_records)
-        tagged_events[MarginfiGroupConfigureRecord.get_tag()] | (
-                f"Write{MarginfiGroupConfigureRecord.get_tag()}" >> write_marginfi_group_configure_records)
-        tagged_events[LendingPoolBankCreateRecord.get_tag()] | (
-                f"Write{LendingPoolBankCreateRecord.get_tag()}" >> write_lending_pool_bank_create_records)
-        tagged_events[LendingPoolBankConfigureRecord.get_tag()] | (
-                f"Write{LendingPoolBankConfigureRecord.get_tag()}" >> write_lending_pool_bank_configure_records)
-        tagged_events[LendingPoolBankAccrueInterestRecord.get_tag()] | (
-                f"Write{LendingPoolBankAccrueInterestRecord.get_tag()}" >> write_lending_pool_bank_accrue_interest_records)
-        tagged_events[LendingPoolBankCollectFeesRecord.get_tag()] | (
-                f"Write{LendingPoolBankCollectFeesRecord.get_tag()}" >> write_lending_pool_bank_collect_fees_records)
-        tagged_events[LendingPoolBankHandleBankruptcyRecord.get_tag()] | (
-                f"Write{LendingPoolBankHandleBankruptcyRecord.get_tag()}" >> write_lending_pool_bank_handle_bankruptcy_records)
-        tagged_events[MarginfiAccountCreateRecord.get_tag()] | (
-                f"Write{MarginfiAccountCreateRecord.get_tag()}" >> write_marginfi_account_create_records)
-        tagged_events[LendingAccountChangeLiquidityRecord.get_tag()] | (
-                f"Write{LendingAccountChangeLiquidityRecord.get_tag()}" >> write_lending_account_liquidity_change_records)
-        tagged_events[LendingAccountLiquidateRecord.get_tag()] | (
-                f"Write{LendingAccountLiquidateRecord.get_tag()}" >> write_lending_account_liquidate_records)
+        for rt in RecordTypes:
+            (tagged_events[rt.get_tag()]
+                | f"Dictionify{rt.get_tag()}" >> dictionify_events
+                | f"Write{rt.get_tag()}" >> writers[rt.get_tag()]
+            )
 
 
 def main() -> None:
