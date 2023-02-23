@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -e
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ROOT_DIR=$(realpath "${SCRIPT_DIR}/../../")
+
+job_dir="$SCRIPT_DIR"
+job_dir_rel=$(realpath --relative-to="$ROOT_DIR" "$job_dir")
+
+cd "$ROOT_DIR"
+
+docker build -f "$job_dir_rel/Dockerfile" --build-arg JOB_DIRECTORY="$job_dir_rel" "$ROOT_DIR"
