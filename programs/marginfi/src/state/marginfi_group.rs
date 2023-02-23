@@ -412,7 +412,7 @@ impl Bank {
             self.config.interest_rate_config.update(ir_config);
         }
 
-        set_if_some!(self.config.risk_tranche, config.risk_tranche);
+        set_if_some!(self.config.risk_tier, config.risk_tier);
 
         self.config.validate()?;
 
@@ -724,9 +724,9 @@ pub enum OracleKey {
 #[repr(u64)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-pub enum RiskTranche {
+pub enum RiskTier {
     Collateral,
-    /// ## Isolated Tranche
+    /// ## Isolated Risk
     /// Assets in this trance can be borrowed only in isolation.
     /// They can't be borrowed together with other assets.
     ///
@@ -761,7 +761,7 @@ pub struct BankConfig {
 
     pub borrow_limit: u64,
 
-    pub risk_tranche: RiskTranche,
+    pub risk_tier: RiskTier,
 
     pub _padding: [u64; 6], // 16 * 4 = 64 bytes
 }
@@ -779,7 +779,7 @@ impl Default for BankConfig {
             operational_state: BankOperationalState::Paused,
             oracle_setup: OracleSetup::None,
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
-            risk_tranche: RiskTranche::Isolated,
+            risk_tier: RiskTier::Isolated,
             _padding: [0; 6],
         }
     }
@@ -821,7 +821,7 @@ impl BankConfig {
 
         self.interest_rate_config.validate()?;
 
-        if self.risk_tranche == RiskTranche::Isolated {
+        if self.risk_tier == RiskTier::Isolated {
             check!(asset_init_w == I80F48::ZERO, MarginfiError::InvalidConfig);
             check!(asset_maint_w == I80F48::ZERO, MarginfiError::InvalidConfig);
         }
@@ -924,7 +924,7 @@ pub struct BankConfigOpt {
 
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
-    pub risk_tranche: Option<RiskTranche>,
+    pub risk_tier: Option<RiskTier>,
 }
 
 #[cfg_attr(
@@ -1175,8 +1175,12 @@ mod tests {
 
         clock.unix_timestamp = current_timestamp + 3600;
 
-        bank.accrue_interest(current_timestamp, Pubkey::default())
-            .unwrap();
+        bank.accrue_interest(
+            current_timestamp,
+            #[cfg(not(feature = "client"))]
+            Pubkey::default(),
+        )
+        .unwrap();
 
         let post_collected_fees = I80F48::from(bank.collected_group_fees_outstanding)
             + I80F48::from(bank.collected_insurance_fees_outstanding);

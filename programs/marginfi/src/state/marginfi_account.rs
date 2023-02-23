@@ -1,4 +1,4 @@
-use super::marginfi_group::{Bank, RiskTranche, WrappedI80F48};
+use super::marginfi_group::{Bank, RiskTier, WrappedI80F48};
 use crate::{
     check,
     constants::{
@@ -375,7 +375,7 @@ impl<'a> RiskEngine<'a> {
             MarginfiError::BadAccountHealth
         );
 
-        self.check_account_risk_tranches()?;
+        self.check_account_risk_tiers()?;
 
         Ok(())
     }
@@ -502,7 +502,7 @@ impl<'a> RiskEngine<'a> {
         Ok(())
     }
 
-    fn check_account_risk_tranches(&self) -> MarginfiResult {
+    fn check_account_risk_tiers(&self) -> MarginfiResult {
         let balances_with_liablities = self
             .bank_accounts_with_price
             .iter()
@@ -510,12 +510,12 @@ impl<'a> RiskEngine<'a> {
 
         let n_balances_with_liablities = balances_with_liablities.clone().count();
 
-        let is_in_isolated_risk_tranche = balances_with_liablities
+        let is_in_isolated_risk_tier = balances_with_liablities
             .clone()
-            .any(|a| a.bank.config.risk_tranche == RiskTranche::Isolated);
+            .any(|a| a.bank.config.risk_tier == RiskTier::Isolated);
 
         check!(
-            !is_in_isolated_risk_tranche || n_balances_with_liablities == 1,
+            !is_in_isolated_risk_tier || n_balances_with_liablities == 1,
             MarginfiError::IsolatedAccountIllegalState
         );
 
