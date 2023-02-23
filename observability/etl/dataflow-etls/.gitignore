@@ -1,4 +1,5 @@
 __pycache__
+.mypy_cache
 .venv
 poetry.lock
 parsed_event_*
