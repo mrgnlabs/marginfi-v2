@@ -1,4 +1,4 @@
-FROM gcr.io/dataflow-templates-base/python3-template-launcher-base
+FROM gcr.io/dataflow-templates-base/python39-template-launcher-base
 
 ARG WORKDIR=/dataflow/template
 RUN mkdir -p ${WORKDIR}
@@ -6,8 +6,8 @@ WORKDIR ${WORKDIR}
 
 COPY requirements.txt .
 COPY job.py .
-COPY idls .
-COPY dataflow_etls .
+COPY idls/ idls/
+COPY dataflow_etls/ dataflow_etls/
 
 ENV FLEX_TEMPLATE_PYTHON_REQUIREMENTS_FILE="/${WORKDIR}/requirements.txt"
 ENV FLEX_TEMPLATE_PYTHON_PY_FILE="/${WORKDIR}/job.py"

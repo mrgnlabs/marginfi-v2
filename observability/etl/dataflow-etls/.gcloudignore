@@ -1,0 +1,8 @@
+# Ignore everything except for Python files and the requirements file.
+*
+!idls/
+!dataflow_etls/
+!Dockerfile
+!*.py
+!*.json
+!requirements.txt

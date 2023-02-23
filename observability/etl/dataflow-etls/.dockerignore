@@ -1,0 +1,7 @@
+# Ignore everything except for Python files and the requirements file.
+*
+!idls/
+!dataflow_etls/
+!*.py
+!*.json
+!requirements.txt

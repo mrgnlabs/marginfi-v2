@@ -73,7 +73,7 @@ def extract_events_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
     return ix_events
 
 
-def dictionify_record(record: Record) -> Dict:
+def dictionify_record(record: Record) -> Dict[str, Any]:
     return asdict(record)
 
 
