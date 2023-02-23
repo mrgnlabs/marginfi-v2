@@ -57,6 +57,7 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
             print(f"discarding unsupported event in tx {ix.signature}")
             print(event)
         else:
+            # noinspection PyPep8Naming
             RecordType = EVENT_TO_RECORD_TYPE[event.name]
             records.append(RecordType(event, ix, parsed_ix))
 
@@ -77,7 +78,7 @@ def extract_events_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
 
 def run(
         input_table: str,
-        target_dataset: str,
+        output_table_namespace: str,
         cluster: Cluster,
         min_idl_version: int,
         start_date: Optional[str] = None,
@@ -155,7 +156,7 @@ def run(
             LendingAccountLiquidateRecord.get_tag()
         )
 
-        if target_dataset == "local_file":  # For testing purposes
+        if output_table_namespace == "local_file":  # For testing purposes
             write_marginfi_group_create_records = beam.io.WriteToText("local_file_marginfi_group_create_records")
             write_marginfi_group_configure_records = beam.io.WriteToText("local_file_marginfi_group_configure_records")
             write_lending_pool_bank_create_records = beam.io.WriteToText("local_file_lending_pool_bank_create_records")
@@ -220,13 +221,13 @@ def main() -> None:
         type=str,
         required=True,
         help="Input BigQuery table specified as: "
-             "PROJECT:DATASET.TABLE or DATASET.TABLE.",
+             "PROJECT.DATASET.TABLE.",
     )
     parser.add_argument(
-        "--target_dataset",
+        "--output_table_namespace",
         type=str,
         required=True,
-        help="Output BigQuery dataset where event tables are located: PROJECT:DATASET",
+        help="Output BigQuery namespace where event tables are located: PROJECT:DATASET.TABLE",
     )
     parser.add_argument(
         "--cluster",
@@ -256,7 +257,7 @@ def main() -> None:
 
     run(
         input_table=known_args.input_table,
-        target_dataset=known_args.target_dataset,
+        output_table_namespace=known_args.output_table_namespace,
         cluster=known_args.cluster,
         min_idl_version=known_args.min_idl_version,
         start_date=known_args.start_date,

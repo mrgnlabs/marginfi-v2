@@ -6,6 +6,8 @@ WORKDIR ${WORKDIR}
 
 COPY requirements.txt .
 COPY job.py .
+COPY idls .
+COPY dataflow_etls .
 
 ENV FLEX_TEMPLATE_PYTHON_REQUIREMENTS_FILE="/${WORKDIR}/requirements.txt"
 ENV FLEX_TEMPLATE_PYTHON_PY_FILE="/${WORKDIR}/job.py"

@@ -1,5 +1,5 @@
 {
-  "name": "event-parsing-etl-batch",
+  "name": "event-parsing-batch",
   "description": "Parses individual raw transactions from a BigQuery table and stores them in another BigQuery table.",
   "parameters": [
     {
@@ -11,12 +11,26 @@
       ]
     },
     {
-      "name": "output_table",
-      "label": "BigQuery output table name.",
-      "helpText": "Name of the BigQuery output table name.",
+      "name": "output_table_namespace",
+      "label": "BigQuery output tables namespace.",
+      "helpText": "Namespace where the BigQuery output tables are located.",
       "regexes": [
         "([^:]+:)?[^.]+[.].+"
       ]
+    },
+    {
+      "name": "cluster",
+      "label": "Solana cluster.",
+      "isOptional": true,
+      "helpText": "Cluster where the processed txs are executed (used to pull IDL version depending on tx slot).",
+      "regexes": ["mainnet|devnet"]
+    },
+    {
+      "name": "min_idl_version",
+      "label": "Minimum IDL version.",
+      "isOptional": true,
+      "helpText": "Minimum IDL version for which txs will be parsed. Default: 0",
+      "regexes": []
     },
     {
       "name": "start_date",
