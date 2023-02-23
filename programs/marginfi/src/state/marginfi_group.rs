@@ -821,6 +821,11 @@ impl BankConfig {
 
         self.interest_rate_config.validate()?;
 
+        if self.risk_tranche == RiskTranche::Isolated {
+            check!(asset_init_w == I80F48::ZERO, MarginfiError::InvalidConfig);
+            check!(asset_maint_w == I80F48::ZERO, MarginfiError::InvalidConfig);
+        }
+
         Ok(())
     }
 
