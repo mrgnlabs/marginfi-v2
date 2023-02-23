@@ -1,19 +1,17 @@
 #![no_main]
 
-use anchor_lang::{
-    prelude::{AccountLoader, Rent},
-    Key,
-};
+use anchor_lang::prelude::{AccountLoader, Clock};
 use anyhow::Result;
 use arbitrary::Arbitrary;
-
+use fixed::types::I80F48;
+use lazy_static::lazy_static;
 use libfuzzer_sys::fuzz_target;
-use marginfi::{prelude::MarginfiGroup, state::marginfi_group::Bank};
+use marginfi::{assert_eq_with_tolerance, state::marginfi_group::Bank};
 use marginfi_fuzz::{
-    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, MarginfiGroupAccounts, PriceChange,
-    N_BANKS, N_USERS,
+    account_state::AccountsState, arbitrary_helpers::*, metrics::Metrics, MarginfiFuzzContext,
 };
 use solana_program::program_pack::Pack;
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Arbitrary)]
 enum Action {
@@ -22,7 +20,7 @@ enum Action {
         bank: BankIdx,
         asset_amount: AssetAmount,
     },
-    Withdraw {
+    Borrow {
         account: AccountIdx,
         bank: BankIdx,
         asset_amount: AssetAmount,
@@ -31,20 +29,22 @@ enum Action {
         bank: BankIdx,
         price: PriceChange,
     },
-    AccrueInterest {
+    Repay {
+        account: AccountIdx,
         bank: BankIdx,
-        time_delta: u8,
+        asset_amount: AssetAmount,
+        repay_all: bool,
+    },
+    Withdraw {
+        account: AccountIdx,
+        bank: BankIdx,
+        asset_amount: AssetAmount,
+        withdraw_all: bool,
     },
     Liquidate {
         liquidator: AccountIdx,
         liquidatee: AccountIdx,
-        asset_bank: BankIdx,
-        liability_bank: BankIdx,
         asset_amount: AssetAmount,
-    },
-    HandleBankruptcy {
-        account: AccountIdx,
-        bank: BankIdx,
     },
 }
 
@@ -53,7 +53,7 @@ pub struct ActionSequence(Vec<Action>);
 
 impl<'a> Arbitrary<'a> for ActionSequence {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let n_actions = u.int_in_range(0..=10)? * 20;
+        let n_actions = 100;
         let mut actions = Vec::with_capacity(n_actions);
 
         for _ in 0..n_actions {
@@ -74,35 +74,84 @@ pub struct FuzzerContext {
 fuzz_target!(|data: FuzzerContext| { process_actions(data).unwrap() });
 
 fn process_actions(ctx: FuzzerContext) -> Result<()> {
-    let mut bump = bumpalo::Bump::new();
-    let mut mga = MarginfiGroupAccounts::setup(&bump);
+    let mut accounst_state = AccountsState::new();
 
-    mga.setup_banks(&bump, Rent::free(), N_BANKS, &ctx.initial_bank_configs);
-    mga.setup_users(&bump, Rent::free(), N_USERS as usize);
-
-    let al =
-        AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &mga.marginfi_group)
-            .unwrap();
-
-    assert_eq!(al.load()?.admin, mga.owner.key());
-
-    for action in ctx.action_sequence.0.iter() {
-        process_action(action, &mga)?;
+    if !*GET_LOGGER {
+        println!("Setting up logger");
     }
 
-    verify_end_state(&mga)?;
+    let mut context =
+        MarginfiFuzzContext::setup(&accounst_state, &ctx.initial_bank_configs, N_USERS as u8);
 
-    bump.reset();
+    context.metrics = METRICS.clone();
+
+    for action in ctx.action_sequence.0.iter() {
+        process_action(action, &context)?;
+    }
+
+    context.metrics.read().unwrap().print();
+    context.metrics.read().unwrap().log();
+
+    verify_end_state(&context)?;
+
+    accounst_state.reset();
 
     Ok(())
 }
 
-fn verify_end_state(mga: &MarginfiGroupAccounts) -> anyhow::Result<()> {
+static GET_LOGGER: once_cell::sync::Lazy<bool> = once_cell::sync::Lazy::new(|| {
+    #[cfg(feature = "capture_log")]
+    setup_logging().unwrap();
+    true
+});
+
+lazy_static! {
+    static ref METRICS: Arc<RwLock<Metrics>> = Arc::new(RwLock::new(Metrics::default()));
+}
+
+#[cfg(feature = "capture_log")]
+fn setup_logging() -> anyhow::Result<()> {
+    let logfile = log4rs::append::file::FileAppender::builder()
+        .encoder(Box::new(log4rs::encode::pattern::PatternEncoder::new(
+            "{l} - {m}\n",
+        )))
+        .build("log/history.log")?;
+
+    let config = log4rs::Config::builder()
+        .appender(log4rs::config::Appender::builder().build("logfile", Box::new(logfile)))
+        .build(
+            log4rs::config::Root::builder()
+                .appender("logfile")
+                .build(log::LevelFilter::Info),
+        )?;
+
+    log4rs::init_config(config)?;
+
+    println!("Starging logger");
+
+    log::info!("===========START========");
+
+    Ok(())
+}
+
+fn verify_end_state(mga: &MarginfiFuzzContext) -> anyhow::Result<()> {
     mga.banks.iter().try_for_each(|bank| {
         let bank_loader = AccountLoader::<Bank>::try_from(&bank.bank)?;
-        let bank_data = bank_loader.load()?;
+        let mut bank_data = bank_loader.load_mut()?;
 
-        let total_deposits = bank_data.get_deposit_amount(bank_data.total_deposit_shares.into())?;
+        let latest_timestamp = *mga.last_sysvar_current_timestamp.read().unwrap();
+
+        let mut clock = Clock::default();
+
+        clock.unix_timestamp = latest_timestamp as i64 + 3600;
+
+        bank_data.accrue_interest(&clock)?;
+
+        let outstanding_fees = I80F48::from(bank_data.collected_group_fees_outstanding)
+            + I80F48::from(bank_data.collected_insurance_fees_outstanding);
+
+        let total_deposits = bank_data.get_asset_amount(bank_data.total_asset_shares.into())?;
+
         let total_liabilities =
             bank_data.get_liability_amount(bank_data.total_liability_shares.into())?;
 
@@ -111,18 +160,17 @@ fn verify_end_state(mga: &MarginfiGroupAccounts) -> anyhow::Result<()> {
         let liquidity_vault_token_account =
             spl_token::state::Account::unpack(&bank.liquidity_vault.data.borrow())?;
 
-        assert_eq!(
+        marginfi_fuzz::log!("Accounted Deposits: {}, Liabs: {}, Net {}, Outstanding Fees: {}, Net with Fees {}, Value Token Balance {}, Net Without Fees {}",
+            total_deposits,
+            total_liabilities,
+            net_accounted_balance,
+            outstanding_fees,
+            net_accounted_balance + outstanding_fees,
             liquidity_vault_token_account.amount,
-            net_accounted_balance.to_num::<u64>(),
+            liquidity_vault_token_account.amount as i64 - outstanding_fees.to_num::<i64>(),
         );
 
-        // println!(
-        //     "bank: {:?} total_deposits: {:?} total_liabilities: {:?} net_accounted_balance: {:?}",
-        //     bank.bank.key(),
-        //     total_deposits,
-        //     total_liabilities,
-        //     net_accounted_balance,
-        // );
+        assert_eq_with_tolerance!(I80F48::from(liquidity_vault_token_account.amount) - outstanding_fees, net_accounted_balance, I80F48::ONE);
 
         Ok::<_, anyhow::Error>(())
     })?;
@@ -130,23 +178,40 @@ fn verify_end_state(mga: &MarginfiGroupAccounts) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn process_action(action: &Action, mga: &MarginfiGroupAccounts) -> Result<()> {
+fn process_action<'bump>(action: &Action, mga: &'bump MarginfiFuzzContext<'bump>) -> Result<()> {
+    marginfi_fuzz::log!("==================>Action {:?}", action);
     match action {
         Action::Deposit {
             account,
             bank,
             asset_amount,
-        } => mga.process_action_deposits(account, bank, asset_amount)?,
+        } => mga.process_action_deposit(account, bank, asset_amount)?,
         Action::Withdraw {
             account,
             bank,
             asset_amount,
-        } => mga.process_action_withdraw(account, bank, asset_amount)?,
-        Action::AccrueInterest { bank, time_delta } => {
-            mga.process_accrue_interest(bank, *time_delta)?
-        }
-        _ => (),
+            withdraw_all,
+        } => mga.process_action_withdraw(account, bank, asset_amount, Some(*withdraw_all))?,
+        Action::Borrow {
+            account,
+            bank,
+            asset_amount,
+        } => mga.process_action_borrow(account, bank, asset_amount)?,
+        Action::Repay {
+            account,
+            bank,
+            asset_amount,
+            repay_all,
+        } => mga.process_action_repay(account, bank, asset_amount, *repay_all)?,
+        Action::UpdateOracle { bank, price } => mga.process_update_oracle(bank, price)?,
+        Action::Liquidate {
+            liquidator,
+            liquidatee,
+            asset_amount,
+        } => mga.process_liquidate_account(liquidator, liquidatee, asset_amount)?,
     };
+
+    mga.advance_time(3600);
 
     Ok(())
 }
