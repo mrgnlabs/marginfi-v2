@@ -1,11 +1,12 @@
 FROM gcr.io/dataflow-templates-base/python39-template-launcher-base
 
+ARG JOB_DIRECTORY
 ARG WORKDIR=/dataflow/template
 RUN mkdir -p ${WORKDIR}
 WORKDIR ${WORKDIR}
 
-COPY requirements.txt .
-COPY job.py .
+COPY ${JOB_DIRECTORY}/requirements.txt .
+COPY ${JOB_DIRECTORY}/job.py .
 COPY idls/ idls/
 COPY dataflow_etls/ dataflow_etls/
 

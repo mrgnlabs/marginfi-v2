@@ -1,5 +1,5 @@
 {
-  "name": "event-parsing-batch",
+  "name": "marginfi-v2-event-parsing-stream",
   "description": "Parses individual raw transactions from a BigQuery table and stores them in another BigQuery table.",
   "parameters": [
     {

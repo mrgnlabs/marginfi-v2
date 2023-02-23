@@ -2,6 +2,5 @@
 *
 !idls/
 !dataflow_etls/
-!*.py
-!*.json
-!requirements.txt
+!jobs/*/job.py
+!jobs/*/requirements.txt
