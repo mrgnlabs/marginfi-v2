@@ -722,8 +722,7 @@ pub enum OracleKey {
 }
 
 #[repr(u64)]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum RiskTier {
     Collateral,
     /// ## Isolated Risk

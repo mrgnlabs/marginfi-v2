@@ -359,6 +359,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         match subcmd {
             GroupCommand::Get { marginfi_group: _ } => (),
             GroupCommand::GetAll {} => (),
+            #[cfg(feature = "admin")]
             _ => get_consent(&subcmd, &profile)?,
         }
     }
@@ -429,6 +430,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         match subcmd {
             BankCommand::Get { bank: _ } => (),
             BankCommand::GetAll { marginfi_group: _ } => (),
+            #[cfg(feature = "admin")]
             _ => get_consent(&subcmd, &profile)?,
         }
     }
