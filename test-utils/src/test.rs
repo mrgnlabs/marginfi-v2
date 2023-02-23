@@ -9,7 +9,9 @@ use lazy_static::lazy_static;
 use marginfi::state::marginfi_group::{BankConfigOpt, BankOperationalState};
 use marginfi::{
     constants::MAX_ORACLE_KEYS,
-    state::marginfi_group::{BankConfig, GroupConfig, InterestRateConfig, OracleSetup},
+    state::marginfi_group::{
+        BankConfig, GroupConfig, InterestRateConfig, OracleSetup, RiskTranche,
+    },
 };
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
@@ -38,6 +40,29 @@ impl TestSettings {
                 TestBankSetting {
                     mint: BankMint::SolEquivalent,
                     ..TestBankSetting::default()
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
+
+    pub fn all_banks_one_isolated() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent,
+                    config: Some(BankConfig {
+                        risk_tranche: RiskTranche::Isolated,
+                        ..*DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG
+                    }),
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
