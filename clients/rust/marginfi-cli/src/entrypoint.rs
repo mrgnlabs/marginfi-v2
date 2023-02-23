@@ -8,9 +8,9 @@ use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 #[cfg(feature = "admin")]
 use fixed::types::I80F48;
+use marginfi::state::marginfi_group::{Bank, BankOperationalState, RiskTier};
 #[cfg(any(feature = "admin", feature = "dev"))]
 use marginfi::state::marginfi_group::{BankConfigOpt, InterestRateConfigOpt};
-use marginfi::state::marginfi_group::{BankOperationalState, RiskTier};
 #[cfg(feature = "dev")]
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
@@ -412,7 +412,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             insurance_ir_fee,
             protocol_fixed_fee_apr,
             protocol_ir_fee,
-            risk_tiers,
+            risk_tier,
         ),
         #[cfg(feature = "admin")]
         GroupCommand::HandleBankruptcy {

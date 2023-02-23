@@ -2135,6 +2135,7 @@ dependencies = [
  "assert_matches",
  "bincode",
  "bytemuck",
+ "cfg-if",
  "fixed",
  "fixed-macro",
  "futures",
