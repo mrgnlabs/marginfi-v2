@@ -21,6 +21,7 @@ use marginfi::{
     },
 };
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
+
 #[cfg(feature = "dev")]
 use type_layout::TypeLayout;
 
@@ -54,6 +55,11 @@ pub enum Command {
     Account {
         #[clap(subcommand)]
         subcmd: AccountCommand,
+    },
+    #[cfg(feature = "lip")]
+    Lip {
+        #[clap(subcommand)]
+        subcmd: LipCommand,
     },
 }
 
@@ -147,13 +153,28 @@ pub enum BankCommand {
         liability_weight_maint: Option<f32>,
 
         #[clap(long)]
-        deposit_limit: Option<u64>,
+        deposit_limit_ui: Option<f64>,
 
         #[clap(long)]
-        borrow_limit: Option<u64>,
+        borrow_limit_ui: Option<f64>,
 
         #[clap(long, arg_enum)]
         operational_state: Option<BankOperationalStateArg>,
+
+        #[clap(long, help = "Optimal utilization rate")]
+        opr_ur: Option<f64>,
+        #[clap(long, help = "Plateau interest rate")]
+        p_ir: Option<f64>,
+        #[clap(long, help = "Max interest rate")]
+        m_ir: Option<f64>,
+        #[clap(long, help = "Insurance fee fixed APR")]
+        if_fa: Option<f64>,
+        #[clap(long, help = "Insurance IR fee")]
+        if_ir: Option<f64>,
+        #[clap(long, help = "Protocol fixed fee APR")]
+        pf_fa: Option<f64>,
+        #[clap(long, help = "Protocol IR fee")]
+        pf_ir: Option<f64>,
     },
 }
 
@@ -227,6 +248,13 @@ pub enum AccountCommand {
     Create,
 }
 
+#[derive(Debug, Parser)]
+#[cfg(feature = "lip")]
+pub enum LipCommand {
+    ListCampaigns,
+    ListDeposits,
+}
+
 pub fn entry(opts: Opts) -> Result<()> {
     env_logger::init();
 
@@ -237,6 +265,8 @@ pub fn entry(opts: Opts) -> Result<()> {
         #[cfg(feature = "dev")]
         Command::InspectPadding {} => inspect_padding(),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
+        #[cfg(feature = "lip")]
+        Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
     }
 }
 
@@ -370,25 +400,50 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            deposit_limit,
-            borrow_limit,
+            deposit_limit_ui,
+            borrow_limit_ui,
             operational_state,
             bank_pk,
-        } => processor::bank_configure(
-            config,
-            profile, //
-            bank_pk,
-            BankConfigOpt {
-                asset_weight_init: asset_weight_init.map(|x| I80F48::from_num(x).into()),
-                asset_weight_maint: asset_weight_maint.map(|x| I80F48::from_num(x).into()),
-                liability_weight_init: liability_weight_init.map(|x| I80F48::from_num(x).into()),
-                liability_weight_maint: liability_weight_maint.map(|x| I80F48::from_num(x).into()),
-                deposit_limit,
-                borrow_limit,
-                operational_state: operational_state.map(|x| x.into()),
-                oracle: None,
-            },
-        ),
+            opr_ur,
+            p_ir,
+            m_ir,
+            if_fa,
+            if_ir,
+            pf_fa,
+            pf_ir,
+        } => {
+            let bank = config.mfi_program.account::<Bank>(bank_pk).unwrap();
+            processor::bank_configure(
+                config,
+                profile, //
+                bank_pk,
+                BankConfigOpt {
+                    asset_weight_init: asset_weight_init.map(|x| I80F48::from_num(x).into()),
+                    asset_weight_maint: asset_weight_maint.map(|x| I80F48::from_num(x).into()),
+                    liability_weight_init: liability_weight_init
+                        .map(|x| I80F48::from_num(x).into()),
+                    liability_weight_maint: liability_weight_maint
+                        .map(|x| I80F48::from_num(x).into()),
+                    deposit_limit: deposit_limit_ui.map(|ui_amount| {
+                        spl_token::ui_amount_to_amount(ui_amount, bank.mint_decimals)
+                    }),
+                    borrow_limit: borrow_limit_ui.map(|ui_amount| {
+                        spl_token::ui_amount_to_amount(ui_amount, bank.mint_decimals)
+                    }),
+                    operational_state: operational_state.map(|x| x.into()),
+                    oracle: None,
+                    interest_rate_config: Some(InterestRateConfigOpt {
+                        optimal_utilization_rate: opr_ur.map(|x| I80F48::from_num(x).into()),
+                        plateau_interest_rate: p_ir.map(|x| I80F48::from_num(x).into()),
+                        max_interest_rate: m_ir.map(|x| I80F48::from_num(x).into()),
+                        insurance_fee_fixed_apr: if_fa.map(|x| I80F48::from_num(x).into()),
+                        insurance_ir_fee: if_ir.map(|x| I80F48::from_num(x).into()),
+                        protocol_fixed_fee_apr: pf_fa.map(|x| I80F48::from_num(x).into()),
+                        protocol_ir_fee: pf_ir.map(|x| I80F48::from_num(x).into()),
+                    }),
+                },
+            )
+        }
     }
 }
 
@@ -446,10 +501,26 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
     Ok(())
 }
 
+#[cfg(feature = "lip")]
+fn process_lip_subcmd(
+    subcmd: LipCommand,
+    cfg_override: &GlobalOptions,
+) -> Result<(), anyhow::Error> {
+    let profile = load_profile()?;
+    let config = profile.get_config(Some(cfg_override))?;
+
+    match subcmd {
+        LipCommand::ListCampaigns => processor::process_list_lip_campaigns(&config),
+        LipCommand::ListDeposits => processor::process_list_deposits(&config),
+    }
+
+    Ok(())
+}
+
 fn get_consent<T: std::fmt::Debug>(cmd: T, profile: &Profile) -> Result<()> {
     let mut input = String::new();
-    println!("Command: {:#?}", cmd);
-    println!("{:#?}", profile);
+    println!("Command: {cmd:#?}");
+    println!("{profile:#?}");
     println!(
         "Type the name of the profile [{}] to continue",
         profile.name.clone()

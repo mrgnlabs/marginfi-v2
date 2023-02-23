@@ -11,6 +11,7 @@ path = "src/bin/main.rs"
 devnet = ["marginfi/devnet"]
 admin = []
 dev = []
+lip = []
 
 [dependencies]
 clap = { version = "3.2.6", features = ["derive"] }
@@ -27,6 +28,7 @@ marginfi = { path = "../../../programs/marginfi", version = "0.1.0", features = 
     "client",
     "no-entrypoint",
 ] }
+liquidity-incentive-program = { path = "../../../programs/liquidity-incentive-program", features = ["no-entrypoint"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.81"
 fixed = "1.12.0"
@@ -36,3 +38,4 @@ solana-account-decoder = "1.14.12"
 type-layout = "0.2.0"
 spl-token = "3.5.0"
 spl-associated-token-account = "1.1.2"
+chrono = "0.4.23"

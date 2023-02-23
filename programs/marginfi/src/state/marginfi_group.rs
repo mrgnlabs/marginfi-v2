@@ -15,7 +15,6 @@ use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 use std::{
-    collections::BTreeMap,
     fmt::{Debug, Formatter},
     ops::Not,
 };
@@ -184,6 +183,37 @@ impl InterestRateConfig {
 
         Ok(())
     }
+
+    pub fn update(&mut self, ir_config: &InterestRateConfigOpt) {
+        set_if_some!(
+            self.optimal_utilization_rate,
+            ir_config.optimal_utilization_rate
+        );
+        set_if_some!(self.plateau_interest_rate, ir_config.plateau_interest_rate);
+        set_if_some!(self.max_interest_rate, ir_config.max_interest_rate);
+        set_if_some!(
+            self.insurance_fee_fixed_apr,
+            ir_config.insurance_fee_fixed_apr
+        );
+        set_if_some!(self.insurance_ir_fee, ir_config.insurance_ir_fee);
+        set_if_some!(
+            self.protocol_fixed_fee_apr,
+            ir_config.protocol_fixed_fee_apr
+        );
+        set_if_some!(self.protocol_ir_fee, ir_config.protocol_ir_fee);
+    }
+}
+
+#[derive(AnchorDeserialize, AnchorSerialize, Default, Eq, PartialEq, Clone)]
+pub struct InterestRateConfigOpt {
+    pub optimal_utilization_rate: Option<WrappedI80F48>,
+    pub plateau_interest_rate: Option<WrappedI80F48>,
+    pub max_interest_rate: Option<WrappedI80F48>,
+
+    pub insurance_fee_fixed_apr: Option<WrappedI80F48>,
+    pub insurance_ir_fee: Option<WrappedI80F48>,
+    pub protocol_fixed_fee_apr: Option<WrappedI80F48>,
+    pub protocol_ir_fee: Option<WrappedI80F48>,
 }
 
 assert_struct_size!(Bank, 1856);
@@ -375,6 +405,10 @@ impl Bank {
 
         set_if_some!(self.config.oracle_keys, config.oracle.map(|o| o.keys));
 
+        if let Some(ir_config) = &config.interest_rate_config {
+            self.config.interest_rate_config.update(ir_config);
+        }
+
         self.config.validate()?;
 
         Ok(())
@@ -410,6 +444,8 @@ impl Bank {
         let total_assets = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
+        self.last_update = clock.unix_timestamp;
+
         if (total_assets == I80F48::ZERO) || (total_liabilities == I80F48::ZERO) {
             return Ok(());
         }
@@ -430,8 +466,6 @@ impl Bank {
 
         self.asset_share_value = asset_share_value.into();
         self.liability_share_value = liability_share_value.into();
-
-        self.last_update = clock.unix_timestamp;
 
         self.collected_group_fees_outstanding = {
             fees_collected
@@ -830,6 +864,8 @@ pub struct BankConfigOpt {
     pub operational_state: Option<BankOperationalState>,
 
     pub oracle: Option<OracleConfig>,
+
+    pub interest_rate_config: Option<InterestRateConfigOpt>,
 }
 
 #[cfg_attr(
@@ -1088,11 +1124,6 @@ mod tests {
         let post_net_assets = bank.get_asset_amount(bank.total_asset_shares.into())?
             + post_collected_fees
             - bank.get_liability_amount(bank.total_liability_shares.into())?;
-
-        let post_assets = bank.get_asset_amount(bank.total_asset_shares.into())?;
-        let post_liabilities = bank.get_liability_amount(bank.total_liability_shares.into())?;
-        let post_fees = I80F48::from(bank.collected_group_fees_outstanding)
-            + I80F48::from(bank.collected_insurance_fees_outstanding);
 
         assert_eq_with_tolerance!(pre_net_assets, post_net_assets, I80F48!(1));
 

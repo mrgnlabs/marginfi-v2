@@ -29,7 +29,7 @@ pub fn process_transaction(
                     .logs
                     .unwrap()
                     .into_iter()
-                    .for_each(|line| println!("{}", line));
+                    .for_each(|line| println!("{line}"));
                 println!("----------------------------");
                 Ok(Signature::default())
             }
