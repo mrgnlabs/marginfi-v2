@@ -3,6 +3,7 @@ use crate::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
+    events::{GroupEventHeader, LendingPoolBankCreateEvent},
     state::marginfi_group::{Bank, BankConfig, MarginfiGroup},
     MarginfiResult,
 };
@@ -23,10 +24,11 @@ pub fn lending_pool_add_bank(
         liquidity_vault,
         insurance_vault,
         fee_vault,
+        bank: bank_loader,
         ..
     } = ctx.accounts;
 
-    let mut bank = ctx.accounts.bank.load_init()?;
+    let mut bank = bank_loader.load_init()?;
 
     let liquidity_vault_bump = *ctx.bumps.get("liquidity_vault").unwrap();
     let liquidity_vault_authority_bump = *ctx.bumps.get("liquidity_vault_authority").unwrap();
@@ -54,6 +56,15 @@ pub fn lending_pool_add_bank(
 
     bank.config.validate()?;
     bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
+
+    emit!(LendingPoolBankCreateEvent {
+        header: GroupEventHeader {
+            marginfi_group: ctx.accounts.marginfi_group.key(),
+            signer: Some(*ctx.accounts.admin.key)
+        },
+        bank: bank_loader.key(),
+        mint: bank_mint.key(),
+    });
 
     Ok(())
 }

@@ -37,7 +37,7 @@ jobs:
           components: rustfmt, clippy
           default: true
       - run: cargo fmt -- --check
-      - run: cargo clippy --features=test,test-bpf -- --allow clippy::result_large_err --allow clippy::await_holding_refcell_ref --allow clippy::comparison_chain --allow clippy::bind_instead_of_map
+      - run: cargo clippy --features=test,test-bpf,admin -- --allow clippy::result_large_err --allow clippy::await_holding_refcell_ref --allow clippy::comparison_chain --allow clippy::bind_instead_of_map
 
   build:
     runs-on: ubuntu-latest
@@ -84,4 +84,11 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
           solana-keygen new -o "$HOME/.config/solana/id.json" --no-passphrase --silent
-      - run: cargo test --features=test,test-bpf -- --skip campaign --test-threads=1
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: '16.x'
+          registry-url: 'https://registry.npmjs.org'
+      - name: install anchor cli
+        run: npm install -g @coral-xyz/anchor-cli@0.26.0
+      - run: ./scripts/test.sh

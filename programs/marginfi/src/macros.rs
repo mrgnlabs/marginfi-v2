@@ -46,14 +46,14 @@ macro_rules! set_if_some {
 #[macro_export]
 macro_rules! bank_seed {
     ($vault_type: expr, $bank_pk: expr) => {
-        &[$vault_type.get_seed(), &$bank_pk.to_bytes()]
+        &[$vault_type.get_seed(), &$bank_pk.to_bytes()] as &[&[u8]]
     };
 }
 
 #[macro_export]
 macro_rules! bank_authority_seed {
     ($vault_type: expr, $bank_pk: expr) => {
-        &[$vault_type.get_authority_seed(), &$bank_pk.to_bytes()]
+        &[$vault_type.get_authority_seed(), &$bank_pk.to_bytes()] as &[&[u8]]
     };
 }
 

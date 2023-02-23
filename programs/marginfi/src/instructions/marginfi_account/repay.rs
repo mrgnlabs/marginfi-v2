@@ -1,14 +1,16 @@
-use crate::prelude::{MarginfiGroup, MarginfiResult};
-use crate::state::marginfi_group::Bank;
 use crate::{
     constants::LIQUIDITY_VAULT_SEED,
-    state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
+    events::{AccountEventHeader, LendingAccountRepayEvent},
+    prelude::{MarginfiGroup, MarginfiResult},
+    state::{
+        marginfi_account::{BankAccountWrapper, MarginfiAccount},
+        marginfi_group::Bank,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, Transfer};
 use fixed::types::I80F48;
-use solana_program::clock::Clock;
-use solana_program::sysvar::Sysvar;
+use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset repaid
@@ -22,7 +24,7 @@ pub fn lending_account_repay(
     repay_all: Option<bool>,
 ) -> MarginfiResult {
     let LendingAccountRepay {
-        marginfi_account,
+        marginfi_account: marginfi_account_loader,
         signer,
         signer_token_account,
         bank_liquidity_vault,
@@ -32,11 +34,14 @@ pub fn lending_account_repay(
     } = ctx.accounts;
 
     let repay_all = repay_all.unwrap_or(false);
-
-    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
-
     let mut bank = bank_loader.load_mut()?;
-    let mut marginfi_account = marginfi_account.load_mut()?;
+    let mut marginfi_account = marginfi_account_loader.load_mut()?;
+
+    bank.accrue_interest(
+        Clock::get()?.unix_timestamp,
+        #[cfg(not(feature = "client"))]
+        bank_loader.key(),
+    )?;
 
     let mut bank_account = BankAccountWrapper::find(
         &bank_loader.key(),
@@ -61,6 +66,19 @@ pub fn lending_account_repay(
         },
         token_program.to_account_info(),
     )?;
+
+    emit!(LendingAccountRepayEvent {
+        header: AccountEventHeader {
+            signer: Some(ctx.accounts.signer.key()),
+            marginfi_account: marginfi_account_loader.key(),
+            marginfi_account_authority: marginfi_account.authority,
+            marginfi_group: marginfi_account.group,
+        },
+        bank: bank_loader.key(),
+        mint: bank.mint,
+        amount: spl_deposit_amount,
+        close_balance: repay_all,
+    });
 
     Ok(())
 }

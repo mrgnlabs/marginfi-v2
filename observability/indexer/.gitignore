@@ -1,0 +1,8 @@
+# rust/cargo
+target/
+
+# IDEs
+.idea
+.vscode
+
+.env

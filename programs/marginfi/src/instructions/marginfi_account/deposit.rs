@@ -1,8 +1,11 @@
-use crate::prelude::{MarginfiGroup, MarginfiResult};
-use crate::state::marginfi_group::Bank;
 use crate::{
     constants::LIQUIDITY_VAULT_SEED,
-    state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
+    events::{AccountEventHeader, LendingAccountDepositEvent},
+    prelude::*,
+    state::{
+        marginfi_account::{BankAccountWrapper, MarginfiAccount},
+        marginfi_group::Bank,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, Transfer};
@@ -18,7 +21,7 @@ use solana_program::sysvar::Sysvar;
 /// Will error if there is an existing liability <=> repaying is not allowed.
 pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64) -> MarginfiResult {
     let LendingAccountDeposit {
-        marginfi_account,
+        marginfi_account: marginfi_account_loader,
         signer,
         signer_token_account,
         bank_liquidity_vault,
@@ -27,10 +30,14 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
         ..
     } = ctx.accounts;
 
-    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
-
     let mut bank = bank_loader.load_mut()?;
-    let mut marginfi_account = marginfi_account.load_mut()?;
+    let mut marginfi_account = marginfi_account_loader.load_mut()?;
+
+    bank.accrue_interest(
+        Clock::get()?.unix_timestamp,
+        #[cfg(not(feature = "client"))]
+        bank_loader.key(),
+    )?;
 
     let mut bank_account = BankAccountWrapper::find_or_create(
         &bank_loader.key(),
@@ -48,6 +55,18 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
         },
         token_program.to_account_info(),
     )?;
+
+    emit!(LendingAccountDepositEvent {
+        header: AccountEventHeader {
+            signer: Some(signer.key()),
+            marginfi_account: marginfi_account_loader.key(),
+            marginfi_account_authority: marginfi_account.authority,
+            marginfi_group: marginfi_account.group,
+        },
+        bank: bank_loader.key(),
+        mint: bank.mint,
+        amount,
+    });
 
     Ok(())
 }

@@ -31,7 +31,6 @@ solana-sdk = "1.14.13"
 
 [dependencies.marginfi]
 path = "../programs/marginfi"
-features = [ "client" ]
 
 [dependencies.liquidity-incentive-program]
 path = "../programs/liquidity-incentive-program"

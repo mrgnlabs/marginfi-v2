@@ -1,4 +1,6 @@
 use super::marginfi_account::WeightType;
+#[cfg(not(feature = "client"))]
+use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_size, check,
     constants::{
@@ -37,7 +39,7 @@ impl MarginfiGroup {
     /// Configure the group parameters.
     /// This function validates config values so the group remains in a valid state.
     /// Any modification of group config should happen through this function.
-    pub fn configure(&mut self, config: GroupConfig) -> MarginfiResult {
+    pub fn configure(&mut self, config: &GroupConfig) -> MarginfiResult {
         set_if_some!(self.admin, config.admin);
 
         Ok(())
@@ -52,11 +54,8 @@ impl MarginfiGroup {
     }
 }
 
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, Clone, TypeLayout)
-)]
-#[derive(AnchorSerialize, AnchorDeserialize, Default)]
+#[cfg_attr(any(feature = "test", feature = "client"), derive(TypeLayout))]
+#[derive(AnchorSerialize, AnchorDeserialize, Default, Debug, Clone)]
 pub struct GroupConfig {
     pub admin: Option<Pubkey>,
 }
@@ -73,9 +72,9 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
+    derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Default, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -204,7 +203,11 @@ impl InterestRateConfig {
     }
 }
 
-#[derive(AnchorDeserialize, AnchorSerialize, Default, Eq, PartialEq, Clone)]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(Debug, PartialEq, Eq, TypeLayout)
+)]
+#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone)]
 pub struct InterestRateConfigOpt {
     pub optimal_utilization_rate: Option<WrappedI80F48>,
     pub plateau_interest_rate: Option<WrappedI80F48>,
@@ -359,12 +362,12 @@ impl Bank {
 
         if bypass_borrow_limit.not() && shares.is_positive() && self.config.is_borrow_limit_active()
         {
-            let total_liablity_amount =
+            let total_liability_amount =
                 self.get_liability_amount(self.total_liability_shares.into())?;
             let borrow_limit = I80F48::from_num(self.config.borrow_limit);
 
             check!(
-                total_liablity_amount < borrow_limit,
+                total_liability_amount < borrow_limit,
                 crate::prelude::MarginfiError::BankLiabilityCapacityExceeded
             )
         }
@@ -430,12 +433,15 @@ impl Bank {
     ///
     /// Collected protocol and insurance fees are stored in state.
     /// A separate instruction is required to withdraw these fees.
-    pub fn accrue_interest(&mut self, clock: &Clock) -> MarginfiResult<()> {
+    pub fn accrue_interest(
+        &mut self,
+        current_timestamp: i64,
+        #[cfg(not(feature = "client"))] bank: Pubkey,
+    ) -> MarginfiResult<()> {
         #[cfg(not(feature = "client"))]
         solana_program::log::sol_log_compute_units();
-        let time_delta: u64 = (clock.unix_timestamp - self.last_update)
-            .try_into()
-            .unwrap();
+
+        let time_delta: u64 = (current_timestamp - self.last_update).try_into().unwrap();
 
         if time_delta == 0 {
             return Ok(());
@@ -444,9 +450,22 @@ impl Bank {
         let total_assets = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
-        self.last_update = clock.unix_timestamp;
+        self.last_update = current_timestamp;
 
         if (total_assets == I80F48::ZERO) || (total_liabilities == I80F48::ZERO) {
+            #[cfg(not(feature = "client"))]
+            emit!(LendingPoolBankAccrueInterestEvent {
+                header: GroupEventHeader {
+                    marginfi_group: self.group,
+                    signer: None
+                },
+                bank,
+                mint: self.mint,
+                delta: time_delta,
+                fees_collected: 0.,
+                insurance_collected: 0.,
+            });
+
             return Ok(());
         }
 
@@ -482,7 +501,21 @@ impl Bank {
         };
 
         #[cfg(not(feature = "client"))]
-        solana_program::log::sol_log_compute_units();
+        {
+            solana_program::log::sol_log_compute_units();
+
+            emit!(LendingPoolBankAccrueInterestEvent {
+                header: GroupEventHeader {
+                    marginfi_group: self.group,
+                    signer: None
+                },
+                bank,
+                mint: self.mint,
+                delta: time_delta,
+                fees_collected: fees_collected.to_num::<f64>(),
+                insurance_collected: insurance_collected.to_num::<f64>(),
+            });
+        }
 
         Ok(())
     }
@@ -691,9 +724,9 @@ assert_struct_size!(BankConfig, 544);
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
+    derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(AnchorDeserialize, AnchorSerialize)]
+#[derive(AnchorDeserialize, AnchorSerialize, Debug)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub asset_weight_init: WrappedI80F48,
@@ -1116,7 +1149,8 @@ mod tests {
 
         clock.unix_timestamp = current_timestamp + 3600;
 
-        bank.accrue_interest(&clock).unwrap();
+        bank.accrue_interest(current_timestamp, Pubkey::default())
+            .unwrap();
 
         let post_collected_fees = I80F48::from(bank.collected_group_fees_outstanding)
             + I80F48::from(bank.collected_insurance_fees_outstanding);

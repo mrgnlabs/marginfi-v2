@@ -305,7 +305,7 @@ async fn marginfi_account_withdraw_failure_borrow_limit() -> anyhow::Result<()> 
             deposit_limit: Some(native!(10001, "USDC")),
             ..Default::default()
         })
-        .await;
+        .await?;
 
     let marginfi_account_f = test_f.create_marginfi_account().await;
 

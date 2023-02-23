@@ -1,3 +1,4 @@
+use crate::events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent};
 use crate::{
     bank_signer, check,
     constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED},
@@ -35,7 +36,11 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
 
     let mut bank = bank_loader.load_mut()?;
 
-    bank.accrue_interest(&Clock::get()?)?;
+    bank.accrue_interest(
+        Clock::get()?.unix_timestamp,
+        #[cfg(not(feature = "client"))]
+        bank_loader.key(),
+    )?;
 
     let lending_account_balance = marginfi_account
         .lending_account
@@ -92,6 +97,20 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
         &mut marginfi_account.lending_account,
     )?
     .repay(bad_debt)?;
+
+    emit!(LendingPoolBankHandleBankruptcyEvent {
+        header: AccountEventHeader {
+            signer: Some(ctx.accounts.admin.key()),
+            marginfi_account: marginfi_account_loader.key(),
+            marginfi_account_authority: marginfi_account.authority,
+            marginfi_group: marginfi_account.group,
+        },
+        bank: bank_loader.key(),
+        mint: bank.mint,
+        bad_debt: bad_debt.to_num::<f64>(),
+        covered_amount: covered_by_insurance.to_num::<f64>(),
+        socialized_amount: socialized_loss.to_num::<f64>(),
+    });
 
     Ok(())
 }

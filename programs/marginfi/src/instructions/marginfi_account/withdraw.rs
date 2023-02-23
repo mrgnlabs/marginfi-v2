@@ -1,19 +1,17 @@
-use crate::prelude::*;
-use crate::state::marginfi_account::{RiskEngine, RiskRequirementType};
-use crate::state::marginfi_group::Bank;
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
+    events::{AccountEventHeader, LendingAccountWithdrawEvent},
+    prelude::*,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount},
-        marginfi_group::BankVaultType,
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType},
+        marginfi_group::{Bank, BankVaultType},
     },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
-use solana_program::clock::Clock;
-use solana_program::sysvar::Sysvar;
+use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset withdrawn
@@ -28,7 +26,7 @@ pub fn lending_account_withdraw(
     withdraw_all: Option<bool>,
 ) -> MarginfiResult {
     let LendingAccountWithdraw {
-        marginfi_account,
+        marginfi_account: marginfi_account_loader,
         destination_token_account,
         bank_liquidity_vault,
         token_program,
@@ -38,10 +36,13 @@ pub fn lending_account_withdraw(
     } = ctx.accounts;
 
     let withdraw_all = withdraw_all.unwrap_or(false);
+    let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    bank_loader.load_mut()?.accrue_interest(&Clock::get()?)?;
-
-    let mut marginfi_account = marginfi_account.load_mut()?;
+    bank_loader.load_mut()?.accrue_interest(
+        Clock::get()?.unix_timestamp,
+        #[cfg(not(feature = "client"))]
+        bank_loader.key(),
+    )?;
 
     {
         let mut bank = bank_loader.load_mut()?;
@@ -75,6 +76,19 @@ pub fn lending_account_withdraw(
                 liquidity_vault_authority_bump
             ),
         )?;
+
+        emit!(LendingAccountWithdrawEvent {
+            header: AccountEventHeader {
+                signer: Some(ctx.accounts.signer.key()),
+                marginfi_account: marginfi_account_loader.key(),
+                marginfi_account_authority: marginfi_account.authority,
+                marginfi_group: marginfi_account.group,
+            },
+            bank: bank_loader.key(),
+            mint: bank.mint,
+            amount: spl_withdraw_amount,
+            close_balance: withdraw_all,
+        });
     }
 
     // Check account health, if below threshold fail transaction
