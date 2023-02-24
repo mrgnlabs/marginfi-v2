@@ -3,10 +3,10 @@ import json
 import re
 from dataclasses import dataclass, asdict
 from datetime import datetime
-from typing import List, Any, Callable, Optional, Dict, Sequence, Tuple, Generator, Union
+from typing import List, Any, Callable, Optional, Dict, Sequence, Tuple, Generator, Union, TypedDict
+from decimal import Decimal
 
 from solders.message import Message, MessageV0
-
 from based58 import based58  # type: ignore
 from anchorpy import NamedInstruction
 from solders.instruction import CompiledInstruction
@@ -42,8 +42,23 @@ PROGRAM_LOG = "Program log: "
 PROGRAM_DATA = "Program data: "
 LOG_TRUNCATED = "Log truncated"
 
+TransactionRaw = TypedDict('TransactionRaw', {
+    'id': str,
+    'created_at': datetime,
+    'timestamp': datetime,
+    'signature': str,
+    'indexing_address': str,
+    'slot': Decimal,
+    'signer': str,
+    'success': bool,
+    'version': str,
+    'fee': Decimal,
+    'meta': str,
+    'message': str,
+})
 
-def extract_events_from_tx(tx: Any, min_idl_version: int, cluster: Cluster) -> List[Record]:
+
+def extract_events_from_tx(tx: TransactionRaw, min_idl_version: int, cluster: Cluster) -> List[Record]:
     indexed_program_id_str = tx["indexing_address"]
     indexed_program_id = Pubkey.from_string(indexed_program_id_str)
     tx_slot = int(tx["slot"])

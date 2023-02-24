@@ -1,18 +1,37 @@
 import argparse
+from dateutil import parser
 import json
 import logging
 from typing import List, Optional, Union, Any, Dict
+from decimal import Decimal
+
+
 import apache_beam as beam  # type: ignore
 from apache_beam.options.pipeline_options import PipelineOptions  # type: ignore
 # import apache_beam.transforms.window as window
 
 from dataflow_etls.orm.events import Record, RecordTypes
 from dataflow_etls.idl_versions import Cluster
-from dataflow_etls.transaction_parsing import extract_events_from_tx, dictionify_record, DispatchEventsDoFn
+from dataflow_etls.transaction_parsing import extract_events_from_tx, dictionify_record, DispatchEventsDoFn, \
+    TransactionRaw
 
 
-def parse_json(message: bytes) -> Dict[str, Any]:
-    return json.loads(message.decode("utf-8"))
+def parse_json(message: bytes) -> TransactionRaw:
+    tx_raw = json.loads(message.decode("utf-8"))
+    return dict(
+        id=tx_raw["id"],
+        created_at=parser.parse(tx_raw["created_at"]),
+        timestamp=parser.parse(tx_raw["timestamp"]),
+        signature=tx_raw["signature"],
+        indexing_address=tx_raw["indexing_address"],
+        slot=Decimal(tx_raw["slot"]),
+        signer=tx_raw["signer"],
+        success=bool(tx_raw["success"]),
+        version=tx_raw["version"],
+        fee=Decimal(tx_raw["fee"]),
+        meta=tx_raw["meta"],
+        message=tx_raw["message"],
+    )
 
 
 def run(
@@ -31,7 +50,7 @@ def run(
         return extract_events_from_tx(tx, min_idl_version, cluster)
 
     """Build and run the pipeline."""
-    pipeline_options = PipelineOptions(beam_args, save_main_session=True)
+    pipeline_options = PipelineOptions(beam_args, save_main_session=True, streaming=True)
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
         # Define steps
