@@ -10,7 +10,6 @@ COPY setup.py .
 COPY MANIFEST.in .
 COPY dataflow_etls/ dataflow_etls/
 
-
 ENV FLEX_TEMPLATE_PYTHON_PY_FILE="/${WORKDIR}/job.py"
 ENV FLEX_TEMPLATE_PYTHON_SETUP_FILE="/${WORKDIR}/setup.py"
 

@@ -2,20 +2,23 @@
 set -e
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-ROOT_DIR=$(realpath "${SCRIPT_DIR}/../../")
+ROOT_DIR=$(realpath "${SCRIPT_DIR}/../")
 
-image_version=$1
+job_dir=$1
+image_version=$2
 
+[ -z "$job_dir" ] && echo "Missing job_dir argument" && exit 1
 [ -z "$image_version" ] && echo "Missing image_version argument" && exit 1
 
-job_dir="$SCRIPT_DIR"
+
+job_dir=$(realpath "$job_dir")
+job_name=$(basename "$job_dir")
 job_dir_rel=$(realpath --relative-to="$ROOT_DIR" "$job_dir")
-job_name=$(basename "$job_dir_rel")
 
 cd "$ROOT_DIR"
 
 local_image_name="$job_name"
 gcp_image_name="us-east1-docker.pkg.dev/marginfi-dev/main/dataflow/$local_image_name"
 
-docker build -f "$job_dir_rel/Dockerfile" --build-arg JOB_DIRECTORY="$job_dir_rel" --progress=plain --tag "$job_name" "$ROOT_DIR"
+docker build --build-arg JOB_DIRECTORY="$job_dir_rel" --tag "$job_name" "$ROOT_DIR"
 docker tag "$local_image_name" "$gcp_image_name:$image_version"

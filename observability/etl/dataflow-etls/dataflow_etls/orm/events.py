@@ -3,10 +3,11 @@ import uuid
 from decimal import Decimal
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Union, Optional, Dict, Type, NamedTuple, Callable, TypeVar
+from typing import Union, Optional, Dict, Type, NamedTuple, Callable, TypeVar, TYPE_CHECKING
 from anchorpy import Event, NamedInstruction
 
-from dataflow_etls.transaction_log_parser import InstructionWithLogs
+if TYPE_CHECKING:
+    from dataflow_etls.transaction_parsing import InstructionWithLogs
 
 # IDL event names
 MARGINFI_GROUP_CREATE_EVENT = 'MarginfiGroupCreateEvent'
@@ -78,7 +79,7 @@ class RecordBase:
     signature: str
     indexing_address: str
 
-    def __init__(self, _event: Event, instruction: InstructionWithLogs, _instruction_args: NamedInstruction):
+    def __init__(self, _event: Event, instruction: "InstructionWithLogs", _instruction_args: NamedInstruction):
         self.id = str(uuid.uuid4())
         self.created_at = time_str()
         self.timestamp = time_str(instruction.timestamp)
@@ -114,7 +115,7 @@ class AccountRecordBase(RecordBase):
     marginfi_account: str
     marginfi_account_authority: str
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.signer = str(event.data.header.signer) if event.data.header.signer is not None else None
@@ -135,7 +136,7 @@ class GroupRecordBase(RecordBase):
     signer: Optional[str]
     marginfi_group: str
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.signer = str(event.data.header.signer) if event.data.header.signer is not None else None
@@ -149,7 +150,7 @@ class GroupRecordBase(RecordBase):
 class MarginfiGroupCreateRecord(GroupRecordBase):
     SCHEMA = GroupRecordBase.SCHEMA
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
 
@@ -163,7 +164,7 @@ class MarginfiGroupConfigureRecord(GroupRecordBase):
 
     admin: Optional[str]
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.admin = event.data.config.admin
@@ -181,7 +182,7 @@ class LendingPoolBankCreateRecord(GroupRecordBase):
     bank: str
     mint: str
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.bank = str(event.data.bank)
@@ -238,7 +239,7 @@ class LendingPoolBankConfigureRecord(GroupRecordBase):
     protocol_fixed_fee_apr: Optional[float]
     protocol_ir_fee: Optional[float]
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.bank = str(event.data.bank)
@@ -295,7 +296,7 @@ class LendingPoolBankAccrueInterestRecord(GroupRecordBase):
     fees_collected: float
     insurance_collected: float
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.bank = str(event.data.bank)
@@ -325,7 +326,7 @@ class LendingPoolBankCollectFeesRecord(GroupRecordBase):
     insurance_fees_collected: float
     insurance_fees_outstanding: float
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.bank = str(event.data.bank)
@@ -354,7 +355,7 @@ class LendingPoolBankHandleBankruptcyRecord(GroupRecordBase):
     covered_amount: float
     socialized_amount: float
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.bank = str(event.data.bank)
@@ -370,7 +371,7 @@ class LendingPoolBankHandleBankruptcyRecord(GroupRecordBase):
 class MarginfiAccountCreateRecord(AccountRecordBase):
     SCHEMA = AccountRecordBase.SCHEMA
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
 
@@ -388,7 +389,7 @@ class LendingAccountChangeLiquidityRecord(AccountRecordBase):
     amount: int
     balance_closed: bool
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.operation = event.name.removeprefix("LendingAccount").removesuffix("Event").lower()
@@ -438,7 +439,7 @@ class LendingAccountLiquidateRecord(AccountRecordBase):
     liquidator_asset_post_balance: float
     liquidator_liability_post_balance: float
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.liquidatee_marginfi_account = str(event.data.liquidatee_marginfi_account)
