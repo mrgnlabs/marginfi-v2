@@ -123,13 +123,6 @@ pub enum GroupCommand {
         #[clap(long, arg_enum)]
         oracle_type: OracleTypeArg,
     },
-    #[cfg(feature = "admin")]
-    HandleBankruptcy {
-        #[clap(long)]
-        bank: Pubkey,
-        #[clap(long)]
-        marginfi_account: Pubkey,
-    },
 }
 
 #[derive(Clone, Copy, Debug, Parser, ArgEnum)]
@@ -266,6 +259,18 @@ pub enum BankCommand {
     },
     #[cfg(feature = "admin")]
     SettleAllEmissions {
+        bank: Pubkey,
+    },
+    #[cfg(feature = "admin")]
+    HandleBankruptcy {
+        #[clap(long)]
+        bank: Pubkey,
+        #[clap(long)]
+        marginfi_account: Pubkey,
+    },
+    #[cfg(feature = "admin")]
+    CollectFees {
+        #[clap(long)]
         bank: Pubkey,
     },
 }
@@ -502,11 +507,6 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_ir_fee,
             risk_tier,
         ),
-        #[cfg(feature = "admin")]
-        GroupCommand::HandleBankruptcy {
-            bank,
-            marginfi_account,
-        } => processor::group_handle_bankruptcy(&config, profile, bank, marginfi_account),
     }
 }
 

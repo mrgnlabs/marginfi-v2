@@ -113,7 +113,23 @@ mfi account liquidate \
     --skip-confirmation
 
 echo "-> Admin handles remainder of bad debt through handle bankruptcy"
-mfi group handle-bankruptcy \
+mfi bank handle-bankruptcy \
     --bank="$USDC_BANK" \
     --marginfi-account="$liquidatee_account" \
     --skip-confirmation
+
+echo "-> Admin collects fees on USDC bank"
+mfi bank collect-fees \
+    --bank="$USDC_BANK" \
+    --skip-confirmation
+
+echo "-> Admin collects fees on SOL bank"
+mfi bank collect-fees \
+    --bank="$SOL_BANK" \
+    --skip-confirmation
+
+echo "-> Admin creates marginfi group"
+mfi group create --skip-confirmation
+
+echo "-> Admin updates marginfi group"
+mfi group update --skip-confirmation
