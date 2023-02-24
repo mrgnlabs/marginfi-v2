@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -e
-
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-ROOT_DIR=$(realpath "${SCRIPT_DIR}/../")
-
-for job_dir in "$ROOT_DIR"/jobs/*/ ; do
-    poetry export --without-hashes --format=requirements.txt > "$job_dir/requirements.txt"
-done
