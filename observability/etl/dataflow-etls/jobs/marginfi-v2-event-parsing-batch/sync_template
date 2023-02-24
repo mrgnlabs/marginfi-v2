@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$(realpath "${SCRIPT_DIR}/../../")
 
-image_version=$1
+image_version=${1:-"latest"}
 
 [ -z "$image_version" ] && echo "Missing image_version argument" && exit 1
 
@@ -12,10 +12,13 @@ job_dir="$SCRIPT_DIR"
 job_dir_rel=$(realpath --relative-to="$ROOT_DIR" "$job_dir")
 job_name=$(basename "$job_dir_rel")
 
-cd "$ROOT_DIR"
-
 local_image_name="$job_name"
 gcp_image_name="us-east1-docker.pkg.dev/marginfi-dev/main/dataflow/$local_image_name"
+gcp_template_gs_path="gs://dataflow_jobs_marginfi_v2/templates/$job_name.json"
+metadata_local_path="$job_dir/metadata.json"
 
-docker build -f "$job_dir_rel/Dockerfile" --build-arg JOB_DIRECTORY="$job_dir_rel" --progress=plain --tag "$job_name" "$ROOT_DIR"
-docker tag "$local_image_name" "$gcp_image_name:$image_version"
+gcloud dataflow flex-template build \
+    "$gcp_template_gs_path" \
+    --image "$gcp_image_name:$image_version" \
+    --sdk-language "PYTHON" \
+    --metadata-file "$metadata_local_path"

@@ -170,9 +170,9 @@ def run(
 
         for rt in RecordTypes:
             (tagged_events[rt.get_tag()]
-                | f"Dictionify{rt.get_tag()}" >> dictionify_events
-                | f"Write{rt.get_tag()}" >> writers[rt.get_tag()]
-            )
+             | f"Dictionify{rt.get_tag()}" >> dictionify_events
+             | f"Write{rt.get_tag()}" >> writers[rt.get_tag()]
+             )
 
 
 def main() -> None:

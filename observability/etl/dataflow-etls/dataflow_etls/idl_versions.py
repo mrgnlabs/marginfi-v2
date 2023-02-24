@@ -2,7 +2,8 @@ import glob
 import os
 from pathlib import Path
 from typing import List, Literal, Tuple, Optional
-from anchorpy import Program, Provider
+from anchorpy import Program, Provider, Wallet
+from anchorpy.utils.rpc import AsyncClient
 from anchorpy_core.idl import Idl
 from solders.pubkey import Pubkey
 
@@ -20,7 +21,9 @@ class VersionedProgram(Program):
                  provider: Optional[Provider] = None):
         self.version = version
         self.cluster = cluster
-        super(VersionedProgram, self).__init__(idl, program_id, provider)
+        super(VersionedProgram, self).__init__(idl, program_id,
+                                               provider or Provider(AsyncClient("http://localhost:8899"),
+                                                                    Wallet.dummy()))
 
 
 class VersionedIdl:
@@ -39,13 +42,14 @@ class VersionedIdl:
                 idl_version = version
                 break
 
+        idl_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"idls/{cluster}")
         if idl_version is None:
             sorted_idls = [int(os.path.basename(path).removesuffix(".json").removeprefix("marginfi-v")) for path in
-                           glob.glob(f"idls/{cluster}/marginfi-v*.json")]
+                           glob.glob(f"{idl_dir}/marginfi-v*.json")]
             sorted_idls.sort()
             idl_version = sorted_idls[-1]
 
-        path = Path(f"idls/{cluster}/marginfi-v{idl_version}.json")
+        path = Path(f"{idl_dir}/marginfi-v{idl_version}.json")
         raw = path.read_text()
         idl = Idl.from_json(raw)
 
