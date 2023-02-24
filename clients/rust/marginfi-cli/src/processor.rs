@@ -179,11 +179,18 @@ pub fn group_create(
     let rpc_client = config.mfi_program.rpc();
     let admin = admin.unwrap_or_else(|| config.payer.pubkey());
 
-    if profile.marginfi_group.is_some() && !override_existing_profile_group {
-        bail!(
+    if profile.marginfi_group.is_some() && override_existing_profile_group {
+        info!(
             "Marginfi group already exists for profile [{}]",
             profile.name
         );
+    } else if profile.marginfi_group.is_none() {
+        info!(
+            "Created marginfi group will be associated to profile [{}]",
+            profile.name
+        );
+    } else {
+        info!("Created marginfi group will not be associated to any profile",);
     }
 
     let marginfi_group_keypair = Keypair::new();
@@ -218,8 +225,10 @@ pub fn group_create(
         }
     };
 
-    let mut profile = profile;
-    profile.set_marginfi_group(marginfi_group_keypair.pubkey())?;
+    if profile.marginfi_group.is_none() || override_existing_profile_group {
+        let mut profile = profile;
+        profile.set_marginfi_group(marginfi_group_keypair.pubkey())?;
+    }
 
     Ok(())
 }
@@ -256,8 +265,8 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
     );
 
     match process_transaction(&tx, &rpc_client, config.dry_run) {
-        Ok(sig) => println!("marginfi group created (sig: {})", sig),
-        Err(err) => println!("Error during marginfi group creation:\n{:#?}", err),
+        Ok(sig) => println!("marginfi group updated (sig: {})", sig),
+        Err(err) => println!("Error during marginfi group update:\n{:#?}", err),
     };
 
     Ok(())
@@ -404,10 +413,81 @@ pub fn group_add_bank(
 
     Ok(())
 }
+// --------------------------------------------------------------------------------------------------------------------
+// bank
+// --------------------------------------------------------------------------------------------------------------------
 
-#[allow(clippy::too_many_arguments)]
+pub fn bank_get(config: Config, bank: Option<Pubkey>) -> Result<()> {
+    let rpc_client = config.mfi_program.rpc();
+
+    if let Some(bank) = bank {
+        let account: Bank = config.mfi_program.account(bank)?;
+        println!("Address: {bank}");
+        println!("=============");
+        println!("Raw data:");
+        println!("{account:#?}");
+
+        let liquidity_vault_balance =
+            rpc_client.get_token_account_balance(&account.liquidity_vault)?;
+        let fee_vault_balance = rpc_client.get_token_account_balance(&account.fee_vault)?;
+        let insurance_vault_balance =
+            rpc_client.get_token_account_balance(&account.insurance_vault)?;
+
+        println!("=============");
+        println!("Token balances:");
+        println!(
+            "\tliquidity vault: {} (native: {})",
+            liquidity_vault_balance.ui_amount.unwrap(),
+            liquidity_vault_balance.amount
+        );
+        println!(
+            "\tfee vault: {} (native: {})",
+            fee_vault_balance.ui_amount.unwrap(),
+            fee_vault_balance.amount
+        );
+        println!(
+            "\tinsurance vault: {} (native: {})",
+            insurance_vault_balance.ui_amount.unwrap(),
+            insurance_vault_balance.amount
+        );
+    } else {
+        group_get_all(config)?;
+    }
+    Ok(())
+}
+
+fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec<(Pubkey, Bank)>> {
+    info!("Loading banks for group {:?}", marginfi_group);
+    let filters = match marginfi_group {
+        Some(marginfi_group) => vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+            8 + size_of::<Pubkey>() + size_of::<u8>(),
+            marginfi_group.to_bytes().to_vec(),
+        ))],
+        None => vec![],
+    };
+
+    let mut clock = config.mfi_program.rpc().get_account(&sysvar::clock::ID)?;
+    let clock = Clock::from_account_info(&(&sysvar::clock::ID, &mut clock).into_account_info())?;
+
+    let mut banks_with_addresses = config.mfi_program.accounts::<Bank>(filters)?;
+
+    banks_with_addresses.iter_mut().for_each(|(_, bank)| {
+        bank.accrue_interest(clock.unix_timestamp).unwrap();
+    });
+
+    Ok(banks_with_addresses)
+}
+
+pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
+    let accounts = load_all_banks(&config, marginfi_group)?;
+    for (address, state) in accounts {
+        println!("-> {address}:\n{state:#?}\n");
+    }
+    Ok(())
+}
+
 #[cfg(feature = "admin")]
-pub fn group_handle_bankruptcy(
+pub fn bank_handle_bankruptcy(
     config: &Config,
     profile: Profile,
     bank_pk: Pubkey,
@@ -485,76 +565,59 @@ pub fn group_handle_bankruptcy(
     Ok(())
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-// bank
-// --------------------------------------------------------------------------------------------------------------------
-
-pub fn bank_get(config: Config, bank: Option<Pubkey>) -> Result<()> {
+#[cfg(feature = "admin")]
+pub fn bank_collect_fees(config: &Config, profile: Profile, bank_pk: Pubkey) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
-    if let Some(bank) = bank {
-        let account: Bank = config.mfi_program.account(bank)?;
-        println!("Address: {bank}");
-        println!("=============");
-        println!("Raw data:");
-        println!("{account:#?}");
-
-        let liquidity_vault_balance =
-            rpc_client.get_token_account_balance(&account.liquidity_vault)?;
-        let fee_vault_balance = rpc_client.get_token_account_balance(&account.fee_vault)?;
-        let insurance_vault_balance =
-            rpc_client.get_token_account_balance(&account.insurance_vault)?;
-
-        println!("=============");
-        println!("Token balances:");
-        println!(
-            "\tliquidity vault: {} (native: {})",
-            liquidity_vault_balance.ui_amount.unwrap(),
-            liquidity_vault_balance.amount
-        );
-        println!(
-            "\tfee vault: {} (native: {})",
-            fee_vault_balance.ui_amount.unwrap(),
-            fee_vault_balance.amount
-        );
-        println!(
-            "\tinsurance vault: {} (native: {})",
-            insurance_vault_balance.ui_amount.unwrap(),
-            insurance_vault_balance.amount
-        );
-    } else {
-        group_get_all(config)?;
+    if profile.marginfi_group.is_none() {
+        bail!("Marginfi group not specified in profile [{}]", profile.name);
     }
-    Ok(())
-}
 
-fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec<(Pubkey, Bank)>> {
-    info!("Loading banks for group {:?}", marginfi_group);
-    let filters = match marginfi_group {
-        Some(marginfi_group) => vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-            8 + size_of::<Pubkey>() + size_of::<u8>(),
-            marginfi_group.to_bytes().to_vec(),
-        ))],
-        None => vec![],
+    let collect_fees_ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::LendingPoolCollectBankFees {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            bank: bank_pk,
+            liquidity_vault_authority: find_bank_vault_authority_pda(
+                &bank_pk,
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+            liquidity_vault: find_bank_vault_pda(
+                &bank_pk,
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+            insurance_vault: find_bank_vault_pda(
+                &bank_pk,
+                BankVaultType::Insurance,
+                &config.program_id,
+            )
+            .0,
+            fee_vault: find_bank_vault_pda(&bank_pk, BankVaultType::Fee, &config.program_id).0,
+            token_program: token::ID,
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
     };
 
-    let mut clock = config.mfi_program.rpc().get_account(&sysvar::clock::ID)?;
-    let clock = Clock::from_account_info(&(&sysvar::clock::ID, &mut clock).into_account_info())?;
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
 
-    let mut banks_with_addresses = config.mfi_program.accounts::<Bank>(filters)?;
+    let signers = vec![&config.payer];
+    let tx = Transaction::new_signed_with_payer(
+        &[collect_fees_ix],
+        Some(&config.payer.pubkey()),
+        &signers,
+        recent_blockhash,
+    );
 
-    banks_with_addresses.iter_mut().for_each(|(_, bank)| {
-        bank.accrue_interest(clock.unix_timestamp).unwrap();
-    });
+    match process_transaction(&tx, &rpc_client, config.dry_run) {
+        Ok(sig) => println!("Collect fees handled (sig: {})", sig),
+        Err(err) => println!("Error during fee collection:\n{:#?}", err),
+    };
 
-    Ok(banks_with_addresses)
-}
-
-pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
-    let accounts = load_all_banks(&config, marginfi_group)?;
-    for (address, state) in accounts {
-        println!("-> {address}:\n{state:#?}\n");
-    }
     Ok(())
 }
 
@@ -1247,11 +1310,11 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
 
 #[cfg(feature = "lip")]
 pub fn process_list_lip_campaigns(config: &Config) {
-    let campaings = config.lip_program.accounts::<Campaign>(vec![]).unwrap();
+    let campaigns = config.lip_program.accounts::<Campaign>(vec![]).unwrap();
 
-    print!("Found {} campaigns", campaings.len());
+    print!("Found {} campaigns", campaigns.len());
 
-    campaings.iter().for_each(|(address, campaign)| {
+    campaigns.iter().for_each(|(address, campaign)| {
         let bank = config
             .mfi_program
             .account::<Bank>(campaign.marginfi_bank_pk)
@@ -1283,7 +1346,7 @@ pub fn process_list_deposits(config: &Config) {
     use solana_sdk::clock::SECONDS_PER_DAY;
 
     let mut deposits = config.lip_program.accounts::<Deposit>(vec![]).unwrap();
-    let campaings = HashMap::<Pubkey, Campaign>::from_iter(
+    let campaigns = HashMap::<Pubkey, Campaign>::from_iter(
         config.lip_program.accounts::<Campaign>(vec![]).unwrap(),
     );
     let banks =
@@ -1292,7 +1355,7 @@ pub fn process_list_deposits(config: &Config) {
     deposits.sort_by(|(_, a), (_, b)| a.start_time.cmp(&b.start_time));
 
     deposits.iter().for_each(|(address, deposit)| {
-        let campaign = campaings.get(&deposit.campaign).unwrap();
+        let campaign = campaigns.get(&deposit.campaign).unwrap();
         let bank = banks.get(&campaign.marginfi_bank_pk).unwrap();
 
         let time_now = SystemTime::now()

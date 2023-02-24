@@ -114,13 +114,6 @@ pub enum GroupCommand {
         #[clap(long, arg_enum)]
         risk_tier: RiskTierArg,
     },
-    #[cfg(feature = "admin")]
-    HandleBankruptcy {
-        #[clap(long)]
-        bank: Pubkey,
-        #[clap(long)]
-        marginfi_account: Pubkey,
-    },
 }
 
 #[derive(Clone, Copy, Debug, Parser, ArgEnum)]
@@ -201,6 +194,18 @@ pub enum BankCommand {
         pf_ir: Option<f64>,
         #[clap(long, arg_enum, help = "Bank risk tier")]
         risk_tier: Option<RiskTierArg>,
+    },
+    #[cfg(feature = "admin")]
+    HandleBankruptcy {
+        #[clap(long)]
+        bank: Pubkey,
+        #[clap(long)]
+        marginfi_account: Pubkey,
+    },
+    #[cfg(feature = "admin")]
+    CollectFees {
+        #[clap(long)]
+        bank: Pubkey,
     },
 }
 
@@ -415,11 +420,6 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_ir_fee,
             risk_tier,
         ),
-        #[cfg(feature = "admin")]
-        GroupCommand::HandleBankruptcy {
-            bank,
-            marginfi_account,
-        } => processor::group_handle_bankruptcy(&config, profile, bank, marginfi_account),
     }
 }
 
@@ -491,6 +491,13 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                 },
             )
         }
+        #[cfg(feature = "admin")]
+        BankCommand::HandleBankruptcy {
+            bank,
+            marginfi_account,
+        } => processor::bank_handle_bankruptcy(&config, profile, bank, marginfi_account),
+        #[cfg(feature = "admin")]
+        BankCommand::CollectFees { bank } => processor::bank_collect_fees(&config, profile, bank),
     }
 }
 
