@@ -12,10 +12,7 @@ job_dir="$SCRIPT_DIR"
 job_dir_rel=$(realpath --relative-to="$ROOT_DIR" "$job_dir")
 job_name=$(basename "$job_dir_rel")
 
-cd "$ROOT_DIR"
-
 local_image_name="$job_name"
 gcp_image_name="us-east1-docker.pkg.dev/marginfi-dev/main/dataflow/$local_image_name"
 
-docker build -f "$job_dir_rel/Dockerfile" --build-arg JOB_DIRECTORY="$job_dir_rel" --progress=plain --tag "$job_name" "$ROOT_DIR"
-docker tag "$local_image_name" "$gcp_image_name:$image_version"
+docker push "$gcp_image_name:$image_version"
