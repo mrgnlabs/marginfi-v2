@@ -9,7 +9,7 @@ use lazy_static::lazy_static;
 use marginfi::state::marginfi_group::{BankConfigOpt, BankOperationalState};
 use marginfi::{
     constants::MAX_ORACLE_KEYS,
-    state::marginfi_group::{BankConfig, GroupConfig, InterestRateConfig, OracleSetup},
+    state::marginfi_group::{BankConfig, GroupConfig, InterestRateConfig, OracleSetup, RiskTier},
 };
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
@@ -38,6 +38,31 @@ impl TestSettings {
                 TestBankSetting {
                     mint: BankMint::SolEquivalent,
                     ..TestBankSetting::default()
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
+
+    pub fn all_banks_one_isolated() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent,
+                    config: Some(BankConfig {
+                        risk_tier: RiskTier::Isolated,
+                        asset_weight_maint: I80F48!(0).into(),
+                        asset_weight_init: I80F48!(0).into(),
+                        ..*DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG
+                    }),
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
@@ -103,6 +128,7 @@ lazy_static! {
         liability_weight_maint: I80F48!(1).into(),
 
         operational_state: BankOperationalState::Operational,
+        risk_tier: RiskTier::Collateral,
 
         interest_rate_config: InterestRateConfig {
             insurance_fee_fixed_apr: I80F48!(0).into(),

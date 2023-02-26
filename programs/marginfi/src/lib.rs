@@ -11,23 +11,16 @@ use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
 use state::marginfi_group::{BankConfig, BankConfigOpt};
-use static_assertions::assert_cfg;
 
-#[cfg(feature = "mainnet-beta")] // mainnet
-declare_id!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
-#[cfg(feature = "devnet")] // devnet
-declare_id!("neetcne3Ctrrud7vLdt2ypMm21gZHGN2mCmqWaMVcBQ");
-#[cfg(all(not(feature = "mainnet-beta"), not(feature = "devnet")))] // other
-declare_id!("Mfi1111111111111111111111111111111111111111");
-
-assert_cfg!(
-    not(all(feature = "mainnet-beta", feature = "devnet")),
-    "Devnet feature must be disabled for a mainnet release"
-);
-assert_cfg!(
-    not(all(feature = "mainnet-beta", feature = "test")),
-    "Test feature must be disabled for a mainnet release"
-);
+cfg_if::cfg_if! {
+    if #[cfg(feature = "mainnet-beta")] {
+        declare_id!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
+    } else if #[cfg(feature = "devnet")] {
+        declare_id!("neetcne3Ctrrud7vLdt2ypMm21gZHGN2mCmqWaMVcBQ");
+    } else {
+        declare_id!("Mfi1111111111111111111111111111111111111111");
+    }
+}
 
 #[program]
 pub mod marginfi {

@@ -120,6 +120,7 @@ Total Deposits: {}
 Total Liabilities: {}
 Config:
   State: {:?}
+  Risk Tier: {:?}
   Asset:
     Weight Init: {:?}, Maint: {:?}
     Limit: {}
@@ -143,6 +144,7 @@ Last Update: {:?}h ago ({})
             .unwrap()
             / EXP_10_I80F48[bank.mint_decimals as usize],
         bank.config.operational_state,
+        bank.config.risk_tier,
         bank.config.asset_weight_init,
         bank.config.asset_weight_maint,
         I80F48::from_num(bank.config.deposit_limit) / EXP_10_I80F48[bank.mint_decimals as usize],
@@ -281,6 +283,7 @@ pub fn group_add_bank(
     insurance_ir_fee: f64,
     protocol_fixed_fee_apr: f64,
     protocol_ir_fee: f64,
+    risk_tier: crate::RiskTierArg,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
@@ -376,6 +379,7 @@ pub fn group_add_bank(
                 operational_state: BankOperationalState::Operational,
                 oracle_setup: OracleSetup::Pyth,
                 oracle_keys: create_oracle_key_array(pyth_oracle),
+                risk_tier: risk_tier.into(),
                 ..BankConfig::default()
             },
         })

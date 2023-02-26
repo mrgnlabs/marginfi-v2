@@ -65,6 +65,9 @@ pub enum MarginfiError {
     BankLiabilityCapacityExceeded,
     #[msg("Invalid Price")] // 6030
     InvalidPrice,
+    // 6031
+    #[msg("Account can have only one liablity when account is under isolated risk")]
+    IsolatedAccountIllegalState,
 }
 
 impl From<MarginfiError> for ProgramError {

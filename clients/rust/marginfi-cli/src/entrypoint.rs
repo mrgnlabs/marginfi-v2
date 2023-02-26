@@ -6,12 +6,11 @@ use crate::{
 use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
-
 #[cfg(feature = "admin")]
 use fixed::types::I80F48;
-use marginfi::state::marginfi_group::BankOperationalState;
+use marginfi::state::marginfi_group::{Bank, BankOperationalState, RiskTier};
 #[cfg(any(feature = "admin", feature = "dev"))]
-use marginfi::state::marginfi_group::{Bank, BankConfigOpt, InterestRateConfigOpt};
+use marginfi::state::marginfi_group::{BankConfigOpt, InterestRateConfigOpt};
 #[cfg(feature = "dev")]
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
@@ -111,6 +110,8 @@ pub enum GroupCommand {
         protocol_fixed_fee_apr: f64,
         #[clap(long)]
         protocol_ir_fee: f64,
+        #[clap(long, arg_enum)]
+        risk_tier: RiskTierArg,
     },
     #[cfg(feature = "admin")]
     HandleBankruptcy {
@@ -119,6 +120,21 @@ pub enum GroupCommand {
         #[clap(long)]
         marginfi_account: Pubkey,
     },
+}
+
+#[derive(Clone, Copy, Debug, Parser, ArgEnum)]
+pub enum RiskTierArg {
+    Collateral,
+    Isolated,
+}
+
+impl From<RiskTierArg> for RiskTier {
+    fn from(value: RiskTierArg) -> Self {
+        match value {
+            RiskTierArg::Collateral => RiskTier::Collateral,
+            RiskTierArg::Isolated => RiskTier::Isolated,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Parser, ArgEnum)]
@@ -182,6 +198,8 @@ pub enum BankCommand {
         pf_fa: Option<f64>,
         #[clap(long, help = "Protocol IR fee")]
         pf_ir: Option<f64>,
+        #[clap(long, arg_enum, help = "Bank risk tier")]
+        risk_tier: Option<RiskTierArg>,
     },
 }
 
@@ -341,6 +359,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         match subcmd {
             GroupCommand::Get { marginfi_group: _ } => (),
             GroupCommand::GetAll {} => (),
+            #[cfg(feature = "admin")]
             _ => get_consent(&subcmd, &profile)?,
         }
     }
@@ -374,6 +393,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_ir_fee,
             deposit_limit,
             borrow_limit,
+            risk_tier,
         } => processor::group_add_bank(
             config,
             profile,
@@ -392,6 +412,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             insurance_ir_fee,
             protocol_fixed_fee_apr,
             protocol_ir_fee,
+            risk_tier,
         ),
         #[cfg(feature = "admin")]
         GroupCommand::HandleBankruptcy {
@@ -409,6 +430,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         match subcmd {
             BankCommand::Get { bank: _ } => (),
             BankCommand::GetAll { marginfi_group: _ } => (),
+            #[cfg(feature = "admin")]
             _ => get_consent(&subcmd, &profile)?,
         }
     }
@@ -433,6 +455,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             if_ir,
             pf_fa,
             pf_ir,
+            risk_tier,
         } => {
             let bank = config.mfi_program.account::<Bank>(bank_pk).unwrap();
             processor::bank_configure(
@@ -463,6 +486,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                         protocol_fixed_fee_apr: pf_fa.map(|x| I80F48::from_num(x).into()),
                         protocol_ir_fee: pf_ir.map(|x| I80F48::from_num(x).into()),
                     }),
+                    risk_tier: risk_tier.map(|x| x.into()),
                 },
             )
         }
