@@ -20,6 +20,7 @@ AccountUpdateRaw = TypedDict('AccountUpdateRaw', {
     'owner': str,
     'slot': Decimal,
     'pubkey': str,
+    'txn_signature': str,
     'lamports': Decimal,
     'executable': bool,
     'rent_epoch': Decimal,
