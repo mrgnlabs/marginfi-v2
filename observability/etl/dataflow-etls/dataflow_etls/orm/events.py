@@ -1,59 +1,27 @@
-import re
 import uuid
-from decimal import Decimal
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Union, Optional, Dict, Type, NamedTuple, Callable, TypeVar, TYPE_CHECKING
+from typing import Union, Optional, Dict, Type, TYPE_CHECKING
 from anchorpy import Event, NamedInstruction
+
+from dataflow_etls.utils import pascal_to_snake_case, wrapped_i80f48_to_float, time_str, map_optional
 
 if TYPE_CHECKING:
     from dataflow_etls.transaction_parsing import InstructionWithLogs
 
 # IDL event names
-MARGINFI_GROUP_CREATE_EVENT = 'MarginfiGroupCreateEvent'
-MARGINFI_GROUP_CONFIGURE_EVENT = 'MarginfiGroupConfigureEvent'
-LENDING_POOL_BANK_CREATE_EVENT = 'LendingPoolBankCreateEvent'
-LENDING_POOL_BANK_CONFIGURE_EVENT = 'LendingPoolBankConfigureEvent'
-LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT = 'LendingPoolBankAccrueInterestEvent'
-LENDING_POOL_BANK_COLLECT_FEES_EVENT = 'LendingPoolBankCollectFeesEvent'
-LENDING_POOL_BANK_HANDLE_BANKRUPTCY_EVENT = 'LendingPoolBankHandleBankruptcyEvent'
-MARGINFI_ACCOUNT_CREATE_EVENT = 'MarginfiAccountCreateEvent'
-LENDING_ACCOUNT_DEPOSIT_EVENT = 'LendingAccountDepositEvent'
-LENDING_ACCOUNT_WITHDRAW_EVENT = 'LendingAccountWithdrawEvent'
-LENDING_ACCOUNT_BORROW_EVENT = 'LendingAccountBorrowEvent'
-LENDING_ACCOUNT_REPAY_EVENT = 'LendingAccountRepayEvent'
-LENDING_ACCOUNT_LIQUIDATE_EVENT = 'LendingAccountLiquidateEvent'
-
-
-def pascal_to_snake_case(string: str) -> str:
-    return re.sub('(?!^)([A-Z]+)', r'_\1', string).lower()
-
-
-WrappedI80F48 = NamedTuple('WrappedI80F48', [('value', int)])
-
-
-def wrapped_i80f48_to_float(wrapped_i80f48: WrappedI80F48) -> float:
-    nb_of_fractional_bits = 48
-    value = Decimal(wrapped_i80f48.value)
-    value = value / 2 ** nb_of_fractional_bits
-    return float(value)
-
-
-InputType = TypeVar('InputType')
-OutputType = TypeVar('OutputType')
-
-
-def map_optional(element: Optional[InputType], fn: Callable[[InputType], OutputType]) -> Optional[OutputType]:
-    if element is not None:
-        return fn(element)
-    else:
-        return None
-
-
-def time_str(dt: Optional[datetime] = None) -> str:
-    if dt is None:
-        dt = datetime.now(timezone.utc)
-    return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+MARGINFI_GROUP_CREATE_EVENT_NAME = 'MarginfiGroupCreateEvent'
+MARGINFI_GROUP_CONFIGURE_EVENT_NAME = 'MarginfiGroupConfigureEvent'
+LENDING_POOL_BANK_CREATE_EVENT_NAME = 'LendingPoolBankCreateEvent'
+LENDING_POOL_BANK_CONFIGURE_EVENT_NAME = 'LendingPoolBankConfigureEvent'
+LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT_NAME = 'LendingPoolBankAccrueInterestEvent'
+LENDING_POOL_BANK_COLLECT_FEES_EVENT_NAME = 'LendingPoolBankCollectFeesEvent'
+LENDING_POOL_BANK_HANDLE_BANKRUPTCY_EVENT_NAME = 'LendingPoolBankHandleBankruptcyEvent'
+MARGINFI_ACCOUNT_CREATE_EVENT_NAME = 'MarginfiAccountCreateEvent'
+LENDING_ACCOUNT_DEPOSIT_EVENT_NAME = 'LendingAccountDepositEvent'
+LENDING_ACCOUNT_WITHDRAW_EVENT_NAME = 'LendingAccountWithdrawEvent'
+LENDING_ACCOUNT_BORROW_EVENT_NAME = 'LendingAccountBorrowEvent'
+LENDING_ACCOUNT_REPAY_EVENT_NAME = 'LendingAccountRepayEvent'
+LENDING_ACCOUNT_LIQUIDATE_EVENT_NAME = 'LendingAccountLiquidateEvent'
 
 
 @dataclass
@@ -395,7 +363,7 @@ class LendingAccountChangeLiquidityRecord(AccountRecordBase):
         self.operation = event.name.removeprefix("LendingAccount").removesuffix("Event").lower()
         self.amount = event.data.amount
         self.balance_closed = False
-        if event.name == LENDING_ACCOUNT_REPAY_EVENT or event.name == LENDING_ACCOUNT_WITHDRAW_EVENT:
+        if event.name == LENDING_ACCOUNT_REPAY_EVENT_NAME or event.name == LENDING_ACCOUNT_WITHDRAW_EVENT_NAME:
             self.balance_closed = event.data.close_balance
 
 
@@ -460,16 +428,16 @@ class LendingAccountLiquidateRecord(AccountRecordBase):
         self.liquidator_liability_post_balance = event.data.post_balances.liquidator_liability_balance
 
 
-RecordTypes = [MarginfiGroupCreateRecord,
-               MarginfiGroupConfigureRecord,
-               LendingPoolBankCreateRecord,
-               LendingPoolBankConfigureRecord,
-               LendingPoolBankAccrueInterestRecord,
-               LendingPoolBankCollectFeesRecord,
-               LendingPoolBankHandleBankruptcyRecord,
-               MarginfiAccountCreateRecord,
-               LendingAccountChangeLiquidityRecord,
-               LendingAccountLiquidateRecord]
+EventRecordTypes = [MarginfiGroupCreateRecord,
+                    MarginfiGroupConfigureRecord,
+                    LendingPoolBankCreateRecord,
+                    LendingPoolBankConfigureRecord,
+                    LendingPoolBankAccrueInterestRecord,
+                    LendingPoolBankCollectFeesRecord,
+                    LendingPoolBankHandleBankruptcyRecord,
+                    MarginfiAccountCreateRecord,
+                    LendingAccountChangeLiquidityRecord,
+                    LendingAccountLiquidateRecord]
 
 EventRecord = Union[
     MarginfiGroupCreateRecord,
@@ -485,17 +453,17 @@ EventRecord = Union[
 ]
 
 EVENT_TO_RECORD_TYPE: Dict[str, Type[EventRecord]] = {
-    f"{MARGINFI_GROUP_CREATE_EVENT}": MarginfiGroupCreateRecord,
-    f"{MARGINFI_GROUP_CONFIGURE_EVENT}": MarginfiGroupConfigureRecord,
-    f"{LENDING_POOL_BANK_CREATE_EVENT}": LendingPoolBankCreateRecord,
-    f"{LENDING_POOL_BANK_CONFIGURE_EVENT}": LendingPoolBankConfigureRecord,
-    f"{LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT}": LendingPoolBankAccrueInterestRecord,
-    f"{LENDING_POOL_BANK_COLLECT_FEES_EVENT}": LendingPoolBankCollectFeesRecord,
-    f"{LENDING_POOL_BANK_HANDLE_BANKRUPTCY_EVENT}": LendingPoolBankHandleBankruptcyRecord,
-    f"{MARGINFI_ACCOUNT_CREATE_EVENT}": MarginfiAccountCreateRecord,
-    f"{LENDING_ACCOUNT_DEPOSIT_EVENT}": LendingAccountChangeLiquidityRecord,
-    f"{LENDING_ACCOUNT_WITHDRAW_EVENT}": LendingAccountChangeLiquidityRecord,
-    f"{LENDING_ACCOUNT_BORROW_EVENT}": LendingAccountChangeLiquidityRecord,
-    f"{LENDING_ACCOUNT_REPAY_EVENT}": LendingAccountChangeLiquidityRecord,
-    f"{LENDING_ACCOUNT_LIQUIDATE_EVENT}": LendingAccountLiquidateRecord,
+    f"{MARGINFI_GROUP_CREATE_EVENT_NAME}": MarginfiGroupCreateRecord,
+    f"{MARGINFI_GROUP_CONFIGURE_EVENT_NAME}": MarginfiGroupConfigureRecord,
+    f"{LENDING_POOL_BANK_CREATE_EVENT_NAME}": LendingPoolBankCreateRecord,
+    f"{LENDING_POOL_BANK_CONFIGURE_EVENT_NAME}": LendingPoolBankConfigureRecord,
+    f"{LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT_NAME}": LendingPoolBankAccrueInterestRecord,
+    f"{LENDING_POOL_BANK_COLLECT_FEES_EVENT_NAME}": LendingPoolBankCollectFeesRecord,
+    f"{LENDING_POOL_BANK_HANDLE_BANKRUPTCY_EVENT_NAME}": LendingPoolBankHandleBankruptcyRecord,
+    f"{MARGINFI_ACCOUNT_CREATE_EVENT_NAME}": MarginfiAccountCreateRecord,
+    f"{LENDING_ACCOUNT_DEPOSIT_EVENT_NAME}": LendingAccountChangeLiquidityRecord,
+    f"{LENDING_ACCOUNT_WITHDRAW_EVENT_NAME}": LendingAccountChangeLiquidityRecord,
+    f"{LENDING_ACCOUNT_BORROW_EVENT_NAME}": LendingAccountChangeLiquidityRecord,
+    f"{LENDING_ACCOUNT_REPAY_EVENT_NAME}": LendingAccountChangeLiquidityRecord,
+    f"{LENDING_ACCOUNT_LIQUIDATE_EVENT_NAME}": LendingAccountLiquidateRecord,
 }
