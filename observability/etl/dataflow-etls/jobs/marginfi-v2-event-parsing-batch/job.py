@@ -4,7 +4,7 @@ from typing import List, Optional, Union, Any, Dict
 import apache_beam as beam  # type: ignore
 from apache_beam.options.pipeline_options import PipelineOptions  # type: ignore
 
-from dataflow_etls.orm.events import RecordTypes, EventRecord
+from dataflow_etls.orm.events import EventRecordTypes, EventRecord
 from dataflow_etls.idl_versions import Cluster, IdlPool
 from dataflow_etls.transaction_parsing import dictionify_record, DispatchEventsDoFn, extract_events_from_tx, \
     IndexedProgramNotSupported
@@ -52,12 +52,12 @@ def run(
 
         extract_events = beam.FlatMap(extract_events_from_tx_internal)
 
-        dispatch_events = beam.ParDo(DispatchEventsDoFn()).with_outputs(*[rt.get_tag() for rt in RecordTypes])
+        dispatch_events = beam.ParDo(DispatchEventsDoFn()).with_outputs(*[rt.get_tag() for rt in EventRecordTypes])
 
         dictionify_events = beam.Map(dictionify_record)
 
         writers: Dict[str, Union[beam.io.WriteToText, beam.io.WriteToBigQuery]] = {}
-        for rt in RecordTypes:
+        for rt in EventRecordTypes:
             if output_table_namespace == "local_file":  # For testing purposes
                 writers[rt.get_tag()] = beam.io.WriteToText(f"event_{rt.get_tag()}")
             else:
@@ -76,7 +76,7 @@ def run(
                 | "DispatchEvents" >> dispatch_events
         )
 
-        for rt in RecordTypes:
+        for rt in EventRecordTypes:
             (tagged_events[rt.get_tag()]
              | f"Dictionify{rt.get_tag()}" >> dictionify_events
              | f"Write{rt.get_tag()}" >> writers[rt.get_tag()]
