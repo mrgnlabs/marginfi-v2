@@ -1,6 +1,6 @@
 import re
 from datetime import datetime, timezone
-from typing import NamedTuple, TypeVar, Optional, Callable
+from typing import NamedTuple, TypeVar, Optional, Callable, Any
 
 from decimal import Decimal
 
@@ -17,6 +17,10 @@ def wrapped_i80f48_to_float(wrapped_i80f48: WrappedI80F48) -> float:
     value = Decimal(wrapped_i80f48.value)
     value = value / 2 ** nb_of_fractional_bits
     return float(value)
+
+
+def enum_to_str(enum: Any) -> str:
+    return enum.__class__.__name__.lower()
 
 
 InputType = TypeVar('InputType')
