@@ -59,7 +59,7 @@ def run(
         writers: Dict[str, Union[beam.io.WriteToText, beam.io.WriteToBigQuery]] = {}
         for rt in EventRecordTypes:
             if output_table_namespace == "local_file":  # For testing purposes
-                writers[rt.get_tag()] = beam.io.WriteToText(f"event_{rt.get_tag()}")
+                writers[rt.get_tag()] = beam.io.WriteToText(f"events_{rt.get_tag(snake_case=True)}")
             else:
                 writers[rt.get_tag()] = beam.io.WriteToBigQuery(
                     f"{output_table_namespace}_{rt.get_tag(snake_case=True)}",

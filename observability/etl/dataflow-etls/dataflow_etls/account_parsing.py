@@ -45,18 +45,14 @@ def parse_account(account_update: AccountUpdateRaw, min_idl_version: int, cluste
     idl = Idl.from_json(idl_raw)
     program = VersionedProgram(cluster, idl_version, idl, owner_program_id)
 
-    if min_idl_version is not None and idl_version < min_idl_version:
+    if idl_version < min_idl_version:
         return []
-
-    print("idl_version", program.version)
 
     account_data_bytes = base64.b64decode(account_update["data"])
 
     try:
         parsed_account_data: NamedAccountData = program.coder.accounts.parse(account_data_bytes)
-        print(parsed_account_data)
     except Exception as e:
-        print(account_update)
         print(f"failed to parse account data in update {account_update['id']}", e)
         return []
 
@@ -66,7 +62,6 @@ def parse_account(account_update: AccountUpdateRaw, min_idl_version: int, cluste
     else:
         # noinspection PyPep8Naming
         AccountUpdateRecordType = ACCOUNT_UPDATE_TO_RECORD_TYPE[parsed_account_data.name]
-        print("we're good here", AccountUpdateRecordType(parsed_account_data, account_update, idl_version))
         return [AccountUpdateRecordType(parsed_account_data, account_update, idl_version)]
 
 
