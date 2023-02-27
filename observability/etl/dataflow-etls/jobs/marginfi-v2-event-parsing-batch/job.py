@@ -4,9 +4,10 @@ from typing import List, Optional, Union, Any, Dict
 import apache_beam as beam  # type: ignore
 from apache_beam.options.pipeline_options import PipelineOptions  # type: ignore
 
-from dataflow_etls.orm.events import RecordTypes, Record
+from dataflow_etls.orm.events import RecordTypes, EventRecord
 from dataflow_etls.idl_versions import Cluster, IdlPool
-from dataflow_etls.transaction_parsing import dictionify_record, DispatchEventsDoFn, extract_events_from_tx
+from dataflow_etls.transaction_parsing import dictionify_record, DispatchEventsDoFn, extract_events_from_tx, \
+    IndexedProgramNotSupported
 
 
 def run(
@@ -39,8 +40,11 @@ def run(
 
     idl_pool = IdlPool(cluster)
 
-    def extract_events_from_tx_internal(tx: Any) -> List[Record]:
-        return extract_events_from_tx(tx, min_idl_version, cluster, idl_pool)
+    def extract_events_from_tx_internal(tx: Any) -> List[EventRecord]:
+        try:
+            return extract_events_from_tx(tx, min_idl_version, cluster, idl_pool)
+        except IndexedProgramNotSupported:
+            return []
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
         # Define steps

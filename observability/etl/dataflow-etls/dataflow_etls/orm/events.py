@@ -471,7 +471,7 @@ RecordTypes = [MarginfiGroupCreateRecord,
                LendingAccountChangeLiquidityRecord,
                LendingAccountLiquidateRecord]
 
-Record = Union[
+EventRecord = Union[
     MarginfiGroupCreateRecord,
     MarginfiGroupConfigureRecord,
     LendingPoolBankCreateRecord,
@@ -484,7 +484,7 @@ Record = Union[
     LendingAccountLiquidateRecord
 ]
 
-EVENT_TO_RECORD_TYPE: Dict[str, Type[Record]] = {
+EVENT_TO_RECORD_TYPE: Dict[str, Type[EventRecord]] = {
     f"{MARGINFI_GROUP_CREATE_EVENT}": MarginfiGroupCreateRecord,
     f"{MARGINFI_GROUP_CONFIGURE_EVENT}": MarginfiGroupConfigureRecord,
     f"{LENDING_POOL_BANK_CREATE_EVENT}": LendingPoolBankCreateRecord,

@@ -32,12 +32,19 @@ IDL_VERSIONS: ClusterIdlBoundaries = {"devnet": {
 }}
 
 
+class ClusterNotSupported(Exception):
+    pass
+
+
 class IdlPool:
     idls_per_program: Dict[str, Tuple[List[Tuple[int, Tuple[int, str]]], str, int]]
 
     def __init__(self, cluster):
         idl_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"idls/{cluster}")
-        boundaries_per_program = IDL_VERSIONS[cluster]
+        try:
+            boundaries_per_program = IDL_VERSIONS[cluster]
+        except KeyError:
+            raise ClusterNotSupported(f"Cluster {cluster} is not supported")
 
         self.idls_per_program = {}
 
