@@ -17,3 +17,5 @@ WORKDIR /app
 COPY --from=builder /app/target/release/mfi-index ./
 
 ENV RUST_LOG=info
+
+CMD ["/app/mfi-index"]
