@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import List, Any, Callable, Optional, Dict, Sequence, Tuple, Generator, Union, TypedDict
 from decimal import Decimal
 
+from anchorpy_core.idl import Idl
 from solders.message import Message, MessageV0
 from based58 import based58  # type: ignore
 from anchorpy import NamedInstruction
@@ -13,7 +14,7 @@ from solders.instruction import CompiledInstruction
 from solders.pubkey import Pubkey
 import apache_beam as beam  # type: ignore
 
-from dataflow_etls.idl_versions import VersionedProgram, VersionedIdl, Cluster
+from dataflow_etls.idl_versions import VersionedProgram, IdlPool, Cluster
 from dataflow_etls.orm.events import EVENT_TO_RECORD_TYPE, Record
 
 
@@ -58,11 +59,13 @@ TransactionRaw = TypedDict('TransactionRaw', {
 })
 
 
-def extract_events_from_tx(tx: TransactionRaw, min_idl_version: int, cluster: Cluster) -> List[Record]:
+def extract_events_from_tx(tx: TransactionRaw, min_idl_version: int, cluster: Cluster, idl_pool: IdlPool) -> List[
+    Record]:
     indexed_program_id_str = tx["indexing_address"]
     indexed_program_id = Pubkey.from_string(indexed_program_id_str)
     tx_slot = int(tx["slot"])
-    idl, idl_version = VersionedIdl.get_idl_for_slot(cluster, indexed_program_id_str, tx_slot)
+    idl_raw, idl_version = idl_pool.get_idl_for_slot(indexed_program_id_str, tx_slot)
+    idl = Idl.from_json(idl_raw)
     program = VersionedProgram(cluster, idl_version, idl, indexed_program_id)
 
     if min_idl_version is not None and idl_version < min_idl_version:
