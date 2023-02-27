@@ -28,7 +28,8 @@ class VersionedProgram(Program):
 
 # /!\ Boundaries need to be ordered /!\
 IDL_VERSIONS: ClusterIdlBoundaries = {"devnet": {
-    "A7vUDErNPCTt9qrB6SSM4F6GkxzUe9d8P3cXSmRg4eY4": [(196494976, 0), (196520454, 1), (197246719, 2), (197494521, 3)]
+    "A7vUDErNPCTt9qrB6SSM4F6GkxzUe9d8P3cXSmRg4eY4": [(196494976, 0), (196520454, 1), (197246719, 2), (197494521, 3)],
+    "5Lt5xXZG7bteZferQk9bsiiAS75JqGVPYcTbB8J6vvJK": [],
 }}
 
 
@@ -51,11 +52,11 @@ class IdlPool:
         for program_id in boundaries_per_program:
             # Find latest IDL
             sorted_idls = [int(os.path.basename(path).removesuffix(".json").removeprefix("marginfi-v")) for path in
-                           glob.glob(f"{idl_dir}/marginfi-v*.json")]
+                           glob.glob(f"{idl_dir}/{program_id}/marginfi-v*.json")]
             sorted_idls.sort()
             latest_idl_version = sorted_idls[-1]
 
-            path = Path(f"{idl_dir}/marginfi-v{latest_idl_version}.json")
+            path = Path(f"{idl_dir}/{program_id}/marginfi-v{latest_idl_version}.json")
             latest_idl_raw = path.read_text()
 
             self.idls_per_program[program_id] = ([], latest_idl_raw, latest_idl_version)
@@ -65,7 +66,7 @@ class IdlPool:
             for boundary in boundaries:
                 version_end_slot = boundary[0]
                 idl_version = boundary[1]
-                path = Path(f"{idl_dir}/marginfi-v{idl_version}.json")
+                path = Path(f"{idl_dir}/{program_id}/marginfi-v{idl_version}.json")
                 idl_raw = path.read_text()
                 self.idls_per_program[program_id][0].append((version_end_slot, (idl_version, idl_raw)))
 

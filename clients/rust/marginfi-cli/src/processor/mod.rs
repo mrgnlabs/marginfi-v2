@@ -443,8 +443,6 @@ pub fn group_add_bank(
         Err(err) => println!("Error during bank creation:\n{:#?}", err),
     };
 
-    println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
-
     Ok(())
 }
 // --------------------------------------------------------------------------------------------------------------------
