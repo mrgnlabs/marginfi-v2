@@ -20,6 +20,7 @@ pub use solana::storage::confirmed_block::*;
 mod conversion {
     use itertools::Itertools;
     use solana_account_decoder::parse_token::UiTokenAmount;
+    use solana_sdk::account::Account;
     use solana_sdk::{
         hash::Hash,
         instruction::CompiledInstruction,
@@ -32,7 +33,6 @@ mod conversion {
         signature::Signature,
         transaction::{TransactionError, VersionedTransaction},
     };
-    use solana_sdk::account::Account;
     use solana_transaction_status::{
         InnerInstructions, Reward, RewardType, TransactionStatusMeta, TransactionTokenBalance,
         VersionedTransactionWithStatusMeta,

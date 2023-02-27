@@ -140,9 +140,11 @@ async fn listen_to_updates(ctx: Arc<Context>) {
                                 failed: Some(false),
                                 account_include: vec![ctx.config.program_id.to_string()],
                                 account_exclude: vec![],
+                                signature: None,
                             },
                         )]),
                         blocks: HashMap::default(),
+                        blocks_meta: HashMap::default(),
                     }]))
                     .await;
 
