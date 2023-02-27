@@ -20,5 +20,5 @@ cd "$ROOT_DIR"
 local_image_name="$job_name"
 gcp_image_name="us-east1-docker.pkg.dev/marginfi-dev/main/dataflow/$local_image_name"
 
-docker build --build-arg JOB_DIRECTORY="$job_dir_rel" --tag "$job_name" "$ROOT_DIR"
+docker build --platform=linux/amd64 --build-arg JOB_DIRECTORY="$job_dir_rel" --tag "$job_name" "$ROOT_DIR"
 docker tag "$local_image_name" "$gcp_image_name:$image_version"

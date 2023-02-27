@@ -506,6 +506,10 @@ fn inspect_padding() -> Result<()> {
     println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
     println!("GroupConfig: {}", GroupConfig::type_layout());
     println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
+    println!(
+        "InterestRateConfigOpt: {}",
+        InterestRateConfigOpt::type_layout()
+    );
     println!("Bank: {}", Bank::type_layout());
     println!("BankConfig: {}", BankConfig::type_layout());
     println!("OracleConfig: {}", OracleConfig::type_layout());

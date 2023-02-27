@@ -404,12 +404,12 @@ pub fn group_add_bank(
         recent_blockhash,
     );
 
+    let bank_pk = bank_keypair.pubkey();
+
     match process_transaction(&tx, &rpc_client, config.dry_run) {
-        Ok(sig) => println!("bank created (sig: {})", sig),
+        Ok(sig) => print!("{bank_pk}"),
         Err(err) => println!("Error during bank creation:\n{:#?}", err),
     };
-
-    println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
 
     Ok(())
 }
