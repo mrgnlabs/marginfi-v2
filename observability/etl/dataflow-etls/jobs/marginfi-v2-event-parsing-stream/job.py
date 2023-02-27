@@ -8,12 +8,11 @@ from decimal import Decimal
 
 import apache_beam as beam  # type: ignore
 from apache_beam.options.pipeline_options import PipelineOptions  # type: ignore
-# import apache_beam.transforms.window as window
 
-from dataflow_etls.orm.events import Record, RecordTypes
+from dataflow_etls.orm.events import EventRecord, RecordTypes
 from dataflow_etls.idl_versions import Cluster, IdlPool
 from dataflow_etls.transaction_parsing import extract_events_from_tx, dictionify_record, DispatchEventsDoFn, \
-    TransactionRaw
+    TransactionRaw, IndexedProgramNotSupported
 
 
 def parse_json(message: bytes) -> TransactionRaw:
@@ -48,8 +47,11 @@ def run(
 
     idl_pool = IdlPool(cluster)
 
-    def extract_events_from_tx_internal(tx: Any) -> List[Record]:
-        return extract_events_from_tx(tx, min_idl_version, cluster, idl_pool)
+    def extract_events_from_tx_internal(tx: Any) -> List[EventRecord]:
+        try:
+            return extract_events_from_tx(tx, min_idl_version, cluster, idl_pool)
+        except IndexedProgramNotSupported:
+            return []
 
     """Build and run the pipeline."""
     pipeline_options = PipelineOptions(beam_args, save_main_session=True, streaming=True)

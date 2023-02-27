@@ -15,7 +15,7 @@ from solders.pubkey import Pubkey
 import apache_beam as beam  # type: ignore
 
 from dataflow_etls.idl_versions import VersionedProgram, IdlPool, Cluster
-from dataflow_etls.orm.events import EVENT_TO_RECORD_TYPE, Record
+from dataflow_etls.orm.events import EVENT_TO_RECORD_TYPE, EventRecord
 
 
 @dataclass
@@ -59,12 +59,21 @@ TransactionRaw = TypedDict('TransactionRaw', {
 })
 
 
+class IndexedProgramNotSupported(Exception):
+    pass
+
+
 def extract_events_from_tx(tx: TransactionRaw, min_idl_version: int, cluster: Cluster, idl_pool: IdlPool) -> List[
-    Record]:
+    EventRecord]:
     indexed_program_id_str = tx["indexing_address"]
     indexed_program_id = Pubkey.from_string(indexed_program_id_str)
     tx_slot = int(tx["slot"])
-    idl_raw, idl_version = idl_pool.get_idl_for_slot(indexed_program_id_str, tx_slot)
+
+    try:
+        idl_raw, idl_version = idl_pool.get_idl_for_slot(indexed_program_id_str, tx_slot)
+    except KeyError:
+        raise IndexedProgramNotSupported(f"Unsupported indexed program {indexed_program_id_str}")
+
     idl = Idl.from_json(idl_raw)
     program = VersionedProgram(cluster, idl_version, idl, indexed_program_id)
 
@@ -172,8 +181,8 @@ def get_latest_ix_ref(instructions: List[InstructionWithLogs], stack_depth: int)
     return target_instruction_list[-1]
 
 
-def extract_events_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -> List[Record]:
-    ix_events: List[Record] = []
+def extract_events_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -> List[EventRecord]:
+    ix_events: List[EventRecord] = []
 
     if ix.message.program_id == program.program_id:
         ix_events.extend(create_records_from_ix(ix, program))
@@ -184,8 +193,8 @@ def extract_events_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
     return ix_events
 
 
-def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -> Sequence[Record]:
-    records: List[Record] = []
+def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -> Sequence[EventRecord]:
+    records: List[EventRecord] = []
 
     try:
         parsed_ix: NamedInstruction = program.coder.instruction.parse(ix.message.data)
@@ -225,9 +234,10 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
 
 
 class DispatchEventsDoFn(beam.DoFn):  # type: ignore
-    def process(self, record: Record, *args: Tuple[Any], **kwargs: Dict[str, Tuple[Any]]) -> Generator[str, None, None]:
+    def process(self, record: EventRecord, *args: Tuple[Any], **kwargs: Dict[str, Tuple[Any]]) -> Generator[
+        str, None, None]:
         yield beam.pvalue.TaggedOutput(record.get_tag(), record)
 
 
-def dictionify_record(record: Record) -> Dict[str, Any]:
+def dictionify_record(record: EventRecord) -> Dict[str, Any]:
     return asdict(record)
