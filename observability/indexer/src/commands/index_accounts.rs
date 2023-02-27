@@ -23,7 +23,7 @@ use google_cloud_pubsub::client::{Client, ClientConfig};
 use itertools::Itertools;
 use log::{debug, error, info, warn};
 use solana_measure::measure::Measure;
-use solana_sdk::{account::Account, pubkey::Pubkey};
+use solana_sdk::{account::Account, pubkey::Pubkey, signature::Signature};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     sync::{
@@ -63,6 +63,7 @@ pub struct AccountUpdateData {
     pub timestamp: DateTime<Utc>,
     pub slot: u64,
     pub address: Pubkey,
+    pub txn_signature: Option<Signature>,
     pub account_data: Account,
 }
 
@@ -141,6 +142,7 @@ async fn listen_to_updates(ctx: Arc<Context>) {
                         )]),
                         transactions: HashMap::default(),
                         blocks: HashMap::default(),
+                        blocks_meta: HashMap::default(),
                     }]))
                     .await;
 
@@ -194,6 +196,10 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
             let update_slot = account_update.slot;
             if let Some(account_info) = account_update.account {
                 let address = Pubkey::new(&account_info.pubkey);
+                let txn_signature = account_info
+                    .txn_signature
+                    .clone()
+                    .map(|sig_bytes| Signature::new(&sig_bytes));
                 let mut account_updates_queue = ctx.account_updates_queue.lock().unwrap();
 
                 let slot_account_updates = match account_updates_queue.get_mut(&update_slot) {
@@ -210,6 +216,7 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
                         address,
                         timestamp: Utc::now(),
                         slot: update_slot,
+                        txn_signature,
                         account_data: account_info.into(),
                     },
                 );
@@ -337,6 +344,7 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
                 owner: account_update_data.account_data.owner.to_string(),
                 slot: account_update_data.slot,
                 pubkey: account_update_data.address.to_string(),
+                txn_signature: account_update_data.txn_signature.map(|sig| sig.to_string()),
                 lamports: account_update_data.account_data.lamports,
                 executable: account_update_data.account_data.executable,
                 rent_epoch: account_update_data.account_data.rent_epoch,

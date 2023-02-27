@@ -18,7 +18,6 @@ lazy_static! {
         TableFieldSchema::string("meta"),
         TableFieldSchema::string("message"),
     ]);
-
     pub static ref ACCOUNT_SCHEMA: TableSchema = TableSchema::new(vec![
         TableFieldSchema::string("id"),
         TableFieldSchema::timestamp("created_at"),
@@ -26,6 +25,7 @@ lazy_static! {
         TableFieldSchema::string("owner"),
         TableFieldSchema::big_numeric("slot"),
         TableFieldSchema::string("pubkey"),
+        TableFieldSchema::string("txn_signature"),
         TableFieldSchema::big_numeric("lamports"),
         TableFieldSchema::bool("executable"),
         TableFieldSchema::big_numeric("rent_epoch"),
