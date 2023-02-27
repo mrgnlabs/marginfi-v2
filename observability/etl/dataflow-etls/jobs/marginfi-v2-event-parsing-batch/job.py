@@ -5,7 +5,7 @@ import apache_beam as beam  # type: ignore
 from apache_beam.options.pipeline_options import PipelineOptions  # type: ignore
 
 from dataflow_etls.orm.events import RecordTypes, Record
-from dataflow_etls.idl_versions import Cluster
+from dataflow_etls.idl_versions import Cluster, IdlPool
 from dataflow_etls.transaction_parsing import dictionify_record, DispatchEventsDoFn, extract_events_from_tx
 
 
@@ -37,8 +37,10 @@ def run(
     else:
         input_query = f"SELECT * FROM `{input_table}`"
 
+    idl_pool = IdlPool(cluster)
+
     def extract_events_from_tx_internal(tx: Any) -> List[Record]:
-        return extract_events_from_tx(tx, min_idl_version, cluster)
+        return extract_events_from_tx(tx, min_idl_version, cluster, idl_pool)
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
         # Define steps
