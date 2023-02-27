@@ -54,7 +54,7 @@ pub struct IndexTransactionsConfig {
     #[envconfig(from = "INDEX_TRANSACTIONS_PUBSUB_TOPIC_NAME")]
     pub topic_name: String,
     #[envconfig(from = "GOOGLE_APPLICATION_CREDENTIALS_JSON")]
-    pub gcp_sa_key: String,
+    pub gcp_sa_key: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -247,11 +247,17 @@ fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) ->
 pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
     let topic_name = ctx.config.topic_name.as_str();
 
+    let project_options = if ctx.config.gcp_sa_key.is_some() {
+        Some(Project::FromFile(Box::new(
+            CredentialsFile::new().await.unwrap(),
+        )))
+    } else {
+        None
+    };
+
     let client = Client::new(ClientConfig {
         project_id: Some(ctx.config.project_id.clone()),
-        project: ProjectOptions::Project(Some(Project::FromFile(Box::new(
-            CredentialsFile::new().await.unwrap(),
-        )))),
+        project: ProjectOptions::Project(project_options),
         ..Default::default()
     })
     .await
