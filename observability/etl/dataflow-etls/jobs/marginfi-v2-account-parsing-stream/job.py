@@ -24,7 +24,7 @@ def parse_json(message: bytes) -> AccountUpdateRaw:
         slot=Decimal(account_update_raw['slot']),
         pubkey=account_update_raw['pubkey'],
         txn_signature=account_update_raw['txn_signature'],
-        lamports=Decimal(account_update_raw['pubkey']),
+        lamports=Decimal(account_update_raw['lamports']),
         executable=bool(account_update_raw['executable']),
         rent_epoch=Decimal(account_update_raw['rent_epoch']),
         data=account_update_raw['data'],

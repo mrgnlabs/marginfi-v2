@@ -15,15 +15,12 @@ python job.py \
 - Build image and upload to Artifact Registry:
 
 ```
-gcloud builds submit --tag us-east1-docker.pkg.dev/marginfi-dev/main/dataflow/marginfi-v2-event-parsing-batch:latest .
+./scripts/build_job_template <PATH TO JOB DIR> <VERSION>
+./scripts/upload_job_template <PATH TO JOB DIR> <VERSION>
 ```
 
 - Create/Update template and associate metadata file:
 
 ```
-gcloud dataflow flex-template build \
-    gs://dataflow_jobs_marginfi_v2/templates/marginfi-v2-event-parsing-batch.json \
-    --image "us-east1-docker.pkg.dev/marginfi-dev/main/dataflow/marginfi-v2-event-parsing-batch:latest" \
-    --sdk-language "PYTHON" \
-    --metadata-file "metadata.json"
+./scripts/sync_job_template <PATH TO JOB DIR> <VERSION>
 ```
