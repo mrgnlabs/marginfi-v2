@@ -5,7 +5,6 @@ import logging
 from typing import List, Optional, Union, Any, Dict
 from decimal import Decimal
 
-
 import apache_beam as beam  # type: ignore
 from apache_beam.options.pipeline_options import PipelineOptions  # type: ignore
 
@@ -17,19 +16,19 @@ from dataflow_etls.transaction_parsing import extract_events_from_tx, dictionify
 
 def parse_json(message: bytes) -> TransactionRaw:
     tx_raw = json.loads(message.decode("utf-8"))
-    return dict(
+    return TransactionRaw(
         id=tx_raw["id"],
-        created_at=parser.parse(tx_raw["created_at"]),
-        timestamp=parser.parse(tx_raw["timestamp"]),
-        signature=tx_raw["signature"],
-        indexing_address=tx_raw["indexing_address"],
-        slot=Decimal(tx_raw["slot"]),
-        signer=tx_raw["signer"],
-        success=bool(tx_raw["success"]),
-        version=tx_raw["version"],
-        fee=Decimal(tx_raw["fee"]),
-        meta=tx_raw["meta"],
-        message=tx_raw["message"],
+        created_at=parser.parse(tx_raw['created_at']),
+        timestamp=parser.parse(tx_raw['timestamp']),
+        signature=tx_raw['signature'],
+        indexing_address=tx_raw['indexing_address'],
+        slot=Decimal(tx_raw['slot']),
+        signer=tx_raw['signer'],
+        success=bool(tx_raw['success']),
+        version=tx_raw['version'],
+        fee=Decimal(tx_raw['fee']),
+        meta=tx_raw['meta'],
+        message=tx_raw['message'],
     )
 
 
@@ -139,16 +138,6 @@ def main() -> None:
         required=False,
         default=0,
         help="Minimum IDL version to consider: int",
-    )
-    parser.add_argument(
-        "--start_date",
-        type=str,
-        help="Start date to consider (inclusive) as: YYYY-MM-DD",
-    )
-    parser.add_argument(
-        "--end_date",
-        type=str,
-        help="End date to consider (exclusive) as: YYYY-MM-DD",
     )
     known_args, remaining_args = parser.parse_known_args()
 

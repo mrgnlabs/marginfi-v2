@@ -1,6 +1,6 @@
 {
-  "name": "marginfi-v2-event-parsing-stream",
-  "description": "Parses individual raw transactions from a Pub/Sub topic/subscription and stores them in dedicated BigQuery tables.",
+  "name": "marginfi-v2-account-parsing-stream",
+  "description": "Parses individual account updates from a Pub/Sub topic/subscription and stores them in dedicated BigQuery tables.",
   "parameters": [
     {
       "name": "input_topic",
@@ -32,7 +32,7 @@
       "name": "cluster",
       "label": "Solana cluster.",
       "isOptional": true,
-      "helpText": "Cluster where the processed txs are executed (used to pull IDL version depending on tx slot).",
+      "helpText": "Cluster where the account updates are executed (used to pull IDL version depending on tx slot).",
       "regexes": ["mainnet|devnet"]
     },
     {

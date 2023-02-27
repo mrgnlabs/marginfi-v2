@@ -21,6 +21,14 @@ def run(
     if beam_args is None:
         beam_args = []
 
+    idl_pool = IdlPool(cluster)
+
+    def parse_account_internal(tx: Any) -> List[AccountUpdateRecord]:
+        try:
+            return parse_account(tx, min_idl_version, cluster, idl_pool)
+        except OwnerProgramNotSupported:
+            return []
+
     """Build and run the pipeline."""
     pipeline_options = PipelineOptions(beam_args, save_main_session=True)
 
@@ -36,14 +44,6 @@ def run(
         )
     else:
         input_query = f"SELECT * FROM `{input_table}`"
-
-    idl_pool = IdlPool(cluster)
-
-    def parse_account_internal(tx: Any) -> List[AccountUpdateRecord]:
-        try:
-            return parse_account(tx, min_idl_version, cluster, idl_pool)
-        except OwnerProgramNotSupported:
-            return []
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
         # Define steps

@@ -1,22 +1,42 @@
 import argparse
+from dateutil import parser
+import json
 import logging
-from typing import List, Optional, Union, Any, Dict
+from typing import List, Optional, Any, Dict, Union
+from decimal import Decimal
+
 import apache_beam as beam  # type: ignore
 from apache_beam.options.pipeline_options import PipelineOptions  # type: ignore
 
-from dataflow_etls.orm.events import EventRecordTypes, EventRecord
+from dataflow_etls.account_parsing import parse_account, OwnerProgramNotSupported, dictionify_record, \
+    DispatchEventsDoFn, AccountUpdateRaw
 from dataflow_etls.idl_versions import Cluster, IdlPool
-from dataflow_etls.transaction_parsing import dictionify_record, DispatchEventsDoFn, extract_events_from_tx, \
-    IndexedProgramNotSupported
+from dataflow_etls.orm.accounts import AccountUpdateRecordTypes, AccountUpdateRecord
+
+
+def parse_json(message: bytes) -> AccountUpdateRaw:
+    account_update_raw = json.loads(message.decode("utf-8"))
+    return AccountUpdateRaw(
+        id=account_update_raw['id'],
+        created_at=parser.parse(account_update_raw['created_at']),
+        timestamp=parser.parse(account_update_raw['timestamp']),
+        owner=account_update_raw['owner'],
+        slot=Decimal(account_update_raw['slot']),
+        pubkey=account_update_raw['pubkey'],
+        txn_signature=account_update_raw['txn_signature'],
+        lamports=Decimal(account_update_raw['pubkey']),
+        executable=bool(account_update_raw['executable']),
+        rent_epoch=Decimal(account_update_raw['rent_epoch']),
+        data=account_update_raw['data'],
+    )
 
 
 def run(
-        input_table: str,
+        input_topic: str,
+        input_subscription: str,
         output_table_namespace: str,
         cluster: Cluster,
         min_idl_version: int,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
         beam_args: Optional[List[str]] = None,
 ) -> None:
     if beam_args is None:
@@ -24,42 +44,34 @@ def run(
 
     idl_pool = IdlPool(cluster)
 
-    def extract_events_from_tx_internal(tx: Any) -> List[EventRecord]:
+    def parse_account_internal(tx: Any) -> List[AccountUpdateRecord]:
         try:
-            return extract_events_from_tx(tx, min_idl_version, cluster, idl_pool)
-        except IndexedProgramNotSupported:
+            return parse_account(tx, min_idl_version, cluster, idl_pool)
+        except OwnerProgramNotSupported:
             return []
 
     """Build and run the pipeline."""
-    pipeline_options = PipelineOptions(beam_args, save_main_session=True)
-
-    if start_date is not None and end_date is not None:
-        input_query = f'SELECT * FROM `{input_table}` WHERE DATE(timestamp) >= "{start_date}" AND DATE(timestamp) < "{end_date}"'
-    elif start_date is not None:
-        input_query = (
-            f'SELECT * FROM `{input_table}` WHERE DATE(timestamp) >= "{start_date}"'
-        )
-    elif end_date is not None:
-        input_query = (
-            f'SELECT * FROM `{input_table}` WHERE DATE(timestamp) < "{end_date}"'
-        )
-    else:
-        input_query = f"SELECT * FROM `{input_table}`"
+    pipeline_options = PipelineOptions(beam_args, save_main_session=True, streaming=True)
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
         # Define steps
-        read_raw_txs = beam.io.ReadFromBigQuery(query=input_query, use_standard_sql=True)
+        read_raw_txs = beam.io.ReadFromPubSub(
+            topic=input_topic, subscription=input_subscription
+        ).with_output_types(bytes)
 
-        extract_events = beam.FlatMap(extract_events_from_tx_internal)
+        parse_to_raw_txs = beam.Map(parse_json)
 
-        dispatch_events = beam.ParDo(DispatchEventsDoFn()).with_outputs(*[rt.get_tag() for rt in EventRecordTypes])
+        extract_events = beam.FlatMap(parse_account_internal)
+
+        dispatch_events = beam.ParDo(DispatchEventsDoFn()).with_outputs(
+            *[rt.get_tag() for rt in AccountUpdateRecordTypes])
 
         dictionify_events = beam.Map(dictionify_record)
 
         writers: Dict[str, Union[beam.io.WriteToText, beam.io.WriteToBigQuery]] = {}
-        for rt in EventRecordTypes:
+        for rt in AccountUpdateRecordTypes:
             if output_table_namespace == "local_file":  # For testing purposes
-                writers[rt.get_tag()] = beam.io.WriteToText(f"events_{rt.get_tag(snake_case=True)}")
+                writers[rt.get_tag()] = beam.io.WriteToText(f"account_updates_{rt.get_tag(snake_case=True)}")
             else:
                 writers[rt.get_tag()] = beam.io.WriteToBigQuery(
                     f"{output_table_namespace}_{rt.get_tag(snake_case=True)}",
@@ -72,11 +84,12 @@ def run(
         tagged_events = (
                 pipeline
                 | "ReadRawTxs" >> read_raw_txs
+                | "ParseTxsToRawTxs" >> parse_to_raw_txs
                 | "ExtractEvents" >> extract_events
                 | "DispatchEvents" >> dispatch_events
         )
 
-        for rt in EventRecordTypes:
+        for rt in AccountUpdateRecordTypes:
             (tagged_events[rt.get_tag()]
              | f"Dictionify{rt.get_tag()}" >> dictionify_events
              | f"Write{rt.get_tag()}" >> writers[rt.get_tag()]
@@ -88,17 +101,20 @@ def main() -> None:
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--input_table",
+        "--input_topic",
         type=str,
-        required=True,
-        help="Input BigQuery table specified as: "
-             "PROJECT.DATASET.TABLE.",
+        help='Input PubSub topic of the form "projects/<PROJECT>/topics/<TOPIC>."',
+    )
+    parser.add_argument(
+        "--input_subscription",
+        type=str,
+        help='Input PubSub subscription of the form "projects/<PROJECT>/subscriptions/<SUBSCRIPTION>."',
     )
     parser.add_argument(
         "--output_table_namespace",
         type=str,
         required=True,
-        help="Output BigQuery namespace where event tables are located: PROJECT:DATASET.TABLE",
+        help="Output BigQuery namespace where parsed account tables are located: PROJECT:DATASET.TABLE",
     )
     parser.add_argument(
         "--cluster",
@@ -114,25 +130,14 @@ def main() -> None:
         default=0,
         help="Minimum IDL version to consider: int",
     )
-    parser.add_argument(
-        "--start_date",
-        type=str,
-        help="Start date to consider (inclusive) as: YYYY-MM-DD",
-    )
-    parser.add_argument(
-        "--end_date",
-        type=str,
-        help="End date to consider (exclusive) as: YYYY-MM-DD",
-    )
     known_args, remaining_args = parser.parse_known_args()
 
     run(
-        input_table=known_args.input_table,
+        input_topic=known_args.input_topic,
+        input_subscription=known_args.input_subscription,
         output_table_namespace=known_args.output_table_namespace,
         cluster=known_args.cluster,
         min_idl_version=known_args.min_idl_version,
-        start_date=known_args.start_date,
-        end_date=known_args.end_date,
         beam_args=remaining_args,
     )
 
