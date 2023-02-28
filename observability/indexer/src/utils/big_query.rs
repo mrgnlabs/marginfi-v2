@@ -26,6 +26,7 @@ lazy_static! {
         TableFieldSchema::big_numeric("slot"),
         TableFieldSchema::string("pubkey"),
         TableFieldSchema::string("txn_signature"),
+        TableFieldSchema::big_numeric("write_version"),
         TableFieldSchema::big_numeric("lamports"),
         TableFieldSchema::bool("executable"),
         TableFieldSchema::big_numeric("rent_epoch"),
