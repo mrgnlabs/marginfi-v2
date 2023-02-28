@@ -25,8 +25,9 @@ message PubsubAccountUpdate {
   required uint64 slot = 5;
   required string pubkey = 6;
   optional string txn_signature = 7;
-  required uint64 lamports = 8;
-  required bool executable = 9;
-  required uint64 rent_epoch = 10;
-  required string data = 11;
+  optional uint64 write_version = 8;
+  required uint64 lamports = 9;
+  required bool executable = 10;
+  required uint64 rent_epoch = 11;
+  required string data = 12;
 }

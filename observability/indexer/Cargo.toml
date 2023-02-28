@@ -23,8 +23,9 @@ google-cloud-googleapis = "0.7.0"
 yup-oauth2 = "8.0.0"
 
 dotenv = "0.15.0"
-env_logger = "0.9.3"
-log = "0.4.17"
+tracing = "0.1.36"
+tracing-stackdriver = "0.6.1"
+tracing-subscriber = { version = "0.3.15", features = ["env-filter", "fmt"] }
 clap = { version = "3.2.23", features = ["derive"] }
 anyhow = "1.0.58"
 envconfig = "0.10.0"

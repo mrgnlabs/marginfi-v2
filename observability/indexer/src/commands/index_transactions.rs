@@ -19,7 +19,6 @@ use google_cloud_gax::project::ProjectOptions;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::client::{Client, ClientConfig};
 use itertools::Itertools;
-use log::{debug, error, info, warn};
 use solana_measure::measure::Measure;
 use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::TransactionVersion};
 use solana_transaction_status::{UiTransactionStatusMeta, VersionedTransactionWithStatusMeta};
@@ -32,6 +31,7 @@ use std::{
     time::Duration,
 };
 use tonic::Status;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 #[derive(Envconfig, Debug, Clone)]
@@ -437,7 +437,7 @@ async fn monitor(ctx: Arc<Context>) {
         let tx_queue_size = ctx.transactions_queue.lock().unwrap().len();
 
         info!(
-            "Time: {:.1}s | Total txs: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {}\n\tEarliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
+            "Time: {:.1}s | Total txs: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {} | Earliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
             current_fetch_time,
             current_fetch_count,
             current_fetch_time - last_fetch_time,

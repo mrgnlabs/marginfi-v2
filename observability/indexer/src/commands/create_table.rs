@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use anyhow::{anyhow, Result};
 use gcp_bigquery_client::{error::BQError, model::{table::Table, time_partitioning::TimePartitioning}};
-use log::{info, warn};
+use tracing::{info, warn};
 use yup_oauth2::parse_service_account_key;
 
 use crate::utils::big_query::{ACCOUNT_SCHEMA, NOT_FOUND_CODE, TRANSACTION_SCHEMA};

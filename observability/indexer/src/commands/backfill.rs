@@ -18,9 +18,9 @@ use google_cloud_gax::project::ProjectOptions;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::client::ClientConfig;
 use itertools::Itertools;
-use log::error;
 use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::TransactionVersion};
 use std::{str::FromStr, sync::Arc, time::Duration};
+use tracing::error;
 use uuid::Uuid;
 
 #[derive(Envconfig, Debug, Clone)]
