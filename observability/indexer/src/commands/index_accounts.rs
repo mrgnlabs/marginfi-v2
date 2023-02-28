@@ -211,7 +211,7 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
                     }
                 };
 
-                let insert_res = slot_account_updates.insert(
+                slot_account_updates.insert(
                     address,
                     AccountUpdateData {
                         address,
@@ -222,11 +222,6 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
                         account_data: account_info.into(),
                     },
                 );
-
-                if insert_res.is_some() {
-                    println!("Overwriting existing account update for {}", address);
-                }
-                // println!("slot_transactions for {:?} at {}: {}", filters.to_vec(), transaction_update.slot, slot_transactions.len());
             } else {
                 anyhow::bail!("Expected `transaction` in `UpdateOneof::Transaction` update");
             }
@@ -291,7 +286,7 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
             if let Some(oldest_slot_with_commitment) = latest_slots_with_commitment.first() {
                 account_updates_per_slot.retain(|slot, account_updates| {
                     if slot < oldest_slot_with_commitment {
-                        warn!(
+                        debug!(
                             "throwing away txs {:?} from slot {}",
                             account_updates
                                 .iter()
@@ -329,10 +324,6 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
 
         account_updates_data.iter().for_each(|account_update_data| {
             ctx.account_updates_counter.fetch_add(1, Ordering::Relaxed);
-            info!(
-                "{:?} - {}",
-                account_update_data.account_data.owner, account_update_data.address
-            );
 
             let now = Utc::now();
 
@@ -418,7 +409,7 @@ async fn monitor(ctx: Arc<Context>) {
         };
         let account_updates_queue_size = ctx.account_updates_queue.lock().unwrap().len();
 
-        info!(
+        debug!(
             "Time: {:.1}s | Total account udpates: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {} | Earliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
             current_fetch_time,
             current_fetch_count,
