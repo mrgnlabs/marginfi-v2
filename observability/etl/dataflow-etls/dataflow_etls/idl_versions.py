@@ -27,10 +27,15 @@ class VersionedProgram(Program):
 
 
 # /!\ Boundaries need to be ordered /!\
-IDL_VERSIONS: ClusterIdlBoundaries = {"devnet": {
-    # "A7vUDErNPCTt9qrB6SSM4F6GkxzUe9d8P3cXSmRg4eY4": [(196494976, 0), (196520454, 1), (197246719, 2), (197494521, 3)],
-    "5Lt5xXZG7bteZferQk9bsiiAS75JqGVPYcTbB8J6vvJK": [],
-}}
+IDL_VERSIONS: ClusterIdlBoundaries = {
+    "devnet": {
+        # "A7vUDErNPCTt9qrB6SSM4F6GkxzUe9d8P3cXSmRg4eY4": [(196494976, 0), (196520454, 1), (197246719, 2), (197494521, 3)],
+        "5Lt5xXZG7bteZferQk9bsiiAS75JqGVPYcTbB8J6vvJK": [],
+    },
+    "mainnet": {
+        "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA": [],
+    }
+}
 
 
 class ClusterNotSupported(Exception):

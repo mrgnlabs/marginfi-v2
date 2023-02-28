@@ -8,4 +8,4 @@ image_tag=$1
 local_image_name="marginfi-v2-indexer"
 gcp_image_name="us-east1-docker.pkg.dev/marginfi-dev/main/$local_image_name"
 
-docker build --platform=linux/amd64 --tag "$local_image_name:$image_tag" --tag "$gcp_image_name:$image_tag" .
+docker build --platform=linux/amd64 --tag "$gcp_image_name:$image_tag" .
