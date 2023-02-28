@@ -283,7 +283,7 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
             if let Some(oldest_slot_with_commitment) = latest_slots_with_commitment.first() {
                 transactions_per_slot.retain(|slot, transactions| {
                     if slot < oldest_slot_with_commitment {
-                        warn!(
+                        debug!(
                             "throwing away txs {:?} from slot {}",
                             transactions
                                 .iter()
@@ -436,7 +436,7 @@ async fn monitor(ctx: Arc<Context>) {
         };
         let tx_queue_size = ctx.transactions_queue.lock().unwrap().len();
 
-        info!(
+        debug!(
             "Time: {:.1}s | Total txs: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {} | Earliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
             current_fetch_time,
             current_fetch_count,
