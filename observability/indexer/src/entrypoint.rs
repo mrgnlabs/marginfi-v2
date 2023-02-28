@@ -1,21 +1,26 @@
+use crate::commands::create_table::TableType;
+use crate::commands::index_accounts::{index_accounts, IndexAccountsConfig};
 use crate::commands::{
     backfill::{backfill, BackfillConfig},
-    create_table::{create_table},
+    create_table::create_table,
     index_transactions::{index_transactions, IndexTransactionsConfig},
 };
 use anyhow::Result;
 use clap::Parser;
 use dotenv::dotenv;
 use envconfig::Envconfig;
-use log::debug;
 use std::{panic, process};
-use crate::commands::create_table::TableType;
-use crate::commands::index_accounts::{index_accounts, IndexAccountsConfig};
+use tracing::debug;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::EnvFilter;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Parser)]
-pub struct GlobalOptions {}
+pub struct GlobalOptions {
+    #[clap(long)]
+    pub pretty_log: bool,
+}
 
 #[derive(Debug, Parser)]
 #[clap(version = VERSION)]
@@ -56,11 +61,36 @@ pub async fn entry(opts: Opts) -> Result<()> {
     }));
 
     dotenv().ok();
-    env_logger::init();
+
+    let filter = EnvFilter::from_default_env();
+    let stackdriver = tracing_stackdriver::layer(); // writes to std::io::Stdout
+    let subscriber = tracing_subscriber::registry().with(filter);
+    if opts.global_config.pretty_log {
+        let subscriber = subscriber.with(tracing_subscriber::fmt::layer().compact());
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+    } else {
+        let subscriber = subscriber.with(stackdriver);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+    };
 
     match opts.command {
-        Command::CreateTable { project_id, dataset_id, table_type, table_id, table_friendly_name, table_description } => {
-            create_table(project_id, dataset_id, table_id, table_type, table_friendly_name, table_description).await
+        Command::CreateTable {
+            project_id,
+            dataset_id,
+            table_type,
+            table_id,
+            table_friendly_name,
+            table_description,
+        } => {
+            create_table(
+                project_id,
+                dataset_id,
+                table_id,
+                table_type,
+                table_friendly_name,
+                table_description,
+            )
+            .await
         }
         Command::Backfill => {
             let config = BackfillConfig::init_from_env().unwrap();

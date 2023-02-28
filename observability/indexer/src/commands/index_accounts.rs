@@ -21,7 +21,6 @@ use google_cloud_gax::project::ProjectOptions;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::client::{Client, ClientConfig};
 use itertools::Itertools;
-use log::{debug, error, info, warn};
 use solana_measure::measure::Measure;
 use solana_sdk::{account::Account, pubkey::Pubkey, signature::Signature};
 use std::{
@@ -33,6 +32,7 @@ use std::{
     time::Duration,
 };
 use tonic::Status;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 #[derive(Envconfig, Debug, Clone)]
@@ -64,6 +64,7 @@ pub struct AccountUpdateData {
     pub slot: u64,
     pub address: Pubkey,
     pub txn_signature: Option<Signature>,
+    pub write_version: Option<u64>,
     pub account_data: Account,
 }
 
@@ -217,6 +218,7 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
                         timestamp: Utc::now(),
                         slot: update_slot,
                         txn_signature,
+                        write_version: Some(account_info.write_version),
                         account_data: account_info.into(),
                     },
                 );
@@ -345,6 +347,7 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
                 slot: account_update_data.slot,
                 pubkey: account_update_data.address.to_string(),
                 txn_signature: account_update_data.txn_signature.map(|sig| sig.to_string()),
+                write_version: account_update_data.write_version,
                 lamports: account_update_data.account_data.lamports,
                 executable: account_update_data.account_data.executable,
                 rent_epoch: account_update_data.account_data.rent_epoch,
@@ -416,7 +419,7 @@ async fn monitor(ctx: Arc<Context>) {
         let account_updates_queue_size = ctx.account_updates_queue.lock().unwrap().len();
 
         info!(
-            "Time: {:.1}s | Total account udpates: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {}\n\tEarliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
+            "Time: {:.1}s | Total account udpates: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {} | Earliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
             current_fetch_time,
             current_fetch_count,
             current_fetch_time - last_fetch_time,

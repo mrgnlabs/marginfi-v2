@@ -2,7 +2,6 @@ use anyhow::Result;
 use chrono::{Local, TimeZone};
 use concurrent_queue::ConcurrentQueue;
 use futures::{future::join_all, stream, Future, StreamExt};
-use log::{error, info, warn};
 use solana_client::{
     nonblocking::rpc_client::RpcClient, rpc_client::GetConfirmedSignaturesForAddress2Config,
     rpc_config::RpcTransactionConfig,
@@ -23,6 +22,7 @@ use std::{
 };
 use std::{str::FromStr, time::Duration};
 use tokio::{join, runtime::Builder};
+use tracing::{error, info, warn};
 
 use crate::common::{
     Target, DEFAULT_MAX_PENDING_SIGNATURES, DEFAULT_MONITOR_INTERVAL, DEFAULT_RPC_ENDPOINT,
