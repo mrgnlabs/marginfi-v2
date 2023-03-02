@@ -37,6 +37,8 @@ pub fn lending_account_withdraw(
         ..
     } = ctx.accounts;
 
+    let current_timestamp = Clock::get()?.unix_timestamp;
+
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
@@ -46,7 +48,7 @@ pub fn lending_account_withdraw(
     );
 
     bank_loader.load_mut()?.accrue_interest(
-        Clock::get()?.unix_timestamp,
+        current_timestamp,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -100,8 +102,8 @@ pub fn lending_account_withdraw(
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?
-        .check_account_health(RiskRequirementType::Initial)?;
+    RiskEngine::new_from_remaining_accounts(&marginfi_account, ctx.remaining_accounts)?
+        .check_account_health(RiskRequirementType::Initial, current_timestamp)?;
 
     Ok(())
 }

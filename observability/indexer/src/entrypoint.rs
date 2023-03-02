@@ -1,5 +1,6 @@
 use crate::commands::create_table::TableType;
 use crate::commands::index_accounts::{index_accounts, IndexAccountsConfig};
+use crate::commands::snapshot_accounts::{snapshot_accounts, SnapshotAccountsConfig};
 use crate::commands::{
     backfill::{backfill, BackfillConfig},
     create_table::create_table,
@@ -50,6 +51,7 @@ pub enum Command {
     Backfill,
     IndexTransactions,
     IndexAccounts,
+    SnapshotAccounts,
 }
 
 #[tokio::main]
@@ -109,6 +111,12 @@ pub async fn entry(opts: Opts) -> Result<()> {
             debug!("Config -> {:#?}", &config.clone());
 
             index_accounts(config).await
+        }
+        Command::SnapshotAccounts => {
+            let config = SnapshotAccountsConfig::init_from_env().unwrap();
+            debug!("Config -> {:#?}", &config.clone());
+
+            snapshot_accounts(config).await
         }
     }
 }

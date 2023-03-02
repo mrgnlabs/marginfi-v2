@@ -16,7 +16,6 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
-
 use std::{
     cmp::{max, min},
     ops::Not,
@@ -162,10 +161,35 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
             .collect::<Result<Vec<_>>>()
     }
 
+    #[cfg(feature = "client")]
+    pub fn load(
+        marginfi_account: &'a MarginfiAccount,
+        banks: &HashMap<Pubkey, Bank>,
+        price_feeds: &HashMap<Pubkey, PriceFeed>,
+    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
+        marginfi_account
+            .lending_account
+            .balances
+            .iter()
+            .filter(|balance| balance.active)
+            .enumerate()
+            .map(|(_, balance)| {
+                let bank = banks.get(&balance.bank_pk).unwrap();
+                let price_feed = price_feeds.get(&bank.config.get_pyth_oracle_key()).unwrap();
+                Ok(BankAccountWithPriceFeed {
+                    bank: Box::new(*bank),
+                    price_feed: Box::new(*price_feed),
+                    balance,
+                })
+            })
+            .collect::<Result<Vec<_>>>()
+    }
+
     #[inline(always)]
     pub fn calc_weighted_assets_and_liabilities_values(
         &self,
         weight_type: WeightType,
+        current_timestamp: i64,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         let (worst_price, best_price) = self.price_feed.get_price_range()?;
         let bank_al = AccountLoader::<Bank>::try_from(&self.bank)?;
@@ -250,13 +274,6 @@ pub fn calc_asset_value(
         asset_amount
     };
 
-    msg!(
-        "weighted_asset_qt: {}, price: {}, expo: {}",
-        weighted_asset_amount,
-        price,
-        mint_decimals
-    );
-
     let asset_value = weighted_asset_amount
         .checked_mul(price)
         .ok_or_else(math_error!())?
@@ -308,11 +325,26 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &[AccountInfo<'b>],
     ) -> MarginfiResult<Self> {
-        let bank_accounts_with_price =
-            BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
-
         Ok(Self {
-            bank_accounts_with_price,
+            bank_accounts_with_price: BankAccountWithPriceFeed::load_from_remaining_accounts(
+                &marginfi_account.lending_account,
+                remaining_ais,
+            )?,
+        })
+    }
+
+    #[cfg(feature = "client")]
+    pub fn new(
+        marginfi_account: &'a MarginfiAccount,
+        banks: &HashMap<Pubkey, Bank>,
+        price_feeds: &HashMap<Pubkey, PriceFeed>,
+    ) -> MarginfiResult<Self> {
+        Ok(Self {
+            bank_accounts_with_price: BankAccountWithPriceFeed::load(
+                marginfi_account,
+                banks,
+                price_feeds,
+            )?,
         })
     }
 
@@ -320,6 +352,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
     pub fn get_account_health_components(
         &self,
         requirement_type: RiskRequirementType,
+        current_timestamp: i64,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         let mut total_assets = I80F48::ZERO;
         let mut total_liabilities = I80F48::ZERO;
@@ -340,18 +373,23 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
     pub fn get_account_health(
         &self,
         requirement_type: RiskRequirementType,
+        current_timestamp: i64,
     ) -> MarginfiResult<I80F48> {
         let (total_weighted_assets, total_weighted_liabilities) =
-            self.get_account_health_components(requirement_type)?;
+            self.get_account_health_components(requirement_type, current_timestamp)?;
 
         Ok(total_weighted_assets
             .checked_sub(total_weighted_liabilities)
             .ok_or_else(math_error!())?)
     }
 
-    pub fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
+    pub fn check_account_health(
+        &self,
+        requirement_type: RiskRequirementType,
+        current_timestamp: i64,
+    ) -> MarginfiResult {
         let (total_weighted_assets, total_weighted_liabilities) =
-            self.get_account_health_components(requirement_type)?;
+            self.get_account_health_components(requirement_type, current_timestamp)?;
 
         msg!(
             "check_health: assets {} - liabs: {}",
@@ -375,6 +413,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
     pub fn check_pre_liquidation_condition_and_get_account_health(
         &self,
         bank_pk: &Pubkey,
+        current_timestamp: i64,
     ) -> MarginfiResult<I80F48> {
         let liability_bank_balance = self
             .bank_accounts_with_price
@@ -394,8 +433,8 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
             MarginfiError::IllegalLiquidation
         );
 
-        let (assets, liabs) =
-            self.get_account_health_components(RiskRequirementType::Maintenance)?;
+        let (assets, liabs) = self
+            .get_account_health_components(RiskRequirementType::Maintenance, current_timestamp)?;
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 
@@ -428,6 +467,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         &self,
         bank_pk: &Pubkey,
         pre_liquidation_health: I80F48,
+        current_timestamp: i64,
     ) -> MarginfiResult<I80F48> {
         let liability_bank_balance = self
             .bank_accounts_with_price
@@ -449,8 +489,8 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
             "Liability payoff too severe"
         );
 
-        let (assets, liabs) =
-            self.get_account_health_components(RiskRequirementType::Maintenance)?;
+        let (assets, liabs) = self
+            .get_account_health_components(RiskRequirementType::Maintenance, current_timestamp)?;
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 

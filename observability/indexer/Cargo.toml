@@ -8,12 +8,13 @@ name = "mfi-index"
 path = "src/bin/main.rs"
 
 [dependencies]
-solana-client = "=1.14.3"
-solana-measure = "=1.14.3"
-solana-metrics = "=1.14.3"
-solana-sdk = "=1.14.3"
-solana-transaction-status = "=1.14.3"
-solana-account-decoder = "=1.14.3"
+solana-client = "~1.14.3"
+solana-measure = "~1.14.3"
+solana-metrics = "~1.14.3"
+solana-sdk = "~1.14.3"
+solana-transaction-status = "~1.14.3"
+solana-account-decoder = "~1.14.3"
+spl-token = "3.5.0"
 
 gcp-bigquery-client = "0.16.2"
 google-cloud-auth = "0.8.1"
@@ -22,7 +23,17 @@ google-cloud-gax = "0.12.1"
 google-cloud-googleapis = "0.7.0"
 yup-oauth2 = "8.0.0"
 
+anchor-client = "0.26.0"
+marginfi = { path = "../../programs/marginfi", features = [
+    "no-entrypoint",
+    "client",
+] }
+pyth-sdk-solana = "0.7.0"
+
+fixed = "1.12.0"
+fixed-macro = "1.2.0"
 dotenv = "0.15.0"
+bytemuck = "1.13.1"
 tracing = "0.1.36"
 tracing-stackdriver = "0.6.1"
 tracing-subscriber = { version = "0.3.15", features = ["env-filter", "fmt"] }
@@ -52,6 +63,7 @@ chrono = "0.4.23"
 base64 = "0.21.0"
 uuid = { version = "1.2.2", features = ["v4"] }
 chrono-tz = "0.8.0"
+backoff = { version = "0.4.0", features = ["tokio"] }
 
 [build-dependencies]
 anyhow = "1.0.58"
