@@ -24,6 +24,7 @@ class AccountUpdateRecordBase:
             "idl_version:INTEGER",
             "timestamp:TIMESTAMP",
             "owner_program:STRING",
+            "pubkey:STRING",
         ]
     )
 
@@ -32,6 +33,7 @@ class AccountUpdateRecordBase:
     idl_version: int
     timestamp: str
     owner_program: str
+    pubkey: str
 
     def __init__(self, _parsed_data: NamedAccountData, account_update: "AccountUpdateRaw", idl_version: int):
         self.id = str(uuid.uuid4())
@@ -39,6 +41,7 @@ class AccountUpdateRecordBase:
         self.timestamp = time_str(account_update['timestamp'])
         self.idl_version = idl_version
         self.owner_program = str(account_update['owner'])
+        self.pubkey = str(account_update['pubkey'])
 
     @classmethod
     def get_tag(cls, snake_case: bool = False) -> str:
