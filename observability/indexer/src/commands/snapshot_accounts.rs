@@ -1,11 +1,12 @@
+use crate::utils::metrics::{LendingPoolBankMetrics, MarginfiAccountMetrics, MarginfiGroupMetrics};
 use crate::{
-    commands::geyser_client::get_geyser_client,
+    utils::geyser_client::get_geyser_client,
     utils::{
         protos::geyser::{
             subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterAccounts,
             SubscribeRequestFilterSlots, SubscribeUpdateSlotStatus,
         },
-        snapshot::{OracleData, Snapshot},
+        snapshot::Snapshot,
     },
 };
 use anyhow::Result;
@@ -13,7 +14,6 @@ use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
 use futures::{future::join_all, stream, StreamExt};
 use itertools::Itertools;
-use marginfi::state::marginfi_account::{calc_asset_value};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_measure::measure::Measure;
 use solana_sdk::{
@@ -32,11 +32,8 @@ use std::{
     },
     time::Duration,
 };
-use std::ops::Div;
-use fixed::types::I80F48;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
-use marginfi::constants::ZERO_AMOUNT_THRESHOLD;
 
 #[derive(Debug, Clone)]
 pub struct PubkeyVec(pub Vec<Pubkey>); // Ugh
@@ -124,10 +121,7 @@ impl Context {
             rpc_client: rpc_client.clone(),
             account_updates_queue: Arc::new(Mutex::new(BTreeMap::new())),
             latest_slots_with_commitment: Arc::new(Mutex::new(BTreeSet::new())),
-            account_snapshot: Arc::new(Mutex::new(Snapshot::new(
-                config.program_id,
-                rpc_client,
-            ))),
+            account_snapshot: Arc::new(Mutex::new(Snapshot::new(config.program_id, rpc_client))),
             stream_disconnection_count: Arc::new(AtomicU64::new(0)),
             update_processing_error_count: Arc::new(AtomicU64::new(0)),
         }
@@ -167,13 +161,6 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
 
 async fn listen_to_updates(ctx: Arc<Context>) {
     loop {
-        info!("Fetching target group");
-        {
-            let mut snapshot_accounts = ctx.account_snapshot.lock().await;
-            snapshot_accounts.init(ctx.clone()).await.unwrap();
-            println!("{snapshot_accounts}");
-        }
-
         info!("Instantiating geyser client");
         match get_geyser_client(
             ctx.config.rpc_endpoint_geyser.to_string(),
@@ -362,106 +349,14 @@ pub async fn update_account_map(ctx: Arc<Context>) {
     }
 }
 
-#[derive(Debug)]
-pub struct MarginfiGroupMetrics {
-    pub pubkey: Pubkey,
-    pub total_marginfi_accounts: u64,
-    pub total_banks: u64,
-    pub total_mints: u64,
-    pub total_assets_usd: f64,
-    pub total_liabilities_usd: f64,
-}
-
-impl MarginfiGroupMetrics {
-    pub fn new(snapshot: &Snapshot) -> Self {
-        let (total_assets_usd, total_liabilities_usd) = snapshot.banks.iter().fold((0.0, 0.0), |mut sums, (_, bank_accounts)| {
-            let total_asset_share = bank_accounts
-                .bank
-                .total_asset_shares;
-            let total_liability_share = bank_accounts
-                .bank
-                .total_liability_shares;
-            let price = snapshot.price_feeds.get(&bank_accounts.bank.config.get_pyth_oracle_key()).unwrap().get_price();
-
-            let asset_value_usd = calc_asset_value(bank_accounts.bank.get_asset_amount(total_asset_share.into()).unwrap(), price, bank_accounts.bank.mint_decimals, None).unwrap().to_num::<f64>();
-            let liability_value_usd = calc_asset_value(bank_accounts.bank.get_liability_amount(total_liability_share.into()).unwrap(), price, bank_accounts.bank.mint_decimals, None).unwrap().to_num::<f64>();
-
-            sums.0 += asset_value_usd;
-            sums.1 += liability_value_usd;
-
-            sums
-        });
-
-
-        Self {
-            pubkey: snapshot.marginfi_group.0,
-            total_marginfi_accounts: snapshot.marginfi_accounts.len() as u64,
-            total_banks: snapshot.banks.len() as u64,
-            total_mints: snapshot
-                .banks
-                .iter()
-                .unique_by(|(_, bank_accounts)| bank_accounts.bank.mint).collect_vec().len() as u64,
-            total_assets_usd,
-            total_liabilities_usd,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct LendingPoolBankMetrics {
-    pub pubkey: Pubkey,
-    pub mint: Pubkey,
-    pub total_lenders: u64,
-    pub total_borrowers: u64,
-    pub total_assets_token: f64,
-    pub total_liabilities_token: f64,
-    pub total_assets_usd: f64,
-    pub total_liabilities_usd: f64,
-    pub liquidity_vault_balance: f64,
-    pub insurance_vault_balance: f64,
-    pub fee_vault_balance: f64,
-}
-
-impl LendingPoolBankMetrics {
-    pub fn new(bank_pk: &Pubkey, snapshot: &Snapshot) -> Self {
-        let bank_accounts = snapshot.banks.get(bank_pk).unwrap();
-
-        let total_asset_share = bank_accounts.bank
-            .total_asset_shares;
-        let total_liability_share = bank_accounts.bank
-            .total_liability_shares;
-        let price = snapshot.price_feeds.get(&bank_accounts.bank.config.get_pyth_oracle_key()).unwrap().get_price();
-
-        let asset_amount = bank_accounts.bank.get_asset_amount(total_asset_share.into()).unwrap();
-        let asset_value_usd = calc_asset_value(asset_amount, price, bank_accounts.bank.mint_decimals, None).unwrap().to_num::<f64>();
-        let liability_amount = bank_accounts.bank.get_liability_amount(total_liability_share.into()).unwrap();
-        let liability_value_usd = calc_asset_value(liability_amount, price, bank_accounts.bank.mint_decimals, None).unwrap().to_num::<f64>();
-
-
-        Self {
-            pubkey: *bank_pk,
-            mint: bank_accounts.bank.mint,
-            total_lenders: snapshot.marginfi_accounts.iter().filter(|(_, account)| account.lending_account.balances.iter().any(|a| a.active && I80F48::from(a.asset_shares).gt(&ZERO_AMOUNT_THRESHOLD) && a.bank_pk.eq(bank_pk))).count() as u64,
-            total_borrowers: snapshot.marginfi_accounts.iter().filter(|(_, account)| account.lending_account.balances.iter().any(|a| a.active && I80F48::from(a.liability_shares).gt(&ZERO_AMOUNT_THRESHOLD) && a.bank_pk.eq(bank_pk))).count() as u64,
-            total_assets_token: asset_amount.to_num::<f64>().div(10i64.pow(bank_accounts.bank.mint_decimals as u32) as f64),
-            total_liabilities_token: liability_amount.to_num::<f64>().div(10i64.pow(bank_accounts.bank.mint_decimals as u32) as f64),
-            total_assets_usd: asset_value_usd,
-            total_liabilities_usd: liability_value_usd,
-            liquidity_vault_balance: (bank_accounts.liquidity_vault_token_account.amount as f64).div(10i64.pow(bank_accounts.bank.mint_decimals as u32) as f64),
-            insurance_vault_balance: (bank_accounts.insurance_vault_token_account.amount as f64).div(10i64.pow(bank_accounts.bank.mint_decimals as u32) as f64),
-            fee_vault_balance: (bank_accounts.fee_vault_token_account.amount as f64).div(10i64.pow(bank_accounts.bank.mint_decimals as u32) as f64),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct MarginfiAccountMetrics {
-    pub total_assets_usd: f64,
-    pub total_liabilities_usd: f64,
-    pub health: f64,
-}
-
 pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
+    info!("Fetching target group");
+    {
+        let mut snapshot_accounts = ctx.account_snapshot.lock().await;
+        snapshot_accounts.init(ctx.clone()).await.unwrap();
+        println!("{snapshot_accounts}");
+    }
+
     // let topic_name = ctx.config.topic_name.as_str();
 
     // let project_options = if ctx.config.gcp_sa_key.is_some() {
@@ -491,76 +386,23 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
     loop {
         tokio::time::sleep(Duration::from_millis(5000)).await;
         let snapshot = ctx.account_snapshot.lock().await.clone();
-        // info!("{snapshot}");
-        // let bank_accounts_with_price = BankAccountWithPriceFeed::new(
-        //     marginfi_account,
-        //     &HashMap::from_iter(snapshot.banks.iter().map(
-        //         |(bank_pk, bank_accounts)| (*bank_pk, bank_accounts.clone().bank),
-        //     )),
-        //     &HashMap::from_iter(snapshot.price_feeds.iter().map(
-        //         |(oracle_pk, oracle_data)| match oracle_data {
-        //             OracleData::Pyth(price_feed) => {
-        //                 (*oracle_pk, *price_feed)
-        //             }
-        //         },
-        //     )),
-        // )
-        //     .unwrap()
-        //     .get_account_health(
-        //         RiskRequirementType::Maintenance,
-        //         snapshot.clock.unix_timestamp,
-        //     )
-        //     .unwrap()
-        //     .to_num::<f64>();
+
         let group_metrics = MarginfiGroupMetrics::new(&snapshot);
-        let all_bank_metrics = snapshot.banks.iter().map(|(bank_pk, bank_accounts)| LendingPoolBankMetrics::new(bank_pk, &snapshot)).collect_vec();
-        //     let group_metrics = MarginfiGroupMetrics {
-        //     marginfi_accounts_count: snapshot.marginfi_accounts.len() as u64,
-        //     banks_count: snapshot.banks.len() as u64,
-        //     bank_mints_count: snapshot
-        //         .banks
-        //         .iter()
-        //         .counts_by(|(_, bank_accounts)| bank_accounts.bank.mint),
-        //     price_feeds_count: snapshot.price_feeds.len() as u64,
-        //     worst_margin_account_health: snapshot
-        //         .marginfi_accounts
-        //         .iter()
-        //         .map(|(address, marginfi_account)| {
-        //             let health = RiskEngine::new(
-        //                 marginfi_account,
-        //                 &HashMap::from_iter(snapshot.banks.iter().map(
-        //                     |(bank_pk, bank_accounts)| (*bank_pk, bank_accounts.clone().bank),
-        //                 )),
-        //                 &HashMap::from_iter(snapshot.price_feeds.iter().map(
-        //                     |(oracle_pk, oracle_data)| match oracle_data {
-        //                         OracleData::Pyth(price_feed) => {
-        //                             (*oracle_pk, *price_feed)
-        //                         }
-        //                     },
-        //                 )),
-        //             )
-        //                 .unwrap()
-        //                 .get_account_health(
-        //                     RiskRequirementType::Maintenance,
-        //                     snapshot.clock.unix_timestamp,
-        //                 )
-        //                 .unwrap()
-        //                 .to_num::<f64>();
-        //             (*address, health)
-        //         })
-        //         .sorted_by(|(_, health1), (_, health2)| {
-        //             if health1 > health2 {
-        //                 std::cmp::Ordering::Greater
-        //             } else {
-        //                 std::cmp::Ordering::Less
-        //             }
-        //         })
-        //         .take(5)
-        //         .collect_vec(),
-        // };
+        let all_bank_metrics = snapshot
+            .banks.iter().map(|(bank_pk, bank_accounts)| LendingPoolBankMetrics::new(bank_pk, bank_accounts, &snapshot))
+            .collect_vec();
+        let all_marginfi_account_metrics = snapshot
+            .marginfi_accounts.iter().map(|(marginfi_account_pk, marginfi_account)| {
+            MarginfiAccountMetrics::new(marginfi_account_pk, marginfi_account, &snapshot)
+        })
+            .collect_vec();
 
         info!("{group_metrics:#?}");
         info!("{all_bank_metrics:#?}");
+        info!(
+            "{all_marginfi_account_metrics:#?}",
+            all_marginfi_account_metrics = all_marginfi_account_metrics
+        );
 
         // let mut messages = vec![];
 

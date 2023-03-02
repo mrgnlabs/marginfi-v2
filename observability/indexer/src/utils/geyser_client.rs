@@ -1,3 +1,4 @@
+use crate::utils::protos::geyser::geyser_client::GeyserClient;
 use anyhow::Result;
 use tonic::{
     codegen::InterceptedService,
@@ -5,7 +6,6 @@ use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
     Request, Status,
 };
-use crate::utils::protos::geyser::geyser_client::GeyserClient;
 
 pub struct RequestInterceptor {
     auth_token: String,
