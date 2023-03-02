@@ -1,4 +1,6 @@
 use backoff::{future::retry, ExponentialBackoff};
+use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
 use futures::future::join_all;
 use marginfi::state::{marginfi_account::MarginfiAccount, marginfi_group::Bank};
 use pyth_sdk_solana::PriceFeed;
@@ -8,8 +10,6 @@ use solana_sdk::{
     account::Account, instruction::AccountMeta, pubkey::Pubkey, signature::Signature,
 };
 use std::{collections::HashMap, iter::zip, str::FromStr, time::Duration};
-use fixed::types::I80F48;
-use fixed_macro::types::I80F48;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Target {

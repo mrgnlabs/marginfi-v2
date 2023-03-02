@@ -1,4 +1,4 @@
-use crate::commands::geyser_client::get_geyser_client;
+use crate::utils::geyser_client::get_geyser_client;
 use crate::utils::{
     big_query::DATE_FORMAT_STR,
     protos::{

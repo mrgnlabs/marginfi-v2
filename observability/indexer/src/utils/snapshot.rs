@@ -1,9 +1,11 @@
+use crate::common::pyth_price_to_fixed;
 use crate::{
     commands::snapshot_accounts::{AccountUpdate, Context},
     common::get_multiple_accounts_chunked,
 };
 use anchor_client::anchor_lang::AccountDeserialize;
 use anchor_client::anchor_lang::Discriminator;
+use fixed::types::I80F48;
 use itertools::Itertools;
 use marginfi::{
     prelude::MarginfiGroup,
@@ -31,8 +33,6 @@ use std::{
     mem::size_of,
     sync::Arc,
 };
-use fixed::types::I80F48;
-use crate::common::pyth_price_to_fixed;
 
 #[derive(Clone, Debug)]
 pub struct BankAccounts {
@@ -212,9 +212,7 @@ impl Snapshot {
             .unwrap()
             .into_iter()
             .zip(accounts_to_fetch)
-            .filter_map(|(maybe_account, pubkey)| {
-                maybe_account.map(|account| (pubkey, account))
-            })
+            .filter_map(|(maybe_account, pubkey)| maybe_account.map(|account| (pubkey, account)))
             .collect_vec();
 
         for (account_pubkey, account) in accounts {
@@ -412,10 +410,7 @@ impl Snapshot {
                     SplAccount::unpack_from_slice(&account.data as &[u8]).unwrap();
             }
             AccountRoutingType::Bank(bank_pk, BankUpdateRoutingType::FeeTokenAccount) => {
-                self.banks
-                    .get_mut(bank_pk)
-                    .unwrap()
-                    .fee_vault_token_account =
+                self.banks.get_mut(bank_pk).unwrap().fee_vault_token_account =
                     SplAccount::unpack_from_slice(&account.data as &[u8]).unwrap();
             }
             AccountRoutingType::Bank(bank_pk, BankUpdateRoutingType::State) => {
@@ -429,8 +424,10 @@ impl Snapshot {
                 );
             }
             AccountRoutingType::MarginfiGroup => {
-                self.marginfi_group =
-                    (*account_pubkey, MarginfiGroup::try_deserialize(&mut (&account.data as &[u8])).unwrap());
+                self.marginfi_group = (
+                    *account_pubkey,
+                    MarginfiGroup::try_deserialize(&mut (&account.data as &[u8])).unwrap(),
+                );
             }
         }
     }
