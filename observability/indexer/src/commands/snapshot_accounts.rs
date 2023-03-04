@@ -1,19 +1,22 @@
+use crate::utils::geyser_client::get_geyser_client;
 use crate::utils::metrics::{LendingPoolBankMetrics, MarginfiAccountMetrics, MarginfiGroupMetrics};
-use crate::{
-    utils::geyser_client::get_geyser_client,
-    utils::{
-        protos::geyser::{
-            subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterAccounts,
-            SubscribeRequestFilterSlots, SubscribeUpdateSlotStatus,
-        },
-        snapshot::Snapshot,
+use crate::utils::protos::SubscribeRequestFilterBlocks;
+use crate::utils::snapshot::{AccountRoutingType, BankUpdateRoutingType};
+use crate::utils::{
+    protos::geyser::{
+        subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterAccounts,
+        SubscribeRequestFilterSlots, SubscribeUpdateSlotStatus,
     },
+    snapshot::Snapshot,
 };
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
-use futures::{future::join_all, stream, StreamExt};
+use futures::stream::once;
+use futures::{future::join_all, pin_mut, StreamExt};
+use gcp_bigquery_client::model::table_data_insert_all_request::TableDataInsertAllRequest;
 use itertools::Itertools;
+use rayon::prelude::*;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_measure::measure::Measure;
 use solana_sdk::{
@@ -22,6 +25,7 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Signature,
 };
+use std::sync::atomic::AtomicI64;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Debug,
@@ -33,7 +37,9 @@ use std::{
     time::Duration,
 };
 use tokio::sync::Mutex;
+use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
+use yup_oauth2::parse_service_account_key;
 
 #[derive(Debug, Clone)]
 pub struct PubkeyVec(pub Vec<Pubkey>); // Ugh
@@ -72,17 +78,23 @@ pub struct SnapshotAccountsConfig {
     pub max_concurrent_requests: usize,
     #[envconfig(from = "SNAPSHOT_ACCOUNTS_MONITOR_INTERVAL")]
     pub monitor_interval: u64,
+    #[envconfig(from = "SNAPSHOT_ACCOUNTS_SNAP_INTERVAL")]
+    pub snap_interval: u64,
     #[envconfig(from = "SNAPSHOT_ACCOUNTS_PROGRAM_ID")]
     pub program_id: Pubkey,
-    #[envconfig(from = "SNAPSHOT_ACCOUNTS_MARGINFI_GROUP")]
-    pub marginfi_group: Pubkey,
     #[envconfig(from = "SNAPSHOT_ACCOUNTS_ADDITIONAL_ACCOUNTS")]
     pub additional_accounts: PubkeyVec,
 
     #[envconfig(from = "SNAPSHOT_ACCOUNTS_PROJECT_ID")]
     pub project_id: String,
-    #[envconfig(from = "SNAPSHOT_ACCOUNTS_PUBSUB_TOPIC_NAME")]
-    pub topic_name: String,
+    #[envconfig(from = "SNAPSHOT_ACCOUNTS_DATASET_ID")]
+    pub dataset_id: String,
+    #[envconfig(from = "SNAPSHOT_ACCOUNTS_TABLE_GROUP_METRICS")]
+    pub table_group: String,
+    #[envconfig(from = "SNAPSHOT_ACCOUNTS_TABLE_BANK_METRICS")]
+    pub table_bank: String,
+    #[envconfig(from = "SNAPSHOT_ACCOUNTS_TABLE_ACCOUNT_METRICS")]
+    pub table_account: String,
     #[envconfig(from = "GOOGLE_APPLICATION_CREDENTIALS_JSON")]
     pub gcp_sa_key: Option<String>,
 }
@@ -99,8 +111,10 @@ pub struct AccountUpdate {
 
 #[derive(Clone)]
 pub struct Context {
+    pub timestamp: Arc<AtomicI64>,
     pub config: Arc<SnapshotAccountsConfig>,
     pub rpc_client: Arc<RpcClient>,
+    pub geyser_subscription_config: Arc<Mutex<(bool, SubscribeRequest)>>,
     account_updates_queue: Arc<Mutex<BTreeMap<u64, HashMap<Pubkey, AccountUpdate>>>>,
     latest_slots_with_commitment: Arc<Mutex<BTreeSet<u64>>>,
     account_snapshot: Arc<Mutex<Snapshot>>,
@@ -117,8 +131,10 @@ impl Context {
             },
         ));
         Self {
+            timestamp: Arc::new(AtomicI64::new(0)),
             config: Arc::new(config.clone()),
             rpc_client: rpc_client.clone(),
+            geyser_subscription_config: Arc::new(Mutex::new((false, SubscribeRequest::default()))),
             account_updates_queue: Arc::new(Mutex::new(BTreeMap::new())),
             latest_slots_with_commitment: Arc::new(Mutex::new(BTreeSet::new())),
             account_snapshot: Arc::new(Mutex::new(Snapshot::new(config.program_id, rpc_client))),
@@ -128,20 +144,78 @@ impl Context {
     }
 }
 
+async fn compute_geyser_config(
+    config: &SnapshotAccountsConfig,
+    non_program_pubkeys: &[Pubkey],
+) -> SubscribeRequest {
+    let mut accounts = config.additional_accounts.0.clone();
+    accounts.append(&mut non_program_pubkeys.to_vec());
+    accounts.sort();
+    accounts.dedup();
+
+    SubscribeRequest {
+        accounts: HashMap::from_iter([
+            (
+                config.program_id.to_string(),
+                SubscribeRequestFilterAccounts {
+                    owner: vec![config.program_id.to_string()],
+                    account: vec![],
+                },
+            ),
+            (
+                "lol".to_string(),
+                SubscribeRequestFilterAccounts {
+                    owner: vec![],
+                    account: accounts.iter().map(|x| x.to_string()).collect_vec(),
+                },
+            ),
+        ]),
+        slots: HashMap::from_iter([("slots".to_string(), SubscribeRequestFilterSlots {})]),
+        transactions: HashMap::default(),
+        blocks: HashMap::from_iter([("blocks".to_string(), SubscribeRequestFilterBlocks {})]),
+    }
+}
+
 pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
     let context = Arc::new(Context::new(&config).await);
+
+    info!("Fetching initial snapshot");
+    let non_program_accounts = {
+        let mut snapshot = context.account_snapshot.lock().await;
+        snapshot.init().await.unwrap();
+        println!("Summary: {snapshot}");
+
+        snapshot
+            .routing_lookup
+            .iter()
+            .filter(|(_, routing_type)| match routing_type {
+                AccountRoutingType::MarginfiGroup => false,
+                AccountRoutingType::MarginfiAccount => false,
+                AccountRoutingType::Bank(_, bank_update_routing_type) => {
+                    !matches!(bank_update_routing_type, BankUpdateRoutingType::State)
+                }
+                _ => true,
+            })
+            .map(|(pubkey, _)| *pubkey)
+            .unique()
+            .collect_vec()
+    };
+
+    let geyser_subscription_config = compute_geyser_config(&config, &non_program_accounts).await;
+    *context.geyser_subscription_config.lock().await = (false, geyser_subscription_config.clone());
 
     let listen_to_updates_handle = tokio::spawn({
         let context = context.clone();
         async move { listen_to_updates(context).await }
     });
-    let process_account_updates_handle = tokio::spawn({
-        let context = context.clone();
-        async move { push_transactions_to_pubsub(context).await }
-    });
+
     let update_account_map_handle = tokio::spawn({
         let context = context.clone();
         async move { update_account_map(context).await }
+    });
+    let process_account_updates_handle = tokio::spawn({
+        let context = context.clone();
+        async move { push_transactions_to_bigquery(context).await }
     });
     let monitor_handle = tokio::spawn({
         let context = context.clone();
@@ -162,44 +236,34 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
 async fn listen_to_updates(ctx: Arc<Context>) {
     loop {
         info!("Instantiating geyser client");
-        match get_geyser_client(
+        let geyser_client = get_geyser_client(
             ctx.config.rpc_endpoint_geyser.to_string(),
             ctx.config.rpc_token.to_string(),
         )
-            .await
-        {
-            Ok(mut geyser_client) => {
-                info!("Subscribing to updates for {:?}", ctx.config.program_id);
-                let stream_request = geyser_client
-                    .subscribe(stream::iter([SubscribeRequest {
-                        accounts: HashMap::from_iter([(
-                            ctx.config.program_id.to_string(),
-                            SubscribeRequestFilterAccounts {
-                                owner: vec![ctx.config.program_id.to_string()],
-                                account: ctx
-                                    .config
-                                    .additional_accounts
-                                    .0
-                                    .iter()
-                                    .map(|x| x.to_string())
-                                    .collect_vec(),
-                            },
-                        )]),
-                        slots: HashMap::from_iter([(
-                            "slots".to_string(),
-                            SubscribeRequestFilterSlots {},
-                        )]),
-                        transactions: HashMap::default(),
-                        blocks: HashMap::default(),
-                        blocks_meta: HashMap::default(),
-                    }]))
+            .await;
+
+        match geyser_client {
+            Ok(geyser_client) => {
+                let geyser_client = Box::pin(geyser_client);
+                pin_mut!(geyser_client);
+                let (_, geyser_config) = ctx.geyser_subscription_config.lock().await.clone();
+                debug!("Subscribing to geyser with {:?}", geyser_config);
+                let stream_response = geyser_client
+                    .subscribe(once(async move { geyser_config }))
                     .await;
 
-                match stream_request {
+                match stream_response {
                     Ok(stream_response) => {
                         info!("Subscribed to updates");
                         let mut stream = stream_response.into_inner();
                         while let Some(received) = stream.next().await {
+                            let mut geyser_sub_config = ctx.geyser_subscription_config.lock().await;
+                            if geyser_sub_config.0 {
+                                warn!("Config update: {:?}", geyser_sub_config.1);
+                                geyser_sub_config.0 = false;
+                                continue;
+                            }
+
                             match received {
                                 Ok(received) => {
                                     if let Some(update) = received.update_oneof {
@@ -258,7 +322,6 @@ async fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
                         account_updates_queue.get_mut(&update_slot).unwrap()
                     }
                 };
-
                 slot_account_updates.insert(
                     address,
                     AccountUpdate {
@@ -284,6 +347,11 @@ async fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
                     let oldest_slot = *latest_slots.first().unwrap();
                     latest_slots.remove(&oldest_slot);
                 }
+            }
+        }
+        UpdateOneof::Block(block_update) => {
+            if let Some(block_time) = block_update.block_time {
+                ctx.timestamp.store(block_time.timestamp, Ordering::Relaxed);
             }
         }
         UpdateOneof::Ping(_) => {
@@ -344,120 +412,211 @@ pub async fn update_account_map(ctx: Arc<Context>) {
 
         let mut accounts_snapshot = ctx.account_snapshot.lock().await;
         for account_update in confirmed_account_updates {
-            accounts_snapshot.process_update(&account_update).await;
+            if accounts_snapshot
+                .routing_lookup
+                .contains_key(&account_update.address)
+            {
+                accounts_snapshot
+                    .udpate_entry(&account_update.address, &account_update.account_data);
+            } else {
+                accounts_snapshot
+                    .create_entry(&account_update.address, &account_update.account_data)
+                    .await;
+
+                let non_program_accounts = accounts_snapshot
+                    .routing_lookup
+                    .iter()
+                    .filter(|(_, routing_type)| match routing_type {
+                        AccountRoutingType::MarginfiGroup => false,
+                        AccountRoutingType::MarginfiAccount => false,
+                        AccountRoutingType::Bank(_, bank_update_routing_type) => {
+                            !matches!(bank_update_routing_type, BankUpdateRoutingType::State)
+                        }
+                        _ => true,
+                    })
+                    .map(|(pubkey, _)| *pubkey)
+                    .unique()
+                    .collect_vec();
+                let updated_geyser_config =
+                    compute_geyser_config(&ctx.config, &non_program_accounts).await;
+                info!("updating geyser sub: {:?}", updated_geyser_config.accounts);
+                *ctx.geyser_subscription_config.lock().await = (true, updated_geyser_config);
+            }
         }
     }
 }
 
-pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
-    info!("Fetching target group");
-    {
-        let mut snapshot_accounts = ctx.account_snapshot.lock().await;
-        snapshot_accounts.init(ctx.clone()).await.unwrap();
-        println!("{snapshot_accounts}");
+pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
+    let bq_client = if let Some(gcp_sa_key) = ctx.config.gcp_sa_key.clone() {
+        let sa_key = parse_service_account_key(&gcp_sa_key).unwrap();
+        gcp_bigquery_client::Client::from_service_account_key(sa_key, false)
+            .await
+            .unwrap()
+    } else {
+        gcp_bigquery_client::Client::from_application_default_credentials()
+            .await
+            .unwrap()
+    };
+
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    while ctx.timestamp.load(Ordering::Relaxed) == 0 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
-    // let topic_name = ctx.config.topic_name.as_str();
-
-    // let project_options = if ctx.config.gcp_sa_key.is_some() {
-    //     Some(Project::FromFile(Box::new(
-    //         CredentialsFile::new().await.unwrap(),
-    //     )))
-    // } else {
-    //     None
-    // };
-
-    // let client = Client::new(ClientConfig {
-    //     project_id: Some(ctx.config.project_id.clone()),
-    //     project: ProjectOptions::Project(project_options),
-    //     ..Default::default()
-    // })
-    // .await
-    // .unwrap();
-
-    // let topic = client.topic(topic_name);
-    // topic
-    //     .exists(None, None)
-    //     .await
-    //     .unwrap_or_else(|_| panic!("topic {} not found", topic_name));
-
-    // let publisher = topic.new_publisher(None);
-
+    info!("Starting to generate snapshots");
     loop {
-        tokio::time::sleep(Duration::from_millis(5000)).await;
+        let start = Instant::now();
         let snapshot = ctx.account_snapshot.lock().await.clone();
+        let timestamp = ctx.timestamp.load(Ordering::Relaxed);
 
-        let group_metrics = MarginfiGroupMetrics::new(&snapshot);
+        let all_group_metrics = snapshot
+            .marginfi_groups
+            .par_iter()
+            .map(|(marginfi_group_pk, marginfi_group)| {
+                (
+                    marginfi_group_pk,
+                    MarginfiGroupMetrics::new(
+                        timestamp,
+                        marginfi_group_pk,
+                        marginfi_group,
+                        &snapshot,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
         let all_bank_metrics = snapshot
-            .banks.iter().map(|(bank_pk, bank_accounts)| LendingPoolBankMetrics::new(bank_pk, bank_accounts, &snapshot))
-            .collect_vec();
+            .banks
+            .par_iter()
+            .map(|(bank_pk, bank_accounts)| {
+                (
+                    bank_pk,
+                    LendingPoolBankMetrics::new(
+                        timestamp,
+                        bank_pk,
+                        bank_accounts,
+                        &snapshot,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
         let all_marginfi_account_metrics = snapshot
-            .marginfi_accounts.iter().map(|(marginfi_account_pk, marginfi_account)| {
-            MarginfiAccountMetrics::new(marginfi_account_pk, marginfi_account, &snapshot)
-        })
-            .collect_vec();
+            .marginfi_accounts
+            .par_iter()
+            .map(|(marginfi_account_pk, marginfi_account)| {
+                (
+                    marginfi_account_pk,
+                    MarginfiAccountMetrics::new(
+                        timestamp,
+                        marginfi_account_pk,
+                        marginfi_account,
+                        &snapshot,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
 
-        info!("{group_metrics:#?}");
-        info!("{all_bank_metrics:#?}");
-        info!(
-            "{all_marginfi_account_metrics:#?}",
-            all_marginfi_account_metrics = all_marginfi_account_metrics
-        );
+        let elapsed = Instant::now() - start;
+        debug!("Time to create metrics: {:?}", elapsed);
 
-        // let mut messages = vec![];
+        let mut insert_request = TableDataInsertAllRequest::new();
+        all_group_metrics
+            .iter()
+            .for_each(|(id, metrics_result)| match metrics_result {
+                Ok(metrics) => insert_request.add_row(None, metrics.to_row()).unwrap(),
+                Err(err) => warn!("Failed to create metrics for marginfi group {id}: {err}"),
+            });
+        let result = write_to_bq(
+            &bq_client,
+            &ctx.config.project_id,
+            &ctx.config.dataset_id,
+            &ctx.config.table_group,
+            timestamp,
+            insert_request,
+        )
+            .await;
+        if let Err(error) = result {
+            warn!(
+                "Failed to write marginfi group metrics to bigquery: {}",
+                error
+            );
+        }
 
-        // account_updates_data.iter().for_each(|account_update_data| {
-        //     ctx.account_updates_counter.fetch_add(1, Ordering::Relaxed);
+        let mut insert_request = TableDataInsertAllRequest::new();
+        all_bank_metrics
+            .iter()
+            .for_each(|(id, metrics_result)| match metrics_result {
+                Ok(metrics) => insert_request.add_row(None, metrics.to_row()).unwrap(),
+                Err(err) => warn!("Failed to create metrics for bank {id}: {err}"),
+            });
+        let result = write_to_bq(
+            &bq_client,
+            &ctx.config.project_id,
+            &ctx.config.dataset_id,
+            &ctx.config.table_bank,
+            timestamp,
+            insert_request,
+        )
+            .await;
+        if let Err(error) = result {
+            warn!(
+                "Failed to write lending pool bank metrics to bigquery: {}",
+                error
+            );
+        }
 
-        //     let now = Utc::now();
+        let mut insert_request = TableDataInsertAllRequest::new();
+        all_marginfi_account_metrics
+            .iter()
+            .for_each(|(id, metrics_result)| match metrics_result {
+                Ok(metrics) => insert_request.add_row(None, metrics.to_row()).unwrap(),
+                Err(err) => warn!("Failed to create metrics for marginfi account {id}: {err}"),
+            });
+        let result = write_to_bq(
+            &bq_client,
+            &ctx.config.project_id,
+            &ctx.config.dataset_id,
+            &ctx.config.table_account,
+            timestamp,
+            insert_request,
+        )
+            .await;
+        if let Err(error) = result {
+            warn!("Failed to write to bigquery: {}", error);
+        }
 
-        //     let message = gcp_pubsub::PubsubAccountUpdate {
-        //         id: Uuid::new_v4().to_string(),
-        //         created_at: now.format(DATE_FORMAT_STR).to_string(),
-        //         timestamp: account_update_data
-        //             .timestamp
-        //             .format(DATE_FORMAT_STR)
-        //             .to_string(),
-        //         owner: account_update_data.account_data.owner.to_string(),
-        //         slot: account_update_data.slot,
-        //         pubkey: account_update_data.address.to_string(),
-        //         txn_signature: account_update_data.txn_signature.map(|sig| sig.to_string()),
-        //         write_version: account_update_data.write_version,
-        //         lamports: account_update_data.account_data.lamports,
-        //         executable: account_update_data.account_data.executable,
-        //         rent_epoch: account_update_data.account_data.rent_epoch,
-        //         data: general_purpose::STANDARD.encode(&account_update_data.account_data.data),
-        //     };
-
-        //     messages.push(PubsubMessage {
-        //         data: serde_json::to_string(&message).unwrap().as_bytes().to_vec(),
-        //         ..PubsubMessage::default()
-        //     });
-        // });
-
-        // // Send a message. There are also `publish_bulk` and `publish_immediately` methods.
-        // let awaiters = publisher.publish_bulk(messages).await;
-
-        // // The get method blocks until a server-generated ID or an error is returned for the published message.
-        // let pub_results: Vec<Result<String, Status>> = join_all(
-        //     awaiters
-        //         .into_iter()
-        //         .map(|awaiter| awaiter.get(None))
-        //         .collect_vec(),
-        // )
-        // .await;
-
-        // pub_results.into_iter().for_each(|result| match result {
-        //     Ok(_) => {}
-        //     Err(status) => {
-        //         error!(
-        //             "Error sending tx to pubsub (code {:?}): {:?}",
-        //             status.code(),
-        //             status.message()
-        //         )
-        //     }
-        // });
+        tokio::time::sleep(Duration::from_secs(ctx.config.snap_interval)).await;
     }
+}
+
+pub async fn write_to_bq(
+    bq_client: &gcp_bigquery_client::Client,
+    project_id: &str,
+    dataset_id: &str,
+    table_id: &str,
+    timestamp: i64,
+    insert_request: TableDataInsertAllRequest,
+) -> Result<()> {
+    let result = bq_client
+        .tabledata()
+        .insert_all(project_id, dataset_id, table_id, insert_request)
+        .await;
+
+    let result = match result {
+        Ok(result) => result,
+        Err(err) => {
+            error!("Errors inserting for timestamp {}", timestamp);
+            error!("details: {:?}", err);
+            return Ok(());
+        }
+    };
+
+    if let Some(errors) = result.insert_errors {
+        error!("Errors inserting for timestamp {}", timestamp);
+        error!("details:");
+        errors.iter().for_each(|error| println!("-{:?}", error));
+    }
+
+    Ok(())
 }
 
 async fn monitor(ctx: Arc<Context>) {
@@ -485,7 +644,7 @@ async fn monitor(ctx: Arc<Context>) {
 
         let account_updates_queue_size = ctx.account_updates_queue.lock().await.len();
 
-        debug!(
+        info!(
             "Time: {:.1}s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {} | Earliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
             current_fetch_time,
             account_updates_queue_size,

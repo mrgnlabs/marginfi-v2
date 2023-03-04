@@ -1,14 +1,12 @@
-use backoff::{future::retry, ExponentialBackoff};
+use backoff::{future::retry, ExponentialBackoffBuilder};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use futures::future::join_all;
+use futures::future::try_join_all;
 use marginfi::state::{marginfi_account::MarginfiAccount, marginfi_group::Bank};
 use pyth_sdk_solana::PriceFeed;
 use serde::{Deserialize, Serialize};
 use solana_client::{client_error::ClientError, nonblocking::rpc_client::RpcClient};
-use solana_sdk::{
-    account::Account, instruction::AccountMeta, pubkey::Pubkey, signature::Signature,
-};
+use solana_sdk::{instruction::AccountMeta, pubkey::Pubkey, signature::Signature};
 use std::{collections::HashMap, iter::zip, str::FromStr, time::Duration};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -80,40 +78,25 @@ pub fn pyth_price_to_fixed(price_feed: &PriceFeed) -> anyhow::Result<I80F48> {
 pub async fn get_multiple_accounts_chunked(
     rpc_client: &RpcClient,
     keys: &[Pubkey],
-) -> Result<HashMap<Pubkey, Account>, ClientError> {
-    let mut key_to_account_data_map = HashMap::new();
-    let mut handles = Vec::new();
+) -> Result<HashMap<Pubkey, Vec<u8>>, ClientError> {
+    let zips: Result<Vec<_>, ClientError> =
+        try_join_all(keys.chunks(100).map(|pubkey_chunk| async move {
+            Ok(zip(
+                pubkey_chunk,
+                retry(
+                    ExponentialBackoffBuilder::new()
+                        .with_max_interval(Duration::from_secs(5))
+                        .build(),
+                    || async { Ok(rpc_client.get_multiple_accounts(pubkey_chunk).await?) },
+                )
+                .await?,
+            ))
+        }))
+        .await;
 
-    for chunk in keys.chunks(100) {
-        let chunk = chunk.iter().map(|c| *c).collect::<Vec<_>>();
-
-        handles.push(async move {
-            let result = retry(
-                ExponentialBackoff {
-                    max_elapsed_time: Some(Duration::from_secs(5)),
-                    ..Default::default()
-                },
-                || async { Ok(rpc_client.get_multiple_accounts(&chunk).await?) },
-            )
-            .await?;
-
-            Ok(zip(chunk, result))
-        });
-    }
-    let zips: Vec<Result<_, ClientError>> = join_all(handles).await;
-
-    for zip in zips {
-        for (key, account) in zip? {
-            match account {
-                Some(account) => {
-                    key_to_account_data_map.insert(key, account);
-                }
-                None => (),
-            }
-        }
-    }
-
-    Ok(key_to_account_data_map)
+    Ok(HashMap::from_iter(zips?.into_iter().flatten().filter_map(
+        |(key, account)| account.map(|account| (*key, account.data)),
+    )))
 }
 
 pub fn load_observation_account_metas(
