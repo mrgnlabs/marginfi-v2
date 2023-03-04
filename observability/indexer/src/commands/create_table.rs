@@ -7,12 +7,18 @@ use std::str::FromStr;
 use tracing::{info, warn};
 use yup_oauth2::parse_service_account_key;
 
-use crate::utils::big_query::{ACCOUNT_SCHEMA, NOT_FOUND_CODE, TRANSACTION_SCHEMA};
+use crate::utils::big_query::{
+    ACCOUNT_SCHEMA, METRIC_LENDING_POOL_BANK_SCHEMA, METRIC_MARGINFI_ACCOUNT_SCHEMA,
+    METRIC_MARGINFI_GROUP_SCHEMA, NOT_FOUND_CODE, TRANSACTION_SCHEMA,
+};
 
 #[derive(Debug)]
 pub enum TableType {
     Transaction,
     Account,
+    MetricMarginfiGroup,
+    MetricLendingPoolBank,
+    MetricMarginfiAccount,
 }
 
 impl FromStr for TableType {
@@ -22,6 +28,9 @@ impl FromStr for TableType {
         match s {
             "transaction" => Ok(Self::Transaction),
             "account" => Ok(Self::Account),
+            "metric_group" => Ok(Self::MetricMarginfiGroup),
+            "metric_bank" => Ok(Self::MetricLendingPoolBank),
+            "metric_account" => Ok(Self::MetricMarginfiAccount),
             _ => Err(anyhow!("Invalid table type")),
         }
     }
@@ -46,6 +55,9 @@ pub async fn create_table(
     let schema = match table_type {
         TableType::Transaction => TRANSACTION_SCHEMA.to_owned(),
         TableType::Account => ACCOUNT_SCHEMA.to_owned(),
+        TableType::MetricMarginfiGroup => METRIC_MARGINFI_GROUP_SCHEMA.to_owned(),
+        TableType::MetricLendingPoolBank => METRIC_LENDING_POOL_BANK_SCHEMA.to_owned(),
+        TableType::MetricMarginfiAccount => METRIC_MARGINFI_ACCOUNT_SCHEMA.to_owned(),
     };
 
     // Create a new table if needed

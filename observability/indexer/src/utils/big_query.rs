@@ -2,6 +2,7 @@ use gcp_bigquery_client::model::{table_field_schema::TableFieldSchema, table_sch
 use lazy_static::lazy_static;
 
 pub const NOT_FOUND_CODE: i64 = 404;
+pub const DATE_FORMAT_STR: &str = "%Y-%m-%d %H:%M:%S";
 
 lazy_static! {
     pub static ref TRANSACTION_SCHEMA: TableSchema = TableSchema::new(vec![
@@ -34,4 +35,47 @@ lazy_static! {
     ]);
 }
 
-pub const DATE_FORMAT_STR: &str = "%Y-%m-%d %H:%M:%S";
+lazy_static! {
+    pub static ref METRIC_MARGINFI_GROUP_SCHEMA: TableSchema = TableSchema::new(vec![
+        TableFieldSchema::string("id"),
+        TableFieldSchema::timestamp("created_at"),
+        TableFieldSchema::timestamp("timestamp"),
+        TableFieldSchema::string("pubkey"),
+        TableFieldSchema::integer("marginfi_accounts_count"),
+        TableFieldSchema::integer("banks_count"),
+        TableFieldSchema::integer("mints_count"),
+        TableFieldSchema::float("total_assets_in_usd"),
+        TableFieldSchema::float("total_liabilities_in_usd"),
+    ]);
+    pub static ref METRIC_LENDING_POOL_BANK_SCHEMA: TableSchema = TableSchema::new(vec![
+        TableFieldSchema::string("id"),
+        TableFieldSchema::timestamp("created_at"),
+        TableFieldSchema::timestamp("timestamp"),
+        TableFieldSchema::string("pubkey"),
+        TableFieldSchema::string("mint"),
+        TableFieldSchema::float("deposit_limit_in_tokens"),
+        TableFieldSchema::float("borrow_limit_in_tokens"),
+        TableFieldSchema::float("deposit_limit_in_usd"),
+        TableFieldSchema::float("borrow_limit_in_usd"),
+        TableFieldSchema::integer("lenders_count"),
+        TableFieldSchema::integer("borrowers_count"),
+        TableFieldSchema::float("total_assets_in_tokens"),
+        TableFieldSchema::float("total_liabilities_in_tokens"),
+        TableFieldSchema::float("total_assets_in_usd"),
+        TableFieldSchema::float("total_liabilities_in_usd"),
+        TableFieldSchema::float("liquidity_vault_balance"),
+        TableFieldSchema::float("insurance_vault_balance"),
+        TableFieldSchema::float("fee_vault_balance"),
+    ]);
+    pub static ref METRIC_MARGINFI_ACCOUNT_SCHEMA: TableSchema = TableSchema::new(vec![
+        TableFieldSchema::string("id"),
+        TableFieldSchema::timestamp("created_at"),
+        TableFieldSchema::timestamp("timestamp"),
+        TableFieldSchema::string("pubkey"),
+        TableFieldSchema::string("marginfi_group"),
+        TableFieldSchema::string("owner"),
+        TableFieldSchema::float("total_assets_in_usd"),
+        TableFieldSchema::float("total_liabilities_in_usd"),
+        TableFieldSchema::float("health"),
+    ]);
+}
