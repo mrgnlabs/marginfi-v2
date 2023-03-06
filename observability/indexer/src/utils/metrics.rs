@@ -7,8 +7,9 @@ use itertools::Itertools;
 use marginfi::constants::ZERO_AMOUNT_THRESHOLD;
 use marginfi::prelude::MarginfiGroup;
 use marginfi::state::marginfi_account::{
-    calc_asset_value, MarginfiAccount, RiskEngine, RiskRequirementType,
+    calc_asset_value, MarginfiAccount, RiskEngine, RiskRequirementType, WeightType,
 };
+use marginfi::state::marginfi_group::BankOperationalState;
 use serde::Serialize;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
@@ -54,12 +55,21 @@ impl MarginfiGroupMetrics {
             .iter()
             .filter(|(_, marginfi_account)| marginfi_account.group.eq(marginfi_group_pk));
 
-        let (total_assets_usd, total_liabilities_usd) = group_banks_iter.clone().try_fold(
-            (0.0, 0.0),
-            |mut sums, (bank_pk, bank_accounts)| -> anyhow::Result<(f64, f64)> {
+        let (
+            total_assets_usd,
+            total_liabilities_usd,
+            _total_assets_usd_maint,
+            _total_liabilities_usd_maint,
+        ) = group_banks_iter.clone().try_fold(
+            (0.0, 0.0, 0.0, 0.0),
+            |mut sums, (bank_pk, bank_accounts)| -> anyhow::Result<(f64, f64, f64, f64)> {
                 let total_asset_share = bank_accounts.bank.total_asset_shares;
                 let total_liability_share = bank_accounts.bank.total_liability_shares;
                 let price_feed_pk = bank_accounts.bank.config.get_pyth_oracle_key();
+                let (asset_weight, liability_weight) = bank_accounts
+                    .bank
+                    .config
+                    .get_weights(WeightType::Maintenance);
                 let price = snapshot
                     .price_feeds
                     .get(&price_feed_pk)
@@ -80,7 +90,16 @@ impl MarginfiGroupMetrics {
                     bank_accounts.bank.mint_decimals,
                     None,
                 )?
-                    .to_num::<f64>();
+                .to_num::<f64>();
+                let asset_value_usd_maint = calc_asset_value(
+                    bank_accounts
+                        .bank
+                        .get_asset_amount(total_asset_share.into())?,
+                    price,
+                    bank_accounts.bank.mint_decimals,
+                    Some(asset_weight),
+                )?
+                .to_num::<f64>();
                 let liability_value_usd = calc_asset_value(
                     bank_accounts
                         .bank
@@ -89,10 +108,21 @@ impl MarginfiGroupMetrics {
                     bank_accounts.bank.mint_decimals,
                     None,
                 )?
-                    .to_num::<f64>();
+                .to_num::<f64>();
+                let liability_value_usd_maint = calc_asset_value(
+                    bank_accounts
+                        .bank
+                        .get_liability_amount(total_liability_share.into())?,
+                    price,
+                    bank_accounts.bank.mint_decimals,
+                    Some(liability_weight),
+                )?
+                .to_num::<f64>();
 
                 sums.0 += asset_value_usd;
                 sums.1 += liability_value_usd;
+                sums.2 += asset_value_usd_maint;
+                sums.3 += liability_value_usd_maint;
 
                 Ok(sums)
             },
@@ -136,7 +166,14 @@ pub struct LendingPoolBankMetricsRow {
     pub created_at: String,
     pub timestamp: String,
     pub pubkey: String,
+    pub marginfi_group: String,
     pub mint: String,
+    pub usd_price: f64,
+    pub operational_state: String,
+    pub asset_weight_maintenance: f64,
+    pub liability_weight_maintenance: f64,
+    pub asset_weight_initial: f64,
+    pub liability_weight_initial: f64,
     pub deposit_limit_in_tokens: f64,
     pub borrow_limit_in_tokens: f64,
     pub deposit_limit_in_usd: f64,
@@ -156,7 +193,14 @@ pub struct LendingPoolBankMetricsRow {
 pub struct LendingPoolBankMetrics {
     pub timestamp: i64,
     pub pubkey: Pubkey,
+    pub marginfi_group: Pubkey,
     pub mint: Pubkey,
+    pub usd_price: f64,
+    pub operational_state: BankOperationalState,
+    pub asset_weight_maintenance: f64,
+    pub liability_weight_maintenance: f64,
+    pub asset_weight_initial: f64,
+    pub liability_weight_initial: f64,
     pub deposit_limit_in_tokens: f64,
     pub borrow_limit_in_tokens: f64,
     pub deposit_limit_in_usd: f64,
@@ -181,6 +225,12 @@ impl LendingPoolBankMetrics {
     ) -> anyhow::Result<Self> {
         let total_asset_share = bank_accounts.bank.total_asset_shares;
         let total_liability_share = bank_accounts.bank.total_liability_shares;
+        let (asset_weight_maintenance, liability_weight_maintenance) = bank_accounts
+            .bank
+            .config
+            .get_weights(WeightType::Maintenance);
+        let (asset_weight_initial, liability_weight_initial) =
+            bank_accounts.bank.config.get_weights(WeightType::Initial);
         let price_feed_pk = bank_accounts.bank.config.get_pyth_oracle_key();
         let price = snapshot
             .price_feeds
@@ -200,14 +250,14 @@ impl LendingPoolBankMetrics {
             bank_accounts.bank.mint_decimals,
             None,
         )?
-            .to_num::<f64>();
+        .to_num::<f64>();
         let borrow_limit_usd = calc_asset_value(
             bank_accounts.bank.config.borrow_limit.into(),
             price,
             bank_accounts.bank.mint_decimals,
             None,
         )?
-            .to_num::<f64>();
+        .to_num::<f64>();
 
         let asset_amount = bank_accounts
             .bank
@@ -224,12 +274,19 @@ impl LendingPoolBankMetrics {
             bank_accounts.bank.mint_decimals,
             None,
         )?
-            .to_num::<f64>();
+        .to_num::<f64>();
 
         Ok(Self {
             timestamp,
             pubkey: *bank_pk,
+            marginfi_group: bank_accounts.bank.group,
             mint: bank_accounts.bank.mint,
+            usd_price: price.to_num::<f64>(),
+            operational_state: bank_accounts.bank.config.operational_state,
+            asset_weight_maintenance: asset_weight_maintenance.to_num::<f64>(),
+            liability_weight_maintenance: liability_weight_maintenance.to_num::<f64>(),
+            asset_weight_initial: asset_weight_initial.to_num::<f64>(),
+            liability_weight_initial: liability_weight_initial.to_num::<f64>(),
             deposit_limit_in_tokens: bank_accounts.bank.config.deposit_limit as f64,
             borrow_limit_in_tokens: bank_accounts.bank.config.borrow_limit as f64,
             deposit_limit_in_usd: deposit_limit_usd,
@@ -280,7 +337,14 @@ impl LendingPoolBankMetrics {
                 .format(DATE_FORMAT_STR)
                 .to_string(),
             pubkey: self.pubkey.to_string(),
+            marginfi_group: self.marginfi_group.to_string(),
             mint: self.mint.to_string(),
+            usd_price: self.usd_price,
+            operational_state: self.operational_state.to_string(),
+            asset_weight_maintenance: self.asset_weight_maintenance,
+            liability_weight_maintenance: self.liability_weight_maintenance,
+            asset_weight_initial: self.asset_weight_initial,
+            liability_weight_initial: self.liability_weight_initial,
             deposit_limit_in_tokens: self.deposit_limit_in_tokens,
             borrow_limit_in_tokens: self.borrow_limit_in_tokens,
             deposit_limit_in_usd: self.deposit_limit_in_usd,
@@ -308,7 +372,10 @@ pub struct MarginfiAccountMetricsRow {
     pub owner: String,
     pub total_assets_in_usd: f64,
     pub total_liabilities_in_usd: f64,
-    pub health: f64,
+    pub total_assets_in_usd_maintenance: f64,
+    pub total_liabilities_in_usd_maintenance: f64,
+    pub total_assets_in_usd_initial: f64,
+    pub total_liabilities_in_usd_initial: f64,
 }
 
 #[derive(Debug)]
@@ -319,7 +386,10 @@ pub struct MarginfiAccountMetrics {
     pub owner: Pubkey,
     pub total_assets_in_usd: f64,
     pub total_liabilities_in_usd: f64,
-    pub health: f64,
+    pub total_assets_in_usd_maintenance: f64,
+    pub total_liabilities_in_usd_maintenance: f64,
+    pub total_assets_in_usd_initial: f64,
+    pub total_liabilities_in_usd_initial: f64,
 }
 
 impl MarginfiAccountMetrics {
@@ -329,80 +399,39 @@ impl MarginfiAccountMetrics {
         marginfi_account: &MarginfiAccount,
         snapshot: &Snapshot,
     ) -> anyhow::Result<Self> {
-        let risk_engine = RiskEngine::new(
-            marginfi_account,
-            &HashMap::from_iter(
-                snapshot
-                    .banks
-                    .iter()
-                    .map(|(bank_pk, bank_accounts)| (*bank_pk, bank_accounts.clone().bank)),
-            ),
-            &HashMap::from_iter(snapshot.price_feeds.iter().map(|(oracle_pk, oracle_data)| {
+        let banks = HashMap::from_iter(
+            snapshot
+                .banks
+                .iter()
+                .map(|(bank_pk, bank_accounts)| (*bank_pk, bank_accounts.clone().bank)),
+        );
+        let price_feeds =
+            HashMap::from_iter(snapshot.price_feeds.iter().map(|(oracle_pk, oracle_data)| {
                 match oracle_data {
                     OracleData::Pyth(price_feed) => (*oracle_pk, *price_feed),
                 }
-            })),
-        )?;
-        let health = risk_engine
-            .get_account_health(RiskRequirementType::Maintenance, timestamp)?
-            .to_num::<f64>();
+            }));
 
-        let (total_assets_usd, total_liabilities_usd) = marginfi_account
-            .lending_account
-            .balances
-            .iter()
-            .filter(|balance| balance.active)
-            .try_fold(
-                (0.0, 0.0),
-                |mut sums, balance| -> anyhow::Result<(f64, f64)> {
-                    let bank = snapshot
-                        .banks
-                        .get(&balance.bank_pk)
-                        .ok_or_else(|| {
-                            anyhow!(
-                                "Bank {} not found for marginfi account {}",
-                                balance.bank_pk,
-                                marginfi_account_pk
-                            )
-                        })?
-                        .bank;
+        let risk_engine = RiskEngine::new(marginfi_account, &banks, &price_feeds)?;
 
-                    let total_asset_share = balance.asset_shares;
-                    let total_liability_share = balance.liability_shares;
-                    let price_feed_pk = bank.config.get_pyth_oracle_key();
-                    let price = snapshot
-                        .price_feeds
-                        .get(&price_feed_pk)
-                        .ok_or_else(|| {
-                            anyhow!(
-                                "Price feed {} not found for bank {}",
-                                price_feed_pk,
-                                balance.bank_pk
-                            )
-                        })?
-                        .get_price();
-
-                    let asset_value_usd = calc_asset_value(
-                        bank.get_asset_amount(total_asset_share.into())?,
-                        price,
-                        bank.mint_decimals,
-                        None,
-                    )?
-                        .to_num::<f64>();
-                    let liability_value_usd = calc_asset_value(
-                        bank.get_liability_amount(total_liability_share.into())?,
-                        price,
-                        bank.mint_decimals,
-                        None,
-                    )?
-                        .to_num::<f64>();
-
-                    sums.0 += asset_value_usd;
-                    sums.1 += liability_value_usd;
-
-                    Ok(sums)
-                },
-            )?;
+        let (total_assets_usd, total_liabilities_usd) =
+            risk_engine.get_equity_components(timestamp)?;
+        let (total_assets_usd, total_liabilities_usd) = (
+            total_assets_usd.to_num::<f64>(),
+            total_liabilities_usd.to_num::<f64>(),
+        );
+        let (total_assets_usd_maintenance, total_liabilities_usd_maintenance) = risk_engine
+            .get_account_health_components(RiskRequirementType::Maintenance, timestamp)?;
+        let (total_assets_usd_maintenance, total_liabilities_usd_maintenance) = (
+            total_assets_usd_maintenance.to_num::<f64>(),
+            total_liabilities_usd_maintenance.to_num::<f64>(),
+        );
+        let (total_assets_usd_initial, total_liabilities_usd_initial) =
+            risk_engine.get_account_health_components(RiskRequirementType::Initial, timestamp)?;
+        let (total_assets_usd_initial, total_liabilities_usd_initial) = (
+            total_assets_usd_initial.to_num::<f64>(),
+            total_liabilities_usd_initial.to_num::<f64>(),
+        );
 
         Ok(Self {
             timestamp,
@@ -411,7 +440,10 @@ impl MarginfiAccountMetrics {
             owner: marginfi_account.authority,
             total_assets_in_usd: total_assets_usd,
             total_liabilities_in_usd: total_liabilities_usd,
-            health,
+            total_assets_in_usd_maintenance: total_assets_usd_maintenance,
+            total_liabilities_in_usd_maintenance: total_liabilities_usd_maintenance,
+            total_assets_in_usd_initial: total_assets_usd_initial,
+            total_liabilities_in_usd_initial: total_liabilities_usd_initial,
         })
     }
 
@@ -428,7 +460,10 @@ impl MarginfiAccountMetrics {
             owner: self.owner.to_string(),
             total_assets_in_usd: self.total_assets_in_usd,
             total_liabilities_in_usd: self.total_liabilities_in_usd,
-            health: self.health,
+            total_assets_in_usd_maintenance: self.total_assets_in_usd_maintenance,
+            total_liabilities_in_usd_maintenance: self.total_liabilities_in_usd_maintenance,
+            total_assets_in_usd_initial: self.total_assets_in_usd_initial,
+            total_liabilities_in_usd_initial: self.total_liabilities_in_usd_initial,
         }
     }
 }

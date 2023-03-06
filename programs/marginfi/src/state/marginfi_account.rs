@@ -238,12 +238,17 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
         }
 
         Ok((
-            calc_asset_value(asset_amount, worst_price, mint_decimals, Some(asset_weight))?,
+            calc_asset_value(
+                asset_amount,
+                worst_price,
+                mint_decimals,
+                weights.map(|(asset_weight, _)| asset_weight),
+            )?,
             calc_asset_value(
                 liability_amount,
                 best_price,
                 mint_decimals,
-                Some(liability_weight),
+                weights.map(|(_, liability_weight)| liability_weight),
             )?,
         ))
     }
@@ -368,6 +373,30 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         }
 
         Ok((total_assets, total_liabilities))
+    }
+
+    #[cfg(feature = "client")]
+    pub fn get_equity_components(
+        &self,
+        current_timestamp: i64,
+    ) -> MarginfiResult<(I80F48, I80F48)> {
+        Ok(self
+            .bank_accounts_with_price
+            .iter()
+            .map(|a| a.calc_unweighted_assets_and_liabilities_values(current_timestamp))
+            .try_fold(
+                (I80F48::ZERO, I80F48::ZERO),
+                |(total_assets, total_liabilities), res| {
+                    let (assets, liabilities) = res?;
+                    let total_assets_sum =
+                        total_assets.checked_add(assets).ok_or_else(math_error!())?;
+                    let total_liabilities_sum = total_liabilities
+                        .checked_add(liabilities)
+                        .ok_or_else(math_error!())?;
+
+                    Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
+                },
+            )?)
     }
 
     pub fn get_account_health(

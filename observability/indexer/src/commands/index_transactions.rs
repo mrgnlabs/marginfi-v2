@@ -110,7 +110,7 @@ pub async fn index_transactions(config: IndexTransactionsConfig) -> Result<()> {
         process_transactions_handle,
         monitor_handle,
     ])
-    .await;
+        .await;
 
     Ok(())
 }
@@ -122,7 +122,7 @@ async fn listen_to_updates(ctx: Arc<Context>) {
             ctx.config.rpc_endpoint.to_string(),
             ctx.config.rpc_token.to_string(),
         )
-        .await
+            .await
         {
             Ok(mut geyser_client) => {
                 info!("Subscribing to updates for {:?}", ctx.config.program_id);
@@ -140,11 +140,9 @@ async fn listen_to_updates(ctx: Arc<Context>) {
                                 failed: Some(false),
                                 account_include: vec![ctx.config.program_id.to_string()],
                                 account_exclude: vec![],
-                                signature: None,
                             },
                         )]),
                         blocks: HashMap::default(),
-                        blocks_meta: HashMap::default(),
                     }]))
                     .await;
 
@@ -262,8 +260,8 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
         project: ProjectOptions::Project(project_options),
         ..Default::default()
     })
-    .await
-    .unwrap();
+        .await
+        .unwrap();
 
     let topic = client.topic(topic_name);
     topic
@@ -366,7 +364,7 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
                         meta: serde_json::to_string(&UiTransactionStatusMeta::from(
                             transaction_data.transaction.meta.clone(),
                         ))
-                        .unwrap(),
+                            .unwrap(),
                         message: general_purpose::STANDARD
                             .encode(transaction_data.transaction.transaction.message.serialize()),
                     };
@@ -388,7 +386,7 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
                 .map(|awaiter| awaiter.get(None))
                 .collect_vec(),
         )
-        .await;
+            .await;
 
         pub_results.into_iter().for_each(|result| match result {
             Ok(_) => {}

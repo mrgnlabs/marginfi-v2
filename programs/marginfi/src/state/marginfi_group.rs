@@ -19,6 +19,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
+#[cfg(feature = "client")]
+use std::fmt;
 use std::{
     fmt::{Debug, Formatter},
     ops::Not,
