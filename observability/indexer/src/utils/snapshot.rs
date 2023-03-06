@@ -207,15 +207,13 @@ impl Snapshot {
                     MarginfiAccount::try_deserialize(&mut (&account.data as &[u8])).unwrap();
                 self.routing_lookup
                     .insert(*account_pubkey, AccountRoutingType::MarginfiAccount);
-
                 self.marginfi_accounts
                     .insert(*account_pubkey, marginfi_account);
             } else if discriminator == MarginfiGroup::discriminator() {
                 let marginfi_group =
                     MarginfiGroup::try_deserialize(&mut (&account.data as &[u8])).unwrap();
                 self.routing_lookup
-                    .insert(*account_pubkey, AccountRoutingType::MarginfiAccount);
-
+                    .insert(*account_pubkey, AccountRoutingType::MarginfiGroup);
                 self.marginfi_groups.insert(*account_pubkey, marginfi_group);
             }
         }

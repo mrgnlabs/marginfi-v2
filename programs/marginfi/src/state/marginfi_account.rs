@@ -198,6 +198,26 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         weight_type: WeightType,
         current_timestamp: i64,
     ) -> MarginfiResult<(I80F48, I80F48)> {
+        self.calc_weighted_assets_and_liabilities_values_internal(
+            Some(weight_type),
+            current_timestamp,
+        )
+    }
+
+    #[cfg(feature = "client")]
+    pub fn calc_unweighted_assets_and_liabilities_values(
+        &self,
+        current_timestamp: i64,
+    ) -> MarginfiResult<(I80F48, I80F48)> {
+        self.calc_weighted_assets_and_liabilities_values_internal(None, current_timestamp)
+    }
+
+    #[inline(always)]
+    fn calc_weighted_assets_and_liabilities_values_internal(
+        &self,
+        weight_type: Option<WeightType>,
+        current_timestamp: i64,
+    ) -> MarginfiResult<(I80F48, I80F48)> {
         let (worst_price, best_price) = get_price_range(&self.price_feed, current_timestamp)?;
 
         let asset_amount = self
@@ -206,17 +226,22 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         let liability_amount = self
             .bank
             .get_liability_amount(self.balance.liability_shares.into())?;
-        let (asset_weight, liability_weight) = self.bank.config.get_weights(weight_type);
+        let weights = weight_type.map(|weight_type| self.bank.config.get_weights(weight_type));
 
         let mint_decimals = self.bank.mint_decimals;
 
         Ok((
-            calc_asset_value(asset_amount, worst_price, mint_decimals, Some(asset_weight))?,
+            calc_asset_value(
+                asset_amount,
+                worst_price,
+                mint_decimals,
+                weights.map(|(asset_weight, _)| asset_weight),
+            )?,
             calc_asset_value(
                 liability_amount,
                 best_price,
                 mint_decimals,
-                Some(liability_weight),
+                weights.map(|(_, liability_weight)| liability_weight),
             )?,
         ))
     }
@@ -372,6 +397,30 @@ impl<'a> RiskEngine<'a> {
                     current_timestamp,
                 )
             })
+            .try_fold(
+                (I80F48::ZERO, I80F48::ZERO),
+                |(total_assets, total_liabilities), res| {
+                    let (assets, liabilities) = res?;
+                    let total_assets_sum =
+                        total_assets.checked_add(assets).ok_or_else(math_error!())?;
+                    let total_liabilities_sum = total_liabilities
+                        .checked_add(liabilities)
+                        .ok_or_else(math_error!())?;
+
+                    Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
+                },
+            )?)
+    }
+
+    #[cfg(feature = "client")]
+    pub fn get_equity_components(
+        &self,
+        current_timestamp: i64,
+    ) -> MarginfiResult<(I80F48, I80F48)> {
+        Ok(self
+            .bank_accounts_with_price
+            .iter()
+            .map(|a| a.calc_unweighted_assets_and_liabilities_values(current_timestamp))
             .try_fold(
                 (I80F48::ZERO, I80F48::ZERO),
                 |(total_assets, total_liabilities), res| {

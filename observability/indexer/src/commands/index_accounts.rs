@@ -112,7 +112,7 @@ pub async fn index_accounts(config: IndexAccountsConfig) -> Result<()> {
         process_account_updates_handle,
         monitor_handle,
     ])
-    .await;
+        .await;
 
     Ok(())
 }
@@ -124,7 +124,7 @@ async fn listen_to_updates(ctx: Arc<Context>) {
             ctx.config.rpc_endpoint.to_string(),
             ctx.config.rpc_token.to_string(),
         )
-        .await
+            .await
         {
             Ok(mut geyser_client) => {
                 info!("Subscribing to updates for {:?}", ctx.config.program_id);
@@ -143,7 +143,6 @@ async fn listen_to_updates(ctx: Arc<Context>) {
                         )]),
                         transactions: HashMap::default(),
                         blocks: HashMap::default(),
-                        blocks_meta: HashMap::default(),
                     }]))
                     .await;
 
@@ -265,8 +264,8 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
         project: ProjectOptions::Project(project_options),
         ..Default::default()
     })
-    .await
-    .unwrap();
+        .await
+        .unwrap();
 
     let topic = client.topic(topic_name);
     topic
@@ -361,7 +360,7 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
                 .map(|awaiter| awaiter.get(None))
                 .collect_vec(),
         )
-        .await;
+            .await;
 
         pub_results.into_iter().for_each(|result| match result {
             Ok(_) => {}
