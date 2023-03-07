@@ -32,7 +32,7 @@ pub const MAX_PRICE_AGE_SEC: u64 = 20;
 /// Range that contains 95% price data distribution
 ///
 /// https://docs.pyth.network/pythnet-price-feeds/best-practices#confidence-intervals
-pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(4.24);
+pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(2.12);
 
 pub const USDC_EXPONENT: i32 = 6;
 
