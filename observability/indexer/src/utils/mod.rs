@@ -1,4 +1,5 @@
 pub mod big_query;
+pub mod errors;
 pub mod geyser_client;
 pub mod metrics;
 pub mod protos;

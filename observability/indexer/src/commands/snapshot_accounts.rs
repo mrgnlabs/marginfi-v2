@@ -74,8 +74,6 @@ pub struct SnapshotAccountsConfig {
     pub rpc_token: String,
     #[envconfig(from = "SNAPSHOT_ACCOUNTS_SLOTS_BUFFER_SIZE")]
     pub slots_buffer_size: u32,
-    #[envconfig(from = "SNAPSHOT_ACCOUNTS_MAX_CONCURRENT_REQUESTS")]
-    pub max_concurrent_requests: usize,
     #[envconfig(from = "SNAPSHOT_ACCOUNTS_MONITOR_INTERVAL")]
     pub monitor_interval: u64,
     #[envconfig(from = "SNAPSHOT_ACCOUNTS_SNAP_INTERVAL")]
@@ -228,7 +226,7 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
         update_account_map_handle,
         monitor_handle,
     ])
-        .await;
+    .await;
 
     Ok(())
 }
@@ -240,7 +238,7 @@ async fn listen_to_updates(ctx: Arc<Context>) {
             ctx.config.rpc_endpoint_geyser.to_string(),
             ctx.config.rpc_token.to_string(),
         )
-            .await;
+        .await;
 
         match geyser_client {
             Ok(geyser_client) => {
@@ -330,7 +328,7 @@ async fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
                         slot: update_slot,
                         txn_signature,
                         write_version: Some(account_info.write_version),
-                        account_data: account_info.into(),
+                        account_data: account_info.try_into()?,
                     },
                 );
             } else {
@@ -490,12 +488,7 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
             .map(|(bank_pk, bank_accounts)| {
                 (
                     bank_pk,
-                    LendingPoolBankMetrics::new(
-                        timestamp,
-                        bank_pk,
-                        bank_accounts,
-                        &snapshot,
-                    ),
+                    LendingPoolBankMetrics::new(timestamp, bank_pk, bank_accounts, &snapshot),
                 )
             })
             .collect::<Vec<_>>();
@@ -533,7 +526,7 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
             timestamp,
             insert_request,
         )
-            .await;
+        .await;
         if let Err(error) = result {
             warn!(
                 "Failed to write marginfi group metrics to bigquery: {}",
@@ -556,7 +549,7 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
             timestamp,
             insert_request,
         )
-            .await;
+        .await;
         if let Err(error) = result {
             warn!(
                 "Failed to write lending pool bank metrics to bigquery: {}",
@@ -579,7 +572,7 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
             timestamp,
             insert_request,
         )
-            .await;
+        .await;
         if let Err(error) = result {
             warn!("Failed to write to bigquery: {}", error);
         }

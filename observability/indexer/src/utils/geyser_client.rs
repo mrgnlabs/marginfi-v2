@@ -1,11 +1,17 @@
+use crate::utils::protos::{
+    geyser::geyser_client::GeyserClient, SubscribeRequest, SubscribeUpdate,
+};
 use anchor_client::anchor_lang::prelude::thiserror::Error;
-use crate::utils::protos::{SubscribeUpdate, geyser::geyser_client::GeyserClient, SubscribeRequest};
-use anyhow::{Result};
-use backoff::{ExponentialBackoff, future::retry};
+use anyhow::Result;
+use backoff::{future::retry, ExponentialBackoff};
 use futures::stream::once;
-use futures::StreamExt;
-use tonic::{codegen::InterceptedService, service::Interceptor, transport::{Channel, ClientTlsConfig, Endpoint}, Request, Status, Streaming, Response};
 use tonic::metadata::{Ascii, MetadataValue};
+use tonic::{
+    codegen::InterceptedService,
+    service::Interceptor,
+    transport::{Channel, ClientTlsConfig, Endpoint},
+    Request, Response, Status, Streaming,
+};
 use tracing::{error, info};
 
 pub struct RequestInterceptor {
@@ -38,7 +44,6 @@ pub async fn get_geyser_client(
     ))
 }
 
-
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("XToken: {0}")]
@@ -62,13 +67,13 @@ impl RetryChannel {
     /// The channel does not attempt to connect to the endpoint until first use
     pub fn new(endpoint_str: String, x_token_str: String) -> Result<Self, Error> {
         let endpoint: Endpoint;
-        let x_token: Option<MetadataValue<Ascii>>;
 
         // the client should fail immediately if the x-token is invalid
-        match x_token_str.parse::<MetadataValue<Ascii>>() {
-            Ok(metadata) => x_token = Some(metadata),
-            Err(_) => return Err(Error::XToken(x_token_str)),
-        }
+        let x_token: Option<MetadataValue<Ascii>> =
+            match x_token_str.parse::<MetadataValue<Ascii>>() {
+                Ok(metadata) => Some(metadata),
+                Err(_) => return Err(Error::XToken(x_token_str)),
+            };
 
         let res = Channel::from_shared(endpoint_str.clone());
         match res {
@@ -99,15 +104,13 @@ impl RetryChannel {
     /// Clients require `&mut self`, due to `Tonic::transport::Channel` limitations, however
     /// creating new clients is cheap and thus can be used as a work around for ease of use.
     pub fn client(&self) -> RetryClient<impl FnMut(Request<()>) -> InterceptedRequestResult + '_> {
-        let client = GeyserClient::with_interceptor(
-            self.channel.clone(),
-            move |mut req: tonic::Request<()>| {
+        let client =
+            GeyserClient::with_interceptor(self.channel.clone(), move |mut req: Request<()>| {
                 if let Some(x_token) = self.x_token.clone() {
                     req.metadata_mut().insert("x-token", x_token);
                 }
                 Ok(req)
-            },
-        );
+            });
         RetryClient { client }
     }
 
@@ -121,11 +124,9 @@ impl RetryChannel {
         retry(ExponentialBackoff::default(), || async {
             info!("Retry to connect to the server");
             let mut client = self.client();
-            Ok(client
-                .subscribe(subscribe_request)
-                .await?)
-        },
-        ).await
+            Ok(client.subscribe(subscribe_request).await?)
+        })
+        .await
     }
 }
 
@@ -141,8 +142,10 @@ impl<F: FnMut(Request<()>) -> InterceptedRequestResult> RetryClient<F> {
         subscribe_request: &SubscribeRequest,
     ) -> Result<Streaming<SubscribeUpdate>, anyhow::Error> {
         let subscribe_request = subscribe_request.clone();
-        let response: Response<Streaming<SubscribeUpdate>> =
-            self.client.subscribe(once(async move { subscribe_request })).await?;
+        let response: Response<Streaming<SubscribeUpdate>> = self
+            .client
+            .subscribe(once(async move { subscribe_request }))
+            .await?;
         let stream: Streaming<SubscribeUpdate> = response.into_inner();
 
         Ok(stream)

@@ -14,8 +14,7 @@ use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
 use futures::{future::join_all, stream, StreamExt};
-use google_cloud_auth::{credentials::CredentialsFile, Project};
-use google_cloud_gax::project::ProjectOptions;
+use google_cloud_default::WithAuthExt;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::client::{Client, ClientConfig};
 use itertools::Itertools;
@@ -98,7 +97,7 @@ pub async fn index_transactions(config: IndexTransactionsConfig) -> Result<()> {
     });
     let process_transactions_handle = tokio::spawn({
         let context = context.clone();
-        async move { push_transactions_to_pubsub(context).await }
+        async move { push_transactions_to_pubsub(context).await.unwrap() }
     });
     let monitor_handle = tokio::spawn({
         let context = context.clone();
@@ -110,7 +109,7 @@ pub async fn index_transactions(config: IndexTransactionsConfig) -> Result<()> {
         process_transactions_handle,
         monitor_handle,
     ])
-        .await;
+    .await;
 
     Ok(())
 }
@@ -122,7 +121,7 @@ async fn listen_to_updates(ctx: Arc<Context>) {
             ctx.config.rpc_endpoint.to_string(),
             ctx.config.rpc_token.to_string(),
         )
-            .await
+        .await
         {
             Ok(mut geyser_client) => {
                 info!("Subscribing to updates for {:?}", ctx.config.program_id);
@@ -196,7 +195,8 @@ fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) ->
         UpdateOneof::Transaction(transaction_update) => {
             if let Some(transaction_info) = transaction_update.transaction {
                 let signature = transaction_info.signature.clone();
-                let transaction: VersionedTransactionWithStatusMeta = transaction_info.into();
+                let transaction: VersionedTransactionWithStatusMeta =
+                    transaction_info.try_into()?;
                 let mut transactions_queue = ctx.transactions_queue.lock().unwrap();
 
                 let slot_transactions = match transactions_queue.get_mut(&transaction_update.slot) {
@@ -244,24 +244,11 @@ fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) ->
     Ok(())
 }
 
-pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
+pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) -> Result<()> {
     let topic_name = ctx.config.topic_name.as_str();
 
-    let project_options = if ctx.config.gcp_sa_key.is_some() {
-        Some(Project::FromFile(Box::new(
-            CredentialsFile::new().await.unwrap(),
-        )))
-    } else {
-        None
-    };
-
-    let client = Client::new(ClientConfig {
-        project_id: Some(ctx.config.project_id.clone()),
-        project: ProjectOptions::Project(project_options),
-        ..Default::default()
-    })
-        .await
-        .unwrap();
+    let client_config = ClientConfig::default().with_auth().await?;
+    let client = Client::new(client_config).await.unwrap();
 
     let topic = client.topic(topic_name);
     topic
@@ -364,13 +351,15 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
                         meta: serde_json::to_string(&UiTransactionStatusMeta::from(
                             transaction_data.transaction.meta.clone(),
                         ))
-                            .unwrap(),
+                        .unwrap(),
                         message: general_purpose::STANDARD
                             .encode(transaction_data.transaction.transaction.message.serialize()),
                     };
 
+                    let message_str = serde_json::to_string(&message).unwrap();
+                    let message_bytes = message_str.as_bytes().to_vec();
                     messages.push(PubsubMessage {
-                        data: serde_json::to_string(&message).unwrap().as_bytes().to_vec(),
+                        data: message_bytes.into(),
                         ..PubsubMessage::default()
                     });
                 });
@@ -386,7 +375,7 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
                 .map(|awaiter| awaiter.get(None))
                 .collect_vec(),
         )
-            .await;
+        .await;
 
         pub_results.into_iter().for_each(|result| match result {
             Ok(_) => {}
