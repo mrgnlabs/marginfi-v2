@@ -13,10 +13,9 @@ use base64::{engine::general_purpose, Engine};
 use chrono::{NaiveDateTime, Utc};
 use envconfig::Envconfig;
 use futures::future::join_all;
-use google_cloud_auth::{credentials::CredentialsFile, Project};
-use google_cloud_gax::project::ProjectOptions;
+use google_cloud_default::WithAuthExt;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
-use google_cloud_pubsub::client::ClientConfig;
+use google_cloud_pubsub::client::{Client, ClientConfig};
 use itertools::Itertools;
 use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::TransactionVersion};
 use std::{str::FromStr, sync::Arc, time::Duration};
@@ -72,7 +71,7 @@ pub async fn backfill(config: BackfillConfig) -> Result<()> {
     });
 
     let transaction_processor = |ctx: Arc<TransactionsCrawlerContext>| async move {
-        push_transactions_to_pubsub(ctx, config).await
+        push_transactions_to_pubsub(ctx, config).await.unwrap()
     };
 
     tx_crawler.run_async(&transaction_processor).await.unwrap();
@@ -83,18 +82,11 @@ pub async fn backfill(config: BackfillConfig) -> Result<()> {
 pub async fn push_transactions_to_pubsub(
     ctx: Arc<TransactionsCrawlerContext>,
     config: BackfillConfig,
-) {
+) -> Result<()> {
     let topic_name = config.topic_name.as_str();
 
-    let client = google_cloud_pubsub::client::Client::new(ClientConfig {
-        project_id: Some(config.project_id.clone()),
-        project: ProjectOptions::Project(Some(Project::FromFile(Box::new(
-            CredentialsFile::new().await.unwrap(),
-        )))),
-        ..Default::default()
-    })
-    .await
-    .unwrap();
+    let client_config = ClientConfig::default().with_auth().await?;
+    let client = Client::new(client_config).await?;
 
     let topic = client.topic(topic_name);
     topic
@@ -168,8 +160,10 @@ pub async fn push_transactions_to_pubsub(
                 message: general_purpose::STANDARD.encode(tx_decoded.message.serialize()),
             };
 
+            let message_str = serde_json::to_string(&message).unwrap();
+            let message_bytes = message_str.as_bytes().to_vec();
             messages.push(PubsubMessage {
-                data: serde_json::to_string(&message).unwrap().as_bytes().to_vec(),
+                data: message_bytes.into(),
                 ..PubsubMessage::default()
             });
         });

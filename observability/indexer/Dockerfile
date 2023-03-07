@@ -7,6 +7,8 @@ WORKDIR /app
 
 COPY . .
 
+WORKDIR /app/observability/indexer
+
 RUN cargo build --release
 
 
@@ -14,7 +16,7 @@ FROM debian:stable-slim as runner
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/mfi-index ./
+COPY --from=builder /app/observability/indexer/target/release/mfi-index ./
 
 ENV RUST_LOG=info
 

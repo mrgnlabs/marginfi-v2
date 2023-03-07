@@ -6,24 +6,24 @@ use crate::{
 use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
-
-#[cfg(any(feature = "admin", feature = "dev"))]
-use fixed::types::I80F48;
-use marginfi::state::marginfi_group::{Bank, BankOperationalState, RiskTier};
-#[cfg(any(feature = "admin", feature = "dev"))]
-use marginfi::state::marginfi_group::{BankConfigOpt, InterestRateConfigOpt};
-#[cfg(feature = "dev")]
-use marginfi::{
-    prelude::{GroupConfig, MarginfiGroup},
-    state::{
-        marginfi_account::{Balance, LendingAccount, MarginfiAccount},
-        marginfi_group::{BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
-    },
-};
+use marginfi::state::marginfi_group::{BankOperationalState, RiskTier};
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
-
+#[cfg(any(feature = "admin", feature = "dev"))]
+use {
+    fixed::types::I80F48,
+    marginfi::state::marginfi_group::{Bank, BankConfigOpt, InterestRateConfigOpt},
+};
 #[cfg(feature = "dev")]
-use type_layout::TypeLayout;
+use {
+    marginfi::{
+        prelude::{GroupConfig, MarginfiGroup},
+        state::{
+            marginfi_account::{Balance, LendingAccount, MarginfiAccount},
+            marginfi_group::{BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
+        },
+    },
+    type_layout::TypeLayout,
+};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

@@ -1,6 +1,20 @@
 [workspace]
-members = ["programs/*", "clients/rust/*"]
-exclude = ["observability/indexer"]
+members = [
+    "programs/*",
+    "clients/rust/*",
+    "observability/indexer"
+]
+
+[workspace.dependencies]
+solana-client = "~1.14.16"
+solana-measure = "~1.14.16"
+solana-metrics = "~1.14.16"
+solana-logger = "~1.14.16"
+solana-program = "~1.14.16"
+solana-sdk = "~1.14.16"
+solana-transaction-status = "~1.14.16"
+solana-account-decoder = "~1.14.16"
+solana-program-test = "~1.14.16"
 
 [profile.release]
 overflow-checks = true
