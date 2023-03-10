@@ -5,10 +5,13 @@ RUN rustup component add rustfmt clippy
 
 WORKDIR /app
 
-COPY . .
+COPY ./Cargo.toml ./Cargo.toml
+COPY ./programs ./programs
+COPY ./observability/indexer ./observability/indexer
+COPY ./test-utils ./test-utils
+COPY ./clients/rust ./clients/rust
 
-WORKDIR /app/observability/indexer
-
+RUN cargo update
 RUN cargo build --release
 
 
@@ -16,7 +19,9 @@ FROM debian:stable-slim as runner
 
 WORKDIR /app
 
-COPY --from=builder /app/observability/indexer/target/release/mfi-index ./
+RUN apt-get update -y && apt-get install -y ca-certificates
+
+COPY --from=builder /app/target/release/mfi-index ./
 
 ENV RUST_LOG=info
 

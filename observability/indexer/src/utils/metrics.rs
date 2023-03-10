@@ -3,6 +3,7 @@ use crate::utils::snapshot::{BankAccounts, OracleData, Snapshot};
 use anyhow::anyhow;
 use chrono::{NaiveDateTime, Utc};
 use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
 use itertools::Itertools;
 use marginfi::constants::ZERO_AMOUNT_THRESHOLD;
 use marginfi::prelude::MarginfiGroup;
@@ -180,6 +181,10 @@ pub struct LendingPoolBankMetricsRow {
     pub borrow_limit_in_usd: f64,
     pub lenders_count: u32,
     pub borrowers_count: u32,
+    pub deposit_rate: f64,
+    pub borrow_rate: f64,
+    pub group_fee: f64,
+    pub insurance_fee: f64,
     pub total_assets_in_tokens: f64,
     pub total_liabilities_in_tokens: f64,
     pub total_assets_in_usd: f64,
@@ -207,6 +212,10 @@ pub struct LendingPoolBankMetrics {
     pub borrow_limit_in_usd: f64,
     pub lenders_count: u32,
     pub borrowers_count: u32,
+    pub deposit_rate: f64,
+    pub borrow_rate: f64,
+    pub group_fee: f64,
+    pub insurance_fee: f64,
     pub total_assets_in_tokens: f64,
     pub total_liabilities_in_tokens: f64,
     pub total_assets_in_usd: f64,
@@ -276,6 +285,43 @@ impl LendingPoolBankMetrics {
         )?
         .to_num::<f64>();
 
+        let lenders_count = snapshot
+            .marginfi_accounts
+            .iter()
+            .filter(|(_, account)| {
+                account.lending_account.balances.iter().any(|a| {
+                    a.active
+                        && I80F48::from(a.asset_shares).gt(&ZERO_AMOUNT_THRESHOLD)
+                        && a.bank_pk.eq(bank_pk)
+                })
+            })
+            .count() as u32;
+        let borrowers_count = snapshot
+            .marginfi_accounts
+            .iter()
+            .filter(|(_, account)| {
+                account.lending_account.balances.iter().any(|a| {
+                    a.active
+                        && I80F48::from(a.liability_shares).gt(&ZERO_AMOUNT_THRESHOLD)
+                        && a.bank_pk.eq(bank_pk)
+                })
+            })
+            .count() as u32;
+
+        let utilization_rate = if asset_amount.is_positive() {
+            liability_amount
+                .checked_div(asset_amount)
+                .ok_or_else(|| anyhow!("Bad math during UR calc"))?
+        } else {
+            I80F48::ZERO
+        };
+        let (lending_apr, borrowing_apr, group_fee_apr, insurance_fee_apr) = bank_accounts
+            .bank
+            .config
+            .interest_rate_config
+            .calc_interest_rate(utilization_rate)
+            .ok_or_else(|| anyhow!("Bad math during IR calcs"))?;
+
         Ok(Self {
             timestamp,
             pubkey: *bank_pk,
@@ -287,32 +333,18 @@ impl LendingPoolBankMetrics {
             liability_weight_maintenance: liability_weight_maintenance.to_num::<f64>(),
             asset_weight_initial: asset_weight_initial.to_num::<f64>(),
             liability_weight_initial: liability_weight_initial.to_num::<f64>(),
-            deposit_limit_in_tokens: bank_accounts.bank.config.deposit_limit as f64,
-            borrow_limit_in_tokens: bank_accounts.bank.config.borrow_limit as f64,
+            deposit_limit_in_tokens: bank_accounts.bank.config.deposit_limit as f64
+                / (10i64.pow(bank_accounts.bank.mint_decimals as u32) as f64),
+            borrow_limit_in_tokens: bank_accounts.bank.config.borrow_limit as f64
+                / (10i64.pow(bank_accounts.bank.mint_decimals as u32) as f64),
             deposit_limit_in_usd: deposit_limit_usd,
             borrow_limit_in_usd: borrow_limit_usd,
-            lenders_count: snapshot
-                .marginfi_accounts
-                .iter()
-                .filter(|(_, account)| {
-                    account.lending_account.balances.iter().any(|a| {
-                        a.active
-                            && I80F48::from(a.asset_shares).gt(&ZERO_AMOUNT_THRESHOLD)
-                            && a.bank_pk.eq(bank_pk)
-                    })
-                })
-                .count() as u32,
-            borrowers_count: snapshot
-                .marginfi_accounts
-                .iter()
-                .filter(|(_, account)| {
-                    account.lending_account.balances.iter().any(|a| {
-                        a.active
-                            && I80F48::from(a.liability_shares).gt(&ZERO_AMOUNT_THRESHOLD)
-                            && a.bank_pk.eq(bank_pk)
-                    })
-                })
-                .count() as u32,
+            lenders_count,
+            borrowers_count,
+            deposit_rate: lending_apr.to_num::<f64>(),
+            borrow_rate: borrowing_apr.to_num::<f64>(),
+            group_fee: group_fee_apr.to_num::<f64>(),
+            insurance_fee: insurance_fee_apr.to_num::<f64>(),
             total_assets_in_tokens: asset_amount.to_num::<f64>()
                 / (10i64.pow(bank_accounts.bank.mint_decimals as u32) as f64),
             total_liabilities_in_tokens: liability_amount.to_num::<f64>()
@@ -351,6 +383,10 @@ impl LendingPoolBankMetrics {
             borrow_limit_in_usd: self.borrow_limit_in_usd,
             lenders_count: self.lenders_count,
             borrowers_count: self.borrowers_count,
+            deposit_rate: self.deposit_rate,
+            borrow_rate: self.borrow_rate,
+            group_fee: self.group_fee,
+            insurance_fee: self.insurance_fee,
             total_assets_in_tokens: self.total_assets_in_tokens,
             total_liabilities_in_tokens: self.total_liabilities_in_tokens,
             total_assets_in_usd: self.total_assets_in_usd,
@@ -376,6 +412,19 @@ pub struct MarginfiAccountMetricsRow {
     pub total_liabilities_in_usd_maintenance: f64,
     pub total_assets_in_usd_initial: f64,
     pub total_liabilities_in_usd_initial: f64,
+    pub positions: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PositionsSummary {
+    pub bank: String,
+    pub mint: String,
+    pub is_asset: bool,
+    pub amount: f64,
+    pub usd_value: f64,
+    pub usd_value_maintenance: f64,
+    pub usd_value_initial: f64,
+    pub price: f64,
 }
 
 #[derive(Debug)]
@@ -390,6 +439,7 @@ pub struct MarginfiAccountMetrics {
     pub total_liabilities_in_usd_maintenance: f64,
     pub total_assets_in_usd_initial: f64,
     pub total_liabilities_in_usd_initial: f64,
+    pub positions: Vec<PositionsSummary>,
 }
 
 impl MarginfiAccountMetrics {
@@ -433,6 +483,79 @@ impl MarginfiAccountMetrics {
             total_liabilities_usd_initial.to_num::<f64>(),
         );
 
+        let positions = marginfi_account
+            .lending_account
+            .balances
+            .into_iter()
+            .filter(|balance| balance.active)
+            .map(|balance| {
+                let bank = banks.get(&balance.bank_pk).unwrap();
+                let mint = bank.mint;
+                let (asset_shares, liability_shares): (I80F48, I80F48) =
+                    (balance.asset_shares.into(), balance.liability_shares.into());
+                let (asset_weight_maintenance, liability_weight_maintenance) =
+                    bank.config.get_weights(WeightType::Maintenance);
+                let (asset_weight_initial, liability_weight_initial) =
+                    bank.config.get_weights(WeightType::Initial);
+                let is_asset = asset_shares.gt(&I80F48!(0.0001));
+
+                let price_feed_pk = bank.config.get_pyth_oracle_key();
+                let price = snapshot
+                    .price_feeds
+                    .get(&price_feed_pk)
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "Price feed {} not found for bank {}",
+                            price_feed_pk,
+                            balance.bank_pk
+                        )
+                    })
+                    .unwrap()
+                    .get_price();
+
+                let (amount, weight_maintenance, weight_initial) = if is_asset {
+                    (
+                        bank.get_asset_amount(asset_shares)
+                            .map_err(|_| anyhow!("Bad math during positions summarizing"))
+                            .unwrap(),
+                        asset_weight_maintenance,
+                        asset_weight_initial,
+                    )
+                } else {
+                    (
+                        bank.get_asset_amount(liability_shares)
+                            .map_err(|_| anyhow!("Bad math during positions summarizing"))
+                            .unwrap(),
+                        liability_weight_maintenance,
+                        liability_weight_initial,
+                    )
+                };
+
+                let usd_value = calc_asset_value(amount, price, bank.mint_decimals, None)
+                    .unwrap()
+                    .to_num::<f64>();
+                let usd_value_maintenance =
+                    calc_asset_value(amount, price, bank.mint_decimals, Some(weight_maintenance))
+                        .unwrap()
+                        .to_num::<f64>();
+                let usd_value_initial =
+                    calc_asset_value(amount, price, bank.mint_decimals, Some(weight_initial))
+                        .unwrap()
+                        .to_num::<f64>();
+
+                PositionsSummary {
+                    bank: balance.bank_pk.to_string(),
+                    mint: mint.to_string(),
+                    is_asset,
+                    amount: amount.to_num::<f64>() / (10i64.pow(bank.mint_decimals as u32) as f64),
+                    usd_value,
+                    usd_value_maintenance,
+                    usd_value_initial,
+                    price: price.to_num::<f64>(),
+                }
+            })
+            .collect_vec();
+
         Ok(Self {
             timestamp,
             pubkey: *marginfi_account_pk,
@@ -444,6 +567,7 @@ impl MarginfiAccountMetrics {
             total_liabilities_in_usd_maintenance: total_liabilities_usd_maintenance,
             total_assets_in_usd_initial: total_assets_usd_initial,
             total_liabilities_in_usd_initial: total_liabilities_usd_initial,
+            positions,
         })
     }
 
@@ -464,6 +588,7 @@ impl MarginfiAccountMetrics {
             total_liabilities_in_usd_maintenance: self.total_liabilities_in_usd_maintenance,
             total_assets_in_usd_initial: self.total_assets_in_usd_initial,
             total_liabilities_in_usd_initial: self.total_liabilities_in_usd_initial,
+            positions: serde_json::to_string(&self.positions).unwrap(),
         }
     }
 }
