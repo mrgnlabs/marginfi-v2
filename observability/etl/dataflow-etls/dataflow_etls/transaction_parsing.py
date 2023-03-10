@@ -199,8 +199,7 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
     try:
         parsed_ix: NamedInstruction = program.coder.instruction.parse(ix.message.data)
     except Exception as e:
-        print(ix)
-        print(f"failed to parse instruction data in tx {ix.signature}", e)
+        print(f"failed to parse instruction data in tx {ix.signature} ({ix.timestamp})", e)
         return records
 
     for log in ix.logs:
@@ -213,8 +212,6 @@ def create_records_from_ix(ix: InstructionWithLogs, program: VersionedProgram) -
         except Exception as e:
             print(f"error: failed to decode base64 event string in tx {ix.signature}", e)
             continue
-
-        print(f"info decoded with IDL {program.version}")
 
         try:
             event = program.coder.events.parse(event_bytes)
