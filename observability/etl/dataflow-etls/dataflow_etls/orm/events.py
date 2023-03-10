@@ -348,12 +348,16 @@ class LendingAccountChangeLiquidityRecord(AccountRecordBase):
     SCHEMA = AccountRecordBase.SCHEMA + "," + ",".join(
         [
             "operation:STRING",
+            "bank:STRING",
+            "mint:STRING",
             "amount:BIGNUMERIC",
             "balance_closed:BOOLEAN"
         ]
     )
 
     operation: str
+    bank: str
+    mint: str
     amount: int
     balance_closed: bool
 
@@ -361,6 +365,8 @@ class LendingAccountChangeLiquidityRecord(AccountRecordBase):
         super().__init__(event, instruction, instruction_args)
 
         self.operation = event.name.removeprefix("LendingAccount").removesuffix("Event").lower()
+        self.bank = str(event.data.bank)
+        self.mint = str(event.data.mint)
         self.amount = event.data.amount
         self.balance_closed = False
         if event.name == LENDING_ACCOUNT_REPAY_EVENT_NAME or event.name == LENDING_ACCOUNT_WITHDRAW_EVENT_NAME:
