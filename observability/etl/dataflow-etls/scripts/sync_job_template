@@ -2,9 +2,10 @@
 set -e
 
 job_dir=$1
-image_version=${2:-"latest"}
+image_version=$2
 
 [ -z "$job_dir" ] && echo "Missing job_dir argument" && exit 1
+[ -z "$image_version" ] && echo "Missing image_version argument" && exit 1
 
 job_dir=$(realpath "$job_dir")
 job_name=$(basename "$job_dir")
