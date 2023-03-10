@@ -1,13 +1,15 @@
-use crate::{
-    config::GlobalOptions,
-    processor,
-    profile::{load_profile, Profile},
+use {
+    crate::{
+        config::GlobalOptions,
+        processor,
+        profile::{load_profile, Profile},
+    },
+    anchor_client::Cluster,
+    anyhow::Result,
+    clap::{clap_derive::ArgEnum, Parser},
+    marginfi::state::marginfi_group::{BankOperationalState, RiskTier},
+    solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey},
 };
-use anchor_client::Cluster;
-use anyhow::Result;
-use clap::{clap_derive::ArgEnum, Parser};
-use marginfi::state::marginfi_group::{BankOperationalState, RiskTier};
-use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
 #[cfg(any(feature = "admin", feature = "dev"))]
 use {
     fixed::types::I80F48,

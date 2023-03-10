@@ -1,20 +1,22 @@
-use anyhow::{bail, Result};
-use fixed::types::I80F48;
-use fixed_macro::types::I80F48;
-use marginfi::{
-    bank_authority_seed,
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType},
-    },
-};
 #[cfg(feature = "admin")]
 use marginfi::{bank_seed, constants::MAX_ORACLE_KEYS};
-use solana_client::rpc_client::RpcClient;
-use solana_sdk::{
-    instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,
+use {
+    anyhow::{bail, Result},
+    fixed::types::I80F48,
+    fixed_macro::types::I80F48,
+    marginfi::{
+        bank_authority_seed,
+        state::{
+            marginfi_account::MarginfiAccount,
+            marginfi_group::{Bank, BankVaultType},
+        },
+    },
+    solana_client::rpc_client::RpcClient,
+    solana_sdk::{
+        instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,
+    },
+    std::collections::HashMap,
 };
-use std::collections::HashMap;
 
 pub fn process_transaction(
     tx: &Transaction,

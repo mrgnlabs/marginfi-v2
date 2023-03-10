@@ -1,62 +1,66 @@
 #[cfg(feature = "admin")]
-use crate::utils::{create_oracle_key_array, find_bank_vault_pda};
-use crate::{
-    config::Config,
-    profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
-    utils::{
-        find_bank_vault_authority_pda, load_observation_account_metas, process_transaction,
-        EXP_10_I80F48,
+use {
+    crate::utils::{create_oracle_key_array, find_bank_vault_pda},
+    marginfi::{
+        prelude::GroupConfig,
+        state::marginfi_group::{
+            BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, OracleSetup,
+            WrappedI80F48,
+        },
     },
 };
-use anchor_client::{
-    anchor_lang::{InstructionData, ToAccountMetas},
-    Cluster,
+use {
+    crate::{
+        config::Config,
+        profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
+        utils::{
+            find_bank_vault_authority_pda, load_observation_account_metas, process_transaction,
+            EXP_10_I80F48,
+        },
+    },
+    anchor_client::{
+        anchor_lang::{InstructionData, ToAccountMetas},
+        Cluster,
+    },
+    anchor_spl::token::{self, spl_token},
+    anyhow::{anyhow, bail, Result},
+    fixed::types::I80F48,
+    log::info,
+    marginfi::{
+        prelude::MarginfiGroup,
+        state::{
+            marginfi_account::MarginfiAccount,
+            marginfi_group::{Bank, BankVaultType},
+        },
+    },
+    solana_client::rpc_filter::{Memcmp, RpcFilterType},
+    solana_sdk::compute_budget::ComputeBudgetInstruction,
+    solana_sdk::instruction::AccountMeta,
+    solana_sdk::{
+        account_info::IntoAccountInfo,
+        clock::Clock,
+        commitment_config::CommitmentLevel,
+        instruction::Instruction,
+        pubkey::Pubkey,
+        signature::Keypair,
+        signer::Signer,
+        system_program,
+        sysvar::{self, Sysvar},
+        transaction::Transaction,
+    },
+    spl_associated_token_account::instruction::create_associated_token_account_idempotent,
+    std::{
+        collections::HashMap,
+        fs,
+        mem::size_of,
+        ops::{Neg, Not},
+        time::{Duration, SystemTime, UNIX_EPOCH},
+    },
 };
-use anchor_spl::token::{self, spl_token};
-use anyhow::{anyhow, bail, Result};
 #[cfg(feature = "lip")]
-use chrono::{DateTime, NaiveDateTime, Utc};
-use fixed::types::I80F48;
-#[cfg(feature = "lip")]
-use liquidity_incentive_program::state::{Campaign, Deposit};
-use log::info;
-#[cfg(feature = "admin")]
-use marginfi::{
-    prelude::GroupConfig,
-    state::marginfi_group::{
-        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, OracleSetup,
-        WrappedI80F48,
-    },
-};
-use marginfi::{
-    prelude::MarginfiGroup,
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType},
-    },
-};
-use solana_client::rpc_filter::{Memcmp, RpcFilterType};
-use solana_sdk::compute_budget::ComputeBudgetInstruction;
-use solana_sdk::instruction::AccountMeta;
-use solana_sdk::{
-    account_info::IntoAccountInfo,
-    clock::Clock,
-    commitment_config::CommitmentLevel,
-    instruction::Instruction,
-    pubkey::Pubkey,
-    signature::Keypair,
-    signer::Signer,
-    system_program,
-    sysvar::{self, Sysvar},
-    transaction::Transaction,
-};
-use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
-use std::{
-    collections::HashMap,
-    fs,
-    mem::size_of,
-    ops::{Neg, Not},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+use {
+    chrono::{DateTime, NaiveDateTime, Utc},
+    liquidity_incentive_program::state::{Campaign, Deposit},
 };
 
 // --------------------------------------------------------------------------------------------------------------------

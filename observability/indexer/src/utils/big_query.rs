@@ -66,6 +66,10 @@ lazy_static! {
         TableFieldSchema::float("borrow_limit_in_usd"),
         TableFieldSchema::integer("lenders_count"),
         TableFieldSchema::integer("borrowers_count"),
+        TableFieldSchema::float("deposit_rate"),
+        TableFieldSchema::float("borrow_rate"),
+        TableFieldSchema::float("group_fee"),
+        TableFieldSchema::float("insurance_fee"),
         TableFieldSchema::float("total_assets_in_tokens"),
         TableFieldSchema::float("total_liabilities_in_tokens"),
         TableFieldSchema::float("total_assets_in_usd"),
@@ -87,5 +91,6 @@ lazy_static! {
         TableFieldSchema::float("total_liabilities_in_usd_maintenance"),
         TableFieldSchema::float("total_assets_in_usd_initial"),
         TableFieldSchema::float("total_liabilities_in_usd_initial"),
+        TableFieldSchema::string("positions"),
     ]);
 }
