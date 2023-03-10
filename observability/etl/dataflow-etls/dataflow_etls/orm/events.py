@@ -228,8 +228,6 @@ class LendingPoolBankConfigureRecord(GroupRecordBase):
             self.oracle_setup = None
             self.oracle_keys = None
 
-        # self.oracle_keys = str(event.data.config.oracle.keys) if event.data.config.oracle is not None else None
-        #
         self.optimal_utilization_rate = map_optional(
             event.data.config.interest_rate_config.optimal_utilization_rate, wrapped_i80f48_to_float)
         self.plateau_interest_rate = map_optional(

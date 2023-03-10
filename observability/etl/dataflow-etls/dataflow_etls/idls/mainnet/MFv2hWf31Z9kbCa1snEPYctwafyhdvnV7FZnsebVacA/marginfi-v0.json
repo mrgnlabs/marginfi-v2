@@ -203,7 +203,7 @@
         {
           "name": "bankConfig",
           "type": {
-            "defined": "BankConfig"
+            "defined": "BankConfigArg"
           }
         }
       ]
@@ -231,7 +231,7 @@
         {
           "name": "bankConfigOpt",
           "type": {
-            "defined": "BankConfigOpt"
+            "defined": "BankConfigOptArg"
           }
         }
       ]
@@ -1428,8 +1428,93 @@
             "name": "ignore1",
             "type": {
               "array": [
-                "u8",
+                "u64",
                 6
+              ]
+            }
+          },
+          {
+            "name": "borrowLimit",
+            "type": "u64"
+          },
+          {
+            "name": "riskTier",
+            "type": {
+              "defined": "RiskTier"
+            }
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u64",
+                6
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "BankConfigArg",
+      "docs": [
+        "TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "assetWeightInit",
+            "type": {
+              "defined": "WrappedI80F48"
+            }
+          },
+          {
+            "name": "assetWeightMaint",
+            "type": {
+              "defined": "WrappedI80F48"
+            }
+          },
+          {
+            "name": "liabilityWeightInit",
+            "type": {
+              "defined": "WrappedI80F48"
+            }
+          },
+          {
+            "name": "liabilityWeightMaint",
+            "type": {
+              "defined": "WrappedI80F48"
+            }
+          },
+          {
+            "name": "depositLimit",
+            "type": "u64"
+          },
+          {
+            "name": "interestRateConfig",
+            "type": {
+              "defined": "InterestRateConfig"
+            }
+          },
+          {
+            "name": "operationalState",
+            "type": {
+              "defined": "BankOperationalState"
+            }
+          },
+          {
+            "name": "oracleSetup",
+            "type": {
+              "defined": "OracleSetup"
+            }
+          },
+          {
+            "name": "oracleKeys",
+            "type": {
+              "array": [
+                "publicKey",
+                5
               ]
             }
           },
@@ -1521,7 +1606,7 @@
             "type": {
               "array": [
                 "u64",
-                22
+                176
               ]
             }
           },
@@ -1562,8 +1647,92 @@
             "type": {
               "array": [
                 "u64",
-                21
+                168
               ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "BankConfigOptArg",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "assetWeightInit",
+            "type": {
+              "option": {
+                "defined": "WrappedI80F48"
+              }
+            }
+          },
+          {
+            "name": "assetWeightMaint",
+            "type": {
+              "option": {
+                "defined": "WrappedI80F48"
+              }
+            }
+          },
+          {
+            "name": "liabilityWeightInit",
+            "type": {
+              "option": {
+                "defined": "WrappedI80F48"
+              }
+            }
+          },
+          {
+            "name": "liabilityWeightMaint",
+            "type": {
+              "option": {
+                "defined": "WrappedI80F48"
+              }
+            }
+          },
+          {
+            "name": "depositLimit",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "borrowLimit",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "operationalState",
+            "type": {
+              "option": {
+                "defined": "BankOperationalState"
+              }
+            }
+          },
+          {
+            "name": "oracle",
+            "type": {
+              "option": {
+                "defined": "OracleConfig"
+              }
+            }
+          },
+          {
+            "name": "interestRateConfig",
+            "type": {
+              "option": {
+                "defined": "InterestRateConfigOpt"
+              }
+            }
+          },
+          {
+            "name": "riskTier",
+            "type": {
+              "option": {
+                "defined": "RiskTier"
+              }
             }
           }
         ]
@@ -1825,7 +1994,7 @@
         {
           "name": "config",
           "type": {
-            "defined": "BankConfigOpt"
+            "defined": "BankConfigOptArg"
           },
           "index": false
         }

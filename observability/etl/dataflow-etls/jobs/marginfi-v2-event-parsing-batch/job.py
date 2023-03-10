@@ -17,6 +17,8 @@ def run(
         min_idl_version: int,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        start_timestamp: Optional[str] = None,
+        end_timestamp: Optional[str] = None,
         beam_args: Optional[List[str]] = None,
 ) -> None:
     if beam_args is None:
@@ -35,6 +37,8 @@ def run(
 
     if start_date is not None and end_date is not None:
         input_query = f'SELECT * FROM `{input_table}` WHERE DATE(timestamp) >= "{start_date}" AND DATE(timestamp) < "{end_date}"'
+    elif start_timestamp is not None and end_timestamp is not None:
+        input_query = f'SELECT * FROM `{input_table}` WHERE timestamp >= "{start_timestamp}" AND timestamp < "{end_timestamp}"'
     elif start_date is not None:
         input_query = (
             f'SELECT * FROM `{input_table}` WHERE DATE(timestamp) >= "{start_date}"'
@@ -43,6 +47,11 @@ def run(
         input_query = (
             f'SELECT * FROM `{input_table}` WHERE DATE(timestamp) < "{end_date}"'
         )
+    elif end_timestamp is not None:
+        input_query = (
+            f'SELECT * FROM `{input_table}` WHERE timestamp < "{end_timestamp}"'
+        )
+        print("yes", input_query)
     else:
         input_query = f"SELECT * FROM `{input_table}`"
 
@@ -124,6 +133,16 @@ def main() -> None:
         type=str,
         help="End date to consider (exclusive) as: YYYY-MM-DD",
     )
+    parser.add_argument(
+        "--start_timestamp",
+        type=str,
+        help="Start timestamp to consider (inclusive) as: YYYY-MM-DD HH:MM:SS",
+    )
+    parser.add_argument(
+        "--end_timestamp",
+        type=str,
+        help="End timestamp to consider (exclusive) as: YYYY-MM-DD HH:MM:SS",
+    )
     known_args, remaining_args = parser.parse_known_args()
 
     run(
@@ -133,6 +152,8 @@ def main() -> None:
         min_idl_version=known_args.min_idl_version,
         start_date=known_args.start_date,
         end_date=known_args.end_date,
+        start_timestamp=known_args.start_timestamp,
+        end_timestamp=known_args.end_timestamp,
         beam_args=remaining_args,
     )
 
