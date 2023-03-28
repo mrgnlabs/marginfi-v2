@@ -1,20 +1,20 @@
 [View code on GitHub](https://github.com/mrgnlabs/marginfi-v2/src/utils.rs)
 
-This code provides utility functions for finding the program-derived addresses (PDA) of bank vaults and their authorities, as well as a trait for numerical operations with tolerance. 
+This code provides utility functions and a trait for use in the marginfi-v2 project. 
 
-The `find_bank_vault_pda` function takes a bank public key and a `BankVaultType` enum as arguments, and returns a tuple containing the PDA and a nonce. The PDA is derived from the bank seed and the program ID using the `find_program_address` method from the `Pubkey` struct. This function can be used to generate the PDA for a specific bank vault type, which can then be used to interact with the corresponding account on the Solana blockchain.
+The `find_bank_vault_pda` function takes a `bank_pk` (a public key representing a bank account) and a `vault_type` (an enum representing the type of vault associated with the bank) as input. It then uses these inputs to generate a program-derived address (PDA) using the `find_program_address` function from the `Pubkey` struct. The PDA is returned as a tuple along with a `u8` value. This function is likely used to generate a unique identifier for a specific bank vault within the project.
 
-The `find_bank_vault_authority_pda` function is similar to `find_bank_vault_pda`, but it generates the PDA for the authority account associated with the bank vault. This can be used to authorize transactions involving the bank vault account.
+The `find_bank_vault_authority_pda` function is similar to `find_bank_vault_pda`, but it generates a PDA for the authority associated with the bank vault instead of the vault itself. This function is likely used to generate a unique identifier for the authority associated with a specific bank vault within the project.
 
-The `NumTraitsWithTolerance` trait provides two methods for numerical operations with tolerance: `is_zero_with_tolerance` and `is_positive_with_tolerance`. These methods take a tolerance value as an argument and return a boolean indicating whether the number is within the tolerance range of zero or positive, respectively. This trait is implemented for the `I80F48` fixed-point decimal type, which is used extensively throughout the project for financial calculations.
+The `NumTraitsWithTolerance` trait provides two methods for comparing `I80F48` fixed-point numbers with a tolerance value. The `is_zero_with_tolerance` method returns `true` if the absolute value of the number is less than the tolerance value, and `false` otherwise. The `is_positive_with_tolerance` method returns `true` if the number is greater than the tolerance value, and `false` otherwise. This trait is likely used to perform numerical comparisons with a tolerance in other parts of the project.
 
-Overall, these utility functions and trait are important components of the marginfi-v2 project, as they enable the program to interact with bank vault and authority accounts on the Solana blockchain and perform financial calculations with tolerance.
+Overall, these utility functions and trait provide useful functionality for generating unique identifiers and performing numerical comparisons with a tolerance in the marginfi-v2 project.
 ## Questions: 
  1. What is the purpose of the `find_bank_vault_pda` and `find_bank_vault_authority_pda` functions?
 - These functions are used to find the program-derived address (PDA) and bump seed for a given bank and vault type.
 
 2. What is the `NumTraitsWithTolerance` trait used for?
-- This trait is used to define methods for checking if a given `I80F48` fixed-point number is zero or positive with a certain tolerance.
+- This trait is used to define methods for checking if a given `I80F48` fixed-point number is zero or positive with a given tolerance.
 
 3. What is the significance of the `bank_seed` and `bank_authority_seed` macros?
 - These macros are used to generate a seed for the program-derived address (PDA) based on the bank and vault type, which is used to ensure uniqueness of the PDA.

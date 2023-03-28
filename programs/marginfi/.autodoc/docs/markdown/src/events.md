@@ -2,44 +2,21 @@
 
 This code defines a set of event structs that are used to emit events related to the Marginfi v2 project. The events are divided into two categories: marginfi group events and marginfi account events. 
 
-The marginfi group events include MarginfiGroupCreateEvent, MarginfiGroupConfigureEvent, LendingPoolBankCreateEvent, LendingPoolBankConfigureEvent, LendingPoolBankAccrueInterestEvent, LendingPoolBankCollectFeesEvent, and LendingPoolBankHandleBankruptcyEvent. These events are used to track the creation, configuration, and management of lending pools within the Marginfi v2 system. For example, the LendingPoolBankCreateEvent is emitted when a new lending pool bank is created, while the LendingPoolBankConfigureEvent is emitted when a lending pool bank is configured with new options. 
+The marginfi group events include MarginfiGroupCreateEvent, MarginfiGroupConfigureEvent, LendingPoolBankCreateEvent, LendingPoolBankConfigureEvent, LendingPoolBankAccrueInterestEvent, LendingPoolBankCollectFeesEvent, and LendingPoolBankHandleBankruptcyEvent. These events are used to track the creation and configuration of marginfi groups and lending pool banks, as well as the accrual and collection of interest and fees, and the handling of bankruptcy events. 
 
-The marginfi account events include MarginfiAccountCreateEvent, LendingAccountDepositEvent, LendingAccountRepayEvent, LendingAccountBorrowEvent, LendingAccountWithdrawEvent, and LendingAccountLiquidateEvent. These events are used to track the creation and management of individual lending accounts within the Marginfi v2 system. For example, the LendingAccountDepositEvent is emitted when a user deposits funds into a lending account, while the LendingAccountLiquidateEvent is emitted when a lending account is liquidated due to insufficient funds. 
+The marginfi account events include MarginfiAccountCreateEvent, LendingAccountDepositEvent, LendingAccountRepayEvent, LendingAccountBorrowEvent, LendingAccountWithdrawEvent, and LendingAccountLiquidateEvent. These events are used to track the creation of marginfi accounts, as well as the deposit, repayment, borrowing, withdrawal, and liquidation of funds from these accounts. 
 
-Overall, these event structs provide a way for developers to track and analyze the activity within the Marginfi v2 system. By emitting events at key points in the lending process, developers can gain insights into how the system is being used and identify areas for improvement. 
+Each event struct contains a header that includes information about the signer and the relevant marginfi group or account. Some events also include additional information, such as configuration options, balances, and amounts. 
 
-Example usage:
+These events are emitted using the #[event] macro provided by the Anchor framework. They can be subscribed to by other programs or services to track the state of the Marginfi v2 project. For example, a front-end application could subscribe to the LendingAccountDepositEvent to display real-time updates of deposits made to marginfi accounts. 
 
-```
-// Emit a MarginfiGroupCreateEvent
-let header = GroupEventHeader {
-    signer: Some(ctx.accounts.admin.key()),
-    marginfi_group: ctx.accounts.marginfi_group.to_account_info().key(),
-};
-let event = MarginfiGroupCreateEvent { header };
-event.emit(&mut ctx.accounts.events);
-
-// Emit a LendingAccountDepositEvent
-let header = AccountEventHeader {
-    signer: Some(ctx.accounts.user.key()),
-    marginfi_account: ctx.accounts.marginfi_account.to_account_info().key(),
-    marginfi_account_authority: ctx.accounts.marginfi_account_authority.to_account_info().key(),
-    marginfi_group: ctx.accounts.marginfi_group.to_account_info().key(),
-};
-let event = LendingAccountDepositEvent {
-    header,
-    bank: ctx.accounts.bank.to_account_info().key(),
-    mint: ctx.accounts.mint.to_account_info().key(),
-    amount: amount.into(),
-};
-event.emit(&mut ctx.accounts.events);
-```
+Overall, this code provides a standardized way to emit events related to the Marginfi v2 project, making it easier to track and analyze the state of the project.
 ## Questions: 
- 1. What is the purpose of this code file?
-- This code file defines event structures for the Marginfi v2 project.
+ 1. What is the purpose of this code?
+   - This code defines a set of event structs for the Marginfi-v2 project, which can be used to emit events during the execution of the project's smart contracts.
 
-2. What are the different types of events defined in this file?
-- This file defines events for Marginfi group creation, configuration, bank creation, bank configuration, bank interest accrual, bank fee collection, bank bankruptcy handling, account creation, account deposit, account repayment, account borrowing, account withdrawal, and account liquidation.
+2. What types of events can be emitted using this code?
+   - This code defines events related to the creation and configuration of Marginfi groups and lending pools, as well as events related to lending and borrowing activities within Marginfi accounts. It also defines an event for liquidation of Marginfi accounts.
 
-3. What is the structure of the event headers used in this file?
-- There are two event header structures defined in this file: `GroupEventHeader` and `AccountEventHeader`. Both contain a `signer` field of type `Option<Pubkey>` and a `marginfi_group` or `marginfi_account` field of type `Pubkey`. The `AccountEventHeader` also contains a `marginfi_account_authority` field of type `Pubkey`.
+3. What is the significance of the `header` field in each event struct?
+   - The `header` field is a struct that contains metadata about the event, including the public key of the Marginfi group or account associated with the event, as well as the public key of the signer (if applicable). This metadata can be used to provide additional context for the event and to verify its authenticity.

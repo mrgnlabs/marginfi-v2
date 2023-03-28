@@ -1,30 +1,37 @@
 [View code on GitHub](https://github.com/mrgnlabs/marginfi-v2/src/state/mod.rs)
 
-This code is a module that contains two sub-modules: `marginfi_account` and `marginfi_group`. These sub-modules likely contain code related to managing user accounts and groups within the MarginFi-v2 project. 
+This code is a module that imports two other modules, `marginfi_account` and `marginfi_group`. The purpose of this module is to provide access to the functionality of these two modules within the larger `marginfi-v2` project. 
 
-The purpose of this module is to organize and encapsulate related functionality within the larger project. By separating the code into sub-modules, it becomes easier to maintain and modify specific parts of the project without affecting other parts. 
+The `marginfi_account` module likely contains code related to managing user accounts within the MarginFi platform. This could include functions for creating new accounts, updating account information, and managing user permissions. The `marginfi_group` module may contain code related to grouping users together for specific purposes, such as managing access to certain features or resources. 
 
-For example, if a developer wanted to add a new feature related to user accounts, they could focus solely on the `marginfi_account` sub-module without worrying about the rest of the project. This modular approach also makes it easier for multiple developers to work on different parts of the project simultaneously without interfering with each other's work. 
+By importing these modules into the `marginfi-v2` project, developers can easily access and utilize the functionality provided by the `marginfi_account` and `marginfi_group` modules. For example, a developer working on a feature that requires user authentication could import the `marginfi_account` module and use its functions to manage user accounts and permissions. 
 
-Here is an example of how this module might be used in the larger project:
+Here is an example of how the `marginfi_account` module could be used within the `marginfi-v2` project:
 
 ```rust
-use marginfi_v2::marginfi_account::Account;
+use marginfi_v2::marginfi_account;
 
-let account = Account::new("John Doe", "johndoe@example.com", "password123");
-account.deposit(100.0);
-println!("Account balance: {}", account.get_balance());
+// Create a new user account
+let new_account = marginfi_account::create_account("John", "Doe", "johndoe@example.com", "password123");
+
+// Update the user's email address
+marginfi_account::update_email(&new_account, "johndoe2@example.com");
+
+// Check if the user has admin permissions
+if marginfi_account::check_permissions(&new_account, "admin") {
+    println!("User has admin permissions");
+} else {
+    println!("User does not have admin permissions");
+}
 ```
 
-In this example, we import the `Account` struct from the `marginfi_account` sub-module and create a new account for a user named John Doe. We then deposit 100 units of currency into the account and print the current balance. 
-
-Overall, this module plays an important role in organizing and structuring the MarginFi-v2 project, making it easier to develop and maintain over time.
+Overall, this module serves as a way to organize and provide access to the functionality of the `marginfi_account` and `marginfi_group` modules within the larger `marginfi-v2` project.
 ## Questions: 
  1. What is the purpose of the `marginfi_account` module?
-   - The `marginfi_account` module likely contains code related to managing individual user accounts within the MarginFi system.
+   - The `marginfi_account` module likely contains code related to managing individual user accounts within the MarginFi platform.
 
 2. What is the purpose of the `marginfi_group` module?
-   - The `marginfi_group` module likely contains code related to managing groups of users within the MarginFi system, such as teams or organizations.
+   - The `marginfi_group` module likely contains code related to managing groups or teams of users within the MarginFi platform.
 
 3. Are there any other modules within the `marginfi-v2` project?
    - It is unclear from this code snippet whether there are any other modules within the `marginfi-v2` project.
