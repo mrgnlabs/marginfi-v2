@@ -1,0 +1,18 @@
+[View code on GitHub](https://github.com/mrgnlabs/marginfi-v2/src/instructions/marginfi_group/mod.rs)
+
+This code is a module that exports various sub-modules and their associated functions for the marginfi-v2 project. The purpose of this module is to provide a centralized location for all the functions related to banking operations in the project. 
+
+The `accrue_bank_interest` module contains functions that calculate and accrue interest on bank deposits. The `add_pool` module contains functions that add liquidity to the project's liquidity pool. The `collect_bank_fees` module contains functions that collect fees from users and add them to the bank's balance. The `configure` module contains functions that configure the project's settings, such as interest rates and fee percentages. The `configure_bank` module contains functions that configure the bank's settings, such as reserve ratios and collateral requirements. The `handle_bankruptcy` module contains functions that handle bankruptcy events, such as liquidating assets to pay off debts. The `initialize` module contains functions that initialize the bank's balance and other settings at the start of the project.
+
+By exporting all these sub-modules and their functions, other parts of the project can easily access and use them. For example, the `accrue_bank_interest` module can be used by the project's lending module to calculate interest on loans. The `add_pool` module can be used by the project's trading module to add liquidity to the pool. The `configure` module can be used by the project's governance module to set project-wide settings. 
+
+Overall, this module plays a crucial role in the banking operations of the marginfi-v2 project and provides a convenient way for other parts of the project to interact with and utilize these banking functions.
+## Questions: 
+ 1. **What is the purpose of this module and how does it fit into the overall project?**
+   This module appears to be a collection of sub-modules related to banking operations, such as accruing interest, adding pools, and handling bankruptcy. A smart developer might want to understand how these operations fit into the larger context of the marginfi-v2 project.
+
+2. **What are the specific functions and methods included in each of the sub-modules?**
+   A smart developer might want to know more about the specific functions and methods included in each of the sub-modules, such as the parameters they take, the data structures they manipulate, and the expected outputs.
+
+3. **Are there any dependencies or external libraries required for this code to run?**
+   A smart developer might want to know if there are any dependencies or external libraries required for this code to run, as this could impact the overall complexity and maintainability of the project.
