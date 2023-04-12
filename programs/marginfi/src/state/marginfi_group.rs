@@ -4,9 +4,9 @@ use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_size, check,
     constants::{
-        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        MAX_ORACLE_KEYS, PYTH_ID, SECONDS_PER_YEAR,
+        EMISSIONS_FLAG_LENDING_ACTIVE, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
+        LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, PYTH_ID, SECONDS_PER_YEAR,
     },
     debug, math_error,
     prelude::MarginfiError,
@@ -257,7 +257,12 @@ pub struct Bank {
 
     pub config: BankConfig,
 
-    pub _padding_0: [u128; 32],
+    pub emissions_flags: u64,
+    pub emissions_rate: u64,
+    pub emissions_total: WrappedI80F48,
+    pub emissions_mint: Pubkey,
+
+    pub _padding_0: [u128; 28],
     pub _padding_1: [u128; 32], // 16 * 2 * 32 = 1024B
 }
 
@@ -282,25 +287,29 @@ impl Bank {
         Bank {
             mint,
             mint_decimals,
+            group: marginfi_group_pk,
             asset_share_value: I80F48::ONE.into(),
             liability_share_value: I80F48::ONE.into(),
             liquidity_vault,
-            insurance_vault,
-            fee_vault,
-            config,
-            total_liability_shares: I80F48::ZERO.into(),
-            total_asset_shares: I80F48::ZERO.into(),
-            last_update: current_timestamp,
-            group: marginfi_group_pk,
             liquidity_vault_bump,
             liquidity_vault_authority_bump,
+            insurance_vault,
             insurance_vault_bump,
             insurance_vault_authority_bump,
             collected_insurance_fees_outstanding: I80F48::ZERO.into(),
+            fee_vault,
             fee_vault_bump,
             fee_vault_authority_bump,
             collected_group_fees_outstanding: I80F48::ZERO.into(),
-            _padding_0: [0; 32],
+            total_liability_shares: I80F48::ZERO.into(),
+            total_asset_shares: I80F48::ZERO.into(),
+            last_update: current_timestamp,
+            config,
+            emissions_flags: 0,
+            emissions_rate: 0,
+            emissions_total: I80F48::ZERO.into(),
+            emissions_mint: Pubkey::default(),
+            _padding_0: [0; 28],
             _padding_1: [0; 32],
         }
     }
@@ -605,6 +614,10 @@ impl Bank {
                 Ok(())
             }
         }
+    }
+
+    pub fn get_emissions_flag(&self, flag: u64) -> bool {
+        (self.emissions_flags & flag) == flag
     }
 }
 

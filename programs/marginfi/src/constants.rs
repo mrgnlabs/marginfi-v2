@@ -44,3 +44,14 @@ pub const EMPTY_BALANCE_THRESHOLD: I80F48 = I80F48!(1);
 
 /// Comparios threshold used to account for arithmetic artifacts on balances
 pub const ZERO_AMOUNT_THRESHOLD: I80F48 = I80F48!(0.0001);
+
+pub const EMISSIONS_FLAG_BORROW_ACTIVE: u64 = 1 << 0;
+pub const EMISSIONS_FLAG_LENDING_ACTIVE: u64 = 1 << 1;
+
+pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
+pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
+
+/// TODO: Set to release timestamp
+pub const MIN_EMISSIONS_START_TIME: u64 = 0;
+
+pub const EMISSION_CALC_SECS_PER_YEAR: I80F48 = I80F48!(31_536_000_000_000);

@@ -1,8 +1,10 @@
 use super::marginfi_group::{Bank, RiskTier, WrappedI80F48};
 use crate::{
-    check,
+    assert_struct_size, check,
     constants::{
-        CONF_INTERVAL_MULTIPLE, EMPTY_BALANCE_THRESHOLD, MAX_PRICE_AGE_SEC, ZERO_AMOUNT_THRESHOLD,
+        CONF_INTERVAL_MULTIPLE, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
+        EMISSION_CALC_SECS_PER_YEAR, EMPTY_BALANCE_THRESHOLD, MAX_PRICE_AGE_SEC,
+        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -13,6 +15,7 @@ use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use pyth_sdk_solana::PriceFeed;
+use solana_program::clock::SECONDS_PER_DAY;
 use std::{
     cmp::{max, min},
     ops::Not,
@@ -554,6 +557,7 @@ impl LendingAccount {
     }
 }
 
+assert_struct_size!(Balance, 104);
 #[zero_copy]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -564,7 +568,9 @@ pub struct Balance {
     pub bank_pk: Pubkey,
     pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
-    pub _padding: [u64; 4], // 8 * 4 = 32
+    pub emissions_outstanding: WrappedI80F48,
+    pub last_update: u64,
+    pub _padding: [u64; 1],
 }
 
 impl Balance {
@@ -604,6 +610,16 @@ impl Balance {
         self.asset_shares = I80F48::ZERO.into();
         self.liability_shares = I80F48::ZERO.into();
         self.bank_pk = Pubkey::default();
+    }
+
+    pub fn get_side(&self) -> Option<BalanceSide> {
+        if I80F48::from(self.asset_shares) >= EMPTY_BALANCE_THRESHOLD {
+            Some(BalanceSide::Assets)
+        } else if I80F48::from(self.liability_shares) >= EMPTY_BALANCE_THRESHOLD {
+            Some(BalanceSide::Liabilities)
+        } else {
+            None
+        }
     }
 }
 
@@ -659,7 +675,9 @@ impl<'a> BankAccountWrapper<'a> {
                     bank_pk: *bank_pk,
                     asset_shares: I80F48::ZERO.into(),
                     liability_shares: I80F48::ZERO.into(),
-                    _padding: [0; 4],
+                    emissions_outstanding: I80F48::ZERO.into(),
+                    last_update: Clock::get()?.unix_timestamp as u64,
+                    _padding: [0; 1],
                 };
 
                 Ok(Self {
@@ -823,6 +841,8 @@ impl<'a> BankAccountWrapper<'a> {
             operation_type
         );
 
+        self.settle_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -886,6 +906,8 @@ impl<'a> BankAccountWrapper<'a> {
             operation_type
         );
 
+        self.settle_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -936,6 +958,47 @@ impl<'a> BankAccountWrapper<'a> {
         )?;
 
         bank.check_utilization_ratio()?;
+
+        Ok(())
+    }
+
+    fn settle_emissions(&mut self, current_timestamp: u64) -> MarginfiResult {
+        if let Some(balance_amount) = match (
+            self.balance.get_side(),
+            self.bank.get_emissions_flag(EMISSIONS_FLAG_LENDING_ACTIVE),
+            self.bank.get_emissions_flag(EMISSIONS_FLAG_BORROW_ACTIVE),
+        ) {
+            (Some(BalanceSide::Assets), true, _) => Some(
+                self.bank
+                    .get_asset_amount(self.balance.asset_shares.into())?,
+            ),
+            (Some(BalanceSide::Liabilities), _, true) => Some(
+                self.bank
+                    .get_liability_amount(self.balance.liability_shares.into())?,
+            ),
+            _ => None,
+        } {
+            let period =
+                current_timestamp - max(self.balance.last_update, MIN_EMISSIONS_START_TIME);
+
+            let emissions = I80F48::from(period)
+                .checked_mul(balance_amount)
+                .ok_or_else(math_error!())?
+                .checked_mul(I80F48::from_num(self.bank.emissions_rate))
+                .ok_or_else(math_error!())?
+                .checked_div(EMISSION_CALC_SECS_PER_YEAR)
+                .ok_or_else(math_error!())?;
+
+            let emissions = min(emissions, I80F48::from(self.bank.emissions_total));
+
+            self.balance.emissions_outstanding =
+                { I80F48::from(self.balance.emissions_outstanding) + emissions }.into();
+
+            self.bank.emissions_total =
+                { I80F48::from(self.bank.emissions_total) - emissions }.into();
+        }
+
+        self.balance.last_update = current_timestamp;
 
         Ok(())
     }
