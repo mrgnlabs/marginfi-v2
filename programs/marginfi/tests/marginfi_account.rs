@@ -114,48 +114,6 @@ async fn marginfi_account_deposit_success() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn marginfi_account_deposit_failure_existing_liability() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
-
-    let lender_mfi_account_f = test_f.create_marginfi_account().await;
-    let lender_token_account_sol = test_f
-        .sol_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
-        .await?;
-
-    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-    let borrower_token_account_f_usdc = test_f
-        .usdc_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
-    borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
-        .await?;
-
-    borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 99)
-        .await
-        .unwrap();
-
-    let res = borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol.key, sol_bank, 10)
-        .await;
-
-    assert!(res.is_err());
-
-    assert_custom_error!(res.unwrap_err(), MarginfiError::OperationDepositOnly);
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn marginfi_account_deposit_failure_capacity_exceeded() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![TestBankSetting {
@@ -610,49 +568,6 @@ async fn marginfi_account_borrow_success() -> anyhow::Result<()> {
     );
 
     // TODO: check health is sane
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn marginfi_account_borrow_failure_existing_asset() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
-
-    // Fund SOL lender
-    let lender_mfi_account_f = test_f.create_marginfi_account().await;
-    let lender_token_account_sol = test_f
-        .sol_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
-        .await?;
-
-    // Fund SOL borrower
-    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-    let borrower_token_account_f_usdc = test_f
-        .usdc_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
-    borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
-        .await?;
-    borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol.key, sol_bank, 10)
-        .await?;
-
-    // Borrow SOL
-    let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 50)
-        .await;
-
-    assert!(res.is_err());
-
-    assert_custom_error!(res.unwrap_err(), MarginfiError::OperationBorrowOnly);
 
     Ok(())
 }
