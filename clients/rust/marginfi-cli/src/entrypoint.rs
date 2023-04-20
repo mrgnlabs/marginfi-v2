@@ -8,7 +8,7 @@ use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 #[cfg(feature = "admin")]
 use fixed::types::I80F48;
-use marginfi::state::marginfi_group::{Bank, BankOperationalState, RiskTier};
+use marginfi::state::marginfi_group::{BankOperationalState, RiskTier};
 #[cfg(any(feature = "admin", feature = "dev"))]
 use marginfi::state::marginfi_group::{BankConfigOpt, InterestRateConfigOpt};
 #[cfg(feature = "dev")]

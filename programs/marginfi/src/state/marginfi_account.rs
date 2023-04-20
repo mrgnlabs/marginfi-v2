@@ -4,7 +4,7 @@ use crate::{
     constants::{
         CONF_INTERVAL_MULTIPLE, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
         EMISSION_CALC_SECS_PER_YEAR, EMPTY_BALANCE_THRESHOLD, MAX_PRICE_AGE_SEC,
-        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
+        MIN_EMISSIONS_START_TIME, ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -15,7 +15,7 @@ use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use pyth_sdk_solana::PriceFeed;
-use solana_program::clock::SECONDS_PER_DAY;
+
 use std::{
     cmp::{max, min},
     ops::Not,

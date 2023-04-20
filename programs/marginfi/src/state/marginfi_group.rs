@@ -4,7 +4,7 @@ use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_size, check,
     constants::{
-        EMISSIONS_FLAG_LENDING_ACTIVE, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
+        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, PYTH_ID, SECONDS_PER_YEAR,
     },
