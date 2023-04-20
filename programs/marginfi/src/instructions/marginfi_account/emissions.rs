@@ -86,6 +86,6 @@ pub struct WithdrawEmissions<'info> {
     )]
     pub emissions_vault: Box<Account<'info, TokenAccount>>,
 
-    pub dest_account: Box<Account<'info, TokenAccount>>,
+    pub destination_account: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
