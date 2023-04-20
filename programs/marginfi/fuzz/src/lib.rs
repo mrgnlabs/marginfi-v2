@@ -861,7 +861,7 @@ pub fn new_dex_owned_account_with_lamports<'bump>(
     )
 }
 
-/// New program instantiations
+/// Dummy program account infos
 
 /// Each of the functions in this section 
 /// creates a new `AccountInfo` instance with specific properties.
