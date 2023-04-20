@@ -57,7 +57,7 @@ pub fn bank_setup_emissions(
 ) -> MarginfiResult {
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    assert_ne!(
+    assert_eq!(
         bank.emissions_mint,
         Pubkey::default(),
         "Bank emissions token already set"
