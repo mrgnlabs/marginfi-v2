@@ -77,6 +77,7 @@ pub struct WithdrawEmissions<'info> {
         ],
         bump
     )]
+    /// CHECK: Asserted by PDA
     pub emissions_auth: AccountInfo<'info>,
 
     #[account(
