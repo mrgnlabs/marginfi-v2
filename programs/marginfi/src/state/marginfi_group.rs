@@ -257,9 +257,16 @@ pub struct Bank {
 
     pub config: BankConfig,
 
+    /// Emissions Config Flags
+    ///
+    /// - EMISSIONS_FLAG_BORROW_ACTIVE: 1
+    /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
+    ///
     pub emissions_flags: u64,
+    /// Emissions APR.
+    /// Number of emitted tokens (emissions_mint) per 1M tokens (bank mint) (native amount) per 1 YEAR.
     pub emissions_rate: u64,
-    pub emissions_total: WrappedI80F48,
+    pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
     pub _padding_0: [u128; 28],
@@ -307,7 +314,7 @@ impl Bank {
             config,
             emissions_flags: 0,
             emissions_rate: 0,
-            emissions_total: I80F48::ZERO.into(),
+            emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
             _padding_0: [0; 28],
             _padding_1: [0; 32],

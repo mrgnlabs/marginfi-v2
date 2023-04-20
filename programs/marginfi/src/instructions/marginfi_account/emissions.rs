@@ -28,7 +28,7 @@ pub fn withdraw_emissions(ctx: Context<WithdrawEmissions>) -> MarginfiResult {
             ctx.accounts.token_program.to_account_info(),
             Transfer {
                 from: ctx.accounts.emissions_vault.to_account_info(),
-                to: ctx.accounts.dest_account.to_account_info(),
+                to: ctx.accounts.destination_account.to_account_info(),
                 authority: ctx.accounts.emissions_auth.to_account_info(),
             },
             &[],
@@ -64,6 +64,9 @@ pub struct WithdrawEmissions<'info> {
     )]
     pub bank: AccountLoader<'info, Bank>,
 
+    #[account(
+        address = bank.load()?.emissions_mint
+    )]
     pub emissions_mint: Account<'info, Mint>,
 
     #[account(

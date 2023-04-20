@@ -989,13 +989,13 @@ impl<'a> BankAccountWrapper<'a> {
                 .checked_div(EMISSION_CALC_SECS_PER_YEAR)
                 .ok_or_else(math_error!())?;
 
-            let emissions = min(emissions, I80F48::from(self.bank.emissions_total));
+            let emissions = min(emissions, I80F48::from(self.bank.emissions_remaining));
 
             self.balance.emissions_outstanding =
                 { I80F48::from(self.balance.emissions_outstanding) + emissions }.into();
 
-            self.bank.emissions_total =
-                { I80F48::from(self.bank.emissions_total) - emissions }.into();
+            self.bank.emissions_remaining =
+                { I80F48::from(self.bank.emissions_remaining) - emissions }.into();
         }
 
         self.balance.last_update = current_timestamp;

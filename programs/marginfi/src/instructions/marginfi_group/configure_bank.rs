@@ -66,7 +66,7 @@ pub fn bank_setup_emissions(
     bank.emissions_mint = ctx.accounts.emissions_mint.key();
     bank.emissions_flags = emissions_flags;
     bank.emissions_rate = emissions_rate;
-    bank.emissions_total = I80F48::from_num(total_emissions).into();
+    bank.emissions_remaining = I80F48::from_num(total_emissions).into();
 
     transfer(
         CpiContext::new(
@@ -103,7 +103,7 @@ pub struct BankSetupEmissions<'info> {
 
     #[account(
         seeds = [
-            EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
+            EMISSIONS_AUTH_SEED.as_bytes(),
             bank.key().as_ref(),
             emissions_mint.key().as_ref(),
         ],
@@ -117,7 +117,7 @@ pub struct BankSetupEmissions<'info> {
         token::mint = emissions_mint,
         token::authority = admin,
         seeds = [
-            EMISSIONS_AUTH_SEED.as_bytes(),
+            EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
             bank.key().as_ref(),
             emissions_mint.key().as_ref(),
         ],
