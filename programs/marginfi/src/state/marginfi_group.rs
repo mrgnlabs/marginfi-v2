@@ -1,4 +1,7 @@
-use super::marginfi_account::WeightType;
+use super::{
+    marginfi_account::WeightType,
+    price::{OracleKey, OraclePriceFeedAdapter, OracleSetup},
+};
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
@@ -15,11 +18,12 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
-use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
+use pyth_sdk_solana::{load_price_feed_from_account_info, Price, PriceFeed};
 use std::{
     fmt::{Debug, Formatter},
     ops::Not,
 };
+use switchboard_v2::AggregatorAccountData;
 #[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
 
@@ -420,15 +424,18 @@ impl Bank {
     }
 
     #[inline]
-    pub fn load_price_feed_from_account_info(&self, ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
-        check!(
-            self.config.get_pyth_oracle_key().eq(ai.key),
-            MarginfiError::InvalidOracleAccount
-        );
-        let pyth_account = load_price_feed_from_account_info(ai)
-            .map_err(|_| MarginfiError::InvalidOracleAccount)?;
-
-        Ok(pyth_account)
+    pub fn load_price_feed_from_account_info(
+        &self,
+        ai: &[AccountInfo],
+        current_timestamp: i64,
+        max_age: u64,
+    ) -> MarginfiResult<OraclePriceFeedAdapter> {
+        OraclePriceFeedAdapter::try_from_bank_config(
+            &self.config.oracle_setup,
+            ai,
+            current_timestamp,
+            max_age,
+        )
     }
 
     /// Calculate the interest rate accrual state changes for a given time period
@@ -709,18 +716,6 @@ pub enum BankOperationalState {
     ReduceOnly,
 }
 
-#[repr(u8)]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
-pub enum OracleSetup {
-    None,
-    Pyth,
-}
-
-pub enum OracleKey {
-    Pyth(Pubkey),
-}
-
 #[repr(u64)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum RiskTier {
@@ -828,40 +823,6 @@ impl BankConfig {
         Ok(())
     }
 
-    pub fn validate_oracle_setup(&self, oracle_ais: &[AccountInfo]) -> MarginfiResult {
-        match self.oracle_setup {
-            OracleSetup::None => Ok(()),
-            OracleSetup::Pyth => {
-                check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
-
-                let pyth_oracle_ai = &oracle_ais[0];
-
-                check!(
-                    pyth_oracle_ai.key().eq(&self.oracle_keys[0]),
-                    MarginfiError::InvalidOracleAccount
-                );
-
-                load_pyth_price_feed(pyth_oracle_ai)?;
-                Ok(())
-            }
-        }
-    }
-
-    #[inline]
-    pub fn get_oracle_key(&self) -> OracleKey {
-        match self.oracle_setup {
-            OracleSetup::None => panic!("No oracle setup"),
-            OracleSetup::Pyth => OracleKey::Pyth(self.oracle_keys[0]),
-        }
-    }
-
-    #[inline]
-    pub fn get_pyth_oracle_key(&self) -> Pubkey {
-        match self.get_oracle_key() {
-            OracleKey::Pyth(key) => key,
-        }
-    }
-
     #[inline]
     pub fn is_deposit_limit_active(&self) -> bool {
         self.deposit_limit != u64::MAX
@@ -870,6 +831,11 @@ impl BankConfig {
     #[inline]
     pub fn is_borrow_limit_active(&self) -> bool {
         self.borrow_limit != u64::MAX
+    }
+
+    pub fn validate_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
+        OraclePriceFeedAdapter::validate_bank_config(self, ais)?;
+        Ok(())
     }
 }
 

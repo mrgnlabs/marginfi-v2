@@ -1,4 +1,7 @@
-use super::marginfi_group::{Bank, RiskTier, WrappedI80F48};
+use super::{
+    marginfi_group::{Bank, RiskTier, WrappedI80F48},
+    price::{OraclePriceFeedAdapter, PriceAdapter},
+};
 use crate::{
     check,
     constants::{
@@ -69,7 +72,7 @@ const EXP_10_I80F48: [I80F48; 15] = [
 ];
 
 #[inline(always)]
-fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
+pub fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
     let scaling_factor = EXP_10_I80F48[exponent.unsigned_abs() as usize];
 
     let price = if exponent == 0 {
@@ -107,9 +110,9 @@ pub enum WeightType {
     Maintenance,
 }
 
-pub struct BankAccountWithPriceFeed<'a> {
+pub struct BankAccountWithPriceAdapter<'a> {
     bank: Box<Bank>,
-    price_feed: Box<PriceFeed>,
+    price_feed_adapter: Box<OraclePriceFeedAdapter>,
     balance: &'a Balance,
 }
 
@@ -118,11 +121,11 @@ pub enum BalanceSide {
     Liabilities,
 }
 
-impl<'a> BankAccountWithPriceFeed<'a> {
+impl<'a> BankAccountWithPriceAdapter<'a> {
     pub fn load<'b: 'a, 'info: 'a + 'b>(
         lending_account: &'a LendingAccount,
         remaining_ais: &'b [AccountInfo<'info>],
-    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
+    ) -> MarginfiResult<Vec<BankAccountWithPriceAdapter<'a>>> {
         let active_balances = lending_account
             .balances
             .iter()
@@ -137,12 +140,14 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             MarginfiError::MissingPythOrBankAccount
         );
 
+        let current_timestamp = Clock::get()?.unix_timestamp;
+
         active_balances
             .iter()
             .enumerate()
             .map(|(i, balance)| {
                 let bank_index = i * 2;
-                let pyth_index = bank_index + 1;
+                let oracle_ai_idx = bank_index + 1;
 
                 let bank_ai = remaining_ais.get(bank_index).unwrap();
 
@@ -150,16 +155,21 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                     balance.bank_pk.eq(bank_ai.key),
                     MarginfiError::InvalidBankAccount
                 );
-                let pyth_ai = remaining_ais.get(pyth_index).unwrap();
+                let oracle_ai = remaining_ais.get(oracle_ai_idx).unwrap();
 
                 let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
                 let bank = bank_al.load()?;
 
-                let price_feed = Box::new(bank.load_price_feed_from_account_info(pyth_ai)?);
+                let price_adapter = Box::new(OraclePriceFeedAdapter::try_from_bank_config(
+                    &bank.config.oracle_setup,
+                    &[oracle_ai.to_account_info()],
+                    current_timestamp,
+                    MAX_PRICE_AGE_SEC,
+                )?);
 
-                Ok(BankAccountWithPriceFeed {
+                Ok(BankAccountWithPriceAdapter {
                     bank: Box::new(*bank),
-                    price_feed,
+                    price_feed_adapter: price_adapter,
                     balance,
                 })
             })
@@ -171,7 +181,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         &self,
         weight_type: WeightType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
-        let (worst_price, best_price) = get_price_range(&self.price_feed)?;
+        let (worst_price, best_price) = self.price_feed_adapter.get_price_range()?;
 
         let asset_amount = self
             .bank
@@ -198,44 +208,6 @@ impl<'a> BankAccountWithPriceFeed<'a> {
     pub fn is_empty(&self, side: BalanceSide) -> bool {
         self.balance.is_empty(side)
     }
-}
-
-/// Get a normalized price range for the given price feed.
-/// The range is the price +/- the CONF_INTERVAL_MULTIPLE * confidence interval.
-pub fn get_price_range(pf: &PriceFeed) -> MarginfiResult<(I80F48, I80F48)> {
-    let price_state = pf
-        .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
-        .ok_or(MarginfiError::StaleOracle)?;
-
-    let base_price =
-        pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)?;
-
-    let price_range =
-        pyth_price_components_to_i80f48(I80F48::from_num(price_state.conf), price_state.expo)?
-            .checked_mul(CONF_INTERVAL_MULTIPLE)
-            .ok_or_else(math_error!())?;
-
-    let lowest_price = base_price
-        .checked_sub(price_range)
-        .ok_or_else(math_error!())?;
-    let highest_price = base_price
-        .checked_add(price_range)
-        .ok_or_else(math_error!())?;
-
-    Ok((lowest_price, highest_price))
-}
-
-pub fn get_price(pf: &PriceFeed) -> MarginfiResult<I80F48> {
-    let price_state = pf
-        .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
-        .ok_or(MarginfiError::StaleOracle)?;
-
-    let price =
-        pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)?;
-
-    require_gte!(price, I80F48::ZERO, MarginfiError::InvalidPrice);
-
-    Ok(price)
 }
 
 /// Calculate the value of an asset, given its quantity with a decimal exponent, and a price with a decimal exponent, and an optional weight.
@@ -306,7 +278,7 @@ impl RiskRequirementType {
 }
 
 pub struct RiskEngine<'a> {
-    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
+    bank_accounts_with_price: Vec<BankAccountWithPriceAdapter<'a>>,
 }
 
 impl<'a> RiskEngine<'a> {
@@ -315,7 +287,7 @@ impl<'a> RiskEngine<'a> {
         remaining_ais: &'b [AccountInfo<'info>],
     ) -> MarginfiResult<Self> {
         let bank_accounts_with_price =
-            BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
+            BankAccountWithPriceAdapter::load(&marginfi_account.lending_account, remaining_ais)?;
 
         Ok(Self {
             bank_accounts_with_price,

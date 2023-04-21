@@ -4,7 +4,10 @@ use crate::{
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
-    state::marginfi_group::{Bank, BankConfig, MarginfiGroup},
+    state::{
+        marginfi_group::{Bank, BankConfig, MarginfiGroup},
+        price::OraclePriceFeedAdapter,
+    },
     MarginfiResult,
 };
 use anchor_lang::prelude::*;

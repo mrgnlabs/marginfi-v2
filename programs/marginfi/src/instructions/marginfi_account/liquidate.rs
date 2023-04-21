@@ -1,12 +1,14 @@
 use crate::constants::{
-    INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
+    INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE, MAX_ORACLE_KEYS,
+    MAX_PRICE_AGE_SEC,
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::prelude::*;
 use crate::state::marginfi_account::{
-    calc_asset_amount, calc_asset_value, get_price, RiskEngine, RiskRequirementType,
+    calc_asset_amount, calc_asset_value, RiskEngine, RiskRequirementType,
 };
 use crate::state::marginfi_group::{Bank, BankVaultType};
+use crate::state::price::{PriceAdapter, PriceFeelAdapter};
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
@@ -78,9 +80,9 @@ pub fn lending_account_liquidate(
 
     let mut liquidator_marginfi_account = liquidator_marginfi_account_loader.load_mut()?;
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account_loader.load_mut()?;
+    let current_timestamp = Clock::get()?.unix_timestamp;
 
     {
-        let current_timestamp = Clock::get()?.unix_timestamp;
         ctx.accounts.asset_bank.load_mut()?.accrue_interest(
             current_timestamp,
             #[cfg(not(feature = "client"))]
@@ -110,18 +112,25 @@ pub fn lending_account_liquidate(
 
         let mut asset_bank = ctx.accounts.asset_bank.load_mut()?;
         let asset_price = {
-            let asset_price_feed =
-                asset_bank.load_price_feed_from_account_info(&ctx.remaining_accounts[0])?;
-
-            get_price(&asset_price_feed)?
+            let asset_pf = PriceFeelAdapter::try_from_bank_config(
+                &asset_bank.config,
+                &[ctx.remaining_accounts[0]],
+                current_timestamp,
+                MAX_PRICE_AGE_SEC,
+            )?;
+            asset_pf.get_price()?
         };
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
         let liab_price = {
-            let liab_price_feed =
-                liab_bank.load_price_feed_from_account_info(&ctx.remaining_accounts[1])?;
+            let liab_pf = PriceFeelAdapter::try_from_bank_config(
+                &liab_bank.config,
+                &[ctx.remaining_accounts[1]],
+                current_timestamp,
+                MAX_PRICE_AGE_SEC,
+            )?;
 
-            get_price(&liab_price_feed)?
+            liab_pf.get_price()?
         };
 
         let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);

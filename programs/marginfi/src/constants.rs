@@ -44,3 +44,21 @@ pub const EMPTY_BALANCE_THRESHOLD: I80F48 = I80F48!(1);
 
 /// Comparios threshold used to account for arithmetic artifacts on balances
 pub const ZERO_AMOUNT_THRESHOLD: I80F48 = I80F48!(0.0001);
+
+pub const EXP_10_I80F48: [I80F48; 15] = [
+    I80F48!(1),
+    I80F48!(10),
+    I80F48!(100),
+    I80F48!(1_000),
+    I80F48!(10_000),
+    I80F48!(100_000),
+    I80F48!(1_000_000),
+    I80F48!(10_000_000),
+    I80F48!(100_000_000),
+    I80F48!(1_000_000_000),
+    I80F48!(10_000_000_000),
+    I80F48!(100_000_000_000),
+    I80F48!(1_000_000_000_000),
+    I80F48!(10_000_000_000_000),
+    I80F48!(100_000_000_000_000),
+];
