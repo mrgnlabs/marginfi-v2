@@ -1,6 +1,5 @@
 use crate::constants::{
-    INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE, MAX_ORACLE_KEYS,
-    MAX_PRICE_AGE_SEC,
+    INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE, MAX_PRICE_AGE_SEC,
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::prelude::*;

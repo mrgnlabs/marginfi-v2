@@ -1159,12 +1159,12 @@ pub fn marginfi_account_liquidate(
     };
 
     ix.accounts.push(AccountMeta {
-        pubkey: asset_bank.config.get_pyth_oracle_key(),
+        pubkey: asset_bank.config.oracle_keys[0],
         is_signer: false,
         is_writable: false,
     });
     ix.accounts.push(AccountMeta {
-        pubkey: liability_bank.config.get_pyth_oracle_key(),
+        pubkey: liability_bank.config.oracle_keys[0],
         is_signer: false,
         is_writable: false,
     });

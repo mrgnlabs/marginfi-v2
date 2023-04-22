@@ -13,7 +13,7 @@ use crate::{
     prelude::*,
 };
 
-use super::marginfi_group::{BankConfig, BankConfigOpt};
+use super::marginfi_group::BankConfig;
 
 #[repr(u8)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
@@ -117,7 +117,7 @@ impl PythEmaPriceFeed {
         let price_feed = load_pyth_price_feed(ai)?;
         let price = price_feed
             .get_ema_price_no_older_than(current_time, max_age)
-            .ok_or_else(|| MarginfiError::StaleOracle)?;
+            .ok_or(MarginfiError::StaleOracle)?;
 
         Ok(Self {
             price: Box::new(price),
@@ -192,13 +192,13 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
             .get_result()
             .map_err(|_| MarginfiError::InvalidPrice)?;
         Ok(swithcboard_decimal_to_i80f48(sw_decimal)
-            .ok_or_else(|| MarginfiError::InvalidSwitchboardDecimalConversion)?)
+            .ok_or(MarginfiError::InvalidSwitchboardDecimalConversion)?)
     }
 
     fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
         let std_div = self.aggregator_account.latest_confirmed_round.std_deviation;
         let std_div = swithcboard_decimal_to_i80f48(std_div)
-            .ok_or_else(|| MarginfiError::InvalidSwitchboardDecimalConversion)?;
+            .ok_or(MarginfiError::InvalidSwitchboardDecimalConversion)?;
 
         Ok(std_div
             .checked_mul(CONF_INTERVAL_MULTIPLE)

@@ -4,9 +4,7 @@ use super::{
 };
 use crate::{
     check,
-    constants::{
-        CONF_INTERVAL_MULTIPLE, EMPTY_BALANCE_THRESHOLD, MAX_PRICE_AGE_SEC, ZERO_AMOUNT_THRESHOLD,
-    },
+    constants::{EMPTY_BALANCE_THRESHOLD, MAX_PRICE_AGE_SEC, ZERO_AMOUNT_THRESHOLD},
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
     utils::NumTraitsWithTolerance,
@@ -15,7 +13,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use pyth_sdk_solana::PriceFeed;
+
 use std::{
     cmp::{max, min},
     ops::Not,
