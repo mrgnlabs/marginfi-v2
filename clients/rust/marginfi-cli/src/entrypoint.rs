@@ -457,7 +457,10 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             pf_ir,
             risk_tier,
         } => {
-            let bank = config.mfi_program.account::<Bank>(bank_pk).unwrap();
+            let bank = config
+                .mfi_program
+                .account::<marginfi::state::marginfi_group::Bank>(bank_pk)
+                .unwrap();
             processor::bank_configure(
                 config,
                 profile, //

@@ -24,8 +24,7 @@ use log::info;
 use marginfi::{
     prelude::GroupConfig,
     state::marginfi_group::{
-        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, OracleSetup,
-        WrappedI80F48,
+        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, WrappedI80F48,
     },
 };
 use marginfi::{
