@@ -1,6 +1,6 @@
 use super::{
     marginfi_account::WeightType,
-    price::{OracleKey, OraclePriceFeedAdapter, OracleSetup},
+    price::{OraclePriceFeedAdapter, OracleSetup},
 };
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
@@ -430,12 +430,7 @@ impl Bank {
         current_timestamp: i64,
         max_age: u64,
     ) -> MarginfiResult<OraclePriceFeedAdapter> {
-        OraclePriceFeedAdapter::try_from_bank_config(
-            &self.config.oracle_setup,
-            ai,
-            current_timestamp,
-            max_age,
-        )
+        OraclePriceFeedAdapter::try_from_bank_config(&self.config, ai, current_timestamp, max_age)
     }
 
     /// Calculate the interest rate accrual state changes for a given time period

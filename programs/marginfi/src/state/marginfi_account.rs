@@ -155,14 +155,14 @@ impl<'a> BankAccountWithPriceAdapter<'a> {
                     balance.bank_pk.eq(bank_ai.key),
                     MarginfiError::InvalidBankAccount
                 );
-                let oracle_ai = remaining_ais.get(oracle_ai_idx).unwrap();
+                let oracle_ais = &remaining_ais[oracle_ai_idx..oracle_ai_idx + 1];
 
                 let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
                 let bank = bank_al.load()?;
 
                 let price_adapter = Box::new(OraclePriceFeedAdapter::try_from_bank_config(
-                    &bank.config.oracle_setup,
-                    &[oracle_ai.to_account_info()],
+                    &bank.config,
+                    oracle_ais,
                     current_timestamp,
                     MAX_PRICE_AGE_SEC,
                 )?);

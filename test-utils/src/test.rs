@@ -9,7 +9,10 @@ use lazy_static::lazy_static;
 use marginfi::state::marginfi_group::{BankConfigOpt, BankOperationalState};
 use marginfi::{
     constants::MAX_ORACLE_KEYS,
-    state::marginfi_group::{BankConfig, GroupConfig, InterestRateConfig, OracleSetup, RiskTier},
+    state::{
+        marginfi_group::{BankConfig, GroupConfig, InterestRateConfig, RiskTier},
+        price::OracleSetup,
+    },
 };
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;

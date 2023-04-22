@@ -1,3 +1,5 @@
+use std::mem::transmute;
+
 use anchor_lang::prelude::*;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
@@ -32,15 +34,15 @@ pub trait PriceAdapter {
 }
 
 #[enum_dispatch(PriceAdapter)]
-pub enum PriceFeelAdapter {
+pub enum OraclePriceFeedAdapter {
     PythEma(PythEmaPriceFeed),
     SwitchboardV2(SwitchboardV2PriceFeed),
 }
 
-impl PriceFeelAdapter {
-    pub fn try_from_bank_config<'a>(
+impl OraclePriceFeedAdapter {
+    pub fn try_from_bank_config(
         bank_config: &BankConfig,
-        ais: &'a [AccountInfo<'a>],
+        ais: &[AccountInfo],
         current_timestamp: i64,
         max_age: u64,
     ) -> MarginfiResult<Self> {
@@ -53,8 +55,10 @@ impl PriceFeelAdapter {
                     MarginfiError::InvalidOracleAccount
                 );
 
-                Ok(PriceFeelAdapter::PythEma(PythEmaPriceFeed::new(
-                    ais[0],
+                let account_info = &ais[0];
+
+                Ok(OraclePriceFeedAdapter::PythEma(PythEmaPriceFeed::new(
+                    account_info,
                     current_timestamp,
                     max_age,
                 )?))
@@ -66,7 +70,7 @@ impl PriceFeelAdapter {
                     MarginfiError::InvalidOracleAccount
                 );
 
-                Ok(PriceFeelAdapter::SwitchboardV2(
+                Ok(OraclePriceFeedAdapter::SwitchboardV2(
                     SwitchboardV2PriceFeed::new(&ais[0])?,
                 ))
             }
@@ -109,8 +113,8 @@ pub struct PythEmaPriceFeed {
 }
 
 impl PythEmaPriceFeed {
-    pub fn new(ai: AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
-        let price_feed = load_pyth_price_feed(&ai)?;
+    pub fn new(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
+        let price_feed = load_pyth_price_feed(ai)?;
         let price = price_feed
             .get_ema_price_no_older_than(current_time, max_age)
             .ok_or_else(|| MarginfiError::StaleOracle)?;
@@ -160,6 +164,10 @@ pub struct SwitchboardV2PriceFeed {
 
 impl SwitchboardV2PriceFeed {
     pub fn new(ai: &AccountInfo) -> MarginfiResult<Self> {
+        // Swithcboard requests different liftimes &'a [AccountInfo<'a>] than anchor context provides &'a [AccountInfo<'b>]
+        // We clone the AggregatorAccountData in the SwitchboardV2PriceFeed struct so we are not referencing anything.
+        // Transmutation is safe here
+        let ai = unsafe { transmute(ai) };
         Ok(Self {
             aggregator_account: Box::new(
                 *AggregatorAccountData::new(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?,
@@ -168,6 +176,9 @@ impl SwitchboardV2PriceFeed {
     }
 
     fn validate_ais(ai: &AccountInfo) -> MarginfiResult {
+        // Swithcboard requests different liftimes &'a [AccountInfo<'a>] than anchor context provides &'a [AccountInfo<'b>]
+        // We don't persist any data here, we only access AggregatorAccountData to validate the provided account info, not data is stored.
+        let ai = unsafe { transmute(ai) };
         AggregatorAccountData::new(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
 
         Ok(())

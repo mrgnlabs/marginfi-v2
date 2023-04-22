@@ -8,7 +8,7 @@ use crate::state::marginfi_account::{
     calc_asset_amount, calc_asset_value, RiskEngine, RiskRequirementType,
 };
 use crate::state::marginfi_group::{Bank, BankVaultType};
-use crate::state::price::{PriceAdapter, PriceFeelAdapter};
+use crate::state::price::{OraclePriceFeedAdapter, PriceAdapter};
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
@@ -112,9 +112,10 @@ pub fn lending_account_liquidate(
 
         let mut asset_bank = ctx.accounts.asset_bank.load_mut()?;
         let asset_price = {
-            let asset_pf = PriceFeelAdapter::try_from_bank_config(
+            let oracle_ais = &ctx.remaining_accounts[0..1];
+            let asset_pf = OraclePriceFeedAdapter::try_from_bank_config(
                 &asset_bank.config,
-                &[ctx.remaining_accounts[0]],
+                oracle_ais,
                 current_timestamp,
                 MAX_PRICE_AGE_SEC,
             )?;
@@ -123,9 +124,10 @@ pub fn lending_account_liquidate(
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
         let liab_price = {
-            let liab_pf = PriceFeelAdapter::try_from_bank_config(
+            let oracle_ais = &ctx.remaining_accounts[1..2];
+            let liab_pf = OraclePriceFeedAdapter::try_from_bank_config(
                 &liab_bank.config,
-                &[ctx.remaining_accounts[1]],
+                oracle_ais,
                 current_timestamp,
                 MAX_PRICE_AGE_SEC,
             )?;
