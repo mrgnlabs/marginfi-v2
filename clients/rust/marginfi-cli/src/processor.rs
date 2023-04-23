@@ -1339,3 +1339,19 @@ fn timestamp_to_string(timestamp: i64) -> String {
     .format("%Y-%m-%d %H:%M:%S")
     .to_string()
 }
+
+// Switchboard tests
+#[cfg(feature = "dev")]
+pub fn process_inspect_switchboard_feed(config: &Config, aggregator_pk: &Pubkey) {
+    let aggregator_account_data = config
+        .mfi_program
+        .rpc()
+        .get_account_data(aggregator_pk)
+        .expect("Aggregator account not found");
+
+    let aggregator_account =
+        switchboard_v2::AggregatorAccountData::new_from_bytes(&aggregator_account_data)
+            .expect("Invalid aggregator account data");
+
+    println!("Aggregator account: {:#?}", aggregator_account);
+}

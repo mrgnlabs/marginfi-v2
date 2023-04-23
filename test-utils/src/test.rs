@@ -98,7 +98,9 @@ pub struct TestFixture {
 }
 
 pub const PYTH_USDC_FEED: Pubkey = pubkey!("PythUsdcPrice111111111111111111111111111111");
+pub const SWITCHBOARD_USDC_FEED: Pubkey = pubkey!("SwchUsdcPrice111111111111111111111111111111");
 pub const PYTH_SOL_FEED: Pubkey = pubkey!("PythSo1Price1111111111111111111111111111111");
+pub const SWITCHBOARD_SOL_FEED: Pubkey = pubkey!("SwchSo1Price1111111111111111111111111111111");
 pub const PYTH_SOL_EQUIVALENT_FEED: Pubkey = pubkey!("PythSo1Equiva1entPrice111111111111111111111");
 pub const PYTH_MNDE_FEED: Pubkey = pubkey!("PythMndePrice111111111111111111111111111111");
 pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111111111111111");
@@ -168,6 +170,20 @@ lazy_static! {
         deposit_limit: native!(1_000_000, "MNDE"),
         borrow_limit: native!(1_000_000, "MNDE"),
         oracle_keys: create_oracle_key_array(PYTH_MNDE_FEED),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    pub static ref DEFAULT_USDC_TEST_SW_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::SwitchboardV2,
+        deposit_limit: native!(1_000_000_000, "USDC"),
+        borrow_limit: native!(1_000_000_000, "USDC"),
+        oracle_keys: create_oracle_key_array(SWITCHBOARD_USDC_FEED),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    pub static ref DEFAULT_SOL_TEST_SW_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::SwitchboardV2,
+        deposit_limit: native!(1_000_000, "SOL"),
+        borrow_limit: native!(1_000_000, "SOL"),
+        oracle_keys: create_oracle_key_array(SWITCHBOARD_SOL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
 }

@@ -60,6 +60,8 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: LipCommand,
     },
+    #[cfg(feature = "dev")]
+    InspectSwitchboardFeed { switchboard_feed: Pubkey },
 }
 
 #[derive(Debug, Parser)]
@@ -302,6 +304,15 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
         #[cfg(feature = "lip")]
         Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
+        #[cfg(feature = "dev")]
+        Command::InspectSwitchboardFeed { switchboard_feed } => {
+            let profile = load_profile()?;
+            let config = profile.get_config(Some(&opts.cfg_override))?;
+
+            processor::process_inspect_switchboard_feed(&config, &switchboard_feed);
+
+            Ok(())
+        }
     }
 }
 
@@ -501,7 +512,10 @@ fn inspect_padding() -> Result<()> {
     println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
     println!("GroupConfig: {}", GroupConfig::type_layout());
     println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
-    println!("Bank: {}", Bank::type_layout());
+    println!(
+        "Bank: {}",
+        marginfi::state::marginfi_group::Bank::type_layout()
+    );
     println!("BankConfig: {}", BankConfig::type_layout());
     println!("OracleConfig: {}", OracleConfig::type_layout());
     println!("BankConfigOpt: {}", BankConfigOpt::type_layout());
