@@ -285,6 +285,8 @@ pub fn group_add_bank(
     protocol_ir_fee: f64,
     risk_tier: crate::RiskTierArg,
 ) -> Result<()> {
+    use marginfi::state::price::OracleSetup;
+
     let rpc_client = config.mfi_program.rpc();
 
     if profile.marginfi_group.is_none() {
@@ -377,7 +379,7 @@ pub fn group_add_bank(
                 borrow_limit,
                 interest_rate_config,
                 operational_state: BankOperationalState::Operational,
-                oracle_setup: OracleSetup::Pyth,
+                oracle_setup: OracleSetup::PythEma,
                 oracle_keys: create_oracle_key_array(pyth_oracle),
                 risk_tier: risk_tier.into(),
                 ..BankConfig::default()
