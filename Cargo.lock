@@ -2286,6 +2286,7 @@ name = "marginfi"
 version = "0.1.0"
 dependencies = [
  "anchor-lang 0.26.0",
+ "anchor-lang 0.27.0",
  "anchor-spl 0.26.0",
  "anyhow",
  "assert_matches",
@@ -2299,6 +2300,7 @@ dependencies = [
  "lazy_static",
  "pretty_assertions",
  "pyth-sdk-solana",
+ "rust_decimal",
  "solana-logger",
  "solana-program",
  "solana-program-test",
@@ -4842,6 +4844,7 @@ name = "test-utilities"
 version = "0.1.0"
 dependencies = [
  "anchor-lang 0.26.0",
+ "anchor-lang 0.27.0",
  "anchor-spl 0.26.0",
  "anyhow",
  "assert_matches",

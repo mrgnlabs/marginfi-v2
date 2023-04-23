@@ -47,6 +47,23 @@ impl TestSettings {
         }
     }
 
+    /// All banks with the same config, but USDC and SOL are using switchboard price oracls
+    pub fn all_banks_swb_payer_not_admin() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    config: Some(*DEFAULT_USDC_TEST_SW_BANK_CONFIG),
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    config: Some(*DEFAULT_SOL_TEST_SW_BANK_CONFIG),
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
+
     pub fn all_banks_one_isolated() -> Self {
         Self {
             banks: vec![
@@ -210,15 +227,15 @@ impl TestFixture {
 
         program.add_account(
             PYTH_USDC_FEED,
-            craft_pyth_price_account(usdc_keypair.pubkey(), 1, USDC_MINT_DECIMALS.into()),
+            create_pyth_price_account(usdc_keypair.pubkey(), 1, USDC_MINT_DECIMALS.into()),
         );
         program.add_account(
             PYTH_SOL_FEED,
-            craft_pyth_price_account(sol_keypair.pubkey(), 10, SOL_MINT_DECIMALS.into()),
+            create_pyth_price_account(sol_keypair.pubkey(), 10, SOL_MINT_DECIMALS.into()),
         );
         program.add_account(
             PYTH_SOL_EQUIVALENT_FEED,
-            craft_pyth_price_account(
+            create_pyth_price_account(
                 sol_equivalent_keypair.pubkey(),
                 10,
                 SOL_MINT_DECIMALS.into(),
@@ -226,7 +243,17 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_MNDE_FEED,
-            craft_pyth_price_account(mnde_keypair.pubkey(), 10, MNDE_MINT_DECIMALS.into()),
+            create_pyth_price_account(mnde_keypair.pubkey(), 10, MNDE_MINT_DECIMALS.into()),
+        );
+
+        program.add_account(
+            SWITCHBOARD_USDC_FEED,
+            create_switchboard_price_feed(1, USDC_MINT_DECIMALS.into()),
+        );
+
+        program.add_account(
+            SWITCHBOARD_SOL_FEED,
+            create_switchboard_price_feed(10, SOL_MINT_DECIMALS.into()),
         );
 
         let context = Rc::new(RefCell::new(program.start_with_context().await));

@@ -11,6 +11,7 @@ lip = ["liquidity-incentive-program"]
 
 [dependencies]
 anchor-lang = "0.26.0"
+anchor-lang-27 = { version = "0.27.0", package = "anchor-lang" }
 anchor-spl = "0.26.0"
 bytemuck = "1.9.1"
 fixed = "1.12.0"

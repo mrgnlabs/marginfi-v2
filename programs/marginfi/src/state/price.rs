@@ -1,14 +1,15 @@
-use std::mem::transmute;
-
 use anchor_lang::prelude::*;
+
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, Price, PriceFeed};
-use switchboard_v2::{AggregatorAccountData, SwitchboardDecimal};
+use switchboard_v2::{
+    AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
+};
 
 use crate::{
     check,
-    constants::{CONF_INTERVAL_MULTIPLE, EXP_10_I80F48, PYTH_ID},
+    constants::{CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, PYTH_ID},
     math_error,
     prelude::*,
 };
@@ -71,7 +72,7 @@ impl OraclePriceFeedAdapter {
                 );
 
                 Ok(OraclePriceFeedAdapter::SwitchboardV2(
-                    SwitchboardV2PriceFeed::new(&ais[0])?,
+                    SwitchboardV2PriceFeed::new(&ais[0], current_timestamp, max_age)?,
                 ))
             }
         }
@@ -159,29 +160,86 @@ impl PriceAdapter for PythEmaPriceFeed {
 }
 
 pub struct SwitchboardV2PriceFeed {
-    aggregator_account: Box<AggregatorAccountData>,
+    aggregator_account: Box<DietAggregatorAccountData>,
 }
 
 impl SwitchboardV2PriceFeed {
-    pub fn new(ai: &AccountInfo) -> MarginfiResult<Self> {
-        // Swithcboard requests different liftimes &'a [AccountInfo<'a>] than anchor context provides &'a [AccountInfo<'b>]
-        // We clone the AggregatorAccountData in the SwitchboardV2PriceFeed struct so we are not referencing anything.
-        // Transmutation is safe here
-        let ai = unsafe { transmute(ai) };
+    pub fn new(ai: &AccountInfo, current_timestamp: i64, max_age: u64) -> MarginfiResult<Self> {
+        let ai_data = ai.data.borrow();
+        let aggregator_account = AggregatorAccountData::new_from_bytes(&ai_data)
+            .map_err(|_| MarginfiError::InvalidOracleAccount)?;
+
+        aggregator_account
+            .check_staleness(current_timestamp, max_age as i64)
+            .map_err(|_| MarginfiError::StaleOracle)?;
+
         Ok(Self {
-            aggregator_account: Box::new(
-                *AggregatorAccountData::new(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?,
-            ),
+            aggregator_account: Box::new(aggregator_account.into()),
         })
     }
 
     fn validate_ais(ai: &AccountInfo) -> MarginfiResult {
-        // Swithcboard requests different liftimes &'a [AccountInfo<'a>] than anchor context provides &'a [AccountInfo<'b>]
-        // We don't persist any data here, we only access AggregatorAccountData to validate the provided account info, not data is stored.
-        let ai = unsafe { transmute(ai) };
-        AggregatorAccountData::new(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
+        let ai_data = ai.data.borrow();
+
+        check!(
+            ai.owner.eq(&SWITCHBOARD_PROGRAM_ID),
+            MarginfiError::InvalidOracleAccount
+        );
+
+        AggregatorAccountData::new_from_bytes(&ai_data)
+            .map_err(|_| MarginfiError::InvalidOracleAccount)?;
 
         Ok(())
+    }
+}
+
+/// A slimmed down version of the AggregatorAccountData struct copied from the switchboard-v2/src/aggregator.rs
+struct DietAggregatorAccountData {
+    /// Use sliding windoe or round based resolution
+    /// NOTE: This changes result propogation in latest_round_result
+    pub resolution_mode: AggregatorResolutionMode,
+    /// Latest confirmed update request result that has been accepted as valid.
+    pub latest_confirmed_round_result: SwitchboardDecimal,
+    pub latest_confirmed_round_num_success: u32,
+    pub latest_confirmed_round_std_deviation: SwitchboardDecimal,
+    /// Minimum number of oracle responses required before a round is validated.
+    pub min_oracle_results: u32,
+}
+
+impl From<&AggregatorAccountData> for DietAggregatorAccountData {
+    fn from(agg: &AggregatorAccountData) -> Self {
+        Self {
+            resolution_mode: agg.resolution_mode,
+            latest_confirmed_round_result: agg.latest_confirmed_round.result,
+            latest_confirmed_round_num_success: agg.latest_confirmed_round.num_success,
+            latest_confirmed_round_std_deviation: agg.latest_confirmed_round.std_deviation,
+            min_oracle_results: agg.min_oracle_results,
+        }
+    }
+}
+
+impl DietAggregatorAccountData {
+    /// If sufficient oracle responses, returns the latest on-chain result in SwitchboardDecimal format
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use switchboard_v2::AggregatorAccountData;
+    /// use std::convert::TryInto;
+    ///
+    /// let feed_result = AggregatorAccountData::new(feed_account_info)?.get_result()?;
+    /// let decimal: f64 = feed_result.try_into()?;
+    /// ```
+    pub fn get_result(&self) -> anchor_lang::Result<SwitchboardDecimal> {
+        if self.resolution_mode == AggregatorResolutionMode::ModeSlidingResolution {
+            return Ok(self.latest_confirmed_round_result);
+        }
+        let min_oracle_results = self.min_oracle_results;
+        let latest_confirmed_round_num_success = self.latest_confirmed_round_num_success;
+        if min_oracle_results > latest_confirmed_round_num_success {
+            return Err(MarginfiError::InvalidOracleAccount.into());
+        }
+        Ok(self.latest_confirmed_round_result)
     }
 }
 
@@ -191,12 +249,13 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
             .aggregator_account
             .get_result()
             .map_err(|_| MarginfiError::InvalidPrice)?;
+
         Ok(swithcboard_decimal_to_i80f48(sw_decimal)
             .ok_or(MarginfiError::InvalidSwitchboardDecimalConversion)?)
     }
 
     fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
-        let std_div = self.aggregator_account.latest_confirmed_round.std_deviation;
+        let std_div = self.aggregator_account.latest_confirmed_round_std_deviation;
         let std_div = swithcboard_decimal_to_i80f48(std_div)
             .ok_or(MarginfiError::InvalidSwitchboardDecimalConversion)?;
 
@@ -221,7 +280,7 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
 }
 
 #[inline(always)]
-pub fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
+fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
     let scaling_factor = EXP_10_I80F48[exponent.unsigned_abs() as usize];
 
     let price = if exponent == 0 {
@@ -249,5 +308,62 @@ fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
 
 #[inline(always)]
 fn swithcboard_decimal_to_i80f48(decimal: SwitchboardDecimal) -> Option<I80F48> {
-    I80F48::checked_from_num(decimal.mantissa)?.checked_div(EXP_10_I80F48[decimal.scale as usize])
+    let decimal = fit_scale_switchboard_decimal(decimal, MAX_SCALE)?;
+
+    I80F48::from_num(decimal.mantissa).checked_div(EXP_10_I80F48[decimal.scale as usize])
+}
+
+const MAX_SCALE: u32 = 20;
+
+/// Scale a SwitchboardDecimal down to a given scale.
+/// Return original SwitchboardDecimal if it is already at or below the given scale.
+///
+/// This may result in minimal loss of precision past the scale delta.
+/// However in practice we've seen that SwitchboardDecimals are significanly overscaled.
+fn fit_scale_switchboard_decimal(
+    decimal: SwitchboardDecimal,
+    scale: u32,
+) -> Option<SwitchboardDecimal> {
+    if decimal.scale <= scale {
+        return Some(decimal);
+    }
+
+    let scale_diff = decimal.scale - scale;
+    let mantissa = decimal.mantissa.checked_div(EXP_10[scale_diff as usize])?;
+
+    Some(SwitchboardDecimal { mantissa, scale })
+}
+
+#[cfg(test)]
+mod tests {
+    use rust_decimal::Decimal;
+
+    use super::*;
+    #[test]
+    fn swb_decimal_test_18() {
+        let decimal = SwitchboardDecimal {
+            mantissa: 1000000000000000000,
+            scale: 18,
+        };
+        let i80f48 = swithcboard_decimal_to_i80f48(decimal).unwrap();
+        assert_eq!(i80f48, I80F48::from_num(1));
+    }
+
+    #[test]
+    /// Testing the standard deviation of the switchboard oracle on the SOLUSD mainnet feed
+    fn swb_dec_test_28() {
+        let dec = SwitchboardDecimal {
+            mantissa: 13942937500000000000000000,
+            scale: 28,
+        };
+
+        {
+            let decimal: Decimal = dec.try_into().unwrap();
+            println!("control check: {:?}", decimal);
+        }
+
+        let i80f48 = swithcboard_decimal_to_i80f48(dec).unwrap();
+
+        assert_eq!(i80f48, I80F48::from_num(0.00139429375));
+    }
 }

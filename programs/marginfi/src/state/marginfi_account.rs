@@ -120,9 +120,9 @@ pub enum BalanceSide {
 }
 
 impl<'a> BankAccountWithPriceAdapter<'a> {
-    pub fn load<'b: 'a, 'info: 'a + 'b>(
-        lending_account: &'a LendingAccount,
-        remaining_ais: &'b [AccountInfo<'info>],
+    pub fn load<'info: 'a>(
+        lending_account: &'info LendingAccount,
+        remaining_ais: &[AccountInfo],
     ) -> MarginfiResult<Vec<BankAccountWithPriceAdapter<'a>>> {
         let active_balances = lending_account
             .balances
@@ -280,9 +280,9 @@ pub struct RiskEngine<'a> {
 }
 
 impl<'a> RiskEngine<'a> {
-    pub fn new<'b: 'a, 'info: 'a + 'b>(
+    pub fn new(
         marginfi_account: &'a MarginfiAccount,
-        remaining_ais: &'b [AccountInfo<'info>],
+        remaining_ais: &[AccountInfo],
     ) -> MarginfiResult<Self> {
         let bank_accounts_with_price =
             BankAccountWithPriceAdapter::load(&marginfi_account.lending_account, remaining_ais)?;

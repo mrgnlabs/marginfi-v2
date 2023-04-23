@@ -23,6 +23,7 @@ debug = []
 
 [dependencies]
 anchor-lang = "0.26.0"
+anchor-lang_27 = { version = "0.27.0", package = "anchor-lang" }
 anchor-spl = "0.26.0"
 bytemuck = "1.9.1"
 cfg-if = "1.0.0"

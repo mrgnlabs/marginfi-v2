@@ -1,6 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_lang::Discriminator;
-// use lip::*;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
@@ -81,7 +79,8 @@ pub fn create_pyth_price_account(mint: Pubkey, ui_price: i64, mint_decimals: i32
     }
 }
 
-pub fn create_switchboard_sol_price_feed() -> Account {
+pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Account {
+    let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
     let aggregator_account = switchboard_v2::AggregatorAccountData {
         name: [0; 32],
         metadata: [0; 128],
@@ -109,8 +108,8 @@ pub fn create_switchboard_sol_price_feed() -> Account {
             round_open_slot: 189963416,
             round_open_timestamp: 1682220573,
             result: SwitchboardDecimal {
-                mantissa: 21757,
-                scale: 3,
+                mantissa: native_price as i128,
+                scale: mint_decimals as u32,
             },
             std_deviation: SwitchboardDecimal {
                 mantissa: 13942937500000000000000000,
@@ -327,10 +326,10 @@ pub fn create_switchboard_sol_price_feed() -> Account {
         ],
     };
 
-    let desc_bytes = AggregatorAccountData::discriminator();
-    let mut data = vec![0u8; desc_bytes.len() + size_of::<AggregatorAccountData>()];
-    data[..desc_bytes.len()].copy_from_slice(&desc_bytes);
-    data[desc_bytes.len()..].copy_from_slice(bytemuck::bytes_of(&aggregator_account));
+    let desc_bytes = <AggregatorAccountData as anchor_lang_27::Discriminator>::DISCRIMINATOR;
+    let mut data = vec![0u8; 8 + size_of::<AggregatorAccountData>()];
+    data[..8].copy_from_slice(&desc_bytes);
+    data[8..].copy_from_slice(bytemuck::bytes_of(&aggregator_account));
 
     Account {
         lamports: 10000,
