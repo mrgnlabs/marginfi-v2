@@ -32,6 +32,7 @@ use marginfi::{
     state::{
         marginfi_account::MarginfiAccount,
         marginfi_group::{Bank, BankVaultType},
+        price::{OraclePriceFeedAdapter, PriceAdapter},
     },
 };
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
@@ -554,6 +555,44 @@ pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()
     for (address, state) in accounts {
         println!("-> {address}:\n{state:#?}\n");
     }
+    Ok(())
+}
+
+pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> {
+    let bank: Bank = config.mfi_program.account(bank_pk)?;
+    let mut price_oracle_account = config
+        .mfi_program
+        .rpc()
+        .get_account(&bank.config.oracle_keys[0])?;
+    let price_oracle_ai =
+        (&bank.config.oracle_keys[0], &mut price_oracle_account).into_account_info();
+
+    let opfa =
+        OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[price_oracle_ai], 0, u64::MAX)
+            .unwrap();
+
+    let (worst, best) = opfa.get_price_range().unwrap();
+    let keys = bank
+        .config
+        .oracle_keys
+        .iter()
+        .filter(|k| k != &&Pubkey::default())
+        .collect::<Vec<_>>();
+
+    println!(
+        r##"
+Oracle Setup: {setup:?}
+Oracle Keys: {keys:#?}
+Price: ${price} (worst: ${worst}, best: ${best}, std_dev: ${std})
+    "##,
+        setup = bank.config.oracle_setup,
+        keys = keys,
+        price = opfa.get_price().unwrap(),
+        worst = worst,
+        best = best,
+        std = opfa.get_confidence_interval().unwrap(),
+    );
+
     Ok(())
 }
 

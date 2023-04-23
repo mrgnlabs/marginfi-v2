@@ -45,4 +45,5 @@ pretty_assertions = "1.2.1"
 solana-logger = "1.14.13"
 solana-program-test = "1.14.13"
 solana-sdk = "1.14.13"
+rust_decimal = "*"
 fixtures = { path = "../../test-utils", package = "test-utilities" }

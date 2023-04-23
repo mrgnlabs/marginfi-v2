@@ -203,6 +203,9 @@ pub enum BankCommand {
         #[clap(long, arg_enum, help = "Bank risk tier")]
         risk_tier: Option<RiskTierArg>,
     },
+    InspectPriceOracle {
+        bank_pk: Pubkey,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -439,8 +442,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
 
     if !global_options.skip_confirmation {
         match subcmd {
-            BankCommand::Get { bank: _ } => (),
-            BankCommand::GetAll { marginfi_group: _ } => (),
+            BankCommand::Get { .. }
+            | BankCommand::GetAll { .. }
+            | BankCommand::InspectPriceOracle { .. } => (),
             #[cfg(feature = "admin")]
             _ => get_consent(&subcmd, &profile)?,
         }
@@ -503,6 +507,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     risk_tier: risk_tier.map(|x| x.into()),
                 },
             )
+        }
+        BankCommand::InspectPriceOracle { bank_pk } => {
+            processor::bank_inspect_price_oracle(config, bank_pk)
         }
     }
 }
