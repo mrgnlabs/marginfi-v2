@@ -109,6 +109,7 @@ pub struct LendingPoolSetupEmissions<'info> {
         ],
         bump
     )]
+    /// CHECK: Asserted by PDA constraints
     pub emissions_auth: AccountInfo<'info>,
 
     #[account(
@@ -125,6 +126,7 @@ pub struct LendingPoolSetupEmissions<'info> {
     )]
     pub emissions_token_account: Box<Account<'info, TokenAccount>>,
 
+    /// CHECK: Account provided only for funding rewards
     pub emissions_funding_account: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
