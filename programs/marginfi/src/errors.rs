@@ -70,7 +70,7 @@ pub enum MarginfiError {
     IsolatedAccountIllegalState,
     #[msg("Oracle is not set")] // 6032
     OracleNotSetup,
-    #[msg("Invalid swithcboard decimal conversion")] // 6032
+    #[msg("Invalid swithcboard decimal conversion")] // 6033
     InvalidSwitchboardDecimalConversion,
 }
 
