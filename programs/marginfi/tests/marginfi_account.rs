@@ -4,15 +4,20 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
 use fixtures::{assert_custom_error, assert_eq_noise, native};
-use marginfi::prelude::*;
+use marginfi::constants::{
+    EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, MIN_EMISSIONS_START_TIME,
+};
 use marginfi::state::marginfi_account::BankAccountWrapper;
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
 };
+use marginfi::{assert_eq_with_tolerance, prelude::*};
 use pretty_assertions::assert_eq;
+
 use solana_program::{instruction::Instruction, system_program};
 use solana_program_test::*;
+use solana_sdk::timing::SECONDS_PER_YEAR;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 
 // Feature baseline
@@ -1260,6 +1265,193 @@ async fn isolated_borrows() -> anyhow::Result<()> {
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::IsolatedAccountIllegalState);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn emissions_test() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_one_isolated())).await;
+
+    let usdc_bank = test_f.get_bank(&BankMint::USDC);
+    let sol_bank = test_f.get_bank(&BankMint::SOL);
+
+    // Setup emissions (Deposit for USDC, Borrow for SOL)
+
+    let funding_account = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
+
+    usdc_bank
+        .try_setup_emissions(
+            EMISSIONS_FLAG_LENDING_ACTIVE,
+            1_000_000,
+            native!(50, "USDC"),
+            usdc_bank.mint.key,
+            funding_account.key,
+        )
+        .await?;
+
+    // SOL Emissions are not in SOL Bank mint
+    let sol_emissions_mint = MintFixture::new(test_f.context.clone(), None, Some(6)).await;
+
+    let funding_account = sol_emissions_mint
+        .create_token_account_and_mint_to(200)
+        .await;
+
+    sol_bank
+        .try_setup_emissions(
+            EMISSIONS_FLAG_BORROW_ACTIVE,
+            1_000,
+            native!(100, 6),
+            sol_emissions_mint.key,
+            funding_account.key,
+        )
+        .await?;
+
+    let sol_emissions_mint_2 = MintFixture::new(test_f.context.clone(), None, Some(6)).await;
+
+    let res = sol_bank
+        .try_setup_emissions(
+            EMISSIONS_FLAG_BORROW_ACTIVE,
+            1_000,
+            native!(50, 6),
+            sol_emissions_mint_2.key,
+            funding_account.key,
+        )
+        .await;
+
+    assert_custom_error!(res.unwrap_err(), MarginfiError::EmissionsAlreadySetup);
+
+    // Fund SOL bank
+    let sol_lender_account = test_f.create_marginfi_account().await;
+    let sol_lender_token_account = test_f.sol_mint.create_token_account_and_mint_to(100).await;
+
+    sol_lender_account
+        .try_bank_deposit(sol_lender_token_account.key, sol_bank, 100)
+        .await?;
+
+    // Create account and setup positions
+    test_f.set_time(MIN_EMISSIONS_START_TIME as i64);
+    test_f
+        .set_pyth_oracle_timestamp(PYTH_USDC_FEED, MIN_EMISSIONS_START_TIME as i64)
+        .await;
+    test_f
+        .set_pyth_oracle_timestamp(PYTH_SOL_FEED, MIN_EMISSIONS_START_TIME as i64)
+        .await;
+
+    let mfi_account_f = test_f.create_marginfi_account().await;
+    let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(50).await;
+
+    mfi_account_f
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank, 50)
+        .await?;
+
+    let sol_account = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+
+    mfi_account_f
+        .try_bank_borrow(sol_account.key, sol_bank, 2)
+        .await?;
+
+    // Advance for half a year and claim half emissions
+    test_f.advance_time((SECONDS_PER_YEAR / 2.0) as i64).await;
+
+    let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+
+    mfi_account_f
+        .try_withdraw_emissions(usdc_bank, lender_token_account_usdc.key)
+        .await?;
+
+    let sol_emissions_ta = sol_emissions_mint.create_token_account_and_mint_to(0).await;
+
+    mfi_account_f
+        .try_withdraw_emissions(sol_bank, sol_emissions_ta.key)
+        .await?;
+
+    assert_eq_with_tolerance!(
+        lender_token_account_usdc.balance().await as i64,
+        native!(25, "USDC") as i64,
+        native!(1, "USDC") as i64
+    );
+
+    assert_eq_with_tolerance!(
+        sol_emissions_ta.balance().await as i64,
+        native!(1, 6) as i64,
+        native!(0.1, 6, f64) as i64
+    );
+
+    // Advance for another half a year and claim the rest
+
+    test_f.advance_time((SECONDS_PER_YEAR / 2.0) as i64).await;
+
+    {
+        let slot = test_f.get_slot().await;
+        test_f
+            .context
+            .borrow_mut()
+            .warp_to_slot(slot + 100)
+            .unwrap();
+    }
+
+    mfi_account_f
+        .try_withdraw_emissions(usdc_bank, lender_token_account_usdc.key)
+        .await?;
+
+    mfi_account_f
+        .try_withdraw_emissions(sol_bank, sol_emissions_ta.key)
+        .await?;
+
+    assert_eq_with_tolerance!(
+        lender_token_account_usdc.balance().await as i64,
+        native!(50, "USDC") as i64,
+        native!(1, "USDC") as i64
+    );
+
+    assert_eq_with_tolerance!(
+        sol_emissions_ta.balance().await as i64,
+        native!(2, 6) as i64,
+        native!(0.1, 6, f64) as i64
+    );
+
+    // Advance a year, and no more USDC emissions can be claimed (drained), SOL emissions can be claimed
+
+    {
+        let slot = test_f.get_slot().await;
+        test_f
+            .context
+            .borrow_mut()
+            .warp_to_slot(slot + 100)
+            .unwrap();
+    }
+
+    test_f.advance_time((SECONDS_PER_YEAR / 2.0) as i64).await;
+
+    mfi_account_f
+        .try_withdraw_emissions(usdc_bank, lender_token_account_usdc.key)
+        .await?;
+
+    mfi_account_f
+        .try_withdraw_emissions(sol_bank, sol_emissions_ta.key)
+        .await?;
+
+    assert_eq_with_tolerance!(
+        lender_token_account_usdc.balance().await as i64,
+        native!(50, "USDC") as i64,
+        native!(1, "USDC") as i64
+    );
+
+    assert_eq_with_tolerance!(
+        sol_emissions_ta.balance().await as i64,
+        native!(3, 6) as i64,
+        native!(0.1, 6, f64) as i64
+    );
+
+    // SOL lendeing account can't claim emissions, bc SOL is borrow only emissions
+    let sol_lender_emissions = sol_emissions_mint.create_token_account_and_mint_to(0).await;
+
+    sol_lender_account
+        .try_withdraw_emissions(sol_bank, sol_lender_emissions.key)
+        .await?;
+
+    assert_eq!(sol_lender_emissions.balance().await as i64, 0);
 
     Ok(())
 }

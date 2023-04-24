@@ -43,7 +43,12 @@ where
     }
 }
 
-pub fn craft_pyth_price_account(mint: Pubkey, ui_price: i64, mint_decimals: i32) -> Account {
+pub fn craft_pyth_price_account(
+    mint: Pubkey,
+    ui_price: i64,
+    mint_decimals: i32,
+    timestamp: Option<i64>,
+) -> Account {
     let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
     Account {
         lamports: 1_000_000,
@@ -66,6 +71,7 @@ pub fn craft_pyth_price_account(mint: Pubkey, ui_price: i64, mint_decimals: i32)
                 numer: native_price,
                 denom: 1,
             },
+            prev_timestamp: timestamp.unwrap_or(0),
             ..Default::default()
         })
         .to_vec(),
@@ -188,6 +194,14 @@ macro_rules! native {
 
     ($val: expr, "MNDE", f64) => {
         (($val) * 10_u64.pow(9) as f64) as u64
+    };
+
+    ($val: expr, $decimals: expr) => {
+        $val * 10_u64.pow($decimals as u32)
+    };
+
+    ($val: expr, $decimals: expr, f64) => {
+        (($val) * 10_u64.pow($decimals as u32) as f64) as u64
     };
 }
 

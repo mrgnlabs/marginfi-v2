@@ -13,7 +13,6 @@ use marginfi::{
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
 use solana_program::instruction::Instruction;
-#[cfg(feature = "lip")]
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
 #[cfg(feature = "lip")]

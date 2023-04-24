@@ -1,5 +1,7 @@
+use crate::check;
 use crate::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED};
 use crate::events::{GroupEventHeader, LendingPoolBankConfigureEvent};
+use crate::prelude::MarginfiError;
 use crate::{
     state::marginfi_group::{Bank, BankConfigOpt, MarginfiGroup},
     MarginfiResult,
@@ -57,10 +59,9 @@ pub fn lending_pool_setup_emissions(
 ) -> MarginfiResult {
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    assert_eq!(
-        bank.emissions_mint,
-        Pubkey::default(),
-        "Bank emissions token already set"
+    check!(
+        bank.emissions_mint.eq(&Pubkey::default()),
+        MarginfiError::EmissionsAlreadySetup
     );
 
     bank.emissions_mint = ctx.accounts.emissions_mint.key();
@@ -116,7 +117,7 @@ pub struct LendingPoolSetupEmissions<'info> {
         init,
         payer = admin,
         token::mint = emissions_mint,
-        token::authority = admin,
+        token::authority = emissions_auth,
         seeds = [
             EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
             bank.key().as_ref(),
@@ -127,6 +128,7 @@ pub struct LendingPoolSetupEmissions<'info> {
     pub emissions_token_account: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: Account provided only for funding rewards
+    #[account(mut)]
     pub emissions_funding_account: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,

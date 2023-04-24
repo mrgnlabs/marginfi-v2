@@ -1,6 +1,5 @@
 use anchor_lang::{prelude::*, Accounts, ToAccountInfo};
 use anchor_spl::token::{transfer, Mint, Token, TokenAccount, Transfer};
-use fixed::types::I80F48;
 
 use crate::{
     constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED},
@@ -17,13 +16,21 @@ pub fn lending_account_withdraw_emissions(
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    let balance = BankAccountWrapper::find(
+    let mut balance = BankAccountWrapper::find(
         ctx.accounts.bank.to_account_info().key,
         &mut bank,
         &mut marginfi_account.lending_account,
     )?;
 
-    let outstanding_emissions_floored = I80F48::from(balance.balance.emissions_outstanding).floor();
+    // Settle emissions
+    let emissions_settle_amount = balance.settle_emissions_and_get_transfer_amount()?;
+
+    let signer_seeds: &[&[&[u8]]] = &[&[
+        EMISSIONS_AUTH_SEED.as_bytes(),
+        &ctx.accounts.bank.key().to_bytes(),
+        &ctx.accounts.emissions_mint.key().to_bytes(),
+        &[*ctx.bumps.get("emissions_auth").unwrap()],
+    ]];
 
     transfer(
         CpiContext::new_with_signer(
@@ -33,14 +40,10 @@ pub fn lending_account_withdraw_emissions(
                 to: ctx.accounts.destination_account.to_account_info(),
                 authority: ctx.accounts.emissions_auth.to_account_info(),
             },
-            &[],
+            signer_seeds,
         ),
-        outstanding_emissions_floored.to_num::<u64>(),
+        emissions_settle_amount,
     )?;
-
-    balance.balance.emissions_outstanding =
-        { I80F48::from(balance.balance.emissions_outstanding) - outstanding_emissions_floored }
-            .into();
 
     Ok(())
 }
@@ -73,7 +76,7 @@ pub struct LendingAccountWithdrawEmissions<'info> {
 
     #[account(
         seeds = [
-            EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
+            EMISSIONS_AUTH_SEED.as_bytes(),
             bank.key().as_ref(),
             emissions_mint.key().as_ref(),
         ],
@@ -83,8 +86,9 @@ pub struct LendingAccountWithdrawEmissions<'info> {
     pub emissions_auth: AccountInfo<'info>,
 
     #[account(
+        mut,
         seeds = [
-            EMISSIONS_AUTH_SEED.as_bytes(),
+            EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
             bank.key().as_ref(),
             emissions_mint.key().as_ref(),
         ],
@@ -92,6 +96,7 @@ pub struct LendingAccountWithdrawEmissions<'info> {
     )]
     pub emissions_vault: Box<Account<'info, TokenAccount>>,
 
+    #[account(mut)]
     pub destination_account: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }

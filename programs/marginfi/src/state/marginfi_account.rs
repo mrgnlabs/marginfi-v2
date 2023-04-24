@@ -841,7 +841,7 @@ impl<'a> BankAccountWrapper<'a> {
             operation_type
         );
 
-        self.settle_emissions(Clock::get()?.unix_timestamp as u64)?;
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
@@ -906,7 +906,7 @@ impl<'a> BankAccountWrapper<'a> {
             operation_type
         );
 
-        self.settle_emissions(Clock::get()?.unix_timestamp as u64)?;
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
@@ -962,7 +962,8 @@ impl<'a> BankAccountWrapper<'a> {
         Ok(())
     }
 
-    fn settle_emissions(&mut self, current_timestamp: u64) -> MarginfiResult {
+    /// Claim any unclaimed emissions and add them to the outstanding emissions amount.
+    pub fn claim_emissions(&mut self, current_timestamp: u64) -> MarginfiResult {
         if let Some(balance_amount) = match (
             self.balance.get_side(),
             self.bank.get_emissions_flag(EMISSIONS_FLAG_LENDING_ACTIVE),
@@ -1027,6 +1028,24 @@ impl<'a> BankAccountWrapper<'a> {
         self.balance.last_update = current_timestamp;
 
         Ok(())
+    }
+
+    /// Claim any outstanding emissions, and return the max amount that can be withdrawn.
+    pub fn settle_emissions_and_get_transfer_amount(&mut self) -> MarginfiResult<u64> {
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
+        let outstanding_emissions_floored = I80F48::from(self.balance.emissions_outstanding)
+            .checked_floor()
+            .ok_or_else(math_error!())?;
+        let new_outstanding_amount = I80F48::from(self.balance.emissions_outstanding)
+            .checked_sub(outstanding_emissions_floored)
+            .ok_or_else(math_error!())?;
+
+        self.balance.emissions_outstanding = new_outstanding_amount.into();
+
+        Ok(outstanding_emissions_floored
+            .checked_to_num::<u64>()
+            .ok_or_else(math_error!())?)
     }
 
     // ------------ SPL helpers
