@@ -160,12 +160,18 @@ impl PriceAdapter for PythEmaPriceFeed {
 }
 
 pub struct SwitchboardV2PriceFeed {
-    aggregator_account: Box<DietAggregatorAccountData>,
+    aggregator_account: Box<LiteAggregatorAccountData>,
 }
 
 impl SwitchboardV2PriceFeed {
     pub fn new(ai: &AccountInfo, current_timestamp: i64, max_age: u64) -> MarginfiResult<Self> {
         let ai_data = ai.data.borrow();
+
+        check!(
+            ai.owner.eq(&SWITCHBOARD_PROGRAM_ID),
+            MarginfiError::InvalidOracleAccount
+        );
+
         let aggregator_account = AggregatorAccountData::new_from_bytes(&ai_data)
             .map_err(|_| MarginfiError::InvalidOracleAccount)?;
 
@@ -190,56 +196,6 @@ impl SwitchboardV2PriceFeed {
             .map_err(|_| MarginfiError::InvalidOracleAccount)?;
 
         Ok(())
-    }
-}
-
-/// A slimmed down version of the AggregatorAccountData struct copied from the switchboard-v2/src/aggregator.rs
-struct DietAggregatorAccountData {
-    /// Use sliding windoe or round based resolution
-    /// NOTE: This changes result propogation in latest_round_result
-    pub resolution_mode: AggregatorResolutionMode,
-    /// Latest confirmed update request result that has been accepted as valid.
-    pub latest_confirmed_round_result: SwitchboardDecimal,
-    pub latest_confirmed_round_num_success: u32,
-    pub latest_confirmed_round_std_deviation: SwitchboardDecimal,
-    /// Minimum number of oracle responses required before a round is validated.
-    pub min_oracle_results: u32,
-}
-
-impl From<&AggregatorAccountData> for DietAggregatorAccountData {
-    fn from(agg: &AggregatorAccountData) -> Self {
-        Self {
-            resolution_mode: agg.resolution_mode,
-            latest_confirmed_round_result: agg.latest_confirmed_round.result,
-            latest_confirmed_round_num_success: agg.latest_confirmed_round.num_success,
-            latest_confirmed_round_std_deviation: agg.latest_confirmed_round.std_deviation,
-            min_oracle_results: agg.min_oracle_results,
-        }
-    }
-}
-
-impl DietAggregatorAccountData {
-    /// If sufficient oracle responses, returns the latest on-chain result in SwitchboardDecimal format
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use switchboard_v2::AggregatorAccountData;
-    /// use std::convert::TryInto;
-    ///
-    /// let feed_result = AggregatorAccountData::new(feed_account_info)?.get_result()?;
-    /// let decimal: f64 = feed_result.try_into()?;
-    /// ```
-    pub fn get_result(&self) -> anchor_lang::Result<SwitchboardDecimal> {
-        if self.resolution_mode == AggregatorResolutionMode::ModeSlidingResolution {
-            return Ok(self.latest_confirmed_round_result);
-        }
-        let min_oracle_results = self.min_oracle_results;
-        let latest_confirmed_round_num_success = self.latest_confirmed_round_num_success;
-        if min_oracle_results > latest_confirmed_round_num_success {
-            return Err(MarginfiError::InvalidOracleAccount.into());
-        }
-        Ok(self.latest_confirmed_round_result)
     }
 }
 
@@ -276,6 +232,56 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
             .ok_or_else(math_error!())?;
 
         Ok((lowest_price, highest_price))
+    }
+}
+
+/// A slimmed down version of the AggregatorAccountData struct copied from the switchboard-v2/src/aggregator.rs
+struct LiteAggregatorAccountData {
+    /// Use sliding windoe or round based resolution
+    /// NOTE: This changes result propogation in latest_round_result
+    pub resolution_mode: AggregatorResolutionMode,
+    /// Latest confirmed update request result that has been accepted as valid.
+    pub latest_confirmed_round_result: SwitchboardDecimal,
+    pub latest_confirmed_round_num_success: u32,
+    pub latest_confirmed_round_std_deviation: SwitchboardDecimal,
+    /// Minimum number of oracle responses required before a round is validated.
+    pub min_oracle_results: u32,
+}
+
+impl From<&AggregatorAccountData> for LiteAggregatorAccountData {
+    fn from(agg: &AggregatorAccountData) -> Self {
+        Self {
+            resolution_mode: agg.resolution_mode,
+            latest_confirmed_round_result: agg.latest_confirmed_round.result,
+            latest_confirmed_round_num_success: agg.latest_confirmed_round.num_success,
+            latest_confirmed_round_std_deviation: agg.latest_confirmed_round.std_deviation,
+            min_oracle_results: agg.min_oracle_results,
+        }
+    }
+}
+
+impl LiteAggregatorAccountData {
+    /// If sufficient oracle responses, returns the latest on-chain result in SwitchboardDecimal format
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use switchboard_v2::AggregatorAccountData;
+    /// use std::convert::TryInto;
+    ///
+    /// let feed_result = AggregatorAccountData::new(feed_account_info)?.get_result()?;
+    /// let decimal: f64 = feed_result.try_into()?;
+    /// ```
+    pub fn get_result(&self) -> anchor_lang::Result<SwitchboardDecimal> {
+        if self.resolution_mode == AggregatorResolutionMode::ModeSlidingResolution {
+            return Ok(self.latest_confirmed_round_result);
+        }
+        let min_oracle_results = self.min_oracle_results;
+        let latest_confirmed_round_num_success = self.latest_confirmed_round_num_success;
+        if min_oracle_results > latest_confirmed_round_num_success {
+            return Err(MarginfiError::InvalidOracleAccount.into());
+        }
+        Ok(self.latest_confirmed_round_result)
     }
 }
 
@@ -320,6 +326,7 @@ const MAX_SCALE: u32 = 20;
 ///
 /// This may result in minimal loss of precision past the scale delta.
 /// However in practice we've seen that SwitchboardDecimals are significanly overscaled.
+#[inline]
 fn fit_scale_switchboard_decimal(
     decimal: SwitchboardDecimal,
     scale: u32,

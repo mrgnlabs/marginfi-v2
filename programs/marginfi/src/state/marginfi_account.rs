@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     check,
-    constants::{EMPTY_BALANCE_THRESHOLD, MAX_PRICE_AGE_SEC, ZERO_AMOUNT_THRESHOLD},
+    constants::{EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, ZERO_AMOUNT_THRESHOLD},
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
     utils::NumTraitsWithTolerance,
@@ -51,43 +51,6 @@ impl MarginfiAccount {
     }
 }
 
-const EXP_10_I80F48: [I80F48; 15] = [
-    I80F48!(1),
-    I80F48!(10),
-    I80F48!(100),
-    I80F48!(1_000),
-    I80F48!(10_000),
-    I80F48!(100_000),
-    I80F48!(1_000_000),
-    I80F48!(10_000_000),
-    I80F48!(100_000_000),
-    I80F48!(1_000_000_000),
-    I80F48!(10_000_000_000),
-    I80F48!(100_000_000_000),
-    I80F48!(1_000_000_000_000),
-    I80F48!(10_000_000_000_000),
-    I80F48!(100_000_000_000_000),
-];
-
-#[inline(always)]
-pub fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
-    let scaling_factor = EXP_10_I80F48[exponent.unsigned_abs() as usize];
-
-    let price = if exponent == 0 {
-        price
-    } else if exponent < 0 {
-        price
-            .checked_div(scaling_factor)
-            .ok_or_else(math_error!())?
-    } else {
-        price
-            .checked_mul(scaling_factor)
-            .ok_or_else(math_error!())?
-    };
-
-    Ok(price)
-}
-
 #[derive(Debug)]
 pub enum BalanceIncreaseType {
     Any,
@@ -108,9 +71,9 @@ pub enum WeightType {
     Maintenance,
 }
 
-pub struct BankAccountWithPriceAdapter<'a> {
+pub struct BankAccountWithPriceFeed<'a> {
     bank: Box<Bank>,
-    price_feed_adapter: Box<OraclePriceFeedAdapter>,
+    price_feed: Box<OraclePriceFeedAdapter>,
     balance: &'a Balance,
 }
 
@@ -119,11 +82,11 @@ pub enum BalanceSide {
     Liabilities,
 }
 
-impl<'a> BankAccountWithPriceAdapter<'a> {
+impl<'a> BankAccountWithPriceFeed<'a> {
     pub fn load<'info: 'a>(
         lending_account: &'info LendingAccount,
         remaining_ais: &[AccountInfo],
-    ) -> MarginfiResult<Vec<BankAccountWithPriceAdapter<'a>>> {
+    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
         let active_balances = lending_account
             .balances
             .iter()
@@ -165,9 +128,9 @@ impl<'a> BankAccountWithPriceAdapter<'a> {
                     MAX_PRICE_AGE_SEC,
                 )?);
 
-                Ok(BankAccountWithPriceAdapter {
+                Ok(BankAccountWithPriceFeed {
                     bank: Box::new(*bank),
-                    price_feed_adapter: price_adapter,
+                    price_feed: price_adapter,
                     balance,
                 })
             })
@@ -179,7 +142,7 @@ impl<'a> BankAccountWithPriceAdapter<'a> {
         &self,
         weight_type: WeightType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
-        let (worst_price, best_price) = self.price_feed_adapter.get_price_range()?;
+        let (worst_price, best_price) = self.price_feed.get_price_range()?;
 
         let asset_amount = self
             .bank
@@ -276,7 +239,7 @@ impl RiskRequirementType {
 }
 
 pub struct RiskEngine<'a> {
-    bank_accounts_with_price: Vec<BankAccountWithPriceAdapter<'a>>,
+    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
 }
 
 impl<'a> RiskEngine<'a> {
@@ -285,7 +248,7 @@ impl<'a> RiskEngine<'a> {
         remaining_ais: &[AccountInfo],
     ) -> MarginfiResult<Self> {
         let bank_accounts_with_price =
-            BankAccountWithPriceAdapter::load(&marginfi_account.lending_account, remaining_ais)?;
+            BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
         Ok(Self {
             bank_accounts_with_price,

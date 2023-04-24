@@ -426,11 +426,11 @@ impl Bank {
     #[inline]
     pub fn load_price_feed_from_account_info(
         &self,
-        ai: &[AccountInfo],
+        ais: &[AccountInfo],
         current_timestamp: i64,
         max_age: u64,
     ) -> MarginfiResult<OraclePriceFeedAdapter> {
-        OraclePriceFeedAdapter::try_from_bank_config(&self.config, ai, current_timestamp, max_age)
+        OraclePriceFeedAdapter::try_from_bank_config(&self.config, ais, current_timestamp, max_age)
     }
 
     /// Calculate the interest rate accrual state changes for a given time period
