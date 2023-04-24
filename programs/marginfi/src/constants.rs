@@ -52,6 +52,8 @@ pub const EMISSIONS_FLAG_BORROW_ACTIVE: u64 = 1 << 0;
 pub const EMISSIONS_FLAG_LENDING_ACTIVE: u64 = 1 << 1;
 
 /// Cutoff timestamp for balance last_update used in accounting collected emissions.
+/// Any balance updates before this timestamp are ignored, and current_timestamp is used instead.
 pub const MIN_EMISSIONS_START_TIME: u64 = 1681989983;
 
+/// This constant combines the number of seconds per year, and the scale of the emissions rate (1e+6) to save on computation.
 pub const EMISSION_CALC_SECS_PER_YEAR: I80F48 = I80F48!(31_536_000_000_000);

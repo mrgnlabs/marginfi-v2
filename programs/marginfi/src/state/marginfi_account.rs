@@ -978,9 +978,14 @@ impl<'a> BankAccountWrapper<'a> {
             ),
             _ => None,
         } {
+            let last_update = if self.balance.last_update < MIN_EMISSIONS_START_TIME {
+                current_timestamp
+            } else {
+                self.balance.last_update
+            };
             let period = I80F48::from_num(
                 current_timestamp
-                    .checked_sub(max(self.balance.last_update, MIN_EMISSIONS_START_TIME))
+                    .checked_sub(last_update)
                     .ok_or_else(math_error!())?,
             );
             let emissions_rate = I80F48::from_num(self.bank.emissions_rate);
@@ -991,17 +996,29 @@ impl<'a> BankAccountWrapper<'a> {
                 .ok_or_else(math_error!())?
                 .checked_div(EMISSION_CALC_SECS_PER_YEAR)
                 .ok_or_else(math_error!())?;
-            let emissions = min(emissions, I80F48::from(self.bank.emissions_remaining));
+            let emissions_real = min(emissions, I80F48::from(self.bank.emissions_remaining));
+
+            msg!(
+                "Emitting {} ({} calculated) for period {}s",
+                emissions_real,
+                emissions,
+                period
+            );
+
+            msg!(
+                "Outstanding emissions: {}",
+                I80F48::from(self.balance.emissions_outstanding)
+            );
 
             self.balance.emissions_outstanding = {
                 I80F48::from(self.balance.emissions_outstanding)
-                    .checked_add(emissions)
+                    .checked_add(emissions_real)
                     .ok_or_else(math_error!())?
             }
             .into();
             self.bank.emissions_remaining = {
                 I80F48::from(self.bank.emissions_remaining)
-                    .checked_sub(emissions)
+                    .checked_sub(emissions_real)
                     .ok_or_else(math_error!())?
             }
             .into();
