@@ -49,8 +49,8 @@ pub struct LendingPoolConfigureBank<'info> {
     pub bank: AccountLoader<'info, Bank>,
 }
 
-pub fn bank_setup_emissions(
-    ctx: Context<BankSetupEmissions>,
+pub fn lending_pool_setup_emissions(
+    ctx: Context<LendingPoolSetupEmissions>,
     emissions_flags: u64,
     emissions_rate: u64,
     total_emissions: u64,
@@ -84,7 +84,7 @@ pub fn bank_setup_emissions(
 }
 
 #[derive(Accounts)]
-pub struct BankSetupEmissions<'info> {
+pub struct LendingPoolSetupEmissions<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

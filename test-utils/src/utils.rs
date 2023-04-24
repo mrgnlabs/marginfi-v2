@@ -237,6 +237,31 @@ pub fn clone_keypair(keypair: &Keypair) -> Keypair {
     Keypair::from_bytes(&keypair.to_bytes()).unwrap()
 }
 
+pub fn get_emissions_authority_address(bank_pk: Pubkey, emissions_mint: Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            marginfi::constants::EMISSIONS_AUTH_SEED.as_bytes(),
+            bank_pk.as_ref(),
+            emissions_mint.as_ref(),
+        ],
+        &marginfi::id(),
+    )
+}
+
+pub fn get_emissions_token_account_address(
+    bank_pk: Pubkey,
+    emissions_mint: Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            marginfi::constants::EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
+            bank_pk.as_ref(),
+            emissions_mint.as_ref(),
+        ],
+        &marginfi::id(),
+    )
+}
+
 #[cfg(feature = "lip")]
 pub mod lip {
     use super::*;

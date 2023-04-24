@@ -11,7 +11,9 @@ use crate::{
     },
 };
 
-pub fn withdraw_emissions(ctx: Context<WithdrawEmissions>) -> MarginfiResult {
+pub fn lending_account_withdraw_emissions(
+    ctx: Context<LendingAccountWithdrawEmissions>,
+) -> MarginfiResult {
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
 
@@ -44,7 +46,7 @@ pub fn withdraw_emissions(ctx: Context<WithdrawEmissions>) -> MarginfiResult {
 }
 
 #[derive(Accounts)]
-pub struct WithdrawEmissions<'info> {
+pub struct LendingAccountWithdrawEmissions<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
