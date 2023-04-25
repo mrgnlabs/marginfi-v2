@@ -12,7 +12,6 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
-use fixed_macro::types::I80F48;
 
 use std::{
     cmp::{max, min},
