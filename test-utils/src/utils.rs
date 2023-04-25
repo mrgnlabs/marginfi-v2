@@ -1,13 +1,17 @@
 use anchor_lang::prelude::*;
-// use lip::*;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
 };
-use solana_program::instruction::Instruction;
+use solana_program::{instruction::Instruction, pubkey};
 use solana_program_test::*;
 use solana_sdk::{account::Account, signature::Keypair};
+use std::mem::size_of;
 use std::{cell::RefCell, rc::Rc};
+use switchboard_v2::SWITCHBOARD_PROGRAM_ID;
+use switchboard_v2::{
+    AggregatorAccountData, AggregatorResolutionMode, AggregatorRound, SwitchboardDecimal,
+};
 
 pub const MS_PER_SLOT: u64 = 400;
 pub const RUST_LOG_DEFAULT: &str = "solana_rbpf::vm=info,\
@@ -43,7 +47,7 @@ where
     }
 }
 
-pub fn craft_pyth_price_account(
+pub fn create_pyth_price_account(
     mint: Pubkey,
     ui_price: i64,
     mint_decimals: i32,
@@ -78,6 +82,267 @@ pub fn craft_pyth_price_account(
         owner: PYTH_ID,
         executable: false,
         rent_epoch: 361,
+    }
+}
+
+pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Account {
+    let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
+    let aggregator_account = switchboard_v2::AggregatorAccountData {
+        name: [0; 32],
+        metadata: [0; 128],
+        _reserved1: [0; 32],
+        queue_pubkey: Pubkey::default(),
+        oracle_request_batch_size: 4,
+        min_oracle_results: 2,
+        min_job_results: 1,
+        min_update_delay_seconds: 6,
+        start_after: 0,
+        variance_threshold: SwitchboardDecimal {
+            mantissa: 0,
+            scale: 0,
+        },
+        force_report_period: 0,
+        expiration: 0,
+        consecutive_failure_count: 0,
+        next_allowed_update_time: 1682220588,
+        is_locked: false,
+        crank_pubkey: Pubkey::default(),
+        latest_confirmed_round: AggregatorRound {
+            num_success: 4,
+            num_error: 0,
+            is_closed: true,
+            round_open_slot: 189963416,
+            round_open_timestamp: 1682220573,
+            result: SwitchboardDecimal {
+                mantissa: native_price as i128,
+                scale: mint_decimals as u32,
+            },
+            std_deviation: SwitchboardDecimal {
+                mantissa: 13942937500000000000000000,
+                scale: 28,
+            },
+            min_response: SwitchboardDecimal {
+                mantissa: 2175243675,
+                scale: 8,
+            },
+            max_response: SwitchboardDecimal {
+                mantissa: 21763,
+                scale: 3,
+            },
+            oracle_pubkeys_data: [Pubkey::default(); 16],
+            medians_data: [
+                SwitchboardDecimal {
+                    mantissa: 21757,
+                    scale: 3,
+                },
+                SwitchboardDecimal {
+                    mantissa: 21757,
+                    scale: 3,
+                },
+                SwitchboardDecimal {
+                    mantissa: 21757,
+                    scale: 3,
+                },
+                SwitchboardDecimal {
+                    mantissa: 217597885875,
+                    scale: 10,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+            ],
+            current_payout: [12500, 12500, 0, 12500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            medians_fulfilled: [
+                true, true, true, true, false, false, false, false, false, false, false, false,
+                false, false, false, false,
+            ],
+            errors_fulfilled: [
+                false, false, false, false, false, false, false, false, false, false, false, false,
+                false, false, false, false,
+            ],
+        },
+        current_round: AggregatorRound {
+            num_success: 0,
+            num_error: 0,
+            is_closed: false,
+            round_open_slot: 189963432,
+            round_open_timestamp: 1682220581,
+            result: SwitchboardDecimal {
+                mantissa: 0,
+                scale: 0,
+            },
+            std_deviation: SwitchboardDecimal {
+                mantissa: 0,
+                scale: 0,
+            },
+            min_response: SwitchboardDecimal {
+                mantissa: 0,
+                scale: 0,
+            },
+            max_response: SwitchboardDecimal {
+                mantissa: 0,
+                scale: 0,
+            },
+            oracle_pubkeys_data: [Pubkey::default(); 16],
+            medians_data: [
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+                SwitchboardDecimal {
+                    mantissa: 0,
+                    scale: 0,
+                },
+            ],
+            current_payout: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            medians_fulfilled: [
+                false, false, false, false, false, false, false, false, false, false, false, false,
+                false, false, false, false,
+            ],
+            errors_fulfilled: [
+                false, false, false, false, false, false, false, false, false, false, false, false,
+                false, false, false, false,
+            ],
+        },
+        job_pubkeys_data: [Pubkey::default(); 16],
+        job_hashes: [switchboard_v2::Hash::default(); 16],
+        job_pubkeys_size: 5,
+        jobs_checksum: [
+            119, 207, 222, 177, 160, 127, 254, 198, 132, 153, 111, 54, 202, 89, 87, 81, 75, 152,
+            67, 132, 249, 111, 216, 90, 132, 22, 198, 45, 67, 233, 50, 225,
+        ],
+        authority: pubkey!("GvDMxPzN1sCj7L26YDK2HnMRXEQmQ2aemov8YBtPS7vR"),
+        history_buffer: pubkey!("E3cqnoFvTeKKNsGmC8YitpMjo2E39hwfoyt2Aiem7dCb"),
+        previous_confirmed_round_result: SwitchboardDecimal {
+            mantissa: 21757,
+            scale: 3,
+        },
+        previous_confirmed_round_slot: 189963416,
+        disable_crank: false,
+        job_weights: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        creation_timestamp: 0,
+        resolution_mode: AggregatorResolutionMode::ModeRoundResolution,
+        _ebuf: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ],
+    };
+
+    let desc_bytes = <AggregatorAccountData as anchor_lang_27::Discriminator>::DISCRIMINATOR;
+    let mut data = vec![0u8; 8 + size_of::<AggregatorAccountData>()];
+    data[..8].copy_from_slice(&desc_bytes);
+    data[8..].copy_from_slice(bytemuck::bytes_of(&aggregator_account));
+
+    Account {
+        lamports: 10000,
+        data,
+        owner: SWITCHBOARD_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
     }
 }
 

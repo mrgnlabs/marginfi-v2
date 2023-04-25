@@ -60,6 +60,8 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: LipCommand,
     },
+    #[cfg(feature = "dev")]
+    InspectSwitchboardFeed { switchboard_feed: Pubkey },
 }
 
 #[derive(Debug, Parser)]
@@ -201,6 +203,9 @@ pub enum BankCommand {
         #[clap(long, arg_enum, help = "Bank risk tier")]
         risk_tier: Option<RiskTierArg>,
     },
+    InspectPriceOracle {
+        bank_pk: Pubkey,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -302,6 +307,15 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
         #[cfg(feature = "lip")]
         Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
+        #[cfg(feature = "dev")]
+        Command::InspectSwitchboardFeed { switchboard_feed } => {
+            let profile = load_profile()?;
+            let config = profile.get_config(Some(&opts.cfg_override))?;
+
+            processor::process_inspect_switchboard_feed(&config, &switchboard_feed);
+
+            Ok(())
+        }
     }
 }
 
@@ -428,8 +442,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
 
     if !global_options.skip_confirmation {
         match subcmd {
-            BankCommand::Get { bank: _ } => (),
-            BankCommand::GetAll { marginfi_group: _ } => (),
+            BankCommand::Get { .. }
+            | BankCommand::GetAll { .. }
+            | BankCommand::InspectPriceOracle { .. } => (),
             #[cfg(feature = "admin")]
             _ => get_consent(&subcmd, &profile)?,
         }
@@ -493,6 +508,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                 },
             )
         }
+        BankCommand::InspectPriceOracle { bank_pk } => {
+            processor::bank_inspect_price_oracle(config, bank_pk)
+        }
     }
 }
 
@@ -501,7 +519,10 @@ fn inspect_padding() -> Result<()> {
     println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
     println!("GroupConfig: {}", GroupConfig::type_layout());
     println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
-    println!("Bank: {}", Bank::type_layout());
+    println!(
+        "Bank: {}",
+        marginfi::state::marginfi_group::Bank::type_layout()
+    );
     println!("BankConfig: {}", BankConfig::type_layout());
     println!("OracleConfig: {}", OracleConfig::type_layout());
     println!("BankConfigOpt: {}", BankConfigOpt::type_layout());

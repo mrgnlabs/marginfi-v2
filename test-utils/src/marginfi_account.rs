@@ -272,8 +272,8 @@ impl MarginfiAccountFixture {
         .to_account_metas(Some(true));
 
         accounts.extend(vec![
-            AccountMeta::new_readonly(asset_bank.config.get_pyth_oracle_key(), false),
-            AccountMeta::new_readonly(liab_bank.config.get_pyth_oracle_key(), false),
+            AccountMeta::new_readonly(asset_bank.config.oracle_keys[0], false),
+            AccountMeta::new_readonly(liab_bank.config.oracle_keys[0], false),
         ]);
 
         let mut ix = Instruction {
@@ -387,7 +387,7 @@ impl MarginfiAccountFixture {
                         is_writable: false,
                     },
                     AccountMeta {
-                        pubkey: bank.config.get_pyth_oracle_key(),
+                        pubkey: bank.config.oracle_keys[0],
                         is_signer: false,
                         is_writable: false,
                     },
