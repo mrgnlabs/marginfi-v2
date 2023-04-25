@@ -6,6 +6,7 @@ pub enum MarginfiError {
     MathError,
     #[msg("Invalid bank index")] // 6001
     BankNotFound,
+
     #[msg("Lending account balance not found")] // 6002
     LendingAccountBalanceNotFound,
     #[msg("Bank deposit capacity exceeded")] // 6003
@@ -64,13 +65,14 @@ pub enum MarginfiError {
     #[msg("Bank borrow cap exceeded")] // 6029
     BankLiabilityCapacityExceeded,
     #[msg("Invalid Price")] // 6030
-    InvalidPrice,
-    // 6031
+    InvalidPrice, // 6031
     #[msg("Account can have only one liablity when account is under isolated risk")]
-    IsolatedAccountIllegalState,
-    #[msg("Oracle is not set")] // 6032
+    IsolatedAccountIllegalState, // 6032
+    #[msg("Emissions already setup")]
+    EmissionsAlreadySetup,
+    #[msg("Oracle is not set")] // 6033
     OracleNotSetup,
-    #[msg("Invalid swithcboard decimal conversion")] // 6033
+    #[msg("Invalid swithcboard decimal conversion")] // 6034
     InvalidSwitchboardDecimalConversion,
 }
 

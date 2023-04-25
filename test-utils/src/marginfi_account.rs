@@ -316,6 +316,40 @@ impl MarginfiAccountFixture {
         ctx.banks_client.process_transaction(tx).await
     }
 
+    pub async fn try_withdraw_emissions(
+        &self,
+        bank: &BankFixture,
+        recv_account: Pubkey,
+    ) -> std::result::Result<(), BanksClientError> {
+        let emissions_mint = bank.load().await.emissions_mint;
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingAccountWithdrawEmissions {
+                marginfi_group: self.load().await.group,
+                marginfi_account: self.key,
+                signer: self.ctx.borrow().payer.pubkey(),
+                emissions_mint,
+                emissions_auth: get_emissions_authority_address(bank.key, emissions_mint).0,
+                emissions_vault: get_emissions_token_account_address(bank.key, emissions_mint).0,
+                destination_account: recv_account,
+                bank: bank.key,
+                token_program: token::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingAccountWithdrawEmissions {}.data(),
+        };
+
+        let mut ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
+
     pub async fn load_observation_account_metas(
         &self,
         include_banks: Vec<Pubkey>,
@@ -362,6 +396,7 @@ impl MarginfiAccountFixture {
             .collect::<Vec<_>>();
         account_metas
     }
+
     pub async fn set_account(&self, mfi_account: &MarginfiAccount) -> anyhow::Result<()> {
         let mut ctx = self.ctx.borrow_mut();
         let mut account = ctx.banks_client.get_account(self.key).await?.unwrap();

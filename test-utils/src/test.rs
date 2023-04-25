@@ -1,6 +1,7 @@
 use crate::{marginfi_group::*, native, spl::*, utils::*};
 use anchor_lang::prelude::*;
 use bincode::deserialize;
+use solana_sdk::account::AccountSharedData;
 
 use super::marginfi_account::MarginfiAccountFixture;
 use crate::bank::BankFixture;
@@ -227,11 +228,11 @@ impl TestFixture {
 
         program.add_account(
             PYTH_USDC_FEED,
-            create_pyth_price_account(usdc_keypair.pubkey(), 1, USDC_MINT_DECIMALS.into()),
+            create_pyth_price_account(usdc_keypair.pubkey(), 1, USDC_MINT_DECIMALS.into(), None),
         );
         program.add_account(
             PYTH_SOL_FEED,
-            create_pyth_price_account(sol_keypair.pubkey(), 10, SOL_MINT_DECIMALS.into()),
+            create_pyth_price_account(sol_keypair.pubkey(), 10, SOL_MINT_DECIMALS.into(), None),
         );
         program.add_account(
             PYTH_SOL_EQUIVALENT_FEED,
@@ -239,11 +240,12 @@ impl TestFixture {
                 sol_equivalent_keypair.pubkey(),
                 10,
                 SOL_MINT_DECIMALS.into(),
+                None,
             ),
         );
         program.add_account(
             PYTH_MNDE_FEED,
-            create_pyth_price_account(mnde_keypair.pubkey(), 10, MNDE_MINT_DECIMALS.into()),
+            create_pyth_price_account(mnde_keypair.pubkey(), 10, MNDE_MINT_DECIMALS.into(), None),
         );
 
         program.add_account(
@@ -403,6 +405,31 @@ impl TestFixture {
             ..Default::default()
         };
         self.context.borrow_mut().set_sysvar(&clock);
+    }
+
+    pub async fn set_pyth_oracle_timestamp(&self, address: Pubkey, timestamp: i64) {
+        let mut ctx = self.context.borrow_mut();
+
+        let mut account = ctx
+            .banks_client
+            .get_account(address)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let data = account.data.as_mut_slice();
+        let mut data = *pyth_sdk_solana::state::load_price_account(data).unwrap();
+
+        data.timestamp = timestamp;
+        data.prev_timestamp = timestamp;
+
+        let bytes = bytemuck::bytes_of(&data);
+
+        let mut aso = AccountSharedData::from(account);
+
+        aso.set_data_from_slice(bytes);
+
+        ctx.set_account(&address, &aso);
     }
 
     pub async fn advance_time(&self, seconds: i64) {

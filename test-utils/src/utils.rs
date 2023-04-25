@@ -47,7 +47,12 @@ where
     }
 }
 
-pub fn create_pyth_price_account(mint: Pubkey, ui_price: i64, mint_decimals: i32) -> Account {
+pub fn create_pyth_price_account(
+    mint: Pubkey,
+    ui_price: i64,
+    mint_decimals: i32,
+    timestamp: Option<i64>,
+) -> Account {
     let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
     Account {
         lamports: 1_000_000,
@@ -70,6 +75,7 @@ pub fn create_pyth_price_account(mint: Pubkey, ui_price: i64, mint_decimals: i32
                 numer: native_price,
                 denom: 1,
             },
+            prev_timestamp: timestamp.unwrap_or(0),
             ..Default::default()
         })
         .to_vec(),
@@ -454,6 +460,14 @@ macro_rules! native {
     ($val: expr, "MNDE", f64) => {
         (($val) * 10_u64.pow(9) as f64) as u64
     };
+
+    ($val: expr, $decimals: expr) => {
+        $val * 10_u64.pow($decimals as u32)
+    };
+
+    ($val: expr, $decimals: expr, f64) => {
+        (($val) * 10_u64.pow($decimals as u32) as f64) as u64
+    };
 }
 
 #[macro_export]
@@ -500,6 +514,31 @@ macro_rules! f_native {
 
 pub fn clone_keypair(keypair: &Keypair) -> Keypair {
     Keypair::from_bytes(&keypair.to_bytes()).unwrap()
+}
+
+pub fn get_emissions_authority_address(bank_pk: Pubkey, emissions_mint: Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            marginfi::constants::EMISSIONS_AUTH_SEED.as_bytes(),
+            bank_pk.as_ref(),
+            emissions_mint.as_ref(),
+        ],
+        &marginfi::id(),
+    )
+}
+
+pub fn get_emissions_token_account_address(
+    bank_pk: Pubkey,
+    emissions_mint: Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            marginfi::constants::EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
+            bank_pk.as_ref(),
+            emissions_mint.as_ref(),
+        ],
+        &marginfi::id(),
+    )
 }
 
 #[cfg(feature = "lip")]

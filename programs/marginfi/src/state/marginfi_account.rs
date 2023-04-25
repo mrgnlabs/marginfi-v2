@@ -3,8 +3,12 @@ use super::{
     price::{OraclePriceFeedAdapter, PriceAdapter},
 };
 use crate::{
-    check,
-    constants::{EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, ZERO_AMOUNT_THRESHOLD},
+    assert_struct_size, check,
+    constants::{
+        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMISSION_CALC_SECS_PER_YEAR,
+        EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME,
+        ZERO_AMOUNT_THRESHOLD,
+    },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
     utils::NumTraitsWithTolerance,
@@ -486,6 +490,7 @@ impl LendingAccount {
     }
 }
 
+assert_struct_size!(Balance, 104);
 #[zero_copy]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -496,7 +501,9 @@ pub struct Balance {
     pub bank_pk: Pubkey,
     pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
-    pub _padding: [u64; 4], // 8 * 4 = 32
+    pub emissions_outstanding: WrappedI80F48,
+    pub last_update: u64,
+    pub _padding: [u64; 1],
 }
 
 impl Balance {
@@ -536,6 +543,16 @@ impl Balance {
         self.asset_shares = I80F48::ZERO.into();
         self.liability_shares = I80F48::ZERO.into();
         self.bank_pk = Pubkey::default();
+    }
+
+    pub fn get_side(&self) -> Option<BalanceSide> {
+        if I80F48::from(self.asset_shares) >= EMPTY_BALANCE_THRESHOLD {
+            Some(BalanceSide::Assets)
+        } else if I80F48::from(self.liability_shares) >= EMPTY_BALANCE_THRESHOLD {
+            Some(BalanceSide::Liabilities)
+        } else {
+            None
+        }
     }
 }
 
@@ -591,7 +608,9 @@ impl<'a> BankAccountWrapper<'a> {
                     bank_pk: *bank_pk,
                     asset_shares: I80F48::ZERO.into(),
                     liability_shares: I80F48::ZERO.into(),
-                    _padding: [0; 4],
+                    emissions_outstanding: I80F48::ZERO.into(),
+                    last_update: Clock::get()?.unix_timestamp as u64,
+                    _padding: [0; 1],
                 };
 
                 Ok(Self {
@@ -755,6 +774,8 @@ impl<'a> BankAccountWrapper<'a> {
             operation_type
         );
 
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -818,6 +839,8 @@ impl<'a> BankAccountWrapper<'a> {
             operation_type
         );
 
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -870,6 +893,92 @@ impl<'a> BankAccountWrapper<'a> {
         bank.check_utilization_ratio()?;
 
         Ok(())
+    }
+
+    /// Claim any unclaimed emissions and add them to the outstanding emissions amount.
+    pub fn claim_emissions(&mut self, current_timestamp: u64) -> MarginfiResult {
+        if let Some(balance_amount) = match (
+            self.balance.get_side(),
+            self.bank.get_emissions_flag(EMISSIONS_FLAG_LENDING_ACTIVE),
+            self.bank.get_emissions_flag(EMISSIONS_FLAG_BORROW_ACTIVE),
+        ) {
+            (Some(BalanceSide::Assets), true, _) => Some(
+                self.bank
+                    .get_asset_amount(self.balance.asset_shares.into())?,
+            ),
+            (Some(BalanceSide::Liabilities), _, true) => Some(
+                self.bank
+                    .get_liability_amount(self.balance.liability_shares.into())?,
+            ),
+            _ => None,
+        } {
+            let last_update = if self.balance.last_update < MIN_EMISSIONS_START_TIME {
+                current_timestamp
+            } else {
+                self.balance.last_update
+            };
+            let period = I80F48::from_num(
+                current_timestamp
+                    .checked_sub(last_update)
+                    .ok_or_else(math_error!())?,
+            );
+            let emissions_rate = I80F48::from_num(self.bank.emissions_rate);
+            let emissions = period
+                .checked_mul(balance_amount)
+                .ok_or_else(math_error!())?
+                .checked_mul(emissions_rate)
+                .ok_or_else(math_error!())?
+                .checked_div(EMISSION_CALC_SECS_PER_YEAR)
+                .ok_or_else(math_error!())?;
+            let emissions_real = min(emissions, I80F48::from(self.bank.emissions_remaining));
+
+            msg!(
+                "Emitting {} ({} calculated) for period {}s",
+                emissions_real,
+                emissions,
+                period
+            );
+
+            msg!(
+                "Outstanding emissions: {}",
+                I80F48::from(self.balance.emissions_outstanding)
+            );
+
+            self.balance.emissions_outstanding = {
+                I80F48::from(self.balance.emissions_outstanding)
+                    .checked_add(emissions_real)
+                    .ok_or_else(math_error!())?
+            }
+            .into();
+            self.bank.emissions_remaining = {
+                I80F48::from(self.bank.emissions_remaining)
+                    .checked_sub(emissions_real)
+                    .ok_or_else(math_error!())?
+            }
+            .into();
+        }
+
+        self.balance.last_update = current_timestamp;
+
+        Ok(())
+    }
+
+    /// Claim any outstanding emissions, and return the max amount that can be withdrawn.
+    pub fn settle_emissions_and_get_transfer_amount(&mut self) -> MarginfiResult<u64> {
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
+        let outstanding_emissions_floored = I80F48::from(self.balance.emissions_outstanding)
+            .checked_floor()
+            .ok_or_else(math_error!())?;
+        let new_outstanding_amount = I80F48::from(self.balance.emissions_outstanding)
+            .checked_sub(outstanding_emissions_floored)
+            .ok_or_else(math_error!())?;
+
+        self.balance.emissions_outstanding = new_outstanding_amount.into();
+
+        Ok(outstanding_emissions_floored
+            .checked_to_num::<u64>()
+            .ok_or_else(math_error!())?)
     }
 
     // ------------ SPL helpers

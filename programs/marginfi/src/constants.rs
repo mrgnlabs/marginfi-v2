@@ -11,6 +11,9 @@ pub const LIQUIDITY_VAULT_SEED: &str = "liquidity_vault";
 pub const INSURANCE_VAULT_SEED: &str = "insurance_vault";
 pub const FEE_VAULT_SEED: &str = "fee_vault";
 
+pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
+pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
         pub const PYTH_ID: Pubkey = pubkey!("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
@@ -44,6 +47,16 @@ pub const EMPTY_BALANCE_THRESHOLD: I80F48 = I80F48!(1);
 
 /// Comparios threshold used to account for arithmetic artifacts on balances
 pub const ZERO_AMOUNT_THRESHOLD: I80F48 = I80F48!(0.0001);
+
+pub const EMISSIONS_FLAG_BORROW_ACTIVE: u64 = 1 << 0;
+pub const EMISSIONS_FLAG_LENDING_ACTIVE: u64 = 1 << 1;
+
+/// Cutoff timestamp for balance last_update used in accounting collected emissions.
+/// Any balance updates before this timestamp are ignored, and current_timestamp is used instead.
+pub const MIN_EMISSIONS_START_TIME: u64 = 1681989983;
+
+/// This constant combines the number of seconds per year, and the scale of the emissions rate (1e+6) to save on computation.
+pub const EMISSION_CALC_SECS_PER_YEAR: I80F48 = I80F48!(31_536_000_000_000);
 
 pub const MAX_EXP_10_I80F48: usize = 24;
 pub const EXP_10_I80F48: [I80F48; MAX_EXP_10_I80F48] = [
