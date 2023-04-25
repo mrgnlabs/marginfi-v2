@@ -68,6 +68,10 @@ pub enum MarginfiError {
     // 6031
     #[msg("Account can have only one liablity when account is under isolated risk")]
     IsolatedAccountIllegalState,
+    #[msg("Oracle is not set")] // 6032
+    OracleNotSetup,
+    #[msg("Invalid swithcboard decimal conversion")] // 6033
+    InvalidSwitchboardDecimalConversion,
 }
 
 impl From<MarginfiError> for ProgramError {

@@ -24,8 +24,7 @@ use log::info;
 use marginfi::{
     prelude::GroupConfig,
     state::marginfi_group::{
-        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, OracleSetup,
-        WrappedI80F48,
+        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, WrappedI80F48,
     },
 };
 use marginfi::{
@@ -33,6 +32,7 @@ use marginfi::{
     state::{
         marginfi_account::MarginfiAccount,
         marginfi_group::{Bank, BankVaultType},
+        price::{OraclePriceFeedAdapter, PriceAdapter},
     },
 };
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
@@ -285,6 +285,8 @@ pub fn group_add_bank(
     protocol_ir_fee: f64,
     risk_tier: crate::RiskTierArg,
 ) -> Result<()> {
+    use marginfi::state::price::OracleSetup;
+
     let rpc_client = config.mfi_program.rpc();
 
     if profile.marginfi_group.is_none() {
@@ -377,7 +379,7 @@ pub fn group_add_bank(
                 borrow_limit,
                 interest_rate_config,
                 operational_state: BankOperationalState::Operational,
-                oracle_setup: OracleSetup::Pyth,
+                oracle_setup: OracleSetup::PythEma,
                 oracle_keys: create_oracle_key_array(pyth_oracle),
                 risk_tier: risk_tier.into(),
                 ..BankConfig::default()
@@ -555,6 +557,44 @@ pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()
     for (address, state) in accounts {
         println!("-> {address}:\n{state:#?}\n");
     }
+    Ok(())
+}
+
+pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> {
+    let bank: Bank = config.mfi_program.account(bank_pk)?;
+    let mut price_oracle_account = config
+        .mfi_program
+        .rpc()
+        .get_account(&bank.config.oracle_keys[0])?;
+    let price_oracle_ai =
+        (&bank.config.oracle_keys[0], &mut price_oracle_account).into_account_info();
+
+    let opfa =
+        OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[price_oracle_ai], 0, u64::MAX)
+            .unwrap();
+
+    let (worst, best) = opfa.get_price_range().unwrap();
+    let keys = bank
+        .config
+        .oracle_keys
+        .iter()
+        .filter(|k| k != &&Pubkey::default())
+        .collect::<Vec<_>>();
+
+    println!(
+        r##"
+Oracle Setup: {setup:?}
+Oracle Keys: {keys:#?}
+Price: ${price} (worst: ${worst}, best: ${best}, std_dev: ${std})
+    "##,
+        setup = bank.config.oracle_setup,
+        keys = keys,
+        price = opfa.get_price().unwrap(),
+        worst = worst,
+        best = best,
+        std = opfa.get_confidence_interval().unwrap(),
+    );
+
     Ok(())
 }
 
@@ -1159,12 +1199,12 @@ pub fn marginfi_account_liquidate(
     };
 
     ix.accounts.push(AccountMeta {
-        pubkey: asset_bank.config.get_pyth_oracle_key(),
+        pubkey: asset_bank.config.oracle_keys[0],
         is_signer: false,
         is_writable: false,
     });
     ix.accounts.push(AccountMeta {
-        pubkey: liability_bank.config.get_pyth_oracle_key(),
+        pubkey: liability_bank.config.oracle_keys[0],
         is_signer: false,
         is_writable: false,
     });
@@ -1339,4 +1379,20 @@ fn timestamp_to_string(timestamp: i64) -> String {
     )
     .format("%Y-%m-%d %H:%M:%S")
     .to_string()
+}
+
+// Switchboard tests
+#[cfg(feature = "dev")]
+pub fn process_inspect_switchboard_feed(config: &Config, aggregator_pk: &Pubkey) {
+    let aggregator_account_data = config
+        .mfi_program
+        .rpc()
+        .get_account_data(aggregator_pk)
+        .expect("Aggregator account not found");
+
+    let aggregator_account =
+        switchboard_v2::AggregatorAccountData::new_from_bytes(&aggregator_account_data)
+            .expect("Invalid aggregator account data");
+
+    println!("Aggregator account: {:#?}", aggregator_account);
 }

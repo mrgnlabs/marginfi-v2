@@ -12,10 +12,10 @@ pub const INSURANCE_VAULT_SEED: &str = "insurance_vault";
 pub const FEE_VAULT_SEED: &str = "fee_vault";
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "mainnet-beta")] {
-        pub const PYTH_ID: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");
-    } else if #[cfg(feature = "devnet")] {
+    if #[cfg(feature = "devnet")] {
         pub const PYTH_ID: Pubkey = pubkey!("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
+    } else if #[cfg(feature = "mainnet-beta")] {
+        pub const PYTH_ID: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");
     } else {
         pub const PYTH_ID: Pubkey = pubkey!("5rYvdyWAunZgD2EC1aKo7hQbutUUnkt7bBFM6xNq2z7Z");
     }
@@ -44,3 +44,56 @@ pub const EMPTY_BALANCE_THRESHOLD: I80F48 = I80F48!(1);
 
 /// Comparios threshold used to account for arithmetic artifacts on balances
 pub const ZERO_AMOUNT_THRESHOLD: I80F48 = I80F48!(0.0001);
+
+pub const MAX_EXP_10_I80F48: usize = 24;
+pub const EXP_10_I80F48: [I80F48; MAX_EXP_10_I80F48] = [
+    I80F48!(1),                        // 10^0
+    I80F48!(10),                       // 10^1
+    I80F48!(100),                      // 10^2
+    I80F48!(1000),                     // 10^3
+    I80F48!(10000),                    // 10^4
+    I80F48!(100000),                   // 10^5
+    I80F48!(1000000),                  // 10^6
+    I80F48!(10000000),                 // 10^7
+    I80F48!(100000000),                // 10^8
+    I80F48!(1000000000),               // 10^9
+    I80F48!(10000000000),              // 10^10
+    I80F48!(100000000000),             // 10^11
+    I80F48!(1000000000000),            // 10^12
+    I80F48!(10000000000000),           // 10^13
+    I80F48!(100000000000000),          // 10^14
+    I80F48!(1000000000000000),         // 10^15
+    I80F48!(10000000000000000),        // 10^16
+    I80F48!(100000000000000000),       // 10^17
+    I80F48!(1000000000000000000),      // 10^18
+    I80F48!(10000000000000000000),     // 10^19
+    I80F48!(100000000000000000000),    // 10^20
+    I80F48!(1000000000000000000000),   // 10^21
+    I80F48!(10000000000000000000000),  // 10^22
+    I80F48!(100000000000000000000000), // 10^23
+];
+
+pub const MAX_EXP_10: usize = 21;
+pub const EXP_10: [i128; MAX_EXP_10] = [
+    1,                     // 10^0
+    10,                    // 10^1
+    100,                   // 10^2
+    1000,                  // 10^3
+    10000,                 // 10^4
+    100000,                // 10^5
+    1000000,               // 10^6
+    10000000,              // 10^7
+    100000000,             // 10^8
+    1000000000,            // 10^9
+    10000000000,           // 10^10
+    100000000000,          // 10^11
+    1000000000000,         // 10^12
+    10000000000000,        // 10^13
+    100000000000000,       // 10^14
+    1000000000000000,      // 10^15
+    10000000000000000,     // 10^16
+    100000000000000000,    // 10^17
+    1000000000000000000,   // 10^18
+    10000000000000000000,  // 10^19
+    100000000000000000000, // 10^20
+];

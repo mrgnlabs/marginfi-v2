@@ -124,7 +124,7 @@ pub fn load_observation_account_metas(
                     is_writable: false,
                 },
                 AccountMeta {
-                    pubkey: bank.config.get_pyth_oracle_key(),
+                    pubkey: bank.config.oracle_keys[0],
                     is_signer: false,
                     is_writable: false,
                 },
