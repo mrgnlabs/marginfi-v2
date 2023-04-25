@@ -690,9 +690,9 @@ impl<'a> BankAccountWrapper<'a> {
 
     // ------------ Borrow / Lend primitives
 
-    /// Deposit an asset, will error if there is an existing liability - repaying is not allowed.
+    /// Deposit an asset, will repay any outstanding liabilities.
     pub fn deposit(&mut self, amount: I80F48) -> MarginfiResult {
-        self.increase_balance_internal(amount, BalanceIncreaseType::DepositOnly)
+        self.increase_balance_internal(amount, BalanceIncreaseType::Any)
     }
 
     /// Repay a liability, will error if there is not enough liability - depositing is not allowed.
@@ -705,9 +705,9 @@ impl<'a> BankAccountWrapper<'a> {
         self.decrease_balance_internal(amount, BalanceDecreaseType::WithdrawOnly)
     }
 
-    /// Incur a borrow, will error if there is an existing asset - withdrawing is not allowed.
+    /// Incur a borrow, will withdraw any existing assets.
     pub fn borrow(&mut self, amount: I80F48) -> MarginfiResult {
-        self.decrease_balance_internal(amount, BalanceDecreaseType::BorrowOnly)
+        self.decrease_balance_internal(amount, BalanceDecreaseType::Any)
     }
 
     // ------------ Hybrid operations for seamless repay + deposit / withdraw + borrow
