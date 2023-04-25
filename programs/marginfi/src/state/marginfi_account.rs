@@ -83,8 +83,8 @@ pub enum BalanceSide {
 }
 
 impl<'a> BankAccountWithPriceFeed<'a> {
-    pub fn load<'info: 'a>(
-        lending_account: &'info LendingAccount,
+    pub fn load(
+        lending_account: &'a LendingAccount,
         remaining_ais: &[AccountInfo],
     ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
         let active_balances = lending_account

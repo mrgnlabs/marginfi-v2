@@ -58,11 +58,9 @@ impl OraclePriceFeedAdapter {
 
                 let account_info = &ais[0];
 
-                Ok(OraclePriceFeedAdapter::PythEma(PythEmaPriceFeed::new(
-                    account_info,
-                    current_timestamp,
-                    max_age,
-                )?))
+                Ok(OraclePriceFeedAdapter::PythEma(
+                    PythEmaPriceFeed::load_checked(account_info, current_timestamp, max_age)?,
+                ))
             }
             OracleSetup::SwitchboardV2 => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
@@ -72,7 +70,7 @@ impl OraclePriceFeedAdapter {
                 );
 
                 Ok(OraclePriceFeedAdapter::SwitchboardV2(
-                    SwitchboardV2PriceFeed::new(&ais[0], current_timestamp, max_age)?,
+                    SwitchboardV2PriceFeed::load_checked(&ais[0], current_timestamp, max_age)?,
                 ))
             }
         }
@@ -90,7 +88,7 @@ impl OraclePriceFeedAdapter {
                     MarginfiError::InvalidOracleAccount
                 );
 
-                PythEmaPriceFeed::validate_ais(&oracle_ais[0])?;
+                PythEmaPriceFeed::check_ais(&oracle_ais[0])?;
 
                 Ok(())
             }
@@ -101,7 +99,7 @@ impl OraclePriceFeedAdapter {
                     MarginfiError::InvalidOracleAccount
                 );
 
-                SwitchboardV2PriceFeed::validate_ais(&oracle_ais[0])?;
+                SwitchboardV2PriceFeed::check_ais(&oracle_ais[0])?;
 
                 Ok(())
             }
@@ -114,7 +112,7 @@ pub struct PythEmaPriceFeed {
 }
 
 impl PythEmaPriceFeed {
-    pub fn new(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
+    pub fn load_checked(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
         let price_feed = load_pyth_price_feed(ai)?;
         let price = price_feed
             .get_ema_price_no_older_than(current_time, max_age)
@@ -125,7 +123,7 @@ impl PythEmaPriceFeed {
         })
     }
 
-    fn validate_ais(ai: &AccountInfo) -> MarginfiResult {
+    fn check_ais(ai: &AccountInfo) -> MarginfiResult {
         load_pyth_price_feed(ai)?;
         Ok(())
     }
@@ -164,7 +162,11 @@ pub struct SwitchboardV2PriceFeed {
 }
 
 impl SwitchboardV2PriceFeed {
-    pub fn new(ai: &AccountInfo, current_timestamp: i64, max_age: u64) -> MarginfiResult<Self> {
+    pub fn load_checked(
+        ai: &AccountInfo,
+        current_timestamp: i64,
+        max_age: u64,
+    ) -> MarginfiResult<Self> {
         let ai_data = ai.data.borrow();
 
         check!(
@@ -184,7 +186,7 @@ impl SwitchboardV2PriceFeed {
         })
     }
 
-    fn validate_ais(ai: &AccountInfo) -> MarginfiResult {
+    fn check_ais(ai: &AccountInfo) -> MarginfiResult {
         let ai_data = ai.data.borrow();
 
         check!(
@@ -325,7 +327,6 @@ const MAX_SCALE: u32 = 20;
 /// Return original SwitchboardDecimal if it is already at or below the given scale.
 ///
 /// This may result in minimal loss of precision past the scale delta.
-/// However in practice we've seen that SwitchboardDecimals are significanly overscaled.
 #[inline]
 fn fit_scale_switchboard_decimal(
     decimal: SwitchboardDecimal,
