@@ -114,6 +114,7 @@ pub fn print_group_banks(config: Config, marginfi_group: Pubkey) -> Result<()> {
 fn print_bank(address: &Pubkey, bank: &Bank) {
     println!(
         r#"
+Group: {},
 Bank: {}
 Mint: {},
 Total Deposits: {}
@@ -135,6 +136,7 @@ Config:
     Keys: {:#?}
 Last Update: {:?}h ago ({})
 "#,
+        bank.group,
         address,
         bank.mint,
         bank.get_asset_amount(bank.total_asset_shares.into())
@@ -269,7 +271,8 @@ pub fn group_add_bank(
     config: Config,
     profile: Profile,
     bank_mint: Pubkey,
-    pyth_oracle: Pubkey,
+    oracle_key: Pubkey,
+    oracle_setup: crate::OracleTypeArg,
     asset_weight_init: f64,
     asset_weight_maint: f64,
     liability_weight_init: f64,
@@ -285,8 +288,6 @@ pub fn group_add_bank(
     protocol_ir_fee: f64,
     risk_tier: crate::RiskTierArg,
 ) -> Result<()> {
-    use marginfi::state::price::OracleSetup;
-
     let rpc_client = config.mfi_program.rpc();
 
     if profile.marginfi_group.is_none() {
@@ -368,7 +369,7 @@ pub fn group_add_bank(
             token_program: token::ID,
             system_program: system_program::id(),
         })
-        .accounts(AccountMeta::new_readonly(pyth_oracle, false))
+        .accounts(AccountMeta::new_readonly(oracle_key, false))
         .args(marginfi::instruction::LendingPoolAddBank {
             bank_config: BankConfig {
                 asset_weight_init,
@@ -379,8 +380,8 @@ pub fn group_add_bank(
                 borrow_limit,
                 interest_rate_config,
                 operational_state: BankOperationalState::Operational,
-                oracle_setup: OracleSetup::PythEma,
-                oracle_keys: create_oracle_key_array(pyth_oracle),
+                oracle_setup: oracle_setup.into(),
+                oracle_keys: create_oracle_key_array(oracle_key),
                 risk_tier: risk_tier.into(),
                 ..BankConfig::default()
             },
@@ -555,7 +556,7 @@ fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec
 pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
     let accounts = load_all_banks(&config, marginfi_group)?;
     for (address, state) in accounts {
-        println!("-> {address}:\n{state:#?}\n");
+        print_bank(&address, &state);
     }
     Ok(())
 }
@@ -749,7 +750,7 @@ pub fn bank_configure(
     bank_pk: Pubkey,
     bank_config_opt: BankConfigOpt,
 ) -> Result<()> {
-    let configure_bank_ix = config
+    let mut configure_bank_ix = config
         .mfi_program
         .request()
         .signer(&config.payer)
@@ -758,8 +759,16 @@ pub fn bank_configure(
             admin: config.payer.pubkey(),
             bank: bank_pk,
         })
-        .args(marginfi::instruction::LendingPoolConfigureBank { bank_config_opt })
+        .args(marginfi::instruction::LendingPoolConfigureBank {
+            bank_config_opt: bank_config_opt.clone(),
+        })
         .instructions()?;
+
+    if let Some(oracle) = &bank_config_opt.oracle {
+        configure_bank_ix[0]
+            .accounts
+            .push(AccountMeta::new_readonly(oracle.keys[0], false));
+    }
 
     let transaction = Transaction::new_signed_with_payer(
         &configure_bank_ix,

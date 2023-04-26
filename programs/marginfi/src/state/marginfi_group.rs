@@ -885,7 +885,7 @@ impl From<WrappedI80F48> for I80F48 {
 
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
+    derive(Clone, PartialEq, Eq, TypeLayout)
 )]
 #[derive(AnchorDeserialize, AnchorSerialize, Default)]
 pub struct BankConfigOpt {

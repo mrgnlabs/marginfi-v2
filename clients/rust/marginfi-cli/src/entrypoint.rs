@@ -10,7 +10,10 @@ use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
 #[cfg(any(feature = "admin", feature = "dev"))]
 use marginfi::state::marginfi_group::{BankConfigOpt, InterestRateConfigOpt};
-use marginfi::state::marginfi_group::{BankOperationalState, RiskTier};
+use marginfi::state::{
+    marginfi_group::{BankOperationalState, RiskTier},
+    price::OracleSetup,
+};
 #[cfg(feature = "dev")]
 use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
@@ -114,6 +117,8 @@ pub enum GroupCommand {
         protocol_ir_fee: f64,
         #[clap(long, arg_enum)]
         risk_tier: RiskTierArg,
+        #[clap(long, arg_enum)]
+        oracle_type: OracleTypeArg,
     },
     #[cfg(feature = "admin")]
     HandleBankruptcy {
@@ -135,6 +140,21 @@ impl From<RiskTierArg> for RiskTier {
         match value {
             RiskTierArg::Collateral => RiskTier::Collateral,
             RiskTierArg::Isolated => RiskTier::Isolated,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Parser, ArgEnum)]
+pub enum OracleTypeArg {
+    PythEma,
+    Switchboard,
+}
+
+impl From<OracleTypeArg> for OracleSetup {
+    fn from(value: OracleTypeArg) -> Self {
+        match value {
+            OracleTypeArg::PythEma => OracleSetup::PythEma,
+            OracleTypeArg::Switchboard => OracleSetup::SwitchboardV2,
         }
     }
 }
@@ -202,6 +222,10 @@ pub enum BankCommand {
         pf_ir: Option<f64>,
         #[clap(long, arg_enum, help = "Bank risk tier")]
         risk_tier: Option<RiskTierArg>,
+        #[clap(long, arg_enum, help = "Bank oracle type")]
+        oracle_type: Option<OracleTypeArg>,
+        #[clap(long, help = "Bank oracle account")]
+        oracle_key: Option<Pubkey>,
     },
     InspectPriceOracle {
         bank_pk: Pubkey,
@@ -408,11 +432,13 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             deposit_limit,
             borrow_limit,
             risk_tier,
+            oracle_type,
         } => processor::group_add_bank(
             config,
             profile,
             bank_mint,
             pyth_oracle,
+            oracle_type,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,
@@ -471,6 +497,8 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             pf_fa,
             pf_ir,
             risk_tier,
+            oracle_type,
+            oracle_key,
         } => {
             let bank = config
                 .mfi_program
@@ -494,7 +522,16 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                         spl_token::ui_amount_to_amount(ui_amount, bank.mint_decimals)
                     }),
                     operational_state: operational_state.map(|x| x.into()),
-                    oracle: None,
+                    oracle: oracle_key.map(|x| marginfi::state::marginfi_group::OracleConfig {
+                        setup: oracle_type.expect("Orcale type must be provided").into(),
+                        keys: [
+                            x,
+                            Pubkey::default(),
+                            Pubkey::default(),
+                            Pubkey::default(),
+                            Pubkey::default(),
+                        ],
+                    }),
                     interest_rate_config: Some(InterestRateConfigOpt {
                         optimal_utilization_rate: opr_ur.map(|x| I80F48::from_num(x).into()),
                         plateau_interest_rate: p_ir.map(|x| I80F48::from_num(x).into()),

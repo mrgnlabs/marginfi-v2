@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
+use log::error;
 use marginfi::{
     bank_authority_seed,
     state::{
@@ -39,7 +40,10 @@ pub fn process_transaction(
     } else {
         match rpc_client.send_and_confirm_transaction_with_spinner(tx) {
             Ok(sig) => Ok(sig),
-            Err(err) => bail!(err),
+            Err(err) => {
+                error!("transaction failed: {:?}", err);
+                bail!(err);
+            }
         }
     }
 }
