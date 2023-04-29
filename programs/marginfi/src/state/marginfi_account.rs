@@ -141,10 +141,10 @@ impl<'a> BankAccountWithPriceFeed<'a> {
     }
 
     #[cfg(feature = "client")]
-    pub fn load(
+    pub fn load_from_map(
         marginfi_account: &'a MarginfiAccount,
-        banks: &HashMap<Pubkey, Bank>,
-        price_feeds: &HashMap<Pubkey, PriceFeed>,
+        banks: &std::collections::HashMap<Pubkey, Bank>,
+        price_feeds: &std::collections::HashMap<Pubkey, OraclePriceFeedAdapter>,
     ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
         marginfi_account
             .lending_account
@@ -154,10 +154,10 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             .enumerate()
             .map(|(_, balance)| {
                 let bank = banks.get(&balance.bank_pk).unwrap();
-                let price_feed = price_feeds.get(&bank.config.get_pyth_oracle_key()).unwrap();
+                let price_feed = price_feeds.get(&bank.config.oracle_keys[0]).unwrap();
                 Ok(BankAccountWithPriceFeed {
                     bank: Box::new(*bank),
-                    price_feed: Box::new(*price_feed),
+                    price_feed: Box::new(price_feed.clone()),
                     balance,
                 })
             })
@@ -165,9 +165,9 @@ impl<'a> BankAccountWithPriceFeed<'a> {
     }
 
     #[inline(always)]
-    pub fn calc_weighted_assets_and_liabilities_values(
+    pub fn calc_assets_and_liabilities_values(
         &self,
-        weight_type: WeightType,
+        weight_type: Option<WeightType>,
         current_timestamp: i64,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         let (worst_price, best_price) = self.price_feed.get_price_range()?;
@@ -274,7 +274,7 @@ impl<'a> RiskEngine<'a> {
         remaining_ais: &[AccountInfo],
     ) -> MarginfiResult<Self> {
         Ok(Self {
-            bank_accounts_with_price: BankAccountWithPriceFeed::load_from_remaining_accounts(
+            bank_accounts_with_price: BankAccountWithPriceFeed::load(
                 &marginfi_account.lending_account,
                 remaining_ais,
             )?,
@@ -282,13 +282,13 @@ impl<'a> RiskEngine<'a> {
     }
 
     #[cfg(feature = "client")]
-    pub fn new(
+    pub fn load_from_map(
         marginfi_account: &'a MarginfiAccount,
-        banks: &HashMap<Pubkey, Bank>,
-        price_feeds: &HashMap<Pubkey, PriceFeed>,
+        banks: &std::collections::HashMap<Pubkey, Bank>,
+        price_feeds: &std::collections::HashMap<Pubkey, OraclePriceFeedAdapter>,
     ) -> MarginfiResult<Self> {
         Ok(Self {
-            bank_accounts_with_price: BankAccountWithPriceFeed::load(
+            bank_accounts_with_price: BankAccountWithPriceFeed::load_from_map(
                 marginfi_account,
                 banks,
                 price_feeds,
@@ -306,8 +306,8 @@ impl<'a> RiskEngine<'a> {
             .bank_accounts_with_price
             .iter()
             .map(|a| {
-                a.calc_weighted_assets_and_liabilities_values(
-                    requirement_type.to_weight_type(),
+                a.calc_assets_and_liabilities_values(
+                    Some(requirement_type.to_weight_type()),
                     current_timestamp,
                 )
             })
@@ -334,7 +334,7 @@ impl<'a> RiskEngine<'a> {
         Ok(self
             .bank_accounts_with_price
             .iter()
-            .map(|a| a.calc_unweighted_assets_and_liabilities_values(current_timestamp))
+            .map(|a| a.calc_assets_and_liabilities_values(None, current_timestamp))
             .try_fold(
                 (I80F48::ZERO, I80F48::ZERO),
                 |(total_assets, total_liabilities), res| {

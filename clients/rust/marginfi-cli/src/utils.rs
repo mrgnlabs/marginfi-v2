@@ -1,20 +1,10 @@
-use anyhow::{bail, Result};
-use fixed::types::I80F48;
-use fixed_macro::types::I80F48;
-use log::error;
-use marginfi::{
-    bank_authority_seed,
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType},
-    },
-};
 #[cfg(feature = "admin")]
 use marginfi::{bank_seed, constants::MAX_ORACLE_KEYS};
 use {
     anyhow::{bail, Result},
     fixed::types::I80F48,
     fixed_macro::types::I80F48,
+    log::error,
     marginfi::{
         bank_authority_seed,
         state::{

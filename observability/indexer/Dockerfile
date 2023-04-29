@@ -11,6 +11,8 @@ COPY ./observability/indexer ./observability/indexer
 COPY ./test-utils ./test-utils
 COPY ./clients/rust ./clients/rust
 
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+
 RUN cargo update
 RUN cargo build --release
 
