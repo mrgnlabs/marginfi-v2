@@ -22,7 +22,7 @@ use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 #[cfg(feature = "client")]
 use std::fmt;
 use std::{
-    fmt::{Debug, Formatter},
+    fmt::{Debug, Display, Formatter},
     ops::Not,
 };
 
@@ -736,6 +736,18 @@ pub enum BankOperationalState {
     Paused,
     Operational,
     ReduceOnly,
+}
+
+/// Derive Display if feature = "client"
+#[cfg(feature = "client")]
+impl Display for BankOperationalState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            BankOperationalState::Paused => write!(f, "Paused"),
+            BankOperationalState::Operational => write!(f, "Operational"),
+            BankOperationalState::ReduceOnly => write!(f, "ReduceOnly"),
+        }
+    }
 }
 
 #[repr(u64)]
