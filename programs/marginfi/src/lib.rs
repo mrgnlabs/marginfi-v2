@@ -51,6 +51,15 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank(ctx, bank_config_opt)
     }
 
+    pub fn lending_pool_setup_emissions(
+        ctx: Context<LendingPoolSetupEmissions>,
+        flags: u64,
+        rate: u64,
+        total_emissions: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_setup_emissions(ctx, flags, rate, total_emissions)
+    }
+
     /// Handle bad debt of a bankrupt marginfi account for a given bank.
     pub fn lending_pool_handle_bankruptcy(
         ctx: Context<LendingPoolHandleBankruptcy>,
@@ -93,6 +102,12 @@ pub mod marginfi {
         amount: u64,
     ) -> MarginfiResult {
         marginfi_account::lending_account_borrow(ctx, amount)
+    }
+
+    pub fn lending_account_withdraw_emissions(
+        ctx: Context<LendingAccountWithdrawEmissions>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_withdraw_emissions(ctx)
     }
 
     /// Liquidate a lending account balance of an unhealthy marginfi account

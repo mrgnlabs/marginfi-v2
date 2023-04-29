@@ -1,8 +1,13 @@
-use super::marginfi_group::{Bank, RiskTier, WrappedI80F48};
+use super::{
+    marginfi_group::{Bank, RiskTier, WrappedI80F48},
+    price::{OraclePriceFeedAdapter, PriceAdapter},
+};
 use crate::{
-    check,
+    assert_struct_size, check,
     constants::{
-        CONF_INTERVAL_MULTIPLE, EMPTY_BALANCE_THRESHOLD, MAX_PRICE_AGE_SEC, ZERO_AMOUNT_THRESHOLD,
+        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMISSION_CALC_SECS_PER_YEAR,
+        EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME,
+        ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -11,10 +16,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
-use fixed_macro::types::I80F48;
-use pyth_sdk_solana::PriceFeed;
-#[cfg(feature = "client")]
-use std::collections::HashMap;
+
 use std::{
     cmp::{max, min},
     ops::Not,
@@ -52,43 +54,6 @@ impl MarginfiAccount {
     }
 }
 
-const EXP_10_I80F48: [I80F48; 15] = [
-    I80F48!(1),
-    I80F48!(10),
-    I80F48!(100),
-    I80F48!(1_000),
-    I80F48!(10_000),
-    I80F48!(100_000),
-    I80F48!(1_000_000),
-    I80F48!(10_000_000),
-    I80F48!(100_000_000),
-    I80F48!(1_000_000_000),
-    I80F48!(10_000_000_000),
-    I80F48!(100_000_000_000),
-    I80F48!(1_000_000_000_000),
-    I80F48!(10_000_000_000_000),
-    I80F48!(100_000_000_000_000),
-];
-
-#[inline(always)]
-fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
-    let scaling_factor = EXP_10_I80F48[exponent.unsigned_abs() as usize];
-
-    let price = if exponent == 0 {
-        price
-    } else if exponent < 0 {
-        price
-            .checked_div(scaling_factor)
-            .ok_or_else(math_error!())?
-    } else {
-        price
-            .checked_mul(scaling_factor)
-            .ok_or_else(math_error!())?
-    };
-
-    Ok(price)
-}
-
 #[derive(Debug)]
 pub enum BalanceIncreaseType {
     Any,
@@ -111,7 +76,7 @@ pub enum WeightType {
 
 pub struct BankAccountWithPriceFeed<'a> {
     bank: Box<Bank>,
-    price_feed: Box<PriceFeed>,
+    price_feed: Box<OraclePriceFeedAdapter>,
     balance: &'a Balance,
 }
 
@@ -121,9 +86,9 @@ pub enum BalanceSide {
 }
 
 impl<'a> BankAccountWithPriceFeed<'a> {
-    pub fn load_from_remaining_accounts<'b: 'a, 'info: 'a + 'b>(
+    pub fn load(
         lending_account: &'a LendingAccount,
-        remaining_ais: &'b [AccountInfo<'info>],
+        remaining_ais: &[AccountInfo],
     ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
         let active_balances = lending_account
             .balances
@@ -139,12 +104,14 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             MarginfiError::MissingPythOrBankAccount
         );
 
+        let current_timestamp = Clock::get()?.unix_timestamp;
+
         active_balances
             .iter()
             .enumerate()
             .map(|(i, balance)| {
                 let bank_index = i * 2;
-                let pyth_index = bank_index + 1;
+                let oracle_ai_idx = bank_index + 1;
 
                 let bank_ai = remaining_ais.get(bank_index).unwrap();
 
@@ -152,16 +119,21 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                     balance.bank_pk.eq(bank_ai.key),
                     MarginfiError::InvalidBankAccount
                 );
-                let pyth_ai = remaining_ais.get(pyth_index).unwrap();
+                let oracle_ais = &remaining_ais[oracle_ai_idx..oracle_ai_idx + 1];
 
                 let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
                 let bank = bank_al.load()?;
 
-                let price_feed = Box::new(bank.load_price_feed_from_account_info(pyth_ai)?);
+                let price_adapter = Box::new(OraclePriceFeedAdapter::try_from_bank_config(
+                    &bank.config,
+                    oracle_ais,
+                    current_timestamp,
+                    MAX_PRICE_AGE_SEC,
+                )?);
 
                 Ok(BankAccountWithPriceFeed {
                     bank: Box::new(*bank),
-                    price_feed,
+                    price_feed: price_adapter,
                     balance,
                 })
             })
@@ -198,27 +170,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         weight_type: WeightType,
         current_timestamp: i64,
     ) -> MarginfiResult<(I80F48, I80F48)> {
-        self.calc_weighted_assets_and_liabilities_values_internal(
-            Some(weight_type),
-            current_timestamp,
-        )
-    }
-
-    #[cfg(feature = "client")]
-    pub fn calc_unweighted_assets_and_liabilities_values(
-        &self,
-        current_timestamp: i64,
-    ) -> MarginfiResult<(I80F48, I80F48)> {
-        self.calc_weighted_assets_and_liabilities_values_internal(None, current_timestamp)
-    }
-
-    #[inline(always)]
-    fn calc_weighted_assets_and_liabilities_values_internal(
-        &self,
-        weight_type: Option<WeightType>,
-        current_timestamp: i64,
-    ) -> MarginfiResult<(I80F48, I80F48)> {
-        let (worst_price, best_price) = get_price_range(&self.price_feed, current_timestamp)?;
+        let (worst_price, best_price) = self.price_feed.get_price_range()?;
 
         let asset_amount = self
             .bank
@@ -250,44 +202,6 @@ impl<'a> BankAccountWithPriceFeed<'a> {
     pub fn is_empty(&self, side: BalanceSide) -> bool {
         self.balance.is_empty(side)
     }
-}
-
-/// Get a normalized price range for the given price feed.
-/// The range is the price +/- the CONF_INTERVAL_MULTIPLE * confidence interval.
-pub fn get_price_range(pf: &PriceFeed, current_timestamp: i64) -> MarginfiResult<(I80F48, I80F48)> {
-    let price_state = pf
-        .get_ema_price_no_older_than(current_timestamp, MAX_PRICE_AGE_SEC)
-        .ok_or(MarginfiError::StaleOracle)?;
-
-    let base_price =
-        pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)?;
-
-    let price_range =
-        pyth_price_components_to_i80f48(I80F48::from_num(price_state.conf), price_state.expo)?
-            .checked_mul(CONF_INTERVAL_MULTIPLE)
-            .ok_or_else(math_error!())?;
-
-    let lowest_price = base_price
-        .checked_sub(price_range)
-        .ok_or_else(math_error!())?;
-    let highest_price = base_price
-        .checked_add(price_range)
-        .ok_or_else(math_error!())?;
-
-    Ok((lowest_price, highest_price))
-}
-
-pub fn get_price(pf: &PriceFeed) -> MarginfiResult<I80F48> {
-    let price_state = pf
-        .get_ema_price_no_older_than(Clock::get()?.unix_timestamp, MAX_PRICE_AGE_SEC)
-        .ok_or(MarginfiError::StaleOracle)?;
-
-    let price =
-        pyth_price_components_to_i80f48(I80F48::from_num(price_state.price), price_state.expo)?;
-
-    require_gte!(price, I80F48::ZERO, MarginfiError::InvalidPrice);
-
-    Ok(price)
 }
 
 /// Calculate the value of an asset, given its quantity with a decimal exponent, and a price with a decimal exponent, and an optional weight.
@@ -355,9 +269,9 @@ pub struct RiskEngine<'a> {
 }
 
 impl<'a> RiskEngine<'a> {
-    pub fn new_from_remaining_accounts<'b: 'a, 'info: 'a + 'b>(
+    pub fn new(
         marginfi_account: &'a MarginfiAccount,
-        remaining_ais: &'b [AccountInfo<'info>],
+        remaining_ais: &[AccountInfo],
     ) -> MarginfiResult<Self> {
         Ok(Self {
             bank_accounts_with_price: BankAccountWithPriceFeed::load_from_remaining_accounts(
@@ -649,6 +563,7 @@ impl LendingAccount {
     }
 }
 
+assert_struct_size!(Balance, 104);
 #[zero_copy]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -659,7 +574,9 @@ pub struct Balance {
     pub bank_pk: Pubkey,
     pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
-    pub _padding: [u64; 4], // 8 * 4 = 32
+    pub emissions_outstanding: WrappedI80F48,
+    pub last_update: u64,
+    pub _padding: [u64; 1],
 }
 
 impl Balance {
@@ -699,6 +616,16 @@ impl Balance {
         self.asset_shares = I80F48::ZERO.into();
         self.liability_shares = I80F48::ZERO.into();
         self.bank_pk = Pubkey::default();
+    }
+
+    pub fn get_side(&self) -> Option<BalanceSide> {
+        if I80F48::from(self.asset_shares) >= EMPTY_BALANCE_THRESHOLD {
+            Some(BalanceSide::Assets)
+        } else if I80F48::from(self.liability_shares) >= EMPTY_BALANCE_THRESHOLD {
+            Some(BalanceSide::Liabilities)
+        } else {
+            None
+        }
     }
 }
 
@@ -754,7 +681,9 @@ impl<'a> BankAccountWrapper<'a> {
                     bank_pk: *bank_pk,
                     asset_shares: I80F48::ZERO.into(),
                     liability_shares: I80F48::ZERO.into(),
-                    _padding: [0; 4],
+                    emissions_outstanding: I80F48::ZERO.into(),
+                    last_update: Clock::get()?.unix_timestamp as u64,
+                    _padding: [0; 1],
                 };
 
                 Ok(Self {
@@ -767,9 +696,9 @@ impl<'a> BankAccountWrapper<'a> {
 
     // ------------ Borrow / Lend primitives
 
-    /// Deposit an asset, will error if there is an existing liability - repaying is not allowed.
+    /// Deposit an asset, will repay any outstanding liabilities.
     pub fn deposit(&mut self, amount: I80F48) -> MarginfiResult {
-        self.increase_balance_internal(amount, BalanceIncreaseType::DepositOnly)
+        self.increase_balance_internal(amount, BalanceIncreaseType::Any)
     }
 
     /// Repay a liability, will error if there is not enough liability - depositing is not allowed.
@@ -782,9 +711,9 @@ impl<'a> BankAccountWrapper<'a> {
         self.decrease_balance_internal(amount, BalanceDecreaseType::WithdrawOnly)
     }
 
-    /// Incur a borrow, will error if there is an existing asset - withdrawing is not allowed.
+    /// Incur a borrow, will withdraw any existing assets.
     pub fn borrow(&mut self, amount: I80F48) -> MarginfiResult {
-        self.decrease_balance_internal(amount, BalanceDecreaseType::BorrowOnly)
+        self.decrease_balance_internal(amount, BalanceDecreaseType::Any)
     }
 
     // ------------ Hybrid operations for seamless repay + deposit / withdraw + borrow
@@ -918,6 +847,8 @@ impl<'a> BankAccountWrapper<'a> {
             operation_type
         );
 
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -981,6 +912,8 @@ impl<'a> BankAccountWrapper<'a> {
             operation_type
         );
 
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -1033,6 +966,92 @@ impl<'a> BankAccountWrapper<'a> {
         bank.check_utilization_ratio()?;
 
         Ok(())
+    }
+
+    /// Claim any unclaimed emissions and add them to the outstanding emissions amount.
+    pub fn claim_emissions(&mut self, current_timestamp: u64) -> MarginfiResult {
+        if let Some(balance_amount) = match (
+            self.balance.get_side(),
+            self.bank.get_emissions_flag(EMISSIONS_FLAG_LENDING_ACTIVE),
+            self.bank.get_emissions_flag(EMISSIONS_FLAG_BORROW_ACTIVE),
+        ) {
+            (Some(BalanceSide::Assets), true, _) => Some(
+                self.bank
+                    .get_asset_amount(self.balance.asset_shares.into())?,
+            ),
+            (Some(BalanceSide::Liabilities), _, true) => Some(
+                self.bank
+                    .get_liability_amount(self.balance.liability_shares.into())?,
+            ),
+            _ => None,
+        } {
+            let last_update = if self.balance.last_update < MIN_EMISSIONS_START_TIME {
+                current_timestamp
+            } else {
+                self.balance.last_update
+            };
+            let period = I80F48::from_num(
+                current_timestamp
+                    .checked_sub(last_update)
+                    .ok_or_else(math_error!())?,
+            );
+            let emissions_rate = I80F48::from_num(self.bank.emissions_rate);
+            let emissions = period
+                .checked_mul(balance_amount)
+                .ok_or_else(math_error!())?
+                .checked_mul(emissions_rate)
+                .ok_or_else(math_error!())?
+                .checked_div(EMISSION_CALC_SECS_PER_YEAR)
+                .ok_or_else(math_error!())?;
+            let emissions_real = min(emissions, I80F48::from(self.bank.emissions_remaining));
+
+            msg!(
+                "Emitting {} ({} calculated) for period {}s",
+                emissions_real,
+                emissions,
+                period
+            );
+
+            msg!(
+                "Outstanding emissions: {}",
+                I80F48::from(self.balance.emissions_outstanding)
+            );
+
+            self.balance.emissions_outstanding = {
+                I80F48::from(self.balance.emissions_outstanding)
+                    .checked_add(emissions_real)
+                    .ok_or_else(math_error!())?
+            }
+            .into();
+            self.bank.emissions_remaining = {
+                I80F48::from(self.bank.emissions_remaining)
+                    .checked_sub(emissions_real)
+                    .ok_or_else(math_error!())?
+            }
+            .into();
+        }
+
+        self.balance.last_update = current_timestamp;
+
+        Ok(())
+    }
+
+    /// Claim any outstanding emissions, and return the max amount that can be withdrawn.
+    pub fn settle_emissions_and_get_transfer_amount(&mut self) -> MarginfiResult<u64> {
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
+        let outstanding_emissions_floored = I80F48::from(self.balance.emissions_outstanding)
+            .checked_floor()
+            .ok_or_else(math_error!())?;
+        let new_outstanding_amount = I80F48::from(self.balance.emissions_outstanding)
+            .checked_sub(outstanding_emissions_floored)
+            .ok_or_else(math_error!())?;
+
+        self.balance.emissions_outstanding = new_outstanding_amount.into();
+
+        Ok(outstanding_emissions_floored
+            .checked_to_num::<u64>()
+            .ok_or_else(math_error!())?)
     }
 
     // ------------ SPL helpers

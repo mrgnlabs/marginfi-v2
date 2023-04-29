@@ -1,3 +1,14 @@
+use anyhow::{bail, Result};
+use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
+use log::error;
+use marginfi::{
+    bank_authority_seed,
+    state::{
+        marginfi_account::MarginfiAccount,
+        marginfi_group::{Bank, BankVaultType},
+    },
+};
 #[cfg(feature = "admin")]
 use marginfi::{bank_seed, constants::MAX_ORACLE_KEYS};
 use {
@@ -41,7 +52,10 @@ pub fn process_transaction(
     } else {
         match rpc_client.send_and_confirm_transaction_with_spinner(tx) {
             Ok(sig) => Ok(sig),
-            Err(err) => bail!(err),
+            Err(err) => {
+                error!("transaction failed: {:?}", err);
+                bail!(err);
+            }
         }
     }
 }
@@ -126,7 +140,7 @@ pub fn load_observation_account_metas(
                     is_writable: false,
                 },
                 AccountMeta {
-                    pubkey: bank.config.get_pyth_oracle_key(),
+                    pubkey: bank.config.oracle_keys[0],
                     is_signer: false,
                     is_writable: false,
                 },

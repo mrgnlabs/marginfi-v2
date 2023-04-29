@@ -1,5 +1,8 @@
 use super::utils::load_and_deserialize;
-use crate::prelude::{MintFixture, TokenAccountFixture};
+use crate::prelude::{
+    get_emissions_authority_address, get_emissions_token_account_address, MintFixture,
+    TokenAccountFixture,
+};
 use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
     InstructionData, ToAccountMetas,
@@ -10,7 +13,6 @@ use marginfi::{
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
 use solana_program::instruction::Instruction;
-#[cfg(feature = "lip")]
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
 #[cfg(feature = "lip")]
@@ -152,6 +154,60 @@ impl BankFixture {
             self.clone(),
             campaign_key.pubkey(),
         ))
+    }
+
+    pub async fn try_setup_emissions(
+        &self,
+        flags: u64,
+        rate: u64,
+        total_emissions: u64,
+        emissions_mint: Pubkey,
+        funding_account: Pubkey,
+    ) -> Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolSetupEmissions {
+                marginfi_group: self.load().await.group,
+                admin: self.ctx.borrow().payer.pubkey(),
+                bank: self.key,
+                emissions_mint,
+                emissions_funding_account: funding_account,
+                emissions_auth: get_emissions_authority_address(self.key, emissions_mint).0,
+                emissions_token_account: get_emissions_token_account_address(
+                    self.key,
+                    emissions_mint,
+                )
+                .0,
+                token_program: anchor_spl::token::ID,
+                system_program: solana_program::system_program::id(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolSetupEmissions {
+                rate,
+                flags,
+                total_emissions,
+            }
+            .data(),
+        };
+
+        let tx = {
+            let ctx = self.ctx.borrow_mut();
+
+            Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
+                ctx.last_blockhash,
+            )
+        };
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
     }
 
     pub async fn get_vault_token_account(&self, vault_type: BankVaultType) -> TokenAccountFixture {

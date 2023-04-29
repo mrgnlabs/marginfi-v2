@@ -1,4 +1,7 @@
-use super::marginfi_account::WeightType;
+use super::{
+    marginfi_account::WeightType,
+    price::{OraclePriceFeedAdapter, OracleSetup},
+};
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
@@ -22,6 +25,7 @@ use std::{
     fmt::{Debug, Formatter},
     ops::Not,
 };
+
 #[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
 
@@ -259,7 +263,19 @@ pub struct Bank {
 
     pub config: BankConfig,
 
-    pub _padding_0: [u128; 32],
+    /// Emissions Config Flags
+    ///
+    /// - EMISSIONS_FLAG_BORROW_ACTIVE: 1
+    /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
+    ///
+    pub emissions_flags: u64,
+    /// Emissions APR.
+    /// Number of emitted tokens (emissions_mint) per 1M tokens (bank mint) (native amount) per 1 YEAR.
+    pub emissions_rate: u64,
+    pub emissions_remaining: WrappedI80F48,
+    pub emissions_mint: Pubkey,
+
+    pub _padding_0: [u128; 28],
     pub _padding_1: [u128; 32], // 16 * 2 * 32 = 1024B
 }
 
@@ -284,25 +300,29 @@ impl Bank {
         Bank {
             mint,
             mint_decimals,
+            group: marginfi_group_pk,
             asset_share_value: I80F48::ONE.into(),
             liability_share_value: I80F48::ONE.into(),
             liquidity_vault,
-            insurance_vault,
-            fee_vault,
-            config,
-            total_liability_shares: I80F48::ZERO.into(),
-            total_asset_shares: I80F48::ZERO.into(),
-            last_update: current_timestamp,
-            group: marginfi_group_pk,
             liquidity_vault_bump,
             liquidity_vault_authority_bump,
+            insurance_vault,
             insurance_vault_bump,
             insurance_vault_authority_bump,
             collected_insurance_fees_outstanding: I80F48::ZERO.into(),
+            fee_vault,
             fee_vault_bump,
             fee_vault_authority_bump,
             collected_group_fees_outstanding: I80F48::ZERO.into(),
-            _padding_0: [0; 32],
+            total_liability_shares: I80F48::ZERO.into(),
+            total_asset_shares: I80F48::ZERO.into(),
+            last_update: current_timestamp,
+            config,
+            emissions_flags: 0,
+            emissions_rate: 0,
+            emissions_remaining: I80F48::ZERO.into(),
+            emissions_mint: Pubkey::default(),
+            _padding_0: [0; 28],
             _padding_1: [0; 32],
         }
     }
@@ -422,15 +442,13 @@ impl Bank {
     }
 
     #[inline]
-    pub fn load_price_feed_from_account_info(&self, ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
-        check!(
-            self.config.get_pyth_oracle_key().eq(ai.key),
-            MarginfiError::InvalidOracleAccount
-        );
-        let pyth_account = load_price_feed_from_account_info(ai)
-            .map_err(|_| MarginfiError::InvalidOracleAccount)?;
-
-        Ok(pyth_account)
+    pub fn load_price_feed_from_account_info(
+        &self,
+        ais: &[AccountInfo],
+        current_timestamp: i64,
+        max_age: u64,
+    ) -> MarginfiResult<OraclePriceFeedAdapter> {
+        OraclePriceFeedAdapter::try_from_bank_config(&self.config, ais, current_timestamp, max_age)
     }
 
     /// Calculate the interest rate accrual state changes for a given time period
@@ -608,6 +626,10 @@ impl Bank {
             }
         }
     }
+
+    pub fn get_emissions_flag(&self, flag: u64) -> bool {
+        (self.emissions_flags & flag) == flag
+    }
 }
 
 /// We use a simple interest rate model that auto settles the accrued interest into the lending account balances.
@@ -709,29 +731,6 @@ pub enum BankOperationalState {
     Paused,
     Operational,
     ReduceOnly,
-}
-
-#[cfg(feature = "client")]
-impl fmt::Display for BankOperationalState {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            BankOperationalState::Operational => write!(f, "operational"),
-            BankOperationalState::Paused => write!(f, "paused"),
-            BankOperationalState::ReduceOnly => write!(f, "reduce_only"),
-        }
-    }
-}
-
-#[repr(u8)]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
-pub enum OracleSetup {
-    None,
-    Pyth,
-}
-
-pub enum OracleKey {
-    Pyth(Pubkey),
 }
 
 #[repr(u64)]
@@ -841,40 +840,6 @@ impl BankConfig {
         Ok(())
     }
 
-    pub fn validate_oracle_setup(&self, oracle_ais: &[AccountInfo]) -> MarginfiResult {
-        match self.oracle_setup {
-            OracleSetup::None => Ok(()),
-            OracleSetup::Pyth => {
-                check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
-
-                let pyth_oracle_ai = &oracle_ais[0];
-
-                check!(
-                    pyth_oracle_ai.key().eq(&self.oracle_keys[0]),
-                    MarginfiError::InvalidOracleAccount
-                );
-
-                load_pyth_price_feed(pyth_oracle_ai)?;
-                Ok(())
-            }
-        }
-    }
-
-    #[inline]
-    pub fn get_oracle_key(&self) -> OracleKey {
-        match self.oracle_setup {
-            OracleSetup::None => panic!("No oracle setup"),
-            OracleSetup::Pyth => OracleKey::Pyth(self.oracle_keys[0]),
-        }
-    }
-
-    #[inline]
-    pub fn get_pyth_oracle_key(&self) -> Pubkey {
-        match self.get_oracle_key() {
-            OracleKey::Pyth(key) => key,
-        }
-    }
-
     #[inline]
     pub fn is_deposit_limit_active(&self) -> bool {
         self.deposit_limit != u64::MAX
@@ -883,6 +848,11 @@ impl BankConfig {
     #[inline]
     pub fn is_borrow_limit_active(&self) -> bool {
         self.borrow_limit != u64::MAX
+    }
+
+    pub fn validate_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
+        OraclePriceFeedAdapter::validate_bank_config(self, ais)?;
+        Ok(())
     }
 }
 
@@ -917,7 +887,7 @@ impl From<WrappedI80F48> for I80F48 {
 
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
+    derive(Clone, PartialEq, Eq, TypeLayout)
 )]
 #[derive(AnchorDeserialize, AnchorSerialize, Default)]
 pub struct BankConfigOpt {

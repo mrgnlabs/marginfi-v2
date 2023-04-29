@@ -1,14 +1,31 @@
-use {
-    crate::{
-        config::GlobalOptions,
-        processor,
-        profile::{load_profile, Profile},
-    },
+use crate::{
+    config::GlobalOptions,
+    processor,
+    profile::{load_profile, Profile},
+};
+use anchor_client::Cluster;
+use anyhow::Result;
+use clap::{clap_derive::ArgEnum, Parser};
+#[cfg(feature = "admin")]
+use fixed::types::I80F48;
+#[cfg(any(feature = "admin", feature = "dev"))]
+use marginfi::state::marginfi_group::{BankConfigOpt, InterestRateConfigOpt};
+use marginfi::state::{
+    marginfi_group::{BankOperationalState, RiskTier},
+    price::OracleSetup,
+};
+#[cfg(feature = "dev")]
+use marginfi::{
     anchor_client::Cluster,
     anyhow::Result,
     clap::{clap_derive::ArgEnum, Parser},
     marginfi::state::marginfi_group::{BankOperationalState, RiskTier},
+    prelude::{GroupConfig, MarginfiGroup},
     solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey},
+    state::{
+        marginfi_account::{Balance, LendingAccount, MarginfiAccount},
+        marginfi_group::{BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
+    },
 };
 #[cfg(any(feature = "admin", feature = "dev"))]
 use {
@@ -63,6 +80,8 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: LipCommand,
     },
+    #[cfg(feature = "dev")]
+    InspectSwitchboardFeed { switchboard_feed: Pubkey },
 }
 
 #[derive(Debug, Parser)]
@@ -115,6 +134,8 @@ pub enum GroupCommand {
         protocol_ir_fee: f64,
         #[clap(long, arg_enum)]
         risk_tier: RiskTierArg,
+        #[clap(long, arg_enum)]
+        oracle_type: OracleTypeArg,
     },
 }
 
@@ -129,6 +150,21 @@ impl From<RiskTierArg> for RiskTier {
         match value {
             RiskTierArg::Collateral => RiskTier::Collateral,
             RiskTierArg::Isolated => RiskTier::Isolated,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Parser, ArgEnum)]
+pub enum OracleTypeArg {
+    PythEma,
+    Switchboard,
+}
+
+impl From<OracleTypeArg> for OracleSetup {
+    fn from(value: OracleTypeArg) -> Self {
+        match value {
+            OracleTypeArg::PythEma => OracleSetup::PythEma,
+            OracleTypeArg::Switchboard => OracleSetup::SwitchboardV2,
         }
     }
 }
@@ -196,6 +232,13 @@ pub enum BankCommand {
         pf_ir: Option<f64>,
         #[clap(long, arg_enum, help = "Bank risk tier")]
         risk_tier: Option<RiskTierArg>,
+        #[clap(long, arg_enum, help = "Bank oracle type")]
+        oracle_type: Option<OracleTypeArg>,
+        #[clap(long, help = "Bank oracle account")]
+        oracle_key: Option<Pubkey>,
+    },
+    InspectPriceOracle {
+        bank_pk: Pubkey,
     },
     #[cfg(feature = "admin")]
     HandleBankruptcy {
@@ -310,6 +353,15 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
         #[cfg(feature = "lip")]
         Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
+        #[cfg(feature = "dev")]
+        Command::InspectSwitchboardFeed { switchboard_feed } => {
+            let profile = load_profile()?;
+            let config = profile.get_config(Some(&opts.cfg_override))?;
+
+            processor::process_inspect_switchboard_feed(&config, &switchboard_feed);
+
+            Ok(())
+        }
     }
 }
 
@@ -402,11 +454,13 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             deposit_limit,
             borrow_limit,
             risk_tier,
+            oracle_type,
         } => processor::group_add_bank(
             config,
             profile,
             bank_mint,
             pyth_oracle,
+            oracle_type,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,
@@ -431,8 +485,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
 
     if !global_options.skip_confirmation {
         match subcmd {
-            BankCommand::Get { bank: _ } => (),
-            BankCommand::GetAll { marginfi_group: _ } => (),
+            BankCommand::Get { .. }
+            | BankCommand::GetAll { .. }
+            | BankCommand::InspectPriceOracle { .. } => (),
             #[cfg(feature = "admin")]
             _ => get_consent(&subcmd, &profile)?,
         }
@@ -459,8 +514,13 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             pf_fa,
             pf_ir,
             risk_tier,
+            oracle_type,
+            oracle_key,
         } => {
-            let bank = config.mfi_program.account::<Bank>(bank_pk).unwrap();
+            let bank = config
+                .mfi_program
+                .account::<marginfi::state::marginfi_group::Bank>(bank_pk)
+                .unwrap();
             processor::bank_configure(
                 config,
                 profile, //
@@ -479,7 +539,16 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                         spl_token::ui_amount_to_amount(ui_amount, bank.mint_decimals)
                     }),
                     operational_state: operational_state.map(|x| x.into()),
-                    oracle: None,
+                    oracle: oracle_key.map(|x| marginfi::state::marginfi_group::OracleConfig {
+                        setup: oracle_type.expect("Orcale type must be provided").into(),
+                        keys: [
+                            x,
+                            Pubkey::default(),
+                            Pubkey::default(),
+                            Pubkey::default(),
+                            Pubkey::default(),
+                        ],
+                    }),
                     interest_rate_config: Some(InterestRateConfigOpt {
                         optimal_utilization_rate: opr_ur.map(|x| I80F48::from_num(x).into()),
                         plateau_interest_rate: p_ir.map(|x| I80F48::from_num(x).into()),
@@ -493,13 +562,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                 },
             )
         }
-        #[cfg(feature = "admin")]
-        BankCommand::HandleBankruptcy {
-            bank,
-            marginfi_account,
-        } => processor::bank_handle_bankruptcy(&config, profile, bank, marginfi_account),
-        #[cfg(feature = "admin")]
-        BankCommand::CollectFees { bank } => processor::bank_collect_fees(&config, profile, bank),
+        BankCommand::InspectPriceOracle { bank_pk } => {
+            processor::bank_inspect_price_oracle(config, bank_pk)
+        }
     }
 }
 
@@ -509,10 +574,9 @@ fn inspect_padding() -> Result<()> {
     println!("GroupConfig: {}", GroupConfig::type_layout());
     println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
     println!(
-        "InterestRateConfigOpt: {}",
-        InterestRateConfigOpt::type_layout()
+        "Bank: {}",
+        marginfi::state::marginfi_group::Bank::type_layout()
     );
-    println!("Bank: {}", Bank::type_layout());
     println!("BankConfig: {}", BankConfig::type_layout());
     println!("OracleConfig: {}", OracleConfig::type_layout());
     println!("BankConfigOpt: {}", BankConfigOpt::type_layout());

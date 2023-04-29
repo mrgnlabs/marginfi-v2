@@ -1,6 +1,7 @@
 use crate::{marginfi_group::*, native, spl::*, utils::*};
 use anchor_lang::prelude::*;
 use bincode::deserialize;
+use solana_sdk::account::AccountSharedData;
 
 use super::marginfi_account::MarginfiAccountFixture;
 use crate::bank::BankFixture;
@@ -9,7 +10,10 @@ use lazy_static::lazy_static;
 use marginfi::state::marginfi_group::{BankConfigOpt, BankOperationalState};
 use marginfi::{
     constants::MAX_ORACLE_KEYS,
-    state::marginfi_group::{BankConfig, GroupConfig, InterestRateConfig, OracleSetup, RiskTier},
+    state::{
+        marginfi_group::{BankConfig, GroupConfig, InterestRateConfig, RiskTier},
+        price::OracleSetup,
+    },
 };
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
@@ -38,6 +42,23 @@ impl TestSettings {
                 TestBankSetting {
                     mint: BankMint::SolEquivalent,
                     ..TestBankSetting::default()
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
+
+    /// All banks with the same config, but USDC and SOL are using switchboard price oracls
+    pub fn all_banks_swb_payer_not_admin() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    config: Some(*DEFAULT_USDC_TEST_SW_BANK_CONFIG),
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    config: Some(*DEFAULT_SOL_TEST_SW_BANK_CONFIG),
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
@@ -95,7 +116,9 @@ pub struct TestFixture {
 }
 
 pub const PYTH_USDC_FEED: Pubkey = pubkey!("PythUsdcPrice111111111111111111111111111111");
+pub const SWITCHBOARD_USDC_FEED: Pubkey = pubkey!("SwchUsdcPrice111111111111111111111111111111");
 pub const PYTH_SOL_FEED: Pubkey = pubkey!("PythSo1Price1111111111111111111111111111111");
+pub const SWITCHBOARD_SOL_FEED: Pubkey = pubkey!("SwchSo1Price1111111111111111111111111111111");
 pub const PYTH_SOL_EQUIVALENT_FEED: Pubkey = pubkey!("PythSo1Equiva1entPrice111111111111111111111");
 pub const PYTH_MNDE_FEED: Pubkey = pubkey!("PythMndePrice111111111111111111111111111111");
 pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111111111111111");
@@ -121,7 +144,7 @@ lazy_static! {
             ..Default::default()
         };
     pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::Pyth,
+        oracle_setup: OracleSetup::PythEma,
         asset_weight_maint: I80F48!(1).into(),
         asset_weight_init: I80F48!(1).into(),
         liability_weight_init: I80F48!(1).into(),
@@ -167,6 +190,20 @@ lazy_static! {
         oracle_keys: create_oracle_key_array(PYTH_MNDE_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
+    pub static ref DEFAULT_USDC_TEST_SW_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::SwitchboardV2,
+        deposit_limit: native!(1_000_000_000, "USDC"),
+        borrow_limit: native!(1_000_000_000, "USDC"),
+        oracle_keys: create_oracle_key_array(SWITCHBOARD_USDC_FEED),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    pub static ref DEFAULT_SOL_TEST_SW_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::SwitchboardV2,
+        deposit_limit: native!(1_000_000, "SOL"),
+        borrow_limit: native!(1_000_000, "SOL"),
+        oracle_keys: create_oracle_key_array(SWITCHBOARD_SOL_FEED),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
 }
 
 pub const USDC_MINT_DECIMALS: u8 = 6;
@@ -191,23 +228,34 @@ impl TestFixture {
 
         program.add_account(
             PYTH_USDC_FEED,
-            craft_pyth_price_account(usdc_keypair.pubkey(), 1, USDC_MINT_DECIMALS.into()),
+            create_pyth_price_account(usdc_keypair.pubkey(), 1, USDC_MINT_DECIMALS.into(), None),
         );
         program.add_account(
             PYTH_SOL_FEED,
-            craft_pyth_price_account(sol_keypair.pubkey(), 10, SOL_MINT_DECIMALS.into()),
+            create_pyth_price_account(sol_keypair.pubkey(), 10, SOL_MINT_DECIMALS.into(), None),
         );
         program.add_account(
             PYTH_SOL_EQUIVALENT_FEED,
-            craft_pyth_price_account(
+            create_pyth_price_account(
                 sol_equivalent_keypair.pubkey(),
                 10,
                 SOL_MINT_DECIMALS.into(),
+                None,
             ),
         );
         program.add_account(
             PYTH_MNDE_FEED,
-            craft_pyth_price_account(mnde_keypair.pubkey(), 10, MNDE_MINT_DECIMALS.into()),
+            create_pyth_price_account(mnde_keypair.pubkey(), 10, MNDE_MINT_DECIMALS.into(), None),
+        );
+
+        program.add_account(
+            SWITCHBOARD_USDC_FEED,
+            create_switchboard_price_feed(1, USDC_MINT_DECIMALS.into()),
+        );
+
+        program.add_account(
+            SWITCHBOARD_SOL_FEED,
+            create_switchboard_price_feed(10, SOL_MINT_DECIMALS.into()),
         );
 
         let context = Rc::new(RefCell::new(program.start_with_context().await));
@@ -357,6 +405,31 @@ impl TestFixture {
             ..Default::default()
         };
         self.context.borrow_mut().set_sysvar(&clock);
+    }
+
+    pub async fn set_pyth_oracle_timestamp(&self, address: Pubkey, timestamp: i64) {
+        let mut ctx = self.context.borrow_mut();
+
+        let mut account = ctx
+            .banks_client
+            .get_account(address)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let data = account.data.as_mut_slice();
+        let mut data = *pyth_sdk_solana::state::load_price_account(data).unwrap();
+
+        data.timestamp = timestamp;
+        data.prev_timestamp = timestamp;
+
+        let bytes = bytemuck::bytes_of(&data);
+
+        let mut aso = AccountSharedData::from(account);
+
+        aso.set_data_from_slice(bytes);
+
+        ctx.set_account(&address, &aso);
     }
 
     pub async fn advance_time(&self, seconds: i64) {
