@@ -69,6 +69,7 @@ pub enum BalanceDecreaseType {
     BypassBorrowLimit,
 }
 
+#[derive(Copy, Clone)]
 pub enum WeightType {
     Initial,
     Maintenance,
@@ -146,7 +147,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         weight_type: WeightType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         let (worst_price, best_price) = self.price_feed.get_price_range()?;
-        let (asset_weight, liability_weight) = self.bank.config.get_weights(weight_type);
+        let (mut asset_weight, liability_weight) = self.bank.config.get_weights(weight_type);
         let mint_decimals = self.bank.mint_decimals;
 
         let asset_amount = self
