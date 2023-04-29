@@ -772,7 +772,15 @@ pub struct BankConfig {
 
     pub risk_tier: RiskTier,
 
-    pub _padding: [u64; 6], // 16 * 4 = 64 bytes
+    /// USD denominated limit for calculating asset value for initialization margin requirements.
+    /// Example, if total SOL deposits are equeal to $1M and the limit it set to $500K,
+    /// then SOL assets will be discounted by 50%.
+    ///
+    /// In other words the max value of liabilities that can be backed by the asset is $500K.
+    /// This is useful for limiting the damage of orcale attacks.
+    pub total_asset_value_init_limit: u64,
+
+    pub _padding: [u64; 5], // 16 * 4 = 64 bytes
 }
 
 impl Default for BankConfig {
@@ -789,7 +797,8 @@ impl Default for BankConfig {
             oracle_setup: OracleSetup::None,
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
             risk_tier: RiskTier::Isolated,
-            _padding: [0; 6],
+            total_asset_value_init_limit: 0,
+            _padding: [0; 5],
         }
     }
 }
