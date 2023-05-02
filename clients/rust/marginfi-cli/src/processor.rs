@@ -4,6 +4,7 @@ use crate::{
     config::Config,
     profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
     utils::{
+        find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
         find_bank_vault_authority_pda, load_observation_account_metas, process_transaction,
         EXP_10_I80F48,
     },
@@ -20,14 +21,8 @@ use fixed::types::I80F48;
 #[cfg(feature = "lip")]
 use liquidity_incentive_program::state::{Campaign, Deposit};
 use log::info;
-#[cfg(feature = "admin")]
 use marginfi::{
-    prelude::GroupConfig,
-    state::marginfi_group::{
-        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, WrappedI80F48,
-    },
-};
-use marginfi::{
+    constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE},
     prelude::MarginfiGroup,
     state::{
         marginfi_account::MarginfiAccount,
@@ -35,8 +30,14 @@ use marginfi::{
         price::{OraclePriceFeedAdapter, PriceAdapter},
     },
 };
+#[cfg(feature = "admin")]
+use marginfi::{
+    prelude::GroupConfig,
+    state::marginfi_group::{
+        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, WrappedI80F48,
+    },
+};
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
-use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::instruction::AccountMeta;
 use solana_sdk::{
     account_info::IntoAccountInfo,
@@ -50,10 +51,13 @@ use solana_sdk::{
     sysvar::{self, Sysvar},
     transaction::Transaction,
 };
-use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
+use solana_sdk::{compute_budget::ComputeBudgetInstruction, program_pack::Pack};
+use spl_associated_token_account::{
+    get_associated_token_address, instruction::create_associated_token_account_idempotent,
+};
 use std::{
     collections::HashMap,
-    fs,
+    fs, io,
     mem::size_of,
     ops::{Neg, Not},
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -595,6 +599,118 @@ Price: ${price} (worst: ${worst}, best: ${best}, std_dev: ${std})
         best = best,
         std = opfa.get_confidence_interval().unwrap(),
     );
+
+    Ok(())
+}
+
+pub fn bank_setup_emissions(
+    config: &Config,
+    profile: &Profile,
+    bank: Pubkey,
+    deposits: bool,
+    borrows: bool,
+    mint: Pubkey,
+    rate: f64,
+    total: f64,
+) -> Result<()> {
+    let funding_account_ata = get_associated_token_address(&config.payer.pubkey(), &mint);
+    let mut flags = 0;
+
+    if deposits {
+        flags |= EMISSIONS_FLAG_LENDING_ACTIVE;
+    }
+
+    if borrows {
+        flags |= EMISSIONS_FLAG_BORROW_ACTIVE;
+    }
+
+    let emissions_mint_decimals = config.mfi_program.rpc().get_account(&mint).unwrap();
+
+    let emissions_mint_decimals =
+        spl_token::state::Mint::unpack_from_slice(&emissions_mint_decimals.data)
+            .unwrap()
+            .decimals;
+    let bank_mint_decimals = config
+        .mfi_program
+        .account::<Bank>(bank)
+        .unwrap()
+        .mint_decimals;
+
+    let total_emissions = (total * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
+    let rate = (rate
+        * 10u64.pow(
+            (bank_mint_decimals - emissions_mint_decimals)
+                .try_into()
+                .unwrap(),
+        ) as f64) as u64;
+
+    let mut rate = rate * 10u64.pow(emissions_mint_decimals as u32) as u64;
+    let bank_mint_decimals_adjustment = bank_mint_decimals as i64 - 6;
+
+    // Adjust rate for 10^bank_mint_decimals_adjustment
+    if bank_mint_decimals_adjustment > 0 {
+        let adjustment = 10u64.pow(bank_mint_decimals_adjustment.try_into().unwrap()) as u64;
+        rate = rate / adjustment;
+    } else if bank_mint_decimals_adjustment < 0 {
+        let adjustment = 10u64.pow((-bank_mint_decimals_adjustment).try_into().unwrap()) as u64;
+        rate = rate * adjustment;
+    }
+
+    println!("Native rate: {} tokens per 1M bank tokens per YEAR", rate);
+    println!("Emissions flag: {:b}", flags);
+    println!("Total native emissions: {}", total_emissions);
+
+    // Get (y or n) input from user
+    println!("Is this correct? (y/n)");
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    let input = input.trim();
+
+    if input != "y" {
+        println!("Aborting");
+        return Ok(());
+    }
+
+    let ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: marginfi::accounts::LendingPoolSetupEmissions {
+            marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
+            admin: config.payer.pubkey(),
+            bank,
+            emissions_mint: mint,
+            emissions_auth: find_bank_emssions_auth_pda(bank, mint, marginfi::id()).0,
+            emissions_token_account: find_bank_emssions_token_account_pda(
+                bank,
+                mint,
+                marginfi::id(),
+            )
+            .0,
+            emissions_funding_account: funding_account_ata,
+            token_program: spl_token::id(),
+            system_program: system_program::id(),
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::LendingPoolSetupEmissions {
+            flags,
+            rate,
+            total_emissions,
+        }
+        .data(),
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&config.payer.pubkey()),
+        &[&config.payer],
+        config.mfi_program.rpc().get_latest_blockhash().unwrap(),
+    );
+
+    let rpc_program = config.mfi_program.rpc();
+
+    match process_transaction(&tx, &rpc_program, config.dry_run) {
+        Ok(sig) => println!("Bankruptcy handled (sig: {})", sig),
+        Err(err) => println!("Error during bankruptcy handling:\n{:#?}", err),
+    };
 
     Ok(())
 }

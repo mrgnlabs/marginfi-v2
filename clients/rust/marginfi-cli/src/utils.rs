@@ -4,6 +4,7 @@ use fixed_macro::types::I80F48;
 use log::error;
 use marginfi::{
     bank_authority_seed,
+    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED},
     state::{
         marginfi_account::MarginfiAccount,
         marginfi_group::{Bank, BankVaultType},
@@ -63,6 +64,36 @@ pub fn find_bank_vault_authority_pda(
     program_id: &Pubkey,
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
+}
+
+pub fn find_bank_emssions_auth_pda(
+    bank: Pubkey,
+    emissions_mint: Pubkey,
+    program_id: Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            EMISSIONS_AUTH_SEED.as_bytes(),
+            bank.as_ref(),
+            emissions_mint.as_ref(),
+        ],
+        &program_id,
+    )
+}
+
+pub fn find_bank_emssions_token_account_pda(
+    bank: Pubkey,
+    emissions_mint: Pubkey,
+    program_id: Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
+            bank.as_ref(),
+            emissions_mint.as_ref(),
+        ],
+        &program_id,
+    )
 }
 
 #[cfg(feature = "admin")]
