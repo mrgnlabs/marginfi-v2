@@ -30,7 +30,7 @@ use marginfi::{
 use marginfi::{
     prelude::MarginfiGroup,
     state::{
-        marginfi_account::MarginfiAccount,
+        marginfi_account::{BankAccountWrapper, MarginfiAccount},
         marginfi_group::{Bank, BankVaultType},
         price::{OraclePriceFeedAdapter, PriceAdapter},
     },
@@ -854,9 +854,28 @@ pub fn print_account(
                 I80F48::ZERO
             };
 
+            let mut bank = bank.clone();
+            let mut balance = balance.clone();
+
+            let mut baw = BankAccountWrapper {
+                bank: &mut bank,
+                balance: &mut balance,
+            };
+
+            // Current timestamp
+            let current_timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+
+            baw.claim_emissions(current_timestamp).unwrap();
+
             println!(
-                "\tBalance: {:.3}, Bank: {} (mint: {})",
-                balance_amount, balance.bank_pk, bank.mint
+                "\tBalance: {:.3}, Bank: {} (mint: {}), Emissions: {}",
+                balance_amount,
+                balance.bank_pk,
+                bank.mint,
+                I80F48::from(balance.emissions_outstanding)
             )
         });
     Ok(())
