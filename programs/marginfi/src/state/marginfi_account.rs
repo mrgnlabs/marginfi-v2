@@ -538,11 +538,18 @@ impl Balance {
         Ok(())
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&mut self) -> MarginfiResult {
+        check!(
+            I80F48::from(self.emissions_outstanding) < I80F48::ONE,
+            MarginfiError::CannotCloseOutstandingEmissions
+        );
+
         self.active = false;
         self.asset_shares = I80F48::ZERO.into();
         self.liability_shares = I80F48::ZERO.into();
         self.bank_pk = Pubkey::default();
+
+        Ok(())
     }
 
     pub fn get_side(&self) -> Option<BalanceSide> {
@@ -691,7 +698,7 @@ impl<'a> BankAccountWrapper<'a> {
             MarginfiError::NoAssetFound
         );
 
-        balance.close();
+        balance.close()?;
         bank.change_asset_shares(-total_asset_shares)?;
 
         bank.check_utilization_ratio()?;
@@ -738,7 +745,7 @@ impl<'a> BankAccountWrapper<'a> {
             MarginfiError::NoLiabilityFound
         );
 
-        balance.close();
+        balance.close()?;
         bank.change_liability_shares(-total_liability_shares, false)?;
 
         let spl_deposit_amount = current_liability_amount
