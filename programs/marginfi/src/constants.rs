@@ -30,7 +30,7 @@ pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
 
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 
-pub const MAX_PRICE_AGE_SEC: u64 = 20;
+pub const MAX_PRICE_AGE_SEC: u64 = 60;
 
 /// Range that contains 95% price data distribution
 ///
@@ -56,7 +56,7 @@ pub const EMISSIONS_FLAG_LENDING_ACTIVE: u64 = 1 << 1;
 pub const MIN_EMISSIONS_START_TIME: u64 = 1681989983;
 
 /// This constant combines the number of seconds per year, and the scale of the emissions rate (1e+6) to save on computation.
-pub const EMISSION_CALC_SECS_PER_YEAR: I80F48 = I80F48!(31_536_000_000_000);
+pub const EMISSIONS_RATE_SCALE: I80F48 = I80F48!(1_000_000);
 
 pub const MAX_EXP_10_I80F48: usize = 24;
 pub const EXP_10_I80F48: [I80F48; MAX_EXP_10_I80F48] = [
