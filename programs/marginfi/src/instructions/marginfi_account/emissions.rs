@@ -25,25 +25,27 @@ pub fn lending_account_withdraw_emissions(
     // Settle emissions
     let emissions_settle_amount = balance.settle_emissions_and_get_transfer_amount()?;
 
-    let signer_seeds: &[&[&[u8]]] = &[&[
-        EMISSIONS_AUTH_SEED.as_bytes(),
-        &ctx.accounts.bank.key().to_bytes(),
-        &ctx.accounts.emissions_mint.key().to_bytes(),
-        &[*ctx.bumps.get("emissions_auth").unwrap()],
-    ]];
+    if emissions_settle_amount > 0 {
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            EMISSIONS_AUTH_SEED.as_bytes(),
+            &ctx.accounts.bank.key().to_bytes(),
+            &ctx.accounts.emissions_mint.key().to_bytes(),
+            &[*ctx.bumps.get("emissions_auth").unwrap()],
+        ]];
 
-    transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.emissions_vault.to_account_info(),
-                to: ctx.accounts.destination_account.to_account_info(),
-                authority: ctx.accounts.emissions_auth.to_account_info(),
-            },
-            signer_seeds,
-        ),
-        emissions_settle_amount,
-    )?;
+        transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.emissions_vault.to_account_info(),
+                    to: ctx.accounts.destination_account.to_account_info(),
+                    authority: ctx.accounts.emissions_auth.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            emissions_settle_amount,
+        )?;
+    }
 
     Ok(())
 }

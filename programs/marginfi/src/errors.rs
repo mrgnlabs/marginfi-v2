@@ -74,6 +74,8 @@ pub enum MarginfiError {
     OracleNotSetup,
     #[msg("Invalid swithcboard decimal conversion")] // 6034
     InvalidSwitchboardDecimalConversion,
+    #[msg("Cannot close balance because of outstanding emissions")] // 6035
+    CannotCloseOutstandingEmissions,
 }
 
 impl From<MarginfiError> for ProgramError {

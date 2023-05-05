@@ -538,11 +538,15 @@ impl Balance {
         Ok(())
     }
 
-    pub fn close(&mut self) {
-        self.active = false;
-        self.asset_shares = I80F48::ZERO.into();
-        self.liability_shares = I80F48::ZERO.into();
-        self.bank_pk = Pubkey::default();
+    pub fn close(&mut self) -> MarginfiResult {
+        check!(
+            I80F48::from(self.emissions_outstanding) < I80F48::ONE,
+            MarginfiError::CannotCloseOutstandingEmissions
+        );
+
+        *self = Self::empty_deactivated();
+
+        Ok(())
     }
 
     pub fn get_side(&self) -> Option<BalanceSide> {
@@ -552,6 +556,18 @@ impl Balance {
             Some(BalanceSide::Liabilities)
         } else {
             None
+        }
+    }
+
+    pub fn empty_deactivated() -> Self {
+        Balance {
+            active: false,
+            bank_pk: Pubkey::default(),
+            asset_shares: WrappedI80F48::from(I80F48::ZERO),
+            liability_shares: WrappedI80F48::from(I80F48::ZERO),
+            emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),
+            last_update: 0,
+            _padding: [0; 1],
         }
     }
 }
@@ -668,6 +684,8 @@ impl<'a> BankAccountWrapper<'a> {
 
     /// Withdraw existing asset in full - will error if there is no asset.
     pub fn withdraw_all(&mut self) -> MarginfiResult<u64> {
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -691,7 +709,7 @@ impl<'a> BankAccountWrapper<'a> {
             MarginfiError::NoAssetFound
         );
 
-        balance.close();
+        balance.close()?;
         bank.change_asset_shares(-total_asset_shares)?;
 
         bank.check_utilization_ratio()?;
@@ -716,6 +734,8 @@ impl<'a> BankAccountWrapper<'a> {
 
     /// Repay existing liability in full - will error if there is no liability.
     pub fn repay_all(&mut self) -> MarginfiResult<u64> {
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -738,7 +758,7 @@ impl<'a> BankAccountWrapper<'a> {
             MarginfiError::NoLiabilityFound
         );
 
-        balance.close();
+        balance.close()?;
         bank.change_liability_shares(-total_liability_shares, false)?;
 
         let spl_deposit_amount = current_liability_amount
