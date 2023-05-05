@@ -668,6 +668,8 @@ impl<'a> BankAccountWrapper<'a> {
 
     /// Withdraw existing asset in full - will error if there is no asset.
     pub fn withdraw_all(&mut self) -> MarginfiResult<u64> {
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -716,6 +718,8 @@ impl<'a> BankAccountWrapper<'a> {
 
     /// Repay existing liability in full - will error if there is no liability.
     pub fn repay_all(&mut self) -> MarginfiResult<u64> {
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
