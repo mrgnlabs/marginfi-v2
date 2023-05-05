@@ -646,14 +646,7 @@ pub fn bank_setup_emissions(
         .mint_decimals;
 
     let total_emissions = (total * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
-    let rate = (rate
-        * 10u64.pow(
-            (bank_mint_decimals - emissions_mint_decimals)
-                .try_into()
-                .unwrap(),
-        ) as f64) as u64;
-
-    let mut rate = rate * 10u64.pow(emissions_mint_decimals as u32) as u64;
+    let mut rate = (rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
     let bank_mint_decimals_adjustment = bank_mint_decimals as i64 - 6;
 
     // Adjust rate for 10^bank_mint_decimals_adjustment
