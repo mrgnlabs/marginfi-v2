@@ -6,8 +6,8 @@ use crate::{
     assert_struct_size, check,
     constants::{
         EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMISSIONS_RATE_SCALE,
-        EMISSION_CALC_SECS_PER_YEAR, EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC,
-        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
+        EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME,
+        SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -16,7 +16,6 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
-use fixed_macro::types::I80F48;
 
 use std::{
     cmp::{max, min},

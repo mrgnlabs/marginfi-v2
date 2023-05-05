@@ -854,8 +854,8 @@ pub fn print_account(
                 I80F48::ZERO
             };
 
-            let mut bank = bank.clone();
-            let mut balance = balance.clone();
+            let mut bank = *bank;
+            let mut balance = *balance;
 
             let mut baw = BankAccountWrapper {
                 bank: &mut bank,
