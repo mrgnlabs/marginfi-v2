@@ -544,10 +544,7 @@ impl Balance {
             MarginfiError::CannotCloseOutstandingEmissions
         );
 
-        self.active = false;
-        self.asset_shares = I80F48::ZERO.into();
-        self.liability_shares = I80F48::ZERO.into();
-        self.bank_pk = Pubkey::default();
+        *self = Self::empty_deactivated();
 
         Ok(())
     }
@@ -559,6 +556,18 @@ impl Balance {
             Some(BalanceSide::Liabilities)
         } else {
             None
+        }
+    }
+
+    pub fn empty_deactivated() -> Self {
+        Balance {
+            active: false,
+            bank_pk: Pubkey::default(),
+            asset_shares: WrappedI80F48::from(I80F48::ZERO),
+            liability_shares: WrappedI80F48::from(I80F48::ZERO),
+            emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),
+            last_update: 0,
+            _padding: [0; 1],
         }
     }
 }
