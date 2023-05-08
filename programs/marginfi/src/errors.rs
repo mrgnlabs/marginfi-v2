@@ -76,6 +76,8 @@ pub enum MarginfiError {
     InvalidSwitchboardDecimalConversion,
     #[msg("Cannot close balance because of outstanding emissions")] // 6035
     CannotCloseOutstandingEmissions,
+    #[msg("Update emissions error")] //6036
+    EmissionsUpdateError,
 }
 
 impl From<MarginfiError> for ProgramError {
