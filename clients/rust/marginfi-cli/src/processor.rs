@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
     utils::{
-        find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
+        calc_emissions_rate, find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
         find_bank_vault_authority_pda, load_observation_account_metas, process_transaction,
         EXP_10_I80F48,
     },
@@ -612,6 +612,7 @@ Price: ${price} (worst: ${worst}, best: ${best}, std_dev: ${std})
     Ok(())
 }
 
+#[cfg(feature = "admin")]
 pub fn bank_setup_emissions(
     config: &Config,
     profile: &Profile,
@@ -651,11 +652,11 @@ pub fn bank_setup_emissions(
 
     // Adjust rate for 10^bank_mint_decimals_adjustment
     if bank_mint_decimals_adjustment > 0 {
-        let adjustment = 10u64.pow(bank_mint_decimals_adjustment.try_into().unwrap()) as u64;
-        rate = rate / adjustment;
+        let adjustment = 10u64.pow(bank_mint_decimals_adjustment.try_into().unwrap());
+        rate /= adjustment;
     } else if bank_mint_decimals_adjustment < 0 {
-        let adjustment = 10u64.pow((-bank_mint_decimals_adjustment).try_into().unwrap()) as u64;
-        rate = rate * adjustment;
+        let adjustment = 10u64.pow((-bank_mint_decimals_adjustment).try_into().unwrap());
+        rate *= adjustment;
     }
 
     println!("Native rate: {} tokens per 1M bank tokens per YEAR", rate);
@@ -710,7 +711,104 @@ pub fn bank_setup_emissions(
     let rpc_program = config.mfi_program.rpc();
 
     match process_transaction(&tx, &rpc_program, config.dry_run) {
-        Ok(sig) => println!("Bankruptcy handled (sig: {})", sig),
+        Ok(sig) => println!("Tx succeded (sig: {})", sig),
+        Err(err) => println!("Error during bankruptcy handling:\n{:#?}", err),
+    };
+
+    Ok(())
+}
+
+#[cfg(feature = "admin")]
+pub fn bank_update_emissions(
+    config: &Config,
+    profile: &Profile,
+    bank_pk: Pubkey,
+    deposits: bool,
+    borrows: bool,
+    disable: bool,
+    rate: Option<f64>,
+    additional_emissions: Option<f64>,
+) -> Result<()> {
+    assert!(!(disable && (deposits || borrows)));
+
+    let bank = config
+        .mfi_program
+        .account::<Bank>(bank_pk)
+        .unwrap_or_else(|_| panic!("Bank {} not found", bank_pk));
+
+    let emission_mint = bank.emissions_mint;
+    let funding_account_ata = get_associated_token_address(&config.payer.pubkey(), &emission_mint);
+
+    let emissions_mint_decimals = config
+        .mfi_program
+        .rpc()
+        .get_account(&emission_mint)
+        .unwrap();
+    let emissions_mint_decimals =
+        spl_token::state::Mint::unpack_from_slice(&emissions_mint_decimals.data)
+            .unwrap()
+            .decimals;
+
+    let emissions_rate =
+        rate.map(|rate| calc_emissions_rate(rate, emissions_mint_decimals, bank.mint_decimals));
+    let additional_emissions = additional_emissions
+        .map(|emissions| (emissions * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64);
+    let emissions_flags = if disable {
+        Some(0)
+    } else if deposits || borrows {
+        let mut flags = 0;
+
+        if deposits {
+            flags |= EMISSIONS_FLAG_LENDING_ACTIVE;
+        }
+
+        if borrows {
+            flags |= EMISSIONS_FLAG_BORROW_ACTIVE;
+        }
+
+        Some(flags)
+    } else {
+        None
+    };
+
+    let ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
+            marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
+            admin: config.payer.pubkey(),
+            bank: bank_pk,
+            emissions_mint: emission_mint,
+            emissions_auth: find_bank_emssions_auth_pda(bank_pk, emission_mint, marginfi::id()).0,
+            emissions_token_account: find_bank_emssions_token_account_pda(
+                bank_pk,
+                emission_mint,
+                marginfi::id(),
+            )
+            .0,
+            emissions_funding_account: funding_account_ata,
+            token_program: spl_token::id(),
+            system_program: system_program::id(),
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::LendingPoolUpdateEmissionsParameters {
+            emissions_flags,
+            emissions_rate,
+            additional_emissions,
+        }
+        .data(),
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&config.payer.pubkey()),
+        &[&config.payer],
+        config.mfi_program.rpc().get_latest_blockhash().unwrap(),
+    );
+
+    let rpc_program = config.mfi_program.rpc();
+
+    match process_transaction(&tx, &rpc_program, config.dry_run) {
+        Ok(sig) => println!("Tx succeded (sig: {})", sig),
         Err(err) => println!("Error during bankruptcy handling:\n{:#?}", err),
     };
 
