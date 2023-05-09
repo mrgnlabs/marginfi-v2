@@ -210,6 +210,58 @@ impl BankFixture {
         Ok(())
     }
 
+    pub async fn try_update_emissions(
+        &self,
+        emissions_flags: Option<u64>,
+        emissions_rate: Option<u64>,
+        additional_emissions: Option<(u64, Pubkey)>,
+    ) -> Result<(), BanksClientError> {
+        let bank = self.load().await;
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
+                marginfi_group: self.load().await.group,
+                admin: self.ctx.borrow().payer.pubkey(),
+                bank: self.key,
+                emissions_mint: bank.emissions_mint,
+                emissions_funding_account: additional_emissions.map(|(_, f)| f).unwrap_or_default(),
+                emissions_token_account: get_emissions_token_account_address(
+                    self.key,
+                    bank.emissions_mint,
+                )
+                .0,
+                token_program: anchor_spl::token::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolUpdateEmissionsParameters {
+                emissions_flags,
+                emissions_rate,
+                additional_emissions: additional_emissions.map(|(a, _)| a),
+            }
+            .data(),
+        };
+
+        let tx = {
+            let ctx = self.ctx.borrow_mut();
+
+            Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
+                ctx.last_blockhash,
+            )
+        };
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn get_vault_token_account(&self, vault_type: BankVaultType) -> TokenAccountFixture {
         let (vault, _) = self.get_vault(vault_type);
 

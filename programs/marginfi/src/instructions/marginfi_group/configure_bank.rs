@@ -154,7 +154,7 @@ pub fn lending_pool_update_emissions_parameters(
     );
 
     if let Some(flags) = emissions_flags {
-        msg!("Updating emissions flags to b{:#010b}", flags);
+        msg!("Updating emissions flags to {:#010b}", flags);
         bank.emissions_flags = flags;
     }
 
@@ -210,6 +210,7 @@ pub struct LendingPoolUpdateEmissionsParameters<'info> {
     pub emissions_mint: Account<'info, Mint>,
 
     #[account(
+        mut,
         seeds = [
             EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
             bank.key().as_ref(),
