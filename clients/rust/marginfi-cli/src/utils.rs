@@ -169,6 +169,27 @@ pub fn load_observation_account_metas(
     account_metas
 }
 
+#[cfg(feature = "admin")]
+pub fn calc_emissions_rate(
+    ui_rate: f64,
+    emissions_mint_decimals: u8,
+    bank_mint_decimals: u8,
+) -> u64 {
+    let mut rate = (ui_rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
+    let bank_mint_decimals_adjustment = bank_mint_decimals as i64 - 6;
+
+    // Adjust rate for 10^bank_mint_decimals_adjustment
+    if bank_mint_decimals_adjustment > 0 {
+        let adjustment = 10u64.pow(bank_mint_decimals_adjustment.try_into().unwrap());
+        rate /= adjustment;
+    } else if bank_mint_decimals_adjustment < 0 {
+        let adjustment = 10u64.pow((-bank_mint_decimals_adjustment).try_into().unwrap());
+        rate *= adjustment;
+    }
+
+    rate
+}
+
 // const SCALE: u128 = 10_u128.pow(14);
 
 // pub fn ui_to_native(value: f64) -> u128 {

@@ -102,3 +102,33 @@ pub struct LendingAccountWithdrawEmissions<'info> {
     pub destination_account: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
+
+/// Permissionlessly settle unclaimed emissions to a users account.
+pub fn lending_account_settle_emissions(
+    ctx: Context<LendingAccountSettleEmissions>,
+) -> MarginfiResult {
+    let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+    let mut bank = ctx.accounts.bank.load_mut()?;
+
+    let mut balance = BankAccountWrapper::find(
+        ctx.accounts.bank.to_account_info().key,
+        &mut bank,
+        &mut marginfi_account.lending_account,
+    )?;
+
+    balance.claim_emissions(Clock::get()?.unix_timestamp.try_into().unwrap())?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LendingAccountSettleEmissions<'info> {
+    #[account(
+        mut,
+        constraint = marginfi_account.load()?.group == bank.load()?.group,
+    )]
+    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
+
+    #[account(mut)]
+    pub bank: AccountLoader<'info, Bank>,
+}
