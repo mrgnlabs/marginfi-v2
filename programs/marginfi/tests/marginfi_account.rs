@@ -1385,7 +1385,7 @@ async fn emissions_test() -> anyhow::Result<()> {
     sol_bank
         .try_setup_emissions(
             EMISSIONS_FLAG_BORROW_ACTIVE,
-            1_000,
+            1_000_000,
             native!(100, 6),
             sol_emissions_mint.key,
             funding_account.key,
@@ -1397,7 +1397,7 @@ async fn emissions_test() -> anyhow::Result<()> {
     let res = sol_bank
         .try_setup_emissions(
             EMISSIONS_FLAG_BORROW_ACTIVE,
-            1_000,
+            1_000_000,
             native!(50, 6),
             sol_emissions_mint_2.key,
             funding_account.key,

@@ -946,7 +946,7 @@ impl<'a> BankAccountWrapper<'a> {
             let emissions = period
                 .checked_mul(balance_amount)
                 .ok_or_else(math_error!())?
-                .checked_div(EMISSIONS_RATE_SCALE)
+                .checked_div(EXP_10_I80F48[self.bank.mint_decimals as usize])
                 .ok_or_else(math_error!())?
                 .checked_mul(emissions_rate)
                 .ok_or_else(math_error!())?
