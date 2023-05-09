@@ -771,6 +771,25 @@ pub fn bank_update_emissions(
         None
     };
 
+    println!(
+        "Changes:\n\tRate: {:?}\n\tAdditional emissions: {:?}\n\tFlags: {:?}",
+        emissions_rate.map(|rate| format!("{} tokens per 1M bank tokens per YEAR", rate)),
+        additional_emissions,
+        emissions_flags.map(|flags| format!("{:b}", flags)),
+    );
+
+    // Get (y or n) input from user
+    println!("Is this correct? (y/n)");
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    let input = input.trim();
+
+    if input != "y" {
+        println!("Aborting");
+        return Ok(());
+    }
+
     let ix = Instruction {
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
@@ -778,7 +797,6 @@ pub fn bank_update_emissions(
             admin: config.payer.pubkey(),
             bank: bank_pk,
             emissions_mint: emission_mint,
-            emissions_auth: find_bank_emssions_auth_pda(bank_pk, emission_mint, marginfi::id()).0,
             emissions_token_account: find_bank_emssions_token_account_pda(
                 bank_pk,
                 emission_mint,
@@ -787,7 +805,6 @@ pub fn bank_update_emissions(
             .0,
             emissions_funding_account: funding_account_ata,
             token_program: spl_token::id(),
-            system_program: system_program::id(),
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolUpdateEmissionsParameters {

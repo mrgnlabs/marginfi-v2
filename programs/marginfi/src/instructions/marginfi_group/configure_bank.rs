@@ -148,6 +148,11 @@ pub fn lending_pool_update_emissions_parameters(
         MarginfiError::EmissionsUpdateError
     );
 
+    check!(
+        bank.emissions_mint.eq(&ctx.accounts.emissions_mint.key()),
+        MarginfiError::EmissionsUpdateError
+    );
+
     if let Some(flags) = emissions_flags {
         msg!("Updating emissions flags to b{:#010b}", flags);
         bank.emissions_flags = flags;
@@ -159,17 +164,6 @@ pub fn lending_pool_update_emissions_parameters(
     }
 
     if let Some(additional_emissions) = additional_emissions {
-        bank.emissions_remaining = I80F48::from(bank.emissions_remaining)
-            .checked_add(I80F48::from_num(additional_emissions))
-            .ok_or_else(math_error!())?
-            .into();
-
-        msg!(
-            "Adding {} emissions, total {}",
-            additional_emissions,
-            I80F48::from(bank.emissions_remaining)
-        );
-
         transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -181,6 +175,17 @@ pub fn lending_pool_update_emissions_parameters(
             ),
             additional_emissions,
         )?;
+
+        bank.emissions_remaining = I80F48::from(bank.emissions_remaining)
+            .checked_add(I80F48::from_num(additional_emissions))
+            .ok_or_else(math_error!())?
+            .into();
+
+        msg!(
+            "Adding {} emissions, total {}",
+            additional_emissions,
+            I80F48::from(bank.emissions_remaining)
+        );
     }
 
     Ok(())
@@ -206,21 +211,6 @@ pub struct LendingPoolUpdateEmissionsParameters<'info> {
 
     #[account(
         seeds = [
-            EMISSIONS_AUTH_SEED.as_bytes(),
-            bank.key().as_ref(),
-            emissions_mint.key().as_ref(),
-        ],
-        bump
-    )]
-    /// CHECK: Asserted by PDA constraints
-    pub emissions_auth: AccountInfo<'info>,
-
-    #[account(
-        init,
-        payer = admin,
-        token::mint = emissions_mint,
-        token::authority = emissions_auth,
-        seeds = [
             EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
             bank.key().as_ref(),
             emissions_mint.key().as_ref(),
@@ -234,5 +224,4 @@ pub struct LendingPoolUpdateEmissionsParameters<'info> {
     pub emissions_funding_account: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
 }
