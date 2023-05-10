@@ -259,6 +259,10 @@ pub enum BankCommand {
         #[clap(long)]
         additional_amount_ui: Option<f64>,
     },
+    #[cfg(feature = "admin")]
+    SettleAllEmissions {
+        bank: Pubkey,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -606,6 +610,10 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             rate,
             additional_amount_ui,
         ),
+        #[cfg(feature = "admin")]
+        BankCommand::SettleAllEmissions { bank } => {
+            processor::emissions::claim_all_emissions_for_bank(&config, &profile, bank)
+        }
     }
 }
 
