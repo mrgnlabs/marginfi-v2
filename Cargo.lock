@@ -1248,32 +1248,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
-name = "defi-lamma-snapshot-builder"
-version = "0.1.0"
-dependencies = [
- "anchor-client",
- "anyhow",
- "bytemuck",
- "clap 3.2.23",
- "env_logger",
- "fixed",
- "fixed-macro",
- "futures",
- "lazy_static",
- "log",
- "marginfi",
- "reqwest",
- "rust-s3",
- "serde",
- "serde_json",
- "solana-account-decoder",
- "solana-client",
- "solana-sdk",
- "spl-token",
- "tokio",
-]
-
-[[package]]
 name = "der"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2331,6 +2305,32 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "test-utilities",
+]
+
+[[package]]
+name = "llama-snapshot"
+version = "0.1.0"
+dependencies = [
+ "anchor-client",
+ "anyhow",
+ "bytemuck",
+ "clap 3.2.23",
+ "env_logger",
+ "fixed",
+ "fixed-macro",
+ "futures",
+ "lazy_static",
+ "log",
+ "marginfi",
+ "reqwest",
+ "rust-s3",
+ "serde",
+ "serde_json",
+ "solana-account-decoder",
+ "solana-client",
+ "solana-sdk",
+ "spl-token",
+ "tokio",
 ]
 
 [[package]]

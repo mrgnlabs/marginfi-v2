@@ -1,5 +1,5 @@
 [package]
-name = "defi-lamma-snapshot-builder"
+name = "llama-snapshot"
 version = "0.1.0"
 edition = "2021"
 
@@ -30,3 +30,7 @@ anyhow = "1.0"
 lazy_static = "1.4"
 spl-token = "3.5.0"
 rust-s3 = "0.33.0"
+
+[[bin]]
+name = "llama-snapshot"
+path = "src/bin/main.rs"
