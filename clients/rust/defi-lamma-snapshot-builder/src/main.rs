@@ -3,52 +3,104 @@ use std::{collections::HashMap, env, rc::Rc};
 use anchor_client::Client;
 use anyhow::Result;
 use fixed::types::I80F48;
+use futures::future::join_all;
 use lazy_static::lazy_static;
 use marginfi::{
     constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, SECONDS_PER_YEAR},
     state::marginfi_group::Bank,
 };
 use reqwest::header::CONTENT_TYPE;
+use s3::{creds::Credentials, Bucket, Region};
+use serde_json::Value;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{program_pack::Pack, pubkey::Pubkey, signature::Keypair};
 
+const TOKEN_LIST_PATH: &str = "solana.tokenlist.json";
+
 lazy_static! {
-    static ref TOKEN_LIST: HashMap<&'static str, &'static str> = {
-        lazy_static! {
-            static ref TOKENS_JSON: String = std::fs::read_to_string("tokens.json").unwrap();
-        }
-        serde_json::from_str(&TOKENS_JSON).unwrap()
+    static ref TOKEN_LIST: HashMap<String, String> = {
+        println!("Loading token list from {}", TOKEN_LIST_PATH);
+        let tokens_file = std::fs::read_to_string(TOKEN_LIST_PATH).unwrap();
+        let tokens = serde_json::from_str::<Value>(&tokens_file).unwrap();
+
+        HashMap::from_iter(
+            tokens
+                .get("tokens")
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|token| {
+                    (
+                        token.get("address").unwrap().as_str().unwrap().to_owned(),
+                        token.get("symbol").unwrap().as_str().unwrap().to_owned(),
+                    )
+                })
+                .collect::<Vec<(String, String)>>(),
+        )
     };
 }
 
 const BIRDEYE_API: &str = "https://public-api.birdeye.so";
 const CHAIN: &str = "solana";
 const PROJECT: &str = "marginfi";
+const S3_BUCKET: &str = "marignfi-pools-snapshot";
+const AWS_S3_OBJ_PATH: &str = "snapshot.json";
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
     let dummy_key = Keypair::new();
-    let rpc_url = env::var("RPC_ENDPOINT").unwrap();
+    let rpc_url = env::var("RPC_ENDPOINT")?;
     let client = Client::new(
-        anchor_client::Cluster::Custom(rpc_url.to_string(), rpc_url.to_string()),
+        anchor_client::Cluster::Custom(rpc_url.to_string(), "".to_string()),
         Rc::new(dummy_key),
     );
 
     let program = client.program(marginfi::id());
     let rpc = program.rpc();
 
-    let banks = program.accounts::<Bank>(vec![]).unwrap();
+    let banks = program.accounts::<Bank>(vec![])?;
 
     println!("Found {} banks", banks.len());
 
-    let snapshot = banks
-        .iter()
-        .map(|(bank_pk, bank)| DefiLammaPoolInfo::from_bank(bank, bank_pk, &rpc))
-        .collect::<Vec<_>>();
+    let snapshot = join_all(
+        banks
+            .iter()
+            .map(|(bank_pk, bank)| DefiLammaPoolInfo::from_bank(bank, bank_pk, &rpc))
+            .collect::<Vec<_>>(),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>>>()?;
+
+    let snapshot_json = serde_json::to_string(&snapshot).unwrap();
 
     println!("Banks: {:#?}", snapshot);
+
+    store_on_s3(&snapshot_json).await?;
+
+    Ok(())
 }
 
-#[derive(Clone, Debug, Default)]
+async fn store_on_s3(snapshot: &str) -> anyhow::Result<()> {
+    let credentials = Credentials::new(
+        env::var("AWS_ACCESS_KEY").ok().as_deref(),
+        env::var("AWS_SECRET_KEY").ok().as_deref(),
+        None,
+        None,
+        None,
+    )?;
+
+    let bucket = Bucket::new(S3_BUCKET, Region::UsEast1, credentials)?;
+
+    bucket
+        .put_object(AWS_S3_OBJ_PATH, snapshot.as_bytes())
+        .await?;
+
+    Ok(())
+}
+
+#[derive(Clone, Debug, Default, serde::Serialize)]
 struct DefiLammaPoolInfo {
     pool: String,
     chain: String,
@@ -67,7 +119,7 @@ struct DefiLammaPoolInfo {
 }
 
 impl DefiLammaPoolInfo {
-    pub fn from_bank(bank: &Bank, bank_pk: &Pubkey, rpc_client: &RpcClient) -> Self {
+    pub async fn from_bank(bank: &Bank, bank_pk: &Pubkey, rpc_client: &RpcClient) -> Result<Self> {
         let ltv = I80F48::ONE / I80F48::from(bank.config.liability_weight_init);
         let reward_tokens = if bank.emissions_mint != Pubkey::default() {
             vec![bank.emissions_mint.to_string()]
@@ -75,17 +127,11 @@ impl DefiLammaPoolInfo {
             vec![]
         };
 
-        let token_price = fetch_price_from_birdeye(&bank.mint).unwrap();
+        let token_price = fetch_price_from_birdeye(&bank.mint).await?;
         let scale = I80F48::from_num(10_i32.pow(bank.mint_decimals as u32));
 
-        let total_deposits = bank
-            .get_asset_amount(bank.total_asset_shares.into())
-            .unwrap()
-            / scale;
-        let total_borrows = bank
-            .get_liability_amount(bank.total_liability_shares.into())
-            .unwrap()
-            / scale;
+        let total_deposits = bank.get_asset_amount(bank.total_asset_shares.into())? / scale;
+        let total_borrows = bank.get_liability_amount(bank.total_liability_shares.into())? / scale;
 
         let net_supply = total_deposits - total_borrows;
 
@@ -106,12 +152,14 @@ impl DefiLammaPoolInfo {
             .config
             .interest_rate_config
             .calc_interest_rate(ur)
-            .unwrap();
+            .ok_or_else(|| {
+                anyhow::anyhow!("Failed to calculate interest rate for bank {}", bank_pk)
+            })?;
 
         let (apr_reward, apr_reward_borrow) = if bank.emissions_mint.ne(&Pubkey::default()) {
-            let emissions_token_price = fetch_price_from_birdeye(&bank.emissions_mint).unwrap();
-            let mint = rpc_client.get_account(&bank.emissions_mint).unwrap();
-            let mint = spl_token::state::Mint::unpack_from_slice(&mint.data).unwrap();
+            let emissions_token_price = fetch_price_from_birdeye(&bank.emissions_mint).await?;
+            let mint = rpc_client.get_account(&bank.emissions_mint)?;
+            let mint = spl_token::state::Mint::unpack_from_slice(&mint.data)?;
 
             // rate / 10 ^ decimals
             let reward_rate_per_token =
@@ -136,13 +184,13 @@ impl DefiLammaPoolInfo {
             (None, None)
         };
 
-        Self {
+        Ok(Self {
             pool: bank_pk.to_string(),
             chain: CHAIN.to_string(),
             project: PROJECT.to_string(),
             symbol: TOKEN_LIST
                 .get(token_mint.as_str())
-                .unwrap_or(&"Unknown Token")
+                .unwrap_or(&"Unknown Token".to_string())
                 .to_string(),
             tvl_usd: tvl_usd.to_num(),
             total_supply_usd: total_supply_usd.to_num(),
@@ -156,19 +204,22 @@ impl DefiLammaPoolInfo {
             apy_reward_borrow: apr_reward_borrow
                 .map(|a| apr_to_apy((borrowing_rate + a).to_num(), SECONDS_PER_YEAR.to_num())),
             underlying_tokens: vec![bank.mint.to_string()],
-        }
+        })
     }
 }
-fn fetch_price_from_birdeye(token: &Pubkey) -> Result<I80F48> {
+
+async fn fetch_price_from_birdeye(token: &Pubkey) -> Result<I80F48> {
+    println!("Fetching price for {}", token);
     let url = format!("{}/public/price?address={}", BIRDEYE_API, token.to_string());
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
 
     let res = client
         .get(&url)
         .header(CONTENT_TYPE, "application/json")
-        .send()?;
+        .send()
+        .await?;
 
-    let body = res.json::<serde_json::Value>()?;
+    let body = res.json::<serde_json::Value>().await?;
 
     let price = body
         .as_object()
