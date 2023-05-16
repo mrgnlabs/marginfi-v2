@@ -201,12 +201,26 @@ impl DefiLammaPoolInfo {
             total_borrow_usd: total_borrow_usd.to_num(),
             ltv: ltv.to_num(),
             reward_tokens,
-            apy_base: apr_to_apy(lending_rate.to_num(), SECONDS_PER_YEAR.to_num()),
-            apy_reward: apr_reward
-                .map(|a| apr_to_apy((lending_rate + a).to_num(), SECONDS_PER_YEAR.to_num())),
-            apy_base_borrow: apr_to_apy(borrowing_rate.to_num(), SECONDS_PER_YEAR.to_num()),
-            apy_reward_borrow: apr_reward_borrow
-                .map(|a| apr_to_apy((borrowing_rate + a).to_num(), SECONDS_PER_YEAR.to_num())),
+            apy_base: dec_to_percentage(apr_to_apy(
+                lending_rate.to_num(),
+                SECONDS_PER_YEAR.to_num(),
+            )),
+            apy_reward: apr_reward.map(|a| {
+                dec_to_percentage(apr_to_apy(
+                    (lending_rate + a).to_num(),
+                    SECONDS_PER_YEAR.to_num(),
+                ))
+            }),
+            apy_base_borrow: dec_to_percentage(apr_to_apy(
+                borrowing_rate.to_num(),
+                SECONDS_PER_YEAR.to_num(),
+            )),
+            apy_reward_borrow: apr_reward_borrow.map(|a| {
+                dec_to_percentage(apr_to_apy(
+                    (borrowing_rate + a).to_num(),
+                    SECONDS_PER_YEAR.to_num(),
+                ))
+            }),
             underlying_tokens: vec![bank.mint.to_string()],
         })
     }
@@ -239,4 +253,8 @@ async fn fetch_price_from_birdeye(token: &Pubkey) -> Result<I80F48> {
 
 fn apr_to_apy(apr: f64, m: f64) -> f64 {
     (1. + (apr / m)).powf(m) - 1.
+}
+
+fn dec_to_percentage(dec: f64) -> f64 {
+    dec * 100.
 }
