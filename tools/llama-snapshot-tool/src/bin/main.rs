@@ -50,7 +50,7 @@ const AWS_S3_OBJ_PATH: &str = "snapshot.json";
 #[tokio::main]
 async fn main() -> Result<()> {
     let dummy_key = Keypair::new();
-    let rpc_url = env::var("RPC_ENDPOINT")?;
+    let rpc_url = env::var("RPC_ENDPOINT").expect("RPC_ENDPOINT not set");
     let client = Client::new(
         anchor_client::Cluster::Custom(rpc_url.to_string(), "".to_string()),
         Rc::new(dummy_key),
@@ -83,9 +83,10 @@ async fn main() -> Result<()> {
 }
 
 async fn store_on_s3(snapshot: &str) -> anyhow::Result<()> {
+    println!("Storing snapshot on to {}", AWS_S3_OBJ_PATH);
     let credentials = Credentials::new(
-        env::var("AWS_ACCESS_KEY").ok().as_deref(),
-        env::var("AWS_SECRET_KEY").ok().as_deref(),
+        Some(&env::var("AWS_ACCESS_KEY").expect("AWS_ACCESS_KEY not set")),
+        Some(&env::var("AWS_SECRET_KEY").expect("AWS_SECRET_KEY not set")),
         None,
         None,
         None,
@@ -96,6 +97,8 @@ async fn store_on_s3(snapshot: &str) -> anyhow::Result<()> {
     bucket
         .put_object(AWS_S3_OBJ_PATH, snapshot.as_bytes())
         .await?;
+
+    println!("Done!");
 
     Ok(())
 }

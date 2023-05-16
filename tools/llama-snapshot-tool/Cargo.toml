@@ -1,13 +1,17 @@
 [package]
-name = "llama-snapshot"
+name = "llama-snapshot-tool"
 version = "0.1.0"
 edition = "2021"
+
+[[bin]]
+name = "llama-snapshot"
+path = "src/bin/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 clap = { version = "3.2.6", features = ["derive"] }
-marginfi = { path = "../../../programs/marginfi", version = "0.1.0", features = [
+marginfi = { path = "../../programs/marginfi", version = "0.1.0", features = [
     "mainnet-beta",
     "client",
     "no-entrypoint",
@@ -31,6 +35,3 @@ lazy_static = "1.4"
 spl-token = "3.5.0"
 rust-s3 = "0.33.0"
 
-[[bin]]
-name = "llama-snapshot"
-path = "src/bin/main.rs"
