@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
     utils::{
-        calc_emissions_rate, find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
+        find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
         find_bank_vault_authority_pda, load_observation_account_metas, process_transaction,
         EXP_10_I80F48,
     },

@@ -20,7 +20,9 @@ const TOKEN_LIST_PATH: &str = "solana.tokenlist.json";
 lazy_static! {
     static ref TOKEN_LIST: HashMap<String, String> = {
         println!("Loading token list from {}", TOKEN_LIST_PATH);
-        let tokens_file = std::fs::read_to_string(TOKEN_LIST_PATH).unwrap();
+        let current_dir = std::env::current_dir().expect("Failed to get current directory");
+        let path = current_dir.join(TOKEN_LIST_PATH);
+        let tokens_file = std::fs::read_to_string(path).unwrap();
         let tokens = serde_json::from_str::<Value>(&tokens_file).unwrap();
 
         HashMap::from_iter(
