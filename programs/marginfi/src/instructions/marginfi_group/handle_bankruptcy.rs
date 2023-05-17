@@ -33,7 +33,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
     let current_time = Clock::get()?.unix_timestamp;
-    RiskEngine::new_from_remaining_accounts(&marginfi_account, ctx.remaining_accounts)?
+    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?
         .check_account_bankrupt(current_time)?;
 
     let mut bank = bank_loader.load_mut()?;

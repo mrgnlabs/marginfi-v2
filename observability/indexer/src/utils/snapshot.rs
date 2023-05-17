@@ -5,10 +5,7 @@ use fixed::types::I80F48;
 use itertools::Itertools;
 use marginfi::{
     prelude::MarginfiGroup,
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, OracleSetup},
-    },
+    state::{marginfi_account::MarginfiAccount, marginfi_group::Bank, price::*},
 };
 use pyth_sdk_solana::{load_price_feed_from_account, PriceFeed};
 use solana_account_decoder::UiAccountEncoding;
@@ -16,6 +13,7 @@ use solana_client::{
     nonblocking::rpc_client::RpcClient,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
 };
+use solana_sdk::account_info::IntoAccountInfo;
 use solana_sdk::{account::Account, program_pack::Pack, pubkey::Pubkey};
 use spl_token::state::Account as SplAccount;
 use std::{
@@ -37,7 +35,8 @@ pub enum AccountRoutingType {
     MarginfiGroup,
     MarginfiAccount,
     Bank(Pubkey, BankUpdateRoutingType),
-    PriceFeed,
+    PriceFeedPyth,
+    PriceFeedSwitchboard,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -50,13 +49,15 @@ pub enum BankUpdateRoutingType {
 
 #[derive(Clone, Debug)]
 pub enum OracleData {
-    Pyth(PriceFeed),
+    Pyth(PythEmaPriceFeed),
+    Switchboard(SwitchboardV2PriceFeed),
 }
 
 impl OracleData {
     pub fn get_price(&self) -> I80F48 {
         match self {
-            OracleData::Pyth(price_feed) => pyth_price_to_fixed(price_feed).unwrap(),
+            OracleData::Pyth(price_feed) => price_feed.get_price().unwrap(),
+            OracleData::Switchboard(price_feed) => price_feed.get_price().unwrap(),
         }
     }
 }
@@ -169,11 +170,20 @@ impl Snapshot {
                 let mut accounts_to_fetch =
                     vec![bank.liquidity_vault, bank.insurance_vault, bank.fee_vault];
 
-                if bank.config.oracle_setup == OracleSetup::Pyth {
-                    let oracle_address = bank.config.get_pyth_oracle_key();
-                    self.routing_lookup
-                        .insert(oracle_address, AccountRoutingType::PriceFeed);
-                    accounts_to_fetch.push(oracle_address);
+                match bank.config.oracle_setup {
+                    OracleSetup::None => (),
+                    OracleSetup::PythEma => {
+                        let oracle_address = bank.config.oracle_keys[0];
+                        self.routing_lookup
+                            .insert(oracle_address, AccountRoutingType::PriceFeedPyth);
+                        accounts_to_fetch.push(oracle_address);
+                    }
+                    OracleSetup::SwitchboardV2 => {
+                        let oracle_address = bank.config.oracle_keys[0];
+                        self.routing_lookup
+                            .insert(oracle_address, AccountRoutingType::PriceFeedSwitchboard);
+                        accounts_to_fetch.push(oracle_address);
+                    }
                 }
 
                 self.banks.insert(
@@ -225,11 +235,12 @@ impl Snapshot {
             .get(account_pubkey)
             .expect("Account not found in routing lookup");
         match routing_info {
-            AccountRoutingType::PriceFeed => {
-                let price_feed =
-                    load_price_feed_from_account(account_pubkey, &mut account.clone()).unwrap();
+            AccountRoutingType::PriceFeedPyth => {
+                let mut account = account.clone();
+                let ai = (account_pubkey, &mut account).into_account_info();
+                let pf = PythEmaPriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
                 self.price_feeds
-                    .insert(*account_pubkey, OracleData::Pyth(price_feed));
+                    .insert(*account_pubkey, OracleData::Pyth(pf));
             }
             AccountRoutingType::Bank(bank_pk, BankUpdateRoutingType::LiquidityTokenAccount) => {
                 self.banks
@@ -264,6 +275,13 @@ impl Snapshot {
                     *account_pubkey,
                     MarginfiGroup::try_deserialize(&mut (&account.data as &[u8])).unwrap(),
                 );
+            }
+            AccountRoutingType::PriceFeedSwitchboard => {
+                let mut account = account.clone();
+                let ai = (account_pubkey, &mut account).into_account_info();
+                let pf = SwitchboardV2PriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
+                self.price_feeds
+                    .insert(*account_pubkey, OracleData::Switchboard(pf));
             }
         }
     }

@@ -16,13 +16,13 @@ solana-transaction-status = { workspace = true }
 solana-account-decoder = { workspace = true }
 spl-token = "3.5.0"
 
-gcp-bigquery-client = "0.16.2"
+gcp-bigquery-client = "0.16.7"
 google-cloud-default = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994", features = ["pubsub"] }
 google-cloud-auth = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994" }
 google-cloud-pubsub = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994" }
 google-cloud-gax = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994" }
 google-cloud-googleapis = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994", features = ["bytes", "pubsub"] }
-yup-oauth2 = "8.0.0"
+yup-oauth2 = "8.3.0"
 
 anchor-client = "0.26.0"
 marginfi = { path = "../../programs/marginfi", features = [

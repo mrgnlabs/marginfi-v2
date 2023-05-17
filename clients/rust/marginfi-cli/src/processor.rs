@@ -1,66 +1,62 @@
 #[cfg(feature = "admin")]
-use {
-    crate::utils::{create_oracle_key_array, find_bank_vault_pda},
-    marginfi::{
-        prelude::GroupConfig,
-        state::marginfi_group::{
-            BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, OracleSetup,
-            WrappedI80F48,
-        },
+use crate::utils::{create_oracle_key_array, find_bank_vault_pda};
+use crate::{
+    config::Config,
+    profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
+    utils::{
+        find_bank_vault_authority_pda, load_observation_account_metas, process_transaction,
+        EXP_10_I80F48,
     },
 };
-use {
-    crate::{
-        config::Config,
-        profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
-        utils::{
-            find_bank_vault_authority_pda, load_observation_account_metas, process_transaction,
-            EXP_10_I80F48,
-        },
-    },
-    anchor_client::{
-        anchor_lang::{InstructionData, ToAccountMetas},
-        Cluster,
-    },
-    anchor_spl::token::{self, spl_token},
-    anyhow::{anyhow, bail, Result},
-    fixed::types::I80F48,
-    log::info,
-    marginfi::{
-        prelude::MarginfiGroup,
-        state::{
-            marginfi_account::MarginfiAccount,
-            marginfi_group::{Bank, BankVaultType},
-        },
-    },
-    solana_client::rpc_filter::{Memcmp, RpcFilterType},
-    solana_sdk::compute_budget::ComputeBudgetInstruction,
-    solana_sdk::instruction::AccountMeta,
-    solana_sdk::{
-        account_info::IntoAccountInfo,
-        clock::Clock,
-        commitment_config::CommitmentLevel,
-        instruction::Instruction,
-        pubkey::Pubkey,
-        signature::Keypair,
-        signer::Signer,
-        system_program,
-        sysvar::{self, Sysvar},
-        transaction::Transaction,
-    },
-    spl_associated_token_account::instruction::create_associated_token_account_idempotent,
-    std::{
-        collections::HashMap,
-        fs,
-        mem::size_of,
-        ops::{Neg, Not},
-        time::{Duration, SystemTime, UNIX_EPOCH},
-    },
+use anchor_client::{
+    anchor_lang::{InstructionData, ToAccountMetas},
+    Cluster,
 };
+use anchor_spl::token::{self, spl_token};
+use anyhow::{anyhow, bail, Result};
 #[cfg(feature = "lip")]
-use {
-    chrono::{DateTime, NaiveDateTime, Utc},
-    liquidity_incentive_program::state::{Campaign, Deposit},
+use chrono::{DateTime, NaiveDateTime, Utc};
+use fixed::types::I80F48;
+#[cfg(feature = "lip")]
+use liquidity_incentive_program::state::{Campaign, Deposit};
+use log::info;
+#[cfg(feature = "admin")]
+use marginfi::{
+    prelude::GroupConfig,
+    state::marginfi_group::{
+        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, WrappedI80F48,
+    },
+};
+use marginfi::{
+    prelude::MarginfiGroup,
+    state::{
+        marginfi_account::MarginfiAccount,
+        marginfi_group::{Bank, BankVaultType},
+        price::{OraclePriceFeedAdapter, PriceAdapter},
+    },
+};
+use solana_client::rpc_filter::{Memcmp, RpcFilterType};
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
+use solana_sdk::instruction::AccountMeta;
+use solana_sdk::{
+    account_info::IntoAccountInfo,
+    clock::Clock,
+    commitment_config::CommitmentLevel,
+    instruction::Instruction,
+    pubkey::Pubkey,
+    signature::Keypair,
+    signer::Signer,
+    system_program,
+    sysvar::{self, Sysvar},
+    transaction::Transaction,
+};
+use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
+use std::{
+    collections::HashMap,
+    fs,
+    mem::size_of,
+    ops::{Neg, Not},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -118,6 +114,7 @@ pub fn print_group_banks(config: Config, marginfi_group: Pubkey) -> Result<()> {
 fn print_bank(address: &Pubkey, bank: &Bank) {
     println!(
         r#"
+Group: {},
 Bank: {}
 Mint: {},
 Total Deposits: {}
@@ -139,6 +136,7 @@ Config:
     Keys: {:#?}
 Last Update: {:?}h ago ({})
 "#,
+        bank.group,
         address,
         bank.mint,
         bank.get_asset_amount(bank.total_asset_shares.into())
@@ -183,18 +181,11 @@ pub fn group_create(
     let rpc_client = config.mfi_program.rpc();
     let admin = admin.unwrap_or_else(|| config.payer.pubkey());
 
-    if profile.marginfi_group.is_some() && override_existing_profile_group {
-        info!(
+    if profile.marginfi_group.is_some() && !override_existing_profile_group {
+        bail!(
             "Marginfi group already exists for profile [{}]",
             profile.name
         );
-    } else if profile.marginfi_group.is_none() {
-        info!(
-            "Created marginfi group will be associated to profile [{}]",
-            profile.name
-        );
-    } else {
-        info!("Created marginfi group will not be associated to any profile",);
     }
 
     let marginfi_group_keypair = Keypair::new();
@@ -229,10 +220,8 @@ pub fn group_create(
         }
     };
 
-    if profile.marginfi_group.is_none() || override_existing_profile_group {
-        let mut profile = profile;
-        profile.set_marginfi_group(marginfi_group_keypair.pubkey())?;
-    }
+    let mut profile = profile;
+    profile.set_marginfi_group(marginfi_group_keypair.pubkey())?;
 
     Ok(())
 }
@@ -269,8 +258,8 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
     );
 
     match process_transaction(&tx, &rpc_client, config.dry_run) {
-        Ok(sig) => println!("marginfi group updated (sig: {})", sig),
-        Err(err) => println!("Error during marginfi group update:\n{:#?}", err),
+        Ok(sig) => println!("marginfi group created (sig: {})", sig),
+        Err(err) => println!("Error during marginfi group creation:\n{:#?}", err),
     };
 
     Ok(())
@@ -282,7 +271,8 @@ pub fn group_add_bank(
     config: Config,
     profile: Profile,
     bank_mint: Pubkey,
-    pyth_oracle: Pubkey,
+    oracle_key: Pubkey,
+    oracle_setup: crate::OracleTypeArg,
     asset_weight_init: f64,
     asset_weight_maint: f64,
     liability_weight_init: f64,
@@ -379,7 +369,7 @@ pub fn group_add_bank(
             token_program: token::ID,
             system_program: system_program::id(),
         })
-        .accounts(AccountMeta::new_readonly(pyth_oracle, false))
+        .accounts(AccountMeta::new_readonly(oracle_key, false))
         .args(marginfi::instruction::LendingPoolAddBank {
             bank_config: BankConfig {
                 asset_weight_init,
@@ -390,8 +380,8 @@ pub fn group_add_bank(
                 borrow_limit,
                 interest_rate_config,
                 operational_state: BankOperationalState::Operational,
-                oracle_setup: OracleSetup::Pyth,
-                oracle_keys: create_oracle_key_array(pyth_oracle),
+                oracle_setup: oracle_setup.into(),
+                oracle_keys: create_oracle_key_array(oracle_key),
                 risk_tier: risk_tier.into(),
                 ..BankConfig::default()
             },
@@ -408,90 +398,19 @@ pub fn group_add_bank(
         recent_blockhash,
     );
 
-    let bank_pk = bank_keypair.pubkey();
-
     match process_transaction(&tx, &rpc_client, config.dry_run) {
-        Ok(sig) => print!("{bank_pk}"),
+        Ok(sig) => println!("bank created (sig: {})", sig),
         Err(err) => println!("Error during bank creation:\n{:#?}", err),
     };
 
-    Ok(())
-}
-// --------------------------------------------------------------------------------------------------------------------
-// bank
-// --------------------------------------------------------------------------------------------------------------------
+    println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
 
-pub fn bank_get(config: Config, bank: Option<Pubkey>) -> Result<()> {
-    let rpc_client = config.mfi_program.rpc();
-
-    if let Some(bank) = bank {
-        let account: Bank = config.mfi_program.account(bank)?;
-        println!("Address: {bank}");
-        println!("=============");
-        println!("Raw data:");
-        println!("{account:#?}");
-
-        let liquidity_vault_balance =
-            rpc_client.get_token_account_balance(&account.liquidity_vault)?;
-        let fee_vault_balance = rpc_client.get_token_account_balance(&account.fee_vault)?;
-        let insurance_vault_balance =
-            rpc_client.get_token_account_balance(&account.insurance_vault)?;
-
-        println!("=============");
-        println!("Token balances:");
-        println!(
-            "\tliquidity vault: {} (native: {})",
-            liquidity_vault_balance.ui_amount.unwrap(),
-            liquidity_vault_balance.amount
-        );
-        println!(
-            "\tfee vault: {} (native: {})",
-            fee_vault_balance.ui_amount.unwrap(),
-            fee_vault_balance.amount
-        );
-        println!(
-            "\tinsurance vault: {} (native: {})",
-            insurance_vault_balance.ui_amount.unwrap(),
-            insurance_vault_balance.amount
-        );
-    } else {
-        group_get_all(config)?;
-    }
     Ok(())
 }
 
-fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec<(Pubkey, Bank)>> {
-    info!("Loading banks for group {:?}", marginfi_group);
-    let filters = match marginfi_group {
-        Some(marginfi_group) => vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-            8 + size_of::<Pubkey>() + size_of::<u8>(),
-            marginfi_group.to_bytes().to_vec(),
-        ))],
-        None => vec![],
-    };
-
-    let mut clock = config.mfi_program.rpc().get_account(&sysvar::clock::ID)?;
-    let clock = Clock::from_account_info(&(&sysvar::clock::ID, &mut clock).into_account_info())?;
-
-    let mut banks_with_addresses = config.mfi_program.accounts::<Bank>(filters)?;
-
-    banks_with_addresses.iter_mut().for_each(|(_, bank)| {
-        bank.accrue_interest(clock.unix_timestamp).unwrap();
-    });
-
-    Ok(banks_with_addresses)
-}
-
-pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
-    let accounts = load_all_banks(&config, marginfi_group)?;
-    for (address, state) in accounts {
-        println!("-> {address}:\n{state:#?}\n");
-    }
-    Ok(())
-}
-
+#[allow(clippy::too_many_arguments)]
 #[cfg(feature = "admin")]
-pub fn bank_handle_bankruptcy(
+pub fn group_handle_bankruptcy(
     config: &Config,
     profile: Profile,
     bank_pk: Pubkey,
@@ -569,58 +488,113 @@ pub fn bank_handle_bankruptcy(
     Ok(())
 }
 
-#[cfg(feature = "admin")]
-pub fn bank_collect_fees(config: &Config, profile: Profile, bank_pk: Pubkey) -> Result<()> {
+// --------------------------------------------------------------------------------------------------------------------
+// bank
+// --------------------------------------------------------------------------------------------------------------------
+
+pub fn bank_get(config: Config, bank: Option<Pubkey>) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
-    if profile.marginfi_group.is_none() {
-        bail!("Marginfi group not specified in profile [{}]", profile.name);
+    if let Some(bank) = bank {
+        let account: Bank = config.mfi_program.account(bank)?;
+        println!("Address: {bank}");
+        println!("=============");
+        println!("Raw data:");
+        println!("{account:#?}");
+
+        let liquidity_vault_balance =
+            rpc_client.get_token_account_balance(&account.liquidity_vault)?;
+        let fee_vault_balance = rpc_client.get_token_account_balance(&account.fee_vault)?;
+        let insurance_vault_balance =
+            rpc_client.get_token_account_balance(&account.insurance_vault)?;
+
+        println!("=============");
+        println!("Token balances:");
+        println!(
+            "\tliquidity vault: {} (native: {})",
+            liquidity_vault_balance.ui_amount.unwrap(),
+            liquidity_vault_balance.amount
+        );
+        println!(
+            "\tfee vault: {} (native: {})",
+            fee_vault_balance.ui_amount.unwrap(),
+            fee_vault_balance.amount
+        );
+        println!(
+            "\tinsurance vault: {} (native: {})",
+            insurance_vault_balance.ui_amount.unwrap(),
+            insurance_vault_balance.amount
+        );
+    } else {
+        group_get_all(config)?;
     }
+    Ok(())
+}
 
-    let collect_fees_ix = Instruction {
-        program_id: config.program_id,
-        accounts: marginfi::accounts::LendingPoolCollectBankFees {
-            marginfi_group: profile.marginfi_group.unwrap(),
-            bank: bank_pk,
-            liquidity_vault_authority: find_bank_vault_authority_pda(
-                &bank_pk,
-                BankVaultType::Liquidity,
-                &config.program_id,
-            )
-            .0,
-            liquidity_vault: find_bank_vault_pda(
-                &bank_pk,
-                BankVaultType::Liquidity,
-                &config.program_id,
-            )
-            .0,
-            insurance_vault: find_bank_vault_pda(
-                &bank_pk,
-                BankVaultType::Insurance,
-                &config.program_id,
-            )
-            .0,
-            fee_vault: find_bank_vault_pda(&bank_pk, BankVaultType::Fee, &config.program_id).0,
-            token_program: token::ID,
-        }
-        .to_account_metas(Some(true)),
-        data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
+fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec<(Pubkey, Bank)>> {
+    info!("Loading banks for group {:?}", marginfi_group);
+    let filters = match marginfi_group {
+        Some(marginfi_group) => vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+            8 + size_of::<Pubkey>() + size_of::<u8>(),
+            marginfi_group.to_bytes().to_vec(),
+        ))],
+        None => vec![],
     };
 
-    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let mut clock = config.mfi_program.rpc().get_account(&sysvar::clock::ID)?;
+    let clock = Clock::from_account_info(&(&sysvar::clock::ID, &mut clock).into_account_info())?;
 
-    let signers = vec![&config.payer];
-    let tx = Transaction::new_signed_with_payer(
-        &[collect_fees_ix],
-        Some(&config.payer.pubkey()),
-        &signers,
-        recent_blockhash,
+    let mut banks_with_addresses = config.mfi_program.accounts::<Bank>(filters)?;
+
+    banks_with_addresses.iter_mut().for_each(|(_, bank)| {
+        bank.accrue_interest(clock.unix_timestamp).unwrap();
+    });
+
+    Ok(banks_with_addresses)
+}
+
+pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()> {
+    let accounts = load_all_banks(&config, marginfi_group)?;
+    for (address, state) in accounts {
+        print_bank(&address, &state);
+    }
+    Ok(())
+}
+
+pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> {
+    let bank: Bank = config.mfi_program.account(bank_pk)?;
+    let mut price_oracle_account = config
+        .mfi_program
+        .rpc()
+        .get_account(&bank.config.oracle_keys[0])?;
+    let price_oracle_ai =
+        (&bank.config.oracle_keys[0], &mut price_oracle_account).into_account_info();
+
+    let opfa =
+        OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[price_oracle_ai], 0, u64::MAX)
+            .unwrap();
+
+    let (worst, best) = opfa.get_price_range().unwrap();
+    let keys = bank
+        .config
+        .oracle_keys
+        .iter()
+        .filter(|k| k != &&Pubkey::default())
+        .collect::<Vec<_>>();
+
+    println!(
+        r##"
+Oracle Setup: {setup:?}
+Oracle Keys: {keys:#?}
+Price: ${price} (worst: ${worst}, best: ${best}, std_dev: ${std})
+    "##,
+        setup = bank.config.oracle_setup,
+        keys = keys,
+        price = opfa.get_price().unwrap(),
+        worst = worst,
+        best = best,
+        std = opfa.get_confidence_interval().unwrap(),
     );
-
-    match process_transaction(&tx, &rpc_client, config.dry_run) {
-        Ok(sig) => println!("Collect fees handled (sig: {})", sig),
-        Err(err) => println!("Error during fee collection:\n{:#?}", err),
-    };
 
     Ok(())
 }
@@ -776,7 +750,7 @@ pub fn bank_configure(
     bank_pk: Pubkey,
     bank_config_opt: BankConfigOpt,
 ) -> Result<()> {
-    let configure_bank_ix = config
+    let mut configure_bank_ix = config
         .mfi_program
         .request()
         .signer(&config.payer)
@@ -785,8 +759,16 @@ pub fn bank_configure(
             admin: config.payer.pubkey(),
             bank: bank_pk,
         })
-        .args(marginfi::instruction::LendingPoolConfigureBank { bank_config_opt })
+        .args(marginfi::instruction::LendingPoolConfigureBank {
+            bank_config_opt: bank_config_opt.clone(),
+        })
         .instructions()?;
+
+    if let Some(oracle) = &bank_config_opt.oracle {
+        configure_bank_ix[0]
+            .accounts
+            .push(AccountMeta::new_readonly(oracle.keys[0], false));
+    }
 
     let transaction = Transaction::new_signed_with_payer(
         &configure_bank_ix,
@@ -1226,12 +1208,12 @@ pub fn marginfi_account_liquidate(
     };
 
     ix.accounts.push(AccountMeta {
-        pubkey: asset_bank.config.get_pyth_oracle_key(),
+        pubkey: asset_bank.config.oracle_keys[0],
         is_signer: false,
         is_writable: false,
     });
     ix.accounts.push(AccountMeta {
-        pubkey: liability_bank.config.get_pyth_oracle_key(),
+        pubkey: liability_bank.config.oracle_keys[0],
         is_signer: false,
         is_writable: false,
     });
@@ -1314,11 +1296,11 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
 
 #[cfg(feature = "lip")]
 pub fn process_list_lip_campaigns(config: &Config) {
-    let campaigns = config.lip_program.accounts::<Campaign>(vec![]).unwrap();
+    let campaings = config.lip_program.accounts::<Campaign>(vec![]).unwrap();
 
-    print!("Found {} campaigns", campaigns.len());
+    print!("Found {} campaigns", campaings.len());
 
-    campaigns.iter().for_each(|(address, campaign)| {
+    campaings.iter().for_each(|(address, campaign)| {
         let bank = config
             .mfi_program
             .account::<Bank>(campaign.marginfi_bank_pk)
@@ -1350,7 +1332,7 @@ pub fn process_list_deposits(config: &Config) {
     use solana_sdk::clock::SECONDS_PER_DAY;
 
     let mut deposits = config.lip_program.accounts::<Deposit>(vec![]).unwrap();
-    let campaigns = HashMap::<Pubkey, Campaign>::from_iter(
+    let campaings = HashMap::<Pubkey, Campaign>::from_iter(
         config.lip_program.accounts::<Campaign>(vec![]).unwrap(),
     );
     let banks =
@@ -1359,7 +1341,7 @@ pub fn process_list_deposits(config: &Config) {
     deposits.sort_by(|(_, a), (_, b)| a.start_time.cmp(&b.start_time));
 
     deposits.iter().for_each(|(address, deposit)| {
-        let campaign = campaigns.get(&deposit.campaign).unwrap();
+        let campaign = campaings.get(&deposit.campaign).unwrap();
         let bank = banks.get(&campaign.marginfi_bank_pk).unwrap();
 
         let time_now = SystemTime::now()
@@ -1406,4 +1388,20 @@ fn timestamp_to_string(timestamp: i64) -> String {
     )
     .format("%Y-%m-%d %H:%M:%S")
     .to_string()
+}
+
+// Switchboard tests
+#[cfg(feature = "dev")]
+pub fn process_inspect_switchboard_feed(config: &Config, aggregator_pk: &Pubkey) {
+    let aggregator_account_data = config
+        .mfi_program
+        .rpc()
+        .get_account_data(aggregator_pk)
+        .expect("Aggregator account not found");
+
+    let aggregator_account =
+        switchboard_v2::AggregatorAccountData::new_from_bytes(&aggregator_account_data)
+            .expect("Invalid aggregator account data");
+
+    println!("Aggregator account: {:#?}", aggregator_account);
 }

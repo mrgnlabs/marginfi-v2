@@ -11,6 +11,7 @@ use marginfi::state::marginfi_account::{
     calc_asset_value, MarginfiAccount, RiskEngine, RiskRequirementType, WeightType,
 };
 use marginfi::state::marginfi_group::BankOperationalState;
+use marginfi::state::price::OraclePriceFeedAdapter;
 use serde::Serialize;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
@@ -66,7 +67,7 @@ impl MarginfiGroupMetrics {
             |mut sums, (bank_pk, bank_accounts)| -> anyhow::Result<(f64, f64, f64, f64)> {
                 let total_asset_share = bank_accounts.bank.total_asset_shares;
                 let total_liability_share = bank_accounts.bank.total_liability_shares;
-                let price_feed_pk = bank_accounts.bank.config.get_pyth_oracle_key();
+                let price_feed_pk = bank_accounts.bank.config.oracle_keys[0];
                 let (asset_weight, liability_weight) = bank_accounts
                     .bank
                     .config
@@ -240,7 +241,7 @@ impl LendingPoolBankMetrics {
             .get_weights(WeightType::Maintenance);
         let (asset_weight_initial, liability_weight_initial) =
             bank_accounts.bank.config.get_weights(WeightType::Initial);
-        let price_feed_pk = bank_accounts.bank.config.get_pyth_oracle_key();
+        let price_feed_pk = bank_accounts.bank.config.oracle_keys[0];
         let price = snapshot
             .price_feeds
             .get(&price_feed_pk)
@@ -458,11 +459,18 @@ impl MarginfiAccountMetrics {
         let price_feeds =
             HashMap::from_iter(snapshot.price_feeds.iter().map(|(oracle_pk, oracle_data)| {
                 match oracle_data {
-                    OracleData::Pyth(price_feed) => (*oracle_pk, *price_feed),
+                    OracleData::Pyth(price_feed) => (
+                        *oracle_pk,
+                        OraclePriceFeedAdapter::PythEma(price_feed.clone()),
+                    ),
+                    OracleData::Switchboard(pf) => (
+                        *oracle_pk,
+                        OraclePriceFeedAdapter::SwitchboardV2(pf.clone()),
+                    ),
                 }
             }));
 
-        let risk_engine = RiskEngine::new(marginfi_account, &banks, &price_feeds)?;
+        let risk_engine = RiskEngine::load_from_map(marginfi_account, &banks, &price_feeds)?;
 
         let (total_assets_usd, total_liabilities_usd) =
             risk_engine.get_equity_components(timestamp)?;
@@ -499,7 +507,7 @@ impl MarginfiAccountMetrics {
                     bank.config.get_weights(WeightType::Initial);
                 let is_asset = asset_shares.gt(&I80F48!(0.0001));
 
-                let price_feed_pk = bank.config.get_pyth_oracle_key();
+                let price_feed_pk = bank.config.oracle_keys[0];
                 let price = snapshot
                     .price_feeds
                     .get(&price_feed_pk)

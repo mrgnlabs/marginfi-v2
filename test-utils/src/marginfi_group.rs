@@ -94,10 +94,7 @@ impl MarginfiGroupFixture {
         }
         .to_account_metas(Some(true));
 
-        accounts.push(AccountMeta::new_readonly(
-            bank_config.get_pyth_oracle_key(),
-            false,
-        ));
+        accounts.push(AccountMeta::new_readonly(bank_config.oracle_keys[0], false));
 
         let ix = Instruction {
             program_id: marginfi::id(),

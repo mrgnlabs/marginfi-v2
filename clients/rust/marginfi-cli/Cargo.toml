@@ -9,6 +9,8 @@ path = "src/bin/main.rs"
 
 [features]
 devnet = ["marginfi/devnet"]
+mainnet-beta = ["marginfi/mainnet-beta"]
+default = ["mainnet-beta"]
 admin = []
 dev = []
 lip = []
@@ -39,3 +41,4 @@ type-layout = "0.2.0"
 spl-token = "3.5.0"
 spl-associated-token-account = "1.1.2"
 chrono = "0.4.23"
+switchboard-v2 = "0.1.23"
