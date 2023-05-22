@@ -171,8 +171,8 @@ pub fn load_observation_account_metas(
 
 #[cfg(feature = "admin")]
 pub fn calc_emissions_rate(ui_rate: f64, emissions_mint_decimals: u8) -> u64 {
-    let mut rate = (ui_rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
-    rate
+    
+    (ui_rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64
 }
 
 // const SCALE: u128 = 10_u128.pow(14);
