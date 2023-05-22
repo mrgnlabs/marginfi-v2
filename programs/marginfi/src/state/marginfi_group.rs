@@ -783,6 +783,8 @@ pub struct BankConfig {
     ///
     /// In other words the max value of liabilities that can be backed by the asset is $500K.
     /// This is useful for limiting the damage of orcale attacks.
+    ///
+    /// Value is UI USD value, for example value 100 -> $100
     pub total_asset_value_init_limit: u64,
 
     pub _padding: [u64; 5], // 16 * 4 = 64 bytes

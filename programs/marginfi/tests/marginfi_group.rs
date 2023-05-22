@@ -1142,7 +1142,7 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
 
     usdc_bank
         .update_config(BankConfigOpt {
-            total_asset_value_init_limit: Some(native!(101, "USDC")),
+            total_asset_value_init_limit: Some(101),
             ..BankConfigOpt::default()
         })
         .await?;

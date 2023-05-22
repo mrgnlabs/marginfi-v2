@@ -161,12 +161,11 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             && self.bank.config.total_asset_value_init_limit
                 != TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE
         {
-            // Don't scale value to UI
             let bank_total_assets_value = calc_asset_value(
                 self.bank
                     .get_asset_amount(self.bank.total_asset_shares.into())?,
                 worst_price,
-                0,
+                6,
                 None,
             )?;
 
