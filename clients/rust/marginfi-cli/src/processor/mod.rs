@@ -63,6 +63,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+pub mod emissions;
+
 // --------------------------------------------------------------------------------------------------------------------
 // marginfi group
 // --------------------------------------------------------------------------------------------------------------------
@@ -139,7 +141,7 @@ Config:
     Type: {:?}
     Keys: {:#?}
 Emissions:
-  Flags: {:?}
+  Flags: 0b{:b}
   Rate: {:?}
   Mint: {:?}
   Remaining: {:?}
@@ -505,21 +507,18 @@ pub fn group_handle_bankruptcy(
 // bank
 // --------------------------------------------------------------------------------------------------------------------
 
-pub fn bank_get(config: Config, bank: Option<Pubkey>) -> Result<()> {
+pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
-    if let Some(bank) = bank {
-        let account: Bank = config.mfi_program.account(bank)?;
-        println!("Address: {bank}");
-        println!("=============");
-        println!("Raw data:");
-        println!("{account:#?}");
+    if let Some(address) = bank_pk {
+        let bank: Bank = config.mfi_program.account(address)?;
+        print_bank(&address, &bank);
 
         let liquidity_vault_balance =
-            rpc_client.get_token_account_balance(&account.liquidity_vault)?;
-        let fee_vault_balance = rpc_client.get_token_account_balance(&account.fee_vault)?;
+            rpc_client.get_token_account_balance(&bank.liquidity_vault)?;
+        let fee_vault_balance = rpc_client.get_token_account_balance(&bank.fee_vault)?;
         let insurance_vault_balance =
-            rpc_client.get_token_account_balance(&account.insurance_vault)?;
+            rpc_client.get_token_account_balance(&bank.insurance_vault)?;
 
         println!("=============");
         println!("Token balances:");
@@ -729,6 +728,8 @@ pub fn bank_update_emissions(
     rate: Option<f64>,
     additional_emissions: Option<f64>,
 ) -> Result<()> {
+    use crate::utils::calc_emissions_rate;
+
     assert!(!(disable && (deposits || borrows)));
 
     let bank = config
