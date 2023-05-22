@@ -434,6 +434,11 @@ impl Bank {
 
         set_if_some!(self.config.risk_tier, config.risk_tier);
 
+        set_if_some!(
+            self.config.total_asset_value_init_limit,
+            config.total_asset_value_init_limit
+        );
+
         self.config.validate()?;
 
         Ok(())
@@ -914,6 +919,8 @@ pub struct BankConfigOpt {
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
     pub risk_tier: Option<RiskTier>,
+
+    pub total_asset_value_init_limit: Option<u64>,
 }
 
 #[cfg_attr(

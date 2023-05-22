@@ -161,16 +161,23 @@ impl<'a> BankAccountWithPriceFeed<'a> {
             && self.bank.config.total_asset_value_init_limit
                 != TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE
         {
+            // Don't scale value to UI
             let bank_total_assets_value = calc_asset_value(
                 self.bank
                     .get_asset_amount(self.bank.total_asset_shares.into())?,
                 worst_price,
-                mint_decimals,
+                0,
                 None,
             )?;
 
             let total_asset_value_init_limit =
                 I80F48::from_num(self.bank.config.total_asset_value_init_limit);
+
+            msg!(
+                "Limit limit active, limit: {}, total_assets: {}",
+                total_asset_value_init_limit,
+                bank_total_assets_value
+            );
 
             if bank_total_assets_value > total_asset_value_init_limit {
                 let discount = total_asset_value_init_limit
