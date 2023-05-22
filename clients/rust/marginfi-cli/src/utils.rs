@@ -4,6 +4,7 @@ use fixed_macro::types::I80F48;
 use log::error;
 use marginfi::{
     bank_authority_seed,
+    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED},
     state::{
         marginfi_account::MarginfiAccount,
         marginfi_group::{Bank, BankVaultType},
@@ -63,6 +64,36 @@ pub fn find_bank_vault_authority_pda(
     program_id: &Pubkey,
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
+}
+
+pub fn find_bank_emssions_auth_pda(
+    bank: Pubkey,
+    emissions_mint: Pubkey,
+    program_id: Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            EMISSIONS_AUTH_SEED.as_bytes(),
+            bank.as_ref(),
+            emissions_mint.as_ref(),
+        ],
+        &program_id,
+    )
+}
+
+pub fn find_bank_emssions_token_account_pda(
+    bank: Pubkey,
+    emissions_mint: Pubkey,
+    program_id: Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
+            bank.as_ref(),
+            emissions_mint.as_ref(),
+        ],
+        &program_id,
+    )
 }
 
 #[cfg(feature = "admin")]
@@ -136,6 +167,27 @@ pub fn load_observation_account_metas(
         })
         .collect::<Vec<_>>();
     account_metas
+}
+
+#[cfg(feature = "admin")]
+pub fn calc_emissions_rate(
+    ui_rate: f64,
+    emissions_mint_decimals: u8,
+    bank_mint_decimals: u8,
+) -> u64 {
+    let mut rate = (ui_rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
+    let bank_mint_decimals_adjustment = bank_mint_decimals as i64 - 6;
+
+    // Adjust rate for 10^bank_mint_decimals_adjustment
+    if bank_mint_decimals_adjustment > 0 {
+        let adjustment = 10u64.pow(bank_mint_decimals_adjustment.try_into().unwrap());
+        rate /= adjustment;
+    } else if bank_mint_decimals_adjustment < 0 {
+        let adjustment = 10u64.pow((-bank_mint_decimals_adjustment).try_into().unwrap());
+        rate *= adjustment;
+    }
+
+    rate
 }
 
 // const SCALE: u128 = 10_u128.pow(14);

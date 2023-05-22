@@ -5,9 +5,9 @@ use super::{
 use crate::{
     assert_struct_size, check,
     constants::{
-        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMISSION_CALC_SECS_PER_YEAR,
+        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMISSIONS_RATE_SCALE,
         EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME,
-        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, ZERO_AMOUNT_THRESHOLD,
+        SECONDS_PER_YEAR, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -571,11 +571,15 @@ impl Balance {
         Ok(())
     }
 
-    pub fn close(&mut self) {
-        self.active = false;
-        self.asset_shares = I80F48::ZERO.into();
-        self.liability_shares = I80F48::ZERO.into();
-        self.bank_pk = Pubkey::default();
+    pub fn close(&mut self) -> MarginfiResult {
+        check!(
+            I80F48::from(self.emissions_outstanding) < I80F48::ONE,
+            MarginfiError::CannotCloseOutstandingEmissions
+        );
+
+        *self = Self::empty_deactivated();
+
+        Ok(())
     }
 
     pub fn get_side(&self) -> Option<BalanceSide> {
@@ -585,6 +589,18 @@ impl Balance {
             Some(BalanceSide::Liabilities)
         } else {
             None
+        }
+    }
+
+    pub fn empty_deactivated() -> Self {
+        Balance {
+            active: false,
+            bank_pk: Pubkey::default(),
+            asset_shares: WrappedI80F48::from(I80F48::ZERO),
+            liability_shares: WrappedI80F48::from(I80F48::ZERO),
+            emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),
+            last_update: 0,
+            _padding: [0; 1],
         }
     }
 }
@@ -701,6 +717,8 @@ impl<'a> BankAccountWrapper<'a> {
 
     /// Withdraw existing asset in full - will error if there is no asset.
     pub fn withdraw_all(&mut self) -> MarginfiResult<u64> {
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -724,7 +742,7 @@ impl<'a> BankAccountWrapper<'a> {
             MarginfiError::NoAssetFound
         );
 
-        balance.close();
+        balance.close()?;
         bank.change_asset_shares(-total_asset_shares)?;
 
         bank.check_utilization_ratio()?;
@@ -749,6 +767,8 @@ impl<'a> BankAccountWrapper<'a> {
 
     /// Repay existing liability in full - will error if there is no liability.
     pub fn repay_all(&mut self) -> MarginfiResult<u64> {
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
@@ -771,7 +791,7 @@ impl<'a> BankAccountWrapper<'a> {
             MarginfiError::NoLiabilityFound
         );
 
-        balance.close();
+        balance.close()?;
         bank.change_liability_shares(-total_liability_shares, false)?;
 
         let spl_deposit_amount = current_liability_amount
@@ -959,10 +979,13 @@ impl<'a> BankAccountWrapper<'a> {
             let emissions = period
                 .checked_mul(balance_amount)
                 .ok_or_else(math_error!())?
+                .checked_div(EMISSIONS_RATE_SCALE)
+                .ok_or_else(math_error!())?
                 .checked_mul(emissions_rate)
                 .ok_or_else(math_error!())?
-                .checked_div(EMISSION_CALC_SECS_PER_YEAR)
+                .checked_div(SECONDS_PER_YEAR)
                 .ok_or_else(math_error!())?;
+
             let emissions_real = min(emissions, I80F48::from(self.bank.emissions_remaining));
 
             msg!(

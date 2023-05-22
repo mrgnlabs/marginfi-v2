@@ -25,25 +25,27 @@ pub fn lending_account_withdraw_emissions(
     // Settle emissions
     let emissions_settle_amount = balance.settle_emissions_and_get_transfer_amount()?;
 
-    let signer_seeds: &[&[&[u8]]] = &[&[
-        EMISSIONS_AUTH_SEED.as_bytes(),
-        &ctx.accounts.bank.key().to_bytes(),
-        &ctx.accounts.emissions_mint.key().to_bytes(),
-        &[*ctx.bumps.get("emissions_auth").unwrap()],
-    ]];
+    if emissions_settle_amount > 0 {
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            EMISSIONS_AUTH_SEED.as_bytes(),
+            &ctx.accounts.bank.key().to_bytes(),
+            &ctx.accounts.emissions_mint.key().to_bytes(),
+            &[*ctx.bumps.get("emissions_auth").unwrap()],
+        ]];
 
-    transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.emissions_vault.to_account_info(),
-                to: ctx.accounts.destination_account.to_account_info(),
-                authority: ctx.accounts.emissions_auth.to_account_info(),
-            },
-            signer_seeds,
-        ),
-        emissions_settle_amount,
-    )?;
+        transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.emissions_vault.to_account_info(),
+                    to: ctx.accounts.destination_account.to_account_info(),
+                    authority: ctx.accounts.emissions_auth.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            emissions_settle_amount,
+        )?;
+    }
 
     Ok(())
 }
@@ -99,4 +101,34 @@ pub struct LendingAccountWithdrawEmissions<'info> {
     #[account(mut)]
     pub destination_account: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
+}
+
+/// Permissionlessly settle unclaimed emissions to a users account.
+pub fn lending_account_settle_emissions(
+    ctx: Context<LendingAccountSettleEmissions>,
+) -> MarginfiResult {
+    let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+    let mut bank = ctx.accounts.bank.load_mut()?;
+
+    let mut balance = BankAccountWrapper::find(
+        ctx.accounts.bank.to_account_info().key,
+        &mut bank,
+        &mut marginfi_account.lending_account,
+    )?;
+
+    balance.claim_emissions(Clock::get()?.unix_timestamp.try_into().unwrap())?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LendingAccountSettleEmissions<'info> {
+    #[account(
+        mut,
+        constraint = marginfi_account.load()?.group == bank.load()?.group,
+    )]
+    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
+
+    #[account(mut)]
+    pub bank: AccountLoader<'info, Bank>,
 }

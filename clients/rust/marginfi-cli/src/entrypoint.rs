@@ -227,8 +227,41 @@ pub enum BankCommand {
         #[clap(long, help = "Bank oracle account")]
         oracle_key: Option<Pubkey>,
     },
+    #[cfg(feature = "dev")]
     InspectPriceOracle {
         bank_pk: Pubkey,
+    },
+    #[cfg(feature = "admin")]
+    SetupEmissions {
+        bank: Pubkey,
+        #[clap(long)]
+        deposits: bool,
+        #[clap(long)]
+        borrows: bool,
+        #[clap(long)]
+        mint: Pubkey,
+        #[clap(long)]
+        rate_apr: f64,
+        #[clap(long)]
+        total_amount_ui: f64,
+    },
+    #[cfg(feature = "admin")]
+    UpdateEmissions {
+        bank: Pubkey,
+        #[clap(long)]
+        deposits: bool,
+        #[clap(long)]
+        borrows: bool,
+        #[clap(long)]
+        disable: bool,
+        #[clap(long)]
+        rate: Option<f64>,
+        #[clap(long)]
+        additional_amount_ui: Option<f64>,
+    },
+    #[cfg(feature = "admin")]
+    SettleAllEmissions {
+        bank: Pubkey,
     },
 }
 
@@ -468,10 +501,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
 
     if !global_options.skip_confirmation {
         match subcmd {
-            BankCommand::Get { .. }
-            | BankCommand::GetAll { .. }
-            | BankCommand::InspectPriceOracle { .. } => (),
-            #[cfg(feature = "admin")]
+            BankCommand::Get { .. } | BankCommand::GetAll { .. } => (),
+            #[cfg(feature = "dev")]
+            BankCommand::InspectPriceOracle { .. } => (),
             _ => get_consent(&subcmd, &profile)?,
         }
     }
@@ -545,8 +577,42 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                 },
             )
         }
+        #[cfg(feature = "dev")]
         BankCommand::InspectPriceOracle { bank_pk } => {
             processor::bank_inspect_price_oracle(config, bank_pk)
+        }
+        #[cfg(feature = "admin")]
+        BankCommand::SetupEmissions {
+            bank,
+            deposits,
+            borrows,
+            mint,
+            rate_apr: rate,
+            total_amount_ui: total_ui,
+        } => processor::bank_setup_emissions(
+            &config, &profile, bank, deposits, borrows, mint, rate, total_ui,
+        ),
+        #[cfg(feature = "admin")]
+        BankCommand::UpdateEmissions {
+            bank,
+            deposits,
+            borrows,
+            disable,
+            rate,
+            additional_amount_ui,
+        } => processor::bank_update_emissions(
+            &config,
+            &profile,
+            bank,
+            deposits,
+            borrows,
+            disable,
+            rate,
+            additional_amount_ui,
+        ),
+        #[cfg(feature = "admin")]
+        BankCommand::SettleAllEmissions { bank } => {
+            processor::emissions::claim_all_emissions_for_bank(&config, &profile, bank)
         }
     }
 }

@@ -1540,3 +1540,57 @@ async fn emissions_test() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn emissions_test_2() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_one_isolated())).await;
+
+    let usdc_bank = test_f.get_bank(&BankMint::USDC);
+
+    let funding_account = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
+
+    usdc_bank
+        .try_setup_emissions(
+            EMISSIONS_FLAG_LENDING_ACTIVE,
+            1_000_000,
+            native!(50, "USDC"),
+            usdc_bank.mint.key,
+            funding_account.key,
+        )
+        .await?;
+
+    let usdc_bank_data = usdc_bank.load().await;
+
+    assert_eq!(
+        usdc_bank_data.emissions_flags,
+        EMISSIONS_FLAG_LENDING_ACTIVE
+    );
+
+    assert_eq!(usdc_bank_data.emissions_rate, 1_000_000);
+
+    assert_eq!(
+        I80F48::from(usdc_bank_data.emissions_remaining),
+        I80F48::from_num(native!(50, "USDC"))
+    );
+
+    usdc_bank
+        .try_update_emissions(
+            Some(EMISSIONS_FLAG_BORROW_ACTIVE),
+            Some(500_000),
+            Some((native!(25, "USDC"), funding_account.key)),
+        )
+        .await?;
+
+    let usdc_bank_data = usdc_bank.load().await;
+
+    assert_eq!(usdc_bank_data.emissions_flags, EMISSIONS_FLAG_BORROW_ACTIVE);
+
+    assert_eq!(usdc_bank_data.emissions_rate, 500_000);
+
+    assert_eq!(
+        I80F48::from(usdc_bank_data.emissions_remaining),
+        I80F48::from_num(native!(75, "USDC"))
+    );
+
+    Ok(())
+}
