@@ -1183,7 +1183,6 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
         .await?;
 
     // Borrowing 10 SOL should succeed now
-
     let res = usdc_depositor
         .try_bank_borrow(depositor_sol_account.key, sol_bank, 10)
         .await;
@@ -1206,7 +1205,6 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
         .await?;
 
     // Borrowing 10 SOL should succeed now
-
     let res = usdc_depositor
         .try_bank_borrow(depositor_sol_account.key, sol_bank, 10)
         .await;

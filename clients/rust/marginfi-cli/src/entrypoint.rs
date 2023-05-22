@@ -226,6 +226,8 @@ pub enum BankCommand {
         oracle_type: Option<OracleTypeArg>,
         #[clap(long, help = "Bank oracle account")]
         oracle_key: Option<Pubkey>,
+        #[clap(long, help = "Soft USD init limit")]
+        usd_init_limit: Option<u64>,
     },
     #[cfg(feature = "dev")]
     InspectPriceOracle {
@@ -531,6 +533,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             risk_tier,
             oracle_type,
             oracle_key,
+            usd_init_limit,
         } => {
             let bank = config
                 .mfi_program
@@ -555,7 +558,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     }),
                     operational_state: operational_state.map(|x| x.into()),
                     oracle: oracle_key.map(|x| marginfi::state::marginfi_group::OracleConfig {
-                        setup: oracle_type.expect("Orcale type must be provided").into(),
+                        setup: oracle_type
+                            .expect("Orcale type must be provided with oracle_key")
+                            .into(),
                         keys: [
                             x,
                             Pubkey::default(),
@@ -574,6 +579,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                         protocol_ir_fee: pf_ir.map(|x| I80F48::from_num(x).into()),
                     }),
                     risk_tier: risk_tier.map(|x| x.into()),
+                    total_asset_value_init_limit: usd_init_limit,
                 },
             )
         }
