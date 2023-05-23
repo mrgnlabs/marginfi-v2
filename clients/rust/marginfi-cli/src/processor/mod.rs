@@ -622,8 +622,6 @@ pub fn bank_setup_emissions(
     rate: f64,
     total: f64,
 ) -> Result<()> {
-    use crate::utils::calc_emissions_rate;
-
     let funding_account_ata = get_associated_token_address(&config.payer.pubkey(), &mint);
     let mut flags = 0;
 
@@ -641,14 +639,9 @@ pub fn bank_setup_emissions(
         spl_token::state::Mint::unpack_from_slice(&emissions_mint_decimals.data)
             .unwrap()
             .decimals;
-    let _bank_mint_decimals = config
-        .mfi_program
-        .account::<Bank>(bank)
-        .unwrap()
-        .mint_decimals;
 
     let total_emissions = (total * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
-    let rate = calc_emissions_rate(rate, emissions_mint_decimals);
+    let rate = crate::utils::calc_emissions_rate(rate, emissions_mint_decimals);
 
     println!(
         "Native rate: {} tokens per 1 bank token (UI) per YEAR",
