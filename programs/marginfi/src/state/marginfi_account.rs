@@ -165,7 +165,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 self.bank
                     .get_asset_amount(self.bank.total_asset_shares.into())?,
                 worst_price,
-                6,
+                mint_decimals,
                 None,
             )?;
 
@@ -173,7 +173,7 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                 I80F48::from_num(self.bank.config.total_asset_value_init_limit);
 
             msg!(
-                "Limit limit active, limit: {}, total_assets: {}",
+                "Init limit active, limit: {}, total_assets: {}",
                 total_asset_value_init_limit,
                 bank_total_assets_value
             );
