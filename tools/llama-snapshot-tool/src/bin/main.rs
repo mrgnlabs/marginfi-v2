@@ -227,7 +227,7 @@ impl DefiLammaPoolInfo {
 
 async fn fetch_price_from_birdeye(token: &Pubkey) -> Result<I80F48> {
     println!("Fetching price for {}", token);
-    let url = format!("{}/public/price?address={}", BIRDEYE_API, token.to_string());
+    let url = format!("{}/public/price?address={}", BIRDEYE_API, token);
     let client = reqwest::Client::new();
 
     let res = client

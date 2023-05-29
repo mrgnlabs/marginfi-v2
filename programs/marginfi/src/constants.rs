@@ -55,9 +55,6 @@ pub const EMISSIONS_FLAG_LENDING_ACTIVE: u64 = 1 << 1;
 /// Any balance updates before this timestamp are ignored, and current_timestamp is used instead.
 pub const MIN_EMISSIONS_START_TIME: u64 = 1681989983;
 
-/// This constant combines the number of seconds per year, and the scale of the emissions rate (1e+6) to save on computation.
-pub const EMISSIONS_RATE_SCALE: I80F48 = I80F48!(1_000_000);
-
 pub const MAX_EXP_10_I80F48: usize = 24;
 pub const EXP_10_I80F48: [I80F48; MAX_EXP_10_I80F48] = [
     I80F48!(1),                        // 10^0

@@ -639,26 +639,14 @@ pub fn bank_setup_emissions(
         spl_token::state::Mint::unpack_from_slice(&emissions_mint_decimals.data)
             .unwrap()
             .decimals;
-    let bank_mint_decimals = config
-        .mfi_program
-        .account::<Bank>(bank)
-        .unwrap()
-        .mint_decimals;
 
     let total_emissions = (total * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
-    let mut rate = (rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
-    let bank_mint_decimals_adjustment = bank_mint_decimals as i64 - 6;
+    let rate = crate::utils::calc_emissions_rate(rate, emissions_mint_decimals);
 
-    // Adjust rate for 10^bank_mint_decimals_adjustment
-    if bank_mint_decimals_adjustment > 0 {
-        let adjustment = 10u64.pow(bank_mint_decimals_adjustment.try_into().unwrap());
-        rate /= adjustment;
-    } else if bank_mint_decimals_adjustment < 0 {
-        let adjustment = 10u64.pow((-bank_mint_decimals_adjustment).try_into().unwrap());
-        rate *= adjustment;
-    }
-
-    println!("Native rate: {} tokens per 1M bank tokens per YEAR", rate);
+    println!(
+        "Native rate: {} tokens per 1 bank token (UI) per YEAR",
+        rate
+    );
     println!("Emissions flag: {:b}", flags);
     println!("Total native emissions: {}", total_emissions);
 
@@ -750,8 +738,7 @@ pub fn bank_update_emissions(
             .unwrap()
             .decimals;
 
-    let emissions_rate =
-        rate.map(|rate| calc_emissions_rate(rate, emissions_mint_decimals, bank.mint_decimals));
+    let emissions_rate = rate.map(|rate| calc_emissions_rate(rate, emissions_mint_decimals));
     let additional_emissions = additional_emissions
         .map(|emissions| (emissions * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64);
     let emissions_flags = if disable {

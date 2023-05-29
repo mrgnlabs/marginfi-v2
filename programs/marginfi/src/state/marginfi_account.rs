@@ -5,9 +5,9 @@ use super::{
 use crate::{
     assert_struct_size, check,
     constants::{
-        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMISSIONS_RATE_SCALE,
-        EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME,
-        SECONDS_PER_YEAR, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, ZERO_AMOUNT_THRESHOLD,
+        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD,
+        EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR,
+        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -985,7 +985,7 @@ impl<'a> BankAccountWrapper<'a> {
             let emissions = period
                 .checked_mul(balance_amount)
                 .ok_or_else(math_error!())?
-                .checked_div(EMISSIONS_RATE_SCALE)
+                .checked_div(EXP_10_I80F48[self.bank.mint_decimals as usize])
                 .ok_or_else(math_error!())?
                 .checked_mul(emissions_rate)
                 .ok_or_else(math_error!())?
