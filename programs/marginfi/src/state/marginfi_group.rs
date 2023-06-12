@@ -9,7 +9,7 @@ use crate::{
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        MAX_ORACLE_KEYS, PYTH_ID, SECONDS_PER_YEAR,
+        MAX_ORACLE_KEYS, PYTH_ID, SECONDS_PER_YEAR, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
     prelude::MarginfiError,
@@ -434,6 +434,11 @@ impl Bank {
 
         set_if_some!(self.config.risk_tier, config.risk_tier);
 
+        set_if_some!(
+            self.config.total_asset_value_init_limit,
+            config.total_asset_value_init_limit
+        );
+
         self.config.validate()?;
 
         Ok(())
@@ -772,7 +777,17 @@ pub struct BankConfig {
 
     pub risk_tier: RiskTier,
 
-    pub _padding: [u64; 6], // 16 * 4 = 64 bytes
+    /// USD denominated limit for calculating asset value for initialization margin requirements.
+    /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
+    /// then SOL assets will be discounted by 50%.
+    ///
+    /// In other words the max value of liabilities that can be backed by the asset is $500K.
+    /// This is useful for limiting the damage of orcale attacks.
+    ///
+    /// Value is UI USD value, for example value 100 -> $100
+    pub total_asset_value_init_limit: u64,
+
+    pub _padding: [u64; 5], // 16 * 4 = 64 bytes
 }
 
 impl Default for BankConfig {
@@ -789,7 +804,8 @@ impl Default for BankConfig {
             oracle_setup: OracleSetup::None,
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
             risk_tier: RiskTier::Isolated,
-            _padding: [0; 6],
+            total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
+            _padding: [0; 5],
         }
     }
 }
@@ -905,6 +921,8 @@ pub struct BankConfigOpt {
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
     pub risk_tier: Option<RiskTier>,
+
+    pub total_asset_value_init_limit: Option<u64>,
 }
 
 #[cfg_attr(

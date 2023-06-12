@@ -7,7 +7,7 @@ use crate::{
     constants::{
         EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD,
         EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR,
-        ZERO_AMOUNT_THRESHOLD,
+        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -69,6 +69,7 @@ pub enum BalanceDecreaseType {
     BypassBorrowLimit,
 }
 
+#[derive(Copy, Clone)]
 pub enum WeightType {
     Initial,
     Maintenance,
@@ -146,6 +147,8 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         weight_type: WeightType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         let (worst_price, best_price) = self.price_feed.get_price_range()?;
+        let (mut asset_weight, liability_weight) = self.bank.config.get_weights(weight_type);
+        let mint_decimals = self.bank.mint_decimals;
 
         let asset_amount = self
             .bank
@@ -153,9 +156,45 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         let liability_amount = self
             .bank
             .get_liability_amount(self.balance.liability_shares.into())?;
-        let (asset_weight, liability_weight) = self.bank.config.get_weights(weight_type);
 
-        let mint_decimals = self.bank.mint_decimals;
+        if matches!(weight_type, WeightType::Initial)
+            && self.bank.config.total_asset_value_init_limit
+                != TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE
+        {
+            let bank_total_assets_value = calc_asset_value(
+                self.bank
+                    .get_asset_amount(self.bank.total_asset_shares.into())?,
+                worst_price,
+                mint_decimals,
+                None,
+            )?;
+
+            let total_asset_value_init_limit =
+                I80F48::from_num(self.bank.config.total_asset_value_init_limit);
+
+            msg!(
+                "Init limit active, limit: {}, total_assets: {}",
+                total_asset_value_init_limit,
+                bank_total_assets_value
+            );
+
+            if bank_total_assets_value > total_asset_value_init_limit {
+                let discount = total_asset_value_init_limit
+                    .checked_div(bank_total_assets_value)
+                    .ok_or_else(math_error!())?;
+
+                msg!(
+                    "Discounting assets by {:.2} because of total deposits {} over {} usd cap",
+                    discount,
+                    bank_total_assets_value,
+                    total_asset_value_init_limit
+                );
+
+                asset_weight = asset_weight
+                    .checked_mul(discount)
+                    .ok_or_else(math_error!())?;
+            }
+        }
 
         Ok((
             calc_asset_value(asset_amount, worst_price, mint_decimals, Some(asset_weight))?,
