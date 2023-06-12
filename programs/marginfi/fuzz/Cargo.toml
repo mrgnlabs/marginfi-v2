@@ -8,7 +8,7 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
-anchor-lang = "0.26.0"
+anchor-lang = "0.27.0"
 anyhow = "1.0.68"
 arbitrary = { version = "1.2.2", features = ["derive"] }
 bumpalo = "3.11.1"
