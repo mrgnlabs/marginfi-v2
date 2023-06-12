@@ -1,4 +1,4 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, Discriminator};
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
@@ -332,7 +332,7 @@ pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Accou
         ],
     };
 
-    let desc_bytes = <AggregatorAccountData as anchor_lang_27::Discriminator>::DISCRIMINATOR;
+    let desc_bytes = <AggregatorAccountData as Discriminator>::DISCRIMINATOR;
     let mut data = vec![0u8; 8 + size_of::<AggregatorAccountData>()];
     data[..8].copy_from_slice(&desc_bytes);
     data[8..].copy_from_slice(bytemuck::bytes_of(&aggregator_account));
