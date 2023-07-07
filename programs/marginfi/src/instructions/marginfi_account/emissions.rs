@@ -2,10 +2,11 @@ use anchor_lang::{prelude::*, Accounts, ToAccountInfo};
 use anchor_spl::token::{transfer, Mint, Token, TokenAccount, Transfer};
 
 use crate::{
+    check,
     constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED},
-    prelude::MarginfiResult,
+    prelude::{MarginfiError, MarginfiResult},
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
         marginfi_group::{Bank, MarginfiGroup},
     },
 };
@@ -14,6 +15,12 @@ pub fn lending_account_withdraw_emissions(
     ctx: Context<LendingAccountWithdrawEmissions>,
 ) -> MarginfiResult {
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+
+    check!(
+        marginfi_account.get_flag(DISABLED_FLAG),
+        MarginfiError::AccountDisabled
+    );
+
     let mut bank = ctx.accounts.bank.load_mut()?;
 
     let mut balance = BankAccountWrapper::find(

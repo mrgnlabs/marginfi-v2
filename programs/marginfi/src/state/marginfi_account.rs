@@ -5,9 +5,9 @@ use super::{
 use crate::{
     assert_struct_size, check,
     constants::{
-        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD,
-        EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR,
-        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, ZERO_AMOUNT_THRESHOLD,
+        BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
+        EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME,
+        SECONDS_PER_YEAR, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -24,18 +24,27 @@ use std::{
 #[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
 
+assert_struct_size!(MarginfiAccount, 2304);
 #[account(zero_copy)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq, TypeLayout)
 )]
 pub struct MarginfiAccount {
-    pub group: Pubkey,
-    pub authority: Pubkey,
-    pub lending_account: LendingAccount,
-
-    pub _padding: [u64; 64], // 4 * 64 = 256
+    pub group: Pubkey,                   // 32
+    pub authority: Pubkey,               // 32
+    pub lending_account: LendingAccount, // 1728
+    /// The flas that indicates the state of the account.
+    /// This is u64 bitfield, where each bit represents a flag.
+    ///
+    /// Flags:
+    /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
+    /// and no further actions can be taken on it.
+    pub account_flags: u64, // 8
+    pub _padding: [u64; 63],             // 8 * 63 = 512
 }
+
+pub const DISABLED_FLAG: u64 = 1 << 0;
 
 impl MarginfiAccount {
     /// Set the initial data for the marginfi account.
@@ -51,6 +60,14 @@ impl MarginfiAccount {
             .filter(|b| b.active)
             .count()
             * 2 // TODO: Make account count oracle setup specific
+    }
+
+    pub fn set_flag(&mut self, flag: u64) {
+        self.account_flags |= flag;
+    }
+
+    pub fn get_flag(&self, flag: u64) -> bool {
+        self.account_flags & flag != 0
     }
 }
 
@@ -73,6 +90,7 @@ pub enum BalanceDecreaseType {
 pub enum WeightType {
     Initial,
     Maintenance,
+    Equity,
 }
 
 pub struct BankAccountWithPriceFeed<'a> {
@@ -269,6 +287,7 @@ pub fn calc_asset_amount(
 pub enum RiskRequirementType {
     Initial,
     Maintenance,
+    Equity,
 }
 
 impl RiskRequirementType {
@@ -276,6 +295,7 @@ impl RiskRequirementType {
         match self {
             RiskRequirementType::Initial => WeightType::Initial,
             RiskRequirementType::Maintenance => WeightType::Maintenance,
+            RiskRequirementType::Equity => WeightType::Equity,
         }
     }
 }
@@ -459,18 +479,23 @@ impl<'a> RiskEngine<'a> {
     }
 
     /// Check that the account is in a bankrupt state.
+    /// Account needs to be insolvent and total value of assets need to be below the bankruptcy threshold.
     pub fn check_account_bankrupt(&self) -> MarginfiResult {
-        let (total_weighted_assets, total_weighted_liabilities) =
-            self.get_account_health_components(RiskRequirementType::Initial)?;
+        let (total_assets, total_liabilities) =
+            self.get_account_health_components(RiskRequirementType::Equity)?;
 
         msg!(
             "check_bankrupt: assets {} - liabs: {}",
-            total_weighted_assets,
-            total_weighted_liabilities
+            total_assets,
+            total_liabilities
         );
 
         check!(
-            total_weighted_assets == I80F48::ZERO && total_weighted_liabilities > I80F48::ZERO,
+            total_assets < total_liabilities,
+            MarginfiError::AccountNotBankrupt
+        );
+        check!(
+            total_assets < BANKRUPT_THRESHOLD && total_liabilities > ZERO_AMOUNT_THRESHOLD,
             MarginfiError::AccountNotBankrupt
         );
 
@@ -500,14 +525,15 @@ impl<'a> RiskEngine<'a> {
 
 const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
+assert_struct_size!(LendingAccount, 1728);
 #[zero_copy]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq, TypeLayout)
 )]
 pub struct LendingAccount {
-    pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES],
-    pub _padding: [u64; 8], // 4 * 8 = 32
+    pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES], // 104 * 16 = 1664
+    pub _padding: [u64; 8],                                // 8 * 8 = 64
 }
 
 impl LendingAccount {

@@ -1,10 +1,12 @@
 use crate::{
-    bank_signer,
+    bank_signer, check,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     events::{AccountEventHeader, LendingAccountBorrowEvent},
-    prelude::{MarginfiGroup, MarginfiResult},
+    prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType},
+        marginfi_account::{
+            BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType, DISABLED_FLAG,
+        },
         marginfi_group::{Bank, BankVaultType},
     },
 };
@@ -32,6 +34,11 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
     } = ctx.accounts;
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+
+    check!(
+        marginfi_account.get_flag(DISABLED_FLAG),
+        MarginfiError::AccountDisabled
+    );
 
     bank_loader.load_mut()?.accrue_interest(
         Clock::get()?.unix_timestamp,

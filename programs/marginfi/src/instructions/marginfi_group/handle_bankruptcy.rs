@@ -1,4 +1,6 @@
+use crate::constants::ZERO_AMOUNT_THRESHOLD;
 use crate::events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent};
+use crate::state::marginfi_account::DISABLED_FLAG;
 use crate::{
     bank_signer, check,
     constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED},
@@ -57,7 +59,10 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
 
     let bad_debt = bank.get_liability_amount(lending_account_balance.liability_shares.into())?;
 
-    check!(bad_debt > I80F48::ZERO, MarginfiError::BalanceNotBadDebt);
+    check!(
+        bad_debt > ZERO_AMOUNT_THRESHOLD,
+        MarginfiError::BalanceNotBadDebt
+    );
 
     let (covered_by_insurance, socialized_loss) = {
         let available_insurance_funds = I80F48::from_num(insurance_vault.amount);
@@ -97,6 +102,8 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
         &mut marginfi_account.lending_account,
     )?
     .repay(bad_debt)?;
+
+    marginfi_account.set_flag(DISABLED_FLAG);
 
     emit!(LendingPoolBankHandleBankruptcyEvent {
         header: AccountEventHeader {
