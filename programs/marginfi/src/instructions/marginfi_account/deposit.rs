@@ -35,7 +35,7 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
     check!(
-        marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(DISABLED_FLAG),
         MarginfiError::AccountDisabled
     );
 

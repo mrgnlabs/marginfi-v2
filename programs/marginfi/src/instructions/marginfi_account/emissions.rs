@@ -17,7 +17,7 @@ pub fn lending_account_withdraw_emissions(
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
     check!(
-        marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(DISABLED_FLAG),
         MarginfiError::AccountDisabled
     );
 
