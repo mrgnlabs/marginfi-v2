@@ -45,6 +45,12 @@ pub const MAX_ORACLE_KEYS: usize = 5;
 /// this is to account for any artifacts resulting from binary fraction arithemtic.
 pub const EMPTY_BALANCE_THRESHOLD: I80F48 = I80F48!(1);
 
+/// Any account with assets below this threshold is considered bankrupt.
+/// The account also needs to have more liabilities than assets.
+///
+/// This is USD denominated, so 0.001 = $0.1
+pub const BANKRUPT_THRESHOLD: I80F48 = I80F48!(0.1);
+
 /// Comparios threshold used to account for arithmetic artifacts on balances
 pub const ZERO_AMOUNT_THRESHOLD: I80F48 = I80F48!(0.0001);
 

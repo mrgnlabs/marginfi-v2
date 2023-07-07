@@ -1,9 +1,10 @@
 use crate::{
+    check,
     constants::LIQUIDITY_VAULT_SEED,
     events::{AccountEventHeader, LendingAccountRepayEvent},
-    prelude::{MarginfiGroup, MarginfiResult},
+    prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
         marginfi_group::Bank,
     },
 };
@@ -36,6 +37,11 @@ pub fn lending_account_repay(
     let repay_all = repay_all.unwrap_or(false);
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+
+    check!(
+        !marginfi_account.get_flag(DISABLED_FLAG),
+        MarginfiError::AccountDisabled
+    );
 
     bank.accrue_interest(
         Clock::get()?.unix_timestamp,

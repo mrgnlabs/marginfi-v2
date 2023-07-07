@@ -78,6 +78,8 @@ pub enum MarginfiError {
     CannotCloseOutstandingEmissions,
     #[msg("Update emissions error")] //6036
     EmissionsUpdateError,
+    #[msg("Account disabled")] // 6037
+    AccountDisabled,
 }
 
 impl From<MarginfiError> for ProgramError {

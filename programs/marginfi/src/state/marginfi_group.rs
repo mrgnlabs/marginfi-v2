@@ -822,6 +822,7 @@ impl BankConfig {
                 self.asset_weight_maint.into(),
                 self.liability_weight_maint.into(),
             ),
+            WeightType::Equity => (I80F48::ONE, I80F48::ONE),
         }
     }
 

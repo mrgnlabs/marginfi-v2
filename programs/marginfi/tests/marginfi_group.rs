@@ -614,6 +614,58 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
 
     assert_eq!(insurance_amount.balance().await, 0);
 
+    // Test account is disabled
+
+    // Deposit 1 SOL
+    let res = borrower_account
+        .try_bank_deposit(
+            borrower_deposit_account.key,
+            test_f.get_bank(&BankMint::SOL),
+            1,
+        )
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::AccountDisabled);
+
+    // Withdraw 1 SOL
+    let res = borrower_account
+        .try_bank_withdraw(
+            borrower_deposit_account.key,
+            test_f.get_bank(&BankMint::SOL),
+            1,
+            None,
+        )
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::AccountDisabled);
+
+    // Borrow 1 USDC
+    let res = borrower_account
+        .try_bank_borrow(
+            borrower_borrow_account.key,
+            test_f.get_bank(&BankMint::USDC),
+            1,
+        )
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::AccountDisabled);
+
+    // Repay 1 USDC
+    let res = borrower_account
+        .try_bank_repay(
+            borrower_borrow_account.key,
+            test_f.get_bank(&BankMint::USDC),
+            1,
+            None,
+        )
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::AccountDisabled);
+
     Ok(())
 }
 
