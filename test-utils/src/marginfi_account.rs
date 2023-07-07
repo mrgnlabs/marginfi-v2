@@ -360,7 +360,13 @@ impl MarginfiAccountFixture {
             .lending_account
             .balances
             .iter()
-            .filter_map(|balance| balance.active.then_some(balance.bank_pk))
+            .filter_map(|balance| {
+                if balance.active {
+                    Some(balance.bank_pk)
+                } else {
+                    None
+                }
+            })
             .collect::<Vec<_>>();
 
         for bank_pk in include_banks {

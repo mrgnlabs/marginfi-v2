@@ -97,12 +97,17 @@ pub struct TestBankSetting {
     pub config: Option<BankConfig>,
 }
 
-#[derive(Default, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum BankMint {
-    #[default]
     USDC,
     SOL,
     SolEquivalent,
+}
+
+impl Default for BankMint {
+    fn default() -> Self {
+        Self::USDC
+    }
 }
 
 pub struct TestFixture {

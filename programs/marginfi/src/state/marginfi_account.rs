@@ -63,6 +63,7 @@ impl MarginfiAccount {
     }
 
     pub fn set_flag(&mut self, flag: u64) {
+        msg!("Setting account flag {:b}", flag);
         self.account_flags |= flag;
     }
 
