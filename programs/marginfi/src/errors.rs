@@ -80,6 +80,8 @@ pub enum MarginfiError {
     EmissionsUpdateError,
     #[msg("Account disabled")] // 6037
     AccountDisabled,
+    #[msg("Account can't temporarily open 3 balances, please close a balance first")]
+    AccountTempActiveBalanceLimitExceeded,
 }
 
 impl From<MarginfiError> for ProgramError {

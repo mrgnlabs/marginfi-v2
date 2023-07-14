@@ -7,7 +7,8 @@ use crate::{
     constants::{
         BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
         EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME,
-        SECONDS_PER_YEAR, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, ZERO_AMOUNT_THRESHOLD,
+        SECONDS_PER_YEAR, TEMP_BALANCE_LIMIT, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
+        ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -684,6 +685,16 @@ impl<'a> BankAccountWrapper<'a> {
                 let empty_index = lending_account
                     .get_first_empty_balance()
                     .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
+
+                check!(
+                    (lending_account
+                        .balances
+                        .iter()
+                        .filter(|balance| balance.active)
+                        .count() as u64)
+                        < TEMP_BALANCE_LIMIT,
+                    MarginfiError::AccountTempActiveBalanceLimitExceeded
+                );
 
                 lending_account.balances[empty_index] = Balance {
                     active: true,
