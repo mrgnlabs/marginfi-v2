@@ -89,6 +89,54 @@ impl TestSettings {
             group_config: Some(GroupConfig { admin: None }),
         }
     }
+
+    pub fn many_banks_10() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent1,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent2,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent3,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent4,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent5,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent6,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent7,
+                    ..TestBankSetting::default()
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -102,6 +150,15 @@ pub enum BankMint {
     USDC,
     SOL,
     SolEquivalent,
+    SolEquivalent1,
+    SolEquivalent2,
+    SolEquivalent3,
+    SolEquivalent4,
+    SolEquivalent5,
+    SolEquivalent6,
+    SolEquivalent7,
+    SolEquivalent8,
+    SolEquivalent9,
 }
 
 impl Default for BankMint {
@@ -315,6 +372,42 @@ impl TestFixture {
                     BankMint::USDC => (&usdc_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
                     BankMint::SOL => (&sol_mint_f, *DEFAULT_SOL_TEST_BANK_CONFIG),
                     BankMint::SolEquivalent => (
+                        &sol_equivalent_mint_f,
+                        *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
+                    ),
+                    BankMint::SolEquivalent1 => (
+                        &sol_equivalent_mint_f,
+                        *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
+                    ),
+                    BankMint::SolEquivalent2 => (
+                        &sol_equivalent_mint_f,
+                        *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
+                    ),
+                    BankMint::SolEquivalent3 => (
+                        &sol_equivalent_mint_f,
+                        *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
+                    ),
+                    BankMint::SolEquivalent4 => (
+                        &sol_equivalent_mint_f,
+                        *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
+                    ),
+                    BankMint::SolEquivalent5 => (
+                        &sol_equivalent_mint_f,
+                        *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
+                    ),
+                    BankMint::SolEquivalent6 => (
+                        &sol_equivalent_mint_f,
+                        *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
+                    ),
+                    BankMint::SolEquivalent7 => (
+                        &sol_equivalent_mint_f,
+                        *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
+                    ),
+                    BankMint::SolEquivalent8 => (
+                        &sol_equivalent_mint_f,
+                        *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
+                    ),
+                    BankMint::SolEquivalent9 => (
                         &sol_equivalent_mint_f,
                         *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
                     ),

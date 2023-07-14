@@ -189,9 +189,11 @@ impl MarginfiAccountFixture {
                 .await,
         );
 
+        let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
+
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
-            &[ix],
+            &[compute_budget_ix, ix],
             Some(&ctx.payer.pubkey().clone()),
             &[&ctx.payer],
             ctx.last_blockhash,
@@ -303,11 +305,11 @@ impl MarginfiAccountFixture {
                 .await,
         );
 
-        let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
+        let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
 
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
-            &[ix, compute_budget_ix],
+            &[compute_budget_ix, ix],
             Some(&ctx.payer.pubkey().clone()),
             &[&ctx.payer],
             ctx.last_blockhash,
