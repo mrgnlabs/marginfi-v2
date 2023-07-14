@@ -116,3 +116,5 @@ pub const EXP_10: [i128; MAX_EXP_10] = [
 
 /// Value where total_asset_value_init_limit is considered inactive
 pub const TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE: u64 = 0;
+
+pub const TEMP_BALANCE_LIMIT: u64 = 3;

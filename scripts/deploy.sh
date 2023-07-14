@@ -1,6 +1,4 @@
 #!/usr/bin/env sh
 
-solana program deploy $(pwd)/target/deploy/marginfi.so \
-    -u $RPC_URL \
-    --program-id $PROGRAM_ID \
+solana program write-buffer $(pwd)/target/deploy/marginfi.so \
     -k $1
