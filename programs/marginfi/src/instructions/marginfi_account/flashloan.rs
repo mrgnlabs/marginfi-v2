@@ -2,11 +2,9 @@ use anchor_lang::{prelude::*, Discriminator};
 use solana_program::sysvar::{self, instructions};
 
 use crate::{
-    check, marginfi,
+    check,
     prelude::*,
-    state::marginfi_account::{
-        self, MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG,
-    },
+    state::marginfi_account::{MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG},
 };
 
 pub fn lending_account_start_flashloan(

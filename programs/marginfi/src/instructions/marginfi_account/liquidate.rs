@@ -3,9 +3,7 @@ use crate::constants::{
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::prelude::*;
-use crate::state::marginfi_account::{
-    calc_asset_amount, calc_asset_value, RiskEngine, RiskRequirementType,
-};
+use crate::state::marginfi_account::{calc_asset_amount, calc_asset_value, RiskEngine};
 use crate::state::marginfi_group::{Bank, BankVaultType};
 use crate::state::price::{OraclePriceFeedAdapter, PriceAdapter};
 use crate::{

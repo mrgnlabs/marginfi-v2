@@ -320,7 +320,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
             MarginfiError::AccountInFlashloan
         );
 
-        Self::new(marginfi_account, remaining_ais)
+        Self::new_no_flashloan_check(marginfi_account, remaining_ais)
     }
 
     /// Internal constructor used either after manually checking account is not in a flashloan,
