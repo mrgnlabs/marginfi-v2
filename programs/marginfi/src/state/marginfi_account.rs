@@ -100,8 +100,8 @@ pub enum WeightType {
     Equity,
 }
 
-pub struct BankAccountWithPriceFeed<'a> {
-    bank: Box<Bank>,
+pub struct BankAccountWithPriceFeed<'a, 'b> {
+    bank: AccountInfo<'b>,
     price_feed: Box<OraclePriceFeedAdapter>,
     balance: &'a Balance,
 }
@@ -111,11 +111,11 @@ pub enum BalanceSide {
     Liabilities,
 }
 
-impl<'a> BankAccountWithPriceFeed<'a> {
+impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
     pub fn load(
         lending_account: &'a LendingAccount,
-        remaining_ais: &[AccountInfo],
-    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
+        remaining_ais: &[AccountInfo<'b>],
+    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a, 'b>>> {
         let active_balances = lending_account
             .balances
             .iter()
@@ -145,20 +145,22 @@ impl<'a> BankAccountWithPriceFeed<'a> {
                     balance.bank_pk.eq(bank_ai.key),
                     MarginfiError::InvalidBankAccount
                 );
-                let oracle_ais = &remaining_ais[oracle_ai_idx..oracle_ai_idx + 1];
 
-                let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
-                let bank = bank_al.load()?;
+                let price_adapter = {
+                    let oracle_ais = &remaining_ais[oracle_ai_idx..oracle_ai_idx + 1];
+                    let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
+                    let bank = bank_al.load()?;
 
-                let price_adapter = Box::new(OraclePriceFeedAdapter::try_from_bank_config(
-                    &bank.config,
-                    oracle_ais,
-                    current_timestamp,
-                    MAX_PRICE_AGE_SEC,
-                )?);
+                    Box::new(OraclePriceFeedAdapter::try_from_bank_config(
+                        &bank.config,
+                        oracle_ais,
+                        current_timestamp,
+                        MAX_PRICE_AGE_SEC,
+                    )?)
+                };
 
                 Ok(BankAccountWithPriceFeed {
-                    bank: Box::new(*bank),
+                    bank: bank_ai.clone(),
                     price_feed: price_adapter,
                     balance,
                 })
@@ -172,30 +174,26 @@ impl<'a> BankAccountWithPriceFeed<'a> {
         weight_type: WeightType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         let (worst_price, best_price) = self.price_feed.get_price_range()?;
-        let (mut asset_weight, liability_weight) = self.bank.config.get_weights(weight_type);
-        let mint_decimals = self.bank.mint_decimals;
+        let bank_al = AccountLoader::<Bank>::try_from(&self.bank)?;
+        let bank = bank_al.load()?;
+        let (mut asset_weight, liability_weight) = bank.config.get_weights(weight_type);
+        let mint_decimals = bank.mint_decimals;
 
-        let asset_amount = self
-            .bank
-            .get_asset_amount(self.balance.asset_shares.into())?;
-        let liability_amount = self
-            .bank
-            .get_liability_amount(self.balance.liability_shares.into())?;
+        let asset_amount = bank.get_asset_amount(self.balance.asset_shares.into())?;
+        let liability_amount = bank.get_liability_amount(self.balance.liability_shares.into())?;
 
         if matches!(weight_type, WeightType::Initial)
-            && self.bank.config.total_asset_value_init_limit
-                != TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE
+            && bank.config.total_asset_value_init_limit != TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE
         {
             let bank_total_assets_value = calc_asset_value(
-                self.bank
-                    .get_asset_amount(self.bank.total_asset_shares.into())?,
+                bank.get_asset_amount(bank.total_asset_shares.into())?,
                 worst_price,
                 mint_decimals,
                 None,
             )?;
 
             let total_asset_value_init_limit =
-                I80F48::from_num(self.bank.config.total_asset_value_init_limit);
+                I80F48::from_num(bank.config.total_asset_value_init_limit);
 
             msg!(
                 "Init limit active, limit: {}, total_assets: {}",
@@ -307,17 +305,15 @@ impl RiskRequirementType {
     }
 }
 
-pub struct RiskEngine<'a> {
+pub struct RiskEngine<'a, 'b> {
     marginfi_account: &'a MarginfiAccount,
-    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
+    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a, 'b>>,
 }
 
-impl<'a> RiskEngine<'a> {
-    /// Default constructor, errors when account is in a flashloan.
-    /// Explicit wrapper functions should be build for flashloan use cases, that use the `new_no_flashloan_check` constructor.
+impl<'a, 'b> RiskEngine<'a, 'b> {
     pub fn new(
         marginfi_account: &'a MarginfiAccount,
-        remaining_ais: &[AccountInfo],
+        remaining_ais: &[AccountInfo<'b>],
     ) -> MarginfiResult<Self> {
         check!(
             !marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
@@ -331,7 +327,7 @@ impl<'a> RiskEngine<'a> {
     /// or explicity checking health for flashloan enabled actions.
     fn new_no_flashloan_check(
         marginfi_account: &'a MarginfiAccount,
-        remaining_ais: &[AccountInfo],
+        remaining_ais: &[AccountInfo<'b>],
     ) -> MarginfiResult<Self> {
         let bank_accounts_with_price =
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
@@ -349,7 +345,7 @@ impl<'a> RiskEngine<'a> {
     /// - `remaining_ais` can be an empty vec.
     pub fn check_account_init_health(
         marginfi_account: &'a MarginfiAccount,
-        remaining_ais: &[AccountInfo],
+        remaining_ais: &[AccountInfo<'b>],
     ) -> MarginfiResult<()> {
         if marginfi_account.get_flag(IN_FLASHLOAN_FLAG) {
             return Ok(());
@@ -366,25 +362,20 @@ impl<'a> RiskEngine<'a> {
         &self,
         requirement_type: RiskRequirementType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
-        Ok(self
-            .bank_accounts_with_price
-            .iter()
-            .map(|a| {
-                a.calc_weighted_assets_and_liabilities_values(requirement_type.to_weight_type())
-            })
-            .try_fold(
-                (I80F48::ZERO, I80F48::ZERO),
-                |(total_assets, total_liabilities), res| {
-                    let (assets, liabilities) = res?;
-                    let total_assets_sum =
-                        total_assets.checked_add(assets).ok_or_else(math_error!())?;
-                    let total_liabilities_sum = total_liabilities
-                        .checked_add(liabilities)
-                        .ok_or_else(math_error!())?;
+        let mut total_assets = I80F48::ZERO;
+        let mut total_liabilities = I80F48::ZERO;
 
-                    Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
-                },
-            )?)
+        for a in &self.bank_accounts_with_price {
+            let (assets, liabilities) =
+                a.calc_weighted_assets_and_liabilities_values(requirement_type.to_weight_type())?;
+
+            total_assets = total_assets.checked_add(assets).ok_or_else(math_error!())?;
+            total_liabilities = total_liabilities
+                .checked_add(liabilities)
+                .ok_or_else(math_error!())?;
+        }
+
+        Ok((total_assets, total_liabilities))
     }
 
     pub fn get_account_health(
@@ -569,9 +560,15 @@ impl<'a> RiskEngine<'a> {
 
         let n_balances_with_liablities = balances_with_liablities.clone().count();
 
-        let is_in_isolated_risk_tier = balances_with_liablities
-            .clone()
-            .any(|a| a.bank.config.risk_tier == RiskTier::Isolated);
+        let is_in_isolated_risk_tier = balances_with_liablities.clone().any(|a| {
+            AccountLoader::<Bank>::try_from(&a.bank)
+                .unwrap()
+                .load()
+                .unwrap()
+                .config
+                .risk_tier
+                == RiskTier::Isolated
+        });
 
         check!(
             !is_in_isolated_risk_tier || n_balances_with_liablities == 1,

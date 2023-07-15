@@ -198,27 +198,6 @@ pub fn lending_account_liquidate(
             (pre_balance, post_balance)
         };
 
-        // Liquidator receives `asset_quantity` amount of collateral
-        let (liquidator_asset_pre_balance, liquidator_asset_post_balance) = {
-            let mut bank_account = BankAccountWrapper::find_or_create(
-                &ctx.accounts.asset_bank.key(),
-                &mut asset_bank,
-                &mut liquidator_marginfi_account.lending_account,
-            )?;
-
-            let pre_balance = bank_account
-                .bank
-                .get_asset_amount(bank_account.balance.asset_shares.into())?;
-
-            bank_account.increase_balance(asset_amount)?;
-
-            let post_balance = bank_account
-                .bank
-                .get_asset_amount(bank_account.balance.asset_shares.into())?;
-
-            (pre_balance, post_balance)
-        };
-
         // Liquidatee pays off `asset_quantity` amount of collateral
         let (liquidatee_asset_pre_balance, liquidatee_asset_post_balance) = {
             let mut bank_account = BankAccountWrapper::find(
@@ -234,6 +213,27 @@ pub fn lending_account_liquidate(
             bank_account
                 .withdraw(asset_amount)
                 .map_err(|_| MarginfiError::IllegalLiquidation)?;
+
+            let post_balance = bank_account
+                .bank
+                .get_asset_amount(bank_account.balance.asset_shares.into())?;
+
+            (pre_balance, post_balance)
+        };
+
+        // Liquidator receives `asset_quantity` amount of collateral
+        let (liquidator_asset_pre_balance, liquidator_asset_post_balance) = {
+            let mut bank_account = BankAccountWrapper::find_or_create(
+                &ctx.accounts.asset_bank.key(),
+                &mut asset_bank,
+                &mut liquidator_marginfi_account.lending_account,
+            )?;
+
+            let pre_balance = bank_account
+                .bank
+                .get_asset_amount(bank_account.balance.asset_shares.into())?;
+
+            bank_account.increase_balance(asset_amount)?;
 
             let post_balance = bank_account
                 .bank

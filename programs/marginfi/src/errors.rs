@@ -80,9 +80,11 @@ pub enum MarginfiError {
     EmissionsUpdateError,
     #[msg("Account disabled")] // 6037
     AccountDisabled,
-    #[msg("Illegal action during flashloan")] // 6038
+    #[msg("Account can't temporarily open 3 balances, please close a balance first")] // 6038
+    AccountTempActiveBalanceLimitExceeded,
+    #[msg("Illegal action during flashloan")] // 6039
     AccountInFlashloan,
-    #[msg("Illegal flashloan")]
+    #[msg("Illegal flashloan")] // 6040
     IllegalFlashloan,
 }
 
