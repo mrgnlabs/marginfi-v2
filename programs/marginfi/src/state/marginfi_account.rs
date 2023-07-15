@@ -45,6 +45,7 @@ pub struct MarginfiAccount {
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
+pub const IN_FLASHLOAN_FLAG: u64 = 1 << 1;
 
 impl MarginfiAccount {
     /// Set the initial data for the marginfi account.
@@ -65,6 +66,11 @@ impl MarginfiAccount {
     pub fn set_flag(&mut self, flag: u64) {
         msg!("Setting account flag {:b}", flag);
         self.account_flags |= flag;
+    }
+
+    pub fn unset_flag(&mut self, flag: u64) {
+        msg!("Unsetting account flag {:b}", flag);
+        self.account_flags &= !flag;
     }
 
     pub fn get_flag(&self, flag: u64) -> bool {
@@ -302,11 +308,28 @@ impl RiskRequirementType {
 }
 
 pub struct RiskEngine<'a> {
+    marginfi_account: &'a MarginfiAccount,
     bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
 }
 
 impl<'a> RiskEngine<'a> {
+    /// Default constructor, errors when account is in a flashloan.
+    /// Explicit wrapper functions should be build for flashloan use cases, that use the `new_no_flashloan_check` constructor.
     pub fn new(
+        marginfi_account: &'a MarginfiAccount,
+        remaining_ais: &[AccountInfo],
+    ) -> MarginfiResult<Self> {
+        check!(
+            !marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            MarginfiError::AccountInFlashloan
+        );
+
+        Self::new(marginfi_account, remaining_ais)
+    }
+
+    /// Internal constructor used either after manually checking account is not in a flashloan,
+    /// or explicity checking health for flashloan enabled actions.
+    fn new_no_flashloan_check(
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &[AccountInfo],
     ) -> MarginfiResult<Self> {
@@ -314,8 +337,28 @@ impl<'a> RiskEngine<'a> {
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
         Ok(Self {
+            marginfi_account,
             bank_accounts_with_price,
         })
+    }
+
+    /// Checks account is healty after performing actions that increase risk (removing liquidity).
+    ///
+    /// `IN_FLASHLOAN_FLAG` behaviour.
+    /// - Health check is skipped.
+    /// - `remaining_ais` can be an empty vec.
+    pub fn check_account_init_health(
+        marginfi_account: &'a MarginfiAccount,
+        remaining_ais: &[AccountInfo],
+    ) -> MarginfiResult<()> {
+        if marginfi_account.get_flag(IN_FLASHLOAN_FLAG) {
+            return Ok(());
+        }
+
+        Self::new_no_flashloan_check(marginfi_account, remaining_ais)?
+            .check_account_health(RiskRequirementType::Initial)?;
+
+        Ok(())
     }
 
     /// Returns the total assets and liabilities of the account in the form of (assets, liabilities)
@@ -356,7 +399,7 @@ impl<'a> RiskEngine<'a> {
             .ok_or_else(math_error!())?)
     }
 
-    pub fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
+    fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(requirement_type)?;
 
@@ -383,6 +426,11 @@ impl<'a> RiskEngine<'a> {
         &self,
         bank_pk: &Pubkey,
     ) -> MarginfiResult<I80F48> {
+        check!(
+            !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            MarginfiError::AccountInFlashloan
+        );
+
         let liability_bank_balance = self
             .bank_accounts_with_price
             .iter()
@@ -435,6 +483,11 @@ impl<'a> RiskEngine<'a> {
         bank_pk: &Pubkey,
         pre_liquidation_health: I80F48,
     ) -> MarginfiResult<I80F48> {
+        check!(
+            !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            MarginfiError::AccountInFlashloan
+        );
+
         let liability_bank_balance = self
             .bank_accounts_with_price
             .iter()
@@ -484,6 +537,11 @@ impl<'a> RiskEngine<'a> {
     pub fn check_account_bankrupt(&self) -> MarginfiResult {
         let (total_assets, total_liabilities) =
             self.get_account_health_components(RiskRequirementType::Equity)?;
+
+        check!(
+            !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            MarginfiError::AccountInFlashloan
+        );
 
         msg!(
             "check_bankrupt: assets {} - liabs: {}",

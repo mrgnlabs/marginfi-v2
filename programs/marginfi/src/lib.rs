@@ -138,6 +138,19 @@ pub mod marginfi {
         marginfi_account::lending_account_liquidate(ctx, asset_amount)
     }
 
+    pub fn lending_account_start_flashloan(
+        ctx: Context<LendingAccountStartFlashloan>,
+        end_index: u64,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_start_flashloan(ctx, end_index)
+    }
+
+    pub fn lending_account_end_flashloan(
+        ctx: Context<LendingAccountEndFlashloan>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_end_flashloan(ctx)
+    }
+
     // Operational instructions
     pub fn lending_pool_accrue_bank_interest(
         ctx: Context<LendingPoolAccrueBankInterest>,

@@ -80,6 +80,10 @@ pub enum MarginfiError {
     EmissionsUpdateError,
     #[msg("Account disabled")] // 6037
     AccountDisabled,
+    #[msg("Illegal action during flashloan")] // 6038
+    AccountInFlashloan,
+    #[msg("Illegal flashloan")]
+    IllegalFlashloan,
 }
 
 impl From<MarginfiError> for ProgramError {

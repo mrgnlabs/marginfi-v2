@@ -334,8 +334,10 @@ pub fn lending_account_liquidate(
             )?;
 
     // Verify liquidator account health
-    RiskEngine::new(&liquidator_marginfi_account, liquidator_remaining_accounts)?
-        .check_account_health(RiskRequirementType::Initial)?;
+    RiskEngine::check_account_init_health(
+        &liquidator_marginfi_account,
+        liquidator_remaining_accounts,
+    )?;
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {
