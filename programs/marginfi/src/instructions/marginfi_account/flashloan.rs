@@ -99,7 +99,7 @@ pub fn lending_account_end_flashloan(
 
     marginfi_account.unset_flag(IN_FLASHLOAN_FLAG);
 
-    RiskEngine::check_account_init_health(&marginfi_account, &ctx.remaining_accounts)?;
+    RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts)?;
 
     Ok(())
 }
