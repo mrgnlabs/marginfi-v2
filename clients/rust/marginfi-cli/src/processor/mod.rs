@@ -128,6 +128,7 @@ Total Liabilities: {}
 Config:
   State: {:?}
   Risk Tier: {:?}
+  USD Soft limit: {:?}
   Asset:
     Weight Init: {:?}, Maint: {:?}
     Limit: {}
@@ -158,6 +159,7 @@ Last Update: {:?}h ago ({})
             / EXP_10_I80F48[bank.mint_decimals as usize],
         bank.config.operational_state,
         bank.config.risk_tier,
+        bank.config.total_asset_value_init_limit,
         bank.config.asset_weight_init,
         bank.config.asset_weight_maint,
         I80F48::from_num(bank.config.deposit_limit) / EXP_10_I80F48[bank.mint_decimals as usize],
