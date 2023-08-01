@@ -135,11 +135,17 @@ impl PriceAdapter for PythEmaPriceFeed {
     }
 
     fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
-        Ok(
+        let conf_interval =
             pyth_price_components_to_i80f48(I80F48::from_num(self.price.conf), self.price.expo)?
                 .checked_mul(CONF_INTERVAL_MULTIPLE)
-                .ok_or_else(math_error!())?,
-        )
+                .ok_or_else(math_error!())?;
+
+        assert!(
+            conf_interval >= I80F48::ZERO,
+            "Negative confidence interval"
+        );
+
+        Ok(conf_interval)
     }
 
     fn get_price_range(&self) -> MarginfiResult<(I80F48, I80F48)> {
@@ -217,9 +223,16 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
         let std_div = swithcboard_decimal_to_i80f48(std_div)
             .ok_or(MarginfiError::InvalidSwitchboardDecimalConversion)?;
 
-        Ok(std_div
+        let conf_interval = std_div
             .checked_mul(CONF_INTERVAL_MULTIPLE)
-            .ok_or_else(math_error!())?)
+            .ok_or_else(math_error!())?;
+
+        assert!(
+            conf_interval >= I80F48::ZERO,
+            "Negative confidence interval"
+        );
+
+        Ok(conf_interval)
     }
 
     fn get_price_range(&self) -> MarginfiResult<(I80F48, I80F48)> {
