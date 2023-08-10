@@ -86,6 +86,8 @@ pub enum MarginfiError {
     AccountInFlashloan,
     #[msg("Illegal flashloan")] // 6040
     IllegalFlashloan,
+    #[msg("Illegal flag")] // 6041
+    IllegalFlag,
 }
 
 impl From<MarginfiError> for ProgramError {

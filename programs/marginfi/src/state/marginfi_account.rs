@@ -46,6 +46,7 @@ pub struct MarginfiAccount {
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
 pub const IN_FLASHLOAN_FLAG: u64 = 1 << 1;
+pub const FLASHLOAN_ENABLED_FLAG: u64 = 1 << 2;
 
 impl MarginfiAccount {
     /// Set the initial data for the marginfi account.

@@ -4,7 +4,9 @@ use solana_program::sysvar::{self, instructions};
 use crate::{
     check,
     prelude::*,
-    state::marginfi_account::{MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG},
+    state::marginfi_account::{
+        MarginfiAccount, RiskEngine, DISABLED_FLAG, FLASHLOAN_ENABLED_FLAG, IN_FLASHLOAN_FLAG,
+    },
 };
 
 pub fn lending_account_start_flashloan(
@@ -47,6 +49,11 @@ pub fn check_flashloan_can_start(
     sysvar_ixs: &AccountInfo,
     end_fl_idx: u64,
 ) -> MarginfiResult<()> {
+    check!(
+        marginfi_account.load()?.get_flag(FLASHLOAN_ENABLED_FLAG),
+        MarginfiError::IllegalFlashloan
+    );
+
     let current_ix_idx: u64 = instructions::load_current_index_checked(sysvar_ixs)?.into();
 
     check!(current_ix_idx < end_fl_idx, MarginfiError::IllegalFlashloan);
@@ -109,5 +116,5 @@ pub struct LendingAccountEndFlashloan<'info> {
     #[account(mut)]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
     #[account(address = marginfi_account.load()?.authority)]
-    pub authority: Signer<'info>,
+    pub signer: Signer<'info>,
 }

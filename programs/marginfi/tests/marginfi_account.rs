@@ -1733,3 +1733,15 @@ async fn emissions_test_2() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+// Flashloan tests
+// 1. Flashloan success (1 action)
+// 2. Flashloan success (3 actions)
+// 3. Flashloan fails because of bad account health
+// 4. Flashloan fails because of non whitelisted account
+// 5. Flashloan fails because of missing `end_flashloan` ix
+// 6. Flashloan fails because of invalid instructions sysvar
+// 7. Flashloan fails because of invalid `end_flashloan` ix order
+// 8. Flashloan fails because `end_flashloan` ix is for another account
+// 9. Flashloan fails because account is already in a flashloan
+// 10. Flashloan fails because account is disabled

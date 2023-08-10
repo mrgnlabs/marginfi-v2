@@ -163,4 +163,12 @@ pub mod marginfi {
     ) -> MarginfiResult {
         marginfi_group::lending_pool_collect_bank_fees(ctx)
     }
+
+    pub fn set_account_flag(ctx: Context<SetAccountFlag>, flag: u64) -> MarginfiResult {
+        marginfi_group::set_account_flag(ctx, flag)
+    }
+
+    pub fn unset_account_flag(ctx: Context<UnsetAccountFlag>, flag: u64) -> MarginfiResult {
+        marginfi_group::unset_account_flag(ctx, flag)
+    }
 }

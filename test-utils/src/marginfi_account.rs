@@ -6,7 +6,7 @@ use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankVaultType},
 };
-use solana_program::instruction::Instruction;
+use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, signature::Keypair, signer::Signer,
@@ -339,6 +339,117 @@ impl MarginfiAccountFixture {
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingAccountWithdrawEmissions {}.data(),
+        };
+
+        let mut ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
+
+    /// Set a flag on the account
+    ///
+    /// Function assumes signer is group admin
+    pub async fn try_set_flag(&self, flag: u64) -> std::result::Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::SetAccountFlag {
+                marginfi_group: self.load().await.group,
+                marginfi_account: self.key,
+                admin: self.ctx.borrow().payer.pubkey(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::SetAccountFlag { flag }.data(),
+        };
+
+        let mut ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
+
+    /// Unset a flag on the account
+    ///
+    /// Function assumes signer is group admin
+    pub async fn try_unset_flag(&self, flag: u64) -> std::result::Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::UnsetAccountFlag {
+                marginfi_group: self.load().await.group,
+                marginfi_account: self.key,
+                admin: self.ctx.borrow().payer.pubkey(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::UnsetAccountFlag { flag }.data(),
+        };
+
+        let mut ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
+
+    pub async fn lending_account_start_flashloan(
+        &self,
+        end_index: u64,
+    ) -> std::result::Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingAccountStartFlashloan {
+                marginfi_account: self.key,
+                signer: self.ctx.borrow().payer.pubkey(),
+                ixs_sysvar: sysvar::instructions::id(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingAccountStartFlashloan { end_index }.data(),
+        };
+
+        let mut ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
+
+    pub async fn lending_account_end_flashloan(
+        &self,
+        include_banks: Vec<Pubkey>,
+        exclude_banks: Vec<Pubkey>,
+    ) -> std::result::Result<(), BanksClientError> {
+        let mut account_metas = marginfi::accounts::LendingAccountEndFlashloan {
+            marginfi_account: self.key,
+            signer: self.ctx.borrow().payer.pubkey(),
+        }
+        .to_account_metas(Some(true));
+
+        account_metas.extend(
+            self.load_observation_account_metas(include_banks, exclude_banks)
+                .await,
+        );
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: account_metas,
+            data: marginfi::instruction::LendingAccountEndFlashloan {}.data(),
         };
 
         let mut ctx = self.ctx.borrow_mut();
