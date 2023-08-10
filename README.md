@@ -48,3 +48,11 @@ Key points:
 - Real-time risk monitoring is used to assess changing market conditions.
 - Marginfi's risk management system is transparent and deterministic.
 - Liquidation may occur if a user's account falls below the minimum required health factor.
+
+## Verify
+
+Marginfi can be veirified with Ellipsis Labs verifiable builds.
+
+Install the `solana-verify` tool [here](https://github.com/Ellipsis-Labs/solana-verifiable-build#installation).
+
+Run `./scripts/verify_mainnet.sh`
