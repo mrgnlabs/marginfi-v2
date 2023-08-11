@@ -17,6 +17,7 @@ use pretty_assertions::assert_eq;
 
 use solana_program::{instruction::Instruction, system_program};
 use solana_program_test::*;
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::timing::SECONDS_PER_YEAR;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 
@@ -1783,6 +1784,76 @@ async fn flashloan_success() -> anyhow::Result<()> {
 
     let flash_loan_result = lender_mfi_account_f
         .try_flashloan(vec![borrow_ix, repay_ix], vec![], vec![])
+        .await;
+
+    assert!(flash_loan_result.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn flashloan_success_three_operations() -> anyhow::Result<()> {
+    // Setup test executor with non-admin payer
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let sol_bank = test_f.get_bank(&BankMint::SOL);
+
+    // Fund SOL lender
+    let lender_mfi_account_f = test_f.create_marginfi_account().await;
+    let lender_token_account_f_sol = test_f
+        .sol_mint
+        .create_token_account_and_mint_to(3_000)
+        .await;
+    lender_mfi_account_f
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 3_000)
+        .await?;
+
+    // Fund SOL borrower
+    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
+
+    borrower_mfi_account_f
+        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
+        .await?;
+
+    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+
+    // Borrow SOL three times
+    let borrow_ix_1 = borrower_mfi_account_f
+        .make_bank_borrow_ix(borrower_token_account_f_sol.key, sol_bank, 1_000)
+        .await;
+    let borrow_ix_2 = borrower_mfi_account_f
+        .make_bank_borrow_ix(borrower_token_account_f_sol.key, sol_bank, 1_000)
+        .await;
+    let borrow_ix_3 = borrower_mfi_account_f
+        .make_bank_borrow_ix(borrower_token_account_f_sol.key, sol_bank, 1_000)
+        .await;
+
+    // Repay SOL three times
+    let repay_ix_1 = lender_mfi_account_f
+        .make_bank_repay_ix(lender_token_account_f_sol.key, sol_bank, 1_000, Some(true))
+        .await;
+    let repay_ix_2 = lender_mfi_account_f
+        .make_bank_repay_ix(lender_token_account_f_sol.key, sol_bank, 1_000, Some(true))
+        .await;
+    let repay_ix_3 = lender_mfi_account_f
+        .make_bank_repay_ix(lender_token_account_f_sol.key, sol_bank, 1_000, Some(true))
+        .await;
+
+    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
+
+    let flash_loan_result = lender_mfi_account_f
+        .try_flashloan(
+            vec![
+                borrow_ix_1,
+                repay_ix_1,
+                borrow_ix_2,
+                repay_ix_2,
+                borrow_ix_3,
+                repay_ix_3,
+            ],
+            vec![],
+            vec![],
+        )
         .await;
 
     assert!(flash_loan_result.is_ok());
