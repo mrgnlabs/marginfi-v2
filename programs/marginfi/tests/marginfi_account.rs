@@ -7,7 +7,7 @@ use fixtures::{assert_custom_error, assert_eq_noise, native};
 use marginfi::constants::{
     EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, MIN_EMISSIONS_START_TIME,
 };
-use marginfi::state::marginfi_account::BankAccountWrapper;
+use marginfi::state::marginfi_account::{BankAccountWrapper, FLASHLOAN_ENABLED_FLAG};
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
@@ -1745,3 +1745,47 @@ async fn emissions_test_2() -> anyhow::Result<()> {
 // 8. Flashloan fails because `end_flashloan` ix is for another account
 // 9. Flashloan fails because account is already in a flashloan
 // 10. Flashloan fails because account is disabled
+
+#[tokio::test]
+async fn flashloan_success() -> anyhow::Result<()> {
+    // Setup test executor with non-admin payer
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let sol_bank = test_f.get_bank(&BankMint::SOL);
+
+    // Fund SOL lender
+    let lender_mfi_account_f = test_f.create_marginfi_account().await;
+    let lender_token_account_f_sol = test_f
+        .sol_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    lender_mfi_account_f
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .await?;
+
+    // Fund SOL borrower
+    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
+
+    borrower_mfi_account_f
+        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
+        .await?;
+
+    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    // Borrow SOL
+
+    let borrow_ix = borrower_mfi_account_f
+        .make_bank_borrow_ix(borrower_token_account_f_sol.key, sol_bank, 1_000)
+        .await;
+
+    let repay_ix = lender_mfi_account_f
+        .make_bank_repay_ix(lender_token_account_f_sol.key, sol_bank, 1_000, Some(true))
+        .await;
+
+    let flash_loan_result = lender_mfi_account_f
+        .try_flashloan(vec![borrow_ix, repay_ix], vec![], vec![])
+        .await;
+
+    assert!(flash_loan_result.is_ok());
+
+    Ok(())
+}
