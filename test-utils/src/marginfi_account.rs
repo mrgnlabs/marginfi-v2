@@ -498,10 +498,9 @@ impl MarginfiAccountFixture {
         exclude_banks: Vec<Pubkey>,
         include_banks: Vec<Pubkey>,
     ) -> std::result::Result<(), BanksClientError> {
-        let mut ctx = self.ctx.borrow_mut();
         let mut ixs = ixs;
         let start_ix = self
-            .make_lending_account_start_flashloan_ix(ixs.len() as u64)
+            .make_lending_account_start_flashloan_ix(ixs.len() as u64 + 1)
             .await;
         let end_ix = self
             .make_lending_account_end_flashloan_ix(include_banks, exclude_banks)
@@ -509,6 +508,8 @@ impl MarginfiAccountFixture {
 
         ixs.insert(0, start_ix);
         ixs.push(end_ix);
+
+        let mut ctx = self.ctx.borrow_mut();
 
         let tx = Transaction::new_signed_with_payer(
             &ixs,
