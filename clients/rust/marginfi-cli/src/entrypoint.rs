@@ -650,6 +650,8 @@ fn inspect_padding() -> Result<()> {
 
 #[cfg(feature = "dev")]
 fn inspect_size() -> Result<()> {
+    use std::mem::size_of;
+
     println!("MarginfiGroup: {}", size_of::<MarginfiGroup>());
     println!("GroupConfig: {}", size_of::<GroupConfig>());
     println!("InterestRateConfig: {}", size_of::<InterestRateConfig>());
