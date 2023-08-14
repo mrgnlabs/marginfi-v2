@@ -1,7 +1,7 @@
 use crate::check;
 use crate::events::{GroupEventHeader, MarginfiGroupConfigureEvent};
 use crate::prelude::MarginfiError;
-use crate::state::marginfi_account::{MarginfiAccount, DISABLED_FLAG, FLASHLOAN_ENABLED_FLAG};
+use crate::state::marginfi_account::{MarginfiAccount, FLASHLOAN_ENABLED_FLAG};
 use crate::{
     state::marginfi_group::{GroupConfig, MarginfiGroup},
     MarginfiResult,

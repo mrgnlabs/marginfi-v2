@@ -31,6 +31,7 @@ pub struct LendingAccountStartFlashloan<'info> {
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
     #[account(address = marginfi_account.load()?.authority)]
     pub signer: Signer<'info>,
+    /// CHECK: Instructions sysvar
     #[account(address = sysvar::instructions::ID)]
     pub ixs_sysvar: AccountInfo<'info>,
 }

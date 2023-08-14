@@ -4,7 +4,6 @@ use crate::{
     config::Config,
     profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
     utils::{
-        find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
         find_bank_vault_authority_pda, load_observation_account_metas, process_transaction,
         EXP_10_I80F48,
     },
@@ -22,7 +21,6 @@ use fixed::types::I80F48;
 use liquidity_incentive_program::state::{Campaign, Deposit};
 use log::info;
 use marginfi::{
-    constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE},
     prelude::MarginfiGroup,
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount},
@@ -51,13 +49,13 @@ use solana_sdk::{
     sysvar::{self, Sysvar},
     transaction::Transaction,
 };
-use solana_sdk::{compute_budget::ComputeBudgetInstruction, program_pack::Pack};
+use solana_sdk::{compute_budget::ComputeBudgetInstruction};
 use spl_associated_token_account::{
-    get_associated_token_address, instruction::create_associated_token_account_idempotent,
+    instruction::create_associated_token_account_idempotent,
 };
 use std::{
     collections::HashMap,
-    fs, io,
+    fs,
     mem::size_of,
     ops::{Neg, Not},
     time::{Duration, SystemTime, UNIX_EPOCH},
