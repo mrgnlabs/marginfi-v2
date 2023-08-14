@@ -20,6 +20,13 @@ use fixed::types::I80F48;
 #[cfg(feature = "lip")]
 use liquidity_incentive_program::state::{Campaign, Deposit};
 use log::info;
+#[cfg(feature = "admin")]
+use marginfi::{
+    prelude::GroupConfig,
+    state::marginfi_group::{
+        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, WrappedI80F48,
+    },
+};
 use marginfi::{
     prelude::MarginfiGroup,
     state::{
@@ -28,14 +35,8 @@ use marginfi::{
         price::{OraclePriceFeedAdapter, PriceAdapter},
     },
 };
-#[cfg(feature = "admin")]
-use marginfi::{
-    prelude::GroupConfig,
-    state::marginfi_group::{
-        BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, WrappedI80F48,
-    },
-};
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::instruction::AccountMeta;
 use solana_sdk::{
     account_info::IntoAccountInfo,
@@ -49,10 +50,7 @@ use solana_sdk::{
     sysvar::{self, Sysvar},
     transaction::Transaction,
 };
-use solana_sdk::{compute_budget::ComputeBudgetInstruction};
-use spl_associated_token_account::{
-    instruction::create_associated_token_account_idempotent,
-};
+use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
 use std::{
     collections::HashMap,
     fs,
