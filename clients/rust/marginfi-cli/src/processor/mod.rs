@@ -620,15 +620,18 @@ pub fn bank_setup_emissions(
     rate: f64,
     total: f64,
 ) -> Result<()> {
-    let funding_account_ata = get_associated_token_address(&config.payer.pubkey(), &mint);
+    use solana_sdk::program_pack::Pack;
+
+    let funding_account_ata =
+        spl_associated_token_account::get_associated_token_address(&config.payer.pubkey(), &mint);
     let mut flags = 0;
 
     if deposits {
-        flags |= EMISSIONS_FLAG_LENDING_ACTIVE;
+        flags |= marginfi::constants::EMISSIONS_FLAG_LENDING_ACTIVE;
     }
 
     if borrows {
-        flags |= EMISSIONS_FLAG_BORROW_ACTIVE;
+        flags |= marginfi::constants::EMISSIONS_FLAG_BORROW_ACTIVE;
     }
 
     let emissions_mint_decimals = config.mfi_program.rpc().get_account(&mint).unwrap();
@@ -651,7 +654,7 @@ pub fn bank_setup_emissions(
     // Get (y or n) input from user
     println!("Is this correct? (y/n)");
     let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
+    std::io::stdin().read_line(&mut input).unwrap();
     let input = input.trim();
 
     if input != "y" {
@@ -666,8 +669,8 @@ pub fn bank_setup_emissions(
             admin: config.payer.pubkey(),
             bank,
             emissions_mint: mint,
-            emissions_auth: find_bank_emssions_auth_pda(bank, mint, marginfi::id()).0,
-            emissions_token_account: find_bank_emssions_token_account_pda(
+            emissions_auth: crate::utils::find_bank_emssions_auth_pda(bank, mint, marginfi::id()).0,
+            emissions_token_account: crate::utils::find_bank_emssions_token_account_pda(
                 bank,
                 mint,
                 marginfi::id(),
@@ -714,6 +717,8 @@ pub fn bank_update_emissions(
     rate: Option<f64>,
     additional_emissions: Option<f64>,
 ) -> Result<()> {
+    use solana_sdk::program_pack::Pack;
+
     use crate::utils::calc_emissions_rate;
 
     assert!(!(disable && (deposits || borrows)));
@@ -724,7 +729,10 @@ pub fn bank_update_emissions(
         .unwrap_or_else(|_| panic!("Bank {} not found", bank_pk));
 
     let emission_mint = bank.emissions_mint;
-    let funding_account_ata = get_associated_token_address(&config.payer.pubkey(), &emission_mint);
+    let funding_account_ata = spl_associated_token_account::get_associated_token_address(
+        &config.payer.pubkey(),
+        &emission_mint,
+    );
 
     let emissions_mint_decimals = config
         .mfi_program
@@ -745,11 +753,11 @@ pub fn bank_update_emissions(
         let mut flags = 0;
 
         if deposits {
-            flags |= EMISSIONS_FLAG_LENDING_ACTIVE;
+            flags |= marginfi::constants::EMISSIONS_FLAG_LENDING_ACTIVE;
         }
 
         if borrows {
-            flags |= EMISSIONS_FLAG_BORROW_ACTIVE;
+            flags |= marginfi::constants::EMISSIONS_FLAG_BORROW_ACTIVE;
         }
 
         Some(flags)
@@ -768,7 +776,7 @@ pub fn bank_update_emissions(
     println!("Is this correct? (y/n)");
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
+    std::io::stdin().read_line(&mut input).unwrap();
     let input = input.trim();
 
     if input != "y" {
@@ -783,7 +791,7 @@ pub fn bank_update_emissions(
             admin: config.payer.pubkey(),
             bank: bank_pk,
             emissions_mint: emission_mint,
-            emissions_token_account: find_bank_emssions_token_account_pda(
+            emissions_token_account: crate::utils::find_bank_emssions_token_account_pda(
                 bank_pk,
                 emission_mint,
                 marginfi::id(),

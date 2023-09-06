@@ -2,19 +2,25 @@
 const CHUNK_SIZE: usize = 22;
 #[cfg(feature = "admin")]
 pub fn claim_all_emissions_for_bank(
-    config: &Config,
-    profile: &Profile,
-    bank_pk: Pubkey,
-) -> Result<()> {
-    let group = profile.marginfi_group.expect("group not set");
+    config: &crate::config::Config,
+    profile: &crate::profile::Profile,
+    bank_pk: solana_sdk::pubkey::Pubkey,
+) -> anyhow::Result<()> {
+    use anchor_client::anchor_lang::{InstructionData, ToAccountMetas};
+    use solana_sdk::{
+        pubkey::{self, Pubkey},
+        signer::Signer,
+    };
 
-    let marginfi_accounts =
-        config
-            .mfi_program
-            .accounts::<MarginfiAccount>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-                8,
-                group.try_to_vec()?,
-            ))])?;
+    let group: Pubkey = profile.marginfi_group.expect("group not set");
+
+    let marginfi_accounts = config
+        .mfi_program
+        .accounts::<marginfi::state::marginfi_account::MarginfiAccount>(vec![
+            solana_client::rpc_filter::RpcFilterType::Memcmp(
+                solana_client::rpc_filter::Memcmp::new_raw_bytes(8, group.to_bytes().to_vec()),
+            ),
+        ])?;
 
     let ixs = marginfi_accounts
         .into_iter()
@@ -30,7 +36,7 @@ pub fn claim_all_emissions_for_bank(
                 None
             }
         })
-        .map(|address| Instruction {
+        .map(|address| solana_sdk::instruction::Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountSettleEmissions {
                 marginfi_account: address,
@@ -51,7 +57,7 @@ pub fn claim_all_emissions_for_bank(
     let blockhash = config.mfi_program.rpc().get_latest_blockhash()?;
 
     for (i, ixs) in ixs_batches.enumerate() {
-        let tx = Transaction::new_signed_with_payer(
+        let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
             ixs,
             Some(&config.payer.pubkey()),
             &[&config.payer],
