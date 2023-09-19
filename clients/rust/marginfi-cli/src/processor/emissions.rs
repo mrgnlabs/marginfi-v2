@@ -58,9 +58,10 @@ pub fn claim_all_emissions_for_bank(
 
     // Send txs and show progress to user [n/total]
     println!("Sending {} txs", ixs_batches_count);
-    let blockhash = config.mfi_program.rpc().get_latest_blockhash()?;
 
     for (i, ixs) in ixs_batches.enumerate() {
+        let blockhash = config.mfi_program.rpc().get_latest_blockhash()?;
+
         let tx = Transaction::new_signed_with_payer(
             ixs,
             Some(&config.payer.pubkey()),
