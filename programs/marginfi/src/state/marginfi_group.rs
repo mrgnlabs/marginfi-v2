@@ -337,14 +337,14 @@ impl Bank {
             .ok_or_else(math_error!())?)
     }
 
-    pub fn get_liability_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
-        Ok(value
+    pub fn get_liability_shares(&self, amount: I80F48) -> MarginfiResult<I80F48> {
+        Ok(amount
             .checked_div(self.liability_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
-    pub fn get_asset_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
-        Ok(value
+    pub fn get_asset_shares(&self, amount: I80F48) -> MarginfiResult<I80F48> {
+        Ok(amount
             .checked_div(self.asset_share_value.into())
             .ok_or_else(math_error!())?)
     }
