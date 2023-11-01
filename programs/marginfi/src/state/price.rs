@@ -32,6 +32,8 @@ pub trait PriceAdapter {
     /// Get a normalized price range for the given price feed.
     /// The range is the price +/- the CONF_INTERVAL_MULTIPLE * confidence interval.
     fn get_price_range(&self) -> MarginfiResult<(I80F48, I80F48)>;
+    fn get_price_with_lower_bias(&self) -> MarginfiResult<I80F48>;
+    fn get_price_with_higher_bias(&self) -> MarginfiResult<I80F48>;
 }
 
 #[enum_dispatch(PriceAdapter)]
@@ -161,6 +163,24 @@ impl PriceAdapter for PythEmaPriceFeed {
 
         Ok((lowest_price, highest_price))
     }
+
+    fn get_price_with_lower_bias(&self) -> MarginfiResult<I80F48> {
+        let price = self.get_price()?;
+        let conf_interval = self.get_confidence_interval()?;
+
+        let price = price.checked_sub(conf_interval).ok_or_else(math_error!())?;
+
+        Ok(price)
+    }
+
+    fn get_price_with_higher_bias(&self) -> MarginfiResult<I80F48> {
+        let price = self.get_price()?;
+        let conf_interval = self.get_confidence_interval()?;
+
+        let price = price.checked_add(conf_interval).ok_or_else(math_error!())?;
+
+        Ok(price)
+    }
 }
 
 pub struct SwitchboardV2PriceFeed {
@@ -247,6 +267,28 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
             .ok_or_else(math_error!())?;
 
         Ok((lowest_price, highest_price))
+    }
+
+    fn get_price_with_lower_bias(&self) -> MarginfiResult<I80F48> {
+        let base_price = self.get_price()?;
+        let price_range = self.get_confidence_interval()?;
+
+        let lowest_price = base_price
+            .checked_sub(price_range)
+            .ok_or_else(math_error!())?;
+
+        Ok(lowest_price)
+    }
+
+    fn get_price_with_higher_bias(&self) -> MarginfiResult<I80F48> {
+        let base_price = self.get_price()?;
+        let price_range = self.get_confidence_interval()?;
+
+        let highest_price = base_price
+            .checked_add(price_range)
+            .ok_or_else(math_error!())?;
+
+        Ok(highest_price)
     }
 }
 
