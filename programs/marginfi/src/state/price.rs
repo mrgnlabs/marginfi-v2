@@ -32,8 +32,9 @@ pub trait PriceAdapter {
     /// Get a normalized price range for the given price feed.
     /// The range is the price +/- the CONF_INTERVAL_MULTIPLE * confidence interval.
     fn get_price_range(&self) -> MarginfiResult<(I80F48, I80F48)>;
-    fn get_price_with_lower_bias(&self) -> MarginfiResult<I80F48>;
-    fn get_price_with_higher_bias(&self) -> MarginfiResult<I80F48>;
+    /// Get the price without any weighting applied.
+    /// This is the price that is used for liquidation.
+    fn get_price_non_weighted(&self) -> MarginfiResult<I80F48>;
 }
 
 #[enum_dispatch(PriceAdapter)]
@@ -110,17 +111,23 @@ impl OraclePriceFeedAdapter {
 }
 
 pub struct PythEmaPriceFeed {
+    ema_price: Box<Price>,
     price: Box<Price>,
 }
 
 impl PythEmaPriceFeed {
     pub fn load_checked(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
         let price_feed = load_pyth_price_feed(ai)?;
-        let price = price_feed
+        let ema_price = price_feed
             .get_ema_price_no_older_than(current_time, max_age)
             .ok_or(MarginfiError::StaleOracle)?;
 
+        let price = price_feed
+            .get_price_no_older_than(current_time, max_age)
+            .ok_or(MarginfiError::StaleOracle)?;
+
         Ok(Self {
+            ema_price: Box::new(ema_price),
             price: Box::new(price),
         })
     }
@@ -133,14 +140,16 @@ impl PythEmaPriceFeed {
 
 impl PriceAdapter for PythEmaPriceFeed {
     fn get_price(&self) -> MarginfiResult<I80F48> {
-        pyth_price_components_to_i80f48(I80F48::from_num(self.price.price), self.price.expo)
+        pyth_price_components_to_i80f48(I80F48::from_num(self.ema_price.price), self.ema_price.expo)
     }
 
     fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
-        let conf_interval =
-            pyth_price_components_to_i80f48(I80F48::from_num(self.price.conf), self.price.expo)?
-                .checked_mul(CONF_INTERVAL_MULTIPLE)
-                .ok_or_else(math_error!())?;
+        let conf_interval = pyth_price_components_to_i80f48(
+            I80F48::from_num(self.ema_price.conf),
+            self.ema_price.expo,
+        )?
+        .checked_mul(CONF_INTERVAL_MULTIPLE)
+        .ok_or_else(math_error!())?;
 
         assert!(
             conf_interval >= I80F48::ZERO,
@@ -164,22 +173,8 @@ impl PriceAdapter for PythEmaPriceFeed {
         Ok((lowest_price, highest_price))
     }
 
-    fn get_price_with_lower_bias(&self) -> MarginfiResult<I80F48> {
-        let price = self.get_price()?;
-        let conf_interval = self.get_confidence_interval()?;
-
-        let price = price.checked_sub(conf_interval).ok_or_else(math_error!())?;
-
-        Ok(price)
-    }
-
-    fn get_price_with_higher_bias(&self) -> MarginfiResult<I80F48> {
-        let price = self.get_price()?;
-        let conf_interval = self.get_confidence_interval()?;
-
-        let price = price.checked_add(conf_interval).ok_or_else(math_error!())?;
-
-        Ok(price)
+    fn get_price_non_weighted(&self) -> MarginfiResult<I80F48> {
+        pyth_price_components_to_i80f48(I80F48::from_num(self.price.price), self.price.expo)
     }
 }
 
@@ -269,26 +264,8 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
         Ok((lowest_price, highest_price))
     }
 
-    fn get_price_with_lower_bias(&self) -> MarginfiResult<I80F48> {
-        let base_price = self.get_price()?;
-        let price_range = self.get_confidence_interval()?;
-
-        let lowest_price = base_price
-            .checked_sub(price_range)
-            .ok_or_else(math_error!())?;
-
-        Ok(lowest_price)
-    }
-
-    fn get_price_with_higher_bias(&self) -> MarginfiResult<I80F48> {
-        let base_price = self.get_price()?;
-        let price_range = self.get_confidence_interval()?;
-
-        let highest_price = base_price
-            .checked_add(price_range)
-            .ok_or_else(math_error!())?;
-
-        Ok(highest_price)
+    fn get_price_non_weighted(&self) -> MarginfiResult<I80F48> {
+        self.get_price()
     }
 }
 
