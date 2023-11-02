@@ -25,6 +25,12 @@ pub enum OracleSetup {
     SwitchboardV2,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum PriceBias {
+    Low,
+    High,
+}
+
 #[enum_dispatch]
 pub trait PriceAdapter {
     fn get_price(&self) -> MarginfiResult<I80F48>;
@@ -34,7 +40,7 @@ pub trait PriceAdapter {
     fn get_price_range(&self) -> MarginfiResult<(I80F48, I80F48)>;
     /// Get the price without any weighting applied.
     /// This is the price that is used for liquidation.
-    fn get_price_non_weighted(&self) -> MarginfiResult<I80F48>;
+    fn get_price_non_weighted(&self, bias: Option<PriceBias>) -> MarginfiResult<I80F48>;
 }
 
 #[enum_dispatch(PriceAdapter)]
@@ -136,20 +142,18 @@ impl PythEmaPriceFeed {
         load_pyth_price_feed(ai)?;
         Ok(())
     }
-}
 
-impl PriceAdapter for PythEmaPriceFeed {
-    fn get_price(&self) -> MarginfiResult<I80F48> {
-        pyth_price_components_to_i80f48(I80F48::from_num(self.ema_price.price), self.ema_price.expo)
-    }
+    fn get_confidence_interval(&self, use_ema: bool) -> MarginfiResult<I80F48> {
+        let price = if use_ema {
+            &self.ema_price
+        } else {
+            &self.price
+        };
 
-    fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
-        let conf_interval = pyth_price_components_to_i80f48(
-            I80F48::from_num(self.ema_price.conf),
-            self.ema_price.expo,
-        )?
-        .checked_mul(CONF_INTERVAL_MULTIPLE)
-        .ok_or_else(math_error!())?;
+        let conf_interval =
+            pyth_price_components_to_i80f48(I80F48::from_num(price.conf), price.expo)?
+                .checked_mul(CONF_INTERVAL_MULTIPLE)
+                .ok_or_else(math_error!())?;
 
         assert!(
             conf_interval >= I80F48::ZERO,
@@ -158,10 +162,20 @@ impl PriceAdapter for PythEmaPriceFeed {
 
         Ok(conf_interval)
     }
+}
+
+impl PriceAdapter for PythEmaPriceFeed {
+    fn get_price(&self) -> MarginfiResult<I80F48> {
+        pyth_price_components_to_i80f48(I80F48::from_num(self.ema_price.price), self.ema_price.expo)
+    }
+
+    fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
+        self.get_confidence_interval(true)
+    }
 
     fn get_price_range(&self) -> MarginfiResult<(I80F48, I80F48)> {
         let base_price = self.get_price()?;
-        let price_range = self.get_confidence_interval()?;
+        let price_range = self.get_confidence_interval(true)?;
 
         let lowest_price = base_price
             .checked_sub(price_range)
@@ -173,8 +187,25 @@ impl PriceAdapter for PythEmaPriceFeed {
         Ok((lowest_price, highest_price))
     }
 
-    fn get_price_non_weighted(&self) -> MarginfiResult<I80F48> {
-        pyth_price_components_to_i80f48(I80F48::from_num(self.price.price), self.price.expo)
+    fn get_price_non_weighted(&self, price_bias: Option<PriceBias>) -> MarginfiResult<I80F48> {
+        let price =
+            pyth_price_components_to_i80f48(I80F48::from_num(self.price.price), self.price.expo)?;
+
+        match price_bias {
+            None => Ok(price),
+            Some(price_bias) => {
+                let confidence_interval = self.get_confidence_interval(false)?;
+
+                match price_bias {
+                    PriceBias::Low => Ok(price
+                        .checked_sub(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                    PriceBias::High => Ok(price
+                        .checked_add(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                }
+            }
+        }
     }
 }
 
@@ -264,8 +295,24 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
         Ok((lowest_price, highest_price))
     }
 
-    fn get_price_non_weighted(&self) -> MarginfiResult<I80F48> {
-        self.get_price()
+    fn get_price_non_weighted(&self, price_bias: Option<PriceBias>) -> MarginfiResult<I80F48> {
+        let price = self.get_price()?;
+
+        match price_bias {
+            Some(price_bias) => {
+                let confidence_interval = self.get_confidence_interval()?;
+
+                match price_bias {
+                    PriceBias::Low => Ok(price
+                        .checked_sub(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                    PriceBias::High => Ok(price
+                        .checked_add(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                }
+            }
+            None => Ok(price),
+        }
     }
 }
 
