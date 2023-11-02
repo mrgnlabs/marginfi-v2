@@ -6,6 +6,7 @@ use fixed::types::I80F48;
 
 use crate::{
     constants::{CDP_MINT_AUTH_SEED, LIQUIDITY_VAULT_SEED},
+    math_error,
     prelude::MarginfiResult,
     state::{
         cdp::{Cdp, CdpBank, CdpCollateralBank, CdpCollateralBankStatus},
@@ -95,7 +96,7 @@ pub struct CreateCdpCollateralBank<'info> {
 }
 
 pub fn create_cdp(ctx: Context<CreateCdp>) -> MarginfiResult {
-    let cdp = ctx.accounts.cdp.load_init()?;
+    let mut cdp = ctx.accounts.cdp.load_init()?;
 
     *cdp = Cdp {
         authority: ctx.accounts.authority.key(),
@@ -132,18 +133,18 @@ pub fn cdp_deposit(ctx: Context<CdpDeposit>, amount: u64) -> MarginfiResult {
 
     let deposit_shares = bank.get_asset_shares(I80F48::from_num(amount))?;
 
-    bank.change_asset_shares(deposit_shares);
-    cdp.change_collateral_shares(deposit_shares);
+    bank.change_asset_shares(deposit_shares)?;
+    cdp.change_collateral_shares(deposit_shares)?;
 
     bank.deposit_spl_transfer(
         amount,
         Transfer {
-            from: ctx.accounts.cdp_authority_ta,
-            to: ctx.accounts.bank_vault,
+            from: ctx.accounts.cdp_authority_ta.to_account_info(),
+            to: ctx.accounts.bank_vault.to_account_info(),
             authority: ctx.accounts.cdp_authority.to_account_info(),
         },
         ctx.accounts.token_program.to_account_info(),
-    );
+    )?;
 
     Ok(())
 }
@@ -155,6 +156,35 @@ pub struct CdpDeposit<'info> {
     pub cdp_collateral_bank: AccountLoader<'info, CdpCollateralBank>,
     pub bank: AccountLoader<'info, Bank>,
     pub bank_vault: AccountInfo<'info>,
+    pub cdp: AccountLoader<'info, Cdp>,
+    pub cdp_authority: Signer<'info>,
+    pub cdp_authority_ta: AccountInfo<'info>,
+    pub token_program: Program<'info, Token>,
+}
+
+pub fn cdp_mint(ctx: Context<CdpMint>, amount: u64) -> MarginfiResult {
+    let mut cdp_bank = ctx.accounts.cdp_bank.load_mut()?;
+    let mut cdp = ctx.accounts.cdp.load_mut()?;
+
+    let liab_shares = cdp_bank
+        .get_liability_shares(I80F48::from_num(amount))
+        .ok_or_else(math_error!())?;
+
+    cdp_bank.update_liability_share_amount(liab_shares)?;
+    cdp.change_liability_shares(liab_shares)?;
+
+    Ok(())
+}
+
+/// Remaining accounts have `bank` oracle ais
+#[derive(Accounts)]
+pub struct CdpMint<'info> {
+    pub group: AccountLoader<'info, MarginfiGroup>,
+    pub cdp_bank: AccountLoader<'info, CdpBank>,
+    pub cdp_collateral_bank: AccountLoader<'info, CdpCollateralBank>,
+    pub bank: AccountLoader<'info, Bank>,
+    pub cdp_mint: Box<Account<'info, Mint>>,
+    pub cdp_mint_authority: AccountInfo<'info>,
     pub cdp: AccountLoader<'info, Cdp>,
     pub cdp_authority: Signer<'info>,
     pub cdp_authority_ta: AccountInfo<'info>,

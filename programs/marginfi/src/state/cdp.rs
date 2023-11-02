@@ -50,6 +50,26 @@ pub struct CdpBank {
     pub liability_limit: u64,
 }
 
+impl CdpBank {
+    pub fn get_liability_shares(&self, amount: I80F48) -> Option<I80F48> {
+        amount.checked_div(self.liability_share_value.into())
+    }
+
+    pub fn get_liability_amount(&self, shares: I80F48) -> Option<I80F48> {
+        shares.checked_mul(self.liability_share_value.into())
+    }
+
+    pub fn update_liability_share_amount(&mut self, shares: I80F48) -> MarginfiResult {
+        self.total_liability_shares = WrappedI80F48::from(
+            shares
+                .checked_add(self.total_liability_shares.into())
+                .ok_or_else(math_error!())?,
+        );
+
+        Ok(())
+    }
+}
+
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorDeserialize, AnchorSerialize)]
 pub enum CdpCollateralBankStatus {
