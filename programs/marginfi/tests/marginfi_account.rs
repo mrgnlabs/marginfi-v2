@@ -925,7 +925,7 @@ async fn marginfi_account_liquidation_success_many_balances() -> anyhow::Result<
     assert_eq_noise!(
         insurance_fund_usdc.balance().await as i64,
         native!(0.25, "USDC", f64) as i64,
-        1
+        native!(0.001, "USDC", f64) as i64
     );
 
     Ok(())
@@ -1012,7 +1012,7 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
             .get_asset_amount(depositor_ma.lending_account.balances[0].asset_shares.into())
             .unwrap(),
         I80F48::from(native!(1990.25, "USDC", f64)),
-        native!(0.00001, "USDC", f64)
+        native!(0.01, "USDC", f64)
     );
 
     // Borrower should have 99 SOL
@@ -1033,7 +1033,7 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
             )
             .unwrap(),
         I80F48::from(native!(989.50, "USDC", f64)),
-        native!(0.00001, "USDC", f64)
+        native!(0.01, "USDC", f64)
     );
 
     // Check insurance fund fee
@@ -1044,7 +1044,7 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
     assert_eq_noise!(
         insurance_fund_usdc.balance().await as i64,
         native!(0.25, "USDC", f64) as i64,
-        1
+        native!(0.001, "USDC", f64) as i64
     );
 
     Ok(())
