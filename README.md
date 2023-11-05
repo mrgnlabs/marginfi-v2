@@ -51,7 +51,7 @@ Key points:
 
 ## Verify
 
-Marginfi can be veirified with Ellipsis Labs verifiable builds.
+Marginfi can be verified with Ellipsis Labs verifiable builds.
 
 Install the `solana-verify` tool [here](https://github.com/Ellipsis-Labs/solana-verifiable-build#installation).
 
