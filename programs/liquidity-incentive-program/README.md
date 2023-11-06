@@ -42,13 +42,13 @@ Think of a `Campaign` as a marketing campaign:
     * the type of asset to incentivize deposits for (e.g. $SOL) 
     * the lockup period that depositors' funds will be locked up for
     * the maximum amount of user deposits allowed
-    * The maximum rewards to be paid out to users (together with the maximum amount of deposits allowed, this calculates the guarenteed fixed yield).
+    * The maximum rewards to be paid out to users (together with the maximum amount of deposits allowed, this calculates the guaranteed fixed yield).
 
-> NOTE: LIP works off of the concept of a _minimum_ guarenteed yield, but depositors may earn higher yield if marginfi's native lender yield for the related asset exceeds the yield guarenteed by the `Campaign`. This is a win-win for depositors.
+> NOTE: LIP works off of the concept of a _minimum_ guaranteed yield, but depositors may earn higher yield if marginfi's native lender yield for the related asset exceeds the yield guaranteed by the `Campaign`. This is a win-win for depositors.
 
 3. As a proof of reward reserves, campaign creators **lock up maximum rewards to be paid out upon campaign creation**, making it easy for campaign depositors to know the source of yield.
 
-4. In product UIs, each `Campaign` typically highlights a fixed `APY`, but there is no compounding involved in the guarenteed yield. Since `APY` accounts for compounding effects even if there are none, measuring yield in `APY` gives depositors the correct impression that they should expect the yield they see. In the smart contract, yield is specified via the `max_rewards` parameter of each `Campaign`.
+4. In product UIs, each `Campaign` typically highlights a fixed `APY`, but there is no compounding involved in the guaranteed yield. Since `APY` accounts for compounding effects even if there are none, measuring yield in `APY` gives depositors the correct impression that they should expect the yield they see. In the smart contract, yield is specified via the `max_rewards` parameter of each `Campaign`.
 
 5. When users deposit funds into an LIP `Campaign`, funds are stored directly in `marginfi`. Funds earn `marginfi` lender yield. When lockups expire, depositors are paid `max(guarenteed yield, earned lender yield)` for the assets they deposited. As earned lender yield grows above `0%`, it subsidizes the expense that campaign creators pay out of the rewards they've escrowed. **This is a win-win for campaign creators**.
 
