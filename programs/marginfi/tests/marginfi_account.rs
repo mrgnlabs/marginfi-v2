@@ -1824,7 +1824,12 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
 
     // Liability share in balance is smaller than 0.0001, so repay all should fail
     let res = borrower_mfi_account_f
-        .try_bank_repay(borrower_token_account_f_sol_eq.key, sol_eq_bank, 1, Some(true))
+        .try_bank_repay(
+            borrower_token_account_f_sol_eq.key,
+            sol_eq_bank,
+            1,
+            Some(true),
+        )
         .await;
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::NoLiabilityFound);
