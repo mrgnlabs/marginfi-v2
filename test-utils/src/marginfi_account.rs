@@ -245,6 +245,37 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
+    pub async fn try_balance_close(
+        &self,
+        bank: &BankFixture,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let marginfi_account = self.load().await;
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingAccountCloseBalance {
+                marginfi_group: marginfi_account.group,
+                marginfi_account: self.key,
+                signer: ctx.payer.pubkey(),
+                bank: bank.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingAccountCloseBalance.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
     pub async fn try_liquidate<T: Into<f64>>(
         &self,
         liquidatee: &MarginfiAccountFixture,

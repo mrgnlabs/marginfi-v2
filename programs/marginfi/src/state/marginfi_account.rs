@@ -408,7 +408,8 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 
         check!(
             account_health <= I80F48::ZERO,
-            MarginfiError::IllegalLiquidation
+            MarginfiError::IllegalLiquidation,
+            "Account not unhealthy"
         );
 
         Ok(account_health)
@@ -438,12 +439,14 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
             liability_bank_balance
                 .is_empty(BalanceSide::Liabilities)
                 .not(),
-            MarginfiError::IllegalLiquidation
+            MarginfiError::IllegalLiquidation,
+            "Liability payoff too severe"
         );
 
         check!(
             liability_bank_balance.is_empty(BalanceSide::Assets),
-            MarginfiError::IllegalLiquidation
+            MarginfiError::IllegalLiquidation,
+            "Liability payoff too severe"
         );
 
         let (assets, liabs) =
@@ -453,7 +456,8 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 
         check!(
             account_health <= I80F48::ZERO,
-            MarginfiError::IllegalLiquidation
+            MarginfiError::IllegalLiquidation,
+            "Liquidation too severe"
         );
 
         msg!(
@@ -466,7 +470,8 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 
         check!(
             account_health > pre_liquidation_health,
-            MarginfiError::IllegalLiquidation
+            MarginfiError::IllegalLiquidation,
+            "Post liquidation health worse"
         );
 
         Ok(account_health)
@@ -846,6 +851,33 @@ impl<'a> BankAccountWrapper<'a> {
         Ok(spl_deposit_amount
             .checked_to_num()
             .ok_or_else(math_error!())?)
+    }
+
+    pub fn close_balance(&mut self) -> MarginfiResult<()> {
+        self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
+
+        let balance = &mut self.balance;
+        let bank = &mut self.bank;
+
+        let current_liability_amount =
+            bank.get_liability_amount(balance.liability_shares.into())?;
+        let current_asset_amount = bank.get_asset_amount(balance.asset_shares.into())?;
+
+        check!(
+            current_liability_amount.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
+            MarginfiError::IllegalBalanceState,
+            "Balance has existing debt"
+        );
+
+        check!(
+            current_asset_amount.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
+            MarginfiError::IllegalBalanceState,
+            "Balance has existing assets"
+        );
+
+        balance.close()?;
+
+        Ok(())
     }
 
     // ------------ Internal accounting logic
