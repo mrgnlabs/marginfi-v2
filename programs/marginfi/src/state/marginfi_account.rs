@@ -754,6 +754,8 @@ impl<'a> BankAccountWrapper<'a> {
         let balance = &mut self.balance;
         let bank = &mut self.bank;
 
+        bank.assert_operational_mode(None)?;
+
         let total_asset_shares: I80F48 = balance.asset_shares.into();
         let current_asset_amount = bank.get_asset_amount(total_asset_shares)?;
         let current_liability_amount =
@@ -803,6 +805,8 @@ impl<'a> BankAccountWrapper<'a> {
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
+
+        bank.assert_operational_mode(None)?;
 
         let total_liability_shares: I80F48 = balance.liability_shares.into();
         let current_liability_amount = bank.get_liability_amount(total_liability_shares)?;
