@@ -15,6 +15,22 @@ macro_rules! check {
             return Err(error_code.into());
         }
     };
+
+    ($cond:expr, $err:expr, $($arg:tt)*) => {
+        if !($cond) {
+            let error_code: $crate::errors::MarginfiError = $err;
+            #[cfg(not(feature = "test-bpf"))]
+            anchor_lang::prelude::msg!(
+                "Error \"{}\" thrown at {}:{}",
+                error_code,
+                file!(),
+                line!()
+            );
+            #[cfg(not(feature = "test-bpf"))]
+            anchor_lang::prelude::msg!($($arg)*);
+            return Err(error_code.into());
+        }
+    };
 }
 
 #[macro_export]
