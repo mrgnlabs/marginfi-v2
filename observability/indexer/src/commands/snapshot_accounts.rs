@@ -557,24 +557,38 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
             );
         }
 
-        let mut insert_request = TableDataInsertAllRequest::new();
-        all_marginfi_account_metrics
-            .iter()
-            .for_each(|(id, metrics_result)| match metrics_result {
-                Ok(metrics) => insert_request.add_row(None, metrics.to_row()).unwrap(),
-                Err(err) => warn!("Failed to create metrics for marginfi account {id}: {err}"),
-            });
-        let result = write_to_bq(
-            &bq_client,
-            &ctx.config.project_id,
-            &ctx.config.dataset_id,
-            &ctx.config.table_account,
-            timestamp,
-            insert_request,
-        )
-        .await;
-        if let Err(error) = result {
-            warn!("Failed to write to bigquery: {}", error);
+        let insert_requests: Vec<TableDataInsertAllRequest> = all_marginfi_account_metrics
+            .chunks(7000)
+            .map(|metrics_results_chunk| {
+                let mut insert_request: TableDataInsertAllRequest =
+                    TableDataInsertAllRequest::new();
+
+                metrics_results_chunk.iter().for_each(
+                    |(id, metrics_result)| match metrics_result {
+                        Ok(metrics) => insert_request.add_row(None, metrics.to_row()).unwrap(),
+                        Err(err) => {
+                            warn!("Failed to create metrics for marginfi account {id}: {err}")
+                        }
+                    },
+                );
+
+                insert_request
+            })
+            .collect::<Vec<_>>();
+
+        for insert_request in insert_requests {
+            let result = write_to_bq(
+                &bq_client,
+                &ctx.config.project_id,
+                &ctx.config.dataset_id,
+                &ctx.config.table_account,
+                timestamp,
+                insert_request,
+            )
+            .await;
+            if let Err(error) = result {
+                warn!("Failed to write marginfi account metrics to bigquery: {}", error);
+            }
         }
 
         tokio::time::sleep(Duration::from_secs(ctx.config.snap_interval)).await;
