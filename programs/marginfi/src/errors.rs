@@ -29,8 +29,7 @@ pub enum MarginfiError {
     LendingAccountBalanceSlotsFull,
     #[msg("Bank already exists")] // 6012
     BankAlreadyExists,
-    // 6013
-    #[msg("Illegal post liquidation state, account is either not unhealthy or liquidation was too big")]
+    #[msg("Illegal liquidation")] // 6013
     IllegalLiquidation,
     #[msg("Account is not bankrupt")] // 6014
     AccountNotBankrupt,
@@ -65,8 +64,8 @@ pub enum MarginfiError {
     #[msg("Bank borrow cap exceeded")] // 6029
     BankLiabilityCapacityExceeded,
     #[msg("Invalid Price")] // 6030
-    InvalidPrice, // 6031
-    #[msg("Account can have only one liablity when account is under isolated risk")]
+    InvalidPrice,
+    #[msg("Account can have only one liablity when account is under isolated risk")] // 6031
     IsolatedAccountIllegalState, // 6032
     #[msg("Emissions already setup")]
     EmissionsAlreadySetup,
@@ -80,8 +79,10 @@ pub enum MarginfiError {
     EmissionsUpdateError,
     #[msg("Account disabled")] // 6037
     AccountDisabled,
-    #[msg("Account can't temporarily open 3 balances, please close a balance first")]
+    #[msg("Account can't temporarily open new balances, please close a balance first")]
     AccountTempActiveBalanceLimitExceeded,
+    #[msg("Illegal balance state")] // 6038
+    IllegalBalanceState,
 }
 
 impl From<MarginfiError> for ProgramError {

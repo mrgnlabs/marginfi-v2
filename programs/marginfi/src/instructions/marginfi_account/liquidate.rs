@@ -2,7 +2,6 @@ use crate::constants::{
     INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE, MAX_PRICE_AGE_SEC,
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
-use crate::prelude::*;
 use crate::state::marginfi_account::{
     calc_asset_amount, calc_asset_value, RiskEngine, RiskRequirementType,
 };
@@ -13,6 +12,7 @@ use crate::{
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
 };
+use crate::{check, prelude::*};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
@@ -71,6 +71,18 @@ pub fn lending_account_liquidate(
     ctx: Context<LendingAccountLiquidate>,
     asset_amount: u64,
 ) -> MarginfiResult {
+    check!(
+        asset_amount > 0,
+        MarginfiError::IllegalLiquidation,
+        "Asset amount must be positive"
+    );
+
+    check!(
+        ctx.accounts.asset_bank.key() != ctx.accounts.liab_bank.key(),
+        MarginfiError::IllegalLiquidation,
+        "Asset and liability bank cannot be the same"
+    );
+
     let LendingAccountLiquidate {
         liquidator_marginfi_account: liquidator_marginfi_account_loader,
         liquidatee_marginfi_account: liquidatee_marginfi_account_loader,

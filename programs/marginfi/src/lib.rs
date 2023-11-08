@@ -118,6 +118,12 @@ pub mod marginfi {
         marginfi_account::lending_account_borrow(ctx, amount)
     }
 
+    pub fn lending_account_close_balance(
+        ctx: Context<LendingAccountCloseBalance>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_close_balance(ctx)
+    }
+
     pub fn lending_account_withdraw_emissions(
         ctx: Context<LendingAccountWithdrawEmissions>,
     ) -> MarginfiResult {
