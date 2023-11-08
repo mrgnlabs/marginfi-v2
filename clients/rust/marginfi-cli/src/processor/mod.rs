@@ -1466,7 +1466,7 @@ pub fn marginfi_account_liquidate(
     ix.accounts.extend(load_observation_account_metas(
         &marginfi_account,
         &banks,
-        vec![asset_bank_pk, liability_bank_pk],
+        vec![liability_bank_pk, asset_bank_pk],
         vec![],
     ));
     ix.accounts.extend(load_observation_account_metas(
@@ -1476,7 +1476,7 @@ pub fn marginfi_account_liquidate(
         vec![],
     ));
 
-    let cu_ix = ComputeBudgetInstruction::set_compute_unit_limit(600_000);
+    let cu_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
 
     let tx = Transaction::new_signed_with_payer(
         &[ix, cu_ix],

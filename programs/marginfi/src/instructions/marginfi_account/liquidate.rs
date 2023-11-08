@@ -5,12 +5,13 @@ use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, Liquidatio
 use crate::prelude::*;
 use crate::state::marginfi_account::{calc_asset_amount, calc_asset_value, RiskEngine};
 use crate::state::marginfi_group::{Bank, BankVaultType};
-use crate::state::price::{OraclePriceFeedAdapter, PriceAdapter};
+use crate::state::price::{OraclePriceFeedAdapter, PriceAdapter, PriceBias};
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
 };
+use crate::{check, prelude::*};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
@@ -69,6 +70,18 @@ pub fn lending_account_liquidate(
     ctx: Context<LendingAccountLiquidate>,
     asset_amount: u64,
 ) -> MarginfiResult {
+    check!(
+        asset_amount > 0,
+        MarginfiError::IllegalLiquidation,
+        "Asset amount must be positive"
+    );
+
+    check!(
+        ctx.accounts.asset_bank.key() != ctx.accounts.liab_bank.key(),
+        MarginfiError::IllegalLiquidation,
+        "Asset and liability bank cannot be the same"
+    );
+
     let LendingAccountLiquidate {
         liquidator_marginfi_account: liquidator_marginfi_account_loader,
         liquidatee_marginfi_account: liquidatee_marginfi_account_loader,
@@ -116,7 +129,7 @@ pub fn lending_account_liquidate(
                 current_timestamp,
                 MAX_PRICE_AGE_SEC,
             )?;
-            asset_pf.get_price()?
+            asset_pf.get_price_non_weighted(Some(PriceBias::Low))?
         };
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
@@ -129,7 +142,7 @@ pub fn lending_account_liquidate(
                 MAX_PRICE_AGE_SEC,
             )?;
 
-            liab_pf.get_price()?
+            liab_pf.get_price_non_weighted(Some(PriceBias::High))?
         };
 
         let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);

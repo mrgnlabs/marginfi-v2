@@ -1,26 +1,30 @@
+use anchor_client::anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas};
+use anyhow::Result;
+use marginfi::state::marginfi_account::MarginfiAccount;
+use solana_client::rpc_filter::{Memcmp, RpcFilterType};
+use solana_sdk::{
+    instruction::Instruction, pubkey::Pubkey, signer::Signer, transaction::Transaction,
+};
+
+use crate::{config::Config, profile::Profile};
+
 #[cfg(feature = "admin")]
 const CHUNK_SIZE: usize = 22;
 #[cfg(feature = "admin")]
 pub fn claim_all_emissions_for_bank(
-    config: &crate::config::Config,
-    profile: &crate::profile::Profile,
-    bank_pk: solana_sdk::pubkey::Pubkey,
-) -> anyhow::Result<()> {
-    use anchor_client::anchor_lang::{InstructionData, ToAccountMetas};
-    use solana_sdk::{
-        pubkey::{self, Pubkey},
-        signer::Signer,
-    };
+    config: &Config,
+    profile: &Profile,
+    bank_pk: Pubkey,
+) -> Result<()> {
+    let group = profile.marginfi_group.expect("group not set");
 
-    let group: Pubkey = profile.marginfi_group.expect("group not set");
-
-    let marginfi_accounts = config
-        .mfi_program
-        .accounts::<marginfi::state::marginfi_account::MarginfiAccount>(vec![
-            solana_client::rpc_filter::RpcFilterType::Memcmp(
-                solana_client::rpc_filter::Memcmp::new_raw_bytes(8, group.to_bytes().to_vec()),
-            ),
-        ])?;
+    let marginfi_accounts =
+        config
+            .mfi_program
+            .accounts::<MarginfiAccount>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+                8,
+                group.try_to_vec()?,
+            ))])?;
 
     let ixs = marginfi_accounts
         .into_iter()
@@ -36,7 +40,7 @@ pub fn claim_all_emissions_for_bank(
                 None
             }
         })
-        .map(|address| solana_sdk::instruction::Instruction {
+        .map(|address| Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountSettleEmissions {
                 marginfi_account: address,
@@ -54,10 +58,11 @@ pub fn claim_all_emissions_for_bank(
 
     // Send txs and show progress to user [n/total]
     println!("Sending {} txs", ixs_batches_count);
-    let blockhash = config.mfi_program.rpc().get_latest_blockhash()?;
 
     for (i, ixs) in ixs_batches.enumerate() {
-        let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
+        let blockhash = config.mfi_program.rpc().get_latest_blockhash()?;
+
+        let tx = Transaction::new_signed_with_payer(
             ixs,
             Some(&config.payer.pubkey()),
             &[&config.payer],

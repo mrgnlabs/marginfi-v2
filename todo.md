@@ -41,4 +41,4 @@
   * Jup TS Liquidator (good for alpha phase)
         Good enough for alpha testing, need a more robust solution for full public mainnet.
   * Live Mainnet Liquidator
-        Bigger project,should start right after alpha mainnet launch, after jup liquidator.
+        Bigger project, should start right after alpha mainnet launch, after jup liquidator.

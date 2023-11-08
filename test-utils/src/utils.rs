@@ -76,6 +76,11 @@ pub fn create_pyth_price_account(
                 denom: 1,
             },
             prev_timestamp: timestamp.unwrap_or(0),
+            ema_conf: Rational {
+                val: 0,
+                numer: 0,
+                denom: 1,
+            },
             ..Default::default()
         })
         .to_vec(),

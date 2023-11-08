@@ -54,6 +54,8 @@ pub enum Command {
     },
     #[cfg(feature = "dev")]
     InspectPadding {},
+    #[cfg(feature = "dev")]
+    InspectSize {},
     Account {
         #[clap(subcommand)]
         subcmd: AccountCommand,
@@ -375,6 +377,8 @@ pub fn entry(opts: Opts) -> Result<()> {
 
             Ok(())
         }
+        #[cfg(feature = "dev")]
+        Command::InspectSize {} => inspect_size(),
     }
 }
 
@@ -640,6 +644,29 @@ fn inspect_padding() -> Result<()> {
     println!("MarginfiAccount: {}", MarginfiAccount::type_layout());
     println!("LendingAccount: {}", LendingAccount::type_layout());
     println!("Balance: {}", Balance::type_layout());
+
+    Ok(())
+}
+
+#[cfg(feature = "dev")]
+fn inspect_size() -> Result<()> {
+    use std::mem::size_of;
+
+    println!("MarginfiGroup: {}", size_of::<MarginfiGroup>());
+    println!("GroupConfig: {}", size_of::<GroupConfig>());
+    println!("InterestRateConfig: {}", size_of::<InterestRateConfig>());
+    println!(
+        "Bank: {}",
+        size_of::<marginfi::state::marginfi_group::Bank>()
+    );
+    println!("BankConfig: {}", size_of::<BankConfig>());
+    println!("OracleConfig: {}", size_of::<OracleConfig>());
+    println!("BankConfigOpt: {}", size_of::<BankConfigOpt>());
+    println!("WrappedI80F48: {}", size_of::<WrappedI80F48>());
+
+    println!("MarginfiAccount: {}", size_of::<MarginfiAccount>());
+    println!("LendingAccount: {}", size_of::<LendingAccount>());
+    println!("Balance: {}", size_of::<Balance>());
 
     Ok(())
 }
