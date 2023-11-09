@@ -277,7 +277,9 @@ pub enum ProfileCommand {
         #[clap(long)]
         cluster: Cluster,
         #[clap(long)]
-        keypair_path: String,
+        keypair_path: Option<String>,
+        #[clap(long)]
+        multisig: Option<Pubkey>,
         #[clap(long)]
         rpc_url: String,
         #[clap(long)]
@@ -300,6 +302,8 @@ pub enum ProfileCommand {
         cluster: Option<Cluster>,
         #[clap(long)]
         keypair_path: Option<String>,
+        #[clap(long)]
+        multisig: Option<Pubkey>,
         #[clap(long)]
         rpc_url: Option<String>,
         #[clap(long)]
@@ -388,6 +392,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             name,
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -397,6 +402,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             name,
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -409,6 +415,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
         ProfileCommand::Update {
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -419,6 +426,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             name,
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -510,6 +518,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             BankCommand::Get { .. } | BankCommand::GetAll { .. } => (),
             #[cfg(feature = "dev")]
             BankCommand::InspectPriceOracle { .. } => (),
+            #[allow(unreachable_patterns)]
             _ => get_consent(&subcmd, &profile)?,
         }
     }

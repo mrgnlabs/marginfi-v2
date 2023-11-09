@@ -2383,6 +2383,8 @@ dependencies = [
  "anchor-client",
  "anchor-spl",
  "anyhow",
+ "bincode",
+ "bs58 0.4.0",
  "bytemuck",
  "chrono",
  "clap 3.2.25",
