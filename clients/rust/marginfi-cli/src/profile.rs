@@ -279,7 +279,9 @@ Profile:
             self.cluster,
             self.rpc_url,
             config.signer.pubkey(),
-            self.keypair_path.clone().unwrap_or_else(|| "None".to_owned()),
+            self.keypair_path
+                .clone()
+                .unwrap_or_else(|| "None".to_owned()),
             self.multisig
                 .map(|x| x.to_string())
                 .unwrap_or_else(|| "None".to_owned()),
