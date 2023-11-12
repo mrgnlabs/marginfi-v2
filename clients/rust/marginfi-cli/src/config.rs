@@ -1,8 +1,14 @@
-use anchor_client::{Client, Cluster, Program};
-use clap::Parser;
-use serde::{Deserialize, Serialize};
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Keypair};
-use std::str::FromStr;
+use {
+    anchor_client::{Client, Cluster, Program},
+    clap::Parser,
+    serde::{Deserialize, Serialize},
+    solana_sdk::{
+        commitment_config::CommitmentConfig,
+        pubkey::Pubkey,
+        signature::{Keypair, Signer},
+    },
+    std::str::FromStr,
+};
 
 #[derive(Default, Debug, Parser)]
 pub struct GlobalOptions {
@@ -32,9 +38,23 @@ pub struct GlobalOptions {
     pub skip_confirmation: bool,
 }
 
+pub enum CliSigner {
+    Keypair(Keypair),
+    Multisig(Pubkey),
+}
+
+impl CliSigner {
+    pub fn pubkey(&self) -> Pubkey {
+        match self {
+            CliSigner::Keypair(keypair) => keypair.pubkey(),
+            CliSigner::Multisig(pubkey) => *pubkey,
+        }
+    }
+}
+
 pub struct Config {
     pub cluster: Cluster,
-    pub payer: Keypair,
+    pub signer: CliSigner,
     pub program_id: Pubkey,
     pub commitment: CommitmentConfig,
     pub dry_run: bool,

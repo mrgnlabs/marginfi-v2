@@ -277,7 +277,7 @@ impl BankFixture {
             .await
             .unwrap()
             .unwrap();
-        let mut bank = bytemuck::from_bytes_mut::<Bank>(&mut bank_ai.data.as_mut_slice()[8..]);
+        let bank = bytemuck::from_bytes_mut::<Bank>(&mut bank_ai.data.as_mut_slice()[8..]);
 
         bank.asset_share_value = value.into();
 
