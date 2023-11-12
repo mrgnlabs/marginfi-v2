@@ -51,6 +51,11 @@ use {
 
 #[cfg(feature = "dev")]
 use marginfi::state::price::{OraclePriceFeedAdapter, PriceAdapter};
+use marginfi::{
+    constants::ZERO_AMOUNT_THRESHOLD, state::marginfi_account::RiskEngine,
+    utils::NumTraitsWithTolerance,
+};
+use solana_client::rpc_client::RpcClient;
 
 #[cfg(feature = "admin")]
 use {
@@ -439,6 +444,26 @@ pub fn group_add_bank(
     Ok(())
 }
 
+// pub fn group_handle_all_bankruptcies(
+//     config: &Config,
+//     profile: Profile,
+// ) -> Result<()> {
+//     let rpc_client = config.mfi_program.rpc();
+
+//     if profile.marginfi_group.is_none() {
+//         bail!("Marginfi group not specified in profile [{}]", profile.name);
+//     }
+
+//     let banks = HashMap::from_iter(load_all_banks(
+//         config,
+//         Some(profile.marginfi_group.unwrap()),
+//     )?);
+
+//     let accounts = config.mfi_program.accounts::<MarginfiAccount>(vec![])?;
+
+//     Ok(())
+// }
+
 #[allow(clippy::too_many_arguments)]
 #[cfg(feature = "admin")]
 pub fn group_handle_bankruptcy(
@@ -461,6 +486,78 @@ pub fn group_handle_bankruptcy(
         .mfi_program
         .account::<MarginfiAccount>(marginfi_account_pk)?;
 
+    handle_bankruptcy_for_an_account(
+        config,
+        &profile,
+        &rpc_client,
+        &banks,
+        marginfi_account_pk,
+        &marginfi_account,
+        bank_pk,
+    )?;
+
+    Ok(())
+}
+
+pub fn group_auto_handle_bankruptcy_for_an_account(
+    config: &Config,
+    profile: Profile,
+    marginfi_account_pk: Pubkey,
+) -> Result<()> {
+    let rpc_client = config.mfi_program.rpc();
+
+    if profile.marginfi_group.is_none() {
+        bail!("Marginfi group not specified in profile [{}]", profile.name);
+    }
+
+    let banks = HashMap::from_iter(load_all_banks(
+        config,
+        Some(profile.marginfi_group.unwrap()),
+    )?);
+    let marginfi_account = config
+        .mfi_program
+        .account::<MarginfiAccount>(marginfi_account_pk)?;
+
+    marginfi_account
+        .lending_account
+        .balances
+        .iter()
+        .filter(|b| {
+            b.active
+                && banks
+                    .get(&b.bank_pk)
+                    .unwrap()
+                    .get_liability_amount(b.liability_shares.into())
+                    .unwrap()
+                    .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD)
+        })
+        .into_iter()
+        .for_each(|b| {
+            handle_bankruptcy_for_an_account(
+                config,
+                &profile,
+                &rpc_client,
+                &banks,
+                marginfi_account_pk,
+                &marginfi_account,
+                b.bank_pk,
+            )
+            .unwrap();
+        });
+
+    Ok(())
+}
+
+fn handle_bankruptcy_for_an_account(
+    config: &Config,
+    profile: &Profile,
+    rpc_client: &RpcClient,
+    banks: &HashMap<Pubkey, Bank>,
+    marginfi_account_pk: Pubkey,
+    marginfi_account: &MarginfiAccount,
+    bank_pk: Pubkey,
+) -> Result<()> {
+    println!("Handling bankruptcy for bank {}", bank_pk);
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
@@ -719,7 +816,7 @@ pub fn bank_setup_emissions(
 
     match process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer) {
         Ok(sig) => println!("Tx succeded (sig: {})", sig),
-        Err(err) => println!("Error during bankruptcy handling:\n{:#?}", err),
+        Err(err) => println!("Error :\n{:#?}", err),
     };
 
     Ok(())
@@ -835,7 +932,7 @@ pub fn bank_update_emissions(
 
     match process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer) {
         Ok(sig) => println!("Tx succeded (sig: {})", sig),
-        Err(err) => println!("Error during bankruptcy handling:\n{:#?}", err),
+        Err(err) => println!("Error:\n{:#?}", err),
     };
 
     Ok(())

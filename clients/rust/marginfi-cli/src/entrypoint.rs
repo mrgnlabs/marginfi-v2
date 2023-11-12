@@ -124,10 +124,9 @@ pub enum GroupCommand {
     },
     #[cfg(feature = "admin")]
     HandleBankruptcy {
-        #[clap(long)]
-        bank: Pubkey,
-        #[clap(long)]
         marginfi_account: Pubkey,
+        #[clap(long)]
+        bank: Option<Pubkey>,
     },
 }
 
@@ -505,7 +504,17 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         GroupCommand::HandleBankruptcy {
             bank,
             marginfi_account,
-        } => processor::group_handle_bankruptcy(&config, profile, bank, marginfi_account),
+        } => {
+            if let Some(bank) = bank {
+                processor::group_handle_bankruptcy(&config, profile, bank, marginfi_account)
+            } else {
+                processor::group_auto_handle_bankruptcy_for_an_account(
+                    &config,
+                    profile,
+                    marginfi_account,
+                )
+            }
+        }
     }
 }
 
