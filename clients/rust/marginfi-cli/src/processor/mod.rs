@@ -482,7 +482,8 @@ pub fn group_handle_bankruptcy(
         config,
         Some(profile.marginfi_group.unwrap()),
     )?);
-    let marginfi_account = config
+
+    let mut marginfi_account = config
         .mfi_program
         .account::<MarginfiAccount>(marginfi_account_pk)?;
 
@@ -492,7 +493,7 @@ pub fn group_handle_bankruptcy(
         &rpc_client,
         &banks,
         marginfi_account_pk,
-        &marginfi_account,
+        &mut marginfi_account,
         bank_pk,
     )?;
 
@@ -514,7 +515,7 @@ pub fn group_auto_handle_bankruptcy_for_an_account(
         config,
         Some(profile.marginfi_group.unwrap()),
     )?);
-    let marginfi_account = config
+    let mut marginfi_account = config
         .mfi_program
         .account::<MarginfiAccount>(marginfi_account_pk)?;
 
@@ -531,16 +532,18 @@ pub fn group_auto_handle_bankruptcy_for_an_account(
                     .unwrap()
                     .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD)
         })
-        .into_iter()
-        .for_each(|b| {
+        .map(|b| b.bank_pk)
+        .collect::<Vec<Pubkey>>()
+        .iter()
+        .for_each(|bank_pk| {
             handle_bankruptcy_for_an_account(
                 config,
                 &profile,
                 &rpc_client,
                 &banks,
                 marginfi_account_pk,
-                &marginfi_account,
-                b.bank_pk,
+                &mut marginfi_account,
+                *bank_pk,
             )
             .unwrap();
         });
@@ -554,7 +557,7 @@ fn handle_bankruptcy_for_an_account(
     rpc_client: &RpcClient,
     banks: &HashMap<Pubkey, Bank>,
     marginfi_account_pk: Pubkey,
-    marginfi_account: &MarginfiAccount,
+    marginfi_account: &mut MarginfiAccount,
     bank_pk: Pubkey,
 ) -> Result<()> {
     println!("Handling bankruptcy for bank {}", bank_pk);
@@ -597,6 +600,15 @@ fn handle_bankruptcy_for_an_account(
             vec![bank_pk],
             vec![],
         ));
+
+    // Deactivate the balance so next ix won't fail
+    marginfi_account
+        .lending_account
+        .balances
+        .iter_mut()
+        .find(|b| b.bank_pk == bank_pk)
+        .unwrap()
+        .active = false;
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
     let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {

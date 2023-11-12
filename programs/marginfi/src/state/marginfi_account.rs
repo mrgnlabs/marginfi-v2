@@ -316,8 +316,6 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         })
     }
 
-    pub fn new_from_bank
-
     /// Returns the total assets and liabilities of the account in the form of (assets, liabilities)
     pub fn get_account_health_components(
         &self,
