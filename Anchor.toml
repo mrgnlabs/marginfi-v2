@@ -1,3 +1,5 @@
+[toolchain]
+
 [features]
 seeds = true
 skip-lint = false
