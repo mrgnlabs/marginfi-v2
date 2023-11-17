@@ -1,27 +1,34 @@
-use anyhow::{bail, Result};
-use fixed::types::I80F48;
-use fixed_macro::types::I80F48;
-use log::error;
-use marginfi::{
-    bank_authority_seed,
-    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED},
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType},
+use {
+    crate::config::CliSigner,
+    anyhow::{bail, Result},
+    fixed::types::I80F48,
+    fixed_macro::types::I80F48,
+    log::error,
+    marginfi::{
+        bank_authority_seed,
+        state::{
+            marginfi_account::MarginfiAccount,
+            marginfi_group::{Bank, BankVaultType},
+        },
     },
+    solana_client::rpc_client::RpcClient,
+    solana_sdk::{
+        instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,
+    },
+    std::collections::HashMap,
 };
+
 #[cfg(feature = "admin")]
-use marginfi::{bank_seed, constants::MAX_ORACLE_KEYS};
-use solana_client::rpc_client::RpcClient;
-use solana_sdk::{
-    instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,
+use marginfi::{
+    bank_seed,
+    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS},
 };
-use std::collections::HashMap;
 
 pub fn process_transaction(
     tx: &Transaction,
     rpc_client: &RpcClient,
     dry_run: bool,
+    signer: &CliSigner,
 ) -> Result<Signature> {
     if dry_run {
         match rpc_client.simulate_transaction(tx) {
@@ -38,6 +45,14 @@ pub fn process_transaction(
             }
             Err(err) => bail!(err),
         }
+    } else if let CliSigner::Multisig(_) = signer {
+        let tx_serialized = bs58::encode(bincode::serialize(tx)?).into_string();
+
+        println!("------- transaction -------");
+        println!("{}", tx_serialized);
+        println!("---------------------------");
+
+        Ok(Signature::default())
     } else {
         match rpc_client.send_and_confirm_transaction_with_spinner(tx) {
             Ok(sig) => Ok(sig),
@@ -66,6 +81,7 @@ pub fn find_bank_vault_authority_pda(
     Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
 }
 
+#[cfg(feature = "admin")]
 pub fn find_bank_emssions_auth_pda(
     bank: Pubkey,
     emissions_mint: Pubkey,
@@ -81,6 +97,7 @@ pub fn find_bank_emssions_auth_pda(
     )
 }
 
+#[cfg(feature = "admin")]
 pub fn find_bank_emssions_token_account_pda(
     bank: Pubkey,
     emissions_mint: Pubkey,

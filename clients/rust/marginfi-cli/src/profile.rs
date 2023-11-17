@@ -1,24 +1,24 @@
-use crate::config::{Config, GlobalOptions};
-use anchor_client::{Client, Cluster};
-use anyhow::bail;
-use anyhow::{anyhow, Result};
-use dirs::home_dir;
-use serde::{Deserialize, Serialize};
-use solana_sdk::{
-    commitment_config::{CommitmentConfig, CommitmentLevel},
-    pubkey,
-    pubkey::Pubkey,
-    signature::read_keypair_file,
-    signer::Signer,
+use {
+    crate::config::{CliSigner, Config, GlobalOptions},
+    anchor_client::{Client, Cluster},
+    anyhow::{anyhow, bail, Result},
+    dirs::home_dir,
+    serde::{Deserialize, Serialize},
+    solana_sdk::{
+        commitment_config::{CommitmentConfig, CommitmentLevel},
+        pubkey,
+        pubkey::Pubkey,
+        signature::{read_keypair_file, Keypair},
+    },
+    std::{fs, path::PathBuf, rc::Rc},
 };
-
-use std::{fs, path::PathBuf, rc::Rc};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Profile {
     pub name: String,
     pub cluster: Cluster,
-    pub keypair_path: String,
+    pub keypair_path: Option<String>,
+    pub multisig: Option<Pubkey>,
     pub rpc_url: String,
     pub program_id: Option<Pubkey>,
     pub commitment: Option<CommitmentLevel>,
@@ -36,17 +36,27 @@ impl Profile {
     pub fn new(
         name: String,
         cluster: Cluster,
-        keypair_path: String,
+        keypair_path: Option<String>,
+        multisig: Option<Pubkey>,
         rpc_url: String,
         program_id: Option<Pubkey>,
         commitment: Option<CommitmentLevel>,
         marginfi_group: Option<Pubkey>,
         marginfi_account: Option<Pubkey>,
     ) -> Self {
+        if keypair_path.is_none() && multisig.is_none() {
+            panic!("Either keypair_path or multisig must be set");
+        }
+
+        if keypair_path.is_some() && multisig.is_some() {
+            panic!("Only one of keypair_path or multisig can be set");
+        }
+
         Profile {
             name,
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -56,11 +66,16 @@ impl Profile {
     }
 
     pub fn get_config(&self, global_options: Option<&GlobalOptions>) -> Result<Config> {
-        let wallet_path = self.keypair_path.clone();
-        let payer = read_keypair_file(&*shellexpand::tilde(&wallet_path))
-            .expect("Example requires a keypair file");
-        let payer_clone = read_keypair_file(&*shellexpand::tilde(&wallet_path))
-            .expect("Example requires a keypair file");
+        let signer = if let Some(keypair_path) = &self.keypair_path {
+            let wallet_path = keypair_path.clone();
+
+            CliSigner::Keypair(
+                read_keypair_file(&*shellexpand::tilde(&wallet_path))
+                    .expect("Example requires a keypair file"),
+            )
+        } else {
+            CliSigner::Multisig(self.multisig.unwrap())
+        };
 
         let dry_run = match global_options {
             Some(options) => options.dry_run,
@@ -83,7 +98,7 @@ impl Profile {
         };
         let client = Client::new_with_options(
             Cluster::Custom(self.rpc_url.clone(), "https://dontcare.com:123".to_string()),
-            Rc::new(payer_clone),
+            Rc::new(Keypair::new()),
             commitment,
         );
         let program = client.program(program_id);
@@ -98,7 +113,7 @@ impl Profile {
 
         Ok(Config {
             cluster,
-            payer,
+            signer,
             program_id,
             commitment,
             dry_run,
@@ -113,18 +128,29 @@ impl Profile {
         &mut self,
         cluster: Option<Cluster>,
         keypair_path: Option<String>,
+        multisig: Option<Pubkey>,
         rpc_url: Option<String>,
         program_id: Option<Pubkey>,
         commitment: Option<CommitmentLevel>,
         group: Option<Pubkey>,
         account: Option<Pubkey>,
     ) -> Result<()> {
+        if keypair_path.is_some() && multisig.is_some() {
+            panic!("Only one of keypair_path or multisig can be set");
+        }
+
         if let Some(cluster) = cluster {
             self.cluster = cluster;
         }
 
         if let Some(keypair_path) = keypair_path {
-            self.keypair_path = keypair_path;
+            self.keypair_path = Some(keypair_path);
+            self.multisig = None;
+        }
+
+        if let Some(multisig) = multisig {
+            self.multisig = Some(multisig);
+            self.keypair_path = None;
         }
 
         if let Some(rpc_url) = rpc_url {
@@ -240,6 +266,7 @@ Profile:
     Rpc URL: {}
     Signer: {}
     Keypair: {}
+    Multisig: {}
         "#,
             self.name,
             config.program_id,
@@ -251,8 +278,13 @@ Profile:
                 .unwrap_or_else(|| "None".to_owned()),
             self.cluster,
             self.rpc_url,
-            config.payer.pubkey(),
-            self.keypair_path,
+            config.signer.pubkey(),
+            self.keypair_path
+                .clone()
+                .unwrap_or_else(|| "None".to_owned()),
+            self.multisig
+                .map(|x| x.to_string())
+                .unwrap_or_else(|| "None".to_owned()),
         )?;
 
         Ok(())
