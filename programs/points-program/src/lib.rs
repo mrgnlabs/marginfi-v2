@@ -7,6 +7,7 @@ use std::ops::{Div, Mul, Add};
 declare_id!("CSjewsFhiPYdz94HLCmntXPiFXUPbwhxUUFo29dVaYwo");
 
 const POINTS_SEED: &[u8] = b"points";
+
 #[program]
 pub mod points_program {
     use super::*;
@@ -18,13 +19,37 @@ pub mod points_program {
         Ok(())
     }
 
-    pub fn accrue_points(ctx: Context<AccruePointsNaive>, current_asset_balance: i128, current_liab_balance: i128) -> Result<()> {
+    pub fn accrue_points_v1(ctx: Context<AccruePointsV1>, current_asset_balance: i128, current_liab_balance: i128) -> Result<()> {
         let points_account = &mut ctx.accounts.points_account;
 
         points_account.update_sma(current_asset_balance, current_liab_balance);
 
         points_account.accrue_points();
 
+        Ok(())
+    }
+                                                          // pubkey is the bank_pk
+    pub fn accrue_points_v2(ctx: Context<AccruePointsV2>, price_data: Vec<(Pubkey, i128)>) -> Result<()> {
+        let lending_account_balances = &ctx.accounts.marginfi_account.load()?.lending_account.balances;
+        let points_account = &mut ctx.accounts.points_account;
+
+        let mut current_asset_balance: i128 = 0;
+        let mut current_liab_balance: i128 = 0;
+
+        for balance in lending_account_balances.iter() {
+            if balance.active {
+                if let Some((_, price)) = price_data.iter().find(|(pk, _)| *pk == balance.bank_pk) {
+                    current_asset_balance += I80F48::from(balance.asset_shares).mul(I80F48::from_num(*price)).to_bits();
+    
+                    current_liab_balance += I80F48::from(balance.liability_shares).mul(I80F48::from_num(*price)).to_bits();
+                }
+            }
+        }
+
+        points_account.update_sma(current_asset_balance, current_liab_balance);
+
+        points_account.accrue_points();
+    
         Ok(())
     }
 }
@@ -70,9 +95,20 @@ impl PointsAccount {
 }
 
 #[derive(Accounts)]
-pub struct AccruePointsNaive<'info> {
+pub struct AccruePointsV1<'info> {
     #[account(mut)]
     pub points_account: Account<'info, PointsAccount>,
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct AccruePointsV2<'info> {
+    #[account(mut, constraint = points_account.owner_mfi_account == marginfi_account.key())]
+    pub points_account: Account<'info, PointsAccount>,
+
+    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(mut)]
     pub payer: Signer<'info>,
