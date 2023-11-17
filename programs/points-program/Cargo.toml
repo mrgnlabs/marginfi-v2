@@ -17,4 +17,8 @@ default = []
 
 [dependencies]
 anchor-lang = "0.26.0"
-switchboard-v2 = "=0.1.22"
+fixed = "1.12.0"
+
+[dependencies.marginfi]
+path = "../marginfi"
+features = [ "cpi" ]
