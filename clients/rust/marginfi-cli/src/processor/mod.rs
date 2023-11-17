@@ -483,7 +483,7 @@ pub fn group_handle_bankruptcy(
         Some(profile.marginfi_group.unwrap()),
     )?);
 
-    let mut marginfi_account = config
+    let marginfi_account = config
         .mfi_program
         .account::<MarginfiAccount>(marginfi_account_pk)?;
 
@@ -493,7 +493,7 @@ pub fn group_handle_bankruptcy(
         &rpc_client,
         &banks,
         marginfi_account_pk,
-        &mut marginfi_account,
+        &marginfi_account,
         bank_pk,
     )?;
 
@@ -515,7 +515,7 @@ pub fn group_auto_handle_bankruptcy_for_an_account(
         config,
         Some(profile.marginfi_group.unwrap()),
     )?);
-    let mut marginfi_account = config
+    let marginfi_account = config
         .mfi_program
         .account::<MarginfiAccount>(marginfi_account_pk)?;
 
@@ -542,7 +542,7 @@ pub fn group_auto_handle_bankruptcy_for_an_account(
                 &rpc_client,
                 &banks,
                 marginfi_account_pk,
-                &mut marginfi_account,
+                &marginfi_account,
                 *bank_pk,
             )
             .unwrap();
@@ -557,7 +557,7 @@ fn handle_bankruptcy_for_an_account(
     rpc_client: &RpcClient,
     banks: &HashMap<Pubkey, Bank>,
     marginfi_account_pk: Pubkey,
-    marginfi_account: &mut MarginfiAccount,
+    marginfi_account: &MarginfiAccount,
     bank_pk: Pubkey,
 ) -> Result<()> {
     println!("Handling bankruptcy for bank {}", bank_pk);
@@ -601,15 +601,6 @@ fn handle_bankruptcy_for_an_account(
             vec![],
         ));
 
-    // Deactivate the balance so next ix won't fail
-    marginfi_account
-        .lending_account
-        .balances
-        .iter_mut()
-        .find(|b| b.bank_pk == bank_pk)
-        .unwrap()
-        .active = false;
-
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
     let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
         vec![keypair]
@@ -626,6 +617,141 @@ fn handle_bankruptcy_for_an_account(
     };
 
     Ok(())
+}
+
+#[cfg(feature = "admin")]
+const BANKRUPTCY_CHUNKS: usize = 4;
+
+#[cfg(feature = "admin")]
+pub fn handle_bankruptcy_for_accounts(
+    config: &Config,
+    profile: &Profile,
+    accounts: Vec<Pubkey>,
+) -> Result<()> {
+    let mut instructions = vec![];
+    let rpc_client = config.mfi_program.rpc();
+
+    let banks = HashMap::from_iter(load_all_banks(
+        config,
+        Some(profile.marginfi_group.unwrap()),
+    )?);
+
+    for account in accounts {
+        let marginfi_account = config
+            .mfi_program
+            .account::<MarginfiAccount>(account)
+            .unwrap();
+
+        marginfi_account
+            .lending_account
+            .balances
+            .iter()
+            .filter(|b| {
+                b.active
+                    && banks
+                        .get(&b.bank_pk)
+                        .unwrap()
+                        .get_liability_amount(b.liability_shares.into())
+                        .unwrap()
+                        .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD)
+            })
+            .map(|b| b.bank_pk)
+            .collect::<Vec<Pubkey>>()
+            .iter()
+            .for_each(|bank_pk| {
+                instructions.push(
+                    make_bankruptcy_ix(
+                        config,
+                        profile,
+                        &banks,
+                        account,
+                        &marginfi_account,
+                        *bank_pk,
+                    )
+                    .unwrap(),
+                );
+            });
+    }
+
+    println!("Handling {} bankruptcies", instructions.len());
+
+    let chunks = instructions.chunks(BANKRUPTCY_CHUNKS);
+
+    for chunk in chunks {
+        let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+        let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
+            vec![keypair]
+        } else {
+            vec![]
+        };
+
+        let mut ixs = vec![ComputeBudgetInstruction::set_compute_unit_limit(1_400_000)];
+        ixs.extend_from_slice(chunk);
+
+        let message = Message::new(&ixs, Some(&config.signer.pubkey()));
+
+        let mut transaction = Transaction::new_unsigned(message);
+        transaction.partial_sign(&signing_keypairs, recent_blockhash);
+
+        match process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer) {
+            Ok(sig) => println!("Bankruptcy handled (sig: {})", sig),
+            Err(err) => println!("Error during bankruptcy handling:\n{:#?}", err),
+        };
+    }
+
+    Ok(())
+}
+#[cfg(feature = "admin")]
+fn make_bankruptcy_ix(
+    config: &Config,
+    profile: &Profile,
+    banks: &HashMap<Pubkey, Bank>,
+    marginfi_account_pk: Pubkey,
+    marginfi_account: &MarginfiAccount,
+    bank_pk: Pubkey,
+) -> Result<Instruction> {
+    println!("Handling bankruptcy for bank {}", bank_pk);
+    let mut handle_bankruptcy_ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            admin: config.signer.pubkey(),
+            bank: bank_pk,
+            marginfi_account: marginfi_account_pk,
+            liquidity_vault: find_bank_vault_pda(
+                &bank_pk,
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+            insurance_vault: find_bank_vault_pda(
+                &bank_pk,
+                BankVaultType::Insurance,
+                &config.program_id,
+            )
+            .0,
+            insurance_vault_authority: find_bank_vault_authority_pda(
+                &bank_pk,
+                BankVaultType::Insurance,
+                &config.program_id,
+            )
+            .0,
+            token_program: token::ID,
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
+    };
+
+    handle_bankruptcy_ix
+        .accounts
+        .extend(load_observation_account_metas(
+            &marginfi_account,
+            &banks,
+            vec![bank_pk],
+            vec![],
+        ));
+
+    Ok(handle_bankruptcy_ix)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
