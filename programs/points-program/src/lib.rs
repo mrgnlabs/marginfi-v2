@@ -18,18 +18,8 @@ pub mod points_program {
         points_account.points = WrappedI80F48::from(I80F48::from_num(initial_points));
         Ok(())
     }
-
-    pub fn accrue_points_v1(ctx: Context<AccruePointsV1>, current_asset_balance: i128, current_liab_balance: i128) -> Result<()> {
-        let points_account = &mut ctx.accounts.points_account;
-
-        points_account.update_sma(current_asset_balance, current_liab_balance);
-
-        points_account.accrue_points();
-
-        Ok(())
-    }
-                                                          // pubkey is the bank_pk
-    pub fn accrue_points_v2(ctx: Context<AccruePointsV2>, price_data: Vec<(Pubkey, i128)>) -> Result<()> {
+                                                                // pubkey is the bank_pk
+    pub fn accrue_points_naive(ctx: Context<AccruePointsNaive>, price_data: Vec<(Pubkey, i128)>) -> Result<()> {
         let lending_account_balances = &ctx.accounts.marginfi_account.load()?.lending_account.balances;
         let points_account = &mut ctx.accounts.points_account;
 
@@ -48,7 +38,10 @@ pub mod points_program {
 
         points_account.update_sma(current_asset_balance, current_liab_balance);
 
-        points_account.accrue_points();
+        let clock = Clock::get().unwrap();           
+        let current_unix_timestamp: u64 = clock.unix_timestamp.try_into().unwrap();
+
+        points_account.accrue_points(current_unix_timestamp);
     
         Ok(())
     }
@@ -62,6 +55,7 @@ pub struct PointsAccount {
     pub asset_sma: WrappedI80F48,
     pub liab_sma: WrappedI80F48,
     pub sma_count: u64, 
+    pub last_recorded_timestamp: u64,
 }
 
 impl PointsAccount {
@@ -83,28 +77,19 @@ impl PointsAccount {
         self.sma_count += 1;
     }
 
-    pub fn accrue_points(&mut self) {
+    pub fn accrue_points(&mut self, current_timestamp: u64) {
         // 1 point per $1 lent per 24h
-        let lending_points = I80F48::from(self.asset_sma).div(I80F48::from_num(24 * 60 * 60 / 30));
+        let lending_points = I80F48::from(self.asset_sma).div(I80F48::from_num(24 * 60 * 60 / (current_timestamp - self.last_recorded_timestamp)));
 
         // 4 points per $1 borrowed per 24h
-        let borrowing_points = I80F48::from(self.liab_sma).mul(I80F48::from_num(4)).div(I80F48::from_num(24 * 60 * 60 / 30));
+        let borrowing_points = I80F48::from(self.liab_sma).mul(I80F48::from_num(4)).div(I80F48::from_num(24 * 60 * 60 / (current_timestamp - self.last_recorded_timestamp)));
 
         self.points = WrappedI80F48::from(I80F48::from(self.points) + lending_points + borrowing_points);
     }
 }
 
 #[derive(Accounts)]
-pub struct AccruePointsV1<'info> {
-    #[account(mut)]
-    pub points_account: Account<'info, PointsAccount>,
-
-    #[account(mut)]
-    pub payer: Signer<'info>,
-}
-
-#[derive(Accounts)]
-pub struct AccruePointsV2<'info> {
+pub struct AccruePointsNaive<'info> {
     #[account(mut, constraint = points_account.owner_mfi_account == marginfi_account.key())]
     pub points_account: Account<'info, PointsAccount>,
 
