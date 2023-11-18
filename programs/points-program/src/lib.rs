@@ -42,6 +42,8 @@ pub mod points_program {
         let current_unix_timestamp: u64 = clock.unix_timestamp.try_into().unwrap();
 
         points_account.accrue_points(current_unix_timestamp);
+
+        points_account.last_recorded_timestamp = current_unix_timestamp;
     
         Ok(())
     }
