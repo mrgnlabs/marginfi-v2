@@ -11,8 +11,10 @@ const MAX_POINTS_ACCOUNTS: usize = 25_000;
 pub mod points_program {
     use super::*;
 
+    // the PointsMapping needs to be initialized outside the program because it's too large for CPIs
+    // this endpoint is for zeroing everything out before starting to record points
     pub fn initialize_global_points(ctx: Context<InitializeGlobalPoints>) -> Result<()> {
-        let mut points_mapping = ctx.accounts.points_mapping.load_init()?;
+        let mut points_mapping = ctx.accounts.points_mapping.load_mut()?;
 
         // We can't #[derive(Default)] for [T, 25000] so we have to zero it out manually 
         for points_account in points_mapping.points_accounts.iter_mut() {
@@ -128,11 +130,7 @@ impl PointsAccount {
 
 #[derive(Accounts)]
 pub struct InitializeGlobalPoints<'info> {
-    #[account(
-        init, 
-        space = 8 + std::mem::size_of::<PointsMapping>(),
-        payer = payer,
-    )]
+    #[account(mut)]
     pub points_mapping: AccountLoader<'info, PointsMapping>,
 
     #[account(mut)]
