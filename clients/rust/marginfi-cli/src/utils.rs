@@ -1,6 +1,5 @@
-#[cfg(feature = "admin")]
-use marginfi::{bank_seed, constants::MAX_ORACLE_KEYS};
 use {
+    crate::config::CliSigner,
     anyhow::{bail, Result},
     fixed::types::I80F48,
     fixed_macro::types::I80F48,
@@ -19,10 +18,17 @@ use {
     std::collections::HashMap,
 };
 
+#[cfg(feature = "admin")]
+use marginfi::{
+    bank_seed,
+    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS},
+};
+
 pub fn process_transaction(
     tx: &Transaction,
     rpc_client: &RpcClient,
     dry_run: bool,
+    signer: &CliSigner,
 ) -> Result<Signature> {
     if dry_run {
         match rpc_client.simulate_transaction(tx) {
@@ -39,6 +45,14 @@ pub fn process_transaction(
             }
             Err(err) => bail!(err),
         }
+    } else if let CliSigner::Multisig(_) = signer {
+        let tx_serialized = bs58::encode(bincode::serialize(tx)?).into_string();
+
+        println!("------- transaction -------");
+        println!("{}", tx_serialized);
+        println!("---------------------------");
+
+        Ok(Signature::default())
     } else {
         match rpc_client.send_and_confirm_transaction_with_spinner(tx) {
             Ok(sig) => Ok(sig),
@@ -65,6 +79,38 @@ pub fn find_bank_vault_authority_pda(
     program_id: &Pubkey,
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
+}
+
+#[cfg(feature = "admin")]
+pub fn find_bank_emssions_auth_pda(
+    bank: Pubkey,
+    emissions_mint: Pubkey,
+    program_id: Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            EMISSIONS_AUTH_SEED.as_bytes(),
+            bank.as_ref(),
+            emissions_mint.as_ref(),
+        ],
+        &program_id,
+    )
+}
+
+#[cfg(feature = "admin")]
+pub fn find_bank_emssions_token_account_pda(
+    bank: Pubkey,
+    emissions_mint: Pubkey,
+    program_id: Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
+            bank.as_ref(),
+            emissions_mint.as_ref(),
+        ],
+        &program_id,
+    )
 }
 
 #[cfg(feature = "admin")]
@@ -138,6 +184,11 @@ pub fn load_observation_account_metas(
         })
         .collect::<Vec<_>>();
     account_metas
+}
+
+#[cfg(feature = "admin")]
+pub fn calc_emissions_rate(ui_rate: f64, emissions_mint_decimals: u8) -> u64 {
+    (ui_rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64
 }
 
 // const SCALE: u128 = 10_u128.pow(14);

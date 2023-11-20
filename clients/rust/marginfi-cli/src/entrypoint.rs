@@ -16,34 +16,16 @@ use marginfi::state::{
 };
 #[cfg(feature = "dev")]
 use marginfi::{
-    anchor_client::Cluster,
-    anyhow::Result,
-    clap::{clap_derive::ArgEnum, Parser},
-    marginfi::state::marginfi_group::{BankOperationalState, RiskTier},
     prelude::{GroupConfig, MarginfiGroup},
-    solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey},
     state::{
         marginfi_account::{Balance, LendingAccount, MarginfiAccount},
         marginfi_group::{BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
     },
 };
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
-#[cfg(any(feature = "admin", feature = "dev"))]
-use {
-    fixed::types::I80F48,
-    marginfi::state::marginfi_group::{Bank, BankConfigOpt, InterestRateConfigOpt},
-};
+
 #[cfg(feature = "dev")]
-use {
-    marginfi::{
-        prelude::{GroupConfig, MarginfiGroup},
-        state::{
-            marginfi_account::{Balance, LendingAccount, MarginfiAccount},
-            marginfi_group::{BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
-        },
-    },
-    type_layout::TypeLayout,
-};
+use type_layout::TypeLayout;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -72,6 +54,8 @@ pub enum Command {
     },
     #[cfg(feature = "dev")]
     InspectPadding {},
+    #[cfg(feature = "dev")]
+    InspectSize {},
     Account {
         #[clap(subcommand)]
         subcmd: AccountCommand,
@@ -137,6 +121,13 @@ pub enum GroupCommand {
         risk_tier: RiskTierArg,
         #[clap(long, arg_enum)]
         oracle_type: OracleTypeArg,
+    },
+    #[cfg(feature = "admin")]
+    HandleBankruptcy {
+        #[clap(long)]
+        bank: Pubkey,
+        #[clap(long)]
+        marginfi_account: Pubkey,
     },
 }
 
@@ -237,20 +228,43 @@ pub enum BankCommand {
         oracle_type: Option<OracleTypeArg>,
         #[clap(long, help = "Bank oracle account")]
         oracle_key: Option<Pubkey>,
+        #[clap(long, help = "Soft USD init limit")]
+        usd_init_limit: Option<u64>,
     },
+    #[cfg(feature = "dev")]
     InspectPriceOracle {
         bank_pk: Pubkey,
     },
     #[cfg(feature = "admin")]
-    HandleBankruptcy {
-        #[clap(long)]
+    SetupEmissions {
         bank: Pubkey,
         #[clap(long)]
-        marginfi_account: Pubkey,
+        deposits: bool,
+        #[clap(long)]
+        borrows: bool,
+        #[clap(long)]
+        mint: Pubkey,
+        #[clap(long)]
+        rate_apr: f64,
+        #[clap(long)]
+        total_amount_ui: f64,
     },
     #[cfg(feature = "admin")]
-    CollectFees {
+    UpdateEmissions {
+        bank: Pubkey,
         #[clap(long)]
+        deposits: bool,
+        #[clap(long)]
+        borrows: bool,
+        #[clap(long)]
+        disable: bool,
+        #[clap(long)]
+        rate: Option<f64>,
+        #[clap(long)]
+        additional_amount_ui: Option<f64>,
+    },
+    #[cfg(feature = "admin")]
+    SettleAllEmissions {
         bank: Pubkey,
     },
 }
@@ -263,7 +277,9 @@ pub enum ProfileCommand {
         #[clap(long)]
         cluster: Cluster,
         #[clap(long)]
-        keypair_path: String,
+        keypair_path: Option<String>,
+        #[clap(long)]
+        multisig: Option<Pubkey>,
         #[clap(long)]
         rpc_url: String,
         #[clap(long)]
@@ -286,6 +302,8 @@ pub enum ProfileCommand {
         cluster: Option<Cluster>,
         #[clap(long)]
         keypair_path: Option<String>,
+        #[clap(long)]
+        multisig: Option<Pubkey>,
         #[clap(long)]
         rpc_url: Option<String>,
         #[clap(long)]
@@ -363,6 +381,8 @@ pub fn entry(opts: Opts) -> Result<()> {
 
             Ok(())
         }
+        #[cfg(feature = "dev")]
+        Command::InspectSize {} => inspect_size(),
     }
 }
 
@@ -372,6 +392,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             name,
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -381,6 +402,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             name,
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -393,6 +415,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
         ProfileCommand::Update {
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -403,6 +426,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             name,
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -477,6 +501,11 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_ir_fee,
             risk_tier,
         ),
+        #[cfg(feature = "admin")]
+        GroupCommand::HandleBankruptcy {
+            bank,
+            marginfi_account,
+        } => processor::group_handle_bankruptcy(&config, profile, bank, marginfi_account),
     }
 }
 
@@ -486,10 +515,10 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
 
     if !global_options.skip_confirmation {
         match subcmd {
-            BankCommand::Get { .. }
-            | BankCommand::GetAll { .. }
-            | BankCommand::InspectPriceOracle { .. } => (),
-            #[cfg(feature = "admin")]
+            BankCommand::Get { .. } | BankCommand::GetAll { .. } => (),
+            #[cfg(feature = "dev")]
+            BankCommand::InspectPriceOracle { .. } => (),
+            #[allow(unreachable_patterns)]
             _ => get_consent(&subcmd, &profile)?,
         }
     }
@@ -517,6 +546,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             risk_tier,
             oracle_type,
             oracle_key,
+            usd_init_limit,
         } => {
             let bank = config
                 .mfi_program
@@ -541,7 +571,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     }),
                     operational_state: operational_state.map(|x| x.into()),
                     oracle: oracle_key.map(|x| marginfi::state::marginfi_group::OracleConfig {
-                        setup: oracle_type.expect("Orcale type must be provided").into(),
+                        setup: oracle_type
+                            .expect("Orcale type must be provided with oracle_key")
+                            .into(),
                         keys: [
                             x,
                             Pubkey::default(),
@@ -560,11 +592,46 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                         protocol_ir_fee: pf_ir.map(|x| I80F48::from_num(x).into()),
                     }),
                     risk_tier: risk_tier.map(|x| x.into()),
+                    total_asset_value_init_limit: usd_init_limit,
                 },
             )
         }
+        #[cfg(feature = "dev")]
         BankCommand::InspectPriceOracle { bank_pk } => {
             processor::bank_inspect_price_oracle(config, bank_pk)
+        }
+        #[cfg(feature = "admin")]
+        BankCommand::SetupEmissions {
+            bank,
+            deposits,
+            borrows,
+            mint,
+            rate_apr: rate,
+            total_amount_ui: total_ui,
+        } => processor::bank_setup_emissions(
+            &config, &profile, bank, deposits, borrows, mint, rate, total_ui,
+        ),
+        #[cfg(feature = "admin")]
+        BankCommand::UpdateEmissions {
+            bank,
+            deposits,
+            borrows,
+            disable,
+            rate,
+            additional_amount_ui,
+        } => processor::bank_update_emissions(
+            &config,
+            &profile,
+            bank,
+            deposits,
+            borrows,
+            disable,
+            rate,
+            additional_amount_ui,
+        ),
+        #[cfg(feature = "admin")]
+        BankCommand::SettleAllEmissions { bank } => {
+            processor::emissions::claim_all_emissions_for_bank(&config, &profile, bank)
         }
     }
 }
@@ -586,6 +653,29 @@ fn inspect_padding() -> Result<()> {
     println!("MarginfiAccount: {}", MarginfiAccount::type_layout());
     println!("LendingAccount: {}", LendingAccount::type_layout());
     println!("Balance: {}", Balance::type_layout());
+
+    Ok(())
+}
+
+#[cfg(feature = "dev")]
+fn inspect_size() -> Result<()> {
+    use std::mem::size_of;
+
+    println!("MarginfiGroup: {}", size_of::<MarginfiGroup>());
+    println!("GroupConfig: {}", size_of::<GroupConfig>());
+    println!("InterestRateConfig: {}", size_of::<InterestRateConfig>());
+    println!(
+        "Bank: {}",
+        size_of::<marginfi::state::marginfi_group::Bank>()
+    );
+    println!("BankConfig: {}", size_of::<BankConfig>());
+    println!("OracleConfig: {}", size_of::<OracleConfig>());
+    println!("BankConfigOpt: {}", size_of::<BankConfigOpt>());
+    println!("WrappedI80F48: {}", size_of::<WrappedI80F48>());
+
+    println!("MarginfiAccount: {}", size_of::<MarginfiAccount>());
+    println!("LendingAccount: {}", size_of::<LendingAccount>());
+    println!("Balance: {}", size_of::<Balance>());
 
     Ok(())
 }
