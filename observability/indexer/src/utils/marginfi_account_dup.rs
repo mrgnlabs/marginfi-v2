@@ -141,8 +141,7 @@ impl RiskEngine2 {
     }
 
     pub fn get_equity_components(&self) -> anyhow::Result<(I80F48, I80F48)> {
-        self
-            .bank_accounts_with_price
+        self.bank_accounts_with_price
             .iter()
             .map(|a: &BankAccountWithPriceFeed2| {
                 a.calc_weighted_assets_and_liabilities_values(WeightType::Equity)
