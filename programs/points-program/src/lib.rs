@@ -1,56 +1,44 @@
 use anchor_lang::prelude::*;
-use marginfi::state::marginfi_account::MarginfiAccount;
-use marginfi::state::marginfi_group::WrappedI80F48;
+use marginfi::state::{marginfi_group::WrappedI80F48, marginfi_account::MarginfiAccount};
 use fixed::types::I80F48;
 use std::ops::{Div, Mul, Add};
 
 declare_id!("CSjewsFhiPYdz94HLCmntXPiFXUPbwhxUUFo29dVaYwo");
 
-const POINTS_SEED: &[u8] = b"points";
+const MAX_POINTS_ACCOUNTS: usize = 25_000;
 
 #[program]
 pub mod points_program {
     use super::*;
 
-    pub fn initialize_points_account(ctx: Context<InitializePointsAccount>, initial_points: i128) -> Result<()> {
-        let points_account = &mut ctx.accounts.points_account;
-        points_account.owner_mfi_account = ctx.accounts.owner_mfi_account.key();
-        points_account.points = WrappedI80F48::from(I80F48::from_num(initial_points));
+    pub fn initialize_global_points(ctx: Context<InitializeGlobalPoints>) -> Result<()> {
+        
         Ok(())
     }
-                                                                // pubkey is the bank_pk
-    pub fn accrue_points_naive(ctx: Context<AccruePointsNaive>, price_data: Vec<(Pubkey, i128)>) -> Result<()> {
-        let lending_account_balances = &ctx.accounts.marginfi_account.load()?.lending_account.balances;
-        let points_account = &mut ctx.accounts.points_account;
 
-        let mut current_asset_balance: i128 = 0;
-        let mut current_liab_balance: i128 = 0;
+    pub fn intialize_points_account(ctx: Context<InitializePointsAccount>, initial_points: i128) -> Result<()> {
 
-        for balance in lending_account_balances.iter() {
-            if balance.active {
-                if let Some((_, price)) = price_data.iter().find(|(pk, _)| *pk == balance.bank_pk) {
-                    current_asset_balance += I80F48::from(balance.asset_shares).mul(I80F48::from_num(*price)).to_bits();
-    
-                    current_liab_balance += I80F48::from(balance.liability_shares).mul(I80F48::from_num(*price)).to_bits();
-                }
-            }
-        }
+        Ok(())
+    }
 
-        points_account.update_sma(current_asset_balance, current_liab_balance);
-
-        let clock = Clock::get().unwrap();           
-        let current_unix_timestamp: u64 = clock.unix_timestamp.try_into().unwrap();
-
-        points_account.accrue_points(current_unix_timestamp);
-
-        points_account.last_recorded_timestamp = current_unix_timestamp;
-    
+    pub fn accrue_points(
+        ctx: Context<AccruePoints>, 
+        account_balance_datas: Vec<(Pubkey, AccountBalances)>, 
+        price_data: Vec<(Pubkey, i128)>, 
+        starting_index: usize,
+        slice_length: Option<usize>,
+        ) -> Result<()> {
+            
         Ok(())
     }
 }
 
-#[account]
-#[derive(Default)]
+#[account(zero_copy)]
+pub struct PointsMapping {
+    pub points_accounts: [Option<PointsAccount>; MAX_POINTS_ACCOUNTS],
+}
+
+#[derive(Default, Copy, Clone)]
 pub struct PointsAccount {
     pub owner_mfi_account: Pubkey,
     pub points: WrappedI80F48,
@@ -58,6 +46,25 @@ pub struct PointsAccount {
     pub liab_sma: WrappedI80F48,
     pub sma_count: u64, 
     pub last_recorded_timestamp: u64,
+}
+
+// This is so we can pass in [Balance; 16] as an endpoint argument
+#[derive(AnchorDeserialize, AnchorSerialize)]
+pub struct AccountBalances {
+    pub balances: [Balance; 16]
+}
+
+// This is a re-implementation of marginfi::state::::marginfi_account::Balance
+// Only here because I don't want to change main marginfi code when it's not _really_ necessary
+#[derive(AnchorSerialize, AnchorDeserialize, Default, Copy, Clone)]
+pub struct Balance {
+    pub active: bool,
+    pub bank_pk: Pubkey,
+    pub asset_shares: WrappedI80F48,
+    pub liability_shares: WrappedI80F48,
+    pub emissions_outstanding: WrappedI80F48,
+    pub last_update: u64,
+    pub _padding: [u64; 1],
 }
 
 impl PointsAccount {
@@ -91,31 +98,30 @@ impl PointsAccount {
 }
 
 #[derive(Accounts)]
-pub struct AccruePointsNaive<'info> {
-    #[account(mut, constraint = points_account.owner_mfi_account == marginfi_account.key())]
-    pub points_account: Account<'info, PointsAccount>,
+pub struct InitializeGlobalPoints<'info> {
+    pub points_mapping: AccountLoader<'info, PointsMapping>,
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitializePointsAccount<'info> {
+    pub points_mapping: AccountLoader<'info, PointsMapping>,
 
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(mut)]
     pub payer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
-pub struct InitializePointsAccount<'info> {
-    #[account(
-        init,
-        space = 8 + std::mem::size_of::<PointsAccount>(),
-        payer = payer,
-        seeds = [
-            POINTS_SEED,
-            owner_mfi_account.key().as_ref(),
-        ],
-        bump
-    )]
-    pub points_account: Account<'info, PointsAccount>,
-
-    pub owner_mfi_account: AccountLoader<'info, MarginfiAccount>,
+pub struct AccruePoints<'info> {
+    pub points_mapping: AccountLoader<'info, PointsMapping>,
 
     #[account(mut)]
     pub payer: Signer<'info>,
