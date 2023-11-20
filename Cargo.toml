@@ -1,5 +1,5 @@
 [workspace]
-members = ["programs/*", "clients/rust/*", "tools/*"]
+members = ["programs/*", "clients/rust/*"]
 exclude = ["observability/indexer"]
 
 [workspace.dependencies]

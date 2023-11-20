@@ -31,22 +31,9 @@ use marginfi::{
     },
 };
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
-#[cfg(any(feature = "admin", feature = "dev"))]
-use {
-    fixed::types::I80F48,
-    marginfi::state::marginfi_group::{Bank, BankConfigOpt, InterestRateConfigOpt},
-};
+
 #[cfg(feature = "dev")]
-use {
-    marginfi::{
-        prelude::{GroupConfig, MarginfiGroup},
-        state::{
-            marginfi_account::{Balance, LendingAccount, MarginfiAccount},
-            marginfi_group::{BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
-        },
-    },
-    type_layout::TypeLayout,
-};
+use type_layout::TypeLayout;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -142,6 +129,13 @@ pub enum GroupCommand {
         risk_tier: RiskTierArg,
         #[clap(long, arg_enum)]
         oracle_type: OracleTypeArg,
+    },
+    #[cfg(feature = "admin")]
+    HandleBankruptcy {
+        #[clap(long)]
+        bank: Pubkey,
+        #[clap(long)]
+        marginfi_account: Pubkey,
     },
 }
 
@@ -286,11 +280,32 @@ pub enum BankCommand {
         #[clap(long)]
         bank: Pubkey,
         #[clap(long)]
-        marginfi_account: Pubkey,
+        deposits: bool,
+        #[clap(long)]
+        borrows: bool,
+        #[clap(long)]
+        mint: Pubkey,
+        #[clap(long)]
+        rate_apr: f64,
+        #[clap(long)]
+        total_amount_ui: f64,
     },
     #[cfg(feature = "admin")]
-    CollectFees {
+    UpdateEmissions {
+        bank: Pubkey,
         #[clap(long)]
+        deposits: bool,
+        #[clap(long)]
+        borrows: bool,
+        #[clap(long)]
+        disable: bool,
+        #[clap(long)]
+        rate: Option<f64>,
+        #[clap(long)]
+        additional_amount_ui: Option<f64>,
+    },
+    #[cfg(feature = "admin")]
+    SettleAllEmissions {
         bank: Pubkey,
     },
 }
@@ -527,6 +542,11 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_ir_fee,
             risk_tier,
         ),
+        #[cfg(feature = "admin")]
+        GroupCommand::HandleBankruptcy {
+            bank,
+            marginfi_account,
+        } => processor::group_handle_bankruptcy(&config, profile, bank, marginfi_account),
     }
 }
 
