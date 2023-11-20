@@ -20,8 +20,8 @@ test = []
 test-bpf = []
 
 [dependencies]
-anchor-lang = "0.26.0"
-anchor-spl = "0.26.0"
+anchor-lang = { workspace = true }
+anchor-spl = { workspace = true }
 cfg-if = "1.0.0"
 fixed = "1.12.0"
 
