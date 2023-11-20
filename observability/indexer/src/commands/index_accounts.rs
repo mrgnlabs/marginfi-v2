@@ -210,9 +210,9 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
                 };
 
                 slot_account_updates.insert(
-                    address.clone(),
+                    *address,
                     AccountUpdateData {
-                        address: address.clone(),
+                        address: *address,
                         timestamp: Utc::now(),
                         slot: update_slot,
                         txn_signature,

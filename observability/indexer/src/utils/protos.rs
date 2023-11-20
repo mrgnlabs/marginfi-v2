@@ -96,7 +96,7 @@ mod conversion {
                 account_keys: message_proto
                     .account_keys
                     .iter()
-                    .map(|address_bytes| Pubkey::new(&address_bytes))
+                    .map(|address_bytes| Pubkey::new(address_bytes))
                     .into_iter()
                     .collect(),
                 header: message_header_proto.into(),
@@ -222,13 +222,13 @@ mod conversion {
             let loaded_writable_addresses: Vec<Pubkey> = meta_proto
                 .loaded_writable_addresses
                 .iter()
-                .map(|address_bytes| Pubkey::new(&address_bytes))
+                .map(|address_bytes| Pubkey::new(address_bytes))
                 .into_iter()
                 .collect();
             let loaded_readable_addresses = meta_proto
                 .loaded_readonly_addresses
                 .iter()
-                .map(|address_bytes| Pubkey::new(&address_bytes))
+                .map(|address_bytes| Pubkey::new(address_bytes))
                 .into_iter()
                 .collect();
 

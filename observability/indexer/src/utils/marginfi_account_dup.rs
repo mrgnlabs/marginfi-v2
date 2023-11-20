@@ -141,7 +141,7 @@ impl RiskEngine2 {
     }
 
     pub fn get_equity_components(&self) -> anyhow::Result<(I80F48, I80F48)> {
-        Ok(self
+        self
             .bank_accounts_with_price
             .iter()
             .map(|a: &BankAccountWithPriceFeed2| {
@@ -156,7 +156,7 @@ impl RiskEngine2 {
 
                     Ok::<_, anyhow::Error>((total_assets_sum, total_liabilities_sum))
                 },
-            )?)
+            )
     }
 
     pub fn get_account_health(
