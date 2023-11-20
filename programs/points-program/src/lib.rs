@@ -12,11 +12,39 @@ pub mod points_program {
     use super::*;
 
     pub fn initialize_global_points(ctx: Context<InitializeGlobalPoints>) -> Result<()> {
-        
+        let mut points_mapping = ctx.accounts.points_mapping.load_init()?;
+
+        // We can't #[derive(Default)] for [T, 25000] so we have to zero it out manually 
+        for points_account in points_mapping.points_accounts.iter_mut() {
+            *points_account = None;
+        }
+
+        points_mapping.first_free_index = 0;
+
         Ok(())
     }
 
     pub fn intialize_points_account(ctx: Context<InitializePointsAccount>, initial_points: i128) -> Result<()> {
+        let mut points_mapping = ctx.accounts.points_mapping.load_mut()?;
+        let first_free_index = points_mapping.first_free_index;
+
+        require!(first_free_index < MAX_POINTS_ACCOUNTS, PointsError::NoFreeIndex);
+
+        let clock = Clock::get().unwrap();
+        let unix_ts: u64 = clock.unix_timestamp.try_into().unwrap();
+
+        let new_points_account = PointsAccount {
+            owner_mfi_account: ctx.accounts.marginfi_account.key(),
+            points: WrappedI80F48 { value: initial_points },
+            asset_sma: WrappedI80F48 { value: 0 },
+            liab_sma: WrappedI80F48 { value: 0 },
+            sma_count: 0,
+            last_recorded_timestamp: unix_ts,
+        };
+
+        require!(points_mapping.points_accounts[first_free_index] == None, PointsError::FailedToInsert);
+
+        points_mapping.points_accounts[first_free_index] = Some(new_points_account);
 
         Ok(())
     }
@@ -36,9 +64,10 @@ pub mod points_program {
 #[account(zero_copy)]
 pub struct PointsMapping {
     pub points_accounts: [Option<PointsAccount>; MAX_POINTS_ACCOUNTS],
+    pub first_free_index: usize,
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Copy, Clone, PartialEq)]
 pub struct PointsAccount {
     pub owner_mfi_account: Pubkey,
     pub points: WrappedI80F48,
@@ -99,6 +128,11 @@ impl PointsAccount {
 
 #[derive(Accounts)]
 pub struct InitializeGlobalPoints<'info> {
+    #[account(
+        init, 
+        space = 8 + std::mem::size_of::<PointsMapping>(),
+        payer = payer,
+    )]
     pub points_mapping: AccountLoader<'info, PointsMapping>,
 
     #[account(mut)]
@@ -127,4 +161,12 @@ pub struct AccruePoints<'info> {
     pub payer: Signer<'info>,
 
     pub system_program: Program<'info, System>,
+}
+
+#[error_code]
+pub enum PointsError {
+    #[msg("last_free_index is populated")]
+    FailedToInsert,
+    #[msg("last_free_index == MAX_POINTS_ACCOUNTS")]
+    NoFreeIndex,
 }
