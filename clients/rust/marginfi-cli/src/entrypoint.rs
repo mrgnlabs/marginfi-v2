@@ -1,20 +1,12 @@
-use {
-    crate::{
-        config::GlobalOptions,
-        processor,
-        profile::{load_profile, Profile},
-    },
-    anchor_client::Cluster,
-    anyhow::Result,
-    clap::{clap_derive::ArgEnum, Parser},
-    marginfi::state::marginfi_group::{BankOperationalState, RiskTier},
-    solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey},
+use crate::{
+    config::GlobalOptions,
+    processor,
+    profile::{load_profile, Profile},
 };
 use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
-
-#[cfg(any(feature = "admin", feature = "dev"))]
+#[cfg(feature = "admin")]
 use fixed::types::I80F48;
 #[cfg(any(feature = "admin", feature = "dev"))]
 use marginfi::state::marginfi_group::{BankConfigOpt, InterestRateConfigOpt};
@@ -245,39 +237,6 @@ pub enum BankCommand {
     },
     #[cfg(feature = "admin")]
     SetupEmissions {
-        bank: Pubkey,
-        #[clap(long)]
-        deposits: bool,
-        #[clap(long)]
-        borrows: bool,
-        #[clap(long)]
-        mint: Pubkey,
-        #[clap(long)]
-        rate_apr: f64,
-        #[clap(long)]
-        total_amount_ui: f64,
-    },
-    #[cfg(feature = "admin")]
-    UpdateEmissions {
-        bank: Pubkey,
-        #[clap(long)]
-        deposits: bool,
-        #[clap(long)]
-        borrows: bool,
-        #[clap(long)]
-        disable: bool,
-        #[clap(long)]
-        rate: Option<f64>,
-        #[clap(long)]
-        additional_amount_ui: Option<f64>,
-    },
-    #[cfg(feature = "admin")]
-    SettleAllEmissions {
-        bank: Pubkey,
-    },
-    #[cfg(feature = "admin")]
-    HandleBankruptcy {
-        #[clap(long)]
         bank: Pubkey,
         #[clap(long)]
         deposits: bool,
