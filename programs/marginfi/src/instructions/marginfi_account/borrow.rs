@@ -33,7 +33,6 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
         ..
     } = ctx.accounts;
 
-    let current_time = Clock::get()?.unix_timestamp;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
     check!(
@@ -42,7 +41,7 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
     );
 
     bank_loader.load_mut()?.accrue_interest(
-        current_time,
+        Clock::get()?.unix_timestamp,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -89,7 +88,7 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
     RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?
-        .check_account_health(RiskRequirementType::Initial, current_time)?;
+        .check_account_health(RiskRequirementType::Initial)?;
 
     Ok(())
 }

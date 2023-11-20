@@ -89,8 +89,6 @@ pub fn lending_account_liquidate(
         ..
     } = ctx.accounts;
 
-    let current_timestamp = Clock::get()?.unix_timestamp;
-
     let mut liquidator_marginfi_account = liquidator_marginfi_account_loader.load_mut()?;
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account_loader.load_mut()?;
     let current_timestamp = Clock::get()?.unix_timestamp;
@@ -115,10 +113,7 @@ pub fn lending_account_liquidate(
             &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
 
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
-            .check_pre_liquidation_condition_and_get_account_health(
-                &ctx.accounts.liab_bank.key(),
-                current_timestamp,
-            )?
+            .check_pre_liquidation_condition_and_get_account_health(&ctx.accounts.liab_bank.key())?
     };
 
     // ##Accounting changes##
@@ -348,12 +343,11 @@ pub fn lending_account_liquidate(
             .check_post_liquidation_condition_and_get_account_health(
                 &ctx.accounts.liab_bank.key(),
                 pre_liquidation_health,
-                current_timestamp,
             )?;
 
     // Verify liquidator account health
     RiskEngine::new(&liquidator_marginfi_account, liquidator_remaining_accounts)?
-        .check_account_health(RiskRequirementType::Initial, current_timestamp)?;
+        .check_account_health(RiskRequirementType::Initial)?;
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {

@@ -34,14 +34,12 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    let current_time = Clock::get()?.unix_timestamp;
-    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?
-        .check_account_bankrupt(current_time)?;
+    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?.check_account_bankrupt()?;
 
     let mut bank = bank_loader.load_mut()?;
 
     bank.accrue_interest(
-        current_time,
+        Clock::get()?.unix_timestamp,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
