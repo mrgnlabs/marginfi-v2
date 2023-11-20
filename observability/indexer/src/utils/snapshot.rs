@@ -1,4 +1,3 @@
-use crate::common::pyth_price_to_fixed;
 use anchor_client::anchor_lang::AccountDeserialize;
 use anchor_client::anchor_lang::Discriminator;
 use fixed::types::I80F48;
@@ -7,7 +6,6 @@ use marginfi::{
     prelude::MarginfiGroup,
     state::{marginfi_account::MarginfiAccount, marginfi_group::Bank, price::*},
 };
-use pyth_sdk_solana::{load_price_feed_from_account, PriceFeed};
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::{
     nonblocking::rpc_client::RpcClient,

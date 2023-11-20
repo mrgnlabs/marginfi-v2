@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "marginfi-v2-indexer"
 version = "0.1.0"
@@ -6,6 +8,9 @@ edition = "2021"
 [[bin]]
 name = "mfi-index"
 path = "src/bin/main.rs"
+
+[features]
+mainnet-beta = ["marginfi/mainnet-beta"]
 
 [dependencies]
 solana-client = { workspace = true }

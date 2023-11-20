@@ -161,30 +161,6 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
             .collect::<Result<Vec<_>>>()
     }
 
-    #[cfg(feature = "client")]
-    pub fn load_from_map(
-        marginfi_account: &'a MarginfiAccount,
-        banks: &std::collections::HashMap<Pubkey, Bank>,
-        price_feeds: &std::collections::HashMap<Pubkey, OraclePriceFeedAdapter>,
-    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
-        marginfi_account
-            .lending_account
-            .balances
-            .iter()
-            .filter(|balance| balance.active)
-            .enumerate()
-            .map(|(_, balance)| {
-                let bank = banks.get(&balance.bank_pk).unwrap();
-                let price_feed = price_feeds.get(&bank.config.oracle_keys[0]).unwrap();
-                Ok(BankAccountWithPriceFeed {
-                    bank: Box::new(*bank),
-                    price_feed: Box::new(price_feed.clone()),
-                    balance,
-                })
-            })
-            .collect::<Result<Vec<_>>>()
-    }
-
     #[inline(always)]
     pub fn calc_weighted_assets_and_liabilities_values(
         &self,
@@ -273,6 +249,7 @@ pub fn calc_asset_value(
         asset_amount
     };
 
+    #[cfg(target_os = "solana")]
     msg!(
         "weighted_asset_qt: {}, price: {}, expo: {}",
         weighted_asset_amount,
@@ -339,21 +316,6 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         })
     }
 
-    #[cfg(feature = "client")]
-    pub fn load_from_map(
-        marginfi_account: &'a MarginfiAccount,
-        banks: &std::collections::HashMap<Pubkey, Bank>,
-        price_feeds: &std::collections::HashMap<Pubkey, OraclePriceFeedAdapter>,
-    ) -> MarginfiResult<Self> {
-        Ok(Self {
-            bank_accounts_with_price: BankAccountWithPriceFeed::load_from_map(
-                marginfi_account,
-                banks,
-                price_feeds,
-            )?,
-        })
-    }
-
     /// Returns the total assets and liabilities of the account in the form of (assets, liabilities)
     pub fn get_account_health_components(
         &self,
@@ -373,27 +335,6 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         }
 
         Ok((total_assets, total_liabilities))
-    }
-
-    #[cfg(feature = "client")]
-    pub fn get_equity_components(&self) -> MarginfiResult<(I80F48, I80F48)> {
-        Ok(self
-            .bank_accounts_with_price
-            .iter()
-            .map(|a| a.calc_weighted_assets_and_liabilities_values(None))
-            .try_fold(
-                (I80F48::ZERO, I80F48::ZERO),
-                |(total_assets, total_liabilities), res| {
-                    let (assets, liabilities) = res?;
-                    let total_assets_sum =
-                        total_assets.checked_add(assets).ok_or_else(math_error!())?;
-                    let total_liabilities_sum = total_liabilities
-                        .checked_add(liabilities)
-                        .ok_or_else(math_error!())?;
-
-                    Ok::<_, ProgramError>((total_assets_sum, total_liabilities_sum))
-                },
-            )?)
     }
 
     pub fn get_account_health(

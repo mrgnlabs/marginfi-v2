@@ -306,7 +306,7 @@ async fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
         UpdateOneof::Account(account_update) => {
             let update_slot = account_update.slot;
             if let Some(account_info) = account_update.account {
-                let address = Pubkey::try_from(account_info.pubkey.clone()).unwrap();
+                let address = Pubkey::new(&account_info.pubkey);
                 let txn_signature = account_info
                     .txn_signature
                     .clone()
@@ -587,7 +587,10 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
             )
             .await;
             if let Err(error) = result {
-                warn!("Failed to write marginfi account metrics to bigquery: {}", error);
+                warn!(
+                    "Failed to write marginfi account metrics to bigquery: {}",
+                    error
+                );
             }
         }
 

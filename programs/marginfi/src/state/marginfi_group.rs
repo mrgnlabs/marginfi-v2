@@ -19,8 +19,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
-#[cfg(feature = "client")]
-use std::fmt;
 use std::{
     fmt::{Debug, Display, Formatter},
     ops::Not,
@@ -738,10 +736,9 @@ pub enum BankOperationalState {
     ReduceOnly,
 }
 
-/// Derive Display if feature = "client"
 #[cfg(feature = "client")]
 impl Display for BankOperationalState {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             BankOperationalState::Paused => write!(f, "Paused"),
             BankOperationalState::Operational => write!(f, "Operational"),

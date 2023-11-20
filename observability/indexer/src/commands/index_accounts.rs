@@ -194,7 +194,7 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
         UpdateOneof::Account(account_update) => {
             let update_slot = account_update.slot;
             if let Some(account_info) = account_update.account {
-                let address = Pubkey::try_from(account_info.pubkey.as_slice())?;
+                let address = &Pubkey::new(&account_info.pubkey);
                 let txn_signature = account_info
                     .txn_signature
                     .clone()
@@ -210,9 +210,9 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
                 };
 
                 slot_account_updates.insert(
-                    address,
+                    address.clone(),
                     AccountUpdateData {
-                        address,
+                        address: address.clone(),
                         timestamp: Utc::now(),
                         slot: update_slot,
                         txn_signature,

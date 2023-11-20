@@ -1,3 +1,4 @@
+use super::marginfi_account_dup::RiskEngine2;
 use crate::utils::big_query::DATE_FORMAT_STR;
 use crate::utils::snapshot::{BankAccounts, OracleData, Snapshot};
 use anyhow::anyhow;
@@ -8,7 +9,7 @@ use itertools::Itertools;
 use marginfi::constants::ZERO_AMOUNT_THRESHOLD;
 use marginfi::prelude::MarginfiGroup;
 use marginfi::state::marginfi_account::{
-    calc_asset_value, MarginfiAccount, RiskEngine, RiskRequirementType, WeightType,
+    calc_asset_value, MarginfiAccount, RiskRequirementType, WeightType,
 };
 use marginfi::state::marginfi_group::BankOperationalState;
 use marginfi::state::price::OraclePriceFeedAdapter;
@@ -470,22 +471,21 @@ impl MarginfiAccountMetrics {
                 }
             }));
 
-        let risk_engine = RiskEngine::load_from_map(marginfi_account, &banks, &price_feeds)?;
+        let risk_engine = RiskEngine2::load(marginfi_account, &banks, &price_feeds)?;
 
-        let (total_assets_usd, total_liabilities_usd) =
-            risk_engine.get_equity_components(timestamp)?;
+        let (total_assets_usd, total_liabilities_usd) = risk_engine.get_equity_components()?;
         let (total_assets_usd, total_liabilities_usd) = (
             total_assets_usd.to_num::<f64>(),
             total_liabilities_usd.to_num::<f64>(),
         );
-        let (total_assets_usd_maintenance, total_liabilities_usd_maintenance) = risk_engine
-            .get_account_health_components(RiskRequirementType::Maintenance, timestamp)?;
+        let (total_assets_usd_maintenance, total_liabilities_usd_maintenance) =
+            risk_engine.get_account_health_components(RiskRequirementType::Maintenance)?;
         let (total_assets_usd_maintenance, total_liabilities_usd_maintenance) = (
             total_assets_usd_maintenance.to_num::<f64>(),
             total_liabilities_usd_maintenance.to_num::<f64>(),
         );
         let (total_assets_usd_initial, total_liabilities_usd_initial) =
-            risk_engine.get_account_health_components(RiskRequirementType::Initial, timestamp)?;
+            risk_engine.get_account_health_components(RiskRequirementType::Initial)?;
         let (total_assets_usd_initial, total_liabilities_usd_initial) = (
             total_assets_usd_initial.to_num::<f64>(),
             total_liabilities_usd_initial.to_num::<f64>(),
@@ -494,7 +494,7 @@ impl MarginfiAccountMetrics {
         let positions = marginfi_account
             .lending_account
             .balances
-            .into_iter()
+            .iter()
             .filter(|balance| balance.active)
             .map(|balance| {
                 let bank = banks.get(&balance.bank_pk).unwrap();
@@ -514,8 +514,8 @@ impl MarginfiAccountMetrics {
                     .ok_or_else(|| {
                         anyhow!(
                             "Price feed {} not found for bank {}",
-                            price_feed_pk,
-                            balance.bank_pk
+                            &price_feed_pk,
+                            &balance.bank_pk
                         )
                     })
                     .unwrap()

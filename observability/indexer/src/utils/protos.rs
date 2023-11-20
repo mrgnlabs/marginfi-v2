@@ -47,8 +47,7 @@ mod conversion {
         ) -> Result<Self, Self::Error> {
             Ok(Self {
                 data: account_data_proto.data,
-                owner: Pubkey::try_from(account_data_proto.owner.as_slice())
-                    .map_err(|_| GeyserServiceError::ProtoMessageConversionFailed)?,
+                owner: Pubkey::new(&account_data_proto.owner),
                 lamports: account_data_proto.lamports,
                 executable: account_data_proto.executable,
                 rent_epoch: account_data_proto.rent_epoch,
@@ -81,8 +80,7 @@ mod conversion {
 
         fn try_from(lut_proto: super::MessageAddressTableLookup) -> Result<Self, Self::Error> {
             Ok(Self {
-                account_key: Pubkey::try_from(lut_proto.account_key.as_slice())
-                    .map_err(|_| GeyserServiceError::ProtoMessageConversionFailed)?,
+                account_key: Pubkey::new(&lut_proto.account_key),
                 writable_indexes: lut_proto.writable_indexes,
                 readonly_indexes: lut_proto.readonly_indexes,
             })
@@ -98,10 +96,9 @@ mod conversion {
                 account_keys: message_proto
                     .account_keys
                     .iter()
-                    .map(|address_bytes| Pubkey::try_from(address_bytes.as_slice()))
+                    .map(|address_bytes| Pubkey::new(&address_bytes))
                     .into_iter()
-                    .collect::<Result<_, _>>()
-                    .map_err(|_| GeyserServiceError::ProtoMessageConversionFailed)?,
+                    .collect(),
                 header: message_header_proto.into(),
                 recent_blockhash: Hash::new(&message_proto.recent_blockhash),
                 instructions: message_proto.instructions.into_iter().map_into().collect(),
@@ -120,10 +117,9 @@ mod conversion {
                 account_keys: message_proto
                     .account_keys
                     .iter()
-                    .map(|address_bytes| Pubkey::try_from(address_bytes.as_slice()))
+                    .map(|address_bytes| Pubkey::new(address_bytes))
                     .into_iter()
-                    .collect::<Result<_, _>>()
-                    .map_err(|_| GeyserServiceError::ProtoMessageConversionFailed)?,
+                    .collect(),
                 recent_blockhash: Hash::new(&message_proto.recent_blockhash),
                 instructions: message_proto.instructions.into_iter().map_into().collect(),
                 address_table_lookups: message_proto
@@ -226,17 +222,15 @@ mod conversion {
             let loaded_writable_addresses: Vec<Pubkey> = meta_proto
                 .loaded_writable_addresses
                 .iter()
-                .map(|address_bytes| Pubkey::try_from(address_bytes.as_slice()))
+                .map(|address_bytes| Pubkey::new(&address_bytes))
                 .into_iter()
-                .collect::<Result<_, _>>()
-                .map_err(|_| GeyserServiceError::ProtoMessageConversionFailed)?;
+                .collect();
             let loaded_readable_addresses = meta_proto
                 .loaded_readonly_addresses
                 .iter()
-                .map(|address_bytes| Pubkey::try_from(address_bytes.as_slice()))
+                .map(|address_bytes| Pubkey::new(&address_bytes))
                 .into_iter()
-                .collect::<Result<_, _>>()
-                .map_err(|_| GeyserServiceError::ProtoMessageConversionFailed)?;
+                .collect();
 
             Ok(Self {
                 status: match meta_proto.err {
