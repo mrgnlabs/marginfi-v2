@@ -3,12 +3,12 @@ members = ["programs/*", "clients/rust/*", "tools/*"]
 exclude = ["observability/indexer"]
 
 [workspace.dependencies]
-solana-client = "=1.14.11"
+solana-client = "=1.14.13"
 solana-sdk = "=1.14.13"
 solana-logger = "=1.14.13"
 solana-program = "=1.14.13"
 solana-program-test = "=1.14.13"
-solana-account-decoder = "=1.14.12"
+solana-account-decoder = "=1.14.13"
 
 [profile.release]
 overflow-checks = true
