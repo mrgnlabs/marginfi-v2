@@ -444,26 +444,6 @@ pub fn group_add_bank(
     Ok(())
 }
 
-// pub fn group_handle_all_bankruptcies(
-//     config: &Config,
-//     profile: Profile,
-// ) -> Result<()> {
-//     let rpc_client = config.mfi_program.rpc();
-
-//     if profile.marginfi_group.is_none() {
-//         bail!("Marginfi group not specified in profile [{}]", profile.name);
-//     }
-
-//     let banks = HashMap::from_iter(load_all_banks(
-//         config,
-//         Some(profile.marginfi_group.unwrap()),
-//     )?);
-
-//     let accounts = config.mfi_program.accounts::<MarginfiAccount>(vec![])?;
-
-//     Ok(())
-// }
-
 #[allow(clippy::too_many_arguments)]
 #[cfg(feature = "admin")]
 pub fn group_handle_bankruptcy(
