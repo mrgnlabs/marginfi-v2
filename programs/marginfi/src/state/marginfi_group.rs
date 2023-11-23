@@ -992,22 +992,6 @@ impl BankConfig {
         Ok(())
     }
 
-    pub fn new_with_oracle_config(oracle_setup: OracleSetup, oracle_keys: Vec<Pubkey>) -> Self {
-        assert!(oracle_keys.len() <= MAX_ORACLE_KEYS);
-
-        let mut oracle_keys = [Pubkey::default(); 5];
-
-        for (i, key) in oracle_keys.into_iter().enumerate() {
-            oracle_keys[i] = key;
-        }
-
-        Self {
-            oracle_setup,
-            oracle_keys,
-            ..Default::default()
-        }
-    }
-
     #[inline]
     pub fn is_deposit_limit_active(&self) -> bool {
         self.deposit_limit != u64::MAX
