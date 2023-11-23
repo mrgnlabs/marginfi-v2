@@ -150,7 +150,11 @@ impl MarginfiGroupFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts,
-            data: marginfi::instruction::LendingPoolAddBankLite { oracle_setup: bank_config.oracle_setup, oracle_keys: vec![bank_config.oracle_keys[0]]}.data(),
+            data: marginfi::instruction::LendingPoolAddBankLite {
+                oracle_setup: bank_config.oracle_setup,
+                oracle_keys: vec![bank_config.oracle_keys[0]],
+            }
+            .data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
