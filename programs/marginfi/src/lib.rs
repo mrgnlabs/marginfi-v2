@@ -7,6 +7,7 @@ pub mod prelude;
 pub mod state;
 pub mod utils;
 
+use crate::state::price::OracleSetup;
 use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
@@ -24,10 +25,11 @@ cfg_if::cfg_if! {
 
 #[program]
 pub mod marginfi {
+
     use super::*;
 
     pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
-        marginfi_group::initialize(ctx)
+        marginfi_group::initialize_group(ctx)
     }
 
     pub fn marginfi_group_configure(
@@ -42,6 +44,14 @@ pub mod marginfi {
         bank_config: BankConfig,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_add_bank(ctx, bank_config)
+    }
+
+    pub fn lending_pool_add_bank_lite(
+        ctx: Context<LendingPoolAddBank>,
+        oracle_setup: OracleSetup,
+        oracle_keys: Vec<Pubkey>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_add_bank_lite(ctx, oracle_setup, oracle_keys)
     }
 
     pub fn lending_pool_configure_bank(
@@ -85,7 +95,7 @@ pub mod marginfi {
 
     /// Initialize a marginfi account for a given group
     pub fn marginfi_account_initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
-        marginfi_account::initialize(ctx)
+        marginfi_account::initialize_account(ctx)
     }
 
     pub fn lending_account_deposit(
