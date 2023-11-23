@@ -20,7 +20,7 @@ use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 use std::{
-    fmt::{Debug, Formatter},
+    fmt::{Debug, Display, Formatter},
     ops::Not,
 };
 
@@ -734,6 +734,17 @@ pub enum BankOperationalState {
     Paused,
     Operational,
     ReduceOnly,
+}
+
+#[cfg(feature = "client")]
+impl Display for BankOperationalState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BankOperationalState::Paused => write!(f, "Paused"),
+            BankOperationalState::Operational => write!(f, "Operational"),
+            BankOperationalState::ReduceOnly => write!(f, "ReduceOnly"),
+        }
+    }
 }
 
 #[repr(u64)]

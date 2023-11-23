@@ -44,6 +44,7 @@ pub trait PriceAdapter {
 }
 
 #[enum_dispatch(PriceAdapter)]
+#[cfg_attr(feature = "client", derive(Clone))]
 pub enum OraclePriceFeedAdapter {
     PythEma(PythEmaPriceFeed),
     SwitchboardV2(SwitchboardV2PriceFeed),
@@ -116,6 +117,7 @@ impl OraclePriceFeedAdapter {
     }
 }
 
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
 pub struct PythEmaPriceFeed {
     ema_price: Box<Price>,
     price: Box<Price>,
@@ -209,6 +211,7 @@ impl PriceAdapter for PythEmaPriceFeed {
     }
 }
 
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
 pub struct SwitchboardV2PriceFeed {
     aggregator_account: Box<LiteAggregatorAccountData>,
 }
@@ -317,6 +320,7 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
 }
 
 /// A slimmed down version of the AggregatorAccountData struct copied from the switchboard-v2/src/aggregator.rs
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
 struct LiteAggregatorAccountData {
     /// Use sliding windoe or round based resolution
     /// NOTE: This changes result propogation in latest_round_result
