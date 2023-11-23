@@ -1,0 +1,6 @@
+# Ignore everything except for Cargo and src files
+*
+!Cargo.toml
+!build.rs
+!src/
+!protos/

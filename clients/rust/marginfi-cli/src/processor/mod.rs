@@ -1797,7 +1797,7 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&signer.pubkey()),
-        &[&signer, &marginfi_account_key],
+        &[signer, &marginfi_account_key],
         recent_blockhash,
     );
 

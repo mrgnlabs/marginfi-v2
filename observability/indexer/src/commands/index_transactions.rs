@@ -1,4 +1,4 @@
-use crate::commands::geyser_client::get_geyser_client;
+use crate::utils::geyser_client::get_geyser_client;
 use crate::utils::{
     big_query::DATE_FORMAT_STR,
     protos::{
@@ -14,12 +14,10 @@ use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
 use futures::{future::join_all, stream, StreamExt};
-use google_cloud_auth::{credentials::CredentialsFile, Project};
-use google_cloud_gax::project::ProjectOptions;
+use google_cloud_default::WithAuthExt;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::client::{Client, ClientConfig};
 use itertools::Itertools;
-use log::{debug, error, info, warn};
 use solana_measure::measure::Measure;
 use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::TransactionVersion};
 use solana_transaction_status::{UiTransactionStatusMeta, VersionedTransactionWithStatusMeta};
@@ -32,6 +30,7 @@ use std::{
     time::Duration,
 };
 use tonic::Status;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 #[derive(Envconfig, Debug, Clone)]
@@ -54,7 +53,7 @@ pub struct IndexTransactionsConfig {
     #[envconfig(from = "INDEX_TRANSACTIONS_PUBSUB_TOPIC_NAME")]
     pub topic_name: String,
     #[envconfig(from = "GOOGLE_APPLICATION_CREDENTIALS_JSON")]
-    pub gcp_sa_key: String,
+    pub gcp_sa_key: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -98,7 +97,7 @@ pub async fn index_transactions(config: IndexTransactionsConfig) -> Result<()> {
     });
     let process_transactions_handle = tokio::spawn({
         let context = context.clone();
-        async move { push_transactions_to_pubsub(context).await }
+        async move { push_transactions_to_pubsub(context).await.unwrap() }
     });
     let monitor_handle = tokio::spawn({
         let context = context.clone();
@@ -196,7 +195,8 @@ fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) ->
         UpdateOneof::Transaction(transaction_update) => {
             if let Some(transaction_info) = transaction_update.transaction {
                 let signature = transaction_info.signature.clone();
-                let transaction: VersionedTransactionWithStatusMeta = transaction_info.into();
+                let transaction: VersionedTransactionWithStatusMeta =
+                    transaction_info.try_into()?;
                 let mut transactions_queue = ctx.transactions_queue.lock().unwrap();
 
                 let slot_transactions = match transactions_queue.get_mut(&transaction_update.slot) {
@@ -244,18 +244,11 @@ fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) ->
     Ok(())
 }
 
-pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
+pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) -> Result<()> {
     let topic_name = ctx.config.topic_name.as_str();
 
-    let client = Client::new(ClientConfig {
-        project_id: Some(ctx.config.project_id.clone()),
-        project: ProjectOptions::Project(Some(Project::FromFile(Box::new(
-            CredentialsFile::new().await.unwrap(),
-        )))),
-        ..Default::default()
-    })
-    .await
-    .unwrap();
+    let client_config = ClientConfig::default().with_auth().await?;
+    let client = Client::new(client_config).await.unwrap();
 
     let topic = client.topic(topic_name);
     topic
@@ -275,7 +268,7 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
             if let Some(oldest_slot_with_commitment) = latest_slots_with_commitment.first() {
                 transactions_per_slot.retain(|slot, transactions| {
                     if slot < oldest_slot_with_commitment {
-                        warn!(
+                        debug!(
                             "throwing away txs {:?} from slot {}",
                             transactions
                                 .iter()
@@ -363,8 +356,10 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) {
                             .encode(transaction_data.transaction.transaction.message.serialize()),
                     };
 
+                    let message_str = serde_json::to_string(&message).unwrap();
+                    let message_bytes = message_str.as_bytes().to_vec();
                     messages.push(PubsubMessage {
-                        data: serde_json::to_string(&message).unwrap().as_bytes().to_vec(),
+                        data: message_bytes.into(),
                         ..PubsubMessage::default()
                     });
                 });
@@ -428,8 +423,8 @@ async fn monitor(ctx: Arc<Context>) {
         };
         let tx_queue_size = ctx.transactions_queue.lock().unwrap().len();
 
-        info!(
-            "Time: {:.1}s | Total txs: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {}\n\tEarliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
+        debug!(
+            "Time: {:.1}s | Total txs: {} | {:.1}s count: {} | {:.1}s rate: {:.1} tx/s | Tx Q size: {} | Stream disconnections: {} | Processing errors: {} | Earliest confirmed slot: {} | Latest confirmed slot: {} | Earliest pending slot: {} | Latest pending slot: {}",
             current_fetch_time,
             current_fetch_count,
             current_fetch_time - last_fetch_time,

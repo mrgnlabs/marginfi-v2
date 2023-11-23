@@ -1,6 +1,5 @@
 [workspace]
-members = ["programs/*", "clients/rust/*", "tools/*"]
-exclude = ["observability/indexer"]
+members = ["programs/*", "clients/rust/*", "tools/*", "observability/indexer"]
 
 [workspace.dependencies]
 solana-client = "1.14.13"
@@ -9,6 +8,9 @@ solana-logger = "1.14.13"
 solana-program = "1.14.13"
 solana-program-test = "1.14.13"
 solana-account-decoder = "1.14.13"
+solana-measure = "1.14.13"
+solana-metrics = "1.14.13"
+solana-transaction-status = "1.14.13"
 anchor-lang = "0.26.0"
 anchor-spl = "0.26.0"
 anchor-client = "0.26.0"
