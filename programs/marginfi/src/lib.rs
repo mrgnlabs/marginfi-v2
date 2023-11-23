@@ -7,11 +7,10 @@ pub mod prelude;
 pub mod state;
 pub mod utils;
 
-use crate::state::price::OracleSetup;
 use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
-use state::marginfi_group::{BankConfig, BankConfigOpt};
+use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet-beta")] {
@@ -25,7 +24,6 @@ cfg_if::cfg_if! {
 
 #[program]
 pub mod marginfi {
-
     use super::*;
 
     pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
@@ -41,17 +39,9 @@ pub mod marginfi {
 
     pub fn lending_pool_add_bank(
         ctx: Context<LendingPoolAddBank>,
-        bank_config: BankConfig,
+        bank_config: BankConfigCompact,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank(ctx, bank_config)
-    }
-
-    pub fn lending_pool_add_bank_lite(
-        ctx: Context<LendingPoolAddBank>,
-        oracle_setup: OracleSetup,
-        oracle_keys: Vec<Pubkey>,
-    ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank_lite(ctx, oracle_setup, oracle_keys)
+        marginfi_group::lending_pool_add_bank(ctx, bank_config.into())
     }
 
     pub fn lending_pool_configure_bank(

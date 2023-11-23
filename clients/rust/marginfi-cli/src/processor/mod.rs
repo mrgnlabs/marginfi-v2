@@ -312,8 +312,8 @@ pub fn group_add_bank(
     asset_weight_maint: f64,
     liability_weight_init: f64,
     liability_weight_maint: f64,
-    deposit_limit: u64,
-    borrow_limit: u64,
+    deposit_limit_ui: u64,
+    borrow_limit_ui: u64,
     optimal_utilization_rate: f64,
     plateau_interest_rate: f64,
     max_interest_rate: f64,
@@ -341,6 +341,12 @@ pub fn group_add_bank(
     let insurance_ir_fee: WrappedI80F48 = I80F48::from_num(insurance_ir_fee).into();
     let protocol_fixed_fee_apr: WrappedI80F48 = I80F48::from_num(protocol_fixed_fee_apr).into();
     let protocol_ir_fee: WrappedI80F48 = I80F48::from_num(protocol_ir_fee).into();
+
+    let mint_account = rpc_client.get_account(&bank_mint)?;
+    let mint = spl_token::state::Mint::unpack(&mint_account.data)?;
+
+    let deposit_limit = deposit_limit_ui * 10_u64.pow(mint.decimals as u32);
+    let borrow_limit = borrow_limit_ui * 10_u64.pow(mint.decimals as u32);
 
     let interest_rate_config = InterestRateConfig {
         optimal_utilization_rate,
@@ -425,7 +431,8 @@ pub fn group_add_bank(
                 oracle_keys: create_oracle_key_array(oracle_key),
                 risk_tier: risk_tier.into(),
                 ..BankConfig::default()
-            },
+            }
+            .into(),
         })
         .instructions()?;
 
