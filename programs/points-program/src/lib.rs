@@ -49,6 +49,7 @@ pub mod points_program {
         points_mapping.points_accounts[first_free_index] = Some(new_points_account);
 
         points_mapping.first_free_index += 1;
+
         Ok(())
     }
 
@@ -65,8 +66,7 @@ pub mod points_program {
 
             for (i, (_, account_balances)) in account_balance_datas.iter().enumerate() {
                 if let Some(points_account) = points_accounts.get_mut(starting_index + i) {
-                    let current_asset_balance = account_balances.get_asset_balance(&price_data);
-                    let current_liab_balance = account_balances.get_liab_balance(&price_data);
+                    let (current_asset_balance, current_liab_balance) = account_balances.get_account_balances(&price_data);
         
                     points_account.unwrap().update_sma(current_asset_balance, current_liab_balance);
         
@@ -104,32 +104,22 @@ pub struct AccountBalances {
 }
 
 impl AccountBalances {
-    pub fn get_asset_balance(&self, price_data: &Vec<(Pubkey, i128)>) -> i128 {
+    pub fn get_account_balances(&self, price_data: &Vec<(Pubkey, i128)>) -> (i128, i128) {
         let mut current_asset_balance: i128 = 0;
+        let mut current_liab_balance: i128 = 0;
+
 
         for balance in self.balances {
             if balance.active {
                 if let Some((_, price)) = price_data.iter().find(|(pk, _)| *pk == balance.bank_pk) {
                     current_asset_balance += I80F48::from(balance.asset_shares).mul(I80F48::from_num(*price)).to_bits();
-                }
-            }
-        }
 
-        current_asset_balance
-    }
-
-    pub fn get_liab_balance(&self, price_data: &Vec<(Pubkey, i128)>) -> i128 {
-        let mut current_liab_balance: i128 = 0;
-
-        for balance in self.balances {
-            if balance.active {
-                if let Some((_, price)) = price_data.iter().find(|(pk, _)| *pk == balance.bank_pk) {
                     current_liab_balance += I80F48::from(balance.liability_shares).mul(I80F48::from_num(*price)).to_bits();
                 }
             }
         }
 
-        current_liab_balance
+        (current_asset_balance, current_liab_balance)
     }
 }
 
