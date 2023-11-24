@@ -53,12 +53,29 @@ pub mod points_program {
 
     pub fn accrue_points(
         ctx: Context<AccruePoints>, 
+        // For now, we'll assume that we can pass these in in order of occurrence in points_accounts
+        // If we can't do that (which I'm not sure why we wouldn't be able to) we'll have a really hard time doing this efficiently
         account_balance_datas: Vec<(Pubkey, AccountBalances)>, 
         price_data: Vec<(Pubkey, i128)>, 
         starting_index: usize,
-        slice_length: Option<usize>,
         ) -> Result<()> {
-            
+            let mut points_accounts = ctx.accounts.points_mapping.load_mut()?.points_accounts;
+            let clock = Clock::get()?;
+
+            for (i, (_, account_balances)) in account_balance_datas.iter().enumerate() {
+                if let Some(points_account) = points_accounts.get_mut(starting_index + i) {
+                    let current_asset_balance = account_balances.get_asset_balance(&price_data);
+                    let current_liab_balance = account_balances.get_liab_balance(&price_data);
+        
+                    points_account.unwrap().update_sma(current_asset_balance, current_liab_balance);
+        
+                    let unix_ts: u64 = clock.unix_timestamp.try_into().unwrap_or_default(); 
+                    points_account.unwrap().accrue_points(unix_ts);
+                } else {
+                    continue;
+                }
+            }
+
         Ok(())
     }
 }
@@ -83,6 +100,36 @@ pub struct PointsAccount {
 #[derive(AnchorDeserialize, AnchorSerialize)]
 pub struct AccountBalances {
     pub balances: [Balance; 16]
+}
+
+impl AccountBalances {
+    pub fn get_asset_balance(&self, price_data: &Vec<(Pubkey, i128)>) -> i128 {
+        let mut current_asset_balance: i128 = 0;
+
+        for balance in self.balances {
+            if balance.active {
+                if let Some((_, price)) = price_data.iter().find(|(pk, _)| *pk == balance.bank_pk) {
+                    current_asset_balance += I80F48::from(balance.asset_shares).mul(I80F48::from_num(*price)).to_bits();
+                }
+            }
+        }
+
+        current_asset_balance
+    }
+
+    pub fn get_liab_balance(&self, price_data: &Vec<(Pubkey, i128)>) -> i128 {
+        let mut current_liab_balance: i128 = 0;
+
+        for balance in self.balances {
+            if balance.active {
+                if let Some((_, price)) = price_data.iter().find(|(pk, _)| *pk == balance.bank_pk) {
+                    current_liab_balance += I80F48::from(balance.liability_shares).mul(I80F48::from_num(*price)).to_bits();
+                }
+            }
+        }
+
+        current_liab_balance
+    }
 }
 
 // This is a re-implementation of marginfi::state::::marginfi_account::Balance

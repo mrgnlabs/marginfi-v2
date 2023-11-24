@@ -22,3 +22,6 @@ fixed = "1.12.0"
 [dependencies.marginfi]
 path = "../marginfi"
 features = [ "cpi" ]
+
+[dev-dependencies]
+fixtures = { path = "../../test-utils", package = "test-utilities" }

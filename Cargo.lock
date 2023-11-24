@@ -3035,6 +3035,7 @@ dependencies = [
  "anchor-lang 0.26.0",
  "fixed",
  "marginfi",
+ "test-utilities",
 ]
 
 [[package]]
