@@ -6,7 +6,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use solana_program::sysvar::Sysvar;
 
-pub fn initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
+pub fn initialize_account(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
     let MarginfiAccountInitialize {
         authority,
         marginfi_group,
