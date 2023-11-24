@@ -48,6 +48,7 @@ pub mod points_program {
 
         points_mapping.points_accounts[first_free_index] = Some(new_points_account);
 
+        points_mapping.first_free_index += 1;
         Ok(())
     }
 
