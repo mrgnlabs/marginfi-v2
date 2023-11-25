@@ -16,12 +16,7 @@ pub mod points_program {
     pub fn initialize_global_points(ctx: Context<InitializeGlobalPoints>) -> Result<()> {
         let mut points_mapping = ctx.accounts.points_mapping.load_mut()?;
 
-        // We can't #[derive(Default)] for [T, 25000] so we have to zero it out manually 
-        for points_account in points_mapping.points_accounts.iter_mut() {
-            *points_account = None;
-        }
-
-        points_mapping.first_free_index = 0;
+        *points_mapping = PointsMapping::default();
 
         Ok(())
     }
@@ -85,6 +80,15 @@ pub mod points_program {
 pub struct PointsMapping {
     pub points_accounts: [Option<PointsAccount>; MAX_POINTS_ACCOUNTS],
     pub first_free_index: usize,
+}
+
+impl Default for PointsMapping {
+    fn default() -> Self {
+        PointsMapping {
+            points_accounts: [None; MAX_POINTS_ACCOUNTS],
+            first_free_index: 0,
+        }
+    }
 }
 
 #[derive(Default, Copy, Clone)]
