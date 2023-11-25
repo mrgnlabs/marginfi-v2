@@ -22,7 +22,7 @@ pub mod points_program {
     }
 
     pub fn initialize_points_account(ctx: Context<InitializePointsAccount>, initial_points: i128) -> Result<()> {
-        let mut points_mapping = ctx.accounts.points_mapping.load_init()?;
+        let mut points_mapping = ctx.accounts.points_mapping.load_mut()?;
         let first_free_index = points_mapping.first_free_index;
 
         require!(first_free_index < MAX_POINTS_ACCOUNTS, PointsError::NoFreeIndex);
@@ -182,6 +182,7 @@ pub struct InitializeGlobalPoints<'info> {
 
 #[derive(Accounts)]
 pub struct InitializePointsAccount<'info> {
+    #[account(mut)]
     pub points_mapping: AccountLoader<'info, PointsMapping>,
 
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
