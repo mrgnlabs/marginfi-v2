@@ -16,7 +16,7 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = "0.26.0"
+anchor-lang = { workspace = true }
 fixed = "1.12.0"
 
 [dependencies.marginfi]
@@ -24,4 +24,8 @@ path = "../marginfi"
 features = [ "cpi" ]
 
 [dev-dependencies]
+solana-logger = { workspace = true }
+solana-program = { workspace = true }
+solana-program-test = { workspace = true }
+solana-sdk = { workspace = true }
 fixtures = { path = "../../test-utils", package = "test-utilities" }
