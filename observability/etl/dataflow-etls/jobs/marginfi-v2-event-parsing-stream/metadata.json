@@ -1,13 +1,23 @@
 {
-  "name": "event-parsing-batch",
-  "description": "Parses individual raw transactions from a BigQuery table and stores them in another BigQuery table.",
+  "name": "marginfi-v2-event-parsing-stream",
+  "description": "Parses individual raw transactions from a Pub/Sub topic/subscription and stores them in dedicated BigQuery tables.",
   "parameters": [
     {
-      "name": "input_table",
-      "label": "BigQuery input table name.",
-      "helpText": "Name of the input table to consume from.",
+      "name": "input_topic",
+      "label": "Input PubSub topic.",
+      "isOptional": true,
+      "helpText": "Name of the input PubSub topic to consume from.",
       "regexes": [
-        "([^.]+.)?[^.]+[.].+"
+        "projects/[^/]+/topics/[a-zA-Z][-_.~+%a-zA-Z0-9]{2,}"
+      ]
+    },
+    {
+      "name": "input_subscription",
+      "label": "Input PubSub subscription.",
+      "isOptional": true,
+      "helpText": "Name of the input PubSub subscription to consume from.",
+      "regexes": [
+        "projects/[^/]+/subscriptions/[a-zA-Z][-_.~+%a-zA-Z0-9]{2,}"
       ]
     },
     {
@@ -30,20 +40,6 @@
       "label": "Minimum IDL version.",
       "isOptional": true,
       "helpText": "Minimum IDL version for which txs will be parsed. Default: 0",
-      "regexes": []
-    },
-    {
-      "name": "start_date",
-      "label": "Start date.",
-      "isOptional": true,
-      "helpText": "Start date to consider (inclusive).",
-      "regexes": []
-    },
-    {
-      "name": "end_date",
-      "label": "End date.",
-      "isOptional": true,
-      "helpText": "End date to consider (exclusive).",
       "regexes": []
     }
   ]

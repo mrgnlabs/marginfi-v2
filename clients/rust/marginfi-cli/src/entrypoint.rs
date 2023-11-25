@@ -98,9 +98,9 @@ pub enum GroupCommand {
         #[clap(long)]
         liability_weight_maint: f64,
         #[clap(long)]
-        deposit_limit: u64,
+        deposit_limit_ui: u64,
         #[clap(long)]
-        borrow_limit: u64,
+        borrow_limit_ui: u64,
         #[clap(long)]
         pyth_oracle: Pubkey,
         #[clap(long)]
@@ -124,10 +124,7 @@ pub enum GroupCommand {
     },
     #[cfg(feature = "admin")]
     HandleBankruptcy {
-        #[clap(long)]
-        bank: Pubkey,
-        #[clap(long)]
-        marginfi_account: Pubkey,
+        accounts: Vec<Pubkey>,
     },
 }
 
@@ -476,8 +473,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             insurance_ir_fee,
             protocol_fixed_fee_apr,
             protocol_ir_fee,
-            deposit_limit,
-            borrow_limit,
+            deposit_limit_ui,
+            borrow_limit_ui,
             risk_tier,
             oracle_type,
         } => processor::group_add_bank(
@@ -490,8 +487,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            deposit_limit,
-            borrow_limit,
+            deposit_limit_ui,
+            borrow_limit_ui,
             optimal_utilization_rate,
             plateau_interest_rate,
             max_interest_rate,
@@ -502,10 +499,9 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             risk_tier,
         ),
         #[cfg(feature = "admin")]
-        GroupCommand::HandleBankruptcy {
-            bank,
-            marginfi_account,
-        } => processor::group_handle_bankruptcy(&config, profile, bank, marginfi_account),
+        GroupCommand::HandleBankruptcy { accounts } => {
+            processor::handle_bankruptcy_for_accounts(&config, &profile, accounts)
+        }
     }
 }
 

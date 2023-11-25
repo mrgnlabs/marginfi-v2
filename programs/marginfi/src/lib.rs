@@ -10,7 +10,7 @@ pub mod utils;
 use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
-use state::marginfi_group::{BankConfig, BankConfigOpt};
+use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet-beta")] {
@@ -27,7 +27,7 @@ pub mod marginfi {
     use super::*;
 
     pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
-        marginfi_group::initialize(ctx)
+        marginfi_group::initialize_group(ctx)
     }
 
     pub fn marginfi_group_configure(
@@ -39,9 +39,9 @@ pub mod marginfi {
 
     pub fn lending_pool_add_bank(
         ctx: Context<LendingPoolAddBank>,
-        bank_config: BankConfig,
+        bank_config: BankConfigCompact,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank(ctx, bank_config)
+        marginfi_group::lending_pool_add_bank(ctx, bank_config.into())
     }
 
     pub fn lending_pool_configure_bank(
@@ -85,7 +85,7 @@ pub mod marginfi {
 
     /// Initialize a marginfi account for a given group
     pub fn marginfi_account_initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
-        marginfi_account::initialize(ctx)
+        marginfi_account::initialize_account(ctx)
     }
 
     pub fn lending_account_deposit(

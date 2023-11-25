@@ -99,7 +99,10 @@ impl MarginfiGroupFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts,
-            data: marginfi::instruction::LendingPoolAddBank { bank_config }.data(),
+            data: marginfi::instruction::LendingPoolAddBank {
+                bank_config: bank_config.into(),
+            }
+            .data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
