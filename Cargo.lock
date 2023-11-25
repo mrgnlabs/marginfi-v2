@@ -3413,6 +3413,7 @@ name = "points-program"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "anyhow",
  "fixed",
  "marginfi",
  "solana-logger",

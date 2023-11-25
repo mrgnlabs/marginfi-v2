@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "points-program"
 version = "0.1.0"
@@ -24,6 +26,7 @@ path = "../marginfi"
 features = [ "cpi" ]
 
 [dev-dependencies]
+anyhow = "1.0.66"
 solana-logger = { workspace = true }
 solana-program = { workspace = true }
 solana-program-test = { workspace = true }
