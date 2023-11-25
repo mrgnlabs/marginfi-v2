@@ -44,7 +44,7 @@ pub mod points_program {
             last_recorded_timestamp: unix_ts,
         };
 
-        require!(points_mapping.points_accounts[first_free_index] == None, PointsError::FailedToInsert);
+        require!(points_mapping.points_accounts[first_free_index].is_none(), PointsError::FailedToInsert);
 
         points_mapping.points_accounts[first_free_index] = Some(new_points_account);
 
@@ -87,7 +87,7 @@ pub struct PointsMapping {
     pub first_free_index: usize,
 }
 
-#[derive(Default, Copy, Clone, PartialEq)]
+#[derive(Default, Copy, Clone)]
 pub struct PointsAccount {
     pub owner_mfi_account: Pubkey,
     pub points: WrappedI80F48,
@@ -107,7 +107,6 @@ impl AccountBalances {
     pub fn get_account_balances(&self, price_data: &Vec<(Pubkey, i128)>) -> (i128, i128) {
         let mut current_asset_balance: i128 = 0;
         let mut current_liab_balance: i128 = 0;
-
 
         for balance in self.balances {
             if balance.active {
