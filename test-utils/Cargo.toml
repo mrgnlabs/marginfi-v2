@@ -8,6 +8,7 @@ edition = "2021"
 
 [features]
 lip = ["liquidity-incentive-program"]
+points = ["points-program"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -37,4 +38,8 @@ path = "../programs/marginfi"
 
 [dependencies.liquidity-incentive-program]
 path = "../programs/liquidity-incentive-program"
+optional = true
+
+[dependencies.points-program]
+path = "../programs/points-program"
 optional = true

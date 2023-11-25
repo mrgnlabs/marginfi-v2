@@ -16,6 +16,10 @@ no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
 default = []
+devnet = ["marginfi/devnet"]
+mainnet-beta = ["marginfi/mainnet-beta"]
+test = []
+test-bpf = []
 
 [dependencies]
 anchor-lang = { workspace = true }
@@ -31,4 +35,4 @@ solana-logger = { workspace = true }
 solana-program = { workspace = true }
 solana-program-test = { workspace = true }
 solana-sdk = { workspace = true }
-fixtures = { path = "../../test-utils", package = "test-utilities" }
+fixtures = { path = "../../test-utils", package = "test-utilities", features = ["points"] }

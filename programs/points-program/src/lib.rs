@@ -14,15 +14,15 @@ pub mod points_program {
     // the PointsMapping needs to be initialized outside the program because it's too large for CPIs
     // this endpoint is for zeroing everything out before starting to record points
     pub fn initialize_global_points(ctx: Context<InitializeGlobalPoints>) -> Result<()> {
-        let mut points_mapping = ctx.accounts.points_mapping.load_mut()?;
+        let mut points_mapping = ctx.accounts.points_mapping.load_init()?;
 
         *points_mapping = PointsMapping::default();
 
         Ok(())
     }
 
-    pub fn intialize_points_account(ctx: Context<InitializePointsAccount>, initial_points: i128) -> Result<()> {
-        let mut points_mapping = ctx.accounts.points_mapping.load_mut()?;
+    pub fn initialize_points_account(ctx: Context<InitializePointsAccount>, initial_points: i128) -> Result<()> {
+        let mut points_mapping = ctx.accounts.points_mapping.load_init()?;
         let first_free_index = points_mapping.first_free_index;
 
         require!(first_free_index < MAX_POINTS_ACCOUNTS, PointsError::NoFreeIndex);
@@ -171,7 +171,7 @@ impl PointsAccount {
 
 #[derive(Accounts)]
 pub struct InitializeGlobalPoints<'info> {
-    #[account(mut)]
+    #[account(zero)]
     pub points_mapping: AccountLoader<'info, PointsMapping>,
 
     #[account(mut)]

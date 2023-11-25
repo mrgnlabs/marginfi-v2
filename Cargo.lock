@@ -5680,6 +5680,7 @@ dependencies = [
  "lazy_static",
  "liquidity-incentive-program",
  "marginfi",
+ "points-program",
  "pretty_assertions",
  "pyth-sdk-solana",
  "solana-logger",
