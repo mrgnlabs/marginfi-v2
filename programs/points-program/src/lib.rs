@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use marginfi::state::{marginfi_group::WrappedI80F48, marginfi_account::MarginfiAccount};
 use fixed::types::I80F48;
 use std::ops::{Div, Mul, Add};
+use anchor_lang::solana_program::log::sol_log_compute_units;
 
 declare_id!("CSjewsFhiPYdz94HLCmntXPiFXUPbwhxUUFo29dVaYwo");
 
@@ -72,6 +73,8 @@ pub mod points_program {
                 }
             }
 
+            sol_log_compute_units();
+
         Ok(())
     }
 }
@@ -102,7 +105,7 @@ pub struct PointsAccount {
 }
 
 // This is so we can pass in [Balance; 16] as an endpoint argument
-#[derive(AnchorDeserialize, AnchorSerialize)]
+#[derive(AnchorDeserialize, AnchorSerialize, Clone)]
 pub struct AccountBalances {
     pub balances: [Balance; 16]
 }
@@ -139,6 +142,20 @@ pub struct Balance {
     pub _padding: [u64; 1],
 }
 
+impl From<marginfi::state::marginfi_account::Balance> for Balance {
+    fn from(item: marginfi::state::marginfi_account::Balance) -> Self {
+        Balance {
+            active: item.active,
+            bank_pk: item.bank_pk,
+            asset_shares: item.asset_shares,
+            liability_shares: item.liability_shares,
+            emissions_outstanding: item.emissions_outstanding,
+            last_update: item.last_update,
+            _padding: item._padding,
+        }
+    }
+}
+
 impl PointsAccount {
     pub fn update_sma(&mut self, current_asset_balance: i128, current_liab_balance: i128) {
         let current_asset_sma_value = I80F48::from_num(self.asset_sma.value);
@@ -160,10 +177,10 @@ impl PointsAccount {
 
     pub fn accrue_points(&mut self, current_timestamp: u64) {
         // 1 point per $1 lent per 24h
-        let lending_points = I80F48::from(self.asset_sma).div(I80F48::from_num(24 * 60 * 60 / (current_timestamp - self.last_recorded_timestamp)));
+        let lending_points = I80F48::from(self.asset_sma).div(I80F48::from_num(24 * 60 * 60 / 30));
 
         // 4 points per $1 borrowed per 24h
-        let borrowing_points = I80F48::from(self.liab_sma).mul(I80F48::from_num(4)).div(I80F48::from_num(24 * 60 * 60 / (current_timestamp - self.last_recorded_timestamp)));
+        let borrowing_points = I80F48::from(self.liab_sma).mul(I80F48::from_num(4)).div(I80F48::from_num(24 * 60 * 60 / 30));
 
         self.points = WrappedI80F48::from(I80F48::from(self.points) + lending_points + borrowing_points);
     }
@@ -195,6 +212,7 @@ pub struct InitializePointsAccount<'info> {
 
 #[derive(Accounts)]
 pub struct AccruePoints<'info> {
+    #[account(mut)]
     pub points_mapping: AccountLoader<'info, PointsMapping>,
 
     #[account(mut)]

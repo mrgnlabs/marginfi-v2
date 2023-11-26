@@ -91,8 +91,39 @@ impl PointsFixture {
         Ok(())
     }
 
-    pub async fn try_accrue_points(&self, starting_index: i128) -> Result<(), BanksClientError> {
-            
+    pub async fn try_accrue_points(
+        &self, 
+        account_balance_datas: Vec<(Pubkey, points::AccountBalances)>,
+        price_data: Vec<(Pubkey, i128)>,
+        starting_index: usize
+    ) -> Result<(), BanksClientError> {
+        
+        let ix = Instruction {
+            program_id: points::id(),
+            accounts: points::accounts::AccruePoints {
+                points_mapping: self.keypair.pubkey(),
+                payer: self.ctx.borrow().payer.pubkey(),
+                system_program: solana_program::system_program::id(),
+            }.to_account_metas(Some(true)),
+            data: points::instruction::AccruePoints {
+                account_balance_datas,
+                price_data,
+                starting_index,
+            }.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
 
         Ok(())
     }
