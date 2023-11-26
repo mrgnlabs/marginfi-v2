@@ -96,7 +96,7 @@ impl PointsFixture {
     pub async fn try_accrue_points(
         &self, 
         account_balance_datas: Vec<(Pubkey, points::AccountBalances)>,
-        price_data: Vec<(Pubkey, i128)>,
+        price_data: Vec<(Pubkey, f64)>,
         starting_index: usize
     ) -> Result<(), BanksClientError> {
         
