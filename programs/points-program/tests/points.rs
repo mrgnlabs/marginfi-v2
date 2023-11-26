@@ -4,14 +4,18 @@ use solana_program_test::tokio::time::{self, Duration};
 use fixtures::{
     test::TestFixture,
     points::PointsFixture,
+    test::{TestBankSetting, TestSettings, BankMint},
 };
 use solana_sdk::signature::Keypair;
 use points_program::AccountBalances;
+use std::rc::Rc;
 
+// In order to load the points account into memory you have to use RUST_MIN_STACK=1000000000
+// Otherwise calling points_f.load() blows the stack
 #[tokio::test]
 async fn initialize_global_points() -> Result<(), anyhow::Error> {
     let test_f = TestFixture::new(None).await;
-    let points_f = PointsFixture::new(std::rc::Rc::clone(&test_f.context), Keypair::new());
+    let points_f = PointsFixture::new(Rc::clone(&test_f.context), Keypair::new());
 
     points_f.try_initialize_global_points().await?;
 
@@ -21,7 +25,7 @@ async fn initialize_global_points() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn initialize_points_account_single() -> Result<(), anyhow::Error> {
     let test_f = TestFixture::new(None).await;
-    let points_f = PointsFixture::new(std::rc::Rc::clone(&test_f.context), Keypair::new());
+    let points_f = PointsFixture::new(Rc::clone(&test_f.context), Keypair::new());
 
     points_f.try_initialize_global_points().await?;
 
@@ -29,20 +33,25 @@ async fn initialize_points_account_single() -> Result<(), anyhow::Error> {
 
     points_f.try_initialize_points_account(mfi_account_f.key).await?;
 
+    let points_mapping: points_program::PointsMapping = points_f.load().await;
+ 
+    assert!(points_mapping.points_accounts[0].is_some());
+    assert!(points_mapping.first_free_index == 1_usize);
+
     Ok(())
 }
 
 #[tokio::test]
 async fn accrue_points_single() -> Result<(), anyhow::Error> {
-    let test_f = TestFixture::new(Some(fixtures::test::TestSettings {
-        banks: vec![fixtures::test::TestBankSetting {
-            mint: fixtures::test::BankMint::USDC,
-            ..fixtures::test::TestBankSetting::default()
+    let test_f = TestFixture::new(Some(TestSettings {
+        banks: vec![TestBankSetting {
+            mint: BankMint::USDC,
+            ..TestBankSetting::default()
         }],
-        ..fixtures::test::TestSettings::default()
+        ..TestSettings::default()
     }))
     .await;
-    let points_f = PointsFixture::new(std::rc::Rc::clone(&test_f.context), Keypair::new());
+    let points_f = PointsFixture::new(Rc::clone(&test_f.context), Keypair::new());
 
     points_f.try_initialize_global_points().await?;
 
@@ -51,13 +60,13 @@ async fn accrue_points_single() -> Result<(), anyhow::Error> {
     points_f.try_initialize_points_account(mfi_account_f.key).await?;
 
     // Deposit some funds so there's actually points to accrue
-    let usdc_bank_f = test_f.get_bank(&fixtures::test::BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
     let token_account_usdc = test_f
         .usdc_mint
-        .create_token_account_and_mint_to(2_000)
+        .create_token_account_and_mint_to(100)
         .await;
     mfi_account_f
-        .try_bank_deposit(token_account_usdc.key, usdc_bank_f, 2_000)
+        .try_bank_deposit(token_account_usdc.key, usdc_bank_f, 100)
         .await?;
 
     let mfi_account: MarginfiAccount = mfi_account_f.load().await;
@@ -76,6 +85,10 @@ async fn accrue_points_single() -> Result<(), anyhow::Error> {
         price_data.clone(),
         0
     ).await?;
+
+    let points_mapping: points_program::PointsMapping = points_f.load().await;
+    
+    println!("{}", points_mapping.points_accounts[0].unwrap().points.value);
 
     Ok(())
 }

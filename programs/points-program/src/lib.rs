@@ -34,8 +34,8 @@ pub mod points_program {
         let new_points_account = PointsAccount {
             owner_mfi_account: ctx.accounts.marginfi_account.key(),
             points: WrappedI80F48 { value: initial_points },
-            asset_sma: WrappedI80F48 { value: 0 },
-            liab_sma: WrappedI80F48 { value: 0 },
+            asset_sma: WrappedI80F48 { value: 1 },
+            liab_sma: WrappedI80F48 { value: 1 },
             sma_count: 0,
             last_recorded_timestamp: unix_ts,
         };
@@ -57,25 +57,22 @@ pub mod points_program {
         price_data: Vec<(Pubkey, i128)>, 
         starting_index: usize,
         ) -> Result<()> {
-            let mut points_accounts = ctx.accounts.points_mapping.load_mut()?.points_accounts;
+            let mut points_mapping = ctx.accounts.points_mapping.load_mut()?;
             let clock = Clock::get()?;
-
+        
             for (i, (_, account_balances)) in account_balance_datas.iter().enumerate() {
-                if let Some(points_account) = points_accounts.get_mut(starting_index + i) {
+                if let Some(points_account) = points_mapping.points_accounts[starting_index + i].as_mut() {
                     let (current_asset_balance, current_liab_balance) = account_balances.get_account_balances(&price_data);
         
-                    points_account.unwrap().update_sma(current_asset_balance, current_liab_balance);
-        
+                    points_account.update_sma(current_asset_balance, current_liab_balance);
                     let unix_ts: u64 = clock.unix_timestamp.try_into().unwrap_or_default(); 
-                    points_account.unwrap().accrue_points(unix_ts);
-                } else {
-                    continue;
+                    points_account.accrue_points(unix_ts);
                 }
             }
-
+        
             sol_log_compute_units();
-
-        Ok(())
+        
+            Ok(())
     }
 }
 

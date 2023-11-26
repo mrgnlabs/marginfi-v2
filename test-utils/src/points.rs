@@ -8,6 +8,8 @@ use solana_program_test::{ProgramTestContext, BanksClientError};
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, rc::Rc};
 
+use crate::prelude::load_and_deserialize;
+
 pub struct PointsFixture {
     pub keypair: Keypair,
     ctx: Rc<RefCell<ProgramTestContext>>,
@@ -126,5 +128,9 @@ impl PointsFixture {
             .await?;
 
         Ok(())
+    }
+
+    pub async fn load(&self) -> points::PointsMapping {
+        load_and_deserialize(self.ctx.clone(), &self.keypair.pubkey()).await
     }
 }
