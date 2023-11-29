@@ -3,7 +3,7 @@ pub mod emissions;
 
 use {
     crate::{
-        config::{CliSigner, Config},
+        config::Config,
         profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
         utils::{
             find_bank_vault_authority_pda, load_observation_account_metas, process_transaction,
@@ -51,10 +51,7 @@ use {
 
 #[cfg(feature = "dev")]
 use marginfi::state::price::{OraclePriceFeedAdapter, PriceAdapter};
-use marginfi::{
-    constants::ZERO_AMOUNT_THRESHOLD, state::marginfi_account::RiskEngine,
-    utils::NumTraitsWithTolerance,
-};
+use marginfi::{constants::ZERO_AMOUNT_THRESHOLD, utils::NumTraitsWithTolerance};
 use solana_client::rpc_client::RpcClient;
 
 #[cfg(feature = "admin")]
@@ -212,7 +209,7 @@ pub fn group_create(
     override_existing_profile_group: bool,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
-    let admin = admin.unwrap_or_else(|| config.signer.pubkey());
+    let admin = admin.unwrap_or_else(|| config.authority());
 
     if profile.marginfi_group.is_some() && !override_existing_profile_group {
         bail!(
@@ -225,12 +222,8 @@ pub fn group_create(
 
     let mut init_marginfi_group_ixs_builder = config.mfi_program.request();
 
-    let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
-        init_marginfi_group_ixs_builder = init_marginfi_group_ixs_builder.signer(keypair);
-        vec![keypair, &marginfi_group_keypair]
-    } else {
-        vec![&marginfi_group_keypair]
-    };
+    let mut signing_keypairs = config.get_signers(false);
+    signing_keypairs.push(&marginfi_group_keypair);
 
     let init_marginfi_group_ixs = init_marginfi_group_ixs_builder
         .accounts(marginfi::accounts::MarginfiGroupInitialize {
@@ -242,11 +235,11 @@ pub fn group_create(
         .instructions()?;
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let message = Message::new(&init_marginfi_group_ixs, Some(&config.signer.pubkey()));
+    let message = Message::new(&init_marginfi_group_ixs, Some(&config.authority()));
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
-    match process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer) {
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
         Ok(sig) => println!("marginfi group created (sig: {})", sig),
         Err(err) => {
             println!("Error during marginfi group creation:\n{:#?}", err);
@@ -268,19 +261,16 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
         bail!("Marginfi group not specified in profile [{}]", profile.name);
     }
 
-    let mut configure_marginfi_group_ixs_builder = config.mfi_program.request();
-
-    let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
-        configure_marginfi_group_ixs_builder = configure_marginfi_group_ixs_builder.signer(keypair);
-        vec![keypair]
-    } else {
-        vec![]
-    };
+    let mut signing_keypairs = config.get_signers(false);
+    let mut configure_marginfi_group_ixs_builder = config
+        .mfi_program
+        .request()
+        .signer(*signing_keypairs.first().unwrap());
 
     let configure_marginfi_group_ixs = configure_marginfi_group_ixs_builder
         .accounts(marginfi::accounts::MarginfiGroupConfigure {
             marginfi_group: profile.marginfi_group.unwrap(),
-            admin: config.signer.pubkey(),
+            admin: config.authority(),
         })
         .args(marginfi::instruction::MarginfiGroupConfigure {
             config: GroupConfig { admin },
@@ -288,11 +278,11 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
         .instructions()?;
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let message = Message::new(&configure_marginfi_group_ixs, Some(&config.signer.pubkey()));
+    let message = Message::new(&configure_marginfi_group_ixs, Some(&config.authority()));
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
-    match process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer) {
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
         Ok(sig) => println!("marginfi group created (sig: {})", sig),
         Err(err) => println!("Error during marginfi group creation:\n{:#?}", err),
     };
@@ -363,17 +353,13 @@ pub fn group_add_bank(
 
     let mut add_bank_ixs_builder = config.mfi_program.request();
 
-    let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
-        add_bank_ixs_builder = add_bank_ixs_builder.signer(keypair);
-        vec![keypair, &bank_keypair]
-    } else {
-        vec![&bank_keypair]
-    };
+    let mut signing_keypairs = config.get_signers(true);
+    signing_keypairs.push(&bank_keypair);
 
     let add_bank_ixs = add_bank_ixs_builder
         .accounts(marginfi::accounts::LendingPoolAddBank {
             marginfi_group: profile.marginfi_group.unwrap(),
-            admin: config.signer.pubkey(),
+            admin: config.authority(),
             bank: bank_keypair.pubkey(),
             bank_mint,
             fee_vault: find_bank_vault_pda(
@@ -415,6 +401,7 @@ pub fn group_add_bank(
             rent: sysvar::rent::id(),
             token_program: token::ID,
             system_program: system_program::id(),
+            fee_payer: config.explicit_fee_payer(),
         })
         .accounts(AccountMeta::new_readonly(oracle_key, false))
         .args(marginfi::instruction::LendingPoolAddBank {
@@ -437,11 +424,11 @@ pub fn group_add_bank(
         .instructions()?;
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let message = Message::new(&add_bank_ixs, Some(&config.signer.pubkey()));
+    let message = Message::new(&add_bank_ixs, Some(&config.explicit_fee_payer()));
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
-    match process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer) {
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
         Ok(sig) => println!("bank created (sig: {})", sig),
         Err(err) => println!("Error during bank creation:\n{:#?}", err),
     };
@@ -552,7 +539,7 @@ fn handle_bankruptcy_for_an_account(
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
             marginfi_group: profile.marginfi_group.unwrap(),
-            admin: config.signer.pubkey(),
+            admin: config.authority(),
             bank: bank_pk,
             marginfi_account: marginfi_account_pk,
             liquidity_vault: find_bank_vault_pda(
@@ -589,16 +576,14 @@ fn handle_bankruptcy_for_an_account(
         ));
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
-        vec![keypair]
-    } else {
-        vec![]
-    };
-    let message = Message::new(&[handle_bankruptcy_ix], Some(&config.signer.pubkey()));
+
+    let signing_keypairs = config.get_signers(false);
+
+    let message = Message::new(&[handle_bankruptcy_ix], Some(&config.authority()));
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
-    match process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer) {
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
         Ok(sig) => println!("Bankruptcy handled (sig: {})", sig),
         Err(err) => println!("Error during bankruptcy handling:\n{:#?}", err),
     };
@@ -666,21 +651,18 @@ pub fn handle_bankruptcy_for_accounts(
 
     for chunk in chunks {
         let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-        let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
-            vec![keypair]
-        } else {
-            vec![]
-        };
+
+        let signing_keypairs = config.get_signers(false);
 
         let mut ixs = vec![ComputeBudgetInstruction::set_compute_unit_limit(1_400_000)];
         ixs.extend_from_slice(chunk);
 
-        let message = Message::new(&ixs, Some(&config.signer.pubkey()));
+        let message = Message::new(&ixs, Some(&config.authority()));
 
         let mut transaction = Transaction::new_unsigned(message);
         transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
-        match process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer) {
+        match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
             Ok(sig) => println!("Bankruptcy handled (sig: {})", sig),
             Err(err) => println!("Error during bankruptcy handling:\n{:#?}", err),
         };
@@ -702,7 +684,7 @@ fn make_bankruptcy_ix(
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
             marginfi_group: profile.marginfi_group.unwrap(),
-            admin: config.signer.pubkey(),
+            admin: config.fee_payer.pubkey(),
             bank: bank_pk,
             marginfi_account: marginfi_account_pk,
             liquidity_vault: find_bank_vault_pda(
@@ -863,7 +845,7 @@ pub fn bank_setup_emissions(
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
-    let funding_account_ata = get_associated_token_address(&config.signer.pubkey(), &mint);
+    let funding_account_ata = get_associated_token_address(&config.authority(), &mint);
     let mut flags = 0;
 
     if deposits {
@@ -906,7 +888,7 @@ pub fn bank_setup_emissions(
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingPoolSetupEmissions {
             marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
-            admin: config.signer.pubkey(),
+            admin: config.authority(),
             bank,
             emissions_mint: mint,
             emissions_auth: find_bank_emssions_auth_pda(bank, mint, marginfi::id()).0,
@@ -930,16 +912,13 @@ pub fn bank_setup_emissions(
     };
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
-        vec![keypair]
-    } else {
-        vec![]
-    };
-    let message = Message::new(&[ix], Some(&config.signer.pubkey()));
+    let signing_keypairs = config.get_signers(false);
+
+    let message = Message::new(&[ix], Some(&config.authority()));
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
-    match process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer) {
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
         Ok(sig) => println!("Tx succeded (sig: {})", sig),
         Err(err) => println!("Error :\n{:#?}", err),
     };
@@ -968,7 +947,7 @@ pub fn bank_update_emissions(
         .unwrap_or_else(|_| panic!("Bank {} not found", bank_pk));
 
     let emission_mint = bank.emissions_mint;
-    let funding_account_ata = get_associated_token_address(&config.signer.pubkey(), &emission_mint);
+    let funding_account_ata = get_associated_token_address(&config.authority(), &emission_mint);
 
     let emissions_mint_decimals = config
         .mfi_program
@@ -1024,7 +1003,7 @@ pub fn bank_update_emissions(
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
             marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
-            admin: config.signer.pubkey(),
+            admin: config.authority(),
             bank: bank_pk,
             emissions_mint: emission_mint,
             emissions_token_account: find_bank_emssions_token_account_pda(
@@ -1046,16 +1025,13 @@ pub fn bank_update_emissions(
     };
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
-        vec![keypair]
-    } else {
-        vec![]
-    };
-    let message = Message::new(&[ix], Some(&config.signer.pubkey()));
+    let signing_keypairs = config.get_signers(false);
+
+    let message = Message::new(&[ix], Some(&config.authority()));
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
-    match process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer) {
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
         Ok(sig) => println!("Tx succeded (sig: {})", sig),
         Err(err) => println!("Error:\n{:#?}", err),
     };
@@ -1073,18 +1049,12 @@ pub fn bank_configure(
     let rpc_client = config.mfi_program.rpc();
 
     let mut configure_bank_ixs_builder = config.mfi_program.request();
-
-    let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
-        configure_bank_ixs_builder = configure_bank_ixs_builder.signer(keypair);
-        vec![keypair]
-    } else {
-        vec![]
-    };
+    let signing_keypairs = config.get_signers(false);
 
     let mut configure_bank_ixs = configure_bank_ixs_builder
         .accounts(marginfi::accounts::LendingPoolConfigureBank {
             marginfi_group: profile.marginfi_group.unwrap(),
-            admin: config.signer.pubkey(),
+            admin: config.authority(),
             bank: bank_pk,
         })
         .args(marginfi::instruction::LendingPoolConfigureBank {
@@ -1099,11 +1069,11 @@ pub fn bank_configure(
     }
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let message = Message::new(&configure_bank_ixs, Some(&config.signer.pubkey()));
+    let message = Message::new(&configure_bank_ixs, Some(&config.authority()));
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
-    let sig = process_transaction(&transaction, &rpc_client, config.dry_run, &config.signer)?;
+    let sig = process_transaction(&transaction, &rpc_client, config.get_tx_mode())?;
 
     println!("Transaction signature: {}", sig);
 
@@ -1264,7 +1234,7 @@ pub fn configure_profile(
 
 pub fn marginfi_account_list(profile: Profile, config: &Config) -> Result<()> {
     let group = profile.marginfi_group.expect("Missing marginfi group");
-    let authority = config.signer.pubkey();
+    let authority = config.authority();
 
     let banks = HashMap::from_iter(load_all_banks(config, Some(group))?);
 
@@ -1361,7 +1331,7 @@ pub fn marginfi_account_use(
     marginfi_account_pk: Pubkey,
 ) -> Result<()> {
     let group = profile.marginfi_group.expect("Missing marginfi group");
-    let authority = config.signer.pubkey();
+    let authority = config.authority();
 
     let marginfi_account = config
         .mfi_program
@@ -1421,14 +1391,8 @@ pub fn marginfi_account_deposit(
     bank_pk: Pubkey,
     ui_amount: f64,
 ) -> Result<()> {
-    let signer = if let CliSigner::Keypair(signer) = &config.signer {
-        signer
-    } else {
-        bail!("Only keypair is supported for marginfi account actions");
-    };
-
     let rpc_client = config.mfi_program.rpc();
-
+    let signer = config.get_non_ms_authority_keypair()?;
     let marginfi_account_pk = profile.get_marginfi_account();
 
     let bank = config.mfi_program.account::<Bank>(bank_pk)?;
@@ -1468,7 +1432,7 @@ pub fn marginfi_account_deposit(
         recent_blockhash,
     );
 
-    match process_transaction(&tx, &rpc_client, config.dry_run, &config.signer) {
+    match process_transaction(&tx, &rpc_client, config.get_tx_mode()) {
         Ok(sig) => println!("Deposit successful: {sig}"),
         Err(err) => println!("Error during deposit:\n{err:#?}"),
     }
@@ -1483,11 +1447,7 @@ pub fn marginfi_account_withdraw(
     ui_amount: f64,
     withdraw_all: bool,
 ) -> Result<()> {
-    let signer = if let CliSigner::Keypair(signer) = &config.signer {
-        signer
-    } else {
-        bail!("Only keypair is supported for marginfi account actions");
-    };
+    let signer = config.get_non_ms_authority_keypair()?;
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -1562,7 +1522,7 @@ pub fn marginfi_account_withdraw(
         recent_blockhash,
     );
 
-    match process_transaction(&tx, &rpc_client, config.dry_run, &config.signer) {
+    match process_transaction(&tx, &rpc_client, config.get_tx_mode()) {
         Ok(sig) => println!("Withdraw successful: {sig}"),
         Err(err) => println!("Error during withdraw:\n{err:#?}"),
     }
@@ -1576,11 +1536,7 @@ pub fn marginfi_account_borrow(
     bank_pk: Pubkey,
     ui_amount: f64,
 ) -> Result<()> {
-    let signer = if let CliSigner::Keypair(signer) = &config.signer {
-        signer
-    } else {
-        bail!("Only keypair is supported for marginfi account actions");
-    };
+    let signer = config.get_non_ms_authority_keypair()?;
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -1651,7 +1607,7 @@ pub fn marginfi_account_borrow(
         recent_blockhash,
     );
 
-    match process_transaction(&tx, &rpc_client, config.dry_run, &config.signer) {
+    match process_transaction(&tx, &rpc_client, config.get_tx_mode()) {
         Ok(sig) => println!("Borrow successful: {sig}"),
         Err(err) => println!("Error during borrow:\n{err:#?}"),
     }
@@ -1667,11 +1623,7 @@ pub fn marginfi_account_liquidate(
     liability_bank_pk: Pubkey,
     ui_asset_amount: f64,
 ) -> Result<()> {
-    let signer = if let CliSigner::Keypair(signer) = &config.signer {
-        signer
-    } else {
-        bail!("Only keypair is supported for marginfi account actions");
-    };
+    let signer = config.get_non_ms_authority_keypair()?;
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -1763,12 +1715,7 @@ pub fn marginfi_account_liquidate(
         recent_blockhash,
     );
 
-    match process_transaction(
-        &tx,
-        &config.mfi_program.rpc(),
-        config.dry_run,
-        &config.signer,
-    ) {
+    match process_transaction(&tx, &config.mfi_program.rpc(), config.get_tx_mode()) {
         Ok(sig) => println!("Liquidation successful: {sig}"),
         Err(err) => println!("Error during liquidation:\n{err:#?}"),
     }
@@ -1777,11 +1724,7 @@ pub fn marginfi_account_liquidate(
 }
 
 pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()> {
-    let signer = if let CliSigner::Keypair(signer) = &config.signer {
-        signer
-    } else {
-        bail!("Only keypair is supported for marginfi account actions");
-    };
+    let signer = config.get_non_ms_authority_keypair()?;
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -1810,12 +1753,7 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
 
     let marginfi_account_pk = marginfi_account_key.pubkey();
 
-    match process_transaction(
-        &tx,
-        &config.mfi_program.rpc(),
-        config.dry_run,
-        &config.signer,
-    ) {
+    match process_transaction(&tx, &config.mfi_program.rpc(), config.get_tx_mode()) {
         Ok(_sig) => print!("{marginfi_account_pk}"),
         Err(err) => println!("Error during initialize:\n{err:#?}"),
     }

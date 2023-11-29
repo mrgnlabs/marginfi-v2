@@ -1,5 +1,5 @@
 use {
-    crate::config::{CliSigner, Config, GlobalOptions},
+    crate::config::{Config, GlobalOptions},
     anchor_client::{Client, Cluster},
     anyhow::{anyhow, bail, Result},
     dirs::home_dir,
@@ -66,16 +66,11 @@ impl Profile {
     }
 
     pub fn get_config(&self, global_options: Option<&GlobalOptions>) -> Result<Config> {
-        let signer = if let Some(keypair_path) = &self.keypair_path {
-            let wallet_path = keypair_path.clone();
+        let fee_payer =
+            read_keypair_file(&*shellexpand::tilde(&self.keypair_path.clone().unwrap()))
+                .expect("Example requires a keypair file");
 
-            CliSigner::Keypair(
-                read_keypair_file(&*shellexpand::tilde(&wallet_path))
-                    .expect("Example requires a keypair file"),
-            )
-        } else {
-            CliSigner::Multisig(self.multisig.unwrap())
-        };
+        let multisig = self.multisig;
 
         let dry_run = match global_options {
             Some(options) => options.dry_run,
@@ -113,7 +108,8 @@ impl Profile {
 
         Ok(Config {
             cluster,
-            signer,
+            fee_payer,
+            multisig,
             program_id,
             commitment,
             dry_run,
@@ -264,7 +260,8 @@ Profile:
     Marginfi Account: {}
     Cluster: {}
     Rpc URL: {}
-    Signer: {}
+    Fee Payer: {}
+    Authority: {}
     Keypair: {}
     Multisig: {}
         "#,
@@ -278,7 +275,8 @@ Profile:
                 .unwrap_or_else(|| "None".to_owned()),
             self.cluster,
             self.rpc_url,
-            config.signer.pubkey(),
+            config.explicit_fee_payer(),
+            config.authority(),
             self.keypair_path
                 .clone()
                 .unwrap_or_else(|| "None".to_owned()),

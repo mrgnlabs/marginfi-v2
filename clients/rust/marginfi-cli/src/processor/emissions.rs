@@ -1,8 +1,5 @@
 use {
-    crate::{
-        config::{CliSigner, Config},
-        profile::Profile,
-    },
+    crate::{config::Config, profile::Profile},
     anchor_client::anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas},
     anyhow::Result,
     marginfi::state::marginfi_account::MarginfiAccount,
@@ -23,11 +20,7 @@ pub fn claim_all_emissions_for_bank(
 
     let group = profile.marginfi_group.expect("group not set");
 
-    let signing_keypairs = if let CliSigner::Keypair(keypair) = &config.signer {
-        vec![keypair]
-    } else {
-        vec![]
-    };
+    let signing_keypairs = config.get_signers(false);
 
     let marginfi_accounts =
         config
@@ -73,7 +66,7 @@ pub fn claim_all_emissions_for_bank(
     for (i, ixs) in ixs_batches.enumerate() {
         let blockhash = rpc_client.get_latest_blockhash()?;
 
-        let message = Message::new(ixs, Some(&config.signer.pubkey()));
+        let message = Message::new(ixs, Some(&config.authority()));
         let mut transaction = Transaction::new_unsigned(message);
         transaction.partial_sign(&signing_keypairs, blockhash);
 
