@@ -92,7 +92,7 @@ impl Config {
 
     /// Get the authority keypair for signing transactions.
     /// This errors if the authority is a multisig.
-    pub fn get_authority_keypair(&self) -> anyhow::Result<&Keypair> {
+    pub fn get_non_ms_authority_keypair(&self) -> anyhow::Result<&Keypair> {
         if self.multisig.is_none() {
             Ok(&self.fee_payer)
         } else {

@@ -17,7 +17,6 @@ use {
     std::collections::HashMap,
 };
 
-#[cfg(feature = "admin")]
 use marginfi::{
     bank_seed,
     constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS},
@@ -67,7 +66,6 @@ pub fn process_transaction(
     }
 }
 
-#[cfg(feature = "admin")]
 pub fn find_bank_vault_pda(
     bank_pk: &Pubkey,
     vault_type: BankVaultType,
