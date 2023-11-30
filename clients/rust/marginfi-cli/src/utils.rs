@@ -1,5 +1,4 @@
 use {
-    crate::config::CliSigner,
     anyhow::{bail, Result},
     fixed::types::I80F48,
     fixed_macro::types::I80F48,
@@ -18,20 +17,20 @@ use {
     std::collections::HashMap,
 };
 
-#[cfg(feature = "admin")]
 use marginfi::{
     bank_seed,
     constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS},
 };
 
+use crate::config::TxMode;
+
 pub fn process_transaction(
     tx: &Transaction,
     rpc_client: &RpcClient,
-    dry_run: bool,
-    signer: &CliSigner,
+    tx_mode: TxMode,
 ) -> Result<Signature> {
-    if dry_run {
-        match rpc_client.simulate_transaction(tx) {
+    match tx_mode {
+        TxMode::DryRun => match rpc_client.simulate_transaction(tx) {
             Ok(response) => {
                 println!("------- program logs -------");
                 response
@@ -44,27 +43,29 @@ pub fn process_transaction(
                 Ok(Signature::default())
             }
             Err(err) => bail!(err),
+        },
+        TxMode::Multisig => {
+            let bytes = bincode::serialize(tx)?;
+            let tx_size = bytes.len();
+            let tx_serialized = bs58::encode(bytes).into_string();
+
+            println!("tx size: {} bytes", tx_size);
+            println!("------- transaction -------");
+            println!("{}", tx_serialized);
+            println!("---------------------------");
+
+            Ok(Signature::default())
         }
-    } else if let CliSigner::Multisig(_) = signer {
-        let tx_serialized = bs58::encode(bincode::serialize(tx)?).into_string();
-
-        println!("------- transaction -------");
-        println!("{}", tx_serialized);
-        println!("---------------------------");
-
-        Ok(Signature::default())
-    } else {
-        match rpc_client.send_and_confirm_transaction_with_spinner(tx) {
+        TxMode::Normal => match rpc_client.send_and_confirm_transaction_with_spinner(tx) {
             Ok(sig) => Ok(sig),
             Err(err) => {
                 error!("transaction failed: {:?}", err);
                 bail!(err);
             }
-        }
+        },
     }
 }
 
-#[cfg(feature = "admin")]
 pub fn find_bank_vault_pda(
     bank_pk: &Pubkey,
     vault_type: BankVaultType,

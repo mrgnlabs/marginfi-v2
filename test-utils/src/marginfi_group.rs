@@ -80,6 +80,7 @@ impl MarginfiGroupFixture {
         let mut accounts = marginfi::accounts::LendingPoolAddBank {
             marginfi_group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
+            fee_payer: self.ctx.borrow().payer.pubkey(),
             bank_mint,
             bank: bank_key.pubkey(),
             liquidity_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Liquidity).0,
