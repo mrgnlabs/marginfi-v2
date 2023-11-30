@@ -1,0 +1,118 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "*"
+
+defaults:
+  run:
+    shell: bash
+    working-directory: .
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
+  RUST_TOOLCHAIN: 1.66.1
+  SOLANA_CLI_VERSION: 1.14.17
+  PROGRAM_PATH: "programs/marginfi/"
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup-common/
+      - uses: actions/cache@v2
+        name: Cache Cargo registry + index
+        id: cache-cargo-build
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo fmt -- --check
+      - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A clippy::result_large_err -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::bind_instead_of_map
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: cache dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Install minimal rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          default: true
+      - name: Run fuzz tests in fuzz dir
+        run: |
+          cd programs/marginfi
+          cargo install cargo-fuzz
+          cargo fuzz run lend -- -max_total_time=300
+      - name: Pass after fuzzing
+        run: echo "Fuzzing completed"
+
+  # build:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: cache dependencies
+  #       uses: Swatinem/rust-cache@v2
+  #     - name: Install minimal rust toolchain
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         profile: minimal
+  #         toolchain: ${{ env.RUST_TOOLCHAIN }}
+  #         default: true
+  #     - name: install solana
+  #       run: |
+  #         sh -c "$(curl -sSfL https://release.solana.com/v${{ env.SOLANA_VERSION }}/install)"
+  #         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+  #         export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+  #         solana-keygen new -o "$HOME/.config/solana/id.json" --no-passphrase --silent
+  #     - name: Setup node
+  #       uses: actions/setup-node@v2
+  #       with:
+  #         node-version: '16.x'
+  #         registry-url: 'https://registry.npmjs.org'
+  #     - name: install anchor cli
+  #       run: npm install -g @coral-xyz/anchor-cli@0.26.0
+  #     - run: anchor build
+
+  # test:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: cache dependencies
+  #       uses: Swatinem/rust-cache@v2
+  #     - name: Install minimal rust toolchain
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         profile: minimal
+  #         toolchain: ${{ env.RUST_TOOLCHAIN }}
+  #         default: true
+  #     - name: install solana
+  #       run: |
+  #         sh -c "$(curl -sSfL https://release.solana.com/v${{ env.SOLANA_VERSION }}/install)"
+  #         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+  #         export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+  #         solana-keygen new -o "$HOME/.config/solana/id.json" --no-passphrase --silent
+  #     - name: Setup node
+  #       uses: actions/setup-node@v2
+  #       with:
+  #         node-version: '16.x'
+  #         registry-url: 'https://registry.npmjs.org'
+  #     - name: install anchor cli
+  #       run: npm install -g @coral-xyz/anchor-cli@0.26.0
+  #     - run: ./scripts/test.sh

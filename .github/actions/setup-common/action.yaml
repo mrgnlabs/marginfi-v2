@@ -1,0 +1,24 @@
+name: "Setup common"
+description: "Setup common"
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
+  RUST_TOOLCHAIN: 1.66.1
+runs:
+  using: "composite"
+  steps:
+      - run: sudo apt-get update
+        shell: bash
+      - run: sudo apt-get install -y pkg-config build-essential libudev-dev
+        shell: bash
+      - run: |
+          echo "ANCHOR_VERSION=0.26.0" >> $GITHUB_ENV
+          echo "ANCHOR_SHA=347c225a27a4c615479f3c0de372604b314cbd4f" >> $GITHUB_ENV
+        shell: bash
+      - uses: actions-rs/toolchain@v1
+        name: Install minimal rust toolchain with clippy and rustfmt
+        with:
+          profile: minimal
+          toolchain: 1.66.1
+          components: rustfmt, clippy
+          default: true
