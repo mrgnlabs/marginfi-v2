@@ -1,5 +1,6 @@
 name: "Setup Anchor CLI"
 description: "Setup Anchor CLI"
+
 runs:
   using: "composite"
   steps:

@@ -1,0 +1,38 @@
+name: "Build Verified"
+description: "Builds an Anchor Program using solana-verify"
+
+inputs:
+  program_lib_name:
+    description: "The program to build"
+    required: true
+  devnet:
+    description: "Whether to target devnet (fallback is mainnet)"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/setup-common/
+    - uses: ./.github/actions/setup-anchor-cli/
+    - uses: actions/cache@v2
+      name: Cache Cargo registry + index
+      id: cache-cargo-registry
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: cargo-${{ runner.os }}-v0001-${{ hashFiles('**/Cargo.lock') }}
+    - uses: actions/cache@v2
+      name: Cache Solana Verify
+      id: cache-solana-verify
+      with:
+        path: |
+          ~/.cargo/bin/solana-verify
+        key: cargo-${{ runner.os }}-solana-verify
+    - run: cargo install solana-verify
+      if: steps.cache-solana-verify.outputs.cache-hit != 'true'
+      shell: bash
+    - run: ./scripts/build-verifiable ${{ inputs.program_lib_name }} ${{ inputs.devnet == 'true' && 'devnet' || 'mainnet' }}
+      shell: bash
