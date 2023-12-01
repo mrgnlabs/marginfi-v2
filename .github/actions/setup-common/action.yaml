@@ -11,6 +11,6 @@ runs:
         name: Install minimal rust toolchain with clippy and rustfmt
         with:
           profile: minimal
-          toolchain: $RUST_TOOLCHAIN
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt, clippy
           default: true
