@@ -12,8 +12,8 @@ runs:
       - run: sudo apt-get install -y pkg-config build-essential libudev-dev
         shell: bash
       - run: |
-          echo "ANCHOR_VERSION=0.26.0" >> $GITHUB_ENV
-          echo "ANCHOR_SHA=347c225a27a4c615479f3c0de372604b314cbd4f" >> $GITHUB_ENV
+          echo "ANCHOR_VERSION=0.28.0" >> $GITHUB_ENV
+          echo "ANCHOR_SHA=e1afcbf71e0f2e10fae14525934a6a68479167b9" >> $GITHUB_ENV
         shell: bash
       - uses: actions-rs/toolchain@v1
         name: Install minimal rust toolchain with clippy and rustfmt
