@@ -64,7 +64,7 @@ jobs:
       - run: cargo test --lib
 
   build-programs:
-    name: Build Anchor Programs
+    name: Build and Test Anchor Programs
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -74,7 +74,7 @@ jobs:
           - liquidity_incentive_program
     steps:
       - uses: actions/checkout@v2
-      - uses: ./.github/actions/build-anchor/
+      - uses: ./.github/actions/build-and-test-anchor/
         with:
           program: ${{ matrix.program }}
 
@@ -97,57 +97,3 @@ jobs:
           cargo fuzz run lend -- -max_total_time=300
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
-        
-  # build:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - name: cache dependencies
-  #       uses: Swatinem/rust-cache@v2
-  #     - name: Install minimal rust toolchain
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: ${{ env.RUST_TOOLCHAIN }}
-  #         default: true
-  #     - name: install solana
-  #       run: |
-  #         sh -c "$(curl -sSfL https://release.solana.com/v${{ env.SOLANA_VERSION }}/install)"
-  #         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-  #         export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
-  #         solana-keygen new -o "$HOME/.config/solana/id.json" --no-passphrase --silent
-  #     - name: Setup node
-  #       uses: actions/setup-node@v2
-  #       with:
-  #         node-version: '16.x'
-  #         registry-url: 'https://registry.npmjs.org'
-  #     - name: install anchor cli
-  #       run: npm install -g @coral-xyz/anchor-cli@0.26.0
-  #     - run: anchor build
-
-  # test:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - name: cache dependencies
-  #       uses: Swatinem/rust-cache@v2
-  #     - name: Install minimal rust toolchain
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: ${{ env.RUST_TOOLCHAIN }}
-  #         default: true
-  #     - name: install solana
-  #       run: |
-  #         sh -c "$(curl -sSfL https://release.solana.com/v${{ env.SOLANA_VERSION }}/install)"
-  #         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-  #         export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
-  #         solana-keygen new -o "$HOME/.config/solana/id.json" --no-passphrase --silent
-  #     - name: Setup node
-  #       uses: actions/setup-node@v2
-  #       with:
-  #         node-version: '16.x'
-  #         registry-url: 'https://registry.npmjs.org'
-  #     - name: install anchor cli
-  #       run: npm install -g @coral-xyz/anchor-cli@0.26.0
-  #     - run: ./scripts/test.sh

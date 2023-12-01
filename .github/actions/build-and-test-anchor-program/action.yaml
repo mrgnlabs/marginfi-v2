@@ -1,9 +1,9 @@
-name: "Anchor build"
-description: "Anchor build"
+name: "Anchor Build and Test"
+description: "Anchor Build and Test"
 inputs:
   program:
     description: "The program to build"
-    required: false
+    required: true
 runs:
   using: "composite"
   steps:
@@ -28,6 +28,9 @@ runs:
         path: |
           ./target/
         key: build-${{ runner.os }}-${{env.ANCHOR_CLI_VERSION}}-${{env.ANCHOR_SHA}}-v0002-${{ hashFiles('./programs/**/**') }}-${{ inputs.program }}
-    - run: ~/.cargo/bin/anchor build ${{ (inputs.program != '' && '-p') || '' }} ${{ inputs.program || '' }}
+    - run: ./scripts/build -p ${{ inputs.program }} mainnet
+      if: steps.cache-anchor-build.outputs.cache-hit != 'true'
+      shell: bash
+    - run: ./scripts/test.sh ${{ inputs.program }}
       if: steps.cache-anchor-build.outputs.cache-hit != 'true'
       shell: bash
