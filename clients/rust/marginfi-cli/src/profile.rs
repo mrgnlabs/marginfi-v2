@@ -1,3 +1,5 @@
+use crate::config::CliSigner;
+
 use {
     crate::config::{Config, GlobalOptions},
     anchor_client::{Client, Cluster},
@@ -97,14 +99,16 @@ impl Profile {
             commitment,
         );
         let program = client.program(program_id).unwrap();
-        let lip_program = client.program(match cluster {
-            Cluster::Mainnet => pubkey!("LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"),
-            Cluster::Devnet => pubkey!("sexyDKo4Khm38YdJeiRdNNd5aMQqNtfDkxv7MnYNFeU"),
-            _ => bail!(
-                "cluster {:?} doesn't have a default program ID for the LIP",
-                cluster
-            ),
-        }).unwrap();
+        let lip_program = client
+            .program(match cluster {
+                Cluster::Mainnet => pubkey!("LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"),
+                Cluster::Devnet => pubkey!("sexyDKo4Khm38YdJeiRdNNd5aMQqNtfDkxv7MnYNFeU"),
+                _ => bail!(
+                    "cluster {:?} doesn't have a default program ID for the LIP",
+                    cluster
+                ),
+            })
+            .unwrap();
 
         Ok(Config {
             cluster,

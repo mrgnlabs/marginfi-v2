@@ -80,7 +80,10 @@ impl Signer for CliSigner {
         Ok(self.pubkey())
     }
 
-    fn try_sign_message(&self, message: &[u8]) -> Result<Signature, solana_sdk::signature::SignerError> {
+    fn try_sign_message(
+        &self,
+        message: &[u8],
+    ) -> Result<Signature, solana_sdk::signature::SignerError> {
         match self {
             CliSigner::Keypair(keypair) => Ok(keypair.try_sign_message(message)?),
             CliSigner::Multisig(_) => Err(solana_sdk::signature::SignerError::Custom(

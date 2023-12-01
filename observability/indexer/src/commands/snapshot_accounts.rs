@@ -32,8 +32,8 @@ use tracing::{debug, error, info, warn};
 use yellowstone_grpc_client::GeyserGrpcClient;
 use yellowstone_grpc_proto::geyser::subscribe_update::UpdateOneof;
 use yellowstone_grpc_proto::geyser::{
-    SubscribeRequest, SubscribeRequestFilterAccounts, SubscribeRequestFilterBlocks,
-    SubscribeRequestFilterSlots, SubscribeRequestPing, CommitmentLevel,
+    CommitmentLevel, SubscribeRequest, SubscribeRequestFilterAccounts,
+    SubscribeRequestFilterBlocks, SubscribeRequestFilterSlots, SubscribeRequestPing,
 };
 use yellowstone_grpc_proto::tonic::transport::ClientTlsConfig;
 use yup_oauth2::parse_service_account_key;
