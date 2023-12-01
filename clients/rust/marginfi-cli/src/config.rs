@@ -50,14 +50,12 @@ pub enum TxMode {
 
 pub enum CliSigner {
     Keypair(Keypair),
-    Multisig(Pubkey),
 }
 
 impl CliSigner {
     pub fn pubkey(&self) -> Pubkey {
         match self {
             CliSigner::Keypair(keypair) => keypair.pubkey(),
-            CliSigner::Multisig(pubkey) => pubkey.clone(),
         }
     }
 }
@@ -70,7 +68,6 @@ impl Clone for CliSigner {
     fn clone(&self) -> Self {
         match self {
             CliSigner::Keypair(keypair) => CliSigner::Keypair(clone_keypair(keypair)),
-            CliSigner::Multisig(pubkey) => CliSigner::Multisig(pubkey.clone()),
         }
     }
 }
@@ -86,16 +83,12 @@ impl Signer for CliSigner {
     ) -> Result<Signature, solana_sdk::signature::SignerError> {
         match self {
             CliSigner::Keypair(keypair) => Ok(keypair.try_sign_message(message)?),
-            CliSigner::Multisig(_) => Err(solana_sdk::signature::SignerError::Custom(
-                "Multisig does not support message signing".to_string(),
-            )),
         }
     }
 
     fn is_interactive(&self) -> bool {
         match self {
             CliSigner::Keypair(_) => true,
-            CliSigner::Multisig(_) => false,
         }
     }
 }
@@ -106,7 +99,6 @@ impl Deref for CliSigner {
     fn deref(&self) -> &Self::Target {
         match self {
             CliSigner::Keypair(keypair) => keypair,
-            CliSigner::Multisig(_) => panic!("Multisig cannot sign."),
         }
     }
 }
