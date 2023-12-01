@@ -6,7 +6,7 @@ program_lib_name=$1
 cluster=$2
 keypair=$3
 
-if [[ -z "$keypair" || -z "$program_lib_name" || -z "$cluster" ]]; then
+if [ -z "$keypair" ] || [ -z "$program_lib_name" ] || [ -z "$cluster" ]; then
     ecbo "Usage: $0 <program_lib_name> <cluster> <keypair>"
     exit 1
 fi
