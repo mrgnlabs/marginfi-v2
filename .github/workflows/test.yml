@@ -1,4 +1,4 @@
-name: test
+name: Test
 
 on:
   push:
@@ -16,8 +16,8 @@ defaults:
 env:
   RUST_TOOLCHAIN: 1.71.0
   SOLANA_CLI_VERSION: 1.14.17
-  ANCHOR_VERSION: 0.28.0
-  ANCHOR_SHA: e1afcbf71e0f2e10fae14525934a6a68479167b9
+  ANCHOR_CLI_VERSION: 0.29.0
+  ANCHOR_SHA: fc9fd6d24b9be84abb2f40e47ed3faf7b11864ae
   CARGO_TERM_COLOR: always
   CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
 
@@ -27,6 +27,7 @@ concurrency:
 
 jobs:
   lint:
+    name: Rust Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

@@ -11,8 +11,8 @@ runs:
       with:
         path: |
           ~/.cargo/bin/anchor
-        key: anchor-cli-${{ runner.os }}-v0003-${{ env.ANCHOR_VERSION }}-${{ env.ANCHOR_SHA }}
-    - run: cargo install --git https://github.com/coral-xyz/anchor --tag "v$ANCHOR_VERSION" anchor-cli --locked
+        key: anchor-cli-${{ runner.os }}-v0003-${{ env.ANCHOR_CLI_VERSION }}-${{ env.ANCHOR_SHA }}
+    - run: cargo install --git https://github.com/coral-xyz/anchor --tag "v$ANCHOR_CLI_VERSION" anchor-cli --locked
       shell: bash
       if: steps.cache-anchor-cli.outputs.cache-hit != 'true'
     - uses: actions/cache@v2
