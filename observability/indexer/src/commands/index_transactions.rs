@@ -1,26 +1,18 @@
-use crate::utils::geyser_client::get_geyser_client;
-use crate::utils::{
-    big_query::DATE_FORMAT_STR,
-    protos::{
-        gcp_pubsub,
-        geyser::{
-            subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterSlots,
-            SubscribeRequestFilterTransactions, SubscribeUpdateSlotStatus,
-        },
-    },
-};
+use crate::utils::{big_query::DATE_FORMAT_STR, protos::gcp_pubsub};
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
-use futures::{future::join_all, stream, StreamExt};
+use futures::{future::join_all, SinkExt, StreamExt};
 use google_cloud_default::WithAuthExt;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::client::{Client, ClientConfig};
 use itertools::Itertools;
 use solana_measure::measure::Measure;
 use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::TransactionVersion};
-use solana_transaction_status::{UiTransactionStatusMeta, VersionedTransactionWithStatusMeta};
+use solana_transaction_status::{
+    TransactionWithStatusMeta, UiTransactionStatusMeta, VersionedTransactionWithStatusMeta,
+};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     sync::{
@@ -32,6 +24,15 @@ use std::{
 use tonic::Status;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
+use yellowstone_grpc_client::GeyserGrpcClient;
+use yellowstone_grpc_proto::{
+    convert_from,
+    geyser::{
+        subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
+        SubscribeRequestFilterSlots, SubscribeRequestFilterTransactions, SubscribeRequestPing,
+    },
+    tonic::transport::ClientTlsConfig,
+};
 
 #[derive(Envconfig, Debug, Clone)]
 pub struct IndexTransactionsConfig {
@@ -116,77 +117,85 @@ pub async fn index_transactions(config: IndexTransactionsConfig) -> Result<()> {
 
 async fn listen_to_updates(ctx: Arc<Context>) {
     loop {
-        info!("Instantiating geyser client");
-        match get_geyser_client(
+        info!("Connecting geyser client");
+        let geyser_client_connection_result = GeyserGrpcClient::connect(
             ctx.config.rpc_endpoint.to_string(),
-            ctx.config.rpc_token.to_string(),
-        )
-        .await
-        {
-            Ok(mut geyser_client) => {
-                info!("Subscribing to updates for {:?}", ctx.config.program_id);
-                let stream_request = geyser_client
-                    .subscribe(stream::iter([SubscribeRequest {
-                        accounts: HashMap::default(),
-                        slots: HashMap::from_iter([(
-                            "slots".to_string(),
-                            SubscribeRequestFilterSlots {},
-                        )]),
-                        transactions: HashMap::from_iter([(
-                            ctx.config.program_id.to_string(),
-                            SubscribeRequestFilterTransactions {
-                                vote: Some(false),
-                                failed: Some(false),
-                                account_include: vec![ctx.config.program_id.to_string()],
-                                account_exclude: vec![],
-                            },
-                        )]),
-                        blocks: HashMap::default(),
-                    }]))
-                    .await;
+            Some(ctx.config.rpc_token.to_string()),
+            Some(ClientTlsConfig::new()),
+        );
 
-                match stream_request {
-                    Ok(stream_response) => {
-                        info!("Subscribed to updates");
-                        let mut stream = stream_response.into_inner();
-                        while let Some(received) = stream.next().await {
-                            match received {
-                                Ok(received) => {
-                                    if let Some(update) = received.update_oneof {
-                                        match process_update(ctx.clone(), &received.filters, update)
-                                        {
-                                            Ok(_) => {}
-                                            Err(err) => {
-                                                error!("Error processing update: {}", err);
-                                                ctx.update_processing_error_count
-                                                    .fetch_add(1, Ordering::Relaxed);
-                                            }
-                                        }
-                                    }
-                                }
-                                Err(err) => {
-                                    error!("Error pulling next update: {}", err);
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                    break;
-                                }
-                            }
-                        }
-
-                        error!("Stream got disconnected");
-                        ctx.stream_disconnection_count
-                            .fetch_add(1, Ordering::Relaxed);
-                    }
-                    Err(err) => {
-                        error!("Error establishing geyser sub: {}", err);
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                    }
-                }
-            }
+        let mut geyser_client = match geyser_client_connection_result {
+            Ok(geyser_client) => geyser_client,
             Err(err) => {
-                error!("Error creating geyser client: {}", err);
+                error!("Error connecting to geyser client: {}", err);
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+        };
+
+        // Establish streams
+        let (mut subscribe_request_sink, mut stream) = match geyser_client.subscribe().await {
+            Ok(value) => value,
+            Err(e) => {
+                error!("Error subscribing geyser client {e}");
+                continue;
+            }
+        };
+
+        let subscribe_request = SubscribeRequest {
+            accounts: HashMap::default(),
+            slots: HashMap::from_iter([(
+                "slots".to_string(),
+                SubscribeRequestFilterSlots::default(),
+            )]),
+            transactions: HashMap::from_iter([(
+                ctx.config.program_id.to_string(),
+                SubscribeRequestFilterTransactions {
+                    vote: Some(false),
+                    failed: Some(false),
+                    account_include: vec![ctx.config.program_id.to_string()],
+                    account_exclude: vec![],
+                    ..Default::default()
+                },
+            )]),
+            ping: Some(SubscribeRequestPing::default()),
+            ..Default::default()
+        };
+
+        // Send initial subscription config
+        match subscribe_request_sink.send(subscribe_request).await {
+            Ok(()) => info!("Successfully sent initial subscription config"),
+            Err(e) => {
+                error!("Error establishing geyser sub: {}", e);
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
+
+        while let Some(received) = stream.next().await {
+            match received {
+                Ok(received) => {
+                    if let Some(update) = received.update_oneof {
+                        match process_update(ctx.clone(), &received.filters, update) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                error!("Error processing update: {}", err);
+                                ctx.update_processing_error_count
+                                    .fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                    }
+                }
+                Err(err) => {
+                    error!("Error pulling next update: {}", err);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    break;
+                }
+            }
+        }
+
+        error!("Stream got disconnected");
+        ctx.stream_disconnection_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -195,8 +204,7 @@ fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) ->
         UpdateOneof::Transaction(transaction_update) => {
             if let Some(transaction_info) = transaction_update.transaction {
                 let signature = transaction_info.signature.clone();
-                let transaction: VersionedTransactionWithStatusMeta =
-                    transaction_info.try_into()?;
+                let transaction = convert_from::create_tx_with_meta(transaction_info).unwrap();
                 let mut transactions_queue = ctx.transactions_queue.lock().unwrap();
 
                 let slot_transactions = match transactions_queue.get_mut(&transaction_update.slot) {
@@ -209,9 +217,22 @@ fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) ->
                     }
                 };
 
+                let transaction = match transaction {
+                    TransactionWithStatusMeta::MissingMetadata(transaction) => {
+                        error!(
+                            "Missing metadata for transaction {}. Skipping potentially relevant transaction.",
+                            transaction.signatures.first().unwrap()
+                        );
+                        return Ok(());
+                    }
+                    TransactionWithStatusMeta::Complete(transaction_with_meta) => {
+                        transaction_with_meta
+                    }
+                };
+
                 slot_transactions.push(TransactionData {
                     timestamp: Utc::now(),
-                    signature: Signature::new(&signature),
+                    signature: Signature::try_from(signature).unwrap(),
                     slot: transaction_update.slot,
                     indexing_addresses: filters.to_vec(),
                     transaction,
@@ -222,8 +243,8 @@ fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) ->
             }
         }
         UpdateOneof::Slot(slot) => {
-            if slot.status == SubscribeUpdateSlotStatus::Confirmed as i32
-                || slot.status == SubscribeUpdateSlotStatus::Finalized as i32
+            if slot.status == CommitmentLevel::Confirmed as i32
+                || slot.status == CommitmentLevel::Finalized as i32
             {
                 let mut latest_slots = ctx.latest_slots_with_commitment.lock().unwrap();
                 let slot_inserted = latest_slots.insert(slot.slot);

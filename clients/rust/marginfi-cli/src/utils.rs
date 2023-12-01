@@ -1,3 +1,7 @@
+use crate::config::TxMode;
+use marginfi::bank_seed;
+#[cfg(feature = "admin")]
+use marginfi::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS};
 use {
     anyhow::{bail, Result},
     fixed::types::I80F48,
@@ -16,13 +20,6 @@ use {
     },
     std::collections::HashMap,
 };
-
-use marginfi::{
-    bank_seed,
-    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS},
-};
-
-use crate::config::TxMode;
 
 pub fn process_transaction(
     tx: &Transaction,

@@ -10,7 +10,7 @@ use {
         pubkey::Pubkey,
         signature::{read_keypair_file, Keypair},
     },
-    std::{fs, path::PathBuf, rc::Rc},
+    std::{fs, path::PathBuf},
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -93,10 +93,10 @@ impl Profile {
         };
         let client = Client::new_with_options(
             Cluster::Custom(self.rpc_url.clone(), "https://dontcare.com:123".to_string()),
-            Rc::new(Keypair::new()),
+            CliSigner::Keypair(Keypair::new()),
             commitment,
         );
-        let program = client.program(program_id);
+        let program = client.program(program_id).unwrap();
         let lip_program = client.program(match cluster {
             Cluster::Mainnet => pubkey!("LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"),
             Cluster::Devnet => pubkey!("sexyDKo4Khm38YdJeiRdNNd5aMQqNtfDkxv7MnYNFeU"),
@@ -104,7 +104,7 @@ impl Profile {
                 "cluster {:?} doesn't have a default program ID for the LIP",
                 cluster
             ),
-        });
+        }).unwrap();
 
         Ok(Config {
             cluster,

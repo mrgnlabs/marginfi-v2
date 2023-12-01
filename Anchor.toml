@@ -1,9 +1,10 @@
+[toolchain]
+anchor_version = "0.29.0"
+solana_version = "1.16.20"
+
 [features]
 seeds = true
 skip-lint = false
-
-[programs.devnet]
-marginfi = "EPsDwX4sRNRkiykuqeyExF5LsHV9XBPMZM6gHj7QQbkY"
 
 [programs.localnet]
 marginfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"

@@ -1,3 +1,5 @@
+use solana_sdk::signature::Signature;
+
 use {
     anchor_client::{Client, Cluster, Program},
     clap::Parser,
@@ -7,6 +9,7 @@ use {
         pubkey::Pubkey,
         signature::{Keypair, Signer},
     },
+    std::ops::Deref,
     std::str::FromStr,
 };
 
@@ -45,6 +48,66 @@ pub enum TxMode {
     Normal,
 }
 
+pub enum CliSigner {
+    Keypair(Keypair),
+    Multisig(Pubkey),
+}
+
+impl CliSigner {
+    pub fn pubkey(&self) -> Pubkey {
+        match self {
+            CliSigner::Keypair(keypair) => keypair.pubkey(),
+            CliSigner::Multisig(pubkey) => pubkey.clone(),
+        }
+    }
+}
+
+pub fn clone_keypair(keypair: &Keypair) -> Keypair {
+    Keypair::from_bytes(&keypair.to_bytes()).unwrap()
+}
+
+impl Clone for CliSigner {
+    fn clone(&self) -> Self {
+        match self {
+            CliSigner::Keypair(keypair) => CliSigner::Keypair(clone_keypair(keypair)),
+            CliSigner::Multisig(pubkey) => CliSigner::Multisig(pubkey.clone()),
+        }
+    }
+}
+
+impl Signer for CliSigner {
+    fn try_pubkey(&self) -> Result<Pubkey, solana_sdk::signature::SignerError> {
+        Ok(self.pubkey())
+    }
+
+    fn try_sign_message(&self, message: &[u8]) -> Result<Signature, solana_sdk::signature::SignerError> {
+        match self {
+            CliSigner::Keypair(keypair) => Ok(keypair.try_sign_message(message)?),
+            CliSigner::Multisig(_) => Err(solana_sdk::signature::SignerError::Custom(
+                "Multisig does not support message signing".to_string(),
+            )),
+        }
+    }
+
+    fn is_interactive(&self) -> bool {
+        match self {
+            CliSigner::Keypair(_) => true,
+            CliSigner::Multisig(_) => false,
+        }
+    }
+}
+
+impl Deref for CliSigner {
+    type Target = Keypair;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            CliSigner::Keypair(keypair) => keypair,
+            CliSigner::Multisig(_) => panic!("Multisig cannot sign."),
+        }
+    }
+}
+
 pub struct Config {
     pub cluster: Cluster,
     pub fee_payer: Keypair,
@@ -52,9 +115,9 @@ pub struct Config {
     pub program_id: Pubkey,
     pub commitment: CommitmentConfig,
     pub dry_run: bool,
-    pub client: Client,
-    pub mfi_program: Program,
-    pub lip_program: Program,
+    pub client: Client<CliSigner>,
+    pub mfi_program: Program<CliSigner>,
+    pub lip_program: Program<CliSigner>,
 }
 
 impl Config {

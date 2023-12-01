@@ -1,21 +1,9 @@
-use crate::{
-    utils::geyser_client::get_geyser_client,
-    utils::{
-        big_query::DATE_FORMAT_STR,
-        protos::{
-            gcp_pubsub,
-            geyser::{
-                subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterAccounts,
-                SubscribeRequestFilterSlots, SubscribeUpdateSlotStatus,
-            },
-        },
-    },
-};
+use crate::utils::{big_query::DATE_FORMAT_STR, convert_account, protos::gcp_pubsub};
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
-use futures::{future::join_all, stream, StreamExt};
+use futures::{future::join_all, SinkExt, StreamExt};
 use google_cloud_default::WithAuthExt;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::client::{Client, ClientConfig};
@@ -33,6 +21,14 @@ use std::{
 use tonic::Status;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
+use yellowstone_grpc_client::GeyserGrpcClient;
+use yellowstone_grpc_proto::{
+    geyser::{
+        subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
+        SubscribeRequestFilterAccounts, SubscribeRequestFilterSlots, SubscribeRequestPing,
+    },
+    tonic::transport::ClientTlsConfig,
+};
 
 #[derive(Envconfig, Debug, Clone)]
 pub struct IndexAccountsConfig {
@@ -118,74 +114,84 @@ pub async fn index_accounts(config: IndexAccountsConfig) -> Result<()> {
 
 async fn listen_to_updates(ctx: Arc<Context>) {
     loop {
-        info!("Instantiating geyser client");
-        match get_geyser_client(
+        info!("Connecting geyser client");
+        let geyser_client_connection_result = GeyserGrpcClient::connect(
             ctx.config.rpc_endpoint.to_string(),
-            ctx.config.rpc_token.to_string(),
-        )
-        .await
-        {
-            Ok(mut geyser_client) => {
-                info!("Subscribing to updates for {:?}", ctx.config.program_id);
-                let stream_request = geyser_client
-                    .subscribe(stream::iter([SubscribeRequest {
-                        accounts: HashMap::from_iter([(
-                            ctx.config.program_id.to_string(),
-                            SubscribeRequestFilterAccounts {
-                                owner: vec![ctx.config.program_id.to_string()],
-                                account: vec![],
-                            },
-                        )]),
-                        slots: HashMap::from_iter([(
-                            "slots".to_string(),
-                            SubscribeRequestFilterSlots {},
-                        )]),
-                        transactions: HashMap::default(),
-                        blocks: HashMap::default(),
-                    }]))
-                    .await;
+            Some(ctx.config.rpc_token.to_string()),
+            Some(ClientTlsConfig::new()),
+        );
 
-                match stream_request {
-                    Ok(stream_response) => {
-                        info!("Subscribed to updates");
-                        let mut stream = stream_response.into_inner();
-                        while let Some(received) = stream.next().await {
-                            match received {
-                                Ok(received) => {
-                                    if let Some(update) = received.update_oneof {
-                                        match process_update(ctx.clone(), update) {
-                                            Ok(_) => {}
-                                            Err(err) => {
-                                                error!("Error processing update: {}", err);
-                                                ctx.update_processing_error_count
-                                                    .fetch_add(1, Ordering::Relaxed);
-                                            }
-                                        }
-                                    }
-                                }
-                                Err(err) => {
-                                    error!("Error pulling next update: {}", err);
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                    break;
-                                }
-                            }
-                        }
-
-                        error!("Stream got disconnected");
-                        ctx.stream_disconnection_count
-                            .fetch_add(1, Ordering::Relaxed);
-                    }
-                    Err(err) => {
-                        error!("Error establishing geyser sub: {}", err);
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                    }
-                }
-            }
+        let mut geyser_client = match geyser_client_connection_result {
+            Ok(geyser_client) => geyser_client,
             Err(err) => {
-                error!("Error creating geyser client: {}", err);
+                error!("Error connecting to geyser client: {}", err);
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+        };
+
+        // Establish streams
+        let (mut subscribe_request_sink, mut stream) = match geyser_client.subscribe().await {
+            Ok(value) => value,
+            Err(e) => {
+                error!("Error subscribing geyser client {e}");
+                continue;
+            }
+        };
+
+        let subscribe_request = SubscribeRequest {
+            accounts: HashMap::from_iter([(
+                ctx.config.program_id.to_string(),
+                SubscribeRequestFilterAccounts {
+                    owner: vec![ctx.config.program_id.to_string()],
+                    account: vec![],
+                    ..Default::default()
+                },
+            )]),
+            slots: HashMap::from_iter([(
+                "slots".to_string(),
+                SubscribeRequestFilterSlots::default(),
+            )]),
+            transactions: HashMap::default(),
+            blocks: HashMap::default(),
+            ping: Some(SubscribeRequestPing::default()),
+            ..Default::default()
+        };
+
+        // Send initial subscription config
+        match subscribe_request_sink.send(subscribe_request).await {
+            Ok(()) => info!("Successfully sent initial subscription config"),
+            Err(e) => {
+                error!("Error establishing geyser sub: {}", e);
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
+
+        while let Some(received) = stream.next().await {
+            match received {
+                Ok(received) => {
+                    if let Some(update) = received.update_oneof {
+                        match process_update(ctx.clone(), update) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                error!("Error processing update: {}", err);
+                                ctx.update_processing_error_count
+                                    .fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                    }
+                }
+                Err(err) => {
+                    error!("Error pulling next update: {}", err);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    break;
+                }
+            }
+        }
+
+        error!("Stream got disconnected");
+        ctx.stream_disconnection_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -194,11 +200,11 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
         UpdateOneof::Account(account_update) => {
             let update_slot = account_update.slot;
             if let Some(account_info) = account_update.account {
-                let address = &Pubkey::new(&account_info.pubkey);
+                let address = &Pubkey::try_from(account_info.pubkey.clone()).unwrap();
                 let txn_signature = account_info
                     .txn_signature
                     .clone()
-                    .map(|sig_bytes| Signature::new(&sig_bytes));
+                    .map(|sig_bytes| Signature::try_from(sig_bytes).unwrap());
                 let mut account_updates_queue = ctx.account_updates_queue.lock().unwrap();
 
                 let slot_account_updates = match account_updates_queue.get_mut(&update_slot) {
@@ -217,7 +223,7 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
                         slot: update_slot,
                         txn_signature,
                         write_version: Some(account_info.write_version),
-                        account_data: account_info.try_into()?,
+                        account_data: convert_account(account_info).unwrap(),
                     },
                 );
             } else {
@@ -225,8 +231,8 @@ fn process_update(ctx: Arc<Context>, update: UpdateOneof) -> Result<()> {
             }
         }
         UpdateOneof::Slot(slot) => {
-            if slot.status == SubscribeUpdateSlotStatus::Confirmed as i32
-                || slot.status == SubscribeUpdateSlotStatus::Finalized as i32
+            if slot.status == CommitmentLevel::Confirmed as i32
+                || slot.status == CommitmentLevel::Finalized as i32
             {
                 let mut latest_slots = ctx.latest_slots_with_commitment.lock().unwrap();
                 let slot_inserted = latest_slots.insert(slot.slot);
