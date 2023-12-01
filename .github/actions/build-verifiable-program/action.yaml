@@ -36,3 +36,5 @@ runs:
       shell: bash
     - run: ./scripts/build-verifiable ${{ inputs.program_lib_name }} ${{ inputs.devnet == 'true' && 'devnet' || 'mainnet' }}
       shell: bash
+      env:
+        PROGRAM: ${{ inputs.program_lib_name }}
