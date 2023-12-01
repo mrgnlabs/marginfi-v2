@@ -223,7 +223,7 @@ pub fn group_create(
 
     let marginfi_group_keypair = Keypair::new();
 
-    let mut init_marginfi_group_ixs_builder = config.mfi_program.request();
+    let init_marginfi_group_ixs_builder = config.mfi_program.request();
 
     let mut signing_keypairs = config.get_signers(false);
     signing_keypairs.push(&marginfi_group_keypair);
@@ -264,8 +264,8 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
         bail!("Marginfi group not specified in profile [{}]", profile.name);
     }
 
-    let mut signing_keypairs = config.get_signers(false);
-    let mut configure_marginfi_group_ixs_builder = config
+    let signing_keypairs = config.get_signers(false);
+    let configure_marginfi_group_ixs_builder = config
         .mfi_program
         .request()
         .signer(*signing_keypairs.first().unwrap());
@@ -354,7 +354,7 @@ pub fn group_add_bank(
 
     let bank_keypair = Keypair::new();
 
-    let mut add_bank_ixs_builder = config.mfi_program.request();
+    let add_bank_ixs_builder = config.mfi_program.request();
 
     let mut signing_keypairs = config.get_signers(true);
     signing_keypairs.push(&bank_keypair);
@@ -1064,7 +1064,7 @@ pub fn bank_configure(
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
-    let mut configure_bank_ixs_builder = config.mfi_program.request();
+    let configure_bank_ixs_builder = config.mfi_program.request();
     let signing_keypairs = config.get_signers(false);
 
     let mut configure_bank_ixs = configure_bank_ixs_builder
