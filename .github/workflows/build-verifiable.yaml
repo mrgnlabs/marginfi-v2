@@ -6,6 +6,10 @@ on:
       program_lib_name:
         description: "Program library name"
         required: true
+        type: choice
+        options:
+          - marginfi
+          - liquidity_incentive_program
   push:
     branches:
       - main
@@ -25,16 +29,8 @@ jobs:
   build-verifiable:
     name: Generate verifiable build
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        program:
-          - marginfi
-          # - liquidity_incentive_program
-
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/build-verifiable-program/
         with:
-          program_lib_name: ${{ matrix.program }}
+          program_lib_name: ${{ inputs.program_lib_name }}
