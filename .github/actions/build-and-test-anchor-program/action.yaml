@@ -28,7 +28,7 @@ runs:
         path: |
           ./target/
         key: build-${{ runner.os }}-${{env.ANCHOR_CLI_VERSION}}-${{env.ANCHOR_SHA}}-v0002-${{ hashFiles('./programs/**/**') }}-${{ inputs.program }}
-    - run: ./scripts/build -p ${{ inputs.program }} mainnet
+    - run: ./scripts/build.sh ${{ inputs.program }} mainnet
       if: steps.cache-anchor-build.outputs.cache-hit != 'true'
       shell: bash
     - run: ./scripts/test.sh ${{ inputs.program }}
