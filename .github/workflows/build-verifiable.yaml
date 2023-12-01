@@ -6,6 +6,12 @@ on:
       program_lib_name:
         description: "Program library name"
         required: true
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "*"
 
 jobs:
   build-verifiable:
