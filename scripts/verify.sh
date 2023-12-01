@@ -12,7 +12,7 @@ program_lib_name=$1
 cluster=$2
 
 if [ -z "$program_lib_name" ] || [ -z "$cluster" ]; then
-    ecbo "Usage: $0 <program_lib_name> <cluster>"
+    echo "Usage: $0 <program_lib_name> <cluster>"
     exit 1
 fi
 
