@@ -14,11 +14,12 @@ defaults:
     working-directory: .
 
 env:
+  RUST_TOOLCHAIN: 1.71.0
+  SOLANA_CLI_VERSION: 1.14.17
+  ANCHOR_VERSION: 0.28.0
+  ANCHOR_SHA: e1afcbf71e0f2e10fae14525934a6a68479167b9
   CARGO_TERM_COLOR: always
   CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
-  RUST_TOOLCHAIN: 1.66.1
-  SOLANA_CLI_VERSION: 1.14.17
-  PROGRAM_PATH: "programs/marginfi/"
 
 concurrency:
   group: build-${{ github.event.pull_request.number || github.ref }}
@@ -43,6 +44,39 @@ jobs:
       - run: cargo fmt -- --check
       - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A clippy::result_large_err -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::bind_instead_of_map
 
+  test-unit:
+    name: Rust Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup-common/
+      - uses: actions/cache@v2
+        name: Cache Cargo registry + index
+        id: cache-cargo-build
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo test --lib
+
+  build-programs:
+    name: Build Anchor Programs
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        program:
+          - marginfi
+          - liquidity-incentive-program
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ./.github/actions/build-anchor/
+        with:
+          program: ${{ matrix.program }}
+
   fuzz:
     runs-on: ubuntu-latest
     steps:
@@ -62,7 +96,7 @@ jobs:
           cargo fuzz run lend -- -max_total_time=300
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
-
+        
   # build:
   #   runs-on: ubuntu-latest
   #   steps:

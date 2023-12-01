@@ -1,0 +1,33 @@
+name: "Anchor build"
+description: "Anchor build"
+inputs:
+  program:
+    description: "The program to build"
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/setup-common/
+    - uses: ./.github/actions/setup-anchor-cli/
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+    - uses: actions/cache@v2
+      name: Cache Cargo registry + index
+      id: cache-cargo-registry
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+    - name: Cache Anchor Build
+      uses: actions/cache@v2
+      id: cache-anchor-build
+      with:
+        path: |
+          ./target/
+        key: build-${{ runner.os }}-${{env.ANCHOR_VERSION}}-${{env.ANCHOR_SHA}}-v0002-${{ hashFiles('./programs/**/**') }}-${{ inputs.program }}
+    - run: ~/.cargo/bin/anchor build ${{ (inputs.program != '' && '-p') || '' }} ${{ inputs.program || '' }}
+      if: steps.cache-anchor-build.outputs.cache-hit != 'true'
+      shell: bash

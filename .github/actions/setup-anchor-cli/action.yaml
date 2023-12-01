@@ -1,0 +1,27 @@
+name: "Setup Anchor CLI"
+description: "Setup Anchor CLI"
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/setup-common/
+    - uses: ./.github/actions/setup-solana/
+    - uses: actions/cache@v2
+      name: Cache Anchor Cli
+      id: cache-anchor-cli
+      with:
+        path: |
+          ~/.cargo/bin/anchor
+        key: anchor-cli-${{ runner.os }}-v0003-${{ env.ANCHOR_VERSION }}-${{ env.ANCHOR_SHA }}
+    - run: cargo install --git https://github.com/coral-xyz/anchor --tag "v$ANCHOR_VERSION" anchor-cli --locked
+      shell: bash
+      if: steps.cache-anchor-cli.outputs.cache-hit != 'true'
+    - uses: actions/cache@v2
+      name: Cache Toml Cli
+      id: cache-toml-cli
+      with:
+        path: |
+          ~/.cargo/bin/toml
+        key: toml-cli-${{ runner.os }}-v0002
+    - run: (cargo install toml-cli || true)
+      if: steps.cache-toml-cli.outputs.cache-hit != 'true'
+      shell: bash
