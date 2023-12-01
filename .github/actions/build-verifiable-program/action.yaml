@@ -41,5 +41,5 @@ runs:
     - name: Upload binary
       uses: actions/upload-artifact@v2
       with:
-        name: ${{ inputs.program_lib_name }}_verifiable_build
+        name: ${{ inputs.program_lib_name }}-verifiable_build-${{ github.run_id }}-${{ github.run_attempt }}
         path: ./target/deploy/${{ inputs.program_lib_name }}.so
