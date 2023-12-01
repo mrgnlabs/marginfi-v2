@@ -1,10 +1,11 @@
 name: Deploy
 
 on:
-  workflow_run:
-    workflows: ["Manual PR Workflow"]
-    types:
-      - manual
+  workflow_dispatch:
+    inputs:
+      program_lib_name:
+        description: "Program library name"
+        required: true
 
 jobs:
   build-verifiable:
