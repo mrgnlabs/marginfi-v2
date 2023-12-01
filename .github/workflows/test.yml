@@ -71,7 +71,7 @@ jobs:
       matrix:
         program:
           - marginfi
-          - liquidity-incentive-program
+          - liquidity_incentive_program
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/build-anchor/
