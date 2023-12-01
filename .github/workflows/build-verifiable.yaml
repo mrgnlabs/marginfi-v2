@@ -33,4 +33,4 @@ jobs:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/build-verifiable-program/
         with:
-          program_lib_name: ${{ inputs.program_lib_name }}
+          program_lib_name: ${{ inputs.program_lib_name || "marginfi" }}
