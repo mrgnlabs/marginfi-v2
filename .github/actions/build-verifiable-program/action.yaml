@@ -38,3 +38,8 @@ runs:
       shell: bash
       env:
         PROGRAM: ${{ inputs.program_lib_name }}
+    - name: Upload binary
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ inputs.program_lib_name }}_verifiable_build
+        path: ./target/deploy/${{ inputs.program_lib_name }}.so
