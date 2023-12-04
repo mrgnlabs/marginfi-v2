@@ -49,7 +49,7 @@ jobs:
       - name: Build program using Anchor
         uses: ./.github/actions/build-program/
         with:
-          program: ${{ env.PROGRAM_LIB_NAME }}
+          program_lib_name: ${{ env.PROGRAM_LIB_NAME }}
 
       # Build verifiable program - store it in target/deploy/${PROGRAM_LIB_NAME}.so
       - name: Build verifiable program
