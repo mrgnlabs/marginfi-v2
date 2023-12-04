@@ -89,7 +89,7 @@ jobs:
         with:
           program_lib_name: ${{ matrix.program }}
           
-      - run: ./scripts/test.sh ${{ inputs.program }}
+      - run: ./scripts/test.sh ${{ matrix.program }}
         if: steps.cache-anchor-build.outputs.cache-hit != 'true'
         shell: bash
 
