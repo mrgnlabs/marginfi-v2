@@ -64,7 +64,7 @@ jobs:
           program_lib_name: ${{ env.PROGRAM_LIB_NAME }}
 
       - name: Patch IDL and TS files
-        run: cargo run --release -p marginfi-v2-cli --features dev -- patch-idl target/idl/marginfi.json
+        run: cargo run --release -p marginfi-v2-cli --features dev -- patch-idl target/idl/${{ env.PROGRAM_LIB_NAME }}.json
 
       # Display contents of /target/deploy and /target/idl
       - run: ls -l target/deploy
@@ -73,20 +73,20 @@ jobs:
       - name: Upload program
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ inputs.program_lib_name }}-verifiable_build-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ./target/deploy/${{ inputs.program_lib_name }}.so
+          name: ${{ env.PROGRAM_LIB_NAME }}-verifiable_build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ./target/deploy/${{ env.PROGRAM_LIB_NAME }}.so
 
       - name: Upload IDL (json)
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ inputs.program_lib_name }}-idl-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ./target/idl/${{ inputs.program_lib_name }}_patched.json
+          name: ${{ env.PROGRAM_LIB_NAME }}-idl-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ./target/idl/${{ env.PROGRAM_LIB_NAME }}_patched.json
 
       - name: Upload IDL (types)
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ inputs.program_lib_name }}-types-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ./target/idl/${{ inputs.program_lib_name }}_patched.ts
+          name: ${{ env.PROGRAM_LIB_NAME }}-types-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ./target/idl/${{ env.PROGRAM_LIB_NAME }}_patched.ts
 
       # # Deploy the program to the buffer account
       # - uses: ./.github/actions/buffer-deploy/
