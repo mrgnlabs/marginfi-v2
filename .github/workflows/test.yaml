@@ -32,7 +32,9 @@ jobs:
     
     steps:
       - uses: actions/checkout@v3
+
       - uses: ./.github/actions/setup-common/
+
       - uses: actions/cache@v2
         name: Cache Cargo registry + index
         id: cache-cargo-build
@@ -43,7 +45,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
           key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
       - run: cargo fmt -- --check
+      
       - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A clippy::result_large_err -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::bind_instead_of_map
 
   test-unit:
@@ -51,7 +55,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - uses: ./.github/actions/setup-common/
+
       - uses: actions/cache@v2
         name: Cache Cargo registry + index
         id: cache-cargo-build
@@ -62,6 +68,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
           key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
       - run: cargo test --lib
 
   build-programs:
@@ -77,9 +84,14 @@ jobs:
           
     steps:
       - uses: actions/checkout@v2
-      - uses: ./.github/actions/build-and-test-anchor-program/
+
+      - uses: ./.github/actions/build-program/
         with:
           program: ${{ matrix.program }}
+
+      - run: ./scripts/test.sh ${{ inputs.program }}
+        if: steps.cache-anchor-build.outputs.cache-hit != 'true'
+        shell: bash
 
   fuzz:
     runs-on: ubuntu-latest
@@ -100,3 +112,4 @@ jobs:
           cargo fuzz run lend -- -max_total_time=300
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
+          

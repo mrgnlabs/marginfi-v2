@@ -1,0 +1,86 @@
+name: Release Program
+
+on:
+  # TODO: switch to triggering only on tag with regex
+  # workflow_dispatch:
+  #   inputs:
+  #     program_lib_name:
+  #       description: "Program library name"
+  #       required: true
+  #       type: choice
+  #       options:
+  #         - marginfi
+  #         - liquidity_incentive_program
+  push:
+    tags:
+      - "testest-program-*" # Push events to matching program-*, i.e. program-circuit-breaker-0.0.1
+
+env:
+  RUST_TOOLCHAIN: 1.71.0
+  SOLANA_CLI_VERSION: 1.16.20
+  ANCHOR_CLI_VERSION: 0.29.0
+  ANCHOR_SHA: fc9fd6d24b9be84abb2f40e47ed3faf7b11864ae
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
+
+jobs:
+  build-verifiable:
+    name: Generate verifiable build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Extract tag information
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}  # Extract tag name from ref
+          echo "Tag name: $TAG"
+          PROGRAM=$(echo $TAG | sed 's/testest-program-\(.*\)-[0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}/\1/')
+          VERSION=$(echo $TAG | sed 's/.*-\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\)$/\1/')
+          PROGRAM_LIB_NAME=${PROGRAM//-/_}  # Substitute dashes with underscores
+          PROGRAM_ID=$(~/.cargo/bin/toml get Anchor.toml programs.localnet.${PROGRAM_LIB_NAME} | tr -d '"')
+
+          echo "Program: $PROGRAM"
+          echo "Program: $PROGRAM_ID"
+          echo "Version: $VERSION"
+          echo "PROGRAM_ID=${PROGRAM_ID}" >> $GITHUB_ENV
+          echo "PROGRAM_LIB_NAME=${PROGRAM_LIB_NAME}" >> $GITHUB_ENV
+
+      # Solely to generate the IDL
+      - name: Build program using Anchor
+        uses: ./.github/actions/build-program/
+        with:
+          program: ${{ env.PROGRAM_LIB_NAME }}
+
+      # Build verifiable program - store it in target/deploy/${PROGRAM_LIB_NAME}.so
+      - name: Build verifiable program
+        uses: ./.github/actions/build-verifiable-program/
+        with:
+          program_lib_name: ${{ env.PROGRAM_LIB_NAME }}
+
+      # Display contents of /target/deploy and /target/idl
+      - run: ls -l target/deploy
+      - run: ls -l target/idl
+
+      # # Deploy the program to the buffer account
+      # - uses: ./.github/actions/buffer-deploy/
+      #   id: buffer-deploy
+      #   with:
+      #     network: https://api.mainnet-beta.solana.com
+      #     program: ${{ env.PROGRAM_LIB_NAME }}
+      #     keypair: ${{ secrets.DEPLOYER_KEYPAIR }}
+      #     program-id: ${{ env.PROGRAM_ID }}
+      #     buffer-authority: ${{ secrets.MULTISIG_VAULT }}
+
+      # # Create MS proposal for program upgrade
+      # - name: Squads program upgrade
+      #   uses: helium/squads-program-upgrade@v0.3.1
+      #   with:
+      #     network-url: "https://api.mainnet-beta.solana.com"
+      #     program-multisig: ${{ secrets.MULTISIG }}
+      #     program-id: ${{ env.PROGRAM_ID }}
+      #     buffer: ${{ steps.buffer-deploy.outputs.buffer }}
+      #     idl-buffer: ${{ steps.buffer-deploy.outputs.idl-buffer }}
+      #     spill-address: ${{ secrets.DEPLOYER_ADDRESS }}
+      #     authority: ${{ secrets.MULTISIG_VAULT }}
+      #     name: "Deploy ${{env.PROGRAM_LIB_NAME}} ${{env.VERSION}}"
+      #     keypair: ${{ secrets.DEPLOYER_KEYPAIR }}

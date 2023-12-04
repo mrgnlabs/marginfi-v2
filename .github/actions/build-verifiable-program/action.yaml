@@ -14,7 +14,9 @@ runs:
   using: "composite"
   steps:
     - uses: ./.github/actions/setup-common/
+
     - uses: ./.github/actions/setup-anchor-cli/
+
     - uses: actions/cache@v2
       name: Cache Cargo registry + index
       id: cache-cargo-registry
@@ -24,6 +26,7 @@ runs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
         key: cargo-${{ runner.os }}-v0001-${{ hashFiles('**/Cargo.lock') }}
+
     - uses: actions/cache@v2
       name: Cache Solana Verify
       id: cache-solana-verify
@@ -31,13 +34,16 @@ runs:
         path: |
           ~/.cargo/bin/solana-verify
         key: cargo-${{ runner.os }}-solana-verify
-    - run: cargo install solana-verify
+
+    - run: cargo install solana-verify --git https://github.com/Ellipsis-Labs/solana-verifiable-build --rev abeb521cb639ae28f649ecdf95f9c9c20eb4209f
       if: steps.cache-solana-verify.outputs.cache-hit != 'true'
       shell: bash
+
     - run: ./scripts/build-verifiable.sh ${{ inputs.program_lib_name }} ${{ inputs.devnet == 'true' && 'devnet' || 'mainnet' }}
       shell: bash
       env:
         PROGRAM: ${{ inputs.program_lib_name }}
+        
     - name: Upload binary
       uses: actions/upload-artifact@v2
       with:

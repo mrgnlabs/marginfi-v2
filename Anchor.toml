@@ -7,7 +7,8 @@ seeds = true
 skip-lint = false
 
 [programs.localnet]
-marginfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+marginfi = "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA"
+liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
 
 [registry]
 url = "https://api.apr.dev"
