@@ -711,8 +711,18 @@ fn patch_idl(idl_path: String) -> Result<()> {
     let camel_case_program_name = snake_to_camel_case(program_name);
     let ts_file_path = idl_path.replace(".json", "_patched.ts");
     let mut ts_file = std::fs::File::create(ts_file_path)?;
-    write!(ts_file, "export type {} = {};\n", camel_case_program_name, serde_json::to_string_pretty(&idl)?)?;
-    write!(ts_file, "export const IDL: {} = {};\n", camel_case_program_name, serde_json::to_string_pretty(&idl)?)?;
+    write!(
+        ts_file,
+        "export type {} = {};\n",
+        camel_case_program_name,
+        serde_json::to_string_pretty(&idl)?
+    )?;
+    write!(
+        ts_file,
+        "export const IDL: {} = {};\n",
+        camel_case_program_name,
+        serde_json::to_string_pretty(&idl)?
+    )?;
 
     Ok(())
 }
