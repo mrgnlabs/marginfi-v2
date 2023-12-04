@@ -87,8 +87,8 @@ jobs:
 
       - uses: ./.github/actions/build-program/
         with:
-          program: ${{ matrix.program }}
-
+          program_lib_name: ${{ matrix.program }}
+          
       - run: ./scripts/test.sh ${{ inputs.program }}
         if: steps.cache-anchor-build.outputs.cache-hit != 'true'
         shell: bash
