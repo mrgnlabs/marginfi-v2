@@ -13,10 +13,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: ./.github/actions/setup-common/
-
-    - uses: ./.github/actions/setup-anchor-cli/
-
     - uses: actions/cache@v2
       name: Cache Cargo registry + index
       id: cache-cargo-registry

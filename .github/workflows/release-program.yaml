@@ -30,6 +30,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - uses: ./.github/actions/setup-common/
+      - uses: ./.github/actions/setup-anchor-cli/
+
       - name: Extract tag information
         run: |
           TAG=${GITHUB_REF#refs/tags/}  # Extract tag name from ref
