@@ -19,7 +19,7 @@ use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
     state::{
         marginfi_account::{Balance, LendingAccount, MarginfiAccount},
-        marginfi_group::{BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
+        marginfi_group::{Bank, BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
     },
 };
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
@@ -54,6 +54,8 @@ pub enum Command {
     },
     #[cfg(feature = "dev")]
     InspectPadding {},
+    #[cfg(feature = "dev")]
+    PatchIdl { idl_path: String },
     #[cfg(feature = "dev")]
     InspectSize {},
     Account {
@@ -371,6 +373,8 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Profile { subcmd } => profile(subcmd),
         #[cfg(feature = "dev")]
         Command::InspectPadding {} => inspect_padding(),
+        #[cfg(feature = "dev")]
+        Command::PatchIdl { idl_path } => patch_idl(idl_path),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
         #[cfg(feature = "lip")]
         Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
@@ -681,6 +685,26 @@ fn inspect_size() -> Result<()> {
     println!("MarginfiAccount: {}", size_of::<MarginfiAccount>());
     println!("LendingAccount: {}", size_of::<LendingAccount>());
     println!("Balance: {}", size_of::<Balance>());
+
+    Ok(())
+}
+
+#[cfg(feature = "dev")]
+fn patch_idl(idl_path: String) -> Result<()> {
+    use crate::patch_type_layout;
+
+    let file = std::fs::File::open(&idl_path)?;
+    let reader = std::io::BufReader::new(file);
+    let mut idl: serde_json::Value = serde_json::from_reader(reader)?;
+
+    patch_type_layout!(idl, "Bank", Bank, "accounts");
+    patch_type_layout!(idl, "Balance", Balance, "types");
+    patch_type_layout!(idl, "BankConfig", BankConfig, "types");
+
+    let idl_patched_path = idl_path.replace(".json", "_patched.json");
+    let file = std::fs::File::create(&idl_patched_path)?;
+    let writer = std::io::BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &idl)?;
 
     Ok(())
 }

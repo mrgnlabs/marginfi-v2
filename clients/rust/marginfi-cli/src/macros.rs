@@ -34,3 +34,37 @@ macro_rules! home_path {
         }
     };
 }
+
+#[macro_export]
+macro_rules! patch_type_layout {
+    ($idl:expr, $typename:expr, $struct:ty, $category:expr) => {
+        let target_type = $idl[$category]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|el| el["name"] == $typename)
+        .unwrap();
+
+    let target_type_layout = <$struct>::type_layout();
+    let idl_fields = target_type["type"]["fields"].as_array_mut().unwrap();
+
+        let mut padding_field_counter = 0;
+        for (index, field) in target_type_layout.fields.iter().enumerate() {
+            match field {
+                type_layout::Field::Field { .. } => {}
+                type_layout::Field::Padding { size } => {
+                    let padding_field = serde_json::json!(
+                        {
+                            "name": format!("auto_padding_{}", padding_field_counter),
+                            "type": {
+                                "array": ["u8", size]
+                            }
+                        }
+                    );
+                    idl_fields.insert(index, padding_field);
+                    padding_field_counter += 1;
+                }
+            }
+        }
+    };
+}
