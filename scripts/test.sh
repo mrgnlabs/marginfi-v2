@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -e
+
 ROOT=$(git rev-parse --show-toplevel)
 cd $ROOT
 
@@ -9,7 +11,9 @@ if [ -z "$program_lib_name" ]; then
     exit 1
 fi
 
-cd $ROOT/programs/$program_lib_name
+program_dir=${program_lib_name//_/-}  # Substitute dashes with underscores
+
+cd $ROOT/programs/$program_dir
 
 # cmd="RUST_LOG=error cargo test-sbf --features=test -- --test-threads=1"
 cmd="RUST_LOG=error cargo test-sbf --features=test"

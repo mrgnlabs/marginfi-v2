@@ -7,6 +7,10 @@ seeds = true
 skip-lint = false
 
 [programs.localnet]
+marginfi = "Mfi1111111111111111111111111111111111111111"
+liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
+
+[programs.mainnet]
 marginfi = "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA"
 liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
 
