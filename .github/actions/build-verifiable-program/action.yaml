@@ -31,7 +31,7 @@ runs:
           ~/.cargo/bin/solana-verify
         key: cargo-${{ runner.os }}-solana-verify
 
-    - run: cargo install solana-verify --git https://github.com/Ellipsis-Labs/solana-verifiable-build --rev abeb521cb639ae28f649ecdf95f9c9c20eb4209f
+    - run: cargo install solana-verify --git https://github.com/Ellipsis-Labs/solana-verifiable-build --rev 8f6f56908a0b0f35cb84d06f167c25c286ccf0ac
       if: steps.cache-solana-verify.outputs.cache-hit != 'true'
       shell: bash
 

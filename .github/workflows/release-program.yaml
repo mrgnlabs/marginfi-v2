@@ -30,8 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-common/
-      - uses: ./.github/actions/setup-anchor-cli/
+      - name: Install common dependencies
+        uses: ./.github/actions/setup-common/
+
+      - name: Install Anchor CLI
+        uses: ./.github/actions/setup-anchor-cli/
 
       - name: Extract tag information
         run: |
@@ -43,7 +46,7 @@ jobs:
           PROGRAM_ID=$(~/.cargo/bin/toml get Anchor.toml programs.mainnet.${PROGRAM_LIB_NAME} | tr -d '"')
 
           echo "Program: $PROGRAM"
-          echo "Program: $PROGRAM_ID"
+          echo "Program ID: $PROGRAM_ID"
           echo "Version: $VERSION"
           echo "PROGRAM_ID=${PROGRAM_ID}" >> $GITHUB_ENV
           echo "PROGRAM_LIB_NAME=${PROGRAM_LIB_NAME}" >> $GITHUB_ENV
