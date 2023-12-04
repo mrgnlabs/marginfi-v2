@@ -40,8 +40,3 @@ runs:
       env:
         PROGRAM: ${{ inputs.program_lib_name }}
         
-    - name: Upload binary
-      uses: actions/upload-artifact@v2
-      with:
-        name: ${{ inputs.program_lib_name }}-verifiable_build-${{ github.run_id }}-${{ github.run_attempt }}
-        path: ./target/deploy/${{ inputs.program_lib_name }}.so

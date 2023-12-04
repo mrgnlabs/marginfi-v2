@@ -692,6 +692,7 @@ fn inspect_size() -> Result<()> {
 #[cfg(feature = "dev")]
 fn patch_idl(idl_path: String) -> Result<()> {
     use crate::patch_type_layout;
+    use std::io::Write;
 
     let file = std::fs::File::open(&idl_path)?;
     let reader = std::io::BufReader::new(file);
@@ -706,7 +707,32 @@ fn patch_idl(idl_path: String) -> Result<()> {
     let writer = std::io::BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &idl)?;
 
+    let program_name = idl["name"].as_str().unwrap();
+    let camel_case_program_name = snake_to_camel_case(program_name);
+    let ts_file_path = idl_path.replace(".json", "_patched.ts");
+    let mut ts_file = std::fs::File::create(ts_file_path)?;
+    write!(ts_file, "export type {} = {};\n", camel_case_program_name, serde_json::to_string_pretty(&idl)?)?;
+    write!(ts_file, "export const IDL: {} = {};\n", camel_case_program_name, serde_json::to_string_pretty(&idl)?)?;
+
     Ok(())
+}
+
+fn snake_to_camel_case(input: &str) -> String {
+    let mut camel_case = String::new();
+    let mut capitalize_next = true;
+
+    for c in input.chars() {
+        if c == '_' {
+            capitalize_next = true;
+        } else if capitalize_next {
+            camel_case.push(c.to_ascii_uppercase());
+            capitalize_next = false;
+        } else {
+            camel_case.push(c);
+        }
+    }
+
+    camel_case
 }
 
 fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions) -> Result<()> {
