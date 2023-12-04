@@ -39,7 +39,7 @@ runs:
       if: steps.cache-solana-verify.outputs.cache-hit != 'true'
       shell: bash
 
-    - run: ./scripts/build-verifiable.sh ${{ inputs.program_lib_name }} ${{ inputs.devnet == 'true' && 'devnet' || 'mainnet' }}
+    - run: ./scripts/build-program-verifiable.sh ${{ inputs.program_lib_name }} ${{ inputs.devnet == 'true' && 'devnet' || 'mainnet' }}
       shell: bash
       env:
         PROGRAM: ${{ inputs.program_lib_name }}

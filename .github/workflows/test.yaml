@@ -71,7 +71,23 @@ jobs:
 
       - run: cargo test --lib
 
-  build-programs:
+  build-workspace:
+    name: Build Anchor Worspace
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        program:
+          - marginfi
+          - liquidity_incentive_program
+          
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: ./.github/actions/build-workspace/
+          
+  test-programs:
     name: Build and Test Anchor Programs
     runs-on: ubuntu-latest
 
@@ -85,11 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - uses: ./.github/actions/build-program/
-        with:
-          program_lib_name: ${{ matrix.program }}
-          
-      - run: ./scripts/test.sh ${{ matrix.program }}
+      - run: ./scripts/test-program.sh ${{ matrix.program }}
         if: steps.cache-anchor-build.outputs.cache-hit != 'true'
         shell: bash
 
