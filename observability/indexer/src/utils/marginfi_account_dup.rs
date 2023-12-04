@@ -3,8 +3,8 @@ use marginfi::{
     constants::TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     state::{
         marginfi_account::{
-            calc_asset_value, Balance, BalanceSide, MarginfiAccount, RiskRequirementType,
-            WeightType,
+            calc_asset_value, Balance, BalanceSide, MarginfiAccount, RequirementType,
+            RiskRequirementType,
         },
         marginfi_group::Bank,
         price::{OraclePriceFeedAdapter, PriceAdapter},
@@ -48,7 +48,7 @@ impl BankAccountWithPriceFeed2 {
     #[inline(always)]
     pub fn calc_weighted_assets_and_liabilities_values(
         &self,
-        weight_type: WeightType,
+        weight_type: RequirementType,
     ) -> anyhow::Result<(I80F48, I80F48)> {
         let (worst_price, best_price) = self.price_feed.get_price_range()?;
         let (mut asset_weight, liability_weight) = self.bank.config.get_weights(weight_type);
@@ -61,7 +61,7 @@ impl BankAccountWithPriceFeed2 {
             .bank
             .get_liability_amount(self.balance.liability_shares.into())?;
 
-        if matches!(weight_type, WeightType::Initial)
+        if matches!(weight_type, RequirementType::Initial)
             && self.bank.config.total_asset_value_init_limit
                 != TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE
         {
@@ -144,7 +144,7 @@ impl RiskEngine2 {
         self.bank_accounts_with_price
             .iter()
             .map(|a: &BankAccountWithPriceFeed2| {
-                a.calc_weighted_assets_and_liabilities_values(WeightType::Equity)
+                a.calc_weighted_assets_and_liabilities_values(RequirementType::Equity)
             })
             .try_fold(
                 (I80F48::ZERO, I80F48::ZERO),

@@ -1,13 +1,13 @@
 use super::{
     marginfi_group::{Bank, RiskTier, WrappedI80F48},
-    price::{OraclePriceFeedAdapter, PriceAdapter},
+    price::{OraclePriceFeedAdapter, OraclePriceWeightType, PriceAdapter, PriceBias},
 };
 use crate::{
     assert_struct_size, check,
     constants::{
         BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
         EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME,
-        SECONDS_PER_YEAR, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, ZERO_AMOUNT_THRESHOLD,
+        SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -87,15 +87,30 @@ pub enum BalanceDecreaseType {
 }
 
 #[derive(Copy, Clone)]
-pub enum WeightType {
+pub enum RequirementType {
     Initial,
     Maintenance,
     Equity,
 }
 
+impl RequirementType {
+    /// Get oracle price type for the requirement type.
+    ///
+    /// Initial and equity requirements use the time weighted price feed.
+    /// Maintenance requirement uses the real time price feed, as its more accurate for triggering liquidations.
+    pub fn get_oracle_weight_type(&self) -> OraclePriceWeightType {
+        match self {
+            RequirementType::Initial | RequirementType::Equity => {
+                OraclePriceWeightType::TimeWeighted
+            }
+            RequirementType::Maintenance => OraclePriceWeightType::RealTime,
+        }
+    }
+}
+
 pub struct BankAccountWithPriceFeed<'a, 'b> {
     bank: AccountInfo<'b>,
-    price_feed: Box<OraclePriceFeedAdapter>,
+    price_feed: Box<MarginfiResult<OraclePriceFeedAdapter>>,
     balance: &'a Balance,
 }
 
@@ -149,7 +164,7 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
                         oracle_ais,
                         current_timestamp,
                         MAX_PRICE_AGE_SEC,
-                    )?)
+                    ))
                 };
 
                 Ok(BankAccountWithPriceFeed {
@@ -162,65 +177,105 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
     }
 
     #[inline(always)]
+    /// Calculate the value of the assets and liabilities of the account in the form of (assets, liabilities)
+    ///
+    /// Nuances:
+    /// 1. Maintenance requirement is calculated using the real time price feed.
+    /// 2. Initial requirement is calculated using the time weighted price feed, if available.
+    /// 3. Initial requirement is discounted by the initial discount, if enabled and the usd limit is exceeded.
+    /// 4. Assets are only calculated for collateral risk tier.
+    /// 5. Oracle errors are ignored for deposits in isolated risk tier.
     pub fn calc_weighted_assets_and_liabilities_values(
         &self,
-        weight_type: WeightType,
+        requirement_type: RequirementType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
-        let (worst_price, best_price) = self.price_feed.get_price_range()?;
-        let bank_al = AccountLoader::<Bank>::try_from(&self.bank)?;
-        let bank = bank_al.load()?;
-        let (mut asset_weight, liability_weight) = bank.config.get_weights(weight_type);
-        let mint_decimals = bank.mint_decimals;
-
-        let asset_amount = bank.get_asset_amount(self.balance.asset_shares.into())?;
-        let liability_amount = bank.get_liability_amount(self.balance.liability_shares.into())?;
-
-        if matches!(weight_type, WeightType::Initial)
-            && bank.config.total_asset_value_init_limit != TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE
-        {
-            let bank_total_assets_value = calc_asset_value(
-                bank.get_asset_amount(bank.total_asset_shares.into())?,
-                worst_price,
-                mint_decimals,
-                None,
-            )?;
-
-            let total_asset_value_init_limit =
-                I80F48::from_num(bank.config.total_asset_value_init_limit);
-
-            msg!(
-                "Init limit active, limit: {}, total_assets: {}",
-                total_asset_value_init_limit,
-                bank_total_assets_value
-            );
-
-            if bank_total_assets_value > total_asset_value_init_limit {
-                let discount = total_asset_value_init_limit
-                    .checked_div(bank_total_assets_value)
-                    .ok_or_else(math_error!())?;
-
-                msg!(
-                    "Discounting assets by {:.2} because of total deposits {} over {} usd cap",
-                    discount,
-                    bank_total_assets_value,
-                    total_asset_value_init_limit
-                );
-
-                asset_weight = asset_weight
-                    .checked_mul(discount)
-                    .ok_or_else(math_error!())?;
+        match self.balance.get_side() {
+            Some(side) => {
+                let bank_al = AccountLoader::<Bank>::try_from(&self.bank)?;
+                let bank = bank_al.load()?;
+                match side {
+                    BalanceSide::Assets => Ok((
+                        self.calc_weighted_assets(requirement_type, &bank)?,
+                        I80F48::ZERO,
+                    )),
+                    BalanceSide::Liabilities => Ok((
+                        I80F48::ZERO,
+                        self.calc_weighted_liabs(requirement_type, &bank)?,
+                    )),
+                }
             }
+            None => Ok((I80F48::ZERO, I80F48::ZERO)),
         }
+    }
 
-        Ok((
-            calc_asset_value(asset_amount, worst_price, mint_decimals, Some(asset_weight))?,
-            calc_asset_value(
-                liability_amount,
-                best_price,
-                mint_decimals,
-                Some(liability_weight),
-            )?,
-        ))
+    #[inline(always)]
+    fn calc_weighted_assets(
+        &self,
+        requirement_type: RequirementType,
+        bank: &Bank,
+    ) -> MarginfiResult<I80F48> {
+        match bank.config.risk_tier {
+            RiskTier::Collateral => {
+                let price_feed = self.try_get_price_feed()?;
+                let mut asset_weight = bank
+                    .config
+                    .get_weight(requirement_type, BalanceSide::Assets);
+
+                let lower_price = price_feed.get_price_of_type(
+                    requirement_type.get_oracle_weight_type(),
+                    Some(PriceBias::Low),
+                )?;
+
+                if matches!(requirement_type, RequirementType::Initial) {
+                    if let Some(discount) =
+                        bank.maybe_get_asset_weight_init_discount(lower_price)?
+                    {
+                        asset_weight = asset_weight
+                            .checked_mul(discount)
+                            .ok_or_else(math_error!())?;
+                    }
+                }
+
+                calc_value(
+                    bank.get_asset_amount(self.balance.asset_shares.into())?,
+                    lower_price,
+                    bank.mint_decimals,
+                    Some(asset_weight),
+                )
+            }
+            RiskTier::Isolated => Ok(I80F48::ZERO),
+        }
+    }
+
+    #[inline(always)]
+    fn calc_weighted_liabs(
+        &self,
+        requirement_type: RequirementType,
+        bank: &Bank,
+    ) -> MarginfiResult<I80F48> {
+        let price_feed = self.try_get_price_feed()?;
+        let liability_weight = bank
+            .config
+            .get_weight(requirement_type, BalanceSide::Liabilities);
+
+        let higher_price = price_feed.get_price_of_type(
+            requirement_type.get_oracle_weight_type(),
+            Some(PriceBias::High),
+        )?;
+
+        calc_value(
+            bank.get_liability_amount(self.balance.liability_shares.into())?,
+            higher_price,
+            bank.mint_decimals,
+            Some(liability_weight),
+        )
+    }
+
+    fn try_get_price_feed(&self) -> MarginfiResult<&OraclePriceFeedAdapter> {
+        match self.price_feed.as_ref() {
+            Ok(a) => Ok(a),
+            Err(_) => Err(MarginfiError::StaleOracle)?,
+        }
     }
 
     #[inline]
@@ -231,22 +286,22 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
 
 /// Calculate the value of an asset, given its quantity with a decimal exponent, and a price with a decimal exponent, and an optional weight.
 #[inline]
-pub fn calc_asset_value(
-    asset_amount: I80F48,
+pub fn calc_value(
+    amount: I80F48,
     price: I80F48,
     mint_decimals: u8,
     weight: Option<I80F48>,
 ) -> MarginfiResult<I80F48> {
-    if asset_amount == I80F48::ZERO {
+    if amount == I80F48::ZERO {
         return Ok(I80F48::ZERO);
     }
 
     let scaling_factor = EXP_10_I80F48[mint_decimals as usize];
 
     let weighted_asset_amount = if let Some(weight) = weight {
-        asset_amount.checked_mul(weight).unwrap()
+        amount.checked_mul(weight).unwrap()
     } else {
-        asset_amount
+        amount
     };
 
     #[cfg(target_os = "solana")]
@@ -257,30 +312,26 @@ pub fn calc_asset_value(
         mint_decimals
     );
 
-    let asset_value = weighted_asset_amount
+    let value = weighted_asset_amount
         .checked_mul(price)
         .ok_or_else(math_error!())?
         .checked_div(scaling_factor)
         .ok_or_else(math_error!())?;
 
-    Ok(asset_value)
+    Ok(value)
 }
 
 #[inline]
-pub fn calc_asset_amount(
-    asset_value: I80F48,
-    price: I80F48,
-    mint_decimals: u8,
-) -> MarginfiResult<I80F48> {
+pub fn calc_amount(value: I80F48, price: I80F48, mint_decimals: u8) -> MarginfiResult<I80F48> {
     let scaling_factor = EXP_10_I80F48[mint_decimals as usize];
 
-    let asset_qt = asset_value
+    let qt = value
         .checked_mul(scaling_factor)
         .ok_or_else(math_error!())?
         .checked_div(price)
         .ok_or_else(math_error!())?;
 
-    Ok(asset_qt)
+    Ok(qt)
 }
 
 pub enum RiskRequirementType {
@@ -290,11 +341,11 @@ pub enum RiskRequirementType {
 }
 
 impl RiskRequirementType {
-    pub fn to_weight_type(&self) -> WeightType {
+    pub fn to_weight_type(&self) -> RequirementType {
         match self {
-            RiskRequirementType::Initial => WeightType::Initial,
-            RiskRequirementType::Maintenance => WeightType::Maintenance,
-            RiskRequirementType::Equity => WeightType::Equity,
+            RiskRequirementType::Initial => RequirementType::Initial,
+            RiskRequirementType::Maintenance => RequirementType::Maintenance,
+            RiskRequirementType::Equity => RequirementType::Equity,
         }
     }
 }
@@ -440,13 +491,13 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
                 .is_empty(BalanceSide::Liabilities)
                 .not(),
             MarginfiError::IllegalLiquidation,
-            "Liability payoff too severe"
+            "Liability payoff too severe, exaushted liability"
         );
 
         check!(
             liability_bank_balance.is_empty(BalanceSide::Assets),
             MarginfiError::IllegalLiquidation,
-            "Liability payoff too severe"
+            "Liability payoff too severe, exaushted assets"
         );
 
         let (assets, liabs) =
@@ -457,7 +508,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         check!(
             account_health <= I80F48::ZERO,
             MarginfiError::IllegalLiquidation,
-            "Liquidation too severe"
+            "Liquidation too severe, account above maintenance requirement"
         );
 
         msg!(
@@ -620,6 +671,13 @@ impl Balance {
     }
 
     pub fn get_side(&self) -> Option<BalanceSide> {
+        let asset_shares = I80F48::from(self.asset_shares);
+        let liability_shares = I80F48::from(self.liability_shares);
+
+        assert!(
+            asset_shares < EMPTY_BALANCE_THRESHOLD || liability_shares < EMPTY_BALANCE_THRESHOLD
+        );
+
         if I80F48::from(self.asset_shares) >= EMPTY_BALANCE_THRESHOLD {
             Some(BalanceSide::Assets)
         } else if I80F48::from(self.liability_shares) >= EMPTY_BALANCE_THRESHOLD {
@@ -766,10 +824,7 @@ impl<'a> BankAccountWrapper<'a> {
         let current_liability_amount =
             bank.get_liability_amount(balance.liability_shares.into())?;
 
-        debug!(
-            "Withdrawing all: {} of {} in {}",
-            current_asset_amount, bank.mint, balance.bank_pk,
-        );
+        debug!("Withdrawing all: {}", current_asset_amount);
 
         check!(
             current_asset_amount.is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD),
@@ -817,10 +872,7 @@ impl<'a> BankAccountWrapper<'a> {
         let current_liability_amount = bank.get_liability_amount(total_liability_shares)?;
         let current_asset_amount = bank.get_asset_amount(balance.asset_shares.into())?;
 
-        debug!(
-            "Repaying all: {} of {} in {}",
-            current_liability_amount, bank.mint, balance.bank_pk,
-        );
+        debug!("Repaying all: {}", current_liability_amount,);
 
         check!(
             current_liability_amount.is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD),
@@ -888,10 +940,8 @@ impl<'a> BankAccountWrapper<'a> {
         operation_type: BalanceIncreaseType,
     ) -> MarginfiResult {
         msg!(
-            "Balance increase: {} of {} in {} (type: {:?})",
+            "Balance increase: {} (type: {:?})",
             balance_delta,
-            self.bank.mint,
-            self.balance.bank_pk,
             operation_type
         );
 
@@ -953,10 +1003,8 @@ impl<'a> BankAccountWrapper<'a> {
         operation_type: BalanceDecreaseType,
     ) -> MarginfiResult {
         msg!(
-            "Balance decrease: {} of {} in {} (type: {:?})",
+            "Balance decrease: {} of (type: {:?})",
             balance_delta,
-            self.bank.mint,
-            self.balance.bank_pk,
             operation_type
         );
 
@@ -1136,17 +1184,17 @@ mod test {
     #[test]
     fn test_calc_asset_value() {
         assert_eq!(
-            calc_asset_value(I80F48!(10_000_000), I80F48!(1_000_000), 6, None).unwrap(),
+            calc_value(I80F48!(10_000_000), I80F48!(1_000_000), 6, None).unwrap(),
             I80F48!(10_000_000)
         );
 
         assert_eq!(
-            calc_asset_value(I80F48!(1_000_000_000), I80F48!(10_000_000), 9, None).unwrap(),
+            calc_value(I80F48!(1_000_000_000), I80F48!(10_000_000), 9, None).unwrap(),
             I80F48!(10_000_000)
         );
 
         assert_eq!(
-            calc_asset_value(I80F48!(1_000_000_000), I80F48!(10_000_000), 9, None).unwrap(),
+            calc_value(I80F48!(1_000_000_000), I80F48!(10_000_000), 9, None).unwrap(),
             I80F48!(10_000_000)
         );
     }

@@ -130,7 +130,10 @@ pub fn lending_account_liquidate(
                 current_timestamp,
                 MAX_PRICE_AGE_SEC,
             )?;
-            asset_pf.get_price_non_weighted(Some(PriceBias::Low))?
+            asset_pf.get_price_of_type(
+                crate::state::price::OraclePriceWeightType::RealTime,
+                Some(PriceBias::Low),
+            )?
         };
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
@@ -142,8 +145,10 @@ pub fn lending_account_liquidate(
                 current_timestamp,
                 MAX_PRICE_AGE_SEC,
             )?;
-
-            liab_pf.get_price_non_weighted(Some(PriceBias::High))?
+            liab_pf.get_price_of_type(
+                crate::state::price::OraclePriceWeightType::RealTime,
+                Some(PriceBias::High),
+            )?
         };
 
         let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);

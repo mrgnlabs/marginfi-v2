@@ -9,7 +9,7 @@ use itertools::Itertools;
 use marginfi::constants::ZERO_AMOUNT_THRESHOLD;
 use marginfi::prelude::MarginfiGroup;
 use marginfi::state::marginfi_account::{
-    calc_asset_value, MarginfiAccount, RiskRequirementType, WeightType,
+    calc_asset_value, MarginfiAccount, RequirementType, RiskRequirementType,
 };
 use marginfi::state::marginfi_group::BankOperationalState;
 use marginfi::state::price::OraclePriceFeedAdapter;
@@ -72,7 +72,7 @@ impl MarginfiGroupMetrics {
                 let (asset_weight, liability_weight) = bank_accounts
                     .bank
                     .config
-                    .get_weights(WeightType::Maintenance);
+                    .get_weights(RequirementType::Maintenance);
                 let price = snapshot
                     .price_feeds
                     .get(&price_feed_pk)
@@ -239,9 +239,11 @@ impl LendingPoolBankMetrics {
         let (asset_weight_maintenance, liability_weight_maintenance) = bank_accounts
             .bank
             .config
-            .get_weights(WeightType::Maintenance);
-        let (asset_weight_initial, liability_weight_initial) =
-            bank_accounts.bank.config.get_weights(WeightType::Initial);
+            .get_weights(RequirementType::Maintenance);
+        let (asset_weight_initial, liability_weight_initial) = bank_accounts
+            .bank
+            .config
+            .get_weights(RequirementType::Initial);
         let price_feed_pk = bank_accounts.bank.config.oracle_keys[0];
         let price = snapshot
             .price_feeds
@@ -502,9 +504,9 @@ impl MarginfiAccountMetrics {
                 let (asset_shares, liability_shares): (I80F48, I80F48) =
                     (balance.asset_shares.into(), balance.liability_shares.into());
                 let (asset_weight_maintenance, liability_weight_maintenance) =
-                    bank.config.get_weights(WeightType::Maintenance);
+                    bank.config.get_weights(RequirementType::Maintenance);
                 let (asset_weight_initial, liability_weight_initial) =
-                    bank.config.get_weights(WeightType::Initial);
+                    bank.config.get_weights(RequirementType::Initial);
                 let is_asset = asset_shares.gt(&I80F48!(0.0001));
 
                 let price_feed_pk = bank.config.oracle_keys[0];
