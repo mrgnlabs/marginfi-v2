@@ -37,7 +37,7 @@ jobs:
           PROGRAM=$(echo $TAG | sed 's/testest-program-\(.*\)-[0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}/\1/')
           VERSION=$(echo $TAG | sed 's/.*-\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\)$/\1/')
           PROGRAM_LIB_NAME=${PROGRAM//-/_}  # Substitute dashes with underscores
-          PROGRAM_ID=$(~/.cargo/bin/toml get Anchor.toml programs.localnet.${PROGRAM_LIB_NAME} | tr -d '"')
+          PROGRAM_ID=$(~/.cargo/bin/toml get Anchor.toml programs.mainnet.${PROGRAM_LIB_NAME} | tr -d '"')
 
           echo "Program: $PROGRAM"
           echo "Program: $PROGRAM_ID"
