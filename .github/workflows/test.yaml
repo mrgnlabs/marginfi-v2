@@ -70,22 +70,6 @@ jobs:
           key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - run: cargo test --lib
-
-  build-workspace:
-    name: Build Anchor Worspace
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        program:
-          - marginfi
-          - liquidity_incentive_program
-          
-    steps:
-      - uses: actions/checkout@v2
-
-      - uses: ./.github/actions/build-workspace/
           
   test-programs:
     name: Build and Test Anchor Programs
@@ -100,6 +84,8 @@ jobs:
           
     steps:
       - uses: actions/checkout@v2
+
+      - uses: ./.github/actions/build-workspace/
 
       - run: ./scripts/test-program.sh ${{ matrix.program }}
         if: steps.cache-anchor-build.outputs.cache-hit != 'true'
