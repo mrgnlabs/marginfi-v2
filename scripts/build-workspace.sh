@@ -5,19 +5,17 @@ cd $ROOT
 cluster=$1
 
 if [ -z "$cluster" ]; then
-    echo "Usage: $0 <cluster>"
-    exit 1
-fi
+    echo "Using no cluster feature"
+    cmd="anchor build"
 
-if [ "$cluster" = "mainnet" ]; then
-    cluster_feature="mainnet-beta"
+elif [ "$cluster" = "mainnet" ]; then
+    cmd="anchor build -- --features mainnet-beta"
 elif [ "$cluster" = "devnet" ]; then
-    cluster_feature=" devnet"
+    cmd="anchor build -- --features devnet"
 else
     echo "Error: Unknown cluster: $cluster"
     exit 1
 fi
 
-cmd="anchor build -- --features $cluster_feature"
 echo "Running: $cmd"
 eval "$cmd"
