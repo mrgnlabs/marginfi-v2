@@ -14,7 +14,7 @@ use crate::{
     debug, math_error,
     prelude::MarginfiError,
     set_if_some,
-    state::marginfi_account::calc_asset_value,
+    state::marginfi_account::calc_value,
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -425,7 +425,7 @@ impl Bank {
         price: I80F48,
     ) -> MarginfiResult<Option<I80F48>> {
         if self.config.usd_init_limit_active() {
-            let bank_total_assets_value = calc_asset_value(
+            let bank_total_assets_value = calc_value(
                 self.get_asset_amount(self.total_asset_shares.into())?,
                 price,
                 self.mint_decimals,

@@ -2,9 +2,7 @@ use crate::constants::{
     INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE, MAX_PRICE_AGE_SEC,
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
-use crate::state::marginfi_account::{
-    calc_asset_amount, calc_asset_value, RiskEngine, RiskRequirementType,
-};
+use crate::state::marginfi_account::{calc_amount, calc_value, RiskEngine, RiskRequirementType};
 use crate::state::marginfi_group::{Bank, BankVaultType};
 use crate::state::price::{OraclePriceFeedAdapter, PriceAdapter, PriceBias};
 use crate::{
@@ -155,8 +153,8 @@ pub fn lending_account_liquidate(
         let liquidator_discount = I80F48::ONE - LIQUIDATION_LIQUIDATOR_FEE;
 
         // Quantity of liability to be paid off by liquidator
-        let liab_amount_liquidator = calc_asset_amount(
-            calc_asset_value(
+        let liab_amount_liquidator = calc_amount(
+            calc_value(
                 asset_amount,
                 asset_price,
                 asset_bank.mint_decimals,
@@ -167,8 +165,8 @@ pub fn lending_account_liquidate(
         )?;
 
         // Quantity of liability to be received by liquidatee
-        let liab_amount_final = calc_asset_amount(
-            calc_asset_value(
+        let liab_amount_final = calc_amount(
+            calc_value(
                 asset_amount,
                 asset_price,
                 asset_bank.mint_decimals,

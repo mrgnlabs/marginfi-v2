@@ -497,7 +497,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         check!(
             liability_bank_balance.is_empty(BalanceSide::Assets),
             MarginfiError::IllegalLiquidation,
-            "Liability payoff too severe, exaushted assets"
+            "Liability payoff too severe, liability balance has assets"
         );
 
         let (assets, liabs) =
