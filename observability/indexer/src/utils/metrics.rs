@@ -9,7 +9,7 @@ use itertools::Itertools;
 use marginfi::constants::ZERO_AMOUNT_THRESHOLD;
 use marginfi::prelude::MarginfiGroup;
 use marginfi::state::marginfi_account::{
-    calc_asset_value, MarginfiAccount, RequirementType, RiskRequirementType,
+    calc_value, MarginfiAccount, RequirementType, RiskRequirementType,
 };
 use marginfi::state::marginfi_group::BankOperationalState;
 use marginfi::state::price::OraclePriceFeedAdapter;
@@ -85,7 +85,7 @@ impl MarginfiGroupMetrics {
                     })?
                     .get_price();
 
-                let asset_value_usd = calc_asset_value(
+                let asset_value_usd = calc_value(
                     bank_accounts
                         .bank
                         .get_asset_amount(total_asset_share.into())?,
@@ -94,7 +94,7 @@ impl MarginfiGroupMetrics {
                     None,
                 )?
                 .to_num::<f64>();
-                let asset_value_usd_maint = calc_asset_value(
+                let asset_value_usd_maint = calc_value(
                     bank_accounts
                         .bank
                         .get_asset_amount(total_asset_share.into())?,
@@ -103,7 +103,7 @@ impl MarginfiGroupMetrics {
                     Some(asset_weight),
                 )?
                 .to_num::<f64>();
-                let liability_value_usd = calc_asset_value(
+                let liability_value_usd = calc_value(
                     bank_accounts
                         .bank
                         .get_liability_amount(total_liability_share.into())?,
@@ -112,7 +112,7 @@ impl MarginfiGroupMetrics {
                     None,
                 )?
                 .to_num::<f64>();
-                let liability_value_usd_maint = calc_asset_value(
+                let liability_value_usd_maint = calc_value(
                     bank_accounts
                         .bank
                         .get_liability_amount(total_liability_share.into())?,
@@ -257,14 +257,14 @@ impl LendingPoolBankMetrics {
             })?
             .get_price();
 
-        let deposit_limit_usd = calc_asset_value(
+        let deposit_limit_usd = calc_value(
             bank_accounts.bank.config.deposit_limit.into(),
             price,
             bank_accounts.bank.mint_decimals,
             None,
         )?
         .to_num::<f64>();
-        let borrow_limit_usd = calc_asset_value(
+        let borrow_limit_usd = calc_value(
             bank_accounts.bank.config.borrow_limit.into(),
             price,
             bank_accounts.bank.mint_decimals,
@@ -276,12 +276,12 @@ impl LendingPoolBankMetrics {
             .bank
             .get_asset_amount(total_asset_share.into())?;
         let asset_value_usd =
-            calc_asset_value(asset_amount, price, bank_accounts.bank.mint_decimals, None)?
+            calc_value(asset_amount, price, bank_accounts.bank.mint_decimals, None)?
                 .to_num::<f64>();
         let liability_amount = bank_accounts
             .bank
             .get_liability_amount(total_liability_share.into())?;
-        let liability_value_usd = calc_asset_value(
+        let liability_value_usd = calc_value(
             liability_amount,
             price,
             bank_accounts.bank.mint_decimals,
@@ -541,15 +541,15 @@ impl MarginfiAccountMetrics {
                     )
                 };
 
-                let usd_value = calc_asset_value(amount, price, bank.mint_decimals, None)
+                let usd_value = calc_value(amount, price, bank.mint_decimals, None)
                     .unwrap()
                     .to_num::<f64>();
                 let usd_value_maintenance =
-                    calc_asset_value(amount, price, bank.mint_decimals, Some(weight_maintenance))
+                    calc_value(amount, price, bank.mint_decimals, Some(weight_maintenance))
                         .unwrap()
                         .to_num::<f64>();
                 let usd_value_initial =
-                    calc_asset_value(amount, price, bank.mint_decimals, Some(weight_initial))
+                    calc_value(amount, price, bank.mint_decimals, Some(weight_initial))
                         .unwrap()
                         .to_num::<f64>();
 
