@@ -77,13 +77,6 @@ jobs:
     name: Build and Test Anchor Programs
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        program:
-          - marginfi
-          - liquidity_incentive_program
-          
     steps:
       - uses: actions/checkout@v2
 
@@ -92,8 +85,10 @@ jobs:
 
       - uses: ./.github/actions/build-workspace/
 
-      - run: ./scripts/test-program.sh ${{ matrix.program }}
-        if: steps.cache-anchor-build.outputs.cache-hit != 'true'
+      - run: ./scripts/test-program.sh marginfi
+        shell: bash
+
+      - run: ./scripts/test-program.sh liquidity_incentive_program
         shell: bash
 
   fuzz:

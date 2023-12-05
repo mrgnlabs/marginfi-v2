@@ -1,0 +1,140 @@
+name: "Uploads Program and IDL buffers"
+description: "Uploads program binary and IDL to buffer accounts"
+
+inputs:
+  program-lib-name:
+    description: "The program to build and upload"
+    required: true
+  program-id:
+    description: "The program ID to build and upload"
+    required: true
+  deployer-keypair:
+    description: "The keypair to use for deploys"
+    required: true
+  buffer-authority:
+    description: "The buffer authority to set"
+    required: true
+  rpc-endpoint:
+    description: "The RPC endpoint used for buffer uploads"
+    required: true
+
+outputs:
+  program-buffer-pubkey:
+    description: "The program buffer address"
+    value: ${{ steps.deploy-buffers-store.outputs.PROGRAM_BUFFER_PUBKEY }}
+  idl-buffer-pubkey:
+    description: "The idl buffer address."
+    value: ${{ steps.deploy-buffers-store.outputs.IDL_BUFFER_PUBKEY }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/setup-common/
+    - uses: ./.github/actions/setup-anchor/
+
+    - name: Dump deployer keypair to file for CLI use
+      run: echo "$DEPLOYER_KEYPAIR" > ./deployer-keypair.json && chmod 600 ./deployer-keypair.json
+      shell: bash
+      env:
+        DEPLOYER_KEYPAIR: ${{ inputs.deployer-keypair }}
+
+    - name: Generate keypair for program buffer
+      run: solana-keygen new --silent --outfile program-buffer-keypair --no-bip39-passphrase
+      shell: bash
+
+    - run: ls -l ./target/deploy/
+      shell: bash
+
+    - name: Deploy program buffer
+      if: steps.cache-buffer.outputs.cache-hit != 'true'
+      id: program-buffer-deploy
+      uses: nick-invision/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4
+      with:
+        timeout_minutes: 30
+        max_attempts: 10
+        shell: bash
+        command: |
+          solana program write-buffer \
+            --buffer ./program-buffer-keypair \
+            --keypair ./deployer-keypair.json \
+            --url $RPC_ENDPOINT \
+            ./target/deploy/$PROGRAM_LIB_NAME.so \
+            > ./program-buffer.out
+      env:
+        RPC_ENDPOINT: ${{ inputs.rpc-endpoint }}
+        PROGRAM_LIB_NAME: ${{ inputs.program-lib-name }}
+
+    - name: IDL Buffer Deploy
+      uses: nick-invision/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4
+      id: idl-buffer-deploy
+      if: steps.cache-buffer.outputs.cache-hit != 'true'
+      with:
+        timeout_minutes: 10
+        max_attempts: 50
+        shell: bash
+        command: |
+          ~/.cargo/bin/anchor idl write-buffer $PROGRAM_ID \
+            --filepath ./target/idl/$PROGRAM_LIB_NAME.json \
+            --provider.cluster $RPC_ENDPOINT \
+            --provider.wallet ./deployer-keypair.json \
+            > idl-buffer.out
+      env:
+        PROGRAM_ID: ${{ inputs.program-id }}
+        PROGRAM_LIB_NAME: ${{ inputs.program-lib-name }}
+        RPC_ENDPOINT: ${{ inputs.rpc-endpoint }}
+
+    - name: Buffer Deploy Store
+      shell: bash
+      id: deploy-buffers-store
+      run: |
+        echo "PROGRAM_BUFFER_PUBKEY=$(cat program-buffer.out | sed 's/Buffer: //g' | xargs echo -n)" >> $GITHUB_OUTPUT
+        echo "IDL_BUFFER_PUBKEY=$(cat idl-buffer.out | sed 's/Idl buffer created: //g' | xargs echo -n)" >> $GITHUB_OUTPUT
+
+    - run: echo "The program buffer is ${{ steps.deploy-buffers-store.outputs.PROGRAM_BUFFER_PUBKEY }}"
+      shell: bash
+    - run: echo "the IDL buffer is ${{ steps.deploy-buffers-store.outputs.IDL_BUFFER_PUBKEY }}"
+      shell: bash
+    - run: echo "the IDL is $(cat ./target/idl/$PROGRAM_LIB_NAME.json)"
+      shell: bash
+      env:
+        PROGRAM_LIB_NAME: ${{ inputs.program-lib-name }}
+
+    - name: Transfer IDL buffer to specified authority
+      uses: nick-invision/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4
+      if: steps.cache-buffer.outputs.cache-hit != 'true'
+      with:
+        timeout_minutes: 10
+        max_attempts: 50
+        shell: bash
+        command: |
+          anchor idl set-authority $IDL_BUFFER_PUBKEY \
+            --provider.cluster $RPC_ENDPOINT \
+            --program-id $PROGRAM_ID \
+            --new-authority $AUTHORITY \
+            --provider.wallet ./deployer-keypair.json
+      env:
+        IDL_BUFFER_PUBKEY: ${{ steps.deploy-buffers-store.outputs.IDL_BUFFER_PUBKEY }}
+        AUTHORITY: ${{ inputs.buffer-authority }}
+        RPC_ENDPOINT: ${{ inputs.rpc-endpoint }}
+        PROGRAM_ID: ${{ inputs.program-id }}
+
+    - name: Transfer program buffer to specified authority
+      uses: nick-invision/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4
+      if: steps.cache-buffer.outputs.cache-hit != 'true'
+      with:
+        timeout_minutes: 10
+        max_attempts: 50
+        shell: bash
+        command: |
+          solana program set-buffer-authority $PROGRAM_BUFFER_PUBKEY \
+            --keypair ./deployer-keypair.json \
+            --new-buffer-authority $AUTHORITY \
+            --url $RPC_ENDPOINT
+      env:
+        PROGRAM_BUFFER_PUBKEY: ${{ steps.deploy-buffers-store.outputs.PROGRAM_BUFFER_PUBKEY }}
+        AUTHORITY: ${{ inputs.buffer-authority }}
+        RPC_ENDPOINT: ${{ inputs.rpc-endpoint }}
+
+    - run: rm ./deployer-keypair.json
+      shell: bash
+      if: always()
