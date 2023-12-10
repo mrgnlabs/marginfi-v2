@@ -22,7 +22,7 @@ The framework directly invokes the functions that are normally invoked by the on
 
 The framework uses a bump allocator for account storage. All `AccountInfo` objects are referencing data in the bump allocator.
 
-When an instruction is invoked we direct pass in the `AccountInfo` objects referencing allocated state.
+When an instruction is invoked we directly pass in the `AccountInfo` objects referencing allocated state.
 Before the invoke we also copy to a local cache and revert the state if the instructions fail.
 
 ### Actions
