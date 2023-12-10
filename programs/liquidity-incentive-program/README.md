@@ -44,7 +44,7 @@ Think of a `Campaign` as a marketing campaign:
     * the maximum amount of user deposits allowed
     * The maximum rewards to be paid out to users (together with the maximum amount of deposits allowed, this calculates the guaranteed fixed yield).
 
-> NOTE: LIP works off of the concept of a _minimum_ guaranteed yield, but depositors may earn higher yield if marginfi's native lender yield for the related asset exceeds the yield guaranteed by the `Campaign`. This is a win-win for depositors.
+> NOTE: LIP works off of the concept of a _minimum_ guaranteed yield, but depositors may earn a higher yield if marginfi's native lender yield for the related asset exceeds the yield guaranteed by the `Campaign`. This is a win-win for depositors.
 
 3. As a proof of reward reserves, campaign creators **lock up maximum rewards to be paid out upon campaign creation**, making it easy for campaign depositors to know the source of yield.
 
