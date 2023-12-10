@@ -20,7 +20,7 @@ fn deposit_funds(amount: u64) -> ProgramResult {
 }
 ```
 
-In this example, the deposit_funds function checks if the deposit amount is greater than a maximum allowed amount. If it is, the function returns an error using the DepositAmountTooLarge variant of the LIPError enum. This error can then be handled by the calling code in a consistent way, regardless of where the error occurred in the project.
+In this example, the deposit_funds function checks if the deposit amount is greater than the maximum allowed amount. If it is, the function returns an error using the DepositAmountTooLarge variant of the LIPError enum. This error can then be handled by the calling code in a consistent way, regardless of where the error occurred in the project.
 ## Questions: 
  1. What is the purpose of the `LIPError` enum?
    - The `LIPError` enum is used to define custom error codes for the `marginfi-v2` project.
