@@ -6,12 +6,17 @@ declare_id!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 pub mod brick {
     use super::*;
 
-    pub fn noop(ctx: Context<Initialize>) -> Result<()> {
-        msg!("This program is temporarily disabled.");
-
-        Ok(())
+    pub fn fallback(
+        _program_id: &Pubkey,
+        _accounts: &[AccountInfo],
+        _instruction_data: &[u8],
+    ) -> Result<()> {
+        Err(ErrorCode::ProgramDisabled.into())
     }
 }
 
-#[derive(Accounts)]
-pub struct Initialize {}
+#[error_code]
+pub enum ErrorCode {
+    #[msg("This program is temporarily disabled.")]
+    ProgramDisabled,
+}
