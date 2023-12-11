@@ -698,6 +698,11 @@ fn patch_idl(idl_path: String) -> Result<()> {
     let reader = std::io::BufReader::new(file);
     let mut idl: serde_json::Value = serde_json::from_reader(reader)?;
 
+    let idl_original_path = idl_path.replace(".json", "_original.json");
+    let file = std::fs::File::create(&idl_original_path)?;
+    let writer = std::io::BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &idl)?;
+
     patch_type_layout!(idl, "Bank", Bank, "accounts");
     patch_type_layout!(idl, "Balance", Balance, "types");
     patch_type_layout!(idl, "BankConfig", BankConfig, "types");
