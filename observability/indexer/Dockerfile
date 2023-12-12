@@ -1,4 +1,4 @@
-FROM rust:1.72 as builder
+FROM rust:1.71 as builder
 
 RUN apt-get update -y && apt-get install -y pkg-config build-essential libudev-dev clang cmake protobuf-compiler
 RUN rustup component add rustfmt clippy
@@ -9,6 +9,7 @@ COPY ./Cargo.toml ./Cargo.toml
 COPY ./programs ./programs
 COPY ./observability/indexer ./observability/indexer
 COPY ./test-utils ./test-utils
+COPY ./tools ./tools
 COPY ./clients/rust ./clients/rust
 
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
