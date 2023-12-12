@@ -22,7 +22,7 @@ FROM debian:stable-slim as runner
 
 WORKDIR /app
 
-RUN apt-get update -y && apt-get install -y ca-certificates
+RUN apt-get update -y && apt-get install -y ca-certificates openssl
 
 COPY --from=builder /app/target/release/mfi-index ./
 
