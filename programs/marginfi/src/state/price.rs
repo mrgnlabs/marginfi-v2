@@ -197,7 +197,10 @@ impl PriceAdapter for PythEmaPriceFeed {
         match bias {
             None => Ok(price),
             Some(price_bias) => {
-                let confidence_interval = self.get_confidence_interval(false)?;
+                let confidence_interval = self.get_confidence_interval(matches!(
+                    price_type,
+                    OraclePriceWeightType::TimeWeighted
+                ))?;
 
                 match price_bias {
                     PriceBias::Low => Ok(price
