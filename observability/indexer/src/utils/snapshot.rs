@@ -7,6 +7,7 @@ use marginfi::{
     state::{marginfi_account::MarginfiAccount, marginfi_group::Bank, price::*},
 };
 use solana_account_decoder::UiAccountEncoding;
+use solana_account_decoder::UiDataSliceConfig;
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
@@ -19,6 +20,9 @@ use std::{
     fmt::{Debug, Display},
     sync::Arc,
 };
+use tracing::info;
+
+use crate::common::get_multiple_accounts_chunked2;
 
 #[derive(Clone, Debug)]
 pub struct BankAccounts {
@@ -113,15 +117,37 @@ impl Snapshot {
         let config = RpcProgramAccountsConfig {
             account_config: RpcAccountInfoConfig {
                 encoding: Some(UiAccountEncoding::Base64),
+                data_slice: Some(UiDataSliceConfig {
+                    offset: 0,
+                    length: 0,
+                }),
                 ..RpcAccountInfoConfig::default()
             },
             ..RpcProgramAccountsConfig::default()
         };
 
-        let all_program_accounts = self
+        let start_time = std::time::Instant::now();
+
+        let all_program_account_keys = self
             .rpc_client
             .get_program_accounts_with_config(&self.program_id, config)
             .await?;
+
+        let elapsed = start_time.elapsed();
+        info!("Time taken to get {:?} addresses: {:?}", all_program_account_keys.len(), elapsed);
+
+        let start_time = std::time::Instant::now();
+        let all_program_accounts = get_multiple_accounts_chunked2(
+            &self.rpc_client,
+            &all_program_account_keys
+                .into_iter()
+                .map(|(pubkey, _)| pubkey)
+                .collect::<Vec<Pubkey>>(),
+        )
+        .await?;
+
+        let elapsed = start_time.elapsed();
+        info!("Time taken to get {:?} accounts: {:?}", all_program_accounts.len(), elapsed);
 
         for (pubkey, account) in all_program_accounts {
             self.create_entry(&pubkey, &account).await;

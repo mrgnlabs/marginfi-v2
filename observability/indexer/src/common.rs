@@ -6,7 +6,7 @@ use marginfi::state::{marginfi_account::MarginfiAccount, marginfi_group::Bank};
 use pyth_sdk_solana::PriceFeed;
 use serde::{Deserialize, Serialize};
 use solana_client::{client_error::ClientError, nonblocking::rpc_client::RpcClient};
-use solana_sdk::{instruction::AccountMeta, pubkey::Pubkey, signature::Signature};
+use solana_sdk::{instruction::AccountMeta, pubkey::Pubkey, signature::Signature, account::Account};
 use std::{collections::HashMap, iter::zip, str::FromStr, time::Duration};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -96,6 +96,30 @@ pub async fn get_multiple_accounts_chunked(
 
     Ok(HashMap::from_iter(zips?.into_iter().flatten().filter_map(
         |(key, account)| account.map(|account| (*key, account.data)),
+    )))
+}
+
+pub async fn get_multiple_accounts_chunked2(
+    rpc_client: &RpcClient,
+    keys: &[Pubkey],
+) -> Result<HashMap<Pubkey, Account>, ClientError> {
+    let zips: Result<Vec<_>, ClientError> =
+        try_join_all(keys.chunks(100).map(|pubkey_chunk| async move {
+            Ok(zip(
+                pubkey_chunk,
+                retry(
+                    ExponentialBackoffBuilder::new()
+                        .with_max_interval(Duration::from_secs(5))
+                        .build(),
+                    || async { Ok(rpc_client.get_multiple_accounts(pubkey_chunk).await?) },
+                )
+                .await?,
+            ))
+        }))
+        .await;
+
+    Ok(HashMap::from_iter(zips?.into_iter().flatten().filter_map(
+        |(key, account)| account.map(|account| (*key, account)),
     )))
 }
 
