@@ -95,7 +95,6 @@ jobs:
 
   fuzz:
     runs-on: ubuntu-latest
-    needs: build
     steps:
       - uses: actions/checkout@v3
       - name: cache dependencies
@@ -108,6 +107,7 @@ jobs:
           default: true
       - name: Go into fuzz dir
         run: cd programs/marginfi
+      - run: cargo install cargo-fuzz
       - name: Run fuzz tests
         run: cargo fuzz run lend -- -max_total_time=300
       - name: Pass after fuzzing
