@@ -54,8 +54,12 @@ pub enum OracleData {
 impl OracleData {
     pub fn get_price(&self) -> I80F48 {
         match self {
-            OracleData::Pyth(price_feed) => price_feed.get_price_of_type(OraclePriceWeightType::TimeWeighted, None).unwrap(),
-            OracleData::Switchboard(price_feed) => price_feed.get_price_of_type(OraclePriceWeightType::TimeWeighted, None).unwrap(),
+            OracleData::Pyth(price_feed) => price_feed
+                .get_price_of_type(OraclePriceWeightType::TimeWeighted, None)
+                .unwrap(),
+            OracleData::Switchboard(price_feed) => price_feed
+                .get_price_of_type(OraclePriceWeightType::TimeWeighted, None)
+                .unwrap(),
         }
     }
 }
