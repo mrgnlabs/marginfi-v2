@@ -1,6 +1,6 @@
 use crate::{
     config::GlobalOptions,
-    processor,
+    processor::{self, group::process_update_lookup_tables},
     profile::{load_profile, Profile},
 };
 use anchor_client::Cluster;
@@ -125,6 +125,11 @@ pub enum GroupCommand {
     #[cfg(feature = "admin")]
     HandleBankruptcy {
         accounts: Vec<Pubkey>,
+    },
+    #[cfg(feature = "admin")]
+    UpdateLookupTable {
+        #[clap(short = 't', long)]
+        existing_token_lookup_tables: Vec<Pubkey>,
     },
 }
 
@@ -502,6 +507,10 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         GroupCommand::HandleBankruptcy { accounts } => {
             processor::handle_bankruptcy_for_accounts(&config, &profile, accounts)
         }
+        #[cfg(feature = "admin")]
+        GroupCommand::UpdateLookupTable {
+            existing_token_lookup_tables,
+        } => process_update_lookup_tables(&config, &profile, existing_token_lookup_tables),
     }
 }
 
