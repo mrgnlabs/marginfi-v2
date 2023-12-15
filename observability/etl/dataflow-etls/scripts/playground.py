@@ -1,12 +1,23 @@
 from pathlib import Path
 from pprint import pprint
-
 import based58
 from anchorpy import Program
 from anchorpy_core.idl import Idl
 from solana.rpc.api import Client
 from solders.pubkey import Pubkey
 from solders.signature import Signature
+
+from decimal import Decimal
+
+
+def wrapped_i80f48_to_float(wrapped_i80f48_value: int):
+    nb_of_fractional_bits = 48
+    value = Decimal(wrapped_i80f48_value)
+    value = value / 2 ** nb_of_fractional_bits
+    return value
+
+
+print(wrapped_i80f48_to_float(-54953626681867088))
 
 sample_logs = ["Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [1]", "Program log: CreateIdempotent",
                "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 7338 of 400000 compute units",
@@ -31,7 +42,9 @@ sample_inner_ixs = [
 sample_message = "gAEABgwF3hNv9VErtBxgns6TItDZs+IZ/Y6TNWGuTe16nnh4yTOAiZ9axygRNRuzZCiQK4q5zvPfaH0CnR4tEUdeu2zY7gIfr9tYuu2+5AyJt/JuaSZFKoWEfKCH3YSULQapSVzpPk3uIRtapASqm9ALTdv++zxMXXSinbwKl99MTnuDkd4jxKWJrU3oI9SPceEA9wtTBJ5T78IpGTiq1XRzIrqD/r/JWnhhuWaJpdf6l+yCA38eN/l9xqMSjBXsYMAOea2MlyWPTiSJ8bs9ECkUjg2DC1oTmdr/EIQEjnvY2+n4WdJAOsgK1DjHp0u5LCmsGj4g7ioWbEEtiXn/B9aQ3U+4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG3fbh12Whk9nL4UbO63msHLSF7V9bN5E6jPWFfv8AqYd/H/1F6tUC+2l0WY9HS4WATM+2LA2i9Tq46cjeMS2lO8hKNv2sSk0p0XfYfozLqjspIR2sHsbx0eDvsV5tGY4/gcRh2keI2GQribtQSPXEZxYR1wZZ93XFhp/+f3fIFAIGBgABAAcICQEBCggLAgADAQQFCRIkSEoT0tLAwEBCDwAAAAAAAQEA"
 
 http_client = Client("https://api.devnet.solana.com")
-tx = http_client.get_transaction(Signature.from_string("4WdMP6s8SasqWrWpscurrN1r8ueLZNSdq81nLRJfyhsDU7xMz47t8xYh4hTvTy2C2sZ8Frc3x8urjfkYwKTg7dNT"), max_supported_transaction_version=0)
+tx = http_client.get_transaction(
+    Signature.from_string("4WdMP6s8SasqWrWpscurrN1r8ueLZNSdq81nLRJfyhsDU7xMz47t8xYh4hTvTy2C2sZ8Frc3x8urjfkYwKTg7dNT"),
+    max_supported_transaction_version=0)
 
 message = tx.value.transaction.transaction.message
 pprint(message)

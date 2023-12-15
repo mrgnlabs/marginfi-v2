@@ -16,7 +16,6 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
-
 use std::{
     cmp::{max, min},
     ops::Not,
@@ -257,6 +256,7 @@ pub fn calc_asset_value(
         asset_amount
     };
 
+    #[cfg(target_os = "solana")]
     msg!(
         "weighted_asset_qt: {}, price: {}, expo: {}",
         weighted_asset_amount,

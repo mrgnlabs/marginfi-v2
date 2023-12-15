@@ -4,7 +4,7 @@ use crate::{
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
-    state::marginfi_group::{Bank, BankConfig, MarginfiGroup},
+    state::marginfi_group::{Bank, BankConfig, BankConfigCompact, MarginfiGroup},
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -70,7 +70,7 @@ pub fn lending_pool_add_bank(
 }
 
 #[derive(Accounts)]
-#[instruction(bank_config: BankConfig)]
+#[instruction(bank_config: BankConfigCompact)]
 pub struct LendingPoolAddBank<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
@@ -80,12 +80,15 @@ pub struct LendingPoolAddBank<'info> {
     )]
     pub admin: Signer<'info>,
 
+    #[account(mut)]
+    pub fee_payer: Signer<'info>,
+
     pub bank_mint: Box<Account<'info, Mint>>,
 
     #[account(
         init,
         space = 8 + std::mem::size_of::<Bank>(),
-        payer = admin,
+        payer = fee_payer,
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -101,7 +104,7 @@ pub struct LendingPoolAddBank<'info> {
 
     #[account(
         init,
-        payer = admin,
+        payer = fee_payer,
         token::mint = bank_mint,
         token::authority = liquidity_vault_authority,
         seeds = [
@@ -124,7 +127,7 @@ pub struct LendingPoolAddBank<'info> {
 
     #[account(
         init,
-        payer = admin,
+        payer = fee_payer,
         token::mint = bank_mint,
         token::authority = insurance_vault_authority,
         seeds = [
@@ -147,7 +150,7 @@ pub struct LendingPoolAddBank<'info> {
 
     #[account(
         init,
-        payer = admin,
+        payer = fee_payer,
         token::mint = bank_mint,
         token::authority = fee_vault_authority,
         seeds = [

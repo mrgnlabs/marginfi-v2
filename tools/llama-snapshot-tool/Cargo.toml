@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "llama-snapshot-tool"
 version = "0.1.0"
@@ -19,14 +21,14 @@ marginfi = { path = "../../programs/marginfi", version = "0.1.0", features = [
 log = "0.4.17"
 env_logger = "0.9.0"
 solana-client = "1.14.11"
-solana-sdk = "1.14.11"
+solana-sdk = { workspace = true }
 anchor-client = "0.26.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.81"
 fixed = "1.12.0"
 fixed-macro = "1.2.0"
 bytemuck = "1.12.3"
-solana-account-decoder = "1.14.12"
+solana-account-decoder = { workspace = true }
 reqwest = { version = "0.11", features = ["json"] } # reqwest with JSON parsing support
 futures = "0.3" # for our async / await blocks
 tokio = { version = "1.12.0", features = ["full"] } # for our async runtime

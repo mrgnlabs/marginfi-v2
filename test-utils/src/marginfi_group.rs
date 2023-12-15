@@ -81,6 +81,7 @@ impl MarginfiGroupFixture {
         let mut accounts = marginfi::accounts::LendingPoolAddBank {
             marginfi_group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
+            fee_payer: self.ctx.borrow().payer.pubkey(),
             bank_mint,
             bank: bank_key.pubkey(),
             liquidity_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Liquidity).0,
@@ -100,7 +101,10 @@ impl MarginfiGroupFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts,
-            data: marginfi::instruction::LendingPoolAddBank { bank_config }.data(),
+            data: marginfi::instruction::LendingPoolAddBank {
+                bank_config: bank_config.into(),
+            }
+            .data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
