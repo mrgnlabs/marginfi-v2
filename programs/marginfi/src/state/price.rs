@@ -31,16 +31,22 @@ pub enum PriceBias {
     High,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum OraclePriceType {
+    /// Time weighted price
+    /// EMA for PythEma
+    TimeWeighted,
+    /// Real time price
+    RealTime,
+}
+
 #[enum_dispatch]
 pub trait PriceAdapter {
-    fn get_price(&self) -> MarginfiResult<I80F48>;
-    fn get_confidence_interval(&self) -> MarginfiResult<I80F48>;
-    /// Get a normalized price range for the given price feed.
-    /// The range is the price +/- the CONF_INTERVAL_MULTIPLE * confidence interval.
-    fn get_price_range(&self) -> MarginfiResult<(I80F48, I80F48)>;
-    /// Get the price without any weighting applied.
-    /// This is the price that is used for liquidation.
-    fn get_price_non_weighted(&self, bias: Option<PriceBias>) -> MarginfiResult<I80F48>;
+    fn get_price_of_type(
+        &self,
+        oracle_price_type: OraclePriceType,
+        bias: Option<PriceBias>,
+    ) -> MarginfiResult<I80F48>;
 }
 
 #[enum_dispatch(PriceAdapter)]
@@ -85,6 +91,7 @@ impl OraclePriceFeedAdapter {
             }
         }
     }
+
     pub fn validate_bank_config(
         bank_config: &BankConfig,
         oracle_ais: &[AccountInfo],
@@ -164,39 +171,34 @@ impl PythEmaPriceFeed {
 
         Ok(conf_interval)
     }
-}
 
-impl PriceAdapter for PythEmaPriceFeed {
-    fn get_price(&self) -> MarginfiResult<I80F48> {
+    #[inline(always)]
+    fn get_ema_price(&self) -> MarginfiResult<I80F48> {
         pyth_price_components_to_i80f48(I80F48::from_num(self.ema_price.price), self.ema_price.expo)
     }
 
-    fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
-        self.get_confidence_interval(true)
+    #[inline(always)]
+    fn get_unweighted_price(&self) -> MarginfiResult<I80F48> {
+        pyth_price_components_to_i80f48(I80F48::from_num(self.price.price), self.price.expo)
     }
+}
 
-    fn get_price_range(&self) -> MarginfiResult<(I80F48, I80F48)> {
-        let base_price = self.get_price()?;
-        let price_range = self.get_confidence_interval(true)?;
+impl PriceAdapter for PythEmaPriceFeed {
+    fn get_price_of_type(
+        &self,
+        price_type: OraclePriceType,
+        bias: Option<PriceBias>,
+    ) -> MarginfiResult<I80F48> {
+        let price = match price_type {
+            OraclePriceType::TimeWeighted => self.get_ema_price()?,
+            OraclePriceType::RealTime => self.get_unweighted_price()?,
+        };
 
-        let lowest_price = base_price
-            .checked_sub(price_range)
-            .ok_or_else(math_error!())?;
-        let highest_price = base_price
-            .checked_add(price_range)
-            .ok_or_else(math_error!())?;
-
-        Ok((lowest_price, highest_price))
-    }
-
-    fn get_price_non_weighted(&self, price_bias: Option<PriceBias>) -> MarginfiResult<I80F48> {
-        let price =
-            pyth_price_components_to_i80f48(I80F48::from_num(self.price.price), self.price.expo)?;
-
-        match price_bias {
+        match bias {
             None => Ok(price),
             Some(price_bias) => {
-                let confidence_interval = self.get_confidence_interval(false)?;
+                let confidence_interval = self
+                    .get_confidence_interval(matches!(price_type, OraclePriceType::TimeWeighted))?;
 
                 match price_bias {
                     PriceBias::Low => Ok(price
@@ -254,9 +256,7 @@ impl SwitchboardV2PriceFeed {
 
         Ok(())
     }
-}
 
-impl PriceAdapter for SwitchboardV2PriceFeed {
     fn get_price(&self) -> MarginfiResult<I80F48> {
         let sw_decimal = self
             .aggregator_account
@@ -283,25 +283,17 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
 
         Ok(conf_interval)
     }
+}
 
-    fn get_price_range(&self) -> MarginfiResult<(I80F48, I80F48)> {
-        let base_price = self.get_price()?;
-        let price_range = self.get_confidence_interval()?;
-
-        let lowest_price = base_price
-            .checked_sub(price_range)
-            .ok_or_else(math_error!())?;
-        let highest_price = base_price
-            .checked_add(price_range)
-            .ok_or_else(math_error!())?;
-
-        Ok((lowest_price, highest_price))
-    }
-
-    fn get_price_non_weighted(&self, price_bias: Option<PriceBias>) -> MarginfiResult<I80F48> {
+impl PriceAdapter for SwitchboardV2PriceFeed {
+    fn get_price_of_type(
+        &self,
+        _price_type: OraclePriceType,
+        bias: Option<PriceBias>,
+    ) -> MarginfiResult<I80F48> {
         let price = self.get_price()?;
 
-        match price_bias {
+        match bias {
             Some(price_bias) => {
                 let confidence_interval = self.get_confidence_interval()?;
 
