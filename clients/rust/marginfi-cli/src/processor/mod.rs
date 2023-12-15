@@ -796,6 +796,8 @@ pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()
 
 #[cfg(feature = "dev")]
 pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> {
+    use marginfi::state::price::{OraclePriceType, PriceBias};
+
     let bank: Bank = config.mfi_program.account(bank_pk)?;
     let mut price_oracle_account = config
         .mfi_program
@@ -808,7 +810,14 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
         OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[price_oracle_ai], 0, u64::MAX)
             .unwrap();
 
-    let (worst, best) = opfa.get_price_range().unwrap();
+    let (real_price, maint_asset_price, maint_liab_price, init_asset_price, init_liab_price) = (
+        opfa.get_price_of_type(OraclePriceType::RealTime, None)?,
+        opfa.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?,
+        opfa.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?,
+        opfa.get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))?,
+        opfa.get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))?,
+    );
+
     let keys = bank
         .config
         .oracle_keys
@@ -820,14 +829,18 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
         r##"
 Oracle Setup: {setup:?}
 Oracle Keys: {keys:#?}
-Price: ${price} (worst: ${worst}, best: ${best}, std_dev: ${std})
+Prince:
+    Realtime: {real_price}
+    Maint: {maint_asset_price} (asset) {maint_liab_price} (liab)
+    Init: {init_asset_price} (asset) {init_liab_price} (liab)
     "##,
         setup = bank.config.oracle_setup,
         keys = keys,
-        price = opfa.get_price().unwrap(),
-        worst = worst,
-        best = best,
-        std = opfa.get_confidence_interval().unwrap(),
+        real_price = real_price,
+        maint_asset_price = maint_asset_price,
+        maint_liab_price = maint_liab_price,
+        init_asset_price = init_asset_price,
+        init_liab_price = init_liab_price,
     );
 
     Ok(())

@@ -12,7 +12,7 @@ use marginfi::state::marginfi_account::{
     calc_value, MarginfiAccount, RequirementType, RiskRequirementType,
 };
 use marginfi::state::marginfi_group::BankOperationalState;
-use marginfi::state::price::OraclePriceFeedAdapter;
+use marginfi::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceBias};
 use serde::Serialize;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
@@ -73,23 +73,25 @@ impl MarginfiGroupMetrics {
                     .bank
                     .config
                     .get_weights(RequirementType::Maintenance);
-                let price = snapshot
-                    .price_feeds
-                    .get(&price_feed_pk)
-                    .ok_or_else(|| {
-                        anyhow!(
-                            "Price feed {} not found for bank {}",
-                            price_feed_pk,
-                            bank_pk
-                        )
-                    })?
-                    .get_price();
+                let oralce = snapshot.price_feeds.get(&price_feed_pk).ok_or_else(|| {
+                    anyhow!(
+                        "Price feed {} not found for bank {}",
+                        price_feed_pk,
+                        bank_pk
+                    )
+                })?;
+
+                let (real_price, maint_asset_price, maint_liab_price) = (
+                    oralce.get_price_of_type(OraclePriceType::RealTime, None),
+                    oralce.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low)),
+                    oralce.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High)),
+                );
 
                 let asset_value_usd = calc_value(
                     bank_accounts
                         .bank
                         .get_asset_amount(total_asset_share.into())?,
-                    price,
+                    real_price,
                     bank_accounts.bank.mint_decimals,
                     None,
                 )?
@@ -98,7 +100,7 @@ impl MarginfiGroupMetrics {
                     bank_accounts
                         .bank
                         .get_asset_amount(total_asset_share.into())?,
-                    price,
+                    maint_asset_price,
                     bank_accounts.bank.mint_decimals,
                     Some(asset_weight),
                 )?
@@ -107,7 +109,7 @@ impl MarginfiGroupMetrics {
                     bank_accounts
                         .bank
                         .get_liability_amount(total_liability_share.into())?,
-                    price,
+                    real_price,
                     bank_accounts.bank.mint_decimals,
                     None,
                 )?
@@ -116,7 +118,7 @@ impl MarginfiGroupMetrics {
                     bank_accounts
                         .bank
                         .get_liability_amount(total_liability_share.into())?,
-                    price,
+                    maint_liab_price,
                     bank_accounts.bank.mint_decimals,
                     Some(liability_weight),
                 )?
@@ -245,17 +247,15 @@ impl LendingPoolBankMetrics {
             .config
             .get_weights(RequirementType::Initial);
         let price_feed_pk = bank_accounts.bank.config.oracle_keys[0];
-        let price = snapshot
-            .price_feeds
-            .get(&price_feed_pk)
-            .ok_or_else(|| {
-                anyhow!(
-                    "Price feed {} not found for bank {}",
-                    price_feed_pk,
-                    bank_pk
-                )
-            })?
-            .get_price();
+        let oracle = snapshot.price_feeds.get(&price_feed_pk).ok_or_else(|| {
+            anyhow!(
+                "Price feed {} not found for bank {}",
+                price_feed_pk,
+                bank_pk
+            )
+        })?;
+
+        let price = oracle.get_price_of_type(OraclePriceType::RealTime, None);
 
         let deposit_limit_usd = calc_value(
             bank_accounts.bank.config.deposit_limit.into(),
@@ -510,7 +510,8 @@ impl MarginfiAccountMetrics {
                 let is_asset = asset_shares.gt(&I80F48!(0.0001));
 
                 let price_feed_pk = bank.config.oracle_keys[0];
-                let price = snapshot
+
+                let oracle_data = snapshot
                     .price_feeds
                     .get(&price_feed_pk)
                     .ok_or_else(|| {
@@ -520,8 +521,19 @@ impl MarginfiAccountMetrics {
                             &balance.bank_pk
                         )
                     })
-                    .unwrap()
-                    .get_price();
+                    .unwrap();
+
+                let price_bias = if is_asset {
+                    Some(PriceBias::Low)
+                } else {
+                    Some(PriceBias::High)
+                };
+
+                let (maint_price, init_price, real_price) = (
+                    oracle_data.get_price_of_type(OraclePriceType::RealTime, price_bias),
+                    oracle_data.get_price_of_type(OraclePriceType::TimeWeighted, price_bias),
+                    oracle_data.get_price_of_type(OraclePriceType::RealTime, None),
+                );
 
                 let (amount, weight_maintenance, weight_initial) = if is_asset {
                     (
@@ -541,15 +553,20 @@ impl MarginfiAccountMetrics {
                     )
                 };
 
-                let usd_value = calc_value(amount, price, bank.mint_decimals, None)
+                let usd_value = calc_value(amount, real_price, bank.mint_decimals, None)
                     .unwrap()
                     .to_num::<f64>();
-                let usd_value_maintenance =
-                    calc_value(amount, price, bank.mint_decimals, Some(weight_maintenance))
-                        .unwrap()
-                        .to_num::<f64>();
+
+                let usd_value_maintenance = calc_value(
+                    amount,
+                    maint_price,
+                    bank.mint_decimals,
+                    Some(weight_maintenance),
+                )
+                .unwrap()
+                .to_num::<f64>();
                 let usd_value_initial =
-                    calc_value(amount, price, bank.mint_decimals, Some(weight_initial))
+                    calc_value(amount, init_price, bank.mint_decimals, Some(weight_initial))
                         .unwrap()
                         .to_num::<f64>();
 
@@ -561,7 +578,7 @@ impl MarginfiAccountMetrics {
                     usd_value,
                     usd_value_maintenance,
                     usd_value_initial,
-                    price: price.to_num::<f64>(),
+                    price: real_price.to_num::<f64>(),
                 }
             })
             .collect_vec();
