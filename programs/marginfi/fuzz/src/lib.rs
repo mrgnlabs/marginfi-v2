@@ -225,6 +225,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                 &mut marginfi::instructions::LendingPoolAddBank {
                     marginfi_group: AccountLoader::try_from(&self.marginfi_group).unwrap(),
                     admin: Signer::try_from(&self.owner).unwrap(),
+                    fee_payer: Signer::try_from(&self.owner).unwrap(),
                     bank_mint: Box::new(Account::try_from(&mint).unwrap()),
                     bank: AccountLoader::try_from_unchecked(&marginfi::ID, &bank).unwrap(),
                     liquidity_vault_authority: liquidity_vault_authority.clone(),
@@ -257,7 +258,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                     protocol_ir_fee: I80F48!(0.1).into(),
                     ..Default::default()
                 },
-                oracle_setup: marginfi::state::marginfi_group::OracleSetup::Pyth,
+                oracle_setup: marginfi::state::price::OracleSetup::PythEma,
                 oracle_keys: [
                     oracle.key(),
                     Pubkey::default(),
@@ -267,6 +268,11 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                 ],
                 operational_state:
                     marginfi::state::marginfi_group::BankOperationalState::Operational,
+                risk_tier: if !initial_bank_config.risk_tier_isolated {
+                    marginfi::state::marginfi_group::RiskTier::Collateral
+                } else {
+                    marginfi::state::marginfi_group::RiskTier::Isolated
+                },
                 ..Default::default()
             },
         )
@@ -297,7 +303,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
         let marginfi_account =
             state.new_owned_account(size_of::<MarginfiAccount>(), marginfi::id(), rent);
 
-        marginfi::instructions::marginfi_account::initialize(Context::new(
+        marginfi::instructions::marginfi_account::initialize_account(Context::new(
             &marginfi::id(),
             &mut marginfi::instructions::marginfi_account::MarginfiAccountInitialize {
                 marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
@@ -720,7 +726,7 @@ fn initialize_marginfi_group<'bump>(
     let marginfi_group =
         state.new_owned_account(size_of::<MarginfiGroup>(), program_id, Rent::free());
 
-    marginfi::instructions::marginfi_group::initialize(Context::new(
+    marginfi::instructions::marginfi_group::initialize_group(Context::new(
         &marginfi::id(),
         &mut marginfi::instructions::MarginfiGroupInitialize {
             // Unchecked because we are initializing the account.

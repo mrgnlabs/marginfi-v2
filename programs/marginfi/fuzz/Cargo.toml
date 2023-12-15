@@ -10,15 +10,15 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
-anchor-lang = { workspace = true }
+anchor-lang = "0.26.0"
 anyhow = "1.0.68"
 arbitrary = { version = "1.2.2", features = ["derive"] }
 bumpalo = "3.11.1"
 libfuzzer-sys = "0.4"
 safe-transmute = "0.11.2"
 rand = "0.8.5"
-solana-sdk = { workspace = true }
-solana-program = { workspace = true }
+solana-sdk = "1.14.13"
+solana-program = "1.14.13"
 spl-token = "3.5.0"
 bytemuck = "1.12.3"
 pyth-sdk-solana = "0.7.0"
@@ -34,7 +34,7 @@ capture_log = ["log", "log4rs"]
 
 [dependencies.marginfi]
 path = ".."
-features = ["no-entrypoint", "debug"]
+features = ["no-entrypoint", "debug", "client"]
 
 # Prevent this from interfering with workspaces
 [workspace]

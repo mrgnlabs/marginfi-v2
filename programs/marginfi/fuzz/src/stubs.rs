@@ -26,6 +26,13 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
         log!("Program Log: {}", message);
     }
 
+    fn sol_log_data(&self, fields: &[&[u8]]) {
+        if *VERBOSE == 0 {
+            return;
+        }
+        log!("data: {}", fields.iter().map(base64::encode).join(" "));
+    }
+
     fn sol_invoke_signed(
         &self,
         instruction: &Instruction,

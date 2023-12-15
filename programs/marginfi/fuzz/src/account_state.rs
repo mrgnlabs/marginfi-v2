@@ -184,7 +184,7 @@ impl AccountsState {
         mint: Pubkey,
         mint_decimals: i32,
     ) -> AccountInfo {
-        let data = bytemuck::bytes_of(&PriceAccount {
+        let price_account = PriceAccount {
             prod: mint,
             agg: PriceInfo {
                 conf: 0,
@@ -204,15 +204,20 @@ impl AccountsState {
                 denom: 1,
             },
             ..Default::default()
-        })
-        .to_vec();
+        };
+
+        let data = bytemuck::bytes_of(&price_account);
+        let data_len = data.len();
+        let lamports = self.bump.alloc(rent.minimum_balance(data_len));
+        let data_ptr = self.bump.alloc_slice_fill_copy(data_len, 0u8);
+        data_ptr.copy_from_slice(data);
 
         AccountInfo::new(
             self.random_pubkey(),
             false,
             true,
-            self.bump.alloc(rent.minimum_balance(data.len())),
-            self.bump.alloc(data),
+            lamports,
+            data_ptr,
             &PYTH_ID,
             false,
             Epoch::default(),

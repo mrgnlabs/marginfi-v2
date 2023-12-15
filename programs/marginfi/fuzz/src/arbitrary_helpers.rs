@@ -77,6 +77,8 @@ pub struct BankAndOracleConfig {
 
     pub deposit_limit: u64,
     pub borrow_limit: u64,
+
+    pub risk_tier_isolated: bool,
 }
 
 impl<'a> Arbitrary<'a> for BankAndOracleConfig {
@@ -88,15 +90,26 @@ impl<'a> Arbitrary<'a> for BankAndOracleConfig {
 
         let max_price = 100 * 10u64.pow(mint_decimals as u32);
 
+        let risk_tier_isolated = u.arbitrary()?;
+
         Ok(Self {
             oracle_native_price: u.int_in_range(1..=10)? * max_price,
             mint_decimals,
-            asset_weight_init: I80F48!(0.5).into(),
-            asset_weight_maint: I80F48!(0.75).into(),
+            asset_weight_init: if risk_tier_isolated {
+                I80F48!(0.5).into()
+            } else {
+                I80F48!(0).into()
+            },
+            asset_weight_maint: if risk_tier_isolated {
+                I80F48!(0.75).into()
+            } else {
+                I80F48!(0).into()
+            },
             liability_weight_init: I80F48!(1.5).into(),
             liability_weight_maint: I80F48!(1.25).into(),
             deposit_limit,
             borrow_limit,
+            risk_tier_isolated,
         })
     }
 }
@@ -112,6 +125,7 @@ impl BankAndOracleConfig {
             liability_weight_maint: I80F48!(1.1).into(),
             deposit_limit: 1_000_000_000_000 * 10u64.pow(6),
             borrow_limit: 1_000_000_000_000 * 10u64.pow(6),
+            risk_tier_isolated: false,
         }
     }
 }
