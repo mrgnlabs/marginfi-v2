@@ -1,11 +1,16 @@
-use fixtures::{test::{TestFixture, TestSettings, BankMint, PYTH_SOL_FEED, PYTH_SOL_EQUIVALENT_FEED, PYTH_USDC_FEED}, native, assert_custom_error};
+use fixtures::{
+    assert_custom_error, native,
+    test::{
+        BankMint, TestFixture, TestSettings, PYTH_SOL_EQUIVALENT_FEED, PYTH_SOL_FEED,
+        PYTH_USDC_FEED,
+    },
+};
 use marginfi::prelude::MarginfiError;
 use solana_program_test::tokio;
 
 #[tokio::test]
 /// Borrowing with deposits to a non isolated stale bank should error
 async fn non_isolated_stale_should_error() -> anyhow::Result<()> {
-
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     let usdc_bank = test_f.get_bank(&BankMint::USDC);
@@ -43,11 +48,7 @@ async fn non_isolated_stale_should_error() -> anyhow::Result<()> {
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(
-            borrower_token_account_f_sol_eq.key,
-            sol_eq_bank,
-            1_000,
-        )
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 1_000)
         .await?;
 
     // Borrow SOL
@@ -101,11 +102,7 @@ async fn isolated_stale_should_not_error() -> anyhow::Result<()> {
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(
-            borrower_token_account_f_sol_eq.key,
-            sol_eq_bank,
-            1_000,
-        )
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 1_000)
         .await?;
 
     // Borrow SOL
