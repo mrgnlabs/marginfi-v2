@@ -96,6 +96,7 @@ jobs:
   fuzz:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
       - name: cache dependencies
         uses: Swatinem/rust-cache@v2
       - name: Install minimal rust toolchain
