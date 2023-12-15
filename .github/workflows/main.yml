@@ -105,10 +105,10 @@ jobs:
           profile: minimal
           toolchain: nightly
           default: true
-      - name: Go into fuzz dir
-        run: cd programs/marginfi
-      - run: cargo install cargo-fuzz
-      - name: Run fuzz tests
-        run: cargo fuzz run lend -- -max_total_time=300
+      - name: Run fuzz tests in fuzz dir
+        run: |
+          cd programs/marginfi
+          cargo install cargo-fuzz
+          cargo fuzz run lend -- -max_total_time=300
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
