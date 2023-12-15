@@ -1,6 +1,8 @@
 #[cfg(feature = "admin")]
 pub mod emissions;
 
+pub mod group;
+
 use {
     crate::{
         config::Config,
