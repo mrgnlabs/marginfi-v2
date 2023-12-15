@@ -32,7 +32,7 @@ pub enum PriceBias {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum OraclePriceWeightType {
+pub enum OraclePriceType {
     /// Time weighted price
     /// EMA for PythEma
     TimeWeighted,
@@ -44,7 +44,7 @@ pub enum OraclePriceWeightType {
 pub trait PriceAdapter {
     fn get_price_of_type(
         &self,
-        oracle_price_weight_type: OraclePriceWeightType,
+        oracle_price_type: OraclePriceType,
         bias: Option<PriceBias>,
     ) -> MarginfiResult<I80F48>;
 }
@@ -186,21 +186,19 @@ impl PythEmaPriceFeed {
 impl PriceAdapter for PythEmaPriceFeed {
     fn get_price_of_type(
         &self,
-        price_type: OraclePriceWeightType,
+        price_type: OraclePriceType,
         bias: Option<PriceBias>,
     ) -> MarginfiResult<I80F48> {
         let price = match price_type {
-            OraclePriceWeightType::TimeWeighted => self.get_ema_price()?,
-            OraclePriceWeightType::RealTime => self.get_unweighted_price()?,
+            OraclePriceType::TimeWeighted => self.get_ema_price()?,
+            OraclePriceType::RealTime => self.get_unweighted_price()?,
         };
 
         match bias {
             None => Ok(price),
             Some(price_bias) => {
-                let confidence_interval = self.get_confidence_interval(matches!(
-                    price_type,
-                    OraclePriceWeightType::TimeWeighted
-                ))?;
+                let confidence_interval = self
+                    .get_confidence_interval(matches!(price_type, OraclePriceType::TimeWeighted))?;
 
                 match price_bias {
                     PriceBias::Low => Ok(price
@@ -290,7 +288,7 @@ impl SwitchboardV2PriceFeed {
 impl PriceAdapter for SwitchboardV2PriceFeed {
     fn get_price_of_type(
         &self,
-        _price_type: OraclePriceWeightType,
+        _price_type: OraclePriceType,
         bias: Option<PriceBias>,
     ) -> MarginfiResult<I80F48> {
         let price = self.get_price()?;

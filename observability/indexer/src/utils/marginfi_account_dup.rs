@@ -82,7 +82,7 @@ impl BankAccountWithPriceFeed2 {
                     .get_weight(requirement_type, BalanceSide::Assets);
 
                 let lower_price = price_feed.get_price_of_type(
-                    requirement_type.get_oracle_weight_type(),
+                    requirement_type.get_oracle_price_type(),
                     Some(PriceBias::Low),
                 )?;
 
@@ -120,7 +120,7 @@ impl BankAccountWithPriceFeed2 {
             .get_weight(requirement_type, BalanceSide::Liabilities);
 
         let higher_price = price_feed.get_price_of_type(
-            requirement_type.get_oracle_weight_type(),
+            requirement_type.get_oracle_price_type(),
             Some(PriceBias::High),
         )?;
 

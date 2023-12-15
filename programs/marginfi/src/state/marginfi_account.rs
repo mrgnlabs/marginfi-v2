@@ -1,6 +1,6 @@
 use super::{
     marginfi_group::{Bank, RiskTier, WrappedI80F48},
-    price::{OraclePriceFeedAdapter, OraclePriceWeightType, PriceAdapter, PriceBias},
+    price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
 };
 use crate::{
     assert_struct_size, check,
@@ -98,12 +98,10 @@ impl RequirementType {
     ///
     /// Initial and equity requirements use the time weighted price feed.
     /// Maintenance requirement uses the real time price feed, as its more accurate for triggering liquidations.
-    pub fn get_oracle_weight_type(&self) -> OraclePriceWeightType {
+    pub fn get_oracle_price_type(&self) -> OraclePriceType {
         match self {
-            RequirementType::Initial | RequirementType::Equity => {
-                OraclePriceWeightType::TimeWeighted
-            }
-            RequirementType::Maintenance => OraclePriceWeightType::RealTime,
+            RequirementType::Initial | RequirementType::Equity => OraclePriceType::TimeWeighted,
+            RequirementType::Maintenance => OraclePriceType::RealTime,
         }
     }
 }
@@ -222,7 +220,7 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
                     .get_weight(requirement_type, BalanceSide::Assets);
 
                 let lower_price = price_feed.get_price_of_type(
-                    requirement_type.get_oracle_weight_type(),
+                    requirement_type.get_oracle_price_type(),
                     Some(PriceBias::Low),
                 )?;
 
@@ -259,7 +257,7 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
             .get_weight(requirement_type, BalanceSide::Liabilities);
 
         let higher_price = price_feed.get_price_of_type(
-            requirement_type.get_oracle_weight_type(),
+            requirement_type.get_oracle_price_type(),
             Some(PriceBias::High),
         )?;
 
@@ -468,8 +466,9 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 
     /// Check that the account is at most at the maintenance requirement level post liquidation.
     /// This check is used to ensure two things in the liquidation process:
-    /// 1. Liquidatee account was below the maintenance requirement level before liquidation (as health can only increase, because liquidations always pay down liabilities)
-    /// 2. Liquidator didn't liquidate too many assets that would result in unnecessary loss for the liquidatee.
+    /// 1. We check that the liquidatee's remaining liability is not empty
+    /// 2. Liquidatee account was below the maintenance requirement level before liquidation (as health can only increase, because liquidations always pay down liabilities)
+    /// 3. Liquidator didn't liquidate too many assets that would result in unnecessary loss for the liquidatee.
     ///
     /// This check works on the assumption that the liquidation always results in a reduction of risk.
     ///

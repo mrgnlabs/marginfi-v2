@@ -4,7 +4,7 @@ use crate::constants::{
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::state::marginfi_account::{calc_amount, calc_value, RiskEngine, RiskRequirementType};
 use crate::state::marginfi_group::{Bank, BankVaultType};
-use crate::state::price::{OraclePriceFeedAdapter, PriceAdapter, PriceBias};
+use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
@@ -128,10 +128,7 @@ pub fn lending_account_liquidate(
                 current_timestamp,
                 MAX_PRICE_AGE_SEC,
             )?;
-            asset_pf.get_price_of_type(
-                crate::state::price::OraclePriceWeightType::RealTime,
-                Some(PriceBias::Low),
-            )?
+            asset_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?
         };
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
@@ -143,10 +140,7 @@ pub fn lending_account_liquidate(
                 current_timestamp,
                 MAX_PRICE_AGE_SEC,
             )?;
-            liab_pf.get_price_of_type(
-                crate::state::price::OraclePriceWeightType::RealTime,
-                Some(PriceBias::High),
-            )?
+            liab_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?
         };
 
         let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);

@@ -993,8 +993,8 @@ impl Default for BankConfig {
 
 impl BankConfig {
     #[inline]
-    pub fn get_weights(&self, weight_type: RequirementType) -> (I80F48, I80F48) {
-        match weight_type {
+    pub fn get_weights(&self, req_type: RequirementType) -> (I80F48, I80F48) {
+        match req_type {
             RequirementType::Initial => (
                 self.asset_weight_init.into(),
                 self.liability_weight_init.into(),
