@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - "*"
+  workflow_dispatch:
 
 defaults:
   run:
@@ -95,6 +96,8 @@ jobs:
 
   fuzz:
     runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v3
       - name: cache dependencies
@@ -108,6 +111,6 @@ jobs:
       - name: Go into fuzz dir
         run: cd programs/marginfi
       - name: Run fuzz tests
-        run: cargo fuzz run lend -- -max_total_time=120
+        run: cargo fuzz run lend -- -max_total_time=300
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
