@@ -45,6 +45,8 @@ const END_FL_IX_MARGINFI_ACCOUNT_AI_IDX: usize = 0;
 /// 3. `end_flashloan` ix is for the same marginfi account
 /// 4. Account is not disabled
 /// 5. Account is not already in a flashloan
+/// 6. Start flashloan ix is not in CPI
+/// 7. End flashloan ix is not in CPI
 pub fn check_flashloan_can_start(
     marginfi_account: &AccountLoader<MarginfiAccount>,
     sysvar_ixs: &AccountInfo,
@@ -58,6 +60,16 @@ pub fn check_flashloan_can_start(
     let current_ix_idx: u64 = instructions::load_current_index_checked(sysvar_ixs)?.into();
 
     check!(current_ix_idx < end_fl_idx, MarginfiError::IllegalFlashloan);
+
+    // Check current ix is not a CPI
+    let current_ix =
+        instructions::load_instruction_at_checked(current_ix_idx as usize, sysvar_ixs)?;
+
+    check!(
+        current_ix.program_id.eq(&crate::id()),
+        MarginfiError::IllegalFlashloan,
+        "Start flashloan ix should not be in CPI"
+    );
 
     // Will error if ix doesn't exist
     let unchecked_end_fl_ix =
@@ -75,6 +87,13 @@ pub fn check_flashloan_can_start(
     );
 
     let end_fl_ix = unchecked_end_fl_ix;
+
+    check!(
+        end_fl_ix.program_id.eq(&crate::id()),
+        MarginfiError::IllegalFlashloan,
+        "End flashloan ix should not be in CPI"
+    );
+
     let end_fl_marginfi_account = end_fl_ix
         .accounts
         .get(END_FL_IX_MARGINFI_ACCOUNT_AI_IDX)
