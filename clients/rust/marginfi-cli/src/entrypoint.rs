@@ -1,6 +1,6 @@
 use crate::{
     config::GlobalOptions,
-    processor,
+    processor::{self, group::process_update_lookup_tables},
     profile::{load_profile, Profile},
 };
 use anchor_client::Cluster;
@@ -98,9 +98,9 @@ pub enum GroupCommand {
         #[clap(long)]
         liability_weight_maint: f64,
         #[clap(long)]
-        deposit_limit: u64,
+        deposit_limit_ui: u64,
         #[clap(long)]
-        borrow_limit: u64,
+        borrow_limit_ui: u64,
         #[clap(long)]
         pyth_oracle: Pubkey,
         #[clap(long)]
@@ -124,10 +124,12 @@ pub enum GroupCommand {
     },
     #[cfg(feature = "admin")]
     HandleBankruptcy {
-        #[clap(long)]
-        bank: Pubkey,
-        #[clap(long)]
-        marginfi_account: Pubkey,
+        accounts: Vec<Pubkey>,
+    },
+    #[cfg(feature = "admin")]
+    UpdateLookupTable {
+        #[clap(short = 't', long)]
+        existing_token_lookup_tables: Vec<Pubkey>,
     },
 }
 
@@ -277,7 +279,9 @@ pub enum ProfileCommand {
         #[clap(long)]
         cluster: Cluster,
         #[clap(long)]
-        keypair_path: String,
+        keypair_path: Option<String>,
+        #[clap(long)]
+        multisig: Option<Pubkey>,
         #[clap(long)]
         rpc_url: String,
         #[clap(long)]
@@ -300,6 +304,8 @@ pub enum ProfileCommand {
         cluster: Option<Cluster>,
         #[clap(long)]
         keypair_path: Option<String>,
+        #[clap(long)]
+        multisig: Option<Pubkey>,
         #[clap(long)]
         rpc_url: Option<String>,
         #[clap(long)]
@@ -388,6 +394,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             name,
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -397,6 +404,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             name,
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -409,6 +417,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
         ProfileCommand::Update {
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -419,6 +428,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             name,
             cluster,
             keypair_path,
+            multisig,
             rpc_url,
             program_id,
             commitment,
@@ -468,8 +478,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             insurance_ir_fee,
             protocol_fixed_fee_apr,
             protocol_ir_fee,
-            deposit_limit,
-            borrow_limit,
+            deposit_limit_ui,
+            borrow_limit_ui,
             risk_tier,
             oracle_type,
         } => processor::group_add_bank(
@@ -482,8 +492,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            deposit_limit,
-            borrow_limit,
+            deposit_limit_ui,
+            borrow_limit_ui,
             optimal_utilization_rate,
             plateau_interest_rate,
             max_interest_rate,
@@ -494,10 +504,13 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             risk_tier,
         ),
         #[cfg(feature = "admin")]
-        GroupCommand::HandleBankruptcy {
-            bank,
-            marginfi_account,
-        } => processor::group_handle_bankruptcy(&config, profile, bank, marginfi_account),
+        GroupCommand::HandleBankruptcy { accounts } => {
+            processor::handle_bankruptcy_for_accounts(&config, &profile, accounts)
+        }
+        #[cfg(feature = "admin")]
+        GroupCommand::UpdateLookupTable {
+            existing_token_lookup_tables,
+        } => process_update_lookup_tables(&config, &profile, existing_token_lookup_tables),
     }
 }
 
@@ -510,6 +523,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             BankCommand::Get { .. } | BankCommand::GetAll { .. } => (),
             #[cfg(feature = "dev")]
             BankCommand::InspectPriceOracle { .. } => (),
+            #[allow(unreachable_patterns)]
             _ => get_consent(&subcmd, &profile)?,
         }
     }

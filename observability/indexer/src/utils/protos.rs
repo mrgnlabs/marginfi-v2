@@ -18,8 +18,10 @@ pub use geyser::*;
 pub use solana::storage::confirmed_block::*;
 
 mod conversion {
+    use crate::utils::errors::GeyserServiceError;
     use itertools::Itertools;
     use solana_account_decoder::parse_token::UiTokenAmount;
+    use solana_sdk::account::Account;
     use solana_sdk::{
         hash::Hash,
         instruction::CompiledInstruction,
@@ -32,34 +34,24 @@ mod conversion {
         signature::Signature,
         transaction::{TransactionError, VersionedTransaction},
     };
-    use solana_sdk::account::Account;
     use solana_transaction_status::{
         InnerInstructions, Reward, RewardType, TransactionStatusMeta, TransactionTokenBalance,
         VersionedTransactionWithStatusMeta,
     };
 
-    // impl From<super::CompiledInstruction> for CompiledInstruction {
-    //     fn from(instruction_proto: super::CompiledInstruction) -> Self {
-    //         Self {
-    //             instruction: CompiledInstruction {
-    //                 program_id_index: instruction_proto.program_id_index as u8,
-    //                 accounts: instruction_proto.accounts,
-    //                 data: instruction_proto.data,
-    //             },
-    //             stack_height: None,
-    //         }
-    //     }
-    // }
+    impl TryFrom<super::SubscribeUpdateAccountInfo> for Account {
+        type Error = GeyserServiceError;
 
-    impl From<super::SubscribeUpdateAccountInfo> for Account {
-        fn from(account_data_proto: super::SubscribeUpdateAccountInfo) -> Self {
-            Self {
+        fn try_from(
+            account_data_proto: super::SubscribeUpdateAccountInfo,
+        ) -> Result<Self, Self::Error> {
+            Ok(Self {
                 data: account_data_proto.data,
                 owner: Pubkey::new(&account_data_proto.owner),
                 lamports: account_data_proto.lamports,
                 executable: account_data_proto.executable,
                 rent_epoch: account_data_proto.rent_epoch,
-            }
+            })
         }
     }
 
@@ -83,73 +75,88 @@ mod conversion {
         }
     }
 
-    impl From<super::MessageAddressTableLookup> for MessageAddressTableLookup {
-        fn from(lut_proto: super::MessageAddressTableLookup) -> Self {
-            Self {
-                account_key: Pubkey::new(lut_proto.account_key.as_slice()),
+    impl TryFrom<super::MessageAddressTableLookup> for MessageAddressTableLookup {
+        type Error = GeyserServiceError;
+
+        fn try_from(lut_proto: super::MessageAddressTableLookup) -> Result<Self, Self::Error> {
+            Ok(Self {
+                account_key: Pubkey::new(&lut_proto.account_key),
                 writable_indexes: lut_proto.writable_indexes,
                 readonly_indexes: lut_proto.readonly_indexes,
-            }
+            })
         }
     }
 
-    impl From<super::Message> for legacy::Message {
-        fn from(message_proto: super::Message) -> Self {
+    impl TryFrom<super::Message> for legacy::Message {
+        type Error = GeyserServiceError;
+
+        fn try_from(message_proto: super::Message) -> Result<Self, Self::Error> {
             let message_header_proto = message_proto.header.expect("missing message header");
-            Self {
+            Ok(Self {
                 account_keys: message_proto
                     .account_keys
                     .iter()
-                    .map(|address_bytes| Pubkey::new(address_bytes.as_slice()))
-                    .collect_vec(),
+                    .map(|address_bytes| Pubkey::new(address_bytes))
+                    .into_iter()
+                    .collect(),
                 header: message_header_proto.into(),
                 recent_blockhash: Hash::new(&message_proto.recent_blockhash),
                 instructions: message_proto.instructions.into_iter().map_into().collect(),
-            }
+            })
         }
     }
 
-    impl From<super::Message> for v0::Message {
-        fn from(message_proto: super::Message) -> Self {
+    impl TryFrom<super::Message> for v0::Message {
+        type Error = GeyserServiceError;
+
+        fn try_from(message_proto: super::Message) -> Result<Self, Self::Error> {
             let message_header_proto = message_proto.header.expect("missing message header");
-            Self {
+
+            Ok(Self {
                 header: message_header_proto.into(),
                 account_keys: message_proto
                     .account_keys
                     .iter()
-                    .map(|address_bytes| Pubkey::new(address_bytes.as_slice()))
-                    .collect_vec(),
+                    .map(|address_bytes| Pubkey::new(address_bytes))
+                    .into_iter()
+                    .collect(),
                 recent_blockhash: Hash::new(&message_proto.recent_blockhash),
                 instructions: message_proto.instructions.into_iter().map_into().collect(),
                 address_table_lookups: message_proto
                     .address_table_lookups
                     .into_iter()
-                    .map_into()
-                    .collect(),
-            }
+                    .map(TryFrom::try_from)
+                    .into_iter()
+                    .collect::<Result<_, _>>()?,
+            })
         }
     }
 
-    impl From<super::Message> for VersionedMessage {
-        fn from(message_proto: super::Message) -> Self {
-            match message_proto.versioned {
-                false => VersionedMessage::Legacy(message_proto.into()),
-                true => VersionedMessage::V0(message_proto.into()),
-            }
+    impl TryFrom<super::Message> for VersionedMessage {
+        type Error = GeyserServiceError;
+
+        fn try_from(message_proto: super::Message) -> Result<Self, Self::Error> {
+            Ok(match message_proto.versioned {
+                false => VersionedMessage::Legacy(message_proto.try_into()?),
+                true => VersionedMessage::V0(message_proto.try_into()?),
+            })
         }
     }
 
-    impl From<super::Transaction> for VersionedTransaction {
-        fn from(transaction_proto: super::Transaction) -> Self {
+    impl TryFrom<super::Transaction> for VersionedTransaction {
+        type Error = GeyserServiceError;
+
+        fn try_from(transaction_proto: super::Transaction) -> Result<Self, Self::Error> {
             let message_proto = transaction_proto.message.expect("missing message");
-            Self {
+
+            Ok(Self {
                 signatures: transaction_proto
                     .signatures
                     .iter()
                     .map(|sig_bytes| Signature::new(sig_bytes))
                     .collect_vec(),
-                message: message_proto.into(),
-            }
+                message: message_proto.try_into()?,
+            })
         }
     }
 
@@ -208,9 +215,24 @@ mod conversion {
         }
     }
 
-    impl From<super::TransactionStatusMeta> for TransactionStatusMeta {
-        fn from(meta_proto: super::TransactionStatusMeta) -> Self {
-            Self {
+    impl TryFrom<super::TransactionStatusMeta> for TransactionStatusMeta {
+        type Error = GeyserServiceError;
+
+        fn try_from(meta_proto: super::TransactionStatusMeta) -> Result<Self, Self::Error> {
+            let loaded_writable_addresses: Vec<Pubkey> = meta_proto
+                .loaded_writable_addresses
+                .iter()
+                .map(|address_bytes| Pubkey::new(address_bytes))
+                .into_iter()
+                .collect();
+            let loaded_readable_addresses = meta_proto
+                .loaded_readonly_addresses
+                .iter()
+                .map(|address_bytes| Pubkey::new(address_bytes))
+                .into_iter()
+                .collect();
+
+            Ok(Self {
                 status: match meta_proto.err {
                     None => Ok(()),
                     Some(err) => Err(bincode::deserialize::<TransactionError>(&err.err).unwrap()),
@@ -242,35 +264,31 @@ mod conversion {
                 ),
                 rewards: Some(meta_proto.rewards.into_iter().map_into().collect()),
                 loaded_addresses: LoadedAddresses {
-                    writable: meta_proto
-                        .loaded_writable_addresses
-                        .iter()
-                        .map(|address_bytes| Pubkey::new(address_bytes.as_slice()))
-                        .collect_vec(),
-                    readonly: meta_proto
-                        .loaded_readonly_addresses
-                        .iter()
-                        .map(|address_bytes| Pubkey::new(address_bytes.as_slice()))
-                        .collect_vec(),
+                    writable: loaded_writable_addresses,
+                    readonly: loaded_readable_addresses,
                 },
                 return_data: None,
                 compute_units_consumed: None,
-            }
+            })
         }
     }
 
-    impl From<super::SubscribeUpdateTransactionInfo> for VersionedTransactionWithStatusMeta {
-        fn from(transaction_info: super::SubscribeUpdateTransactionInfo) -> Self {
-            Self {
+    impl TryFrom<super::SubscribeUpdateTransactionInfo> for VersionedTransactionWithStatusMeta {
+        type Error = GeyserServiceError;
+
+        fn try_from(
+            transaction_info: super::SubscribeUpdateTransactionInfo,
+        ) -> Result<Self, Self::Error> {
+            Ok(Self {
                 transaction: transaction_info
                     .transaction
                     .expect("missing transaction")
-                    .into(),
+                    .try_into()?,
                 meta: transaction_info
                     .meta
                     .expect("missing transaction meta")
-                    .into(),
-            }
+                    .try_into()?,
+            })
         }
     }
 }

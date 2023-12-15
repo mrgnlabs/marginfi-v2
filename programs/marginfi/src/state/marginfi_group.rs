@@ -20,7 +20,7 @@ use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 use std::{
-    fmt::{Debug, Formatter},
+    fmt::{Debug, Display, Formatter},
     ops::Not,
 };
 
@@ -70,6 +70,55 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     let price_feed =
         load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
+}
+
+#[zero_copy]
+#[repr(C)]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(PartialEq, Eq, TypeLayout)
+)]
+#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize)]
+pub struct InterestRateConfigCompact {
+    // Curve Params
+    pub optimal_utilization_rate: WrappedI80F48,
+    pub plateau_interest_rate: WrappedI80F48,
+    pub max_interest_rate: WrappedI80F48,
+
+    // Fees
+    pub insurance_fee_fixed_apr: WrappedI80F48,
+    pub insurance_ir_fee: WrappedI80F48,
+    pub protocol_fixed_fee_apr: WrappedI80F48,
+    pub protocol_ir_fee: WrappedI80F48,
+}
+
+impl From<InterestRateConfigCompact> for InterestRateConfig {
+    fn from(ir_config: InterestRateConfigCompact) -> Self {
+        InterestRateConfig {
+            optimal_utilization_rate: ir_config.optimal_utilization_rate,
+            plateau_interest_rate: ir_config.plateau_interest_rate,
+            max_interest_rate: ir_config.max_interest_rate,
+            insurance_fee_fixed_apr: ir_config.insurance_fee_fixed_apr,
+            insurance_ir_fee: ir_config.insurance_ir_fee,
+            protocol_fixed_fee_apr: ir_config.protocol_fixed_fee_apr,
+            protocol_ir_fee: ir_config.protocol_ir_fee,
+            _padding: [0; 8],
+        }
+    }
+}
+
+impl From<InterestRateConfig> for InterestRateConfigCompact {
+    fn from(ir_config: InterestRateConfig) -> Self {
+        InterestRateConfigCompact {
+            optimal_utilization_rate: ir_config.optimal_utilization_rate,
+            plateau_interest_rate: ir_config.plateau_interest_rate,
+            max_interest_rate: ir_config.max_interest_rate,
+            insurance_fee_fixed_apr: ir_config.insurance_fee_fixed_apr,
+            insurance_ir_fee: ir_config.insurance_ir_fee,
+            protocol_fixed_fee_apr: ir_config.protocol_fixed_fee_apr,
+            protocol_ir_fee: ir_config.protocol_ir_fee,
+        }
+    }
 }
 
 #[zero_copy]
@@ -736,6 +785,17 @@ pub enum BankOperationalState {
     ReduceOnly,
 }
 
+#[cfg(feature = "client")]
+impl Display for BankOperationalState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BankOperationalState::Paused => write!(f, "Paused"),
+            BankOperationalState::Operational => write!(f, "Operational"),
+            BankOperationalState::ReduceOnly => write!(f, "ReduceOnly"),
+        }
+    }
+}
+
 #[repr(u64)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum RiskTier {
@@ -747,6 +807,83 @@ pub enum RiskTier {
     /// For example, if users has USDC, and wants to borrow XYZ which is isolated,
     /// they can't borrow XYZ together with SOL, only XYZ alone.
     Isolated,
+}
+
+#[zero_copy]
+#[repr(C)]
+#[cfg_attr(
+    any(feature = "test", feature = "client"),
+    derive(PartialEq, Eq, TypeLayout)
+)]
+#[derive(AnchorDeserialize, AnchorSerialize, Debug)]
+/// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
+pub struct BankConfigCompact {
+    pub asset_weight_init: WrappedI80F48,
+    pub asset_weight_maint: WrappedI80F48,
+
+    pub liability_weight_init: WrappedI80F48,
+    pub liability_weight_maint: WrappedI80F48,
+
+    pub deposit_limit: u64,
+
+    pub interest_rate_config: InterestRateConfigCompact,
+    pub operational_state: BankOperationalState,
+
+    pub oracle_setup: OracleSetup,
+    pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS],
+
+    pub borrow_limit: u64,
+
+    pub risk_tier: RiskTier,
+
+    /// USD denominated limit for calculating asset value for initialization margin requirements.
+    /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
+    /// then SOL assets will be discounted by 50%.
+    ///
+    /// In other words the max value of liabilities that can be backed by the asset is $500K.
+    /// This is useful for limiting the damage of orcale attacks.
+    ///
+    /// Value is UI USD value, for example value 100 -> $100
+    pub total_asset_value_init_limit: u64,
+}
+
+impl From<BankConfigCompact> for BankConfig {
+    fn from(config: BankConfigCompact) -> Self {
+        Self {
+            asset_weight_init: config.asset_weight_init,
+            asset_weight_maint: config.asset_weight_maint,
+            liability_weight_init: config.liability_weight_init,
+            liability_weight_maint: config.liability_weight_maint,
+            deposit_limit: config.deposit_limit,
+            interest_rate_config: config.interest_rate_config.into(),
+            operational_state: config.operational_state,
+            oracle_setup: config.oracle_setup,
+            oracle_keys: config.oracle_keys,
+            borrow_limit: config.borrow_limit,
+            risk_tier: config.risk_tier,
+            total_asset_value_init_limit: config.total_asset_value_init_limit,
+            _padding: [0; 5],
+        }
+    }
+}
+
+impl From<BankConfig> for BankConfigCompact {
+    fn from(config: BankConfig) -> Self {
+        Self {
+            asset_weight_init: config.asset_weight_init,
+            asset_weight_maint: config.asset_weight_maint,
+            liability_weight_init: config.liability_weight_init,
+            liability_weight_maint: config.liability_weight_maint,
+            deposit_limit: config.deposit_limit,
+            interest_rate_config: config.interest_rate_config.into(),
+            operational_state: config.operational_state,
+            oracle_setup: config.oracle_setup,
+            oracle_keys: config.oracle_keys,
+            borrow_limit: config.borrow_limit,
+            risk_tier: config.risk_tier,
+            total_asset_value_init_limit: config.total_asset_value_init_limit,
+        }
+    }
 }
 
 assert_struct_size!(BankConfig, 544);

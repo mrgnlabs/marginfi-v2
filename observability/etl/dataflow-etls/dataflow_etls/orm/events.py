@@ -1,36 +1,27 @@
-import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Union, Optional, Dict, Type
+from typing import Union, Optional, Dict, Type, TYPE_CHECKING
 from anchorpy import Event, NamedInstruction
 
-from dataflow_etls.transaction_log_parser import InstructionWithLogs
+from dataflow_etls.utils import pascal_to_snake_case, wrapped_i80f48_to_float, time_str, map_optional
+
+if TYPE_CHECKING:
+    from dataflow_etls.transaction_parsing import InstructionWithLogs
 
 # IDL event names
-MARGINFI_GROUP_CREATE_EVENT = 'MarginfiGroupCreateEvent'
-MARGINFI_GROUP_CONFIGURE_EVENT = 'MarginfiGroupConfigureEvent'
-LENDING_POOL_BANK_CREATE_EVENT = 'LendingPoolBankCreateEvent'
-LENDING_POOL_BANK_CONFIGURE_EVENT = 'LendingPoolBankConfigureEvent'
-LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT = 'LendingPoolBankAccrueInterestEvent'
-LENDING_POOL_BANK_COLLECT_FEES_EVENT = 'LendingPoolBankCollectFeesEvent'
-LENDING_POOL_BANK_HANDLE_BANKRUPTCY_EVENT = 'LendingPoolBankHandleBankruptcyEvent'
-MARGINFI_ACCOUNT_CREATE_EVENT = 'MarginfiAccountCreateEvent'
-LENDING_ACCOUNT_DEPOSIT_EVENT = 'LendingAccountDepositEvent'
-LENDING_ACCOUNT_WITHDRAW_EVENT = 'LendingAccountWithdrawEvent'
-LENDING_ACCOUNT_BORROW_EVENT = 'LendingAccountBorrowEvent'
-LENDING_ACCOUNT_REPAY_EVENT = 'LendingAccountRepayEvent'
-LENDING_ACCOUNT_LIQUIDATE_EVENT = 'LendingAccountLiquidateEvent'
-
-
-def pascal_to_snake_case(string: str) -> str:
-    return re.sub('(?!^)([A-Z]+)', r'_\1', string).lower()
-
-
-def time_str(dt: Optional[datetime] = None) -> str:
-    if dt is None:
-        dt = datetime.now(timezone.utc)
-    return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+MARGINFI_GROUP_CREATE_EVENT_NAME = 'MarginfiGroupCreateEvent'
+MARGINFI_GROUP_CONFIGURE_EVENT_NAME = 'MarginfiGroupConfigureEvent'
+LENDING_POOL_BANK_CREATE_EVENT_NAME = 'LendingPoolBankCreateEvent'
+LENDING_POOL_BANK_CONFIGURE_EVENT_NAME = 'LendingPoolBankConfigureEvent'
+LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT_NAME = 'LendingPoolBankAccrueInterestEvent'
+LENDING_POOL_BANK_COLLECT_FEES_EVENT_NAME = 'LendingPoolBankCollectFeesEvent'
+LENDING_POOL_BANK_HANDLE_BANKRUPTCY_EVENT_NAME = 'LendingPoolBankHandleBankruptcyEvent'
+MARGINFI_ACCOUNT_CREATE_EVENT_NAME = 'MarginfiAccountCreateEvent'
+LENDING_ACCOUNT_DEPOSIT_EVENT_NAME = 'LendingAccountDepositEvent'
+LENDING_ACCOUNT_WITHDRAW_EVENT_NAME = 'LendingAccountWithdrawEvent'
+LENDING_ACCOUNT_BORROW_EVENT_NAME = 'LendingAccountBorrowEvent'
+LENDING_ACCOUNT_REPAY_EVENT_NAME = 'LendingAccountRepayEvent'
+LENDING_ACCOUNT_LIQUIDATE_EVENT_NAME = 'LendingAccountLiquidateEvent'
 
 
 @dataclass
@@ -56,7 +47,7 @@ class RecordBase:
     signature: str
     indexing_address: str
 
-    def __init__(self, _event: Event, instruction: InstructionWithLogs, _instruction_args: NamedInstruction):
+    def __init__(self, _event: Event, instruction: "InstructionWithLogs", _instruction_args: NamedInstruction):
         self.id = str(uuid.uuid4())
         self.created_at = time_str()
         self.timestamp = time_str(instruction.timestamp)
@@ -67,8 +58,11 @@ class RecordBase:
         self.indexing_address = str(instruction.message.program_id)
 
     @classmethod
-    def get_tag(cls) -> str:
-        return cls.__name__
+    def get_tag(cls, snake_case: bool = False) -> str:
+        if snake_case:
+            return pascal_to_snake_case(cls.__name__)
+        else:
+            return cls.__name__
 
 
 # Event headers
@@ -89,7 +83,7 @@ class AccountRecordBase(RecordBase):
     marginfi_account: str
     marginfi_account_authority: str
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.signer = str(event.data.header.signer) if event.data.header.signer is not None else None
@@ -110,7 +104,7 @@ class GroupRecordBase(RecordBase):
     signer: Optional[str]
     marginfi_group: str
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.signer = str(event.data.header.signer) if event.data.header.signer is not None else None
@@ -124,7 +118,7 @@ class GroupRecordBase(RecordBase):
 class MarginfiGroupCreateRecord(GroupRecordBase):
     SCHEMA = GroupRecordBase.SCHEMA
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
 
@@ -138,7 +132,7 @@ class MarginfiGroupConfigureRecord(GroupRecordBase):
 
     admin: Optional[str]
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.admin = event.data.config.admin
@@ -156,7 +150,7 @@ class LendingPoolBankCreateRecord(GroupRecordBase):
     bank: str
     mint: str
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.bank = str(event.data.bank)
@@ -169,76 +163,85 @@ class LendingPoolBankConfigureRecord(GroupRecordBase):
         [
             "bank:STRING",
             "mint:STRING",
-            # "asset_weight_init:NUMERIC",
-            # "asset_weight_maint:NUMERIC",
-            # "liability_weight_init:NUMERIC",
-            # "liability_weight_maint:NUMERIC",
-            # "deposit_limit:BIGNUMERIC",
-            # "borrow_limit:BIGNUMERIC",
-            # "operational_state:STRING",
-            # "oracle_setup:STRING",
-            # "oracle_keys:STRING",
-            # "optimal_utilization_rate:NUMERIC",
-            # "plateau_interest_rate:NUMERIC",
-            # "max_interest_rate:NUMERIC",
-            # "insurance_fee_fixed_apr:NUMERIC",
-            # "insurance_ir_fee:NUMERIC",
-            # "protocol_fixed_fee_apr:NUMERIC",
-            # "protocol_ir_fee:NUMERIC",
+            "asset_weight_init:NUMERIC",
+            "asset_weight_maint:NUMERIC",
+            "liability_weight_init:NUMERIC",
+            "liability_weight_maint:NUMERIC",
+            "deposit_limit:BIGNUMERIC",
+            "borrow_limit:BIGNUMERIC",
+            "operational_state:STRING",
+            "oracle_setup:STRING",
+            "oracle_keys:STRING",
+            "optimal_utilization_rate:NUMERIC",
+            "plateau_interest_rate:NUMERIC",
+            "max_interest_rate:NUMERIC",
+            "insurance_fee_fixed_apr:NUMERIC",
+            "insurance_ir_fee:NUMERIC",
+            "protocol_fixed_fee_apr:NUMERIC",
+            "protocol_ir_fee:NUMERIC",
         ]
     )
 
     bank: str
     mint: str
 
-    # todo: config
+    asset_weight_init: Optional[float]
+    asset_weight_maint: Optional[float]
 
-    # asset_weight_init: Optional[float]
-    # asset_weight_maint: Optional[float]
-    #
-    # liability_weight_init: Optional[float]
-    # liability_weight_maint: Optional[float]
-    #
-    # deposit_limit: Optional[int]
-    # borrow_limit: Optional[int]
-    #
-    # operational_state: Optional[str]
-    # oracle_setup: Optional[str]
-    # oracle_keys: Optional[str]
-    #
-    # optimal_utilization_rate: Optional[float]
-    # plateau_interest_rate: Optional[float]
-    # max_interest_rate: Optional[float]
-    #
-    # insurance_fee_fixed_apr: Optional[float]
-    # insurance_ir_fee: Optional[float]
-    # protocol_fixed_fee_apr: Optional[float]
-    # protocol_ir_fee: Optional[float]
+    liability_weight_init: Optional[float]
+    liability_weight_maint: Optional[float]
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    deposit_limit: Optional[int]
+    borrow_limit: Optional[int]
+
+    operational_state: Optional[str]
+    oracle_setup: Optional[str]
+    oracle_keys: Optional[str]
+
+    optimal_utilization_rate: Optional[float]
+    plateau_interest_rate: Optional[float]
+    max_interest_rate: Optional[float]
+
+    insurance_fee_fixed_apr: Optional[float]
+    insurance_ir_fee: Optional[float]
+    protocol_fixed_fee_apr: Optional[float]
+    protocol_ir_fee: Optional[float]
+
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.bank = str(event.data.bank)
         self.mint = str(event.data.mint)
 
-        # self.asset_weight_init = event.data.config.asset_weight_init
-        # self.asset_weight_maint = event.data.config.asset_weight_maint
-        # self.liability_weight_init = event.data.config.liability_weight_init
-        # self.liability_weight_maint = event.data.config.liability_weight_maint
-        # self.deposit_limit = event.data.config.deposit_limit
-        # self.borrow_limit = event.data.config.borrow_limit
-        #
-        # self.operational_state = str(event.data.config.operational_state)
-        # self.oracle_setup = str(event.data.config.oracle.setup) if event.data.config.oracle is not None else None
-        # self.oracle_keys = str(event.data.config.oracle.keys) if event.data.config.oracle is not None else None
-        #
-        # self.optimal_utilization_rate = event.data.config.interest_rate_config.optimal_utilization_rate
-        # self.plateau_interest_rate = event.data.config.interest_rate_config.plateau_interest_rate
-        # self.max_interest_rate = event.data.config.interest_rate_config.max_interest_rate
-        # self.insurance_fee_fixed_apr = event.data.config.interest_rate_config.insurance_fee_fixed_apr
-        # self.insurance_ir_fee = event.data.config.interest_rate_config.insurance_ir_fee
-        # self.protocol_fixed_fee_apr = event.data.config.interest_rate_config.protocol_fixed_fee_apr
-        # self.protocol_ir_fee = event.data.config.interest_rate_config.protocol_ir_fee
+        self.asset_weight_init = map_optional(event.data.config.asset_weight_init, wrapped_i80f48_to_float)
+        self.asset_weight_maint = map_optional(event.data.config.asset_weight_maint, wrapped_i80f48_to_float)
+        self.liability_weight_init = map_optional(event.data.config.liability_weight_init, wrapped_i80f48_to_float)
+        self.liability_weight_maint = map_optional(event.data.config.liability_weight_maint, wrapped_i80f48_to_float)
+        self.deposit_limit = event.data.config.deposit_limit
+        self.borrow_limit = event.data.config.borrow_limit
+
+        self.operational_state = map_optional(event.data.config.operational_state, str)
+        if event.data.config.oracle:
+            self.oracle_setup = str(event.data.config.oracle.setup)
+            self.oracle_keys = str([str(pk) for pk in event.data.config.oracle.keys])
+        else:
+            self.oracle_setup = None
+            self.oracle_keys = None
+
+        self.optimal_utilization_rate = map_optional(
+            event.data.config.interest_rate_config.optimal_utilization_rate, wrapped_i80f48_to_float)
+        self.plateau_interest_rate = map_optional(
+            event.data.config.interest_rate_config.plateau_interest_rate, wrapped_i80f48_to_float)
+        self.max_interest_rate = map_optional(
+            event.data.config.interest_rate_config.max_interest_rate, wrapped_i80f48_to_float)
+        self.insurance_fee_fixed_apr = map_optional(
+            event.data.config.interest_rate_config.insurance_fee_fixed_apr, wrapped_i80f48_to_float)
+        self.insurance_ir_fee = map_optional(
+            event.data.config.interest_rate_config.insurance_ir_fee, wrapped_i80f48_to_float)
+        self.protocol_fixed_fee_apr = map_optional(
+            event.data.config.interest_rate_config.protocol_fixed_fee_apr, wrapped_i80f48_to_float)
+        self.protocol_ir_fee = map_optional(
+            event.data.config.interest_rate_config.protocol_ir_fee, wrapped_i80f48_to_float)
 
 
 @dataclass
@@ -259,7 +262,7 @@ class LendingPoolBankAccrueInterestRecord(GroupRecordBase):
     fees_collected: float
     insurance_collected: float
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.bank = str(event.data.bank)
@@ -289,7 +292,7 @@ class LendingPoolBankCollectFeesRecord(GroupRecordBase):
     insurance_fees_collected: float
     insurance_fees_outstanding: float
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.bank = str(event.data.bank)
@@ -318,7 +321,7 @@ class LendingPoolBankHandleBankruptcyRecord(GroupRecordBase):
     covered_amount: float
     socialized_amount: float
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.bank = str(event.data.bank)
@@ -334,7 +337,7 @@ class LendingPoolBankHandleBankruptcyRecord(GroupRecordBase):
 class MarginfiAccountCreateRecord(AccountRecordBase):
     SCHEMA = AccountRecordBase.SCHEMA
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
 
@@ -343,22 +346,28 @@ class LendingAccountChangeLiquidityRecord(AccountRecordBase):
     SCHEMA = AccountRecordBase.SCHEMA + "," + ",".join(
         [
             "operation:STRING",
+            "bank:STRING",
+            "mint:STRING",
             "amount:BIGNUMERIC",
             "balance_closed:BOOLEAN"
         ]
     )
 
     operation: str
+    bank: str
+    mint: str
     amount: int
     balance_closed: bool
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.operation = event.name.removeprefix("LendingAccount").removesuffix("Event").lower()
+        self.bank = str(event.data.bank)
+        self.mint = str(event.data.mint)
         self.amount = event.data.amount
         self.balance_closed = False
-        if event.name == LENDING_ACCOUNT_REPAY_EVENT or event.name == LENDING_ACCOUNT_WITHDRAW_EVENT:
+        if event.name == LENDING_ACCOUNT_REPAY_EVENT_NAME or event.name == LENDING_ACCOUNT_WITHDRAW_EVENT_NAME:
             self.balance_closed = event.data.close_balance
 
 
@@ -402,7 +411,7 @@ class LendingAccountLiquidateRecord(AccountRecordBase):
     liquidator_asset_post_balance: float
     liquidator_liability_post_balance: float
 
-    def __init__(self, event: Event, instruction: InstructionWithLogs, instruction_args: NamedInstruction):
+    def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
 
         self.liquidatee_marginfi_account = str(event.data.liquidatee_marginfi_account)
@@ -423,7 +432,18 @@ class LendingAccountLiquidateRecord(AccountRecordBase):
         self.liquidator_liability_post_balance = event.data.post_balances.liquidator_liability_balance
 
 
-Record = Union[
+EventRecordTypes = [MarginfiGroupCreateRecord,
+                    MarginfiGroupConfigureRecord,
+                    LendingPoolBankCreateRecord,
+                    LendingPoolBankConfigureRecord,
+                    LendingPoolBankAccrueInterestRecord,
+                    LendingPoolBankCollectFeesRecord,
+                    LendingPoolBankHandleBankruptcyRecord,
+                    MarginfiAccountCreateRecord,
+                    LendingAccountChangeLiquidityRecord,
+                    LendingAccountLiquidateRecord]
+
+EventRecord = Union[
     MarginfiGroupCreateRecord,
     MarginfiGroupConfigureRecord,
     LendingPoolBankCreateRecord,
@@ -436,18 +456,18 @@ Record = Union[
     LendingAccountLiquidateRecord
 ]
 
-EVENT_TO_RECORD_TYPE: Dict[str, Type[Record]] = {
-    f"{MARGINFI_GROUP_CREATE_EVENT}": MarginfiGroupCreateRecord,
-    f"{MARGINFI_GROUP_CONFIGURE_EVENT}": MarginfiGroupConfigureRecord,
-    f"{LENDING_POOL_BANK_CREATE_EVENT}": LendingPoolBankCreateRecord,
-    f"{LENDING_POOL_BANK_CONFIGURE_EVENT}": LendingPoolBankConfigureRecord,
-    f"{LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT}": LendingPoolBankAccrueInterestRecord,
-    f"{LENDING_POOL_BANK_COLLECT_FEES_EVENT}": LendingPoolBankCollectFeesRecord,
-    f"{LENDING_POOL_BANK_HANDLE_BANKRUPTCY_EVENT}": LendingPoolBankHandleBankruptcyRecord,
-    f"{MARGINFI_ACCOUNT_CREATE_EVENT}": MarginfiAccountCreateRecord,
-    f"{LENDING_ACCOUNT_DEPOSIT_EVENT}": LendingAccountChangeLiquidityRecord,
-    f"{LENDING_ACCOUNT_WITHDRAW_EVENT}": LendingAccountChangeLiquidityRecord,
-    f"{LENDING_ACCOUNT_BORROW_EVENT}": LendingAccountChangeLiquidityRecord,
-    f"{LENDING_ACCOUNT_REPAY_EVENT}": LendingAccountChangeLiquidityRecord,
-    f"{LENDING_ACCOUNT_LIQUIDATE_EVENT}": LendingAccountLiquidateRecord,
+EVENT_TO_RECORD_TYPE: Dict[str, Type[EventRecord]] = {
+    f"{MARGINFI_GROUP_CREATE_EVENT_NAME}": MarginfiGroupCreateRecord,
+    f"{MARGINFI_GROUP_CONFIGURE_EVENT_NAME}": MarginfiGroupConfigureRecord,
+    f"{LENDING_POOL_BANK_CREATE_EVENT_NAME}": LendingPoolBankCreateRecord,
+    f"{LENDING_POOL_BANK_CONFIGURE_EVENT_NAME}": LendingPoolBankConfigureRecord,
+    f"{LENDING_POOL_BANK_ACCRUE_INTEREST_EVENT_NAME}": LendingPoolBankAccrueInterestRecord,
+    f"{LENDING_POOL_BANK_COLLECT_FEES_EVENT_NAME}": LendingPoolBankCollectFeesRecord,
+    f"{LENDING_POOL_BANK_HANDLE_BANKRUPTCY_EVENT_NAME}": LendingPoolBankHandleBankruptcyRecord,
+    f"{MARGINFI_ACCOUNT_CREATE_EVENT_NAME}": MarginfiAccountCreateRecord,
+    f"{LENDING_ACCOUNT_DEPOSIT_EVENT_NAME}": LendingAccountChangeLiquidityRecord,
+    f"{LENDING_ACCOUNT_WITHDRAW_EVENT_NAME}": LendingAccountChangeLiquidityRecord,
+    f"{LENDING_ACCOUNT_BORROW_EVENT_NAME}": LendingAccountChangeLiquidityRecord,
+    f"{LENDING_ACCOUNT_REPAY_EVENT_NAME}": LendingAccountChangeLiquidityRecord,
+    f"{LENDING_ACCOUNT_LIQUIDATE_EVENT_NAME}": LendingAccountLiquidateRecord,
 }
