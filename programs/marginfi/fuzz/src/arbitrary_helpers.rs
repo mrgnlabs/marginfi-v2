@@ -90,17 +90,17 @@ impl<'a> Arbitrary<'a> for BankAndOracleConfig {
 
         let max_price = 100 * 10u64.pow(mint_decimals as u32);
 
-        let risk_tier_isolated = u.arbitrary()?;
+        let risk_tier_isolated: bool = u.arbitrary()?;
 
         Ok(Self {
             oracle_native_price: u.int_in_range(1..=10)? * max_price,
             mint_decimals,
-            asset_weight_init: if risk_tier_isolated {
+            asset_weight_init: if !risk_tier_isolated {
                 I80F48!(0.5).into()
             } else {
                 I80F48!(0).into()
             },
-            asset_weight_maint: if risk_tier_isolated {
+            asset_weight_maint: if !risk_tier_isolated {
                 I80F48!(0.75).into()
             } else {
                 I80F48!(0).into()
