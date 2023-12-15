@@ -134,7 +134,11 @@ impl Snapshot {
             .await?;
 
         let elapsed = start_time.elapsed();
-        info!("Time taken to get {:?} addresses: {:?}", all_program_account_keys.len(), elapsed);
+        info!(
+            "Time taken to get {:?} addresses: {:?}",
+            all_program_account_keys.len(),
+            elapsed
+        );
 
         let start_time = std::time::Instant::now();
         let all_program_accounts = get_multiple_accounts_chunked2(
@@ -147,7 +151,11 @@ impl Snapshot {
         .await?;
 
         let elapsed = start_time.elapsed();
-        info!("Time taken to get {:?} accounts: {:?}", all_program_accounts.len(), elapsed);
+        info!(
+            "Time taken to get {:?} accounts: {:?}",
+            all_program_accounts.len(),
+            elapsed
+        );
 
         for (pubkey, account) in all_program_accounts {
             self.create_entry(&pubkey, &account).await;

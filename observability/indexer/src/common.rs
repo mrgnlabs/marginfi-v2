@@ -6,7 +6,9 @@ use marginfi::state::{marginfi_account::MarginfiAccount, marginfi_group::Bank};
 use pyth_sdk_solana::PriceFeed;
 use serde::{Deserialize, Serialize};
 use solana_client::{client_error::ClientError, nonblocking::rpc_client::RpcClient};
-use solana_sdk::{instruction::AccountMeta, pubkey::Pubkey, signature::Signature, account::Account};
+use solana_sdk::{
+    account::Account, instruction::AccountMeta, pubkey::Pubkey, signature::Signature,
+};
 use std::{collections::HashMap, iter::zip, str::FromStr, time::Duration};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
