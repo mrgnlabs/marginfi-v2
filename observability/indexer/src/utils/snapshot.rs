@@ -52,10 +52,18 @@ pub enum OracleData {
 }
 
 impl OracleData {
-    pub fn get_price(&self) -> I80F48 {
+    pub fn get_price_of_type(
+        &self,
+        oracle_price_type: OraclePriceType,
+        bias: Option<PriceBias>,
+    ) -> I80F48 {
         match self {
-            OracleData::Pyth(price_feed) => price_feed.get_price().unwrap(),
-            OracleData::Switchboard(price_feed) => price_feed.get_price().unwrap(),
+            OracleData::Pyth(price_feed) => price_feed
+                .get_price_of_type(oracle_price_type, bias)
+                .unwrap(),
+            OracleData::Switchboard(price_feed) => price_feed
+                .get_price_of_type(oracle_price_type, bias)
+                .unwrap(),
         }
     }
 }

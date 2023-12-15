@@ -3,9 +3,9 @@ use crate::constants::{
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::prelude::*;
-use crate::state::marginfi_account::{calc_asset_amount, calc_asset_value, RiskEngine};
+use crate::state::marginfi_account::{calc_amount, calc_value, RiskEngine, RiskRequirementType};
 use crate::state::marginfi_group::{Bank, BankVaultType};
-use crate::state::price::{OraclePriceFeedAdapter, PriceAdapter, PriceBias};
+use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
@@ -129,7 +129,7 @@ pub fn lending_account_liquidate(
                 current_timestamp,
                 MAX_PRICE_AGE_SEC,
             )?;
-            asset_pf.get_price_non_weighted(Some(PriceBias::Low))?
+            asset_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?
         };
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
@@ -141,16 +141,15 @@ pub fn lending_account_liquidate(
                 current_timestamp,
                 MAX_PRICE_AGE_SEC,
             )?;
-
-            liab_pf.get_price_non_weighted(Some(PriceBias::High))?
+            liab_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?
         };
 
         let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
         let liquidator_discount = I80F48::ONE - LIQUIDATION_LIQUIDATOR_FEE;
 
         // Quantity of liability to be paid off by liquidator
-        let liab_amount_liquidator = calc_asset_amount(
-            calc_asset_value(
+        let liab_amount_liquidator = calc_amount(
+            calc_value(
                 asset_amount,
                 asset_price,
                 asset_bank.mint_decimals,
@@ -161,8 +160,8 @@ pub fn lending_account_liquidate(
         )?;
 
         // Quantity of liability to be received by liquidatee
-        let liab_amount_final = calc_asset_amount(
-            calc_asset_value(
+        let liab_amount_final = calc_amount(
+            calc_value(
                 asset_amount,
                 asset_price,
                 asset_bank.mint_decimals,
@@ -278,7 +277,7 @@ pub fn lending_account_liquidate(
             liquidatee_liab_bank_account.increase_balance(liab_amount_final)?;
 
             let liquidatee_liability_post_balance =
-                liquidatee_liab_bank_account.bank.get_liability_amount(
+                liquidatee_liab_bank_account.bank.get_liahttps://github.com/mrgnlabs/marginfi-v2/pull/121bility_amount(
                     liquidatee_liab_bank_account.balance.liability_shares.into(),
                 )?;
 
