@@ -1,5 +1,5 @@
 use super::{
-    marginfi_account::WeightType,
+    marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
 #[cfg(not(feature = "client"))]
@@ -13,7 +13,9 @@ use crate::{
     },
     debug, math_error,
     prelude::MarginfiError,
-    set_if_some, MarginfiResult,
+    set_if_some,
+    state::marginfi_account::calc_value,
+    MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
@@ -416,6 +418,48 @@ impl Bank {
         }
 
         Ok(())
+    }
+
+    pub fn maybe_get_asset_weight_init_discount(
+        &self,
+        price: I80F48,
+    ) -> MarginfiResult<Option<I80F48>> {
+        if self.config.usd_init_limit_active() {
+            let bank_total_assets_value = calc_value(
+                self.get_asset_amount(self.total_asset_shares.into())?,
+                price,
+                self.mint_decimals,
+                None,
+            )?;
+
+            let total_asset_value_init_limit =
+                I80F48::from_num(self.config.total_asset_value_init_limit);
+
+            msg!(
+                "Init limit active, limit: {}, total_assets: {}",
+                total_asset_value_init_limit,
+                bank_total_assets_value
+            );
+
+            if bank_total_assets_value > total_asset_value_init_limit {
+                let discount = total_asset_value_init_limit
+                    .checked_div(bank_total_assets_value)
+                    .ok_or_else(math_error!())?;
+
+                msg!(
+                    "Discounting assets by {:.2} because of total deposits {} over {} usd cap",
+                    discount,
+                    bank_total_assets_value,
+                    total_asset_value_init_limit
+                );
+
+                Ok(Some(discount))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn change_liability_shares(
@@ -949,17 +993,36 @@ impl Default for BankConfig {
 
 impl BankConfig {
     #[inline]
-    pub fn get_weights(&self, weight_type: WeightType) -> (I80F48, I80F48) {
-        match weight_type {
-            WeightType::Initial => (
+    pub fn get_weights(&self, req_type: RequirementType) -> (I80F48, I80F48) {
+        match req_type {
+            RequirementType::Initial => (
                 self.asset_weight_init.into(),
                 self.liability_weight_init.into(),
             ),
-            WeightType::Maintenance => (
+            RequirementType::Maintenance => (
                 self.asset_weight_maint.into(),
                 self.liability_weight_maint.into(),
             ),
-            WeightType::Equity => (I80F48::ONE, I80F48::ONE),
+            RequirementType::Equity => (I80F48::ONE, I80F48::ONE),
+        }
+    }
+
+    #[inline]
+    pub fn get_weight(
+        &self,
+        requirement_type: RequirementType,
+        balance_side: BalanceSide,
+    ) -> I80F48 {
+        match (requirement_type, balance_side) {
+            (RequirementType::Initial, BalanceSide::Assets) => self.asset_weight_init.into(),
+            (RequirementType::Initial, BalanceSide::Liabilities) => {
+                self.liability_weight_init.into()
+            }
+            (RequirementType::Maintenance, BalanceSide::Assets) => self.asset_weight_maint.into(),
+            (RequirementType::Maintenance, BalanceSide::Liabilities) => {
+                self.liability_weight_maint.into()
+            }
+            (RequirementType::Equity, _) => I80F48::ONE,
         }
     }
 
@@ -1005,6 +1068,10 @@ impl BankConfig {
     pub fn validate_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
         OraclePriceFeedAdapter::validate_bank_config(self, ais)?;
         Ok(())
+    }
+
+    pub fn usd_init_limit_active(&self) -> bool {
+        self.total_asset_value_init_limit != TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE
     }
 }
 

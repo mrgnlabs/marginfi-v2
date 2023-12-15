@@ -92,3 +92,23 @@ jobs:
       - name: install anchor cli
         run: npm install -g @coral-xyz/anchor-cli@0.26.0
       - run: ./scripts/test.sh
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: cache dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Install minimal rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          default: true
+      - name: Run fuzz tests in fuzz dir
+        run: |
+          cd programs/marginfi
+          cargo install cargo-fuzz
+          cargo fuzz run lend -- -max_total_time=300
+      - name: Pass after fuzzing
+        run: echo "Fuzzing completed"

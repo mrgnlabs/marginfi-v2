@@ -1,14 +1,10 @@
 use fixed::types::I80F48;
-use marginfi::{
-    constants::TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
-    state::{
-        marginfi_account::{
-            calc_asset_value, Balance, BalanceSide, MarginfiAccount, RiskRequirementType,
-            WeightType,
-        },
-        marginfi_group::Bank,
-        price::{OraclePriceFeedAdapter, PriceAdapter},
+use marginfi::state::{
+    marginfi_account::{
+        calc_value, Balance, BalanceSide, MarginfiAccount, RequirementType, RiskRequirementType,
     },
+    marginfi_group::{Bank, RiskTier},
+    price::{OraclePriceFeedAdapter, PriceAdapter, PriceBias},
 };
 use solana_sdk::pubkey::Pubkey;
 
@@ -48,52 +44,88 @@ impl BankAccountWithPriceFeed2 {
     #[inline(always)]
     pub fn calc_weighted_assets_and_liabilities_values(
         &self,
-        weight_type: WeightType,
+        requirement_type: RequirementType,
     ) -> anyhow::Result<(I80F48, I80F48)> {
-        let (worst_price, best_price) = self.price_feed.get_price_range()?;
-        let (mut asset_weight, liability_weight) = self.bank.config.get_weights(weight_type);
-        let mint_decimals = self.bank.mint_decimals;
-
-        let asset_amount = self
-            .bank
-            .get_asset_amount(self.balance.asset_shares.into())?;
-        let liability_amount = self
-            .bank
-            .get_liability_amount(self.balance.liability_shares.into())?;
-
-        if matches!(weight_type, WeightType::Initial)
-            && self.bank.config.total_asset_value_init_limit
-                != TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE
-        {
-            let bank_total_assets_value = calc_asset_value(
-                self.bank
-                    .get_asset_amount(self.bank.total_asset_shares.into())?,
-                worst_price,
-                mint_decimals,
-                None,
-            )?;
-
-            let total_asset_value_init_limit =
-                I80F48::from_num(self.bank.config.total_asset_value_init_limit);
-
-            if bank_total_assets_value > total_asset_value_init_limit {
-                let discount = total_asset_value_init_limit
-                    .checked_div(bank_total_assets_value)
-                    .unwrap();
-
-                asset_weight = asset_weight.checked_mul(discount).unwrap();
+        match self.balance.get_side() {
+            Some(side) => {
+                let bank = &self.bank;
+                match side {
+                    BalanceSide::Assets => Ok((
+                        self.calc_weighted_assets(requirement_type, &bank)?,
+                        I80F48::ZERO,
+                    )),
+                    BalanceSide::Liabilities => Ok((
+                        I80F48::ZERO,
+                        self.calc_weighted_liabs(requirement_type, &bank)?,
+                    )),
+                }
             }
+            None => Ok((I80F48::ZERO, I80F48::ZERO)),
         }
+    }
 
-        Ok((
-            calc_asset_value(asset_amount, worst_price, mint_decimals, Some(asset_weight))?,
-            calc_asset_value(
-                liability_amount,
-                best_price,
-                mint_decimals,
-                Some(liability_weight),
-            )?,
-        ))
+    #[inline(always)]
+    fn calc_weighted_assets(
+        &self,
+        requirement_type: RequirementType,
+        bank: &Bank,
+    ) -> anyhow::Result<I80F48> {
+        match bank.config.risk_tier {
+            RiskTier::Collateral => {
+                let price_feed = &self.price_feed;
+                let mut asset_weight = bank
+                    .config
+                    .get_weight(requirement_type, BalanceSide::Assets);
+
+                let lower_price = price_feed.get_price_of_type(
+                    requirement_type.get_oracle_price_type(),
+                    Some(PriceBias::Low),
+                )?;
+
+                if matches!(requirement_type, RequirementType::Initial) {
+                    if let Some(discount) =
+                        bank.maybe_get_asset_weight_init_discount(lower_price)?
+                    {
+                        asset_weight = asset_weight
+                            .checked_mul(discount)
+                            .ok_or_else(|| anyhow::anyhow!("Math error"))?;
+                    }
+                }
+
+                Ok(calc_value(
+                    bank.get_asset_amount(self.balance.asset_shares.into())?,
+                    lower_price,
+                    bank.mint_decimals,
+                    Some(asset_weight),
+                )
+                .unwrap())
+            }
+            RiskTier::Isolated => Ok(I80F48::ZERO),
+        }
+    }
+
+    #[inline(always)]
+    fn calc_weighted_liabs(
+        &self,
+        requirement_type: RequirementType,
+        bank: &Bank,
+    ) -> anyhow::Result<I80F48> {
+        let price_feed = &self.price_feed;
+        let liability_weight = bank
+            .config
+            .get_weight(requirement_type, BalanceSide::Liabilities);
+
+        let higher_price = price_feed.get_price_of_type(
+            requirement_type.get_oracle_price_type(),
+            Some(PriceBias::High),
+        )?;
+
+        Ok(calc_value(
+            bank.get_liability_amount(self.balance.liability_shares.into())?,
+            higher_price,
+            bank.mint_decimals,
+            Some(liability_weight),
+        )?)
     }
 
     #[inline]
@@ -144,7 +176,7 @@ impl RiskEngine2 {
         self.bank_accounts_with_price
             .iter()
             .map(|a: &BankAccountWithPriceFeed2| {
-                a.calc_weighted_assets_and_liabilities_values(WeightType::Equity)
+                a.calc_weighted_assets_and_liabilities_values(RequirementType::Equity)
             })
             .try_fold(
                 (I80F48::ZERO, I80F48::ZERO),

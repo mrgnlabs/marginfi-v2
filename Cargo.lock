@@ -709,6 +709,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "brick"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+]
+
+[[package]]
 name = "brotli"
 version = "3.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2627,6 +2634,7 @@ dependencies = [
  "serde_json",
  "shellexpand",
  "solana-account-decoder",
+ "solana-address-lookup-table-program",
  "solana-client",
  "solana-sdk",
  "spl-associated-token-account",

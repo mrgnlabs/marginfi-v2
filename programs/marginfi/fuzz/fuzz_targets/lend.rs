@@ -145,7 +145,7 @@ fn verify_end_state(mga: &MarginfiFuzzContext) -> anyhow::Result<()> {
 
         clock.unix_timestamp = latest_timestamp as i64 + 3600;
 
-        bank_data.accrue_interest(&clock)?;
+        bank_data.accrue_interest(clock.unix_timestamp)?;
 
         let outstanding_fees = I80F48::from(bank_data.collected_group_fees_outstanding)
             + I80F48::from(bank_data.collected_insurance_fees_outstanding);
