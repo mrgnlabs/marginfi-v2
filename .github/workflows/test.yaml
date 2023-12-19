@@ -29,7 +29,7 @@ jobs:
   lint:
     name: Rust Lint
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v3
 
@@ -48,7 +48,7 @@ jobs:
           key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - run: cargo fmt -- --check
-      
+
       - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A clippy::result_large_err -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::bind_instead_of_map
 
   test-unit:
@@ -72,7 +72,7 @@ jobs:
           key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - run: cargo test --lib
-          
+
   test-programs:
     name: Build and Test Anchor Programs
     runs-on: ubuntu-latest
@@ -92,22 +92,30 @@ jobs:
         shell: bash
 
   fuzz:
+    name: Fuzz The marginfi Program
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
-      - name: cache dependencies
-        uses: Swatinem/rust-cache@v2
-      - name: Install minimal rust toolchain
-        uses: actions-rs/toolchain@v1
+
+      - uses: ./.github/actions/setup-common/
+
+      - uses: actions/cache@v2
+        name: Cache Fuzz Cli
+        id: cache-fuzz-cli
         with:
-          profile: minimal
-          toolchain: nightly
-          default: true
+          path: |
+            ~/.cargo/bin/cargo-fuzz
+          key: cargo-fuzz-${{ runner.os }}-v0002
+
+      - run: cargo install cargo-fuzz
+        if: steps.cache-fuzz-cli.outputs.cache-hit != 'true'
+        shell: bash
+
       - name: Run fuzz tests in fuzz dir
         run: |
           cd programs/marginfi
-          cargo install cargo-fuzz
           cargo fuzz run lend -- -max_total_time=300
+
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
-          
