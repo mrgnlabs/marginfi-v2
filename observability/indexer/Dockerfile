@@ -5,6 +5,7 @@ RUN rustup component add rustfmt clippy
 
 WORKDIR /app
 
+COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./programs ./programs
 COPY ./observability/indexer ./observability/indexer
@@ -14,7 +15,6 @@ COPY ./clients/rust ./clients/rust
 
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 
-RUN cargo update
 RUN cargo build --release
 
 
