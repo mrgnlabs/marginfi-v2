@@ -11,7 +11,6 @@ env:
   ANCHOR_CLI_VERSION: 0.29.0
   ANCHOR_SHA: fc9fd6d24b9be84abb2f40e47ed3faf7b11864ae
   CARGO_TERM_COLOR: always
-  CARGO_BUILD_TARGET: nightly-x86_64-unknown-linux-gnu
 
 jobs:
   build-verifiable:
