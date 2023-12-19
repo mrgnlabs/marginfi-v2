@@ -8,13 +8,13 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
-solana-sdk = { workspace = true }
-solana-program = { workspace = true }
-spl-token = { workspace = true }
+solana-sdk = "=1.16.19"
+solana-program = "=1.16.19"
+spl-token = "4.0.0"
 
-anchor-lang = { workspace = true }
+anchor-lang = "0.28.0"
 
-pyth-sdk-solana = { workspace = true }
+pyth-sdk-solana = "0.8.0"
 
 anyhow = "1.0.68"
 arbitrary = { version = "1.2.2", features = ["derive"] }
