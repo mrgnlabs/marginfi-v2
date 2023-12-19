@@ -96,25 +96,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-
-      - uses: ./.github/actions/setup-common/
-
-      - uses: actions/cache@v2
-        name: Cache Fuzz Cli
-        id: cache-fuzz-cli
+      - name: cache dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Install minimal rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          path: |
-            ~/.cargo/bin/cargo-fuzz
-          key: cargo-fuzz-${{ runner.os }}-v0002
-
-      - run: cargo install cargo-fuzz
-        if: steps.cache-fuzz-cli.outputs.cache-hit != 'true'
-        shell: bash
-
+          profile: minimal
+          toolchain: nightly
+          default: true
       - name: Run fuzz tests in fuzz dir
         run: |
           cd programs/marginfi
+          cargo install cargo-fuzz
           cargo fuzz run lend -- -max_total_time=300
-
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
