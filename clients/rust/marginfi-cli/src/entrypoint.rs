@@ -706,7 +706,10 @@ fn patch_idl(idl_path: String) -> Result<()> {
     // Patch IDL
 
     if let Some(types) = idl.get_mut("types").and_then(|t| t.as_array_mut()) {
-        if let Some(pos) = types.iter().position(|t| t["name"] == "OraclePriceFeedAdapter") {
+        if let Some(pos) = types
+            .iter()
+            .position(|t| t["name"] == "OraclePriceFeedAdapter")
+        {
             types.remove(pos);
         }
     }
@@ -733,7 +736,8 @@ fn patch_idl(idl_path: String) -> Result<()> {
             if let Some(name) = account.get_mut("name").and_then(|n| n.as_str()) {
                 let mut chars = name.chars();
                 if let Some(first_char) = chars.next() {
-                    let name_with_lowercase_first_letter = first_char.to_lowercase().collect::<String>() + chars.as_str();
+                    let name_with_lowercase_first_letter =
+                        first_char.to_lowercase().collect::<String>() + chars.as_str();
                     account["name"] = serde_json::Value::String(name_with_lowercase_first_letter);
                 }
             }
