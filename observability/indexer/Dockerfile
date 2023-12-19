@@ -1,4 +1,4 @@
-FROM rust:1.72 as builder
+FROM rust:1.71 as builder
 
 RUN apt-get update -y && apt-get install -y pkg-config build-essential libudev-dev clang cmake protobuf-compiler
 RUN rustup component add rustfmt clippy
