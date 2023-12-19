@@ -16,7 +16,7 @@ pub fn lending_account_start_flashloan(
     check_flashloan_can_start(
         &ctx.accounts.marginfi_account,
         &ctx.accounts.ixs_sysvar,
-        end_index,
+        end_index as usize,
     )?;
 
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
@@ -50,20 +50,19 @@ const END_FL_IX_MARGINFI_ACCOUNT_AI_IDX: usize = 0;
 pub fn check_flashloan_can_start(
     marginfi_account: &AccountLoader<MarginfiAccount>,
     sysvar_ixs: &AccountInfo,
-    end_fl_idx: u64,
+    end_fl_idx: usize,
 ) -> MarginfiResult<()> {
     check!(
         marginfi_account.load()?.get_flag(FLASHLOAN_ENABLED_FLAG),
         MarginfiError::IllegalFlashloan
     );
 
-    let current_ix_idx: u64 = instructions::load_current_index_checked(sysvar_ixs)?.into();
+    let current_ix_idx: usize = instructions::load_current_index_checked(sysvar_ixs)?.into();
 
     check!(current_ix_idx < end_fl_idx, MarginfiError::IllegalFlashloan);
 
     // Check current ix is not a CPI
-    let current_ix =
-        instructions::load_instruction_at_checked(current_ix_idx as usize, sysvar_ixs)?;
+    let current_ix = instructions::load_instruction_at_checked(current_ix_idx, sysvar_ixs)?;
 
     check!(
         current_ix.program_id.eq(&crate::id()),
@@ -72,8 +71,7 @@ pub fn check_flashloan_can_start(
     );
 
     // Will error if ix doesn't exist
-    let unchecked_end_fl_ix =
-        instructions::load_instruction_at_checked(end_fl_idx as usize, sysvar_ixs)?;
+    let unchecked_end_fl_ix = instructions::load_instruction_at_checked(end_fl_idx, sysvar_ixs)?;
 
     check!(
         unchecked_end_fl_ix.data[..8]
