@@ -1,5 +1,8 @@
 use anchor_lang::{prelude::*, Discriminator};
-use solana_program::sysvar::{self, instructions};
+use solana_program::{
+    instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT},
+    sysvar::{self, instructions},
+};
 
 use crate::{
     check,
@@ -65,6 +68,12 @@ pub fn check_flashloan_can_start(
     let current_ix = instructions::load_instruction_at_checked(current_ix_idx, sysvar_ixs)?;
 
     check!(
+        get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,
+        MarginfiError::IllegalFlashloan,
+        "Start flashloan ix should not be in CPI"
+    );
+
+    check!(
         current_ix.program_id.eq(&crate::id()),
         MarginfiError::IllegalFlashloan,
         "Start flashloan ix should not be in CPI"
@@ -85,12 +94,6 @@ pub fn check_flashloan_can_start(
     );
 
     let end_fl_ix = unchecked_end_fl_ix;
-
-    check!(
-        end_fl_ix.program_id.eq(&crate::id()),
-        MarginfiError::IllegalFlashloan,
-        "End flashloan ix should not be in CPI"
-    );
 
     let end_fl_marginfi_account = end_fl_ix
         .accounts
@@ -120,6 +123,12 @@ pub fn check_flashloan_can_start(
 pub fn lending_account_end_flashloan(
     ctx: Context<LendingAccountEndFlashloan>,
 ) -> MarginfiResult<()> {
+    check!(
+        get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,
+        MarginfiError::IllegalFlashloan,
+        "End flashloan ix should not be in CPI"
+    );
+
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
     marginfi_account.unset_flag(IN_FLASHLOAN_FLAG);
