@@ -703,14 +703,55 @@ fn patch_idl(idl_path: String) -> Result<()> {
     let writer = std::io::BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &idl)?;
 
+    // Patch IDL
+
+    if let Some(types) = idl.get_mut("types").and_then(|t| t.as_array_mut()) {
+        if let Some(pos) = types.iter().position(|t| t["name"] == "OraclePriceFeedAdapter") {
+            types.remove(pos);
+        }
+    }
+
     patch_type_layout!(idl, "Bank", Bank, "accounts");
     patch_type_layout!(idl, "Balance", Balance, "types");
     patch_type_layout!(idl, "BankConfig", BankConfig, "types");
+    patch_type_layout!(idl, "BankConfigCompact", BankConfig, "types");
 
     let idl_patched_path = idl_path.replace(".json", "_patched.json");
     let file = std::fs::File::create(&idl_patched_path)?;
     let writer = std::io::BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &idl)?;
+
+    // Patch types
+
+    let program_name = idl["name"].as_str().unwrap();
+    let camel_case_program_name = snake_to_camel_case(program_name);
+    let ts_file_path = idl_path.replace(".json", "_patched.ts");
+    let mut ts_file = std::fs::File::create(ts_file_path)?;
+
+    if let Some(accounts) = idl.get_mut("accounts").and_then(|a| a.as_array_mut()) {
+        for account in accounts.iter_mut() {
+            if let Some(name) = account.get_mut("name").and_then(|n| n.as_str()) {
+                let mut chars = name.chars();
+                if let Some(first_char) = chars.next() {
+                    let name_with_lowercase_first_letter = first_char.to_lowercase().collect::<String>() + chars.as_str();
+                    account["name"] = serde_json::Value::String(name_with_lowercase_first_letter);
+                }
+            }
+        }
+    }
+
+    write!(
+        ts_file,
+        "export type {} = {};\n",
+        camel_case_program_name,
+        serde_json::to_string_pretty(&idl)?
+    )?;
+    write!(
+        ts_file,
+        "export const IDL: {} = {};\n",
+        camel_case_program_name,
+        serde_json::to_string_pretty(&idl)?
+    )?;
 
     Ok(())
 }
