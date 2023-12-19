@@ -1,6 +1,6 @@
 [workspace]
 members = ["programs/*", "clients/rust/*", "tools/*", "observability/indexer"]
-exclude = ["programs/brick", "programs/marginfi/fuzz"]
+exclude = ["programs/brick"]
 
 [workspace.dependencies]
 solana-client = "=1.16.19"
