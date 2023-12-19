@@ -435,6 +435,7 @@ impl Bank {
             let total_asset_value_init_limit =
                 I80F48::from_num(self.config.total_asset_value_init_limit);
 
+            #[cfg(target_os = "solana")]
             msg!(
                 "Init limit active, limit: {}, total_assets: {}",
                 total_asset_value_init_limit,
@@ -446,6 +447,7 @@ impl Bank {
                     .checked_div(bank_total_assets_value)
                     .ok_or_else(math_error!())?;
 
+                #[cfg(target_os = "solana")]
                 msg!(
                     "Discounting assets by {:.2} because of total deposits {} over {} usd cap",
                     discount,
