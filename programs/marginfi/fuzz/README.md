@@ -7,10 +7,10 @@ The tests simulates all actions that are involved in internal accounting:
 
 - Depositing
 - Withdrawing
-- Liquidate (TODO)
+- Liquidate
 - Accrue Interest
 - Update Price Oracle
-- Handle Bankruptcy (TODO)
+- Handle Bankruptcy
 
 ## How it works?
 
