@@ -108,6 +108,6 @@ jobs:
         run: |
           cd programs/marginfi
           cargo install cargo-fuzz
-          cargo fuzz run lend -- -max_total_time=300
+          cargo fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
