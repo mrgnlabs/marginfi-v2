@@ -103,6 +103,8 @@ jobs:
         with:
           profile: minimal
           toolchain: nightly
+          target: x86_64-unknown-linux-gnu
+          components: rust-src
           default: true
       - name: Run fuzz tests in fuzz dir
         run: |

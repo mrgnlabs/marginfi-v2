@@ -13,5 +13,5 @@ runs:
           profile: minimal
           toolchain: nightly
           target: x86_64-unknown-linux-gnu
-          components: rustfmt, clippy, rust-src
+          components: rustfmt, clippy
           default: true
