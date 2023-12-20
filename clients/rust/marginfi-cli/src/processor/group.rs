@@ -29,7 +29,7 @@ pub fn process_update_lookup_tables(
         let accounts_2: Vec<Account> = rpc
             .get_multiple_accounts(chunk)?
             .into_iter()
-            .filter_map(|account| account)
+            .flatten()
             .collect();
 
         accounts.extend(accounts_2);
@@ -68,8 +68,7 @@ pub fn process_update_lookup_tables(
 
     let oracle_pks = banks
         .iter()
-        .map(|(_, bank)| bank.config.oracle_keys)
-        .flatten()
+        .flat_map(|(_, bank)| bank.config.oracle_keys)
         .filter(|pk| pk != &Pubkey::default())
         .collect::<Vec<Pubkey>>();
 
@@ -117,7 +116,7 @@ pub fn process_update_lookup_tables(
         )?;
     }
 
-    while missing_keys.len() > 0 {
+    while !missing_keys.is_empty() {
         let lut_address = create_new_lut(config, &rpc)?;
         add_to_lut(config, &rpc, &mut missing_keys, 0, lut_address)?;
     }

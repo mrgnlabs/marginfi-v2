@@ -760,6 +760,7 @@ fn patch_idl(idl_path: String) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "dev")]
 fn snake_to_camel_case(input: &str) -> String {
     let mut camel_case = String::new();
     let mut capitalize_next = true;
