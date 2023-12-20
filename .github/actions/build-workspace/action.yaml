@@ -22,6 +22,6 @@ runs:
           ./target/
         key: build-${{ runner.os }}-${{env.ANCHOR_CLI_VERSION}}-${{env.ANCHOR_SHA}}-v0002-${{ hashFiles('./programs/**/**', '**/Cargo.lock') }}-workspace
 
-    - run: ./scripts/build-workspace.sh mainnet
+    - run: ./scripts/build-workspace.sh
       if: steps.cache-anchor-build.outputs.cache-hit != 'true'
       shell: bash
