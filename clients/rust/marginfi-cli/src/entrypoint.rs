@@ -374,7 +374,7 @@ pub fn entry(opts: Opts) -> Result<()> {
         #[cfg(feature = "dev")]
         Command::InspectPadding {} => inspect_padding(),
         #[cfg(feature = "dev")]
-        Command::PatchIdl { idl_path } => patch_idl(idl_path),
+        Command::PatchIdl { idl_path } => patch_marginfi_idl(idl_path),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
         #[cfg(feature = "lip")]
         Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
@@ -690,9 +690,11 @@ fn inspect_size() -> Result<()> {
 }
 
 #[cfg(feature = "dev")]
-fn patch_idl(idl_path: String) -> Result<()> {
+fn patch_marginfi_idl(target_dir: String) -> Result<()> {
     use crate::patch_type_layout;
     use std::io::Write;
+
+    let idl_path = format!("{}/idl/marginfi.json", target_dir);
 
     let file = std::fs::File::open(&idl_path)?;
     let reader = std::io::BufReader::new(file);
@@ -719,17 +721,14 @@ fn patch_idl(idl_path: String) -> Result<()> {
     patch_type_layout!(idl, "BankConfig", BankConfig, "types");
     patch_type_layout!(idl, "BankConfigCompact", BankConfig, "types");
 
-    let idl_patched_path = idl_path.replace(".json", "_patched.json");
-    let file = std::fs::File::create(&idl_patched_path)?;
+    let file = std::fs::File::create(&idl_path)?;
     let writer = std::io::BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &idl)?;
 
     // Patch types
 
-    let program_name = idl["name"].as_str().unwrap();
-    let camel_case_program_name = snake_to_camel_case(program_name);
-    let ts_file_path = idl_path.replace(".json", "_patched.ts");
-    let mut ts_file = std::fs::File::create(ts_file_path)?;
+    let types_path = format!("{}/types/marginfi.ts", target_dir);
+    let mut ts_file = std::fs::File::create(types_path)?;
 
     if let Some(accounts) = idl.get_mut("accounts").and_then(|a| a.as_array_mut()) {
         for account in accounts.iter_mut() {
@@ -746,37 +745,16 @@ fn patch_idl(idl_path: String) -> Result<()> {
 
     write!(
         ts_file,
-        "export type {} = {};\n",
-        camel_case_program_name,
+        "export type Marginfi = {};\n",
         serde_json::to_string_pretty(&idl)?
     )?;
     write!(
         ts_file,
-        "export const IDL: {} = {};\n",
-        camel_case_program_name,
+        "export const IDL: Marginfi = {};\n",
         serde_json::to_string_pretty(&idl)?
     )?;
 
     Ok(())
-}
-
-#[cfg(feature = "dev")]
-fn snake_to_camel_case(input: &str) -> String {
-    let mut camel_case = String::new();
-    let mut capitalize_next = true;
-
-    for c in input.chars() {
-        if c == '_' {
-            capitalize_next = true;
-        } else if capitalize_next {
-            camel_case.push(c.to_ascii_uppercase());
-            capitalize_next = false;
-        } else {
-            camel_case.push(c);
-        }
-    }
-
-    camel_case
 }
 
 fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions) -> Result<()> {
