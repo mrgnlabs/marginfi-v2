@@ -400,14 +400,18 @@ impl Bank {
             .ok_or_else(math_error!())?)
     }
 
-    pub fn change_asset_shares(&mut self, shares: I80F48) -> MarginfiResult {
+    pub fn change_asset_shares(
+        &mut self,
+        shares: I80F48,
+        bypass_deposit_limit: bool,
+    ) -> MarginfiResult {
         let total_asset_shares: I80F48 = self.total_asset_shares.into();
         self.total_asset_shares = total_asset_shares
             .checked_add(shares)
             .ok_or_else(math_error!())?
             .into();
 
-        if shares.is_positive() && self.config.is_deposit_limit_active() {
+        if shares.is_positive() && self.config.is_deposit_limit_active() && !bypass_deposit_limit {
             let total_deposits_amount = self.get_asset_amount(self.total_asset_shares.into())?;
             let deposit_limit = I80F48::from_num(self.config.deposit_limit);
 
