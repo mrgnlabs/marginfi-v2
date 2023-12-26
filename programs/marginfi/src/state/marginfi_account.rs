@@ -76,6 +76,7 @@ pub enum BalanceIncreaseType {
     Any,
     RepayOnly,
     DepositOnly,
+    BypassDepositLimit,
 }
 
 #[derive(Debug)]
@@ -794,6 +795,10 @@ impl<'a> BankAccountWrapper<'a> {
         self.increase_balance_internal(amount, BalanceIncreaseType::Any)
     }
 
+    pub fn increase_balance_in_liquidation(&mut self, amount: I80F48) -> MarginfiResult {
+        self.increase_balance_internal(amount, BalanceIncreaseType::BypassDepositLimit)
+    }
+
     /// Withdraw asset and create/increase liability depending on
     /// the specified deposit amount and the existing balance.
     pub fn decrease_balance(&mut self, amount: I80F48) -> MarginfiResult {
@@ -836,7 +841,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         balance.close()?;
-        bank.change_asset_shares(-total_asset_shares)?;
+        bank.change_asset_shares(-total_asset_shares, false)?;
 
         bank.check_utilization_ratio()?;
 
@@ -975,7 +980,7 @@ impl<'a> BankAccountWrapper<'a> {
                     MarginfiError::OperationDepositOnly
                 );
             }
-            BalanceIncreaseType::Any => {}
+            BalanceIncreaseType::Any | BalanceIncreaseType::BypassDepositLimit => {}
         }
 
         {
@@ -986,7 +991,10 @@ impl<'a> BankAccountWrapper<'a> {
 
         let asset_shares_increase = bank.get_asset_shares(asset_amount_increase)?;
         balance.change_asset_shares(asset_shares_increase)?;
-        bank.change_asset_shares(asset_shares_increase)?;
+        bank.change_asset_shares(
+            asset_shares_increase,
+            matches!(operation_type, BalanceIncreaseType::BypassDepositLimit),
+        )?;
 
         let liability_shares_decrease = bank.get_liability_shares(liability_amount_decrease)?;
         // TODO: Use `IncreaseType` to skip certain balance updates, and save on compute.
@@ -1049,7 +1057,7 @@ impl<'a> BankAccountWrapper<'a> {
 
         let asset_shares_decrease = bank.get_asset_shares(asset_amount_decrease)?;
         balance.change_asset_shares(-asset_shares_decrease)?;
-        bank.change_asset_shares(-asset_shares_decrease)?;
+        bank.change_asset_shares(-asset_shares_decrease, false)?;
 
         let liability_shares_increase = bank.get_liability_shares(liability_amount_increase)?;
         balance.change_liability_shares(liability_shares_increase)?;
