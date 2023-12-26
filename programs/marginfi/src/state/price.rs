@@ -462,27 +462,36 @@ mod tests {
 
     #[test]
     fn pyth_conf_interval_cap() {
+        // Define a price with a 10% confidence interval
+        let high_confidence_price = Box::new(Price {
+            price: 100i64 * EXP_10[6] as i64,
+            conf: 10u64 * EXP_10[6] as u64,
+            expo: -6,
+            publish_time: 0,
+        });
+
+        // Define a price with a 1% confidence interval
+        let low_confidence_price = Box::new(Price {
+            price: 100i64 * EXP_10[6] as i64,
+            conf: 1u64 * EXP_10[6] as u64,
+            expo: -6,
+            publish_time: 0,
+        });
+
+        // Initialize PythEmaPriceFeed with high confidence price as EMA
         let pyth_adapter = PythEmaPriceFeed {
-            ema_price: Box::new(Price {
-                price: 100i64 * EXP_10[6] as i64,
-                conf: 10u64 * EXP_10[6] as u64, // 10% confidence interval
-                expo: -6,
-                publish_time: 0,
-            }),
-            price: Box::new(Price {
-                price: 100i64 * EXP_10[6] as i64,
-                conf: 1u64 * EXP_10[6] as u64, // 10% confidence interval
-                expo: -6,
-                publish_time: 0,
-            }),
+            ema_price: high_confidence_price,
+            price: low_confidence_price,
         };
 
-        let conf_interval = pyth_adapter.get_confidence_interval(true).unwrap();
+        // Test confidence interval when using EMA price (high confidence)
+        let high_conf_interval = pyth_adapter.get_confidence_interval(true).unwrap();
+        // The confidence interval should be capped at 5%
+        assert_eq!(high_conf_interval, I80F48!(5.00000000000007));
 
-        assert_eq!(conf_interval, I80F48!(5.00000000000007));
-
-        let conf_interval = pyth_adapter.get_confidence_interval(false).unwrap();
-
-        assert_eq!(conf_interval, I80F48!(2.12));
+        // Test confidence interval when not using EMA price (low confidence)
+        let low_conf_interval = pyth_adapter.get_confidence_interval(false).unwrap();
+        // The confidence interval should be the calculated value (2.12%)
+        assert_eq!(low_conf_interval, I80F48!(2.12));
     }
 }
