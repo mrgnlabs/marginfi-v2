@@ -36,7 +36,7 @@ pub const MAX_PRICE_AGE_SEC: u64 = 60;
 ///
 /// https://docs.pyth.network/pythnet-price-feeds/best-practices#confidence-intervals
 pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(2.12);
-pub const MAX_CONF_INTERVAL: I80F48 = I80F48!(0.95);
+pub const MAX_CONF_INTERVAL: I80F48 = I80F48!(0.05);
 
 pub const USDC_EXPONENT: i32 = 6;
 
