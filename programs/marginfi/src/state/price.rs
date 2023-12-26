@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use anchor_lang::prelude::*;
 
 use enum_dispatch::enum_dispatch;
@@ -9,7 +11,7 @@ use switchboard_v2::{
 
 use crate::{
     check,
-    constants::{CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, PYTH_ID},
+    constants::{CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL, PYTH_ID},
     math_error,
     prelude::*,
 };
@@ -164,12 +166,19 @@ impl PythEmaPriceFeed {
                 .checked_mul(CONF_INTERVAL_MULTIPLE)
                 .ok_or_else(math_error!())?;
 
+        // Cap confidence interval to 5% of price
+        let price = pyth_price_components_to_i80f48(I80F48::from_num(price.price), price.expo)?;
+
+        let max_conf_interval = price
+            .checked_mul(MAX_CONF_INTERVAL)
+            .ok_or_else(math_error!())?;
+
         assert!(
             conf_interval >= I80F48::ZERO,
             "Negative confidence interval"
         );
 
-        Ok(conf_interval)
+        Ok(min(conf_interval, max_conf_interval))
     }
 
     #[inline(always)]
