@@ -491,7 +491,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
                 .is_empty(BalanceSide::Liabilities)
                 .not(),
             MarginfiError::IllegalLiquidation,
-            "Liability payoff too severe, exaushted liability"
+            "Liability payoff too severe, exhausted liability"
         );
 
         check!(
