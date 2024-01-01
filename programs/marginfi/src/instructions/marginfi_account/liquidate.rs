@@ -242,7 +242,7 @@ pub fn lending_account_liquidate(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            bank_account.increase_balance(asset_amount)?;
+            bank_account.increase_balance_in_liquidation(asset_amount)?;
 
             let post_balance = bank_account
                 .bank

@@ -400,14 +400,18 @@ impl Bank {
             .ok_or_else(math_error!())?)
     }
 
-    pub fn change_asset_shares(&mut self, shares: I80F48) -> MarginfiResult {
+    pub fn change_asset_shares(
+        &mut self,
+        shares: I80F48,
+        bypass_deposit_limit: bool,
+    ) -> MarginfiResult {
         let total_asset_shares: I80F48 = self.total_asset_shares.into();
         self.total_asset_shares = total_asset_shares
             .checked_add(shares)
             .ok_or_else(math_error!())?
             .into();
 
-        if shares.is_positive() && self.config.is_deposit_limit_active() {
+        if shares.is_positive() && self.config.is_deposit_limit_active() && !bypass_deposit_limit {
             let total_deposits_amount = self.get_asset_amount(self.total_asset_shares.into())?;
             let deposit_limit = I80F48::from_num(self.config.deposit_limit);
 
@@ -435,6 +439,7 @@ impl Bank {
             let total_asset_value_init_limit =
                 I80F48::from_num(self.config.total_asset_value_init_limit);
 
+            #[cfg(target_os = "solana")]
             msg!(
                 "Init limit active, limit: {}, total_assets: {}",
                 total_asset_value_init_limit,
@@ -446,6 +451,7 @@ impl Bank {
                     .checked_div(bank_total_assets_value)
                     .ok_or_else(math_error!())?;
 
+                #[cfg(target_os = "solana")]
                 msg!(
                     "Discounting assets by {:.2} because of total deposits {} over {} usd cap",
                     discount,

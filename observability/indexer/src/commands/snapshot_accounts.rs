@@ -181,7 +181,7 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
     let non_program_accounts = {
         let mut snapshot = context.account_snapshot.lock().await;
         snapshot.init().await.unwrap();
-        println!("Summary: {snapshot}");
+        info!("Summary: {snapshot}");
 
         snapshot
             .routing_lookup
@@ -257,7 +257,7 @@ async fn listen_to_updates(ctx: Arc<Context>) {
                         while let Some(received) = stream.next().await {
                             let mut geyser_sub_config = ctx.geyser_subscription_config.lock().await;
                             if geyser_sub_config.0 {
-                                warn!("Config update: {:?}", geyser_sub_config.1);
+                                warn!("Config update");
                                 geyser_sub_config.0 = false;
                                 continue;
                             }
@@ -437,7 +437,7 @@ pub async fn update_account_map(ctx: Arc<Context>) {
                     .collect_vec();
                 let updated_geyser_config =
                     compute_geyser_config(&ctx.config, &non_program_accounts).await;
-                info!("updating geyser sub: {:?}", updated_geyser_config.accounts);
+                info!("updating geyser sub");
                 *ctx.geyser_subscription_config.lock().await = (true, updated_geyser_config);
             }
         }
@@ -511,6 +511,8 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
         let elapsed = Instant::now() - start;
         debug!("Time to create metrics: {:?}", elapsed);
 
+        let start = Instant::now();
+
         let mut insert_request = TableDataInsertAllRequest::new();
         all_group_metrics
             .iter()
@@ -533,6 +535,11 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
                 error
             );
         }
+
+        let elapsed = Instant::now() - start;
+        debug!("Time to upload group metrics: {:?}", elapsed);
+
+        let start = Instant::now();
 
         let mut insert_request = TableDataInsertAllRequest::new();
         all_bank_metrics
@@ -557,6 +564,11 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
             );
         }
 
+        let elapsed = Instant::now() - start;
+        debug!("Time to uplaod bank metrics: {:?}", elapsed);
+
+        let start = Instant::now();
+
         let insert_requests: Vec<TableDataInsertAllRequest> = all_marginfi_account_metrics
             .chunks(7000)
             .map(|metrics_results_chunk| {
@@ -575,9 +587,8 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
                 insert_request
             })
             .collect::<Vec<_>>();
-
-        for insert_request in insert_requests {
-            let result = write_to_bq(
+        let write_futures = insert_requests.into_iter().map(|insert_request| {
+            write_to_bq(
                 &bq_client,
                 &ctx.config.project_id,
                 &ctx.config.dataset_id,
@@ -585,7 +596,9 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
                 timestamp,
                 insert_request,
             )
-            .await;
+        });
+        let results = futures::future::join_all(write_futures).await;
+        for result in results {
             if let Err(error) = result {
                 warn!(
                     "Failed to write marginfi account metrics to bigquery: {}",
@@ -593,6 +606,9 @@ pub async fn push_transactions_to_bigquery(ctx: Arc<Context>) {
                 );
             }
         }
+
+        let elapsed = Instant::now() - start;
+        debug!("Time to uplaod user account metrics: {:?}", elapsed);
 
         tokio::time::sleep(Duration::from_secs(ctx.config.snap_interval)).await;
     }
@@ -623,7 +639,7 @@ pub async fn write_to_bq(
     if let Some(errors) = result.insert_errors {
         error!("Errors inserting for timestamp {}", timestamp);
         error!("details:");
-        errors.iter().for_each(|error| println!("-{:?}", error));
+        errors.iter().for_each(|error| error!("-{:?}", error));
     }
 
     Ok(())
