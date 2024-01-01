@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use anchor_lang::prelude::*;
 
 use enum_dispatch::enum_dispatch;
@@ -9,7 +11,7 @@ use switchboard_v2::{
 
 use crate::{
     check,
-    constants::{CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, PYTH_ID},
+    constants::{CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL, PYTH_ID},
     math_error,
     prelude::*,
 };
@@ -164,12 +166,19 @@ impl PythEmaPriceFeed {
                 .checked_mul(CONF_INTERVAL_MULTIPLE)
                 .ok_or_else(math_error!())?;
 
+        // Cap confidence interval to 5% of price
+        let price = pyth_price_components_to_i80f48(I80F48::from_num(price.price), price.expo)?;
+
+        let max_conf_interval = price
+            .checked_mul(MAX_CONF_INTERVAL)
+            .ok_or_else(math_error!())?;
+
         assert!(
             conf_interval >= I80F48::ZERO,
             "Negative confidence interval"
         );
 
-        Ok(conf_interval)
+        Ok(min(conf_interval, max_conf_interval))
     }
 
     #[inline(always)]
@@ -419,6 +428,7 @@ fn fit_scale_switchboard_decimal(
 
 #[cfg(test)]
 mod tests {
+    use fixed_macro::types::I80F48;
     use rust_decimal::Decimal;
 
     use super::*;
@@ -448,5 +458,40 @@ mod tests {
         let i80f48 = swithcboard_decimal_to_i80f48(dec).unwrap();
 
         assert_eq!(i80f48, I80F48::from_num(0.00139429375));
+    }
+
+    #[test]
+    fn pyth_conf_interval_cap() {
+        // Define a price with a 10% confidence interval
+        let high_confidence_price = Box::new(Price {
+            price: 100i64 * EXP_10[6] as i64,
+            conf: 10u64 * EXP_10[6] as u64,
+            expo: -6,
+            publish_time: 0,
+        });
+
+        // Define a price with a 1% confidence interval
+        let low_confidence_price = Box::new(Price {
+            price: 100i64 * EXP_10[6] as i64,
+            conf: 1u64 * EXP_10[6] as u64,
+            expo: -6,
+            publish_time: 0,
+        });
+
+        // Initialize PythEmaPriceFeed with high confidence price as EMA
+        let pyth_adapter = PythEmaPriceFeed {
+            ema_price: high_confidence_price,
+            price: low_confidence_price,
+        };
+
+        // Test confidence interval when using EMA price (high confidence)
+        let high_conf_interval = pyth_adapter.get_confidence_interval(true).unwrap();
+        // The confidence interval should be capped at 5%
+        assert_eq!(high_conf_interval, I80F48!(5.00000000000007));
+
+        // Test confidence interval when not using EMA price (low confidence)
+        let low_conf_interval = pyth_adapter.get_confidence_interval(false).unwrap();
+        // The confidence interval should be the calculated value (2.12%)
+        assert_eq!(low_conf_interval, I80F48!(2.12));
     }
 }
