@@ -2,7 +2,7 @@ use crate::constants::{
     INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE, MAX_PRICE_AGE_SEC,
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
-use crate::state::marginfi_account::{calc_amount, calc_value, RiskEngine, RiskRequirementType};
+use crate::state::marginfi_account::{calc_amount, calc_value, RiskEngine};
 use crate::state::marginfi_group::{Bank, BankVaultType};
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::{
@@ -343,8 +343,10 @@ pub fn lending_account_liquidate(
             )?;
 
     // Verify liquidator account health
-    RiskEngine::new(&liquidator_marginfi_account, liquidator_remaining_accounts)?
-        .check_account_health(RiskRequirementType::Initial)?;
+    RiskEngine::check_account_init_health(
+        &liquidator_marginfi_account,
+        liquidator_remaining_accounts,
+    )?;
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {

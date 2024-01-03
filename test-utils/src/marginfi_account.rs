@@ -6,7 +6,7 @@ use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankVaultType},
 };
-use solana_program::instruction::Instruction;
+use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, signature::Keypair, signer::Signer,
@@ -61,16 +61,16 @@ impl MarginfiAccountFixture {
         }
     }
 
-    pub async fn try_bank_deposit<T: Into<f64>>(
+    pub async fn make_bank_deposit_ix<T: Into<f64>>(
         &self,
         funding_account: Pubkey,
         bank: &BankFixture,
         ui_amount: T,
-    ) -> anyhow::Result<(), BanksClientError> {
+    ) -> Instruction {
         let marginfi_account = self.load().await;
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
-        let ix = Instruction {
+        Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountDeposit {
                 marginfi_group: marginfi_account.group,
@@ -86,8 +86,20 @@ impl MarginfiAccountFixture {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
             }
             .data(),
-        };
+        }
+    }
 
+    pub async fn try_bank_deposit<T: Into<f64>>(
+        &self,
+        funding_account: Pubkey,
+        bank: &BankFixture,
+        ui_amount: T,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let ix = self
+            .make_bank_deposit_ix(funding_account, bank, ui_amount)
+            .await;
+
+        let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -100,13 +112,13 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
-    pub async fn try_bank_withdraw<T: Into<f64>>(
+    pub async fn make_bank_withdraw_ix<T: Into<f64>>(
         &self,
         destination_account: Pubkey,
         bank: &BankFixture,
         ui_amount: T,
         withdraw_all: Option<bool>,
-    ) -> anyhow::Result<(), BanksClientError> {
+    ) -> Instruction {
         let marginfi_account = self.load().await;
 
         let mut ix = Instruction {
@@ -141,6 +153,20 @@ impl MarginfiAccountFixture {
                 .await,
         );
 
+        ix
+    }
+
+    pub async fn try_bank_withdraw<T: Into<f64>>(
+        &self,
+        destination_account: Pubkey,
+        bank: &BankFixture,
+        ui_amount: T,
+        withdraw_all: Option<bool>,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let ix = self
+            .make_bank_withdraw_ix(destination_account, bank, ui_amount, withdraw_all)
+            .await;
+
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
@@ -154,14 +180,13 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
-    pub async fn try_bank_borrow<T: Into<f64>>(
+    pub async fn make_bank_borrow_ix<T: Into<f64>>(
         &self,
         destination_account: Pubkey,
         bank: &BankFixture,
         ui_amount: T,
-    ) -> anyhow::Result<(), BanksClientError> {
+    ) -> Instruction {
         let marginfi_account = self.load().await;
-
         let mut ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountBorrow {
@@ -189,6 +214,19 @@ impl MarginfiAccountFixture {
                 .await,
         );
 
+        ix
+    }
+
+    pub async fn try_bank_borrow<T: Into<f64>>(
+        &self,
+        destination_account: Pubkey,
+        bank: &BankFixture,
+        ui_amount: T,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let ix = self
+            .make_bank_borrow_ix(destination_account, bank, ui_amount)
+            .await;
+
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
 
         let mut ctx = self.ctx.borrow_mut();
@@ -204,17 +242,17 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
-    pub async fn try_bank_repay<T: Into<f64>>(
+    pub async fn make_bank_repay_ix<T: Into<f64>>(
         &self,
         funding_account: Pubkey,
         bank: &BankFixture,
         ui_amount: T,
         repay_all: Option<bool>,
-    ) -> anyhow::Result<(), BanksClientError> {
+    ) -> Instruction {
         let marginfi_account = self.load().await;
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
-        let ix = Instruction {
+        Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountRepay {
                 marginfi_group: marginfi_account.group,
@@ -231,8 +269,20 @@ impl MarginfiAccountFixture {
                 repay_all,
             }
             .data(),
-        };
+        }
+    }
 
+    pub async fn try_bank_repay<T: Into<f64>>(
+        &self,
+        funding_account: Pubkey,
+        bank: &BankFixture,
+        ui_amount: T,
+        repay_all: Option<bool>,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let ix = self
+            .make_bank_repay_ix(funding_account, bank, ui_amount, repay_all)
+            .await;
+        let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -375,6 +425,125 @@ impl MarginfiAccountFixture {
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
+
+    /// Set a flag on the account
+    ///
+    /// Function assumes signer is group admin
+    pub async fn try_set_flag(&self, flag: u64) -> std::result::Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::SetAccountFlag {
+                marginfi_group: self.load().await.group,
+                marginfi_account: self.key,
+                admin: self.ctx.borrow().payer.pubkey(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::SetAccountFlag { flag }.data(),
+        };
+
+        let mut ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
+
+    /// Unset a flag on the account
+    ///
+    /// Function assumes signer is group admin
+    pub async fn try_unset_flag(&self, flag: u64) -> std::result::Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::UnsetAccountFlag {
+                marginfi_group: self.load().await.group,
+                marginfi_account: self.key,
+                admin: self.ctx.borrow().payer.pubkey(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::UnsetAccountFlag { flag }.data(),
+        };
+
+        let mut ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
+
+    pub async fn make_lending_account_start_flashloan_ix(&self, end_index: u64) -> Instruction {
+        Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingAccountStartFlashloan {
+                marginfi_account: self.key,
+                signer: self.ctx.borrow().payer.pubkey(),
+                ixs_sysvar: sysvar::instructions::id(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingAccountStartFlashloan { end_index }.data(),
+        }
+    }
+
+    pub async fn make_lending_account_end_flashloan_ix(
+        &self,
+        include_banks: Vec<Pubkey>,
+        exclude_banks: Vec<Pubkey>,
+    ) -> Instruction {
+        let mut account_metas = marginfi::accounts::LendingAccountEndFlashloan {
+            marginfi_account: self.key,
+            signer: self.ctx.borrow().payer.pubkey(),
+        }
+        .to_account_metas(Some(true));
+
+        account_metas.extend(
+            self.load_observation_account_metas(include_banks, exclude_banks)
+                .await,
+        );
+
+        Instruction {
+            program_id: marginfi::id(),
+            accounts: account_metas,
+            data: marginfi::instruction::LendingAccountEndFlashloan {}.data(),
+        }
+    }
+
+    /// Wrap `ixs` between a start and end flashloan instruction,
+    /// automatically sets the end index and send the transaction
+    pub async fn try_flashloan(
+        &self,
+        ixs: Vec<Instruction>,
+        exclude_banks: Vec<Pubkey>,
+        include_banks: Vec<Pubkey>,
+    ) -> std::result::Result<(), BanksClientError> {
+        let mut ixs = ixs;
+        let start_ix = self
+            .make_lending_account_start_flashloan_ix(ixs.len() as u64 + 1)
+            .await;
+        let end_ix = self
+            .make_lending_account_end_flashloan_ix(include_banks, exclude_banks)
+            .await;
+
+        ixs.insert(0, start_ix);
+        ixs.push(end_ix);
+
+        let mut ctx = self.ctx.borrow_mut();
+
+        let tx = Transaction::new_signed_with_payer(
+            &ixs,
             Some(&ctx.payer.pubkey().clone()),
             &[&ctx.payer],
             ctx.last_blockhash,

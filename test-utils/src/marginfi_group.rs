@@ -26,6 +26,7 @@ impl MarginfiGroupFixture {
         config: GroupConfig,
     ) -> MarginfiGroupFixture {
         let ctx_ref = ctx.clone();
+
         let group_key = Keypair::new();
 
         {
