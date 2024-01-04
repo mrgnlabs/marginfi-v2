@@ -7,3 +7,5 @@ pub mod prelude;
 pub mod spl;
 pub mod test;
 pub mod utils;
+#[cfg(feature = "points")]
+pub mod points;

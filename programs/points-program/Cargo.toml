@@ -1,0 +1,38 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "points-program"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "points_program"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+devnet = ["marginfi/devnet"]
+mainnet-beta = ["marginfi/mainnet-beta"]
+test = []
+test-bpf = []
+
+[dependencies]
+anchor-lang = { workspace = true }
+fixed = "1.12.0"
+
+[dependencies.marginfi]
+path = "../marginfi"
+features = [ "cpi" ]
+
+[dev-dependencies]
+anyhow = "1.0.66"
+solana-logger = { workspace = true }
+solana-program = { workspace = true }
+solana-program-test = { workspace = true }
+solana-sdk = { workspace = true }
+fixtures = { path = "../../test-utils", package = "test-utilities", features = ["points"] }

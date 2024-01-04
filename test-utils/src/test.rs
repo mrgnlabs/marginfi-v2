@@ -283,6 +283,13 @@ impl TestFixture {
             processor!(liquidity_incentive_program::entry),
         );
 
+        #[cfg(feature = "points")]
+        program.add_program(
+            "points_program",
+            points_program::ID,
+            processor!(points_program::entry),
+        );
+
         let usdc_keypair = Keypair::new();
         let sol_keypair = Keypair::new();
         let sol_equivalent_keypair = Keypair::new();

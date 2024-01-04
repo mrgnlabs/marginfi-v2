@@ -3418,6 +3418,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
+name = "points-program"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anyhow",
+ "fixed",
+ "marginfi",
+ "solana-logger",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "test-utilities",
+]
+
+[[package]]
 name = "polyval"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5680,6 +5695,7 @@ dependencies = [
  "lazy_static",
  "liquidity-incentive-program",
  "marginfi",
+ "points-program",
  "pretty_assertions",
  "pyth-sdk-solana",
  "solana-logger",
