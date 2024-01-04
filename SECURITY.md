@@ -36,4 +36,3 @@ A number of attacks are out of scope for the bug bounty, including but not limit
 8. Sybil attacks.
 9. Attempted phishing or other social engineering attacks involving marginfi contributors or users
 10. Denial of service, or automated testing of services that generate significant traffic.
-11. Any submission violating Immunefi's rules
