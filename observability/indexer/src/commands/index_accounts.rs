@@ -3,7 +3,7 @@ use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
-use futures::{future::join_all, SinkExt, StreamExt};
+use futures::{future::join_all, StreamExt};
 use google_cloud_default::WithAuthExt;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::client::{Client, ClientConfig};
@@ -25,9 +25,8 @@ use yellowstone_grpc_client::GeyserGrpcClient;
 use yellowstone_grpc_proto::{
     geyser::{
         subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
-        SubscribeRequestFilterAccounts, SubscribeRequestFilterSlots, SubscribeRequestPing,
+        SubscribeRequestFilterAccounts, SubscribeRequestFilterSlots,
     },
-    tonic::transport::ClientTlsConfig,
 };
 
 #[derive(Envconfig, Debug, Clone)]
@@ -147,7 +146,7 @@ async fn listen_to_updates(ctx: Arc<Context>) {
         };
 
         // Establish streams
-        let (mut subscribe_request_sink, mut stream) = match geyser_client
+        let (_, mut stream) = match geyser_client
             .subscribe_with_request(Some(subscribe_request))
             .await
         {

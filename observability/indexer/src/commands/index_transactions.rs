@@ -21,6 +21,7 @@ use std::{
     },
     time::Duration,
 };
+use tonic::Status;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use yellowstone_grpc_client::GeyserGrpcClient;
