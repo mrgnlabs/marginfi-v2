@@ -37,6 +37,7 @@ solana-program = { workspace = true }
 static_assertions = "1.1.0"
 switchboard-v2 = "=0.1.22"
 type-layout = "0.2.0"
+solana-security-txt = "1.1.1"
 
 [dev-dependencies]
 anyhow = "1.0.66"

@@ -178,3 +178,15 @@ pub mod marginfi {
         marginfi_group::unset_account_flag(ctx, flag)
     }
 }
+
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_security_txt::security_txt;
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "marginfi v2",
+    project_url: "https://app.marginfi.com/",
+    contacts: "email:security@mrgn.group",
+    policy: "https://github.com/mrgnlabs/marginfi-v2/blob/main/SECURITY.md",
+    preferred_languages: "en",
+    source_code: "https://github.com/mrgnlabs/marginfi-v2"
+}
