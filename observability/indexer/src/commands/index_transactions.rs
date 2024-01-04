@@ -3,7 +3,7 @@ use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
-use futures::{future::join_all, SinkExt, StreamExt};
+use futures::{future::join_all, StreamExt};
 use google_cloud_default::WithAuthExt;
 use google_cloud_googleapis::pubsub::v1::PubsubMessage;
 use google_cloud_pubsub::client::{Client, ClientConfig};
@@ -21,7 +21,6 @@ use std::{
     },
     time::Duration,
 };
-use tonic::Status;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use yellowstone_grpc_client::GeyserGrpcClient;
@@ -29,9 +28,8 @@ use yellowstone_grpc_proto::{
     convert_from,
     geyser::{
         subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
-        SubscribeRequestFilterSlots, SubscribeRequestFilterTransactions, SubscribeRequestPing,
+        SubscribeRequestFilterSlots, SubscribeRequestFilterTransactions,
     },
-    tonic::transport::ClientTlsConfig,
 };
 
 #[derive(Envconfig, Debug, Clone)]
@@ -42,8 +40,6 @@ pub struct IndexTransactionsConfig {
     pub rpc_token: String,
     #[envconfig(from = "INDEX_TRANSACTIONS_SLOTS_BUFFER_SIZE")]
     pub slots_buffer_size: u32,
-    #[envconfig(from = "INDEX_TRANSACTIONS_MAX_CONCURRENT_REQUESTS")]
-    pub max_concurrent_requests: usize,
     #[envconfig(from = "INDEX_TRANSACTIONS_MONITOR_INTERVAL")]
     pub monitor_interval: u64,
     #[envconfig(from = "INDEX_TRANSACTIONS_PROGRAM_ID")]
@@ -118,11 +114,16 @@ pub async fn index_transactions(config: IndexTransactionsConfig) -> Result<()> {
 async fn listen_to_updates(ctx: Arc<Context>) {
     loop {
         info!("Connecting geyser client");
-        let geyser_client_connection_result = GeyserGrpcClient::connect(
+        let geyser_client_connection_result = GeyserGrpcClient::connect_with_timeout(
             ctx.config.rpc_endpoint.to_string(),
             Some(ctx.config.rpc_token.to_string()),
-            Some(ClientTlsConfig::new()),
-        );
+            None,
+            Some(Duration::from_secs(10)),
+            Some(Duration::from_secs(10)),
+            false,
+        )
+        .await;
+        info!("Connected");
 
         let mut geyser_client = match geyser_client_connection_result {
             Ok(geyser_client) => geyser_client,
@@ -133,20 +134,12 @@ async fn listen_to_updates(ctx: Arc<Context>) {
             }
         };
 
-        // Establish streams
-        let (mut subscribe_request_sink, mut stream) = match geyser_client.subscribe().await {
-            Ok(value) => value,
-            Err(e) => {
-                error!("Error subscribing geyser client {e}");
-                continue;
-            }
-        };
-
         let subscribe_request = SubscribeRequest {
-            accounts: HashMap::default(),
             slots: HashMap::from_iter([(
-                "slots".to_string(),
-                SubscribeRequestFilterSlots::default(),
+                "client".to_string(),
+                SubscribeRequestFilterSlots {
+                    filter_by_commitment: Some(false),
+                },
             )]),
             transactions: HashMap::from_iter([(
                 ctx.config.program_id.to_string(),
@@ -158,18 +151,21 @@ async fn listen_to_updates(ctx: Arc<Context>) {
                     ..Default::default()
                 },
             )]),
-            ping: Some(SubscribeRequestPing::default()),
+            commitment: Some(CommitmentLevel::Processed as i32),
             ..Default::default()
         };
 
-        // Send initial subscription config
-        match subscribe_request_sink.send(subscribe_request).await {
-            Ok(()) => info!("Successfully sent initial subscription config"),
+        // Establish streams
+        let (_, mut stream) = match geyser_client
+            .subscribe_with_request(Some(subscribe_request))
+            .await
+        {
+            Ok(value) => value,
             Err(e) => {
-                error!("Error establishing geyser sub: {}", e);
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                error!("Error subscribing geyser client {e}");
+                continue;
             }
-        }
+        };
 
         while let Some(received) = stream.next().await {
             match received {
@@ -237,7 +233,6 @@ fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) ->
                     indexing_addresses: filters.to_vec(),
                     transaction,
                 });
-                // println!("slot_transactions for {:?} at {}: {}", filters.to_vec(), transaction_update.slot, slot_transactions.len());
             } else {
                 anyhow::bail!("Expected `transaction` in `UpdateOneof::Transaction` update");
             }
@@ -258,7 +253,7 @@ fn process_update(ctx: Arc<Context>, filters: &[String], update: UpdateOneof) ->
             debug!("ping");
         }
         _ => {
-            warn!("unknown update");
+            warn!("unknown update: {:?}", update);
         }
     }
 
@@ -327,16 +322,6 @@ pub async fn push_transactions_to_pubsub(ctx: Arc<Context>) -> Result<()> {
 
         transactions_data.iter().for_each(|transaction_data| {
             ctx.transactions_counter.fetch_add(1, Ordering::Relaxed);
-            // println!(
-            //     "{:?} - {}",
-            //     transaction_data.indexing_addresses,
-            //     transaction_data
-            //         .transaction
-            //         .transaction
-            //         .signatures
-            //         .first()
-            //         .unwrap()
-            // );
 
             let now = Utc::now();
 

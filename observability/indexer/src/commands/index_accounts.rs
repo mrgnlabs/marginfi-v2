@@ -118,7 +118,7 @@ async fn listen_to_updates(ctx: Arc<Context>) {
         let geyser_client_connection_result = GeyserGrpcClient::connect(
             ctx.config.rpc_endpoint.to_string(),
             Some(ctx.config.rpc_token.to_string()),
-            Some(ClientTlsConfig::new()),
+            None,
         );
 
         let mut geyser_client = match geyser_client_connection_result {
@@ -126,15 +126,6 @@ async fn listen_to_updates(ctx: Arc<Context>) {
             Err(err) => {
                 error!("Error connecting to geyser client: {}", err);
                 tokio::time::sleep(Duration::from_secs(1)).await;
-                continue;
-            }
-        };
-
-        // Establish streams
-        let (mut subscribe_request_sink, mut stream) = match geyser_client.subscribe().await {
-            Ok(value) => value,
-            Err(e) => {
-                error!("Error subscribing geyser client {e}");
                 continue;
             }
         };
@@ -152,20 +143,20 @@ async fn listen_to_updates(ctx: Arc<Context>) {
                 "slots".to_string(),
                 SubscribeRequestFilterSlots::default(),
             )]),
-            transactions: HashMap::default(),
-            blocks: HashMap::default(),
-            ping: Some(SubscribeRequestPing::default()),
             ..Default::default()
         };
 
-        // Send initial subscription config
-        match subscribe_request_sink.send(subscribe_request).await {
-            Ok(()) => info!("Successfully sent initial subscription config"),
+        // Establish streams
+        let (mut subscribe_request_sink, mut stream) = match geyser_client
+            .subscribe_with_request(Some(subscribe_request))
+            .await
+        {
+            Ok(value) => value,
             Err(e) => {
-                error!("Error establishing geyser sub: {}", e);
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                error!("Error subscribing geyser client {e}");
+                continue;
             }
-        }
+        };
 
         while let Some(received) = stream.next().await {
             match received {
