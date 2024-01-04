@@ -22,11 +22,9 @@ use tonic::Status;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use yellowstone_grpc_client::GeyserGrpcClient;
-use yellowstone_grpc_proto::{
-    geyser::{
-        subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
-        SubscribeRequestFilterAccounts, SubscribeRequestFilterSlots,
-    },
+use yellowstone_grpc_proto::geyser::{
+    subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
+    SubscribeRequestFilterAccounts, SubscribeRequestFilterSlots,
 };
 
 #[derive(Envconfig, Debug, Clone)]
