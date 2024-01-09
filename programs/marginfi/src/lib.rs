@@ -44,6 +44,14 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank(ctx, bank_config.into())
     }
 
+    pub fn lending_pool_add_ban2(
+        ctx: Context<LendingPoolAddBank2>,
+        bank_config: BankConfigCompact,
+        bank_seed: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_add_bank2(ctx, bank_config.into(), bank_seed)
+    }
+
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
         bank_config_opt: BankConfigOpt,

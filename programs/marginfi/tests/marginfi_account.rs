@@ -58,6 +58,7 @@ async fn marginfi_account_create_success() -> anyhow::Result<()> {
         .banks_client
         .process_transaction(tx)
         .await;
+
     assert!(res.is_ok());
 
     // Fetch & deserialize marginfi account
