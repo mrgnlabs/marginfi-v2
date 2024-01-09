@@ -1,5 +1,3 @@
-cargo-features = ["workspace-inheritance"]
-
 [package]
 name = "marginfi-v2-cli"
 version = "0.1.0"
