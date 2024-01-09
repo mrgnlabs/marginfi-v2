@@ -166,17 +166,16 @@ pub struct LendingPoolAddBank<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Add a bank to the lending pool
-///
-/// Admin only
-///
-/// TODO: Allow for different oracle configurations
-pub fn lending_pool_add_bank2(
-    ctx: Context<LendingPoolAddBank2>,
+/// A copy of lending_pool_add_bank but with an additional bank seed provided.
+/// This seed is used by the LendingPoolAddBankSeeded.bank to generate a
+/// PDA account to sign for newly added bank transactions securely.
+/// The previous lending_pool_add_bank is preserved for backwards-compatibility.
+pub fn lending_pool_add_bank_seeded(
+    ctx: Context<LendingPoolAddBankSeeded>,
     bank_config: BankConfig,
     bank_seed: u64,
 ) -> MarginfiResult {
-    let LendingPoolAddBank2 {
+    let LendingPoolAddBankSeeded {
         bank_mint,
         liquidity_vault,
         insurance_vault,
@@ -186,6 +185,7 @@ pub fn lending_pool_add_bank2(
     } = ctx.accounts;
 
     let mut bank = bank_loader.load_init()?;
+    // TODO: inject bank_seed
 
     let liquidity_vault_bump = *ctx.bumps.get("liquidity_vault").unwrap();
     let liquidity_vault_authority_bump = *ctx.bumps.get("liquidity_vault_authority").unwrap();
@@ -226,9 +226,13 @@ pub fn lending_pool_add_bank2(
     Ok(())
 }
 
+/// A copy of LendingPoolAddBank but with an additional bank seed provided.
+/// This seed is used by the LendingPoolAddBankSeeded.bank to generate a
+/// PDA account to sign for newly added bank transactions securely.
+/// The previous LendingPoolAddBank is preserved for backwards-compatibility.
 #[derive(Accounts)]
 #[instruction(bank_config: BankConfigCompact, bank_seed: u64)]
-pub struct LendingPoolAddBank2<'info> {
+pub struct LendingPoolAddBankSeeded<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -255,7 +259,7 @@ pub struct LendingPoolAddBank2<'info> {
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑a
     #[account(
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
