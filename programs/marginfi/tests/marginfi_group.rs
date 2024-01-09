@@ -155,10 +155,6 @@ async fn marginfi_group_config_check() -> anyhow::Result<()> {
 
     Ok(())
 }
-// #[tokio::test]
-// async fn success_configure_marginfi_group() {
-//     todo!()
-// }
 
 #[tokio::test]
 async fn marginfi_group_add_bank_success() -> anyhow::Result<()> {
