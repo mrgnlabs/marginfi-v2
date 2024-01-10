@@ -1,5 +1,3 @@
-cargo-features = ["workspace-inheritance"]
-
 [package]
 name = "marginfi-fuzz"
 version = "0.0.0"
@@ -9,19 +7,28 @@ edition = "2021"
 [package.metadata]
 cargo-fuzz = true
 
+[[bin]]
+name = "lend"
+path = "fuzz_targets/lend.rs"
+test = false
+doc = false
+
 [dependencies]
-anchor-lang = "0.26.0"
+solana-sdk = "1.16.23"
+solana-program = "1.16.23"
+spl-token = "4.0.0"
+
+anchor-lang = "0.28.0"
+
+pyth-sdk-solana = "0.8.0"
+
 anyhow = "1.0.68"
 arbitrary = { version = "1.2.2", features = ["derive"] }
 bumpalo = "3.11.1"
 libfuzzer-sys = "0.4"
 safe-transmute = "0.11.2"
 rand = "0.8.5"
-solana-sdk = "1.14.13"
-solana-program = "1.14.13"
-spl-token = "3.5.0"
 bytemuck = "1.12.3"
-pyth-sdk-solana = "0.7.0"
 fixed = "1.21.0"
 fixed-macro = "1.2.0"
 lazy_static = "1.4.0"
@@ -42,9 +49,3 @@ members = ["."]
 
 [profile.release]
 debug = 1
-
-[[bin]]
-name = "lend"
-path = "fuzz_targets/lend.rs"
-test = false
-doc = false

@@ -71,7 +71,7 @@ pub struct FuzzerContext {
     pub initial_bank_configs: [BankAndOracleConfig; N_BANKS],
 }
 
-fuzz_target!(|data: FuzzerContext| { process_actions(data).unwrap() });
+fuzz_target!(|data: FuzzerContext| process_actions(data).unwrap());
 
 fn process_actions(ctx: FuzzerContext) -> Result<()> {
     let mut accounst_state = AccountsState::new();

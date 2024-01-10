@@ -24,7 +24,8 @@ use std::{
 use type_layout::TypeLayout;
 
 assert_struct_size!(MarginfiAccount, 2304);
-#[account(zero_copy)]
+#[account(zero_copy(unsafe))]
+#[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq, TypeLayout)
@@ -639,7 +640,8 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 assert_struct_size!(LendingAccount, 1728);
-#[zero_copy]
+#[zero_copy(unsafe)]
+#[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq, TypeLayout)
@@ -669,7 +671,8 @@ impl LendingAccount {
 }
 
 assert_struct_size!(Balance, 104);
-#[zero_copy]
+#[zero_copy(unsafe)]
+#[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq, TypeLayout)

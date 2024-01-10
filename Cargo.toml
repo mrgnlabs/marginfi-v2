@@ -1,19 +1,27 @@
 [workspace]
+resolver = "2"
 members = ["programs/*", "clients/rust/*", "tools/*", "observability/indexer"]
+exclude = ["programs/brick"]
 
 [workspace.dependencies]
-solana-client = "1.14.13"
-solana-sdk = "1.14.13"
-solana-logger = "1.14.13"
-solana-program = "1.14.13"
-solana-program-test = "1.14.13"
-solana-account-decoder = "1.14.13"
-solana-measure = "1.14.13"
-solana-metrics = "1.14.13"
-solana-transaction-status = "1.14.13"
-anchor-lang = "0.26.0"
-anchor-spl = "0.26.0"
-anchor-client = "0.26.0"
+solana-client = "1.16.23"
+solana-sdk = "1.16.23"
+solana-logger = "1.16.23"
+solana-program = "1.16.23"
+solana-program-test = "1.16.23"
+solana-account-decoder = "1.16.23"
+solana-measure = "1.16.23"
+solana-metrics = "1.16.23"
+solana-transaction-status = "1.16.23"
+spl-token = "4.0.0"
+spl-associated-token-account = "2.2.0"
+
+anchor-lang = "0.28.0"
+anchor-spl = "0.28.0"
+anchor-client = "0.28.0"
+
+switchboard-v2 = "0.4.0"
+pyth-sdk-solana = "0.8.0"
 
 [profile.release]
 overflow-checks = true

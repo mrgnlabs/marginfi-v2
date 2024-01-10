@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
         Rc::new(dummy_key),
     );
 
-    let program = client.program(marginfi::id());
+    let program = client.program(marginfi::id()).unwrap();
     let rpc = program.rpc();
 
     let banks = program.accounts::<Bank>(vec![])?;

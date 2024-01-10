@@ -51,12 +51,12 @@ impl BankAccountWithPriceFeed2 {
                 let bank = &self.bank;
                 match side {
                     BalanceSide::Assets => Ok((
-                        self.calc_weighted_assets(requirement_type, &bank)?,
+                        self.calc_weighted_assets(requirement_type, bank)?,
                         I80F48::ZERO,
                     )),
                     BalanceSide::Liabilities => Ok((
                         I80F48::ZERO,
-                        self.calc_weighted_liabs(requirement_type, &bank)?,
+                        self.calc_weighted_liabs(requirement_type, bank)?,
                     )),
                 }
             }

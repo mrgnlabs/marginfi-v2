@@ -1,12 +1,17 @@
+[toolchain]
+solana_version = "1.16.23"
+
 [features]
 seeds = true
 skip-lint = false
 
-[programs.devnet]
-marginfi = "EPsDwX4sRNRkiykuqeyExF5LsHV9XBPMZM6gHj7QQbkY"
-
 [programs.localnet]
-marginfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+marginfi = "Mfi1111111111111111111111111111111111111111"
+liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
+
+[programs.mainnet]
+marginfi = "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA"
+liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
 
 [registry]
 url = "https://api.apr.dev"

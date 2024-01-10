@@ -1,0 +1,115 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "*"
+
+defaults:
+  run:
+    shell: bash
+    working-directory: .
+
+env:
+  RUST_TOOLCHAIN: 1.71.0
+  SOLANA_CLI_VERSION: 1.16.20
+  ANCHOR_CLI_VERSION: 0.29.0
+  ANCHOR_SHA: fc9fd6d24b9be84abb2f40e47ed3faf7b11864ae
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Rust Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/setup-common/
+      - uses: ./.github/actions/setup-anchor-cli/
+
+      - uses: actions/cache@v2
+        name: Cache Cargo registry + index
+        id: cache-cargo-build
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - run: cargo fmt -- --check
+
+      - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A unused-imports -A clippy::result_large_err -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::bind_instead_of_map
+
+  test-unit:
+    name: Rust Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/setup-common/
+      - uses: ./.github/actions/setup-anchor-cli/
+
+      - uses: actions/cache@v2
+        name: Cache Cargo registry + index
+        id: cache-cargo-build
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - run: cargo test --lib
+
+  test-programs:
+    name: Build and Test Anchor Programs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: ./.github/actions/setup-common/
+      - uses: ./.github/actions/setup-anchor-cli/
+
+      - uses: ./.github/actions/build-workspace/
+
+      - run: ./scripts/test-program.sh marginfi
+        shell: bash
+
+      - run: ./scripts/test-program.sh liquidity_incentive_program
+        shell: bash
+
+  fuzz:
+    name: Fuzz The marginfi Program
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: cache dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Install minimal rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          target: x86_64-unknown-linux-gnu
+          components: rust-src
+          default: true
+      - name: Run fuzz tests in fuzz dir
+        run: |
+          cd programs/marginfi
+          cargo install cargo-fuzz
+          cargo fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
+      - name: Pass after fuzzing
+        run: echo "Fuzzing completed"

@@ -19,7 +19,7 @@ use marginfi::{
     prelude::{GroupConfig, MarginfiGroup},
     state::{
         marginfi_account::{Balance, LendingAccount, MarginfiAccount},
-        marginfi_group::{BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
+        marginfi_group::{Bank, BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
     },
 };
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
@@ -54,6 +54,8 @@ pub enum Command {
     },
     #[cfg(feature = "dev")]
     InspectPadding {},
+    #[cfg(feature = "dev")]
+    PatchIdl { idl_path: String },
     #[cfg(feature = "dev")]
     InspectSize {},
     Account {
@@ -371,6 +373,8 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Profile { subcmd } => profile(subcmd),
         #[cfg(feature = "dev")]
         Command::InspectPadding {} => inspect_padding(),
+        #[cfg(feature = "dev")]
+        Command::PatchIdl { idl_path } => patch_marginfi_idl(idl_path),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
         #[cfg(feature = "lip")]
         Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
@@ -681,6 +685,74 @@ fn inspect_size() -> Result<()> {
     println!("MarginfiAccount: {}", size_of::<MarginfiAccount>());
     println!("LendingAccount: {}", size_of::<LendingAccount>());
     println!("Balance: {}", size_of::<Balance>());
+
+    Ok(())
+}
+
+#[cfg(feature = "dev")]
+fn patch_marginfi_idl(target_dir: String) -> Result<()> {
+    use crate::patch_type_layout;
+    use std::io::Write;
+
+    let idl_path = format!("{}/idl/marginfi.json", target_dir);
+
+    let file = std::fs::File::open(&idl_path)?;
+    let reader = std::io::BufReader::new(file);
+    let mut idl: serde_json::Value = serde_json::from_reader(reader)?;
+
+    let idl_original_path = idl_path.replace(".json", "_original.json");
+    let file = std::fs::File::create(&idl_original_path)?;
+    let writer = std::io::BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &idl)?;
+
+    // Patch IDL
+
+    if let Some(types) = idl.get_mut("types").and_then(|t| t.as_array_mut()) {
+        if let Some(pos) = types
+            .iter()
+            .position(|t| t["name"] == "OraclePriceFeedAdapter")
+        {
+            types.remove(pos);
+        }
+    }
+
+    patch_type_layout!(idl, "Bank", Bank, "accounts");
+    patch_type_layout!(idl, "Balance", Balance, "types");
+    patch_type_layout!(idl, "BankConfig", BankConfig, "types");
+    patch_type_layout!(idl, "BankConfigCompact", BankConfig, "types");
+
+    let file = std::fs::File::create(&idl_path)?;
+    let writer = std::io::BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &idl)?;
+
+    // Patch types
+
+    let types_path = format!("{}/types/marginfi.ts", target_dir);
+    let mut ts_file = std::fs::File::create(types_path)?;
+
+    if let Some(accounts) = idl.get_mut("accounts").and_then(|a| a.as_array_mut()) {
+        for account in accounts.iter_mut() {
+            if let Some(name) = account.get_mut("name").and_then(|n| n.as_str()) {
+                let mut chars = name.chars();
+                if let Some(first_char) = chars.next() {
+                    let name_with_lowercase_first_letter =
+                        first_char.to_lowercase().collect::<String>() + chars.as_str();
+                    account["name"] = serde_json::Value::String(name_with_lowercase_first_letter);
+                }
+            }
+        }
+    }
+
+    write!(
+        ts_file,
+        "export type Marginfi = {};\n",
+        serde_json::to_string_pretty(&idl)?
+    )?;
+    write!(
+        ts_file,
+        "export const IDL: Marginfi = {};\n",
+        serde_json::to_string_pretty(&idl)?
+    )?;
 
     Ok(())
 }

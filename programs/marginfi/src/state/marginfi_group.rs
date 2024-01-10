@@ -277,7 +277,7 @@ pub struct InterestRateConfigOpt {
 }
 
 assert_struct_size!(Bank, 1856);
-#[account(zero_copy)]
+#[account(zero_copy(unsafe))]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -861,7 +861,7 @@ pub enum RiskTier {
     Isolated,
 }
 
-#[zero_copy]
+#[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -939,7 +939,7 @@ impl From<BankConfig> for BankConfigCompact {
 }
 
 assert_struct_size!(BankConfig, 544);
-#[zero_copy]
+#[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
