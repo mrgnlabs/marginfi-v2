@@ -34,19 +34,20 @@ pub struct MarginfiAccount {
     pub group: Pubkey,                   // 32
     pub authority: Pubkey,               // 32
     pub lending_account: LendingAccount, // 1728
-    /// The flas that indicates the state of the account.
+    /// The flag that indicates the state of the account.
     /// This is u64 bitfield, where each bit represents a flag.
     ///
     /// Flags:
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
-    pub account_flags: u64, // 8
+    pub account_flags: u64, // 12
     pub _padding: [u64; 63],             // 8 * 63 = 512
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
 pub const IN_FLASHLOAN_FLAG: u64 = 1 << 1;
 pub const FLASHLOAN_ENABLED_FLAG: u64 = 1 << 2;
+pub const TRANSFER_AUTHORITY_ALLOWED_FLAG: u64 = 1 << 3;
 
 impl MarginfiAccount {
     /// Set the initial data for the marginfi account.
