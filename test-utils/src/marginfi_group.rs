@@ -131,15 +131,16 @@ impl MarginfiGroupFixture {
     ) -> Result<BankFixture, BanksClientError> {
         let bank_mint = bank_asset_mint_fixture.key;
 
-        let bank_keypair_seed = [
-            self.key.as_ref(),
-            bank_mint.as_ref(),
-            &bank_seed.to_le_bytes(),
-        ]
-        .as_slice();
-
         // Create PDA account from seeds
-        let (pda, bump) = Pubkey::find_program_address(&bank_keypair_seed, &marginfi::id());
+        let (pda, _bump) = Pubkey::find_program_address(
+            [
+                self.key.as_ref(),
+                bank_mint.as_ref(),
+                &bank_seed.to_le_bytes(),
+            ]
+            .as_slice(),
+            &marginfi::id(),
+        );
 
         let bank_mint = bank_asset_mint_fixture.key;
         let bank_fixture = BankFixture::new(self.ctx.clone(), pda, bank_asset_mint_fixture);

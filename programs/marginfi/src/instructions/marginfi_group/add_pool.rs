@@ -173,7 +173,7 @@ pub struct LendingPoolAddBank<'info> {
 pub fn lending_pool_add_bank_with_seed(
     ctx: Context<LendingPoolAddBankWithSeed>,
     bank_config: BankConfig,
-    bank_seed: u64,
+    _bank_seed: u64,
 ) -> MarginfiResult {
     let LendingPoolAddBankWithSeed {
         bank_mint,
