@@ -178,7 +178,7 @@ async fn marginfi_group_add_bank_success() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn marginfi_group_add_seeded_bank_success() -> anyhow::Result<()> {
+async fn marginfi_group_add_bank_with_seed_success() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
 
@@ -187,7 +187,7 @@ async fn marginfi_group_add_seeded_bank_success() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_lending_pool_add_bank_seeded(
+        .try_lending_pool_add_bank_with_seed(
             &bank_asset_mint_fixture,
             *DEFAULT_USDC_TEST_BANK_CONFIG,
             bank_seed,

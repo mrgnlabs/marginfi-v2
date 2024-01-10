@@ -123,23 +123,33 @@ impl MarginfiGroupFixture {
         Ok(bank_fixture)
     }
 
-    pub async fn try_lending_pool_add_bank_seeded(
+    pub async fn try_lending_pool_add_bank_with_seed(
         &self,
         bank_asset_mint_fixture: &MintFixture,
         bank_config: BankConfig,
         bank_seed: u64,
     ) -> Result<BankFixture, BanksClientError> {
-        let bank_key = Keypair::new();
         let bank_mint = bank_asset_mint_fixture.key;
-        let bank_fixture =
-            BankFixture::new(self.ctx.clone(), bank_key.pubkey(), bank_asset_mint_fixture);
+
+        let bank_keypair_seed = [
+            self.key.as_ref(),
+            bank_mint.as_ref(),
+            &bank_seed.to_le_bytes(),
+        ]
+        .as_slice();
+
+        // Create PDA account from seeds
+        let (pda, bump) = Pubkey::find_program_address(&bank_keypair_seed, &marginfi::id());
+
+        let bank_mint = bank_asset_mint_fixture.key;
+        let bank_fixture = BankFixture::new(self.ctx.clone(), pda, bank_asset_mint_fixture);
 
         let mut accounts = marginfi::accounts::LendingPoolAddBank {
             marginfi_group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
             fee_payer: self.ctx.borrow().payer.pubkey(),
             bank_mint,
-            bank: bank_key.pubkey(),
+            bank: pda,
             liquidity_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Liquidity).0,
             liquidity_vault: bank_fixture.get_vault(BankVaultType::Liquidity).0,
             insurance_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Insurance).0,
@@ -166,7 +176,7 @@ impl MarginfiGroupFixture {
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.ctx.borrow().payer.pubkey().clone()),
-            &[&self.ctx.borrow().payer, &bank_key],
+            &[&self.ctx.borrow().payer],
             self.ctx.borrow().last_blockhash,
         );
 

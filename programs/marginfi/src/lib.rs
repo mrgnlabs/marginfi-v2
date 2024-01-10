@@ -47,12 +47,12 @@ pub mod marginfi {
     /// A copy of lending_pool_add_bank with an additional bank seed.
     /// This seed is used to create a PDA for the bank's signature.
     /// lending_pool_add_bank is preserved for backwards compatibility.
-    pub fn lending_pool_add_bank_seeded(
-        ctx: Context<LendingPoolAddBankSeeded>,
+    pub fn lending_pool_add_bank_with_seed(
+        ctx: Context<LendingPoolAddBankWithSeed>,
         bank_config: BankConfigCompact,
         bank_seed: u64,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank_seeded(ctx, bank_config.into(), bank_seed)
+        marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config.into(), bank_seed)
     }
 
     pub fn lending_pool_configure_bank(
