@@ -124,6 +124,46 @@ pub enum GroupCommand {
         #[clap(long, arg_enum)]
         oracle_type: OracleTypeArg,
     },
+    /// Add a bank with a PDA account
+    #[cfg(feature = "admin")]
+    AddBankWithSeed {
+        #[clap(long)]
+        mint: Pubkey,
+        #[clap(long)]
+        bank_seed: u64,
+        #[clap(long)]
+        asset_weight_init: f64,
+        #[clap(long)]
+        asset_weight_maint: f64,
+        #[clap(long)]
+        liability_weight_init: f64,
+        #[clap(long)]
+        liability_weight_maint: f64,
+        #[clap(long)]
+        deposit_limit_ui: u64,
+        #[clap(long)]
+        borrow_limit_ui: u64,
+        #[clap(long)]
+        pyth_oracle: Pubkey,
+        #[clap(long)]
+        optimal_utilization_rate: f64,
+        #[clap(long)]
+        plateau_interest_rate: f64,
+        #[clap(long)]
+        max_interest_rate: f64,
+        #[clap(long)]
+        insurance_fee_fixed_apr: f64,
+        #[clap(long)]
+        insurance_ir_fee: f64,
+        #[clap(long)]
+        protocol_fixed_fee_apr: f64,
+        #[clap(long)]
+        protocol_ir_fee: f64,
+        #[clap(long, arg_enum)]
+        risk_tier: RiskTierArg,
+        #[clap(long, arg_enum)]
+        oracle_type: OracleTypeArg,
+    },
     #[cfg(feature = "admin")]
     HandleBankruptcy {
         accounts: Vec<Pubkey>,
@@ -490,6 +530,48 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             config,
             profile,
             bank_mint,
+            pyth_oracle,
+            oracle_type,
+            asset_weight_init,
+            asset_weight_maint,
+            liability_weight_init,
+            liability_weight_maint,
+            deposit_limit_ui,
+            borrow_limit_ui,
+            optimal_utilization_rate,
+            plateau_interest_rate,
+            max_interest_rate,
+            insurance_fee_fixed_apr,
+            insurance_ir_fee,
+            protocol_fixed_fee_apr,
+            protocol_ir_fee,
+            risk_tier,
+        ),
+        #[cfg(feature = "admin")]
+        GroupCommand::AddBankWithSeed {
+            mint: bank_mint,
+            bank_seed,
+            asset_weight_init,
+            asset_weight_maint,
+            liability_weight_init,
+            liability_weight_maint,
+            pyth_oracle,
+            optimal_utilization_rate,
+            plateau_interest_rate,
+            max_interest_rate,
+            insurance_fee_fixed_apr,
+            insurance_ir_fee,
+            protocol_fixed_fee_apr,
+            protocol_ir_fee,
+            deposit_limit_ui,
+            borrow_limit_ui,
+            risk_tier,
+            oracle_type,
+        } => processor::group_add_bank_with_seed(
+            config,
+            profile,
+            bank_mint,
+            bank_seed,
             pyth_oracle,
             oracle_type,
             asset_weight_init,

@@ -441,6 +441,157 @@ pub fn group_add_bank(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+#[cfg(feature = "admin")]
+pub fn group_add_bank_with_seed(
+    config: Config,
+    profile: Profile,
+    bank_mint: Pubkey,
+    bank_seed: u64,
+    oracle_key: Pubkey,
+    oracle_setup: crate::OracleTypeArg,
+    asset_weight_init: f64,
+    asset_weight_maint: f64,
+    liability_weight_init: f64,
+    liability_weight_maint: f64,
+    deposit_limit_ui: u64,
+    borrow_limit_ui: u64,
+    optimal_utilization_rate: f64,
+    plateau_interest_rate: f64,
+    max_interest_rate: f64,
+    insurance_fee_fixed_apr: f64,
+    insurance_ir_fee: f64,
+    protocol_fixed_fee_apr: f64,
+    protocol_ir_fee: f64,
+    risk_tier: crate::RiskTierArg,
+) -> Result<()> {
+    let rpc_client = config.mfi_program.rpc();
+
+    if profile.marginfi_group.is_none() {
+        bail!("Marginfi group not specified in profile [{}]", profile.name);
+    }
+
+    let asset_weight_init: WrappedI80F48 = I80F48::from_num(asset_weight_init).into();
+    let asset_weight_maint: WrappedI80F48 = I80F48::from_num(asset_weight_maint).into();
+    let liability_weight_init: WrappedI80F48 = I80F48::from_num(liability_weight_init).into();
+    let liability_weight_maint: WrappedI80F48 = I80F48::from_num(liability_weight_maint).into();
+
+    let optimal_utilization_rate: WrappedI80F48 = I80F48::from_num(optimal_utilization_rate).into();
+    let plateau_interest_rate: WrappedI80F48 = I80F48::from_num(plateau_interest_rate).into();
+    let max_interest_rate: WrappedI80F48 = I80F48::from_num(max_interest_rate).into();
+    let insurance_fee_fixed_apr: WrappedI80F48 = I80F48::from_num(insurance_fee_fixed_apr).into();
+    let insurance_ir_fee: WrappedI80F48 = I80F48::from_num(insurance_ir_fee).into();
+    let protocol_fixed_fee_apr: WrappedI80F48 = I80F48::from_num(protocol_fixed_fee_apr).into();
+    let protocol_ir_fee: WrappedI80F48 = I80F48::from_num(protocol_ir_fee).into();
+
+    let mint_account = rpc_client.get_account(&bank_mint)?;
+    let mint = spl_token::state::Mint::unpack(&mint_account.data)?;
+
+    let deposit_limit = deposit_limit_ui * 10_u64.pow(mint.decimals as u32);
+    let borrow_limit = borrow_limit_ui * 10_u64.pow(mint.decimals as u32);
+
+    let interest_rate_config = InterestRateConfig {
+        optimal_utilization_rate,
+        plateau_interest_rate,
+        max_interest_rate,
+        insurance_fee_fixed_apr,
+        insurance_ir_fee,
+        protocol_fixed_fee_apr,
+        protocol_ir_fee,
+        ..InterestRateConfig::default()
+    };
+
+    let bank_keypair = Keypair::new();
+    // TODO: derive PDA from seed?
+
+    let add_bank_ixs_builder = config.mfi_program.request();
+
+    let mut signing_keypairs = config.get_signers(true);
+    signing_keypairs.push(&bank_keypair);
+
+    let add_bank_ixs = add_bank_ixs_builder
+        .accounts(marginfi::accounts::LendingPoolAddBankWithSeed {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            admin: config.authority(),
+            bank: bank_keypair.pubkey(),
+            bank_mint,
+            fee_vault: find_bank_vault_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Fee,
+                &config.program_id,
+            )
+            .0,
+            fee_vault_authority: find_bank_vault_authority_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Fee,
+                &config.program_id,
+            )
+            .0,
+            insurance_vault: find_bank_vault_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Insurance,
+                &config.program_id,
+            )
+            .0,
+            insurance_vault_authority: find_bank_vault_authority_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Insurance,
+                &config.program_id,
+            )
+            .0,
+            liquidity_vault: find_bank_vault_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+            liquidity_vault_authority: find_bank_vault_authority_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+            rent: sysvar::rent::id(),
+            token_program: token::ID,
+            system_program: system_program::id(),
+            fee_payer: config.explicit_fee_payer(),
+        })
+        .accounts(AccountMeta::new_readonly(oracle_key, false))
+        .args(marginfi::instruction::LendingPoolAddBankWithSeed {
+            bank_config: BankConfig {
+                asset_weight_init,
+                asset_weight_maint,
+                liability_weight_init,
+                liability_weight_maint,
+                deposit_limit,
+                borrow_limit,
+                interest_rate_config,
+                operational_state: BankOperationalState::Operational,
+                oracle_setup: oracle_setup.into(),
+                oracle_keys: create_oracle_key_array(oracle_key),
+                risk_tier: risk_tier.into(),
+                ..BankConfig::default()
+            }
+            .into(),
+            bank_seed,
+        })
+        .instructions()?;
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let message = Message::new(&add_bank_ixs, Some(&config.explicit_fee_payer()));
+    let mut transaction = Transaction::new_unsigned(message);
+    transaction.partial_sign(&signing_keypairs, recent_blockhash);
+
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
+        Ok(sig) => println!("bank created (sig: {})", sig),
+        Err(err) => println!("Error during bank creation:\n{:#?}", err),
+    };
+
+    println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
+
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments, dead_code)]
 #[cfg(feature = "admin")]
 pub fn group_handle_bankruptcy(
