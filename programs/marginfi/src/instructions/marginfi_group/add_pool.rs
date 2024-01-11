@@ -258,7 +258,7 @@ pub struct LendingPoolAddBankWithSeed<'info> {
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑a
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
