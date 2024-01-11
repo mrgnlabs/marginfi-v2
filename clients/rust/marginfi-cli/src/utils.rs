@@ -2,6 +2,8 @@ use crate::config::TxMode;
 use marginfi::bank_seed;
 #[cfg(feature = "admin")]
 use marginfi::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS};
+#[cfg(feature = "admin")]
+use rand::distributions::{Alphanumeric, DistString};
 use {
     anyhow::{bail, Result},
     fixed::types::I80F48,
@@ -187,6 +189,14 @@ pub fn load_observation_account_metas(
 #[cfg(feature = "admin")]
 pub fn calc_emissions_rate(ui_rate: f64, emissions_mint_decimals: u8) -> u64 {
     (ui_rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64
+}
+
+/// Generate a random string with an optional length argument.
+/// Defaults to length 16 if no length is provided.
+#[cfg(feature = "admin")]
+pub fn generate_random_string(length: Option<usize>) -> String {
+    let string = Alphanumeric.sample_string(&mut rand::thread_rng(), length.unwrap_or(16));
+    string
 }
 
 // const SCALE: u128 = 10_u128.pow(14);

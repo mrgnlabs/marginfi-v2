@@ -8,8 +8,8 @@ use {
         config::Config,
         profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
         utils::{
-            find_bank_vault_authority_pda, find_bank_vault_pda, load_observation_account_metas,
-            process_transaction, EXP_10_I80F48,
+            find_bank_vault_authority_pda, find_bank_vault_pda, generate_random_string,
+            load_observation_account_metas, process_transaction, EXP_10_I80F48,
         },
     },
     anchor_client::{
@@ -299,6 +299,7 @@ pub fn group_add_bank(
     config: Config,
     profile: Profile,
     bank_mint: Pubkey,
+    seed: bool,
     oracle_key: Pubkey,
     oracle_setup: crate::OracleTypeArg,
     asset_weight_init: f64,
@@ -352,7 +353,121 @@ pub fn group_add_bank(
         ..InterestRateConfig::default()
     };
 
-    let bank_keypair = Keypair::new();
+    let mut bank_keypair = Keypair::new();
+
+    // Generate the PDA for the bank keypair if the seed bool is set
+    // Issue tx with the seed
+    if seed {
+        println!("Seed option enabled -- generating a PDA account");
+        // Initialize the PDA
+        let mut bump = 0_u8;
+        let mut seeds = [
+            // self.key.as_ref(), TODO add program ID here?
+            bank_mint.as_ref(),
+            generate_random_string(None).as_bytes(),
+        ]
+        .as_slice();
+        let mut bank_pda = Pubkey::default();
+
+        for i in 0..256_u8 {
+            seeds.append(&[i]);
+            let (pda, b) = Pubkey::find_program_address(seeds.into(), &marginfi::id());
+            if !pda.is_on_curve() {
+                println!("Succesffuly generated a PDA account");
+                bank_pda = pda;
+                bump = b;
+                break;
+            }
+            seeds.pop();
+        }
+
+        let add_bank_ixs_builder = config.mfi_program.request();
+        let mut signing_keypairs = config.get_signers(true);
+        signing_keypairs.push(&bank_keypair);
+
+        let add_bank_ixs = add_bank_ixs_builder
+            .accounts(marginfi::accounts::LendingPoolAddBankWithSeed {
+                marginfi_group: profile.marginfi_group.unwrap(),
+                admin: config.authority(),
+                bank_mint,
+                bank: bank_pda,
+                fee_vault: find_bank_vault_pda(
+                    &bank_keypair.pubkey(),
+                    BankVaultType::Fee,
+                    &config.program_id,
+                )
+                .0,
+                fee_vault_authority: find_bank_vault_authority_pda(
+                    &bank_keypair.pubkey(),
+                    BankVaultType::Fee,
+                    &config.program_id,
+                )
+                .0,
+                insurance_vault: find_bank_vault_pda(
+                    &bank_keypair.pubkey(),
+                    BankVaultType::Insurance,
+                    &config.program_id,
+                )
+                .0,
+                insurance_vault_authority: find_bank_vault_authority_pda(
+                    &bank_keypair.pubkey(),
+                    BankVaultType::Insurance,
+                    &config.program_id,
+                )
+                .0,
+                liquidity_vault: find_bank_vault_pda(
+                    &bank_keypair.pubkey(),
+                    BankVaultType::Liquidity,
+                    &config.program_id,
+                )
+                .0,
+                liquidity_vault_authority: find_bank_vault_authority_pda(
+                    &bank_keypair.pubkey(),
+                    BankVaultType::Liquidity,
+                    &config.program_id,
+                )
+                .0,
+                rent: sysvar::rent::id(),
+                token_program: token::ID,
+                system_program: system_program::id(),
+                fee_payer: config.explicit_fee_payer(),
+            })
+            .accounts(AccountMeta::new_readonly(oracle_key, false))
+            .args(marginfi::instruction::LendingPoolAddBankWithSeed {
+                bank_config: BankConfig {
+                    asset_weight_init,
+                    asset_weight_maint,
+                    liability_weight_init,
+                    liability_weight_maint,
+                    deposit_limit,
+                    borrow_limit,
+                    interest_rate_config,
+                    operational_state: BankOperationalState::Operational,
+                    oracle_setup: oracle_setup.into(),
+                    oracle_keys: create_oracle_key_array(oracle_key),
+                    risk_tier: risk_tier.into(),
+                    ..BankConfig::default()
+                }
+                .into(),
+                // TODO: convert seed byte array into u64 seed?
+                bank_seed: seeds,
+            })
+            .instructions()?;
+
+        let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+        let message = Message::new(&add_bank_ixs, Some(&config.explicit_fee_payer()));
+        let mut transaction = Transaction::new_unsigned(message);
+        transaction.partial_sign(&signing_keypairs, recent_blockhash);
+
+        match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
+            Ok(sig) => println!("bank created (sig: {})", sig),
+            Err(err) => println!("Error during bank creation:\n{:#?}", err),
+        };
+
+        println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
+
+        return Ok(());
+    }
 
     let add_bank_ixs_builder = config.mfi_program.request();
 
