@@ -145,7 +145,7 @@ impl MarginfiGroupFixture {
         let bank_mint = bank_asset_mint_fixture.key;
         let bank_fixture = BankFixture::new(self.ctx.clone(), pda, bank_asset_mint_fixture);
 
-        let mut accounts = marginfi::accounts::LendingPoolAddBank {
+        let mut accounts = marginfi::accounts::LendingPoolAddBankWithSeed {
             marginfi_group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
             fee_payer: self.ctx.borrow().payer.pubkey(),
@@ -168,8 +168,9 @@ impl MarginfiGroupFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts,
-            data: marginfi::instruction::LendingPoolAddBank {
+            data: marginfi::instruction::LendingPoolAddBankWithSeed {
                 bank_config: bank_config.into(),
+                bank_seed,
             }
             .data(),
         };
