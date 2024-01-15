@@ -34,13 +34,13 @@ pub struct MarginfiAccount {
     pub group: Pubkey,                   // 32
     pub authority: Pubkey,               // 32
     pub lending_account: LendingAccount, // 1728
-    /// The flag that indicates the state of the account.
+    /// The flags that indicate the state of the account.
     /// This is u64 bitfield, where each bit represents a flag.
     ///
     /// Flags:
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
-    pub account_flags: u64, // 12
+    pub account_flags: u64, // 8
     pub _padding: [u64; 63],             // 8 * 63 = 512
 }
 
@@ -77,6 +77,24 @@ impl MarginfiAccount {
 
     pub fn get_flag(&self, flag: u64) -> bool {
         self.account_flags & flag != 0
+    }
+
+    pub fn set_new_account_authority(
+        &mut self,
+        new_authority: Pubkey,
+    ) -> std::result::Result<(), MarginfiError> {
+        // check if new account authority flag is set
+        if !self.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG) || self.get_flag(DISABLED_FLAG) {
+            return Err(MarginfiError::IllegalAccountAuthorityTransfer);
+        }
+        // update account authority
+        self.authority = new_authority;
+
+        // unset flag after updating the account authority
+        self.unset_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG);
+
+        msg!("Set new account authority {:?}", new_authority);
+        Ok(())
     }
 }
 

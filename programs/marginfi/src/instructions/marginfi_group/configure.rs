@@ -128,12 +128,15 @@ mod tests {
             + IN_FLASHLOAN_FLAG
             + TRANSFER_AUTHORITY_ALLOWED_FLAG;
 
-        assert!(super::flag_can_be_set(flag1));
+        // Malformed flags should fail
         assert!(!super::flag_can_be_set(flag2));
         assert!(!super::flag_can_be_set(flag3));
         assert!(!super::flag_can_be_set(flag4));
-        assert!(!super::flag_can_be_set(flag5));
         assert!(!super::flag_can_be_set(flag6));
         assert!(!super::flag_can_be_set(flag7));
+
+        // Good flags should succeed
+        assert!(super::flag_can_be_set(flag1));
+        assert!(super::flag_can_be_set(flag5));
     }
 }
