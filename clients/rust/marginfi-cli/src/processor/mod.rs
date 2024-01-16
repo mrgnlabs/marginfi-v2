@@ -353,10 +353,12 @@ pub fn group_add_bank(
         ..InterestRateConfig::default()
     };
 
+    // Create signing keypairs -- if the PDA is used, no explicit fee payer.
     let bank_keypair = Keypair::new();
-
-    let mut signing_keypairs = config.get_signers(true);
-    signing_keypairs.push(&bank_keypair);
+    let mut signing_keypairs = config.get_signers(false);
+    if !seed {
+        signing_keypairs.push(&bank_keypair)
+    }
 
     // Generate the PDA for the bank keypair if the seed bool is set
     // Issue tx with the seed
@@ -398,7 +400,7 @@ pub fn group_add_bank(
     };
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let message = Message::new(&add_bank_ixs, Some(&config.explicit_fee_payer()));
+    let message = Message::new(&add_bank_ixs, None);
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
