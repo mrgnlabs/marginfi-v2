@@ -93,7 +93,7 @@ impl MarginfiAccount {
         // unset flag after updating the account authority
         self.unset_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG);
 
-        msg!("Set new account authority {:?}", new_authority);
+        msg!("Transferred account authority to {:?}", self.authority);
         Ok(())
     }
 }
