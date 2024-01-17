@@ -4,6 +4,16 @@
 
 Marginfi is a decentralized liquidity aggregation protocol built on the Solana blockchain that allows users to access a range of lending markets through a single platform, supporting cryptocurrencies such as SOL, USDC, USDT, wBTC (Portal), ETH (Portal), and BONK. The platform pools liquidity from various sources, offering competitive interest rates to lenders and lower interest rates to borrowers. Marginfi plans to introduce cross-composing in the future, enabling users to trade between different assets on the platform, further enhancing liquidity and providing more opportunities for investment returns.
 
+## Installation
+> :warning: marginfi-v2 only compiles on the x86_64 architecture. This is to
+> ensure struct sizes are always backwards compatible between the SVM and local
+> development. Ensure the x86_64 arch is enabled before compiling the project.
+
+The easiest way to install marginfi-v2 is via git clone. Use `cargo build` for
+local development and `cargo build-bpf` for building the marginfi programs targetting the SVM.
+See [the Solana docs](https://docs.solana.com/developing/on-chain-programs/developing-rust)
+for more information.
+
 ## Architecture
 
 Marginfi's protocol is made up of several key components, each playing a critical role in providing users with a reliable and efficient platform for managing their liquidity.
