@@ -358,13 +358,6 @@ pub enum AccountCommand {
         ui_asset_amount: f64,
     },
     Create,
-    // Set the account authority to another key. Admin only.
-    // Requires the transfer account authority flag to be set.
-    #[cfg(feature = "admin")]
-    SetAccountAuthority {
-        #[clap(long)]
-        new_authority: Pubkey,
-    },
 }
 
 #[derive(Debug, Parser)]
@@ -813,14 +806,6 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
             ui_asset_amount,
         ),
         AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
-        #[cfg(feature = "admin")]
-        AccountCommand::SetAccountAuthority {
-            new_authority: new_authority_pk,
-        } => processor::marginfi_account_transfer_account_authority(
-            &profile,
-            &config,
-            &new_authority_pk,
-        ),
     }?;
 
     Ok(())

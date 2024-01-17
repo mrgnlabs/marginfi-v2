@@ -56,10 +56,6 @@ use {
 use marginfi::state::price::{OraclePriceFeedAdapter, PriceAdapter};
 use marginfi::{constants::ZERO_AMOUNT_THRESHOLD, utils::NumTraitsWithTolerance};
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::{
-    account_info::Account, system_instruction::SystemInstruction,
-    transaction_context::TransactionAccount,
-};
 
 #[cfg(feature = "admin")]
 use {
@@ -1974,51 +1970,6 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
 
     Ok(())
 }
-
-/// Transfer the account authority from one account to a new account.
-/// Admin only.
-/// Requires the account authority transfer flag to be set.
-pub fn marginfi_account_transfer_account_authority(
-    profile: &Profile,
-    config: &Config,
-    _new_account_authority: &Pubkey,
-) -> Result<()> {
-    // Gather necessary variables
-    let signer = config.get_non_ms_authority_keypair()?;
-    let rpc_client = config.mfi_program.rpc();
-
-    // Construct an ix that transfers the account authority of a particular account
-    // to another pubkey
-    let _account = profile.get_marginfi_account(); // is this the correct account?
-
-    // TODO: deserialize the account into a MarginfiAccount
-
-    // marginfi_account.set_new_account_authority(new_account_authority)
-
-    // Write the new account state on-chain
-    let ix = Instruction {
-        program_id: config.program_id,
-        accounts: vec![],
-        data: vec![],
-    };
-
-    // Issue transaction
-    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&signer.pubkey()),
-        &[signer],
-        recent_blockhash,
-    );
-
-    match process_transaction(&tx, &config.mfi_program.rpc(), config.get_tx_mode()) {
-        Ok(sig) => print!("{sig}"),
-        Err(err) => println!("Error during transferring account authority:\n{err:#?}"),
-    }
-
-    Ok(())
-}
-
 /// LIP
 ///
 

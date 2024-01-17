@@ -139,9 +139,3 @@ pub struct LendingAccountLiquidateEvent {
     pub pre_balances: LiquidationBalances,
     pub post_balances: LiquidationBalances,
 }
-
-#[event]
-pub struct MarginfiAccountTransferAccountAuthorityEvent {
-    pub header: AccountEventHeader,
-    pub new_account_authority: Pubkey,
-}
