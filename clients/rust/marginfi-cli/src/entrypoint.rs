@@ -91,6 +91,9 @@ pub enum GroupCommand {
     AddBank {
         #[clap(long)]
         mint: Pubkey,
+        /// Generates a PDA for the bank key
+        #[clap(long, action)]
+        seed: bool,
         #[clap(long)]
         asset_weight_init: f64,
         #[clap(long)]
@@ -470,6 +473,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         #[cfg(feature = "admin")]
         GroupCommand::AddBank {
             mint: bank_mint,
+            seed,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,
@@ -490,6 +494,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             config,
             profile,
             bank_mint,
+            seed,
             pyth_oracle,
             oracle_type,
             asset_weight_init,
