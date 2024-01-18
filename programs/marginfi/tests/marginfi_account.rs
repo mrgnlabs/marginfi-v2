@@ -9,6 +9,7 @@ use marginfi::constants::{
 };
 use marginfi::state::marginfi_account::{
     BankAccountWrapper, DISABLED_FLAG, FLASHLOAN_ENABLED_FLAG, IN_FLASHLOAN_FLAG,
+    TRANSFER_AUTHORITY_ALLOWED_FLAG,
 };
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
@@ -2407,6 +2408,67 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
     // This issue is not that bad, because the user can still borrow other assets (isolated liab < empty threshold)
     let res = borrower_mfi_account_f.try_balance_close(sol_eq_bank).await;
     assert!(res.is_ok());
+
+    Ok(())
+}
+
+// Test transfer account authority.
+// No transfer flag set -- transaction should fail.
+#[tokio::test]
+async fn account_authority_transfer_no_flag_set() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    // Create & initialize marginfi account
+    let marginfi_account_key = Keypair::new();
+    let accounts = marginfi::accounts::MarginfiAccountInitialize {
+        marginfi_group: test_f.marginfi_group.key,
+        marginfi_account: marginfi_account_key.pubkey(),
+        authority: test_f.payer(),
+        fee_payer: test_f.payer(),
+        system_program: system_program::id(),
+    };
+    let init_marginfi_account_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: accounts.to_account_metas(Some(true)),
+        data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_marginfi_account_ix],
+        Some(&test_f.payer()),
+        &[&test_f.payer_keypair(), &marginfi_account_key],
+        test_f.get_latest_blockhash().await,
+    );
+
+    let res = test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await;
+
+    assert!(res.is_ok());
+
+    // Fetch & deserialize marginfi account
+    let marginfi_account: MarginfiAccount = test_f
+        .load_and_deserialize(&marginfi_account_key.pubkey())
+        .await;
+
+    // Check account authority
+    assert_eq!(marginfi_account.authority, test_f.payer());
+    // transfer flag not set on the new account
+    assert!(!marginfi_account.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
+    let new_account_authority_pk: [u8; 32] = [0; 32];
+
+    // attempt authority transfer
+    let transfer_account_authority_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: accounts.to_account_metas(Some(true)),
+        data: marginfi::instruction::SetNewAccountAuthority {
+            new_account_authority: Pubkey::from(new_account_authority_pk),
+        }
+        .data(),
+    };
 
     Ok(())
 }

@@ -79,14 +79,13 @@ impl MarginfiAccount {
         self.account_flags & flag != 0
     }
 
-    pub fn set_new_account_authority(
-        &mut self,
-        new_authority: Pubkey,
-    ) -> std::result::Result<(), MarginfiError> {
+    pub fn set_new_account_authority_checked(&mut self, new_authority: Pubkey) -> MarginfiResult {
         // check if new account authority flag is set
         if !self.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG) || self.get_flag(DISABLED_FLAG) {
-            return Err(MarginfiError::IllegalAccountAuthorityTransfer);
+            return Err(MarginfiError::IllegalAccountAuthorityTransfer.into());
         }
+        // TODO: error instead of update if the new_account_authority is the same as old?
+
         // update account authority
         self.authority = new_authority;
 
