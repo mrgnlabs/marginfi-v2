@@ -4,36 +4,32 @@ use crate::{
     state::marginfi_account::MarginfiAccount,
 };
 use anchor_lang::prelude::*;
-use solana_program::sysvar::Sysvar;
 
 pub fn set_account_transfer_authority(
     ctx: Context<MarginfiAccountSetAccountAuthority>,
     new_account_authority: Pubkey,
 ) -> MarginfiResult {
     let MarginfiAccountSetAccountAuthority {
-        authority,
-        marginfi_group,
         marginfi_account: marginfi_account_loader,
+        new_authority: new_account_authority,
         ..
     } = ctx.accounts;
 
     let mut marginfi_account = marginfi_account_loader.load_init()?;
-
     let old_account_authority = marginfi_account.authority;
-
-    marginfi_account.set_new_account_authority_checked(new_account_authority)?;
+    marginfi_account.set_new_account_authority_checked(new_account_authority.key())?;
 
     // assert_ne!(old_account_authority, new_account_authority)?
 
     emit!(MarginfiAccountTransferAccountAuthorityEvent {
         header: AccountEventHeader {
-            signer: Some(authority.key()),
+            signer: Some(new_account_authority.key()),
             marginfi_account: marginfi_account_loader.key(),
             marginfi_account_authority: marginfi_account.authority,
             marginfi_group: marginfi_account.group,
         },
         old_account_authority,
-        new_account_authority,
+        new_account_authority: new_account_authority.key(),
     });
 
     Ok(())
@@ -41,13 +37,9 @@ pub fn set_account_transfer_authority(
 
 #[derive(Accounts)]
 pub struct MarginfiAccountSetAccountAuthority<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
-    #[account(signer, has_one = authority)]
+    #[account(signer)]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-
-    pub authority: Signer<'info>,
-
+    pub new_authority: AccountLoader<'info, MarginfiAccount>,
     #[account(mut)]
     pub fee_payer: Signer<'info>,
 }

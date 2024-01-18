@@ -66,3 +66,8 @@ Marginfi can be verified with Ellipsis Labs verifiable builds.
 Install the `solana-verify` tool [here](https://github.com/Ellipsis-Labs/solana-verifiable-build#installation).
 
 Run `./scripts/verify_mainnet.sh`
+
+## Testing
+Integration tests for the on-chain marginfi programs are located under
+`/programs/marginfi/tests`. To run the tests, use `cargo test-bpf`. Be sure to 
+use an x86 toolchain when compiling and running the tests.
