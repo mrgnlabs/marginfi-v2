@@ -2413,7 +2413,8 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
 }
 
 // Test transfer account authority.
-// No transfer flag set -- transaction should fail.
+// No transfer flag set -- tx should fail.
+// Set the flag and try again -- tx should succeed.
 #[tokio::test]
 async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
@@ -2460,17 +2461,17 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
     assert!(!marginfi_account.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
     let new_account_authority_pk: [u8; 32] = [0; 32];
 
-    // attempt authority transfer
-    let transfer_account_authority_ix = Instruction {
-        program_id: marginfi::id(),
-        accounts: marginfi::instructions::MarginfiAccountSetAccountAuthority {
-            marginfi_account: marginfi_account_key.pubkey(),
-            new_authority: new_account_authority_pk,
-            fee_payer: marginfi_account,
-        }
-        .to_account_metas(None),
-        data: Vec::from(new_account_authority_pk.as_slice()),
-    };
+    // // attempt authority transfer
+    // let transfer_account_authority_ix = Instruction {
+    //     program_id: marginfi::id(),
+    //     accounts: marginfi::instructions::MarginfiAccountSetAccountAuthority {
+    //         marginfi_account: marginfi_account.,
+    //         signer: marginfi_account,
+    //         new_authority: new_account_authority_pk,
+    //         fee_payer: marginfi_account,
+    //     }.to_account_metas(None),
+    //     data: vec![]
+    // };
 
     let tx = Transaction::new_signed_with_payer(
         &[transfer_account_authority_ix],

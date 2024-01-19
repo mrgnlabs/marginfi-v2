@@ -191,9 +191,8 @@ pub mod marginfi {
 
     pub fn set_new_account_authority(
         ctx: Context<MarginfiAccountSetAccountAuthority>,
-        new_account_authority: Pubkey,
     ) -> MarginfiResult {
-        marginfi_account::set_account_transfer_authority(ctx, new_account_authority)
+        marginfi_account::set_account_transfer_authority(ctx)
     }
 }
 
