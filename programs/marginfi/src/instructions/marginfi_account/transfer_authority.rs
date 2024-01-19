@@ -7,7 +7,6 @@ use anchor_lang::prelude::*;
 
 pub fn set_account_transfer_authority(
     ctx: Context<MarginfiAccountSetAccountAuthority>,
-    new_account_authority: Pubkey,
 ) -> MarginfiResult {
     let MarginfiAccountSetAccountAuthority {
         marginfi_account: marginfi_account_loader,
@@ -15,7 +14,7 @@ pub fn set_account_transfer_authority(
         ..
     } = ctx.accounts;
 
-    let mut marginfi_account = marginfi_account_loader.load_init()?;
+    let mut marginfi_account = marginfi_account_loader.load_mut()?;
     let old_account_authority = marginfi_account.authority;
     marginfi_account.set_new_account_authority_checked(new_account_authority.key())?;
 
@@ -37,9 +36,16 @@ pub fn set_account_transfer_authority(
 
 #[derive(Accounts)]
 pub struct MarginfiAccountSetAccountAuthority<'info> {
-    #[account(signer)]
+    #[account(mut)]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
+
+    #[account(
+        address = marginfi_account.load()?.authority,
+    )]
+    pub signer: Signer<'info>,
+
     pub new_authority: AccountLoader<'info, MarginfiAccount>,
+
     #[account(mut)]
     pub fee_payer: Signer<'info>,
 }
