@@ -1287,4 +1287,38 @@ mod test {
             I80F48!(10_000_000)
         );
     }
+
+    #[test]
+    fn test_account_authority_transfer() {
+        let group: [u8; 32] = [0; 32];
+        let authority: [u8; 32] = [1; 32];
+        let bank_pk: [u8; 32] = [2; 32];
+        let new_authority: [u8; 32] = [3; 32];
+
+        let mut acc = MarginfiAccount {
+            group: group.into(),
+            authority: authority.into(),
+            lending_account: LendingAccount {
+                balances: [Balance {
+                    active: true,
+                    bank_pk: bank_pk.into(),
+                    asset_shares: WrappedI80F48::default(),
+                    liability_shares: WrappedI80F48::default(),
+                    emissions_outstanding: WrappedI80F48::default(),
+                    last_update: 0,
+                    _padding: [0_u64],
+                }; 16],
+                _padding: [0; 8],
+            },
+            account_flags: TRANSFER_AUTHORITY_ALLOWED_FLAG,
+            _padding: [0; 63],
+        };
+
+        assert!(acc.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
+
+        match acc.set_new_account_authority_checked(new_authority.into()) {
+            Ok(_) => (),
+            Err(_) => panic!("transerring account authority failed"),
+        }
+    }
 }
