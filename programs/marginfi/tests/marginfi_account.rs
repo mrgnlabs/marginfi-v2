@@ -2500,10 +2500,7 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
     let transfer_account_authority_ix = Instruction {
         program_id: marginfi::id(),
         accounts: accounts.to_account_metas(Some(true)),
-        data: marginfi::instruction::SetNewAccountAuthority {
-            new_account_authority: Pubkey::from(new_account_authority_pk),
-        }
-        .data(),
+        data: vec![],
     };
 
     let tx = Transaction::new_signed_with_payer(

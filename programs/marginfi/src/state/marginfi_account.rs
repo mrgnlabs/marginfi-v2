@@ -84,15 +84,19 @@ impl MarginfiAccount {
         if !self.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG) || self.get_flag(DISABLED_FLAG) {
             return Err(MarginfiError::IllegalAccountAuthorityTransfer.into());
         }
-        // TODO: error instead of update if the new_account_authority is the same as old?
 
         // update account authority
+        let old_authority = self.authority;
         self.authority = new_authority;
 
         // unset flag after updating the account authority
         self.unset_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG);
 
-        msg!("Transferred account authority to {:?}", self.authority);
+        msg!(
+            "Transferred account authority from {:?} to {:?}",
+            old_authority,
+            self.authority
+        );
         Ok(())
     }
 }
