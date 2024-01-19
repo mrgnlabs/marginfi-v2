@@ -2462,16 +2462,18 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
     let new_account_authority_pk: [u8; 32] = [0; 32];
 
     // // attempt authority transfer
-    // let transfer_account_authority_ix = Instruction {
-    //     program_id: marginfi::id(),
-    //     accounts: marginfi::instructions::MarginfiAccountSetAccountAuthority {
-    //         marginfi_account: marginfi_account.,
-    //         signer: marginfi_account,
-    //         new_authority: new_account_authority_pk,
-    //         fee_payer: marginfi_account,
-    //     }.to_account_metas(None),
-    //     data: vec![]
-    // };
+    // TODO: fix types
+    let transfer_account_authority_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: marginfi::instructions::MarginfiAccountSetAccountAuthority {
+            marginfi_account: todo!(),
+            signer: todo!(),
+            new_authority: todo!(),
+            fee_payer: todo!(),
+        }
+        .to_account_metas(None),
+        data: vec![],
+    };
 
     let tx = Transaction::new_signed_with_payer(
         &[transfer_account_authority_ix],
@@ -2497,9 +2499,10 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
     // set the flag on the account
     marginfi_account.set_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG);
 
+    // TODO: fix accounts
     let transfer_account_authority_ix = Instruction {
         program_id: marginfi::id(),
-        accounts: accounts.to_account_metas(Some(true)),
+        accounts: todo!(),
         data: vec![],
     };
 
@@ -2509,6 +2512,94 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
         &[&test_f.payer_keypair(), &marginfi_account_key],
         test_f.get_latest_blockhash().await,
     );
+
+    let res = test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await;
+
+    assert!(res.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    // Create & initialize marginfi account
+    let marginfi_account_key = Keypair::new();
+    let accounts = marginfi::accounts::MarginfiAccountInitialize {
+        marginfi_group: test_f.marginfi_group.key,
+        marginfi_account: marginfi_account_key.pubkey(),
+        authority: test_f.payer(),
+        fee_payer: test_f.payer(),
+        system_program: system_program::id(),
+    };
+    let init_marginfi_account_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: accounts.to_account_metas(Some(true)),
+        data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_marginfi_account_ix],
+        Some(&test_f.payer()),
+        &[&test_f.payer_keypair(), &marginfi_account_key],
+        test_f.get_latest_blockhash().await,
+    );
+
+    let res = test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await;
+
+    assert!(res.is_ok());
+
+    // Fetch & deserialize marginfi account
+    let mut marginfi_account: MarginfiAccount = test_f
+        .load_and_deserialize(&marginfi_account_key.pubkey())
+        .await;
+
+    // Check account authority
+    assert_eq!(marginfi_account.authority, test_f.payer());
+
+    // attempt authority transfer
+    // use a different account to sign for the ix
+    // TODO: fix types
+    let transfer_account_authority_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: marginfi::instructions::MarginfiAccountSetAccountAuthority {
+            marginfi_account: todo!(),
+            signer: todo!(),
+            new_authority: todo!(),
+            fee_payer: todo!(),
+        }
+        .to_account_metas(None),
+        data: vec![],
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[transfer_account_authority_ix],
+        Some(&test_f.payer()),
+        &[&test_f.payer_keypair(), &marginfi_account_key],
+        test_f.get_latest_blockhash().await,
+    );
+
+    let res = test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await;
+
+    // Assert the response is an error due to fact that a non-owner of the
+    // acount attempted to initialize this account transfer
+    assert!(res.is_err());
 
     Ok(())
 }
