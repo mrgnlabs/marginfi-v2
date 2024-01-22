@@ -625,4 +625,50 @@ impl MarginfiAccountFixture {
     pub fn get_size() -> usize {
         mem::size_of::<MarginfiAccount>() + 8
     }
+
+    /// Returns a complete transfer_account_authority_ix
+    pub fn make_transfer_account_authority_ix(
+        &self,
+        marginfi_group: Pubkey,
+        marginfi_account: Pubkey,
+        new_authority: Pubkey,
+        signer: Pubkey,
+        fee_payer: Pubkey,
+    ) -> Instruction {
+        Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::MarginfiAccountSetAccountAuthority {
+                marginfi_account,
+                signer,
+                new_authority,
+                fee_payer,
+                marginfi_group,
+            }
+            .to_account_metas(None),
+            data: marginfi::instruction::SetNewAccountAuthority {}.data(),
+        }
+    }
+
+    /// Use the client to send the transfer ix authority transaction
+    pub async fn try_transfer_account_authority(
+        &self,
+        transfer_account_authority_ix: Instruction,
+        payer: Option<&Pubkey>,
+        signing_keypairs: [&Keypair; 1],
+        latest_blockhash: solana_program::hash::Hash,
+    ) -> std::result::Result<(), BanksClientError> {
+        // create transaction
+        let tx = Transaction::new_signed_with_payer(
+            &[transfer_account_authority_ix],
+            payer,
+            &signing_keypairs,
+            latest_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await
+    }
 }
