@@ -37,6 +37,9 @@ pub struct MarginfiAccountSetAccountAuthority<'info> {
     #[account(mut)]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
+    #[account(
+        address = marginfi_account.load()?.group,
+    )]
     pub marginfi_group: AccountInfo<'info>,
 
     #[account(
@@ -44,6 +47,7 @@ pub struct MarginfiAccountSetAccountAuthority<'info> {
     )]
     pub signer: Signer<'info>,
 
+    /// CHECK: The new account authority doesn't need explicit checks
     pub new_authority: AccountInfo<'info>,
 
     #[account(mut)]
