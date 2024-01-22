@@ -2465,14 +2465,15 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
     // TODO: fix types
     let transfer_account_authority_ix = Instruction {
         program_id: marginfi::id(),
-        accounts: marginfi::instructions::MarginfiAccountSetAccountAuthority {
-            marginfi_account: todo!(),
-            signer: todo!(),
-            new_authority: todo!(),
-            fee_payer: todo!(),
+        accounts: marginfi::accounts::MarginfiAccountInitialize {
+            marginfi_group: test_f.marginfi_group.key,
+            marginfi_account: marginfi_account_key.pubkey(),
+            authority: test_f.payer(),
+            fee_payer: test_f.payer(),
+            system_program: system_program::id(),
         }
         .to_account_metas(None),
-        data: vec![],
+        data: marginfi::instruction::SetNewAccountAuthority {}.data(),
     };
 
     let tx = Transaction::new_signed_with_payer(
@@ -2540,8 +2541,15 @@ async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Resu
     };
     let init_marginfi_account_ix = Instruction {
         program_id: marginfi::id(),
-        accounts: accounts.to_account_metas(Some(true)),
-        data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
+        accounts: marginfi::accounts::MarginfiAccountInitialize {
+            marginfi_group: test_f.marginfi_group.key,
+            marginfi_account: marginfi_account_key.pubkey(),
+            authority: test_f.payer(),
+            fee_payer: test_f.payer(),
+            system_program: system_program::id(),
+        }
+        .to_account_metas(None),
+        data: marginfi::instruction::SetNewAccountAuthority {}.data(),
     };
 
     let tx = Transaction::new_signed_with_payer(
@@ -2573,14 +2581,15 @@ async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Resu
     // TODO: fix types
     let transfer_account_authority_ix = Instruction {
         program_id: marginfi::id(),
-        accounts: marginfi::instructions::MarginfiAccountSetAccountAuthority {
+        accounts: marginfi::accounts::MarginfiAccountSetAccountAuthority {
             marginfi_account: todo!(),
             signer: todo!(),
             new_authority: todo!(),
             fee_payer: todo!(),
+            marginfi_group: todo!(),
         }
         .to_account_metas(None),
-        data: vec![],
+        data: marginfi::instruction::SetNewAccountAuthority {}.data(),
     };
 
     let tx = Transaction::new_signed_with_payer(

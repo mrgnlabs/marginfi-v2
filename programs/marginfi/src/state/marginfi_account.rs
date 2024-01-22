@@ -93,9 +93,10 @@ impl MarginfiAccount {
         self.unset_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG);
 
         msg!(
-            "Transferred account authority from {:?} to {:?}",
+            "Transferred account authority from {:?} to {:?} in group {:?}",
             old_authority,
-            self.authority
+            self.authority,
+            self.group,
         );
         Ok(())
     }
