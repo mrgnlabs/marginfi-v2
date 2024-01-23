@@ -10,32 +10,23 @@ pub fn set_account_transfer_authority(
 ) -> MarginfiResult {
     // Gather accounts
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
-    let marginfi_account_key = Box::from(ctx.accounts.marginfi_account.key());
-    let new_account_authority = Box::from(ctx.accounts.new_authority.key());
-    let signer = Box::from(ctx.accounts.signer.key());
-    let group = Box::from(ctx.accounts.marginfi_group.key());
-    let old_account_authority = Box::from(marginfi_account.authority);
+    let marginfi_account_key = ctx.accounts.marginfi_account.key();
+    let new_account_authority = ctx.accounts.new_authority.key();
+    let signer = ctx.accounts.signer.key();
+    let group = ctx.accounts.marginfi_group.key();
+    let old_account_authority = marginfi_account.authority;
 
-    /*
-        let MarginfiAccountInitialize {
-        authority,
-        marginfi_group,
-        marginfi_account: marginfi_account_loader,
-        ..
-    } = ctx.accounts;
-     */
-
-    marginfi_account.set_new_account_authority_checked(*new_account_authority)?;
+    marginfi_account.set_new_account_authority_checked(new_account_authority)?;
 
     emit!(MarginfiAccountTransferAccountAuthorityEvent {
         header: AccountEventHeader {
-            signer: Some(*signer),
-            marginfi_account: *marginfi_account_key,
-            marginfi_account_authority: *new_account_authority,
-            marginfi_group: *group,
+            signer: Some(signer),
+            marginfi_account: marginfi_account_key,
+            marginfi_account_authority: new_account_authority,
+            marginfi_group: group,
         },
-        old_account_authority: *old_account_authority,
-        new_account_authority: *new_account_authority,
+        old_account_authority,
+        new_account_authority,
     });
 
     Ok(())
