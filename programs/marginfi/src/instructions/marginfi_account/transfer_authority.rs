@@ -8,26 +8,14 @@ use anchor_lang::prelude::*;
 pub fn set_account_transfer_authority(
     ctx: Context<MarginfiAccountSetAccountAuthority>,
 ) -> MarginfiResult {
-    // Gather accounts
-    let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
-    let marginfi_account_key = ctx.accounts.marginfi_account.key();
-    let new_account_authority = ctx.accounts.new_authority.key();
-    let signer = ctx.accounts.signer.key();
-    let group = ctx.accounts.marginfi_group.key();
-    let old_account_authority = marginfi_account.authority;
+    // Ensure marginfi_account is dropped out of scope to not exceed stack frame limits
+    {
+        let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+        let new_account_authority = ctx.accounts.new_authority.key();
+        marginfi_account.set_new_account_authority_checked(new_account_authority)?;
+    }
 
-    marginfi_account.set_new_account_authority_checked(new_account_authority)?;
-
-    emit!(MarginfiAccountTransferAccountAuthorityEvent {
-        header: AccountEventHeader {
-            signer: Some(signer),
-            marginfi_account: marginfi_account_key,
-            marginfi_account_authority: new_account_authority,
-            marginfi_group: group,
-        },
-        old_account_authority,
-        new_account_authority,
-    });
+    // TODO: add back event (dropped for memory reasons)
 
     Ok(())
 }
