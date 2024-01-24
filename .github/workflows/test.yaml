@@ -14,7 +14,7 @@ defaults:
     working-directory: .
 
 env:
-  RUST_TOOLCHAIN: 1.71.0
+  RUST_TOOLCHAIN: 1.66.1
   SOLANA_CLI_VERSION: 1.16.20
   ANCHOR_CLI_VERSION: 0.29.0
   ANCHOR_SHA: fc9fd6d24b9be84abb2f40e47ed3faf7b11864ae
@@ -28,6 +28,8 @@ jobs:
   lint:
     name: Rust Lint
     runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: stable
 
     steps:
       - uses: actions/checkout@v3
@@ -53,6 +55,8 @@ jobs:
   test-unit:
     name: Rust Unit Tests
     runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: stable
     steps:
       - uses: actions/checkout@v3
 
@@ -75,6 +79,8 @@ jobs:
   test-programs:
     name: Build and Test Anchor Programs
     runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: stable
 
     steps:
       - uses: actions/checkout@v2
@@ -93,19 +99,20 @@ jobs:
   fuzz:
     name: Fuzz The marginfi Program
     runs-on: ubuntu-latest
+    env:
+        RUSTUP_TOOLCHAIN: nightly
 
     steps:
       - uses: actions/checkout@v3
       - name: cache dependencies
         uses: Swatinem/rust-cache@v2
-      - name: Install minimal rust toolchain
+      - name: Install full rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
-          toolchain: nightly
-          target: x86_64-unknown-linux-gnu
-          components: rust-src
-          default: true
+          profile:  default
+          toolchain: 1.66.1-x86_64-unknown-linux-gnu
+          override: true
+          target: nightly
       - name: Run fuzz tests in fuzz dir
         run: |
           cd programs/marginfi
