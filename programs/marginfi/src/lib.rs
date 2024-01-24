@@ -44,6 +44,17 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank(ctx, bank_config.into())
     }
 
+    /// A copy of lending_pool_add_bank with an additional bank seed.
+    /// This seed is used to create a PDA for the bank's signature.
+    /// lending_pool_add_bank is preserved for backwards compatibility.
+    pub fn lending_pool_add_bank_with_seed(
+        ctx: Context<LendingPoolAddBankWithSeed>,
+        bank_config: BankConfigCompact,
+        bank_seed: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config.into(), bank_seed)
+    }
+
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
         bank_config_opt: BankConfigOpt,
@@ -144,6 +155,19 @@ pub mod marginfi {
         marginfi_account::lending_account_liquidate(ctx, asset_amount)
     }
 
+    pub fn lending_account_start_flashloan(
+        ctx: Context<LendingAccountStartFlashloan>,
+        end_index: u64,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_start_flashloan(ctx, end_index)
+    }
+
+    pub fn lending_account_end_flashloan(
+        ctx: Context<LendingAccountEndFlashloan>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_end_flashloan(ctx)
+    }
+
     // Operational instructions
     pub fn lending_pool_accrue_bank_interest(
         ctx: Context<LendingPoolAccrueBankInterest>,
@@ -156,4 +180,24 @@ pub mod marginfi {
     ) -> MarginfiResult {
         marginfi_group::lending_pool_collect_bank_fees(ctx)
     }
+
+    pub fn set_account_flag(ctx: Context<SetAccountFlag>, flag: u64) -> MarginfiResult {
+        marginfi_group::set_account_flag(ctx, flag)
+    }
+
+    pub fn unset_account_flag(ctx: Context<UnsetAccountFlag>, flag: u64) -> MarginfiResult {
+        marginfi_group::unset_account_flag(ctx, flag)
+    }
+}
+
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_security_txt::security_txt;
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "marginfi v2",
+    project_url: "https://app.marginfi.com/",
+    contacts: "email:security@mrgn.group",
+    policy: "https://github.com/mrgnlabs/marginfi-v2/blob/main/SECURITY.md",
+    preferred_languages: "en",
+    source_code: "https://github.com/mrgnlabs/marginfi-v2"
 }

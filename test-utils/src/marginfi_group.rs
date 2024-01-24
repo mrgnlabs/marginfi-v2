@@ -26,6 +26,7 @@ impl MarginfiGroupFixture {
         config: GroupConfig,
     ) -> MarginfiGroupFixture {
         let ctx_ref = ctx.clone();
+
         let group_key = Keypair::new();
 
         {
@@ -110,6 +111,74 @@ impl MarginfiGroupFixture {
             &[ix],
             Some(&self.ctx.borrow().payer.pubkey().clone()),
             &[&self.ctx.borrow().payer, &bank_key],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(bank_fixture)
+    }
+
+    pub async fn try_lending_pool_add_bank_with_seed(
+        &self,
+        bank_asset_mint_fixture: &MintFixture,
+        bank_config: BankConfig,
+        bank_seed: u64,
+    ) -> Result<BankFixture, BanksClientError> {
+        let bank_mint = bank_asset_mint_fixture.key;
+
+        // Create PDA account from seeds
+        let (pda, _bump) = Pubkey::find_program_address(
+            [
+                self.key.as_ref(),
+                bank_mint.as_ref(),
+                &bank_seed.to_le_bytes(),
+            ]
+            .as_slice(),
+            &marginfi::id(),
+        );
+
+        let bank_mint = bank_asset_mint_fixture.key;
+        let bank_fixture = BankFixture::new(self.ctx.clone(), pda, bank_asset_mint_fixture);
+
+        let mut accounts = marginfi::accounts::LendingPoolAddBankWithSeed {
+            marginfi_group: self.key,
+            admin: self.ctx.borrow().payer.pubkey(),
+            fee_payer: self.ctx.borrow().payer.pubkey(),
+            bank_mint,
+            bank: pda,
+            liquidity_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Liquidity).0,
+            liquidity_vault: bank_fixture.get_vault(BankVaultType::Liquidity).0,
+            insurance_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Insurance).0,
+            insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
+            fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
+            fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
+            rent: sysvar::rent::id(),
+            token_program: token::ID,
+            system_program: system_program::id(),
+        }
+        .to_account_metas(Some(true));
+
+        accounts.push(AccountMeta::new_readonly(bank_config.oracle_keys[0], false));
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolAddBankWithSeed {
+                bank_config: bank_config.into(),
+                bank_seed,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey().clone()),
+            &[&self.ctx.borrow().payer],
             self.ctx.borrow().last_blockhash,
         );
 

@@ -1,5 +1,3 @@
-cargo-features = ["workspace-inheritance"]
-
 [package]
 name = "liquidity-incentive-program"
 version = "0.1.0"
@@ -24,6 +22,7 @@ test-bpf = []
 [dependencies]
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }
+
 cfg-if = "1.0.0"
 fixed = "1.12.0"
 
@@ -32,13 +31,14 @@ path = "../marginfi"
 features = [ "cpi" ]
 
 [dev-dependencies]
+solana-logger = { workspace = true }
+solana-program = { workspace = true }
+solana-program-test = { workspace = true }
+solana-sdk = { workspace = true }
+
 anyhow = "1.0.66"
 assert_matches = "1.5.0"
 bincode = "1.3.3"
 futures = "0.3.25"
 pretty_assertions = "1.2.1"
-solana-logger = { workspace = true }
-solana-program = { workspace = true }
-solana-program-test = { workspace = true }
-solana-sdk = { workspace = true }
 fixtures = { path = "../../test-utils", package = "test-utilities", features = [ "lip" ] }

@@ -24,7 +24,8 @@ use std::{
 use type_layout::TypeLayout;
 
 assert_struct_size!(MarginfiAccount, 2304);
-#[account(zero_copy)]
+#[account(zero_copy(unsafe))]
+#[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq, TypeLayout)
@@ -44,6 +45,8 @@ pub struct MarginfiAccount {
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
+pub const IN_FLASHLOAN_FLAG: u64 = 1 << 1;
+pub const FLASHLOAN_ENABLED_FLAG: u64 = 1 << 2;
 
 impl MarginfiAccount {
     /// Set the initial data for the marginfi account.
@@ -66,6 +69,11 @@ impl MarginfiAccount {
         self.account_flags |= flag;
     }
 
+    pub fn unset_flag(&mut self, flag: u64) {
+        msg!("Unsetting account flag {:b}", flag);
+        self.account_flags &= !flag;
+    }
+
     pub fn get_flag(&self, flag: u64) -> bool {
         self.account_flags & flag != 0
     }
@@ -76,6 +84,7 @@ pub enum BalanceIncreaseType {
     Any,
     RepayOnly,
     DepositOnly,
+    BypassDepositLimit,
 }
 
 #[derive(Debug)]
@@ -349,6 +358,7 @@ impl RiskRequirementType {
 }
 
 pub struct RiskEngine<'a, 'b> {
+    marginfi_account: &'a MarginfiAccount,
     bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a, 'b>>,
 }
 
@@ -357,12 +367,46 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &[AccountInfo<'b>],
     ) -> MarginfiResult<Self> {
+        check!(
+            !marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            MarginfiError::AccountInFlashloan
+        );
+
+        Self::new_no_flashloan_check(marginfi_account, remaining_ais)
+    }
+
+    /// Internal constructor used either after manually checking account is not in a flashloan,
+    /// or explicity checking health for flashloan enabled actions.
+    fn new_no_flashloan_check(
+        marginfi_account: &'a MarginfiAccount,
+        remaining_ais: &[AccountInfo<'b>],
+    ) -> MarginfiResult<Self> {
         let bank_accounts_with_price =
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
         Ok(Self {
+            marginfi_account,
             bank_accounts_with_price,
         })
+    }
+
+    /// Checks account is healty after performing actions that increase risk (removing liquidity).
+    ///
+    /// `IN_FLASHLOAN_FLAG` behaviour.
+    /// - Health check is skipped.
+    /// - `remaining_ais` can be an empty vec.
+    pub fn check_account_init_health(
+        marginfi_account: &'a MarginfiAccount,
+        remaining_ais: &[AccountInfo<'b>],
+    ) -> MarginfiResult<()> {
+        if marginfi_account.get_flag(IN_FLASHLOAN_FLAG) {
+            return Ok(());
+        }
+
+        Self::new_no_flashloan_check(marginfi_account, remaining_ais)?
+            .check_account_health(RiskRequirementType::Initial)?;
+
+        Ok(())
     }
 
     /// Returns the total assets and liabilities of the account in the form of (assets, liabilities)
@@ -398,7 +442,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
             .ok_or_else(math_error!())?)
     }
 
-    pub fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
+    fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(requirement_type)?;
 
@@ -425,6 +469,11 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         &self,
         bank_pk: &Pubkey,
     ) -> MarginfiResult<I80F48> {
+        check!(
+            !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            MarginfiError::AccountInFlashloan
+        );
+
         let liability_bank_balance = self
             .bank_accounts_with_price
             .iter()
@@ -479,6 +528,11 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         bank_pk: &Pubkey,
         pre_liquidation_health: I80F48,
     ) -> MarginfiResult<I80F48> {
+        check!(
+            !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            MarginfiError::AccountInFlashloan
+        );
+
         let liability_bank_balance = self
             .bank_accounts_with_price
             .iter()
@@ -490,7 +544,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
                 .is_empty(BalanceSide::Liabilities)
                 .not(),
             MarginfiError::IllegalLiquidation,
-            "Liability payoff too severe, exaushted liability"
+            "Liability payoff too severe, exhausted liability"
         );
 
         check!(
@@ -532,6 +586,11 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
     pub fn check_account_bankrupt(&self) -> MarginfiResult {
         let (total_assets, total_liabilities) =
             self.get_account_health_components(RiskRequirementType::Equity)?;
+
+        check!(
+            !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            MarginfiError::AccountInFlashloan
+        );
 
         msg!(
             "check_bankrupt: assets {} - liabs: {}",
@@ -581,7 +640,8 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 assert_struct_size!(LendingAccount, 1728);
-#[zero_copy]
+#[zero_copy(unsafe)]
+#[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq, TypeLayout)
@@ -611,7 +671,8 @@ impl LendingAccount {
 }
 
 assert_struct_size!(Balance, 104);
-#[zero_copy]
+#[zero_copy(unsafe)]
+#[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq, TypeLayout)
@@ -794,6 +855,10 @@ impl<'a> BankAccountWrapper<'a> {
         self.increase_balance_internal(amount, BalanceIncreaseType::Any)
     }
 
+    pub fn increase_balance_in_liquidation(&mut self, amount: I80F48) -> MarginfiResult {
+        self.increase_balance_internal(amount, BalanceIncreaseType::BypassDepositLimit)
+    }
+
     /// Withdraw asset and create/increase liability depending on
     /// the specified deposit amount and the existing balance.
     pub fn decrease_balance(&mut self, amount: I80F48) -> MarginfiResult {
@@ -836,7 +901,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         balance.close()?;
-        bank.change_asset_shares(-total_asset_shares)?;
+        bank.change_asset_shares(-total_asset_shares, false)?;
 
         bank.check_utilization_ratio()?;
 
@@ -975,7 +1040,7 @@ impl<'a> BankAccountWrapper<'a> {
                     MarginfiError::OperationDepositOnly
                 );
             }
-            BalanceIncreaseType::Any => {}
+            BalanceIncreaseType::Any | BalanceIncreaseType::BypassDepositLimit => {}
         }
 
         {
@@ -986,7 +1051,10 @@ impl<'a> BankAccountWrapper<'a> {
 
         let asset_shares_increase = bank.get_asset_shares(asset_amount_increase)?;
         balance.change_asset_shares(asset_shares_increase)?;
-        bank.change_asset_shares(asset_shares_increase)?;
+        bank.change_asset_shares(
+            asset_shares_increase,
+            matches!(operation_type, BalanceIncreaseType::BypassDepositLimit),
+        )?;
 
         let liability_shares_decrease = bank.get_liability_shares(liability_amount_decrease)?;
         // TODO: Use `IncreaseType` to skip certain balance updates, and save on compute.
@@ -1049,7 +1117,7 @@ impl<'a> BankAccountWrapper<'a> {
 
         let asset_shares_decrease = bank.get_asset_shares(asset_amount_decrease)?;
         balance.change_asset_shares(-asset_shares_decrease)?;
-        bank.change_asset_shares(-asset_shares_decrease)?;
+        bank.change_asset_shares(-asset_shares_decrease, false)?;
 
         let liability_shares_increase = bank.get_liability_shares(liability_amount_increase)?;
         balance.change_liability_shares(liability_shares_increase)?;

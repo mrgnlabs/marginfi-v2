@@ -21,8 +21,10 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
+#[cfg(feature = "client")]
+use std::fmt::Display;
 use std::{
-    fmt::{Debug, Display, Formatter},
+    fmt::{Debug, Formatter},
     ops::Not,
 };
 
@@ -275,7 +277,7 @@ pub struct InterestRateConfigOpt {
 }
 
 assert_struct_size!(Bank, 1856);
-#[account(zero_copy)]
+#[account(zero_copy(unsafe))]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -400,14 +402,18 @@ impl Bank {
             .ok_or_else(math_error!())?)
     }
 
-    pub fn change_asset_shares(&mut self, shares: I80F48) -> MarginfiResult {
+    pub fn change_asset_shares(
+        &mut self,
+        shares: I80F48,
+        bypass_deposit_limit: bool,
+    ) -> MarginfiResult {
         let total_asset_shares: I80F48 = self.total_asset_shares.into();
         self.total_asset_shares = total_asset_shares
             .checked_add(shares)
             .ok_or_else(math_error!())?
             .into();
 
-        if shares.is_positive() && self.config.is_deposit_limit_active() {
+        if shares.is_positive() && self.config.is_deposit_limit_active() && !bypass_deposit_limit {
             let total_deposits_amount = self.get_asset_amount(self.total_asset_shares.into())?;
             let deposit_limit = I80F48::from_num(self.config.deposit_limit);
 
@@ -855,7 +861,7 @@ pub enum RiskTier {
     Isolated,
 }
 
-#[zero_copy]
+#[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -933,7 +939,7 @@ impl From<BankConfig> for BankConfigCompact {
 }
 
 assert_struct_size!(BankConfig, 544);
-#[zero_copy]
+#[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),

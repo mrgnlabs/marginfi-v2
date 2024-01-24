@@ -223,7 +223,7 @@ pub fn group_create(
 
     let marginfi_group_keypair = Keypair::new();
 
-    let mut init_marginfi_group_ixs_builder = config.mfi_program.request();
+    let init_marginfi_group_ixs_builder = config.mfi_program.request();
 
     let mut signing_keypairs = config.get_signers(false);
     signing_keypairs.push(&marginfi_group_keypair);
@@ -264,8 +264,8 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
         bail!("Marginfi group not specified in profile [{}]", profile.name);
     }
 
-    let mut signing_keypairs = config.get_signers(false);
-    let mut configure_marginfi_group_ixs_builder = config
+    let signing_keypairs = config.get_signers(false);
+    let configure_marginfi_group_ixs_builder = config
         .mfi_program
         .request()
         .signer(*signing_keypairs.first().unwrap());
@@ -299,6 +299,7 @@ pub fn group_add_bank(
     config: Config,
     profile: Profile,
     bank_mint: Pubkey,
+    seed: bool,
     oracle_key: Pubkey,
     oracle_setup: crate::OracleTypeArg,
     asset_weight_init: f64,
@@ -352,13 +353,201 @@ pub fn group_add_bank(
         ..InterestRateConfig::default()
     };
 
+    // Create signing keypairs -- if the PDA is used, no explicit fee payer.
     let bank_keypair = Keypair::new();
+    let mut signing_keypairs = config.get_signers(false);
+    if !seed {
+        signing_keypairs.push(&bank_keypair)
+    }
 
-    let mut add_bank_ixs_builder = config.mfi_program.request();
+    // Generate the PDA for the bank keypair if the seed bool is set
+    // Issue tx with the seed
+    let add_bank_ixs: Vec<Instruction> = if seed {
+        create_bank_ix_with_seed(
+            &config,
+            profile,
+            &rpc_client,
+            bank_mint,
+            &bank_keypair,
+            oracle_key,
+            asset_weight_init,
+            asset_weight_maint,
+            liability_weight_init,
+            liability_weight_maint,
+            deposit_limit,
+            borrow_limit,
+            interest_rate_config,
+            oracle_setup,
+            risk_tier,
+        )?
+    } else {
+        create_bank_ix(
+            &config,
+            profile,
+            bank_mint,
+            &bank_keypair,
+            oracle_key,
+            asset_weight_init,
+            asset_weight_maint,
+            liability_weight_init,
+            liability_weight_maint,
+            deposit_limit,
+            borrow_limit,
+            interest_rate_config,
+            oracle_setup,
+            risk_tier,
+        )?
+    };
 
-    let mut signing_keypairs = config.get_signers(true);
-    signing_keypairs.push(&bank_keypair);
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let message = Message::new(&add_bank_ixs, None);
+    let mut transaction = Transaction::new_unsigned(message);
+    transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
+        Ok(sig) => println!("bank created (sig: {})", sig),
+        Err(err) => println!("Error during bank creation:\n{:#?}", err),
+    };
+
+    println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg(feature = "admin")]
+fn create_bank_ix_with_seed(
+    config: &Config,
+    profile: Profile,
+    rpc_client: &RpcClient,
+    bank_mint: Pubkey,
+    bank_keypair: &Keypair,
+    oracle_key: Pubkey,
+    asset_weight_init: WrappedI80F48,
+    asset_weight_maint: WrappedI80F48,
+    liability_weight_init: WrappedI80F48,
+    liability_weight_maint: WrappedI80F48,
+    deposit_limit: u64,
+    borrow_limit: u64,
+    interest_rate_config: InterestRateConfig,
+    oracle_setup: crate::OracleTypeArg,
+    risk_tier: crate::RiskTierArg,
+) -> Result<Vec<Instruction>> {
+    let mut bank_pda = Pubkey::default();
+    let mut bank_seed: u64 = u64::default();
+
+    // Iterate through to find the next canonical seed
+    for i in 0..u64::MAX {
+        println!("Seed option enabled -- generating a PDA account");
+        let (pda, _) = Pubkey::find_program_address(
+            [
+                // self.key.as_ref(), TODO: add key?
+                bank_mint.as_ref(),
+                &i.to_le_bytes(),
+            ]
+            .as_slice(),
+            &marginfi::id(),
+        );
+        if rpc_client.get_account(&pda)?.lamports == 0 {
+            // Bank address is free
+            println!("Succesffuly generated a PDA account");
+            bank_pda = pda;
+            bank_seed = i;
+            break;
+        }
+    }
+
+    let add_bank_ixs_builder = config.mfi_program.request();
+    let add_bank_ixs = add_bank_ixs_builder
+        .accounts(marginfi::accounts::LendingPoolAddBankWithSeed {
+            marginfi_group: profile.marginfi_group.unwrap(),
+            admin: config.authority(),
+            bank_mint,
+            bank: bank_pda,
+            fee_vault: find_bank_vault_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Fee,
+                &config.program_id,
+            )
+            .0,
+            fee_vault_authority: find_bank_vault_authority_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Fee,
+                &config.program_id,
+            )
+            .0,
+            insurance_vault: find_bank_vault_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Insurance,
+                &config.program_id,
+            )
+            .0,
+            insurance_vault_authority: find_bank_vault_authority_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Insurance,
+                &config.program_id,
+            )
+            .0,
+            liquidity_vault: find_bank_vault_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+            liquidity_vault_authority: find_bank_vault_authority_pda(
+                &bank_keypair.pubkey(),
+                BankVaultType::Liquidity,
+                &config.program_id,
+            )
+            .0,
+            rent: sysvar::rent::id(),
+            token_program: token::ID,
+            system_program: system_program::id(),
+            fee_payer: config.explicit_fee_payer(),
+        })
+        .accounts(AccountMeta::new_readonly(oracle_key, false))
+        .args(marginfi::instruction::LendingPoolAddBankWithSeed {
+            bank_config: BankConfig {
+                asset_weight_init,
+                asset_weight_maint,
+                liability_weight_init,
+                liability_weight_maint,
+                deposit_limit,
+                borrow_limit,
+                interest_rate_config,
+                operational_state: BankOperationalState::Operational,
+                oracle_setup: oracle_setup.into(),
+                oracle_keys: create_oracle_key_array(oracle_key),
+                risk_tier: risk_tier.into(),
+                ..BankConfig::default()
+            }
+            .into(),
+            bank_seed,
+        })
+        .instructions()?;
+
+    Ok(add_bank_ixs)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg(feature = "admin")]
+fn create_bank_ix(
+    config: &Config,
+    profile: Profile,
+    bank_mint: Pubkey,
+    bank_keypair: &Keypair,
+    oracle_key: Pubkey,
+    asset_weight_init: WrappedI80F48,
+    asset_weight_maint: WrappedI80F48,
+    liability_weight_init: WrappedI80F48,
+    liability_weight_maint: WrappedI80F48,
+    deposit_limit: u64,
+    borrow_limit: u64,
+    interest_rate_config: InterestRateConfig,
+    oracle_setup: crate::OracleTypeArg,
+    risk_tier: crate::RiskTierArg,
+) -> Result<Vec<Instruction>> {
+    let add_bank_ixs_builder = config.mfi_program.request();
     let add_bank_ixs = add_bank_ixs_builder
         .accounts(marginfi::accounts::LendingPoolAddBank {
             marginfi_group: profile.marginfi_group.unwrap(),
@@ -426,22 +615,10 @@ pub fn group_add_bank(
         })
         .instructions()?;
 
-    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let message = Message::new(&add_bank_ixs, Some(&config.explicit_fee_payer()));
-    let mut transaction = Transaction::new_unsigned(message);
-    transaction.partial_sign(&signing_keypairs, recent_blockhash);
-
-    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
-        Ok(sig) => println!("bank created (sig: {})", sig),
-        Err(err) => println!("Error during bank creation:\n{:#?}", err),
-    };
-
-    println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
-
-    Ok(())
+    Ok(add_bank_ixs)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, dead_code)]
 #[cfg(feature = "admin")]
 pub fn group_handle_bankruptcy(
     config: &Config,
@@ -477,6 +654,7 @@ pub fn group_handle_bankruptcy(
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn group_auto_handle_bankruptcy_for_an_account(
     config: &Config,
     profile: Profile,
@@ -528,6 +706,7 @@ pub fn group_auto_handle_bankruptcy_for_an_account(
     Ok(())
 }
 
+#[allow(dead_code)]
 fn handle_bankruptcy_for_an_account(
     config: &Config,
     profile: &Profile,
@@ -572,8 +751,8 @@ fn handle_bankruptcy_for_an_account(
     handle_bankruptcy_ix
         .accounts
         .extend(load_observation_account_metas(
-            &marginfi_account,
-            &banks,
+            marginfi_account,
+            banks,
             vec![bank_pk],
             vec![],
         ));
@@ -586,7 +765,7 @@ fn handle_bankruptcy_for_an_account(
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
-    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
+    match process_transaction(&transaction, rpc_client, config.get_tx_mode()) {
         Ok(sig) => println!("Bankruptcy handled (sig: {})", sig),
         Err(err) => println!("Error during bankruptcy handling:\n{:#?}", err),
     };
@@ -717,8 +896,8 @@ fn make_bankruptcy_ix(
     handle_bankruptcy_ix
         .accounts
         .extend(load_observation_account_metas(
-            &marginfi_account,
-            &banks,
+            marginfi_account,
+            banks,
             vec![bank_pk],
             vec![],
         ));
@@ -848,6 +1027,7 @@ Prince:
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(feature = "admin")]
 pub fn bank_setup_emissions(
     config: &Config,
@@ -942,6 +1122,7 @@ pub fn bank_setup_emissions(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(feature = "admin")]
 pub fn bank_update_emissions(
     config: &Config,
@@ -1064,7 +1245,7 @@ pub fn bank_configure(
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
-    let mut configure_bank_ixs_builder = config.mfi_program.request();
+    let configure_bank_ixs_builder = config.mfi_program.request();
     let signing_keypairs = config.get_signers(false);
 
     let mut configure_bank_ixs = configure_bank_ixs_builder
@@ -1880,7 +2061,7 @@ Deposit start {}, end {} ({})
 
 #[cfg(feature = "lip")]
 fn timestamp_to_string(timestamp: i64) -> String {
-    DateTime::<Utc>::from_utc(
+    DateTime::<Utc>::from_naive_utc_and_offset(
         NaiveDateTime::from_timestamp_opt(timestamp, 0).unwrap(),
         Utc,
     )

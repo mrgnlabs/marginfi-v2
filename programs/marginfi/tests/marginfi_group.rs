@@ -155,10 +155,6 @@ async fn marginfi_group_config_check() -> anyhow::Result<()> {
 
     Ok(())
 }
-// #[tokio::test]
-// async fn success_configure_marginfi_group() {
-//     todo!()
-// }
 
 #[tokio::test]
 async fn marginfi_group_add_bank_success() -> anyhow::Result<()> {
@@ -170,6 +166,32 @@ async fn marginfi_group_add_bank_success() -> anyhow::Result<()> {
     let res = test_f
         .marginfi_group
         .try_lending_pool_add_bank(&bank_asset_mint_fixture, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await;
+    assert!(res.is_ok());
+
+    // Check bank is active
+    let bank = res.unwrap();
+    let bank = test_f.try_load(&bank.key).await?;
+    assert!(bank.is_some());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn marginfi_group_add_bank_with_seed_success() -> anyhow::Result<()> {
+    // Setup test executor with non-admin payer
+    let test_f = TestFixture::new(None).await;
+
+    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+    let bank_seed = 1200_u64;
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank_with_seed(
+            &bank_asset_mint_fixture,
+            *DEFAULT_USDC_TEST_BANK_CONFIG,
+            bank_seed,
+        )
         .await;
     assert!(res.is_ok());
 

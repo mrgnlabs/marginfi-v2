@@ -1,0 +1,109 @@
+name: Program+IDL Upgrade MS Proposal
+
+on:
+  push:
+    tags:
+      - "testest-program-*"
+
+env:
+  RUST_TOOLCHAIN: 1.71.0
+  SOLANA_CLI_VERSION: 1.16.20
+  ANCHOR_CLI_VERSION: 0.29.0
+  ANCHOR_SHA: fc9fd6d24b9be84abb2f40e47ed3faf7b11864ae
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-verifiable:
+    name: Generate verifiable build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install common dependencies
+        uses: ./.github/actions/setup-common/
+
+      - name: Install Anchor CLI
+        uses: ./.github/actions/setup-anchor-cli/
+
+      - name: Extract tag information
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}  # Extract tag name from ref
+          echo "Tag name: $TAG"
+          PROGRAM=$(echo $TAG | sed 's/testest-program-\(.*\)-[0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}/\1/')
+          VERSION=$(echo $TAG | sed 's/.*-\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\)$/\1/')
+          PROGRAM_LIB_NAME=${PROGRAM//-/_}  # Substitute dashes with underscores
+          PROGRAM_ID=$(~/.cargo/bin/toml get Anchor.toml programs.mainnet.${PROGRAM_LIB_NAME} | tr -d '"')
+
+          echo "Program: $PROGRAM"
+          echo "Program ID: $PROGRAM_ID"
+          echo "Version: $VERSION"
+          echo "PROGRAM_ID=${PROGRAM_ID}" >> $GITHUB_ENV
+          echo "PROGRAM_LIB_NAME=${PROGRAM_LIB_NAME}" >> $GITHUB_ENV
+
+      # Solely to generate the IDL
+      - name: Build program using Anchor
+        uses: ./.github/actions/build-program/
+        with:
+          program_lib_name: ${{ env.PROGRAM_LIB_NAME }}
+
+      # Build verifiable program - store it in target/deploy/${PROGRAM_LIB_NAME}.so
+      - name: Build verifiable program
+        uses: ./.github/actions/build-verifiable-program/
+        with:
+          program_lib_name: ${{ env.PROGRAM_LIB_NAME }}
+
+      - name: Patch IDL and TS files
+        run: |
+          cargo run \
+            --release \
+            --package marginfi-v2-cli \
+            --features dev \
+            -- patch-idl target/idl/${{ env.PROGRAM_LIB_NAME }}.json
+          rm target/idl/${{ env.PROGRAM_LIB_NAME }}.json
+          mv target/idl/${{ env.PROGRAM_LIB_NAME }}_patched.json target/idl/${{ env.PROGRAM_LIB_NAME }}.json
+
+      # Display contents of /target/deploy and /target/idl
+      - run: ls -l target/deploy
+      - run: ls -l target/idl
+
+      - name: Upload program and IDL to buffers
+        uses: ./.github/actions/deploy-buffers/
+        id: deploy-buffers
+        with:
+          program-lib-name: ${{ env.PROGRAM_LIB_NAME }}
+          program-id: ${{ env.PROGRAM_ID }}
+          deployer-keypair: ${{ secrets.DEPLOYER_KEYPAIR }}
+          buffer-authority: ${{ secrets.MULTISIG_VAULT }}
+          rpc-endpoint: ${{ secrets.RPC_ENDPOINT }}
+
+      # # Create MS proposal for program upgrade
+      # - name: Squads program upgrade
+      #   uses: mrgnlabs/squads-program-upgrade@v0.3.1
+      #   with:
+      #     network-url: "https://api.mainnet-beta.solana.com"
+      #     program-multisig: ${{ secrets.MULTISIG }}
+      #     program-id: ${{ env.PROGRAM_ID }}
+      #     buffer: ${{ steps.deploy-buffers.outputs.program-buffer }}
+      #     idl-buffer: ${{ steps.deploy-buffers.outputs.idl-buffer }}
+      #     spill-address: ${{ secrets.DEPLOYER_ADDRESS }}
+      #     authority: ${{ secrets.MULTISIG_VAULT }}
+      #     name: "Deploy ${{env.PROGRAM_LIB_NAME}} ${{env.VERSION}}"
+      #     keypair: ${{ secrets.DEPLOYER_KEYPAIR }}
+
+      # - name: Upload program
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: ${{ env.PROGRAM_LIB_NAME }}-verifiable_build-${{ github.run_id }}-${{ github.run_attempt }}
+      #     path: ./target/deploy/${{ env.PROGRAM_LIB_NAME }}.so
+
+      # - name: Upload IDL (json)
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: ${{ env.PROGRAM_LIB_NAME }}-idl-${{ github.run_id }}-${{ github.run_attempt }}
+      #     path: ./target/idl/${{ env.PROGRAM_LIB_NAME }}_patched.json
+
+      # - name: Upload IDL (types)
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: ${{ env.PROGRAM_LIB_NAME }}-types-${{ github.run_id }}-${{ github.run_attempt }}
+      #     path: ./target/idl/${{ env.PROGRAM_LIB_NAME }}_patched.ts

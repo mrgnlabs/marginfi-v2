@@ -4,9 +4,7 @@ use crate::{
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
     prelude::*,
     state::{
-        marginfi_account::{
-            BankAccountWrapper, MarginfiAccount, RiskEngine, RiskRequirementType, DISABLED_FLAG,
-        },
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
         marginfi_group::{Bank, BankVaultType},
     },
 };
@@ -100,8 +98,7 @@ pub fn lending_account_withdraw(
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?
-        .check_account_health(RiskRequirementType::Initial)?;
+    RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts)?;
 
     Ok(())
 }
