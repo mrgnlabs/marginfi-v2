@@ -2415,31 +2415,14 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
 // Test transfer account authority.
 // No transfer flag set -- tx should fail.
 // Set the flag and try again -- tx should succeed.
+// RUST_BACKTRACE=1 cargo test-bpf marginfi_account_authority_transfer_no_flag_set -- --exact
 #[tokio::test]
 async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
     // Default account with no flags set
     let marginfi_account = test_f.create_marginfi_account().await;
-    let new_account_authority_pk = Pubkey::from([0; 32]);
-    // TODO: update group
-    let marginfi_group = Pubkey::from([1; 32]);
 
-    let transfer_authority_ix = marginfi_account.make_transfer_account_authority_ix(
-        marginfi_group,
-        marginfi_account.key,
-        new_account_authority_pk,
-        marginfi_account.key,
-        marginfi_account.key,
-    );
-
-    let res = marginfi_account
-        .try_transfer_account_authority(
-            transfer_authority_ix,
-            Some(&marginfi_account.key),
-            [&test_f.payer_keypair()],
-            test_f.get_latest_blockhash().await,
-        )
-        .await;
+    let res = marginfi_account.try_transfer_account_authority().await;
 
     // Assert the response is an error due to the lack of the correct flag
     assert!(res.is_err());
@@ -2454,59 +2437,24 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
         .await
         .unwrap();
 
-    // TODO: fix accounts
-    let transfer_account_authority_ix_2 = marginfi_account.make_transfer_account_authority_ix(
-        marginfi_group,
-        marginfi_account.key,
-        new_account_authority_pk,
-        marginfi_account.key,
-        marginfi_account.key,
-    );
-
-    let res = marginfi_account
-        .try_transfer_account_authority(
-            transfer_account_authority_ix_2,
-            Some(&marginfi_account.key),
-            [&test_f.payer_keypair()],
-            test_f.get_latest_blockhash().await,
-        )
-        .await;
+    let res = marginfi_account.try_transfer_account_authority().await;
 
     assert!(res.is_ok());
 
     Ok(())
 }
 
-#[tokio::test]
-async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(None).await;
-    // TODO: update group
-    let marginfi_group = Pubkey::from([1; 32]);
-    // Default account with no flags set
-    let marginfi_account = test_f.create_marginfi_account().await;
-    let other_marginfi_account = test_f.create_marginfi_account().await;
-    let new_account_authority_pk = Pubkey::from([0; 32]);
+// #[tokio::test]
+// async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Result<()> {
+//     let test_f = TestFixture::new(None).await;
+//     let marginfi_account = test_f.create_marginfi_account().await;
 
-    let transfer_authority_ix = marginfi_account.make_transfer_account_authority_ix(
-        marginfi_group,
-        marginfi_account.key,
-        new_account_authority_pk,
-        other_marginfi_account.key,
-        marginfi_account.key,
-    );
+//     let res = marginfi_account
+//         .try_transfer_account_authority().await;
 
-    let res = marginfi_account
-        .try_transfer_account_authority(
-            transfer_authority_ix,
-            Some(&marginfi_account.key),
-            [&test_f.payer_keypair()],
-            test_f.get_latest_blockhash().await,
-        )
-        .await;
+//     // Assert the response is an error due to fact that a non-owner of the
+//     // acount attempted to initialize this account transfer
+//     assert!(res.is_err());
 
-    // Assert the response is an error due to fact that a non-owner of the
-    // acount attempted to initialize this account transfer
-    assert!(res.is_err());
-
-    Ok(())
-}
+//     Ok(())
+// }

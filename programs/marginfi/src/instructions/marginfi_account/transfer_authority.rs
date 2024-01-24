@@ -1,8 +1,4 @@
-use crate::{
-    events::{AccountEventHeader, MarginfiAccountTransferAccountAuthorityEvent},
-    prelude::*,
-    state::marginfi_account::MarginfiAccount,
-};
+use crate::{prelude::*, state::marginfi_account::MarginfiAccount};
 use anchor_lang::prelude::*;
 
 pub fn set_account_transfer_authority(
