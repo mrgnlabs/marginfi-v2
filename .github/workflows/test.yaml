@@ -113,7 +113,6 @@ jobs:
           toolchain: nightly-x86_64-unknown-linux-gnu
           components: rust-src
           override: true
-          target: nightly
       - name: Run fuzz tests in fuzz dir
         run: |
           cd programs/marginfi
