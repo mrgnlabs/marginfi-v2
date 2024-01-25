@@ -2421,8 +2421,11 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
     let test_f = TestFixture::new(None).await;
     // Default account with no flags set
     let marginfi_account = test_f.create_marginfi_account().await;
+    let new_authority = Keypair::new().pubkey();
 
-    let res = marginfi_account.try_transfer_account_authority().await;
+    let res = marginfi_account
+        .try_transfer_account_authority(new_authority, None)
+        .await;
 
     // Assert the response is an error due to the lack of the correct flag
     assert!(res.is_err());
@@ -2437,24 +2440,30 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
         .await
         .unwrap();
 
-    let res = marginfi_account.try_transfer_account_authority().await;
+    let new_authority_2 = Keypair::new().pubkey();
+    let res = marginfi_account
+        .try_transfer_account_authority(new_authority_2, None)
+        .await;
 
     assert!(res.is_ok());
 
     Ok(())
 }
 
-// #[tokio::test]
-// async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Result<()> {
-//     let test_f = TestFixture::new(None).await;
-//     let marginfi_account = test_f.create_marginfi_account().await;
+#[tokio::test]
+async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let marginfi_account = test_f.create_marginfi_account().await;
+    let new_authority = Keypair::new().pubkey();
+    let signer = Keypair::new();
 
-//     let res = marginfi_account
-//         .try_transfer_account_authority().await;
+    let res = marginfi_account
+        .try_transfer_account_authority(new_authority, Some(signer))
+        .await;
 
-//     // Assert the response is an error due to fact that a non-owner of the
-//     // acount attempted to initialize this account transfer
-//     assert!(res.is_err());
+    // Assert the response is an error due to fact that a non-owner of the
+    // acount attempted to initialize this account transfer
+    assert!(res.is_err());
 
-//     Ok(())
-// }
+    Ok(())
+}

@@ -627,21 +627,29 @@ impl MarginfiAccountFixture {
     }
 
     /// Use the client to send the transfer ix authority transaction
+    /// Pass the new authority as an argument
+    /// Optional: use a different signer (for negative test case)
     pub async fn try_transfer_account_authority(
         &self,
+        new_authority: Pubkey,
+        signer_keypair: Option<Keypair>,
     ) -> std::result::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
         let mut ctx = self.ctx.borrow_mut();
-        let new_authority = Keypair::new();
+        let signer = if let Some(s) = signer_keypair {
+            s
+        } else {
+            ctx.payer.insecure_clone()
+        };
 
         // create instruction
         let transfer_account_authority_ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::MarginfiAccountSetAccountAuthority {
                 marginfi_account: self.key,
-                signer: ctx.payer.pubkey(),
-                new_authority: new_authority.pubkey(),
-                fee_payer: ctx.payer.pubkey(),
+                signer: signer.pubkey(),
+                new_authority,
+                fee_payer: signer.pubkey(),
                 marginfi_group: marginfi_account.group,
             }
             .to_account_metas(None),
@@ -651,8 +659,8 @@ impl MarginfiAccountFixture {
         // create transaction
         let tx = Transaction::new_signed_with_payer(
             &[transfer_account_authority_ix],
-            Some(&ctx.payer.pubkey().clone()),
-            &[&ctx.payer],
+            Some(&signer.pubkey().clone()),
+            &[&signer],
             ctx.last_blockhash,
         );
 
