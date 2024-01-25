@@ -109,8 +109,9 @@ jobs:
       - name: Install full rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          profile:  default
-          toolchain: 1.66.1-x86_64-unknown-linux-gnu
+          profile: minimal 
+          toolchain: nightly-x86_64-unknown-linux-gnu
+          components: rust-src
           override: true
           target: nightly
       - name: Run fuzz tests in fuzz dir
