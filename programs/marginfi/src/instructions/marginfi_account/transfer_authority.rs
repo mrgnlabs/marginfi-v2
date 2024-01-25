@@ -21,6 +21,7 @@ pub struct MarginfiAccountSetAccountAuthority<'info> {
     #[account(mut)]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
+    /// CHECK: The group is confirmed by the address macro
     #[account(
         address = marginfi_account.load()?.group,
     )]
