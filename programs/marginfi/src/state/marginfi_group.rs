@@ -882,7 +882,7 @@ pub struct BankConfigCompact {
     pub operational_state: BankOperationalState,
 
     pub oracle_setup: OracleSetup,
-    pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS],
+    pub oracle_key: Pubkey,
 
     pub borrow_limit: u64,
 
@@ -901,6 +901,13 @@ pub struct BankConfigCompact {
 
 impl From<BankConfigCompact> for BankConfig {
     fn from(config: BankConfigCompact) -> Self {
+        let keys = [
+            config.oracle_key,
+            Pubkey::default(),
+            Pubkey::default(),
+            Pubkey::default(),
+            Pubkey::default(),
+        ];
         Self {
             asset_weight_init: config.asset_weight_init,
             asset_weight_maint: config.asset_weight_maint,
@@ -910,7 +917,7 @@ impl From<BankConfigCompact> for BankConfig {
             interest_rate_config: config.interest_rate_config.into(),
             operational_state: config.operational_state,
             oracle_setup: config.oracle_setup,
-            oracle_keys: config.oracle_keys,
+            oracle_keys: keys,
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             total_asset_value_init_limit: config.total_asset_value_init_limit,
@@ -930,7 +937,7 @@ impl From<BankConfig> for BankConfigCompact {
             interest_rate_config: config.interest_rate_config.into(),
             operational_state: config.operational_state,
             oracle_setup: config.oracle_setup,
-            oracle_keys: config.oracle_keys,
+            oracle_key: config.oracle_keys[0],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             total_asset_value_init_limit: config.total_asset_value_init_limit,
