@@ -497,7 +497,7 @@ fn create_bank_ix_with_seed(
             rent: sysvar::rent::id(),
             token_program: token::ID,
             system_program: system_program::id(),
-            fee_payer: config.explicit_fee_payer(),
+            fee_payer: config.authority(),
         })
         .accounts(AccountMeta::new_readonly(oracle_key, false))
         .args(marginfi::instruction::LendingPoolAddBankWithSeed {
