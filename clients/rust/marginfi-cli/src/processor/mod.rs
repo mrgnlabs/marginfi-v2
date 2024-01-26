@@ -354,10 +354,11 @@ pub fn group_add_bank(
     };
 
     // Create signing keypairs -- if the PDA is used, no explicit fee payer.
-    let bank_keypair = Keypair::new();
     let mut signing_keypairs = config.get_signers(false);
+
+    let bank_keypair = Keypair::new();
     if !seed {
-        signing_keypairs.push(&bank_keypair)
+        signing_keypairs.push(&bank_keypair);
     }
 
     // Generate the PDA for the bank keypair if the seed bool is set
@@ -368,7 +369,6 @@ pub fn group_add_bank(
             profile,
             &rpc_client,
             bank_mint,
-            &bank_keypair,
             oracle_key,
             asset_weight_init,
             asset_weight_maint,
@@ -409,8 +409,6 @@ pub fn group_add_bank(
         Err(err) => println!("Error during bank creation:\n{:#?}", err),
     };
 
-    println!("New {} bank: {}", bank_mint, bank_keypair.pubkey());
-
     Ok(())
 }
 
@@ -421,7 +419,6 @@ fn create_bank_ix_with_seed(
     profile: Profile,
     rpc_client: &RpcClient,
     bank_mint: Pubkey,
-    bank_keypair: &Keypair,
     oracle_key: Pubkey,
     asset_weight_init: WrappedI80F48,
     asset_weight_maint: WrappedI80F48,
@@ -433,22 +430,24 @@ fn create_bank_ix_with_seed(
     oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
 ) -> Result<Vec<Instruction>> {
+    use solana_sdk::commitment_config::CommitmentConfig;
+
     let mut bank_pda = Pubkey::default();
     let mut bank_seed: u64 = u64::default();
+    let group_key = profile.marginfi_group.unwrap();
 
     // Iterate through to find the next canonical seed
     for i in 0..u64::MAX {
         println!("Seed option enabled -- generating a PDA account");
         let (pda, _) = Pubkey::find_program_address(
-            [
-                // self.key.as_ref(), TODO: add key?
-                bank_mint.as_ref(),
-                &i.to_le_bytes(),
-            ]
-            .as_slice(),
+            [group_key.as_ref(), bank_mint.as_ref(), &i.to_le_bytes()].as_slice(),
             &marginfi::id(),
         );
-        if rpc_client.get_account(&pda)?.lamports == 0 {
+        if rpc_client
+            .get_account_with_commitment(&pda, CommitmentConfig::default())?
+            .value
+            .is_none()
+        {
             // Bank address is free
             println!("Succesffuly generated a PDA account");
             bank_pda = pda;
@@ -464,38 +463,33 @@ fn create_bank_ix_with_seed(
             admin: config.authority(),
             bank_mint,
             bank: bank_pda,
-            fee_vault: find_bank_vault_pda(
-                &bank_keypair.pubkey(),
-                BankVaultType::Fee,
-                &config.program_id,
-            )
-            .0,
+            fee_vault: find_bank_vault_pda(&bank_pda, BankVaultType::Fee, &config.program_id).0,
             fee_vault_authority: find_bank_vault_authority_pda(
-                &bank_keypair.pubkey(),
+                &bank_pda,
                 BankVaultType::Fee,
                 &config.program_id,
             )
             .0,
             insurance_vault: find_bank_vault_pda(
-                &bank_keypair.pubkey(),
+                &bank_pda,
                 BankVaultType::Insurance,
                 &config.program_id,
             )
             .0,
             insurance_vault_authority: find_bank_vault_authority_pda(
-                &bank_keypair.pubkey(),
+                &bank_pda,
                 BankVaultType::Insurance,
                 &config.program_id,
             )
             .0,
             liquidity_vault: find_bank_vault_pda(
-                &bank_keypair.pubkey(),
+                &bank_pda,
                 BankVaultType::Liquidity,
                 &config.program_id,
             )
             .0,
             liquidity_vault_authority: find_bank_vault_authority_pda(
-                &bank_keypair.pubkey(),
+                &bank_pda,
                 BankVaultType::Liquidity,
                 &config.program_id,
             )
@@ -525,6 +519,8 @@ fn create_bank_ix_with_seed(
             bank_seed,
         })
         .instructions()?;
+
+    println!("Bank address (PDA): {}", bank_pda);
 
     Ok(add_bank_ixs)
 }
@@ -614,6 +610,8 @@ fn create_bank_ix(
             .into(),
         })
         .instructions()?;
+
+    println!("Bank address: {}", bank_keypair.pubkey());
 
     Ok(add_bank_ixs)
 }
@@ -905,6 +903,43 @@ fn make_bankruptcy_ix(
     Ok(handle_bankruptcy_ix)
 }
 
+pub fn process_set_user_flag(
+    config: Config,
+    profile: &Profile,
+    marginfi_account_pk: Pubkey,
+    flag: u64,
+) -> Result<()> {
+    let rpc_client = config.mfi_program.rpc();
+
+    let ix = Instruction {
+        accounts: marginfi::accounts::SetAccountFlag {
+            marginfi_account: marginfi_account_pk,
+            marginfi_group: profile.marginfi_group.unwrap(),
+            admin: config.authority(),
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::SetAccountFlag { flag }.data(),
+        program_id: marginfi::id(),
+    };
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+
+    let signing_keypairs = config.get_signers(false);
+
+    let message = Message::new(&[ix], Some(&config.authority()));
+
+    let mut transaction = Transaction::new_unsigned(message);
+
+    transaction.partial_sign(&signing_keypairs, recent_blockhash);
+
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
+        Ok(sig) => println!("User flag set (sig: {})", sig),
+        Err(err) => println!("Error during user flag set:\n{:#?}", err),
+    };
+
+    Ok(())
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 // bank
 // --------------------------------------------------------------------------------------------------------------------
@@ -1151,6 +1186,7 @@ pub fn bank_update_emissions(
         .rpc()
         .get_account(&emission_mint)
         .unwrap();
+
     let emissions_mint_decimals =
         spl_token::state::Mint::unpack_from_slice(&emissions_mint_decimals.data)
             .unwrap()
