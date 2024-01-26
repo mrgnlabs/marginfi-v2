@@ -364,11 +364,6 @@ pub enum AccountCommand {
         #[clap(long)]
         flashloans_enabled: bool,
     },
-    UnsetFlag {
-        account_pk: Pubkey,
-        #[clap(long)]
-        flashloans_enabled: bool,
-    },
 }
 
 #[derive(Debug, Parser)]
@@ -835,10 +830,6 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
 
             process_set_user_flag(config, &profile, account_pk, flag)
         }
-        AccountCommand::UnsetFlag {
-            flashloans_enabled: flashloan,
-            account_pk,
-        } => todo!(),
     }?;
 
     Ok(())
