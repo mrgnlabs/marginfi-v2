@@ -188,6 +188,12 @@ pub mod marginfi {
     pub fn unset_account_flag(ctx: Context<UnsetAccountFlag>, flag: u64) -> MarginfiResult {
         marginfi_group::unset_account_flag(ctx, flag)
     }
+
+    pub fn set_new_account_authority(
+        ctx: Context<MarginfiAccountSetAccountAuthority>,
+    ) -> MarginfiResult {
+        marginfi_account::set_account_transfer_authority(ctx)
+    }
 }
 
 #[cfg(not(feature = "no-entrypoint"))]

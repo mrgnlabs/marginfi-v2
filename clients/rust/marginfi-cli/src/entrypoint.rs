@@ -1,6 +1,6 @@
 use crate::{
     config::GlobalOptions,
-    processor::{self, group::process_update_lookup_tables},
+    processor::{self, group::process_update_lookup_tables, process_set_user_flag},
     profile::{load_profile, Profile},
 };
 use anchor_client::Cluster;
@@ -11,6 +11,7 @@ use fixed::types::I80F48;
 #[cfg(any(feature = "admin", feature = "dev"))]
 use marginfi::state::marginfi_group::{BankConfigOpt, InterestRateConfigOpt};
 use marginfi::state::{
+    marginfi_account::FLASHLOAN_ENABLED_FLAG,
     marginfi_group::{BankOperationalState, RiskTier},
     price::OracleSetup,
 };
@@ -358,6 +359,11 @@ pub enum AccountCommand {
         ui_asset_amount: f64,
     },
     Create,
+    SetFlag {
+        account_pk: Pubkey,
+        #[clap(long)]
+        flashloans_enabled: bool,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -806,6 +812,24 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
             ui_asset_amount,
         ),
         AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
+        AccountCommand::SetFlag {
+            flashloans_enabled: flashloan,
+            account_pk,
+        } => {
+            let mut flag = 0;
+
+            if flashloan {
+                println!("Setting flashloan flag");
+                flag |= FLASHLOAN_ENABLED_FLAG;
+            }
+
+            if flag == 0 {
+                println!("No flag provided");
+                std::process::exit(1);
+            }
+
+            process_set_user_flag(config, &profile, account_pk, flag)
+        }
     }?;
 
     Ok(())

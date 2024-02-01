@@ -34,7 +34,7 @@ pub struct MarginfiAccount {
     pub group: Pubkey,                   // 32
     pub authority: Pubkey,               // 32
     pub lending_account: LendingAccount, // 1728
-    /// The flas that indicates the state of the account.
+    /// The flags that indicate the state of the account.
     /// This is u64 bitfield, where each bit represents a flag.
     ///
     /// Flags:
@@ -47,6 +47,7 @@ pub struct MarginfiAccount {
 pub const DISABLED_FLAG: u64 = 1 << 0;
 pub const IN_FLASHLOAN_FLAG: u64 = 1 << 1;
 pub const FLASHLOAN_ENABLED_FLAG: u64 = 1 << 2;
+pub const TRANSFER_AUTHORITY_ALLOWED_FLAG: u64 = 1 << 3;
 
 impl MarginfiAccount {
     /// Set the initial data for the marginfi account.
@@ -76,6 +77,28 @@ impl MarginfiAccount {
 
     pub fn get_flag(&self, flag: u64) -> bool {
         self.account_flags & flag != 0
+    }
+
+    pub fn set_new_account_authority_checked(&mut self, new_authority: Pubkey) -> MarginfiResult {
+        // check if new account authority flag is set
+        if !self.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG) || self.get_flag(DISABLED_FLAG) {
+            return Err(MarginfiError::IllegalAccountAuthorityTransfer.into());
+        }
+
+        // update account authority
+        let old_authority = self.authority;
+        self.authority = new_authority;
+
+        // unset flag after updating the account authority
+        self.unset_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG);
+
+        msg!(
+            "Transferred account authority from {:?} to {:?} in group {:?}",
+            old_authority,
+            self.authority,
+            self.group,
+        );
+        Ok(())
     }
 }
 
@@ -1264,5 +1287,39 @@ mod test {
             calc_value(I80F48!(1_000_000_000), I80F48!(10_000_000), 9, None).unwrap(),
             I80F48!(10_000_000)
         );
+    }
+
+    #[test]
+    fn test_account_authority_transfer() {
+        let group: [u8; 32] = [0; 32];
+        let authority: [u8; 32] = [1; 32];
+        let bank_pk: [u8; 32] = [2; 32];
+        let new_authority: [u8; 32] = [3; 32];
+
+        let mut acc = MarginfiAccount {
+            group: group.into(),
+            authority: authority.into(),
+            lending_account: LendingAccount {
+                balances: [Balance {
+                    active: true,
+                    bank_pk: bank_pk.into(),
+                    asset_shares: WrappedI80F48::default(),
+                    liability_shares: WrappedI80F48::default(),
+                    emissions_outstanding: WrappedI80F48::default(),
+                    last_update: 0,
+                    _padding: [0_u64],
+                }; 16],
+                _padding: [0; 8],
+            },
+            account_flags: TRANSFER_AUTHORITY_ALLOWED_FLAG,
+            _padding: [0; 63],
+        };
+
+        assert!(acc.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
+
+        match acc.set_new_account_authority_checked(new_authority.into()) {
+            Ok(_) => (),
+            Err(_) => panic!("transerring account authority failed"),
+        }
     }
 }

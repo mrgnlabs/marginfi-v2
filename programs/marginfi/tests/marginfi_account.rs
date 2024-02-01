@@ -9,6 +9,7 @@ use marginfi::constants::{
 };
 use marginfi::state::marginfi_account::{
     BankAccountWrapper, DISABLED_FLAG, FLASHLOAN_ENABLED_FLAG, IN_FLASHLOAN_FLAG,
+    TRANSFER_AUTHORITY_ALLOWED_FLAG,
 };
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
@@ -2407,6 +2408,62 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
     // This issue is not that bad, because the user can still borrow other assets (isolated liab < empty threshold)
     let res = borrower_mfi_account_f.try_balance_close(sol_eq_bank).await;
     assert!(res.is_ok());
+
+    Ok(())
+}
+
+// Test transfer account authority.
+// No transfer flag set -- tx should fail.
+// Set the flag and try again -- tx should succeed.
+// RUST_BACKTRACE=1 cargo test-bpf marginfi_account_authority_transfer_no_flag_set -- --exact
+#[tokio::test]
+async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    // Default account with no flags set
+    let marginfi_account = test_f.create_marginfi_account().await;
+    let new_authority = Keypair::new().pubkey();
+
+    let res = marginfi_account
+        .try_transfer_account_authority(new_authority, None)
+        .await;
+
+    // Assert the response is an error due to the lack of the correct flag
+    assert!(res.is_err());
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::IllegalAccountAuthorityTransfer
+    );
+
+    // set the flag on the account
+    marginfi_account
+        .try_set_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG)
+        .await
+        .unwrap();
+
+    let new_authority_2 = Keypair::new().pubkey();
+    let res = marginfi_account
+        .try_transfer_account_authority(new_authority_2, None)
+        .await;
+
+    assert!(res.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let marginfi_account = test_f.create_marginfi_account().await;
+    let new_authority = Keypair::new().pubkey();
+    let signer = Keypair::new();
+
+    let res = marginfi_account
+        .try_transfer_account_authority(new_authority, Some(signer))
+        .await;
+
+    // Assert the response is an error due to fact that a non-owner of the
+    // acount attempted to initialize this account transfer
+    assert!(res.is_err());
 
     Ok(())
 }
