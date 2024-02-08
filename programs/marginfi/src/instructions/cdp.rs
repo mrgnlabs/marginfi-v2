@@ -1,7 +1,7 @@
 use std::cell::RefMut;
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, Transfer};
+use anchor_spl::token::{Mint, MintTo, Token, Transfer};
 use fixed::types::I80F48;
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
     math_error,
     prelude::MarginfiResult,
     state::{
-        cdp::{Cdp, CdpBank, CdpCollateralBank, CdpCollateralBankStatus},
+        cdp::{Cdp, CdpBank, CdpCollateralBank, CdpCollateralBankStatus, CdpRiskEngine},
         marginfi_group::{Bank, MarginfiGroup},
     },
 };
@@ -133,7 +133,7 @@ pub fn cdp_deposit(ctx: Context<CdpDeposit>, amount: u64) -> MarginfiResult {
 
     let deposit_shares = bank.get_asset_shares(I80F48::from_num(amount))?;
 
-    bank.change_asset_shares(deposit_shares)?;
+    bank.change_asset_shares(deposit_shares, false)?;
     cdp.change_collateral_shares(deposit_shares)?;
 
     bank.deposit_spl_transfer(
@@ -165,6 +165,8 @@ pub struct CdpDeposit<'info> {
 pub fn cdp_mint(ctx: Context<CdpMint>, amount: u64) -> MarginfiResult {
     let mut cdp_bank = ctx.accounts.cdp_bank.load_mut()?;
     let mut cdp = ctx.accounts.cdp.load_mut()?;
+    let mut cdp_collateral_bank = ctx.accounts.cdp.load_mut()?;
+    let mut lending_bank = ctx.accounts.bank.load_mut()?;
 
     let liab_shares = cdp_bank
         .get_liability_shares(I80F48::from_num(amount))
@@ -172,6 +174,33 @@ pub fn cdp_mint(ctx: Context<CdpMint>, amount: u64) -> MarginfiResult {
 
     cdp_bank.update_liability_share_amount(liab_shares)?;
     cdp.change_liability_shares(liab_shares)?;
+
+    CdpRiskEngine::new(
+        &cdp,
+        &cdp_bank,
+        &cdp_collateral_bank,
+        &lending_bank,
+        ctx.remaining_accounts,
+        Clock::get()?.unix_timestamp,
+    )?
+    .check_init_health();
+
+    anchor_spl::token::mint_to(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            MintTo {
+                mint: ctx.accounts.cdp_mint.to_account_info(),
+                to: ctx.accounts.cdp_authority_ta.to_account_info(),
+                authority: ctx.accounts.cdp_mint_authority.to_account_info(),
+            },
+            &[&[
+                CDP_MINT_AUTH_SEED.as_bytes(),
+                ctx.accounts.cdp_mint.key().as_ref(),
+                &[cdp_bank.mint_authority_bump],
+            ]],
+        ),
+        amount,
+    )?;
 
     Ok(())
 }
@@ -190,3 +219,5 @@ pub struct CdpMint<'info> {
     pub cdp_authority_ta: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
 }
+
+pub fn cdp_liquidate()

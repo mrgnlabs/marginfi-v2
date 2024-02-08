@@ -1,9 +1,16 @@
 use anchor_lang::prelude::*;
-use fixed::types::I80F48;
+use bytemuck::Zeroable;
+use fixed::types::{I80F48, I89F39};
 
-use crate::{math_error, prelude::MarginfiResult};
+use crate::{
+    check, constants::MAX_PRICE_AGE_SEC, math_error, prelude::MarginfiResult,
+    state::price::PriceAdapter,
+};
 
-use super::marginfi_group::WrappedI80F48;
+use super::{
+    marginfi_group::{Bank, WrappedI80F48},
+    price::{OraclePriceFeedAdapter, OraclePriceType, PriceBias},
+};
 
 // CDP Actions
 // ==========
@@ -80,6 +87,9 @@ pub enum CdpCollateralBankStatus {
     ReduceOnly,
 }
 
+unsafe impl Pod for CdpCollateralBank {}
+unsafe impl Zeroable for CdpCollateralBank {}
+
 /// Supported collateral for a bank
 #[account(zero_copy)]
 #[repr(C)]
@@ -128,6 +138,68 @@ impl Cdp {
             .checked_add(shares)
             .ok_or_else(math_error!())?
             .into();
+
+        Ok(())
+    }
+}
+
+pub struct CdpRiskEngine<'a> {
+    deposit: &'a Cdp,
+    bank: &'a CdpBank,
+    collateral_bank: &'a CdpCollateralBank,
+    lending_bank: &'a Bank,
+    oracle_adapter: OraclePriceFeedAdapter,
+}
+
+impl<'a> CdpRiskEngine<'a> {
+    pub fn new(
+        deposit: &'a Cdp,
+        bank: &'a CdpBank,
+        collateral_bank: &'a CdpCollateralBank,
+        lending_bank: &'a Bank,
+        oracle_ais: &[AccountInfo],
+        current_timestamp: i64,
+    ) -> Result<Self> {
+        let oracle_adapter = OraclePriceFeedAdapter::try_from_bank_config(
+            &lending_bank.config,
+            oracle_ais,
+            current_timestamp,
+            MAX_PRICE_AGE_SEC,
+        )?;
+
+        Ok(Self {
+            deposit,
+            bank,
+            collateral_bank,
+            lending_bank,
+            oracle_adapter,
+        })
+    }
+
+    pub fn check_init_health(&self) -> Result<()> {
+        let liab_shares = I80F48::from(self.deposit.liability_shares);
+        let liab_value = self
+            .bank
+            .get_liability_amount(liab_shares)
+            .ok_or_else(math_error!())?;
+
+        let collateral_shares = I80F48::from(self.deposit.collateral_shares);
+        let collateral_price = self
+            .oracle_adapter
+            .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))?;
+
+        let collateral_init_weight: I80F48 = self.lending_bank.config.asset_weight_init.into();
+
+        let weighted_collateral_value = collateral_shares
+            .checked_mul(collateral_price)
+            .ok_or_else(math_error!())?
+            .checked_mul(collateral_init_weight)
+            .ok_or_else(math_error!())?;
+
+        check!(
+            weighted_collateral_value >= liab_value,
+            crate::prelude::MarginfiError::BadAccountHealth
+        );
 
         Ok(())
     }
