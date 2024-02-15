@@ -8,8 +8,9 @@ use {
         config::Config,
         profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
         utils::{
-            find_bank_vault_authority_pda, find_bank_vault_pda, load_observation_account_metas,
-            process_transaction, EXP_10_I80F48,
+            find_bank_emssions_token_account_pda, find_bank_vault_authority_pda,
+            find_bank_vault_pda, load_observation_account_metas, process_transaction,
+            EXP_10_I80F48,
         },
     },
     anchor_client::{
@@ -59,10 +60,7 @@ use solana_client::rpc_client::RpcClient;
 
 #[cfg(feature = "admin")]
 use {
-    crate::utils::{
-        calc_emissions_rate, create_oracle_key_array, find_bank_emssions_auth_pda,
-        find_bank_emssions_token_account_pda,
-    },
+    crate::utils::{calc_emissions_rate, create_oracle_key_array, find_bank_emssions_auth_pda},
     marginfi::{
         constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE},
         prelude::GroupConfig,
@@ -975,12 +973,9 @@ pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
             insurance_vault_balance.amount
         );
         if bank.emissions_mint != Pubkey::default() {
-            let emissions_token_account = find_bank_emssions_token_account_pda(
-                address,
-                bank.emissions_mint,
-                marginfi::id(),
-            )
-            .0;
+            let emissions_token_account =
+                find_bank_emssions_token_account_pda(address, bank.emissions_mint, marginfi::id())
+                    .0;
             let emissions_vault_balance =
                 rpc_client.get_token_account_balance(&emissions_token_account)?;
             println!(
