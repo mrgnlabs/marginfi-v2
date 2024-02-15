@@ -1432,6 +1432,7 @@ dependencies = [
  "lazy_static",
  "pyth-sdk-solana",
  "solana-program",
+ "solana-security-txt",
  "static_assertions",
  "switchboard-v2",
  "type-layout",
@@ -2340,6 +2341,12 @@ dependencies = [
  "rustversion",
  "syn 2.0.41",
 ]
+
+[[package]]
+name = "solana-security-txt"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "468aa43b7edb1f9b7b7b686d5c3aeb6630dc1708e86e31343499dd5c4d775183"
 
 [[package]]
 name = "solana-zk-token-sdk"

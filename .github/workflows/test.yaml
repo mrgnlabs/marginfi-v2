@@ -116,7 +116,7 @@ jobs:
       - name: Run fuzz tests in fuzz dir
         run: |
           cd programs/marginfi
-          cargo install cargo-fuzz
+          cargo install cargo-fuzz --locked
           cargo fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
