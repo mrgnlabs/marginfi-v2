@@ -1,7 +1,8 @@
 use crate::config::TxMode;
 use marginfi::bank_seed;
+use marginfi::constants::EMISSIONS_TOKEN_ACCOUNT_SEED;
 #[cfg(feature = "admin")]
-use marginfi::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS};
+use marginfi::constants::{EMISSIONS_AUTH_SEED, MAX_ORACLE_KEYS};
 use {
     anyhow::{bail, Result},
     fixed::types::I80F48,
