@@ -95,7 +95,6 @@ pub fn find_bank_emssions_auth_pda(
     )
 }
 
-#[cfg(feature = "admin")]
 pub fn find_bank_emssions_token_account_pda(
     bank: Pubkey,
     emissions_mint: Pubkey,
