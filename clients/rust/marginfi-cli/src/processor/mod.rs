@@ -974,6 +974,22 @@ pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
             insurance_vault_balance.ui_amount.unwrap(),
             insurance_vault_balance.amount
         );
+        if bank.emissions_mint != Pubkey::default() {
+            let emissions_token_account = find_bank_emssions_token_account_pda(
+                address,
+                bank.emissions_mint,
+                marginfi::id(),
+            )
+            .0;
+            let emissions_vault_balance =
+                rpc_client.get_token_account_balance(&emissions_token_account)?;
+            println!(
+                "\temissions vault: {} (native: {} - TA: {})",
+                emissions_vault_balance.ui_amount.unwrap(),
+                emissions_vault_balance.amount,
+                emissions_token_account
+            );
+        }
     } else {
         group_get_all(config)?;
     }
