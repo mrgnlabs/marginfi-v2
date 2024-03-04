@@ -68,9 +68,12 @@ impl Profile {
     }
 
     pub fn get_config(&self, global_options: Option<&GlobalOptions>) -> Result<Config> {
-        let fee_payer =
-            read_keypair_file(&*shellexpand::tilde(&self.keypair_path.clone().unwrap()))
-                .expect("Example requires a keypair file");
+        let fee_payer = if let Some(keypair_path) = self.keypair_path.clone() {
+            read_keypair_file(&*shellexpand::tilde(&keypair_path))
+                .expect("Example requires a keypair file")
+        } else {
+            Keypair::new()
+        };
 
         let multisig = self.multisig;
 
