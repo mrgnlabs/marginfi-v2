@@ -1934,7 +1934,8 @@ async fn flashloan_fail_account_health() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn flashloan_fail_missing_flag() -> anyhow::Result<()> {
+// Note: The flashloan flag is now deprecated
+async fn flashloan_ok_missing_flag() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
@@ -1973,10 +1974,7 @@ async fn flashloan_fail_missing_flag() -> anyhow::Result<()> {
         .try_flashloan(vec![borrow_ix, repay_ix], vec![], vec![])
         .await;
 
-    assert_custom_error!(
-        flash_loan_result.unwrap_err(),
-        MarginfiError::IllegalFlashloan
-    );
+    assert!(flash_loan_result.is_ok());
 
     Ok(())
 }
