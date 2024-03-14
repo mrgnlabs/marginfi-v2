@@ -59,8 +59,6 @@ jobs:
             --package marginfi-v2-cli \
             --features dev \
             -- patch-idl target/idl/${{ env.PROGRAM_LIB_NAME }}.json
-          rm target/idl/${{ env.PROGRAM_LIB_NAME }}.json
-          mv target/idl/${{ env.PROGRAM_LIB_NAME }}_patched.json target/idl/${{ env.PROGRAM_LIB_NAME }}.json
 
       # Display contents of /target/deploy and /target/idl
       - run: ls -l target/deploy
@@ -100,10 +98,10 @@ jobs:
       #   uses: actions/upload-artifact@v2
       #   with:
       #     name: ${{ env.PROGRAM_LIB_NAME }}-idl-${{ github.run_id }}-${{ github.run_attempt }}
-      #     path: ./target/idl/${{ env.PROGRAM_LIB_NAME }}_patched.json
+      #     path: ./target/idl/${{ env.PROGRAM_LIB_NAME }}.json
 
       # - name: Upload IDL (types)
       #   uses: actions/upload-artifact@v2
       #   with:
       #     name: ${{ env.PROGRAM_LIB_NAME }}-types-${{ github.run_id }}-${{ github.run_attempt }}
-      #     path: ./target/idl/${{ env.PROGRAM_LIB_NAME }}_patched.ts
+      #     path: ./target/idl/${{ env.PROGRAM_LIB_NAME }}.ts

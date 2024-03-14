@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.dependencies]
+anchor-lang = "0.28.0"
+backoff = { version = "0.4.0", features = ["tokio"] }
+bytemuck = "1.13.1"
+concurrent-queue = "2.0.0"
+crossbeam = "0.8.2"
+dotenv = "0.15.0"
+futures = "0.3.25"
+envconfig = "0.10.0"
+marginfi = { path = "../programs/marginfi", features = [
+  "no-entrypoint",
+  "client",
+] }
+solana-account-decoder = "1.16.23"
+solana-client = "1.16.23"
+solana-measure = "1.16.23"
+solana-sdk = "1.16.23"
+solana-transaction-status = "1.16.23"
+solana-rpc-client-api = "1.16.23"
+spl-token = "4.0.0"
+static_assertions = "1.1.0"
+thiserror = "1.0.58"
+tokio = { version = "1.14.1", features = ["full"] }
+tracing = "0.1.36"
+tracing-stackdriver = "0.6.1"
+tracing-subscriber = { version = "0.3.15", features = ["env-filter", "fmt"] }
+yellowstone-grpc-client = { git = "https://github.com/rpcpool/yellowstone-grpc.git", rev = "a2cd1498ac64baa1017d4a4cdefbf46100215b4c" }
+yellowstone-grpc-proto = { git = "https://github.com/rpcpool/yellowstone-grpc.git", rev = "a2cd1498ac64baa1017d4a4cdefbf46100215b4c" }
