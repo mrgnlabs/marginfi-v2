@@ -1,0 +1,42 @@
+[package]
+name = "event_indexer"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "index-events"
+path = "bin/index_events.rs"
+
+[[bin]]
+name = "backfill-events"
+path = "bin/backfill_events.rs"
+
+[features]
+default = ["mainnet-beta"]
+mainnet-beta = ["marginfi/mainnet-beta"]
+
+[dependencies]
+anchor-lang = { workspace = true }
+backoff = { workspace = true }
+bytemuck = { workspace = true }
+crossbeam = { workspace = true }
+dotenv = { workspace = true }
+futures = { workspace = true }
+envconfig = { workspace = true }
+marginfi = { workspace = true }
+rpc_utils = { path = "../rpc_utils" }
+solana-account-decoder = { workspace = true }
+solana-client = { workspace = true }
+solana-measure = { workspace = true }
+solana-sdk = { workspace = true }
+solana-transaction-status = { workspace = true }
+solana-rpc-client-api = { workspace = true }
+spl-token = { workspace = true }
+static_assertions = "1.1.0"
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-stackdriver = { workspace = true }
+tracing-subscriber = { workspace = true }
+yellowstone-grpc-client = { workspace = true }
+yellowstone-grpc-proto = { workspace = true }

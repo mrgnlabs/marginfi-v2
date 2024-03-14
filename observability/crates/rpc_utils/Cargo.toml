@@ -1,0 +1,10 @@
+[package]
+name = "rpc_utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+backoff = { workspace = true }
+futures = { workspace = true }
+solana-client = { workspace = true }
+solana-sdk = { workspace = true }
