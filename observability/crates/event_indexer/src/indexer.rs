@@ -5,12 +5,14 @@ use std::{
     vec,
 };
 
+use chrono::DateTime;
 use crossbeam::channel::{Receiver, Sender};
+use diesel::{PgConnection, RunQueryDsl};
 use futures::StreamExt;
 use solana_client::rpc_client::SerializableTransaction;
 use solana_sdk::{pubkey::Pubkey, signature::Signature};
 use solana_transaction_status::{TransactionWithStatusMeta, VersionedTransactionWithStatusMeta};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use yellowstone_grpc_client::GeyserGrpcClient;
 use yellowstone_grpc_proto::{
     convert_from,
@@ -20,13 +22,21 @@ use yellowstone_grpc_proto::{
     },
 };
 
+use crate::{
+    db::{
+        establish_connection,
+        models::{Accounts, CreateAccountEvents, Users},
+        schema::*,
+    },
+    parser::Event,
+};
+
 use super::parser::{MarginfiEventParser, MarginfiEventWithMeta, MARGINFI_GROUP_ADDRESS};
 
 const BLOCK_META_BUFFER_LENGTH: usize = 30;
 
 pub struct EventIndexer {
     parser: MarginfiEventParser,
-    // database_connection: PgConnection,
     transaction_rx: Receiver<TransactionUpdate>,
     event_tx: Sender<Vec<MarginfiEventWithMeta>>,
 }
@@ -44,11 +54,12 @@ impl EventIndexer {
             listen_to_updates(rpc_host, rpc_auth_token, program_id, transaction_tx).await
         });
 
-        tokio::spawn(async move { store_events(event_rx).await });
+        let mut db_connection = establish_connection(database_connection_url);
+
+        tokio::spawn(async move { store_events(&mut db_connection, event_rx).await });
 
         Self {
             parser,
-            // database_connection: establish_connection(database_connection_url),
             transaction_rx,
             event_tx,
         }
@@ -254,12 +265,69 @@ async fn listen_to_updates(
     }
 }
 
-async fn store_events(event_rx: Receiver<Vec<MarginfiEventWithMeta>>) {
+async fn store_events(
+    db_connection: &mut PgConnection,
+    event_rx: Receiver<Vec<MarginfiEventWithMeta>>,
+) {
     loop {
         while let Ok(events) = event_rx.try_recv() {
             if !events.is_empty() {
-                for event in events {
-                    info!("{:?}", event);
+                for MarginfiEventWithMeta {
+                    event,
+                    timestamp,
+                    in_flashloan,
+                    call_stack,
+                    tx_sig,
+                } in events
+                {
+                    let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
+                    let tx_sig = tx_sig.to_string();
+                    let call_stack = serde_json::to_string(&call_stack).unwrap();
+
+                    match event {
+                        Event::CreateAccount(e) => {
+                            let authority_id = diesel::insert_into(users::table)
+                                .values(vec![Users {
+                                    address: e.authority.to_string(),
+                                    ..Default::default()
+                                }])
+                                .on_conflict(users::id)
+                                .do_nothing()
+                                .returning(users::id)
+                                .get_result(db_connection)
+                                .unwrap();
+
+                            let account_id = diesel::insert_into(accounts::table)
+                                .values(vec![Accounts {
+                                    address: e.account.to_string(),
+                                    user_id: authority_id,
+                                    ..Default::default()
+                                }])
+                                .on_conflict(accounts::id)
+                                .do_nothing()
+                                .returning(accounts::id)
+                                .get_result(db_connection)
+                                .unwrap();
+
+                            let create_account_event = CreateAccountEvents {
+                                timestamp,
+                                authority_id,
+                                tx_sig,
+                                call_stack,
+                                in_flashloan,
+                                account_id,
+                                ..Default::default()
+                            };
+
+                            diesel::insert_into(create_account_events::table)
+                                .values(&create_account_event)
+                                .execute(db_connection)
+                                .unwrap();
+                        }
+                        _ => {
+                            debug!("Unsupported event: {:?}", event);
+                        }
+                    }
                 }
             }
         }

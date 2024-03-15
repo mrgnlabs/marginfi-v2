@@ -1,6 +1,6 @@
 use dotenv::dotenv;
 use envconfig::Envconfig;
-use event_indexer::{error::IndexingError, indexer::EventIndexer, snapshot::Snapshot};
+use event_indexer::{error::IndexingError, indexer::EventIndexer};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
 
@@ -16,6 +16,8 @@ pub struct Config {
     pub monitor_interval: u64,
     #[envconfig(from = "PRETTY_LOGS")]
     pub pretty_logs: Option<bool>,
+    #[envconfig(from = "DATABASE_URL")]
+    pub database_url: String,
     // #[envconfig(from = "INDEX_TRANSACTIONS_PROJECT_ID")]
     // pub project_id: String,
     // #[envconfig(from = "INDEX_TRANSACTIONS_PUBSUB_TOPIC_NAME")]
@@ -52,16 +54,15 @@ pub async fn main() -> Result<(), IndexingError> {
     let mut indexer = EventIndexer::new(
         config.rpc_host.clone(),
         config.rpc_token.clone(),
-        "".to_string(),
+        config.database_url,
     );
     let first_sig = indexer.init().await;
     info!("First signature: {:?}", first_sig);
 
-    let rpc_endpoint = format!("{}/{}", config.rpc_host, config.rpc_token).to_string();
-    let mut snapshot = Snapshot::new(marginfi::ID, rpc_endpoint);
-    snapshot.init().await?;
-
-    println!("Snapshot: {}", snapshot);
+    // let rpc_endpoint = format!("{}/{}", config.rpc_host, config.rpc_token).to_string();
+    // let mut snapshot = Snapshot::new(marginfi::ID, rpc_endpoint);
+    // snapshot.init().await?;
+    // println!("Snapshot: {}", snapshot);
 
     let indexer_handle = tokio::spawn(async move { indexer.run().await });
 

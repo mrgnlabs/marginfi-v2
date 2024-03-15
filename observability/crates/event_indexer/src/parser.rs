@@ -28,10 +28,9 @@ use tracing::{error, warn};
 
 const SPL_TRANSFER_DISCRIMINATOR: u8 = 3;
 pub const MARGINFI_GROUP_ADDRESS: Pubkey = pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8");
-const COMPACT_BANK_CONFIG_ARG_UPGRADE_SLOT: u64 = 232836972;
-
+const COMPACT_BANK_CONFIG_ARG_UPGRADE_SLOT: u64 = 232_836_972;
 #[derive(Debug)]
-pub enum MarginfiEvent {
+pub enum Event {
     // User actions
     CreateAccount(CreateAccountEvent),
     AccountAuthorityTransfer(AccountAuthorityTransferEvent),
@@ -50,7 +49,7 @@ pub enum MarginfiEvent {
 pub struct MarginfiEventWithMeta {
     pub timestamp: i64,
     pub tx_sig: Signature,
-    pub event: MarginfiEvent,
+    pub event: Event,
     pub in_flashloan: bool,
     pub call_stack: Vec<Pubkey>,
 }
@@ -275,7 +274,7 @@ impl MarginfiEventParser {
         remaining_instructions: &[InnerInstruction],
         account_keys: &[Pubkey],
         in_flashloan: &mut bool,
-    ) -> Option<MarginfiEvent> {
+    ) -> Option<Event> {
         if instruction.data.len() < 8 {
             error!("Instruction data too short");
             return None;
@@ -299,7 +298,7 @@ impl MarginfiEventParser {
                 let marginfi_account = *ix_accounts.get(1).unwrap();
                 let authority = *ix_accounts.get(2).unwrap();
 
-                Some(MarginfiEvent::CreateAccount(CreateAccountEvent {
+                Some(Event::CreateAccount(CreateAccountEvent {
                     account: marginfi_account,
                     authority,
                 }))
@@ -314,7 +313,7 @@ impl MarginfiEventParser {
                 let signer = *ix_accounts.get(2).unwrap();
                 let new_authority = *ix_accounts.get(3).unwrap();
 
-                Some(MarginfiEvent::AccountAuthorityTransfer(
+                Some(Event::AccountAuthorityTransfer(
                     AccountAuthorityTransferEvent {
                         account: marginfi_account,
                         old_authority: signer,
@@ -343,7 +342,7 @@ impl MarginfiEventParser {
                 let signer = *ix_accounts.get(2).unwrap();
                 let bank = *ix_accounts.get(3).unwrap();
 
-                Some(MarginfiEvent::Deposit(DepositEvent {
+                Some(Event::Deposit(DepositEvent {
                     account: marginfi_account,
                     authority: signer,
                     bank,
@@ -371,7 +370,7 @@ impl MarginfiEventParser {
                 let signer = *ix_accounts.get(2).unwrap();
                 let bank = *ix_accounts.get(3).unwrap();
 
-                Some(MarginfiEvent::Borrow(BorrowEvent {
+                Some(Event::Borrow(BorrowEvent {
                     account: marginfi_account,
                     authority: signer,
                     bank,
@@ -401,7 +400,7 @@ impl MarginfiEventParser {
                 let signer = *ix_accounts.get(2).unwrap();
                 let bank = *ix_accounts.get(3).unwrap();
 
-                Some(MarginfiEvent::Repay(RepayEvent {
+                Some(Event::Repay(RepayEvent {
                     account: marginfi_account,
                     authority: signer,
                     bank,
@@ -433,7 +432,7 @@ impl MarginfiEventParser {
                 let signer = *ix_accounts.get(2).unwrap();
                 let bank = *ix_accounts.get(3).unwrap();
 
-                Some(MarginfiEvent::Withdraw(WithdrawEvent {
+                Some(Event::Withdraw(WithdrawEvent {
                     account: marginfi_account,
                     authority: signer,
                     bank,
@@ -456,7 +455,7 @@ impl MarginfiEventParser {
                 let liquidator_authority = *ix_accounts.get(4).unwrap();
                 let liquidatee_account = *ix_accounts.get(5).unwrap();
 
-                Some(MarginfiEvent::Liquidate(LiquidateEvent {
+                Some(Event::Liquidate(LiquidateEvent {
                     asset_amount: instruction.asset_amount,
                     asset_bank,
                     liability_bank,
@@ -483,7 +482,7 @@ impl MarginfiEventParser {
                 let bank = *ix_accounts.get(3).unwrap();
                 let emissions_mint = *ix_accounts.get(4).unwrap();
 
-                Some(MarginfiEvent::WithdrawEmissions(WithdrawEmissionsEvent {
+                Some(Event::WithdrawEmissions(WithdrawEmissionsEvent {
                     account: marginfi_account,
                     authority: signer,
                     bank,
@@ -508,7 +507,7 @@ impl MarginfiEventParser {
                 let bank_mint = *ix_accounts.get(3).unwrap();
                 let bank = *ix_accounts.get(4).unwrap();
 
-                Some(MarginfiEvent::AddBank(AddBankEvent {
+                Some(Event::AddBank(AddBankEvent {
                     bank,
                     mint: bank_mint,
                     config: bank_config,

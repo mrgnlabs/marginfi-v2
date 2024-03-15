@@ -6,8 +6,10 @@ members = ["crates/*"]
 anchor-lang = "0.28.0"
 backoff = { version = "0.4.0", features = ["tokio"] }
 bytemuck = "1.13.1"
+chrono = "0.4.31"
 concurrent-queue = "2.0.0"
 crossbeam = "0.8.2"
+diesel = { git = "https://github.com/diesel-rs/diesel.git", rev = "12429cb4eebfb50581c494e1a183e4faed65c47f" }
 dotenv = "0.15.0"
 futures = "0.3.25"
 envconfig = "0.10.0"
@@ -15,6 +17,9 @@ marginfi = { path = "../programs/marginfi", features = [
   "no-entrypoint",
   "client",
 ] }
+rust_decimal = { version = "1.26.1", features = ["db-diesel2-postgres"] }
+serde = "1.0.197"
+serde_json = "1.0.114"
 solana-account-decoder = "1.16.23"
 solana-client = "1.16.23"
 solana-measure = "1.16.23"
@@ -30,3 +35,6 @@ tracing-stackdriver = "0.6.1"
 tracing-subscriber = { version = "0.3.15", features = ["env-filter", "fmt"] }
 yellowstone-grpc-client = { git = "https://github.com/rpcpool/yellowstone-grpc.git", rev = "a2cd1498ac64baa1017d4a4cdefbf46100215b4c" }
 yellowstone-grpc-proto = { git = "https://github.com/rpcpool/yellowstone-grpc.git", rev = "a2cd1498ac64baa1017d4a4cdefbf46100215b4c" }
+
+[patch.crates-io]
+diesel = { git = "https://github.com/diesel-rs/diesel.git", rev = "12429cb4eebfb50581c494e1a183e4faed65c47f" }
