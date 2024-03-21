@@ -8,9 +8,11 @@ use solana_address_lookup_table_program::{
     state::AddressLookupTable,
 };
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
-use solana_sdk::{account::Account, pubkey::Pubkey, signer::Signer, transaction::Transaction};
+use solana_sdk::{
+    account::Account, pubkey::Pubkey, signer::Signer, system_program, transaction::Transaction,
+};
 
-use crate::{config::Config, profile::Profile};
+use crate::{config::Config, profile::Profile, utils};
 
 const CHUNK_SIZE: usize = 22;
 const KEY_BATCH_SIZE: usize = 20;
@@ -85,8 +87,39 @@ pub fn process_update_lookup_tables(
         .collect::<Vec<Pubkey>>();
 
     // Join keys
-    let mut keys = bank_pks;
-    keys.extend(oracle_pks);
+    let mut keys = vec![
+        config.mfi_program.id(),
+        marginfi_group,
+        spl_token::id(),
+        system_program::id(),
+    ];
+    // keys.extend(bank_pks);
+    // keys.extend(oracle_pks);
+
+    // Add bank signers
+    for (bank_pk, bank) in banks.iter() {
+        keys.push(*bank_pk);
+        keys.push(bank.liquidity_vault);
+        let (vault_auth, _) = utils::find_bank_vault_authority_pda(
+            bank_pk,
+            marginfi::state::marginfi_group::BankVaultType::Liquidity,
+            &marginfi::ID,
+        );
+
+        keys.push(vault_auth);
+
+        keys.extend_from_slice(
+            &bank
+                .config
+                .oracle_keys
+                .iter()
+                .filter(|pk| **pk != Pubkey::default())
+                .cloned()
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    keys.dedup();
 
     // Find missing keys in lookup tables
     let mut missing_keys = keys
