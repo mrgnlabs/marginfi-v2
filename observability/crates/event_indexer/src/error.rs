@@ -15,6 +15,12 @@ pub enum IndexingError {
     #[error("Failed to find slot for tx signature {0:?}")]
     FailedToFindTransactionSlot(Signature),
 
+    #[error("Failed to fetch entity: {0}")]
+    FailedToFetchEntity(String),
+
+    #[error("Failed to insert event: {0}")]
+    FailedToInsertEvent(String),
+
     #[error("An unknown error occurred")]
     Unknown,
 }

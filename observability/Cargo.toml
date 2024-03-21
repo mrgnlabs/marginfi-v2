@@ -13,6 +13,7 @@ diesel = { git = "https://github.com/diesel-rs/diesel.git", rev = "12429cb4eebfb
 dotenv = "0.15.0"
 futures = "0.3.25"
 envconfig = "0.10.0"
+enum_dispatch = "0.3.12"
 marginfi = { path = "../programs/marginfi", features = [
   "no-entrypoint",
   "client",
