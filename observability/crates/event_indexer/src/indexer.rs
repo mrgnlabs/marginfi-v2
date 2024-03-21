@@ -7,12 +7,12 @@ use std::{
 
 use chrono::DateTime;
 use crossbeam::channel::{Receiver, Sender};
-use diesel::{PgConnection, RunQueryDsl};
+use diesel::PgConnection;
 use futures::StreamExt;
 use solana_client::rpc_client::SerializableTransaction;
 use solana_sdk::{pubkey::Pubkey, signature::Signature};
 use solana_transaction_status::{TransactionWithStatusMeta, VersionedTransactionWithStatusMeta};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 use yellowstone_grpc_client::GeyserGrpcClient;
 use yellowstone_grpc_proto::{
     convert_from,
@@ -22,14 +22,7 @@ use yellowstone_grpc_proto::{
     },
 };
 
-use crate::{
-    db::{
-        establish_connection,
-        models::{Accounts, CreateAccountEvents, Users},
-        schema::*,
-    },
-    parser::Event,
-};
+use crate::{db::establish_connection, entity_store::EntityStore, parser::MarginfiEvent};
 
 use super::parser::{MarginfiEventParser, MarginfiEventWithMeta, MARGINFI_GROUP_ADDRESS};
 
@@ -50,13 +43,26 @@ impl EventIndexer {
         let (transaction_tx, transaction_rx) = crossbeam::channel::unbounded::<TransactionUpdate>();
         let (event_tx, event_rx) = crossbeam::channel::unbounded::<Vec<MarginfiEventWithMeta>>();
 
+        let rpc_host_clone = rpc_host.clone();
+        let rpc_auth_token_clone = rpc_auth_token.clone();
         tokio::spawn(async move {
-            listen_to_updates(rpc_host, rpc_auth_token, program_id, transaction_tx).await
+            listen_to_updates(
+                rpc_host_clone,
+                rpc_auth_token_clone,
+                program_id,
+                transaction_tx,
+            )
+            .await
         });
 
-        let mut db_connection = establish_connection(database_connection_url);
+        let mut db_connection = establish_connection(database_connection_url.clone());
 
-        tokio::spawn(async move { store_events(&mut db_connection, event_rx).await });
+        let rpc_endpoint = format!("{}/{}", rpc_host, rpc_auth_token).to_string();
+        let mut entity_store = EntityStore::new(rpc_endpoint, database_connection_url);
+
+        tokio::spawn(
+            async move { store_events(&mut db_connection, event_rx, &mut entity_store).await },
+        );
 
         Self {
             parser,
@@ -268,6 +274,7 @@ async fn listen_to_updates(
 async fn store_events(
     db_connection: &mut PgConnection,
     event_rx: Receiver<Vec<MarginfiEventWithMeta>>,
+    entity_store: &mut EntityStore,
 ) {
     loop {
         while let Ok(events) = event_rx.try_recv() {
@@ -283,51 +290,17 @@ async fn store_events(
                     let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
                     let tx_sig = tx_sig.to_string();
                     let call_stack = serde_json::to_string(&call_stack).unwrap();
-
-                    match event {
-                        Event::CreateAccount(e) => {
-                            let authority_id = diesel::insert_into(users::table)
-                                .values(vec![Users {
-                                    address: e.authority.to_string(),
-                                    ..Default::default()
-                                }])
-                                .on_conflict(users::id)
-                                .do_nothing()
-                                .returning(users::id)
-                                .get_result(db_connection)
-                                .unwrap();
-
-                            let account_id = diesel::insert_into(accounts::table)
-                                .values(vec![Accounts {
-                                    address: e.account.to_string(),
-                                    user_id: authority_id,
-                                    ..Default::default()
-                                }])
-                                .on_conflict(accounts::id)
-                                .do_nothing()
-                                .returning(accounts::id)
-                                .get_result(db_connection)
-                                .unwrap();
-
-                            let create_account_event = CreateAccountEvents {
-                                timestamp,
-                                authority_id,
-                                tx_sig,
-                                call_stack,
-                                in_flashloan,
-                                account_id,
-                                ..Default::default()
-                            };
-
-                            diesel::insert_into(create_account_events::table)
-                                .values(&create_account_event)
-                                .execute(db_connection)
-                                .unwrap();
-                        }
-                        _ => {
-                            debug!("Unsupported event: {:?}", event);
-                        }
-                    }
+                    println!("Storing event: {:?}", event);
+                    event
+                        .db_insert(
+                            timestamp,
+                            tx_sig,
+                            in_flashloan,
+                            call_stack,
+                            db_connection,
+                            entity_store,
+                        )
+                        .unwrap();
                 }
             }
         }
