@@ -1611,6 +1611,7 @@ dependencies = [
  "crossbeam",
  "diesel",
  "dotenv",
+ "enum_dispatch",
  "envconfig",
  "futures",
  "marginfi",

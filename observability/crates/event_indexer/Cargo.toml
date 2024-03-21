@@ -23,6 +23,7 @@ chrono = { workspace = true }
 crossbeam = { workspace = true }
 diesel = { workspace = true, features = ["postgres", "chrono", "numeric"] }
 dotenv = { workspace = true }
+enum_dispatch = { workspace = true }
 envconfig = { workspace = true }
 futures = { workspace = true }
 marginfi = { workspace = true }
