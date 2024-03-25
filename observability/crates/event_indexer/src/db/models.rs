@@ -143,3 +143,20 @@ pub struct WithdrawEmissionsEvents {
     pub emission_mint_id: i32,
     pub amount: Decimal,
 }
+
+#[derive(Default, Debug, Queryable, Selectable, Insertable)]
+#[diesel(table_name = liquidate_events)]
+pub struct LiquidateEvents {
+    #[diesel(skip_insertion)]
+    pub id: i32,
+    pub timestamp: chrono::NaiveDateTime,
+    pub tx_sig: String,
+    pub in_flashloan: bool,
+    pub call_stack: String,
+    pub liquidator_account_id: i32,
+    pub liquidatee_account_id: i32,
+    pub liquidator_user_id: i32,
+    pub asset_bank_id: i32,
+    pub liability_bank_id: i32,
+    pub asset_amount: Decimal,
+}

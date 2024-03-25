@@ -13,7 +13,7 @@ use spl_token::state::Mint;
 
 use crate::{
     db::{establish_connection, models::*, schema::*},
-    error::IndexingError,
+    error::{FetchEntityError, IndexingError},
 };
 
 pub struct EntityStore {
@@ -90,14 +90,8 @@ impl MintData {
         }
 
         let mint = MintData::fetch_from_rpc(rpc_client, address)?;
-        if let Some(mint) = mint {
-            Ok(mint)
-        } else {
-            Err(IndexingError::FailedToFetchEntity(format!(
-                "Mint not found: {}",
-                address
-            )))
-        }
+
+        Ok(mint)
     }
 
     fn fetch_from_db(
@@ -109,7 +103,12 @@ impl MintData {
             .select(Mints::as_select())
             .limit(1)
             .load(db_connection)
-            .map_err(|e| IndexingError::FailedToFetchEntity(e.to_string()))?;
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "mint".to_string(),
+                    e.to_string(),
+                ))
+            })?;
 
         if db_records.is_empty() {
             return Ok(None);
@@ -125,24 +124,29 @@ impl MintData {
         }))
     }
 
-    fn fetch_from_rpc(
-        rpc_client: &RpcClient,
-        address: &str,
-    ) -> Result<Option<MintData>, IndexingError> {
+    fn fetch_from_rpc(rpc_client: &RpcClient, address: &str) -> Result<MintData, IndexingError> {
         let mint_data = rpc_client
             .get_account_data(&Pubkey::from_str(address).unwrap())
-            .map_err(|e| IndexingError::FailedToFetchEntity(e.to_string()))?;
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "mint".to_string(),
+                    e.to_string(),
+                ))
+            })?;
 
         let mint = Mint::unpack_from_slice(&mint_data).map_err(|e| {
-            IndexingError::FailedToFetchEntity(format!("Failed to unpack mint: {}", e))
+            IndexingError::FailedToFetchEntity(FetchEntityError::UnpackError(
+                "mint".to_string(),
+                e.to_string(),
+            ))
         })?;
 
-        Ok(Some(MintData {
+        Ok(MintData {
             id: None,
             address: address.to_string(),
             symbol: "".to_string(),
             decimals: mint.decimals as i16,
-        }))
+        })
     }
 }
 
@@ -166,14 +170,8 @@ impl BankData {
         }
 
         let mint = BankData::fetch_from_rpc(rpc_client, db_connection, address)?;
-        if let Some(mint) = mint {
-            Ok(mint)
-        } else {
-            Err(IndexingError::FailedToFetchEntity(format!(
-                "Bank not found: {}",
-                address
-            )))
-        }
+
+        Ok(mint)
     }
 
     fn fetch_from_db(
@@ -185,7 +183,12 @@ impl BankData {
             .select(Banks::as_select())
             .limit(1)
             .load(db_connection)
-            .map_err(|e| IndexingError::FailedToFetchEntity(e.to_string()))?;
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "bank".to_string(),
+                    e.to_string(),
+                ))
+            })?;
 
         if db_records.is_empty() {
             return Ok(None);
@@ -193,13 +196,9 @@ impl BankData {
 
         let db_record = db_records.get(0).unwrap();
 
-        let mint_data = MintData::fetch_from_db(db_connection, &db_record.mint_id.to_string())?
-            .ok_or_else(|| {
-                IndexingError::FailedToFetchEntity(format!(
-                    "Mint not found in DB: {}",
-                    db_record.mint_id
-                ))
-            })?;
+        let mint_data = MintData::fetch_from_db(db_connection, &db_record.mint_id.to_string())
+            .unwrap()
+            .unwrap();
 
         Ok(Some(BankData {
             id: Some(db_record.id),
@@ -212,22 +211,30 @@ impl BankData {
         rpc_client: &RpcClient,
         db_connection: &mut PgConnection,
         address: &str,
-    ) -> Result<Option<BankData>, IndexingError> {
+    ) -> Result<BankData, IndexingError> {
         let mint_data = rpc_client
             .get_account_data(&Pubkey::from_str(address).unwrap())
-            .map_err(|e| IndexingError::FailedToFetchEntity(e.to_string()))?;
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "bank".to_string(),
+                    e.to_string(),
+                ))
+            })?;
 
         let bank = Bank::try_deserialize(&mut mint_data.as_slice()).map_err(|e| {
-            IndexingError::FailedToFetchEntity(format!("Failed to unpack bank: {}", e))
+            IndexingError::FailedToFetchEntity(FetchEntityError::UnpackError(
+                "bank".to_string(),
+                e.to_string(),
+            ))
         })?;
 
         let mint_data = MintData::fetch(rpc_client, db_connection, &bank.mint.to_string())?;
 
-        Ok(Some(BankData {
+        Ok(BankData {
             id: None,
             address: address.to_string(),
             mint: mint_data,
-        }))
+        })
     }
 }
 

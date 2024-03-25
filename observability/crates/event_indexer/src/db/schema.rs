@@ -67,6 +67,24 @@ diesel::table! {
 }
 
 diesel::table! {
+    liquidate_events (id) {
+        id -> Int4,
+        timestamp -> Timestamp,
+        tx_sig -> Varchar,
+        in_flashloan -> Bool,
+        call_stack -> Varchar,
+        liquidator_account_id -> Int4,
+        liquidatee_account_id -> Int4,
+        liquidator_user_id -> Int4,
+        asset_bank_id -> Int4,
+        liability_bank_id -> Int4,
+        asset_amount -> Numeric,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     mints (id) {
         id -> Int4,
         address -> Varchar,
@@ -162,6 +180,7 @@ diesel::joinable!(create_account_events -> users (authority_id));
 diesel::joinable!(deposit_events -> accounts (account_id));
 diesel::joinable!(deposit_events -> banks (bank_id));
 diesel::joinable!(deposit_events -> users (authority_id));
+diesel::joinable!(liquidate_events -> users (liquidator_user_id));
 diesel::joinable!(repay_events -> accounts (account_id));
 diesel::joinable!(repay_events -> banks (bank_id));
 diesel::joinable!(repay_events -> users (authority_id));
@@ -180,6 +199,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     borrow_events,
     create_account_events,
     deposit_events,
+    liquidate_events,
     mints,
     repay_events,
     transfer_account_authority_events,
