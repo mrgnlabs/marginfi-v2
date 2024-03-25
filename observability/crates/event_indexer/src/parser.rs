@@ -8,10 +8,10 @@ use diesel::{
 use enum_dispatch::enum_dispatch;
 use marginfi::instruction::{
     LendingAccountBorrow, LendingAccountCloseBalance, LendingAccountDeposit,
-    LendingAccountEndFlashloan, LendingAccountRepay, LendingAccountSettleEmissions,
-    LendingAccountStartFlashloan, LendingAccountWithdraw, LendingAccountWithdrawEmissions,
-    LendingPoolAccrueBankInterest, LendingPoolAddBankWithSeed, LendingPoolConfigureBank,
-    MarginfiAccountInitialize, SetNewAccountAuthority,
+    LendingAccountEndFlashloan, LendingAccountLiquidate, LendingAccountRepay,
+    LendingAccountSettleEmissions, LendingAccountStartFlashloan, LendingAccountWithdraw,
+    LendingAccountWithdrawEmissions, LendingPoolAccrueBankInterest, LendingPoolAddBankWithSeed,
+    LendingPoolConfigureBank, MarginfiAccountInitialize, SetNewAccountAuthority,
 };
 use rust_decimal::{prelude::FromPrimitive, Decimal};
 use solana_sdk::{
@@ -71,8 +71,7 @@ pub enum Event {
     Repay(RepayEvent),
     Withdraw(WithdrawEvent),
     WithdrawEmissions(WithdrawEmissionsEvent),
-    // Liquidate(LiquidateEvent),
-
+    Liquidate(LiquidateEvent),
     // // Admin actions
     // AddBank(AddBankEvent),
 }
@@ -91,7 +90,7 @@ impl MarginfiEvent for CreateAccountEvent {
         in_flashloan: bool,
         call_stack: String,
         db_connection: &mut PgConnection,
-        entity_store: &mut EntityStore,
+        _entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
         db_connection
             .transaction(|connection: &mut PgConnection| {
@@ -169,7 +168,7 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
         in_flashloan: bool,
         call_stack: String,
         db_connection: &mut PgConnection,
-        entity_store: &mut EntityStore,
+        _entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
         db_connection
             .transaction(|connection: &mut PgConnection| {
@@ -396,6 +395,10 @@ impl MarginfiEvent for BorrowEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let bank_data = entity_store
+            .get_or_fetch_bank(&self.bank.to_string())
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+
         db_connection
             .transaction(|connection: &mut PgConnection| {
                 let users = users::dsl::users
@@ -437,6 +440,27 @@ impl MarginfiEvent for BorrowEvent {
                     accounts.first().unwrap().id
                 };
 
+                let mints = mints::dsl::mints
+                    .filter(mints::address.eq(bank_data.mint.address.clone()))
+                    .select(Mints::as_select())
+                    .limit(1)
+                    .load(connection)?;
+
+                let mint_id = if mints.len() == 0 {
+                    diesel::insert_into(mints::table)
+                        .values(vec![Mints {
+                            address: bank_data.mint.address.clone(),
+                            symbol: bank_data.mint.symbol.clone(),
+                            decimals: bank_data.mint.decimals,
+                            ..Default::default()
+                        }])
+                        .on_conflict_do_nothing()
+                        .returning(mints::id)
+                        .get_result(connection)?
+                } else {
+                    mints.first().unwrap().id
+                };
+
                 let banks = banks::dsl::banks
                     .filter(banks::address.eq(self.bank.to_string()))
                     .select(Banks::as_select())
@@ -447,6 +471,7 @@ impl MarginfiEvent for BorrowEvent {
                     diesel::insert_into(banks::table)
                         .values(vec![Banks {
                             address: self.bank.to_string(),
+                            mint_id,
                             ..Default::default()
                         }])
                         .on_conflict_do_nothing()
@@ -497,6 +522,10 @@ impl MarginfiEvent for RepayEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let bank_data = entity_store
+            .get_or_fetch_bank(&self.bank.to_string())
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+
         db_connection
             .transaction(|connection: &mut PgConnection| {
                 let users = users::dsl::users
@@ -538,6 +567,27 @@ impl MarginfiEvent for RepayEvent {
                     accounts.first().unwrap().id
                 };
 
+                let mints = mints::dsl::mints
+                    .filter(mints::address.eq(bank_data.mint.address.clone()))
+                    .select(Mints::as_select())
+                    .limit(1)
+                    .load(connection)?;
+
+                let mint_id = if mints.len() == 0 {
+                    diesel::insert_into(mints::table)
+                        .values(vec![Mints {
+                            address: bank_data.mint.address.clone(),
+                            symbol: bank_data.mint.symbol.clone(),
+                            decimals: bank_data.mint.decimals,
+                            ..Default::default()
+                        }])
+                        .on_conflict_do_nothing()
+                        .returning(mints::id)
+                        .get_result(connection)?
+                } else {
+                    mints.first().unwrap().id
+                };
+
                 let banks = banks::dsl::banks
                     .filter(banks::address.eq(self.bank.to_string()))
                     .select(Banks::as_select())
@@ -548,6 +598,7 @@ impl MarginfiEvent for RepayEvent {
                     diesel::insert_into(banks::table)
                         .values(vec![Banks {
                             address: self.bank.to_string(),
+                            mint_id,
                             ..Default::default()
                         }])
                         .on_conflict_do_nothing()
@@ -599,6 +650,10 @@ impl MarginfiEvent for WithdrawEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let bank_data = entity_store
+            .get_or_fetch_bank(&self.bank.to_string())
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+
         db_connection
             .transaction(|connection: &mut PgConnection| {
                 let users = users::dsl::users
@@ -640,6 +695,27 @@ impl MarginfiEvent for WithdrawEvent {
                     accounts.first().unwrap().id
                 };
 
+                let mints = mints::dsl::mints
+                    .filter(mints::address.eq(bank_data.mint.address.clone()))
+                    .select(Mints::as_select())
+                    .limit(1)
+                    .load(connection)?;
+
+                let mint_id = if mints.len() == 0 {
+                    diesel::insert_into(mints::table)
+                        .values(vec![Mints {
+                            address: bank_data.mint.address.clone(),
+                            symbol: bank_data.mint.symbol.clone(),
+                            decimals: bank_data.mint.decimals,
+                            ..Default::default()
+                        }])
+                        .on_conflict_do_nothing()
+                        .returning(mints::id)
+                        .get_result(connection)?
+                } else {
+                    mints.first().unwrap().id
+                };
+
                 let banks = banks::dsl::banks
                     .filter(banks::address.eq(self.bank.to_string()))
                     .select(Banks::as_select())
@@ -650,6 +726,7 @@ impl MarginfiEvent for WithdrawEvent {
                     diesel::insert_into(banks::table)
                         .values(vec![Banks {
                             address: self.bank.to_string(),
+                            mint_id,
                             ..Default::default()
                         }])
                         .on_conflict_do_nothing()
@@ -701,6 +778,13 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let bank_data = entity_store
+            .get_or_fetch_bank(&self.bank.to_string())
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+
+        let emission_mint_data =
+            entity_store.get_or_fetch_mint(&self.emissions_mint.to_string())?;
+
         db_connection
             .transaction(|connection: &mut PgConnection| {
                 let users = users::dsl::users
@@ -742,6 +826,27 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
                     accounts.first().unwrap().id
                 };
 
+                let mints = mints::dsl::mints
+                    .filter(mints::address.eq(bank_data.mint.address.clone()))
+                    .select(Mints::as_select())
+                    .limit(1)
+                    .load(connection)?;
+
+                let mint_id = if mints.len() == 0 {
+                    diesel::insert_into(mints::table)
+                        .values(vec![Mints {
+                            address: bank_data.mint.address.clone(),
+                            symbol: bank_data.mint.symbol.clone(),
+                            decimals: bank_data.mint.decimals,
+                            ..Default::default()
+                        }])
+                        .on_conflict_do_nothing()
+                        .returning(mints::id)
+                        .get_result(connection)?
+                } else {
+                    mints.first().unwrap().id
+                };
+
                 let banks = banks::dsl::banks
                     .filter(banks::address.eq(self.bank.to_string()))
                     .select(Banks::as_select())
@@ -752,6 +857,7 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
                     diesel::insert_into(banks::table)
                         .values(vec![Banks {
                             address: self.bank.to_string(),
+                            mint_id,
                             ..Default::default()
                         }])
                         .on_conflict_do_nothing()
@@ -771,7 +877,8 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
                     diesel::insert_into(mints::table)
                         .values(vec![Mints {
                             address: self.emissions_mint.to_string(),
-
+                            symbol: emission_mint_data.symbol.clone(),
+                            decimals: emission_mint_data.decimals,
                             ..Default::default()
                         }])
                         .on_conflict_do_nothing()
@@ -804,143 +911,154 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
     }
 }
 
-// #[derive(Debug)]
-// pub struct LiquidateEvent {
-//     pub asset_amount: u64,
-//     pub asset_bank: Pubkey,
-//     pub liability_bank: Pubkey,
-//     pub liquidator_account: Pubkey,
-//     pub liquidator_authority: Pubkey,
-//     pub liquidatee_account: Pubkey,
-// }
+#[derive(Debug)]
+pub struct LiquidateEvent {
+    pub asset_amount: u64,
+    pub asset_bank: Pubkey,
+    pub liability_bank: Pubkey,
+    pub liquidator_account: Pubkey,
+    pub liquidator_authority: Pubkey,
+    pub liquidatee_account: Pubkey,
+}
 
-// impl MarginfiEvent for LiquidateEvent {
-//     fn db_insert(
-//         &self,
-//         timestamp: NaiveDateTime,
-//         tx_sig: String,
-//         in_flashloan: bool,
-//         call_stack: String,
-//         db_connection: &mut PgConnection,
-//     ) -> Result<(), IndexingError> {
-//         db_connection.transaction(|connection: &mut PgConnection| {
-//             let users = users::dsl::users
-//                 .filter(users::address.eq(self.liquidator_authority.to_string()))
-//                 .select(Users::as_select())
-//                 .limit(1)
-//                 .load(connection)?;
+impl MarginfiEvent for LiquidateEvent {
+    fn db_insert(
+        &self,
+        timestamp: NaiveDateTime,
+        tx_sig: String,
+        in_flashloan: bool,
+        call_stack: String,
+        db_connection: &mut PgConnection,
+        entity_store: &mut EntityStore,
+    ) -> Result<(), IndexingError> {
+        let asset_bank_data = entity_store
+            .get_or_fetch_bank(&self.asset_bank.to_string())
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
 
-//             let liquidator_authority_id = if users.len() == 0 {
-//                 diesel::insert_into(users::table)
-//                     .values(vec![Users {
-//                         address: self.liquidator_authority.to_string(),
-//                         ..Default::default()
-//                     }])
-//                     .on_conflict_do_nothing()
-//                     .returning(users::id)
-//                     .get_result(connection)?
-//             } else {
-//                 users.first().unwrap().id
-//             };
+        let liability_bank_data = entity_store
+            .get_or_fetch_bank(&self.liability_bank.to_string())
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
 
-//             let users = users::dsl::users
-//                 .filter(users::address.eq(self.liquidator_account.to_string()))
-//                 .select(Users::as_select())
-//                 .limit(1)
-//                 .load(connection)?;
+        db_connection
+            .transaction(|connection: &mut PgConnection| {
+                let users = users::dsl::users
+                    .filter(users::address.eq(self.liquidator_authority.to_string()))
+                    .select(Users::as_select())
+                    .limit(1)
+                    .load(connection)?;
 
-//             let liquidator_account_id = if users.len() == 0 {
-//                 diesel::insert_into(users::table)
-//                     .values(vec![Users {
-//                         address: self.liquidator_account.to_string(),
-//                         ..Default::default()
-//                     }])
-//                     .on_conflict_do_nothing()
-//                     .returning(users::id)
-//                     .get_result(connection)?
-//             } else {
-//                 users.first().unwrap().id
-//             };
+                let liquidator_user_id = if users.len() == 0 {
+                    diesel::insert_into(users::table)
+                        .values(vec![Users {
+                            address: self.liquidator_authority.to_string(),
+                            ..Default::default()
+                        }])
+                        .on_conflict_do_nothing()
+                        .returning(users::id)
+                        .get_result(connection)?
+                } else {
+                    users.first().unwrap().id
+                };
 
-//             let users = users::dsl::users
-//                 .filter(users::address.eq(self.liquidaee_account.to_string()))
-//                 .select(Users::as_select())
-//                 .limit(1)
-//                 .load(connection)?;
+                let accounts = accounts::dsl::accounts
+                    .filter(accounts::address.eq(self.liquidator_account.to_string()))
+                    .select(Accounts::as_select())
+                    .limit(1)
+                    .load(connection)?;
 
-//             let liquidatee_account_id = if users.len() == 0 {
-//                 diesel::insert_into(users::table)
-//                     .values(vec![Users {
-//                         address: self.liquidaee_account.to_string(),
-//                         ..Default::default()
-//                     }])
-//                     .on_conflict_do_nothing()
-//                     .returning(users::id)
-//                     .get_result(connection)?
-//             } else {
-//                 users.first().unwrap().id
-//             };
+                let liquidator_account_id = if accounts.len() == 0 {
+                    diesel::insert_into(accounts::table)
+                        .values(vec![Accounts {
+                            address: self.liquidator_account.to_string(),
+                            ..Default::default()
+                        }])
+                        .on_conflict_do_nothing()
+                        .returning(accounts::id)
+                        .get_result(connection)?
+                } else {
+                    accounts.first().unwrap().id
+                };
 
-//             let banks = banks::dsl::banks
-//                 .filter(banks::address.eq(self.asset_bank.to_string()))
-//                 .select(Banks::as_select())
-//                 .limit(1)
-//                 .load(connection)?;
+                let accounts = accounts::dsl::accounts
+                    .filter(accounts::address.eq(self.liquidatee_account.to_string()))
+                    .select(Accounts::as_select())
+                    .limit(1)
+                    .load(connection)?;
 
-//             let asset_bank_id = if banks.len() == 0 {
-//                 diesel::insert_into(banks::table)
-//                     .values(vec![Banks {
-//                         address: self.asset_bank.to_string(),
-//                         ..Default::default()
-//                     }])
-//                     .on_conflict_do_nothing()
-//                     .returning(banks::id)
-//                     .get_result(connection)?
-//             } else {
-//                 banks.first().unwrap().id
-//             };
+                let liquidatee_account_id = if accounts.len() == 0 {
+                    diesel::insert_into(accounts::table)
+                        .values(vec![Accounts {
+                            address: self.liquidatee_account.to_string(),
+                            ..Default::default()
+                        }])
+                        .on_conflict_do_nothing()
+                        .returning(accounts::id)
+                        .get_result(connection)?
+                } else {
+                    accounts.first().unwrap().id
+                };
 
-//             let banks = banks::dsl::banks
-//                 .filter(banks::address.eq(self.liability_bank.to_string()))
-//                 .select(Banks::as_select())
-//                 .limit(1)
-//                 .load(connection)?;
+                let banks = banks::dsl::banks
+                    .filter(banks::address.eq(self.asset_bank.to_string()))
+                    .select(Banks::as_select())
+                    .limit(1)
+                    .load(connection)?;
 
-//             let liability_bank_id = if banks.len() == 0 {
-//                 diesel::insert_into(banks::table)
-//                     .values(vec![Banks {
-//                         address: self.liability_bank.to_string(),
-//                         ..Default::default()
-//                     }])
-//                     .on_conflict_do_nothing()
-//                     .returning(banks::id)
-//                     .get_result(connection)?
-//             } else {
-//                 banks.first().unwrap().id
-//             };
+                let asset_bank_id = if banks.len() == 0 {
+                    diesel::insert_into(banks::table)
+                        .values(vec![Banks {
+                            address: self.asset_bank.to_string(),
+                            ..Default::default()
+                        }])
+                        .on_conflict_do_nothing()
+                        .returning(banks::id)
+                        .get_result(connection)?
+                } else {
+                    banks.first().unwrap().id
+                };
 
-//             let liquidate_event = LiquidateEvents {
-//                 timestamp,
-//                 liquidator_authority_id,
-//                 tx_sig,
-//                 call_stack,
-//                 in_flashloan,
-//                 asset_bank_id,
-//                 liability_bank_id,
-//                 liquidator_account_id,
-//                 liquidatee_account_id,
-//                 asset_amount: Decimal::from_u64(self.asset_amount).unwrap(),
-//                 ..Default::default()
-//             };
+                let banks = banks::dsl::banks
+                    .filter(banks::address.eq(self.liability_bank.to_string()))
+                    .select(Banks::as_select())
+                    .limit(1)
+                    .load(connection)?;
 
-//             diesel::insert_into(liquidate_events::table)
-//                 .values(&liquidate_event)
-//                 .execute(connection)?;
+                let liability_bank_id = if banks.len() == 0 {
+                    diesel::insert_into(banks::table)
+                        .values(vec![Banks {
+                            address: self.liability_bank.to_string(),
+                            ..Default::default()
+                        }])
+                        .on_conflict_do_nothing()
+                        .returning(banks::id)
+                        .get_result(connection)?
+                } else {
+                    banks.first().unwrap().id
+                };
 
-//             diesel::result::QueryResult::Ok(())
-//         })
-//     }
-// }
+                let liquidate_event = LiquidateEvents {
+                    timestamp,
+                    tx_sig,
+                    call_stack,
+                    in_flashloan,
+                    liquidator_account_id,
+                    liquidatee_account_id,
+                    liquidator_user_id,
+                    asset_bank_id,
+                    liability_bank_id,
+                    asset_amount: Decimal::from_u64(self.asset_amount).unwrap(),
+                    ..Default::default()
+                };
+
+                diesel::insert_into(liquidate_events::table)
+                    .values(&liquidate_event)
+                    .execute(connection)?;
+
+                diesel::result::QueryResult::Ok(())
+            })
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    }
+}
 
 // #[derive(Debug)]
 // pub struct AddBankEvent {
@@ -1275,30 +1393,30 @@ impl MarginfiEventParser {
                     all: instruction.withdraw_all.unwrap_or(false),
                 }))
             }
-            // LendingAccountLiquidate::DISCRIMINATOR => {
-            //     let marginfi_group = *ix_accounts.get(0).unwrap();
-            //     if !marginfi_group.eq(&self.marginfi_group) {
-            //         return None;
-            //     }
+            LendingAccountLiquidate::DISCRIMINATOR => {
+                let marginfi_group = *ix_accounts.get(0).unwrap();
+                if !marginfi_group.eq(&self.marginfi_group) {
+                    return None;
+                }
 
-            //     let instruction =
-            //         LendingAccountLiquidate::deserialize(&mut instruction_data).ok()?;
+                let instruction =
+                    LendingAccountLiquidate::deserialize(&mut instruction_data).ok()?;
 
-            //     let asset_bank = *ix_accounts.get(1).unwrap();
-            //     let liability_bank = *ix_accounts.get(2).unwrap();
-            //     let liquidator_account = *ix_accounts.get(3).unwrap();
-            //     let liquidator_authority = *ix_accounts.get(4).unwrap();
-            //     let liquidatee_account = *ix_accounts.get(5).unwrap();
+                let asset_bank = *ix_accounts.get(1).unwrap();
+                let liability_bank = *ix_accounts.get(2).unwrap();
+                let liquidator_account = *ix_accounts.get(3).unwrap();
+                let liquidator_authority = *ix_accounts.get(4).unwrap();
+                let liquidatee_account = *ix_accounts.get(5).unwrap();
 
-            //     Some(Event::Liquidate(LiquidateEvent {
-            //         asset_amount: instruction.asset_amount,
-            //         asset_bank,
-            //         liability_bank,
-            //         liquidator_account,
-            //         liquidator_authority,
-            //         liquidatee_account,
-            //     }))
-            // }
+                Some(Event::Liquidate(LiquidateEvent {
+                    asset_amount: instruction.asset_amount,
+                    asset_bank,
+                    liability_bank,
+                    liquidator_account,
+                    liquidator_authority,
+                    liquidatee_account,
+                }))
+            }
             LendingAccountWithdrawEmissions::DISCRIMINATOR => {
                 let marginfi_group = *ix_accounts.get(0).unwrap();
                 if !marginfi_group.eq(&self.marginfi_group) {
