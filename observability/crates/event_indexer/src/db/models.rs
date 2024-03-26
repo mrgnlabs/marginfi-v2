@@ -29,8 +29,9 @@ pub struct Users {
     pub address: String,
 }
 
-#[derive(Default, Debug, Queryable, Selectable, Insertable)]
+#[derive(Default, Debug, Queryable, Selectable, Insertable, Associations)]
 #[diesel(table_name = accounts)]
+#[diesel(belongs_to(Users, foreign_key = user_id))]
 pub struct Accounts {
     #[diesel(skip_insertion)]
     pub id: i32,
@@ -39,8 +40,8 @@ pub struct Accounts {
 }
 
 #[derive(Default, Debug, Queryable, Selectable, Insertable, Associations)]
-#[diesel(belongs_to(Accounts, foreign_key = account_id), belongs_to(Users, foreign_key = authority_id))]
 #[diesel(table_name = create_account_events)]
+#[diesel(belongs_to(Accounts, foreign_key = account_id), belongs_to(Users, foreign_key = authority_id))]
 pub struct CreateAccountEvents {
     #[diesel(skip_insertion)]
     pub id: i32,

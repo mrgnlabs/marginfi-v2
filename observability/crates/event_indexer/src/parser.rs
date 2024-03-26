@@ -32,6 +32,7 @@ use crate::{
     db::{models::*, schema::*},
     entity_store::EntityStore,
     error::IndexingError,
+    insert_if_needed,
 };
 
 const SPL_TRANSFER_DISCRIMINATOR: u8 = 3;
@@ -94,44 +95,28 @@ impl MarginfiEvent for CreateAccountEvent {
     ) -> Result<(), IndexingError> {
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let users = users::dsl::users
-                    .filter(users::address.eq(self.authority.to_string()))
-                    .select(Users::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let authority_id = insert_if_needed!(
+                    connection,
+                    users,
+                    Users,
+                    self.authority.to_string(),
+                    Users {
+                        address: self.authority.to_string(),
+                        ..Default::default()
+                    }
+                );
 
-                let authority_id = if users.len() == 0 {
-                    diesel::insert_into(users::table)
-                        .values(vec![Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(users::id)
-                        .get_result(connection)?
-                } else {
-                    users.first().unwrap().id
-                };
-
-                let accounts = accounts::dsl::accounts
-                    .filter(accounts::address.eq(self.account.to_string()))
-                    .select(Accounts::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let account_id = if accounts.len() == 0 {
-                    diesel::insert_into(accounts::table)
-                        .values(vec![Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(accounts::id)
-                        .get_result(connection)?
-                } else {
-                    accounts.first().unwrap().id
-                };
+                let account_id = insert_if_needed!(
+                    connection,
+                    accounts,
+                    Accounts,
+                    self.account.to_string(),
+                    Accounts {
+                        address: self.account.to_string(),
+                        user_id: authority_id,
+                        ..Default::default()
+                    }
+                );
 
                 let create_account_event = CreateAccountEvents {
                     timestamp,
@@ -172,63 +157,39 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
     ) -> Result<(), IndexingError> {
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let users = users::dsl::users
-                    .filter(users::address.eq(self.old_authority.to_string()))
-                    .select(Users::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let old_authority_id = insert_if_needed!(
+                    connection,
+                    users,
+                    Users,
+                    self.old_authority.to_string(),
+                    Users {
+                        address: self.old_authority.to_string(),
+                        ..Default::default()
+                    }
+                );
 
-                let old_authority_id = if users.len() == 0 {
-                    diesel::insert_into(users::table)
-                        .values(vec![Users {
-                            address: self.old_authority.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(users::id)
-                        .get_result(connection)?
-                } else {
-                    users.first().unwrap().id
-                };
+                let new_authority_id = insert_if_needed!(
+                    connection,
+                    users,
+                    Users,
+                    self.new_authority.to_string(),
+                    Users {
+                        address: self.new_authority.to_string(),
+                        ..Default::default()
+                    }
+                );
 
-                let users = users::dsl::users
-                    .filter(users::address.eq(self.new_authority.to_string()))
-                    .select(Users::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let new_authority_id = if users.len() == 0 {
-                    diesel::insert_into(users::table)
-                        .values(vec![Users {
-                            address: self.new_authority.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(users::id)
-                        .get_result(connection)?
-                } else {
-                    users.first().unwrap().id
-                };
-
-                let accounts = accounts::dsl::accounts
-                    .filter(accounts::address.eq(self.account.to_string()))
-                    .select(Accounts::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let account_id = if accounts.len() == 0 {
-                    diesel::insert_into(accounts::table)
-                        .values(vec![Accounts {
-                            address: self.account.to_string(),
-                            user_id: new_authority_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(accounts::id)
-                        .get_result(connection)?
-                } else {
-                    accounts.first().unwrap().id
-                };
+                let account_id = insert_if_needed!(
+                    connection,
+                    accounts,
+                    Accounts,
+                    self.account.to_string(),
+                    Accounts {
+                        address: self.account.to_string(),
+                        user_id: new_authority_id,
+                        ..Default::default()
+                    }
+                );
 
                 let account_authority_transfer_event = TransferAccountAuthorityEvents {
                     timestamp,
@@ -269,91 +230,57 @@ impl MarginfiEvent for DepositEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
-        let bank_data = entity_store
-            .get_or_fetch_bank(&self.bank.to_string())
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let users = users::dsl::users
-                    .filter(users::address.eq(self.authority.to_string()))
-                    .select(Users::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let authority_id = insert_if_needed!(
+                    connection,
+                    users,
+                    Users,
+                    self.authority.to_string(),
+                    Users {
+                        address: self.authority.to_string(),
+                        ..Default::default()
+                    }
+                );
 
-                let authority_id = if users.len() == 0 {
-                    diesel::insert_into(users::table)
-                        .values(vec![Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(users::id)
-                        .get_result(connection)?
-                } else {
-                    users.first().unwrap().id
-                };
+                let account_id = insert_if_needed!(
+                    connection,
+                    accounts,
+                    Accounts,
+                    self.account.to_string(),
+                    Accounts {
+                        address: self.account.to_string(),
+                        user_id: authority_id,
+                        ..Default::default()
+                    }
+                );
 
-                let accounts = accounts::dsl::accounts
-                    .filter(accounts::address.eq(self.account.to_string()))
-                    .select(Accounts::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let bank_mint_id = insert_if_needed!(
+                    connection,
+                    mints,
+                    Mints,
+                    bank_data.mint.address.clone(),
+                    Mints {
+                        address: bank_data.mint.address.clone(),
+                        symbol: bank_data.mint.symbol.clone(),
+                        decimals: bank_data.mint.decimals,
+                        ..Default::default()
+                    }
+                );
 
-                let account_id = if accounts.len() == 0 {
-                    diesel::insert_into(accounts::table)
-                        .values(vec![Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(accounts::id)
-                        .get_result(connection)?
-                } else {
-                    accounts.first().unwrap().id
-                };
-
-                let mints = mints::dsl::mints
-                    .filter(mints::address.eq(bank_data.mint.address.clone()))
-                    .select(Mints::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let mint_id = if mints.len() == 0 {
-                    diesel::insert_into(mints::table)
-                        .values(vec![Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(mints::id)
-                        .get_result(connection)?
-                } else {
-                    mints.first().unwrap().id
-                };
-
-                let banks = banks::dsl::banks
-                    .filter(banks::address.eq(self.bank.to_string()))
-                    .select(Banks::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let bank_id = if banks.len() == 0 {
-                    diesel::insert_into(banks::table)
-                        .values(vec![Banks {
-                            address: self.bank.to_string(),
-                            mint_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(banks::id)
-                        .get_result(connection)?
-                } else {
-                    banks.first().unwrap().id
-                };
+                let bank_id = insert_if_needed!(
+                    connection,
+                    banks,
+                    Banks,
+                    self.bank.to_string(),
+                    Banks {
+                        address: self.bank.to_string(),
+                        mint_id: bank_mint_id,
+                        ..Default::default()
+                    }
+                );
 
                 let deposit_event = DepositEvents {
                     timestamp,
@@ -395,91 +322,57 @@ impl MarginfiEvent for BorrowEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
-        let bank_data = entity_store
-            .get_or_fetch_bank(&self.bank.to_string())
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let users = users::dsl::users
-                    .filter(users::address.eq(self.authority.to_string()))
-                    .select(Users::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let authority_id = insert_if_needed!(
+                    connection,
+                    users,
+                    Users,
+                    self.authority.to_string(),
+                    Users {
+                        address: self.authority.to_string(),
+                        ..Default::default()
+                    }
+                );
 
-                let authority_id = if users.len() == 0 {
-                    diesel::insert_into(users::table)
-                        .values(vec![Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(users::id)
-                        .get_result(connection)?
-                } else {
-                    users.first().unwrap().id
-                };
+                let account_id = insert_if_needed!(
+                    connection,
+                    accounts,
+                    Accounts,
+                    self.account.to_string(),
+                    Accounts {
+                        address: self.account.to_string(),
+                        user_id: authority_id,
+                        ..Default::default()
+                    }
+                );
 
-                let accounts = accounts::dsl::accounts
-                    .filter(accounts::address.eq(self.account.to_string()))
-                    .select(Accounts::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let bank_mint_id = insert_if_needed!(
+                    connection,
+                    mints,
+                    Mints,
+                    bank_data.mint.address.clone(),
+                    Mints {
+                        address: bank_data.mint.address.clone(),
+                        symbol: bank_data.mint.symbol.clone(),
+                        decimals: bank_data.mint.decimals,
+                        ..Default::default()
+                    }
+                );
 
-                let account_id = if accounts.len() == 0 {
-                    diesel::insert_into(accounts::table)
-                        .values(vec![Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(accounts::id)
-                        .get_result(connection)?
-                } else {
-                    accounts.first().unwrap().id
-                };
-
-                let mints = mints::dsl::mints
-                    .filter(mints::address.eq(bank_data.mint.address.clone()))
-                    .select(Mints::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let mint_id = if mints.len() == 0 {
-                    diesel::insert_into(mints::table)
-                        .values(vec![Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(mints::id)
-                        .get_result(connection)?
-                } else {
-                    mints.first().unwrap().id
-                };
-
-                let banks = banks::dsl::banks
-                    .filter(banks::address.eq(self.bank.to_string()))
-                    .select(Banks::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let bank_id = if banks.len() == 0 {
-                    diesel::insert_into(banks::table)
-                        .values(vec![Banks {
-                            address: self.bank.to_string(),
-                            mint_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(banks::id)
-                        .get_result(connection)?
-                } else {
-                    banks.first().unwrap().id
-                };
+                let bank_id = insert_if_needed!(
+                    connection,
+                    banks,
+                    Banks,
+                    self.bank.to_string(),
+                    Banks {
+                        address: self.bank.to_string(),
+                        mint_id: bank_mint_id,
+                        ..Default::default()
+                    }
+                );
 
                 let borrow_event = BorrowEvents {
                     timestamp,
@@ -522,91 +415,57 @@ impl MarginfiEvent for RepayEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
-        let bank_data = entity_store
-            .get_or_fetch_bank(&self.bank.to_string())
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let users = users::dsl::users
-                    .filter(users::address.eq(self.authority.to_string()))
-                    .select(Users::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let authority_id = insert_if_needed!(
+                    connection,
+                    users,
+                    Users,
+                    self.authority.to_string(),
+                    Users {
+                        address: self.authority.to_string(),
+                        ..Default::default()
+                    }
+                );
 
-                let authority_id = if users.len() == 0 {
-                    diesel::insert_into(users::table)
-                        .values(vec![Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(users::id)
-                        .get_result(connection)?
-                } else {
-                    users.first().unwrap().id
-                };
+                let account_id = insert_if_needed!(
+                    connection,
+                    accounts,
+                    Accounts,
+                    self.account.to_string(),
+                    Accounts {
+                        address: self.account.to_string(),
+                        user_id: authority_id,
+                        ..Default::default()
+                    }
+                );
 
-                let accounts = accounts::dsl::accounts
-                    .filter(accounts::address.eq(self.account.to_string()))
-                    .select(Accounts::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let bank_mint_id = insert_if_needed!(
+                    connection,
+                    mints,
+                    Mints,
+                    bank_data.mint.address.clone(),
+                    Mints {
+                        address: bank_data.mint.address.clone(),
+                        symbol: bank_data.mint.symbol.clone(),
+                        decimals: bank_data.mint.decimals,
+                        ..Default::default()
+                    }
+                );
 
-                let account_id = if accounts.len() == 0 {
-                    diesel::insert_into(accounts::table)
-                        .values(vec![Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(accounts::id)
-                        .get_result(connection)?
-                } else {
-                    accounts.first().unwrap().id
-                };
-
-                let mints = mints::dsl::mints
-                    .filter(mints::address.eq(bank_data.mint.address.clone()))
-                    .select(Mints::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let mint_id = if mints.len() == 0 {
-                    diesel::insert_into(mints::table)
-                        .values(vec![Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(mints::id)
-                        .get_result(connection)?
-                } else {
-                    mints.first().unwrap().id
-                };
-
-                let banks = banks::dsl::banks
-                    .filter(banks::address.eq(self.bank.to_string()))
-                    .select(Banks::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let bank_id = if banks.len() == 0 {
-                    diesel::insert_into(banks::table)
-                        .values(vec![Banks {
-                            address: self.bank.to_string(),
-                            mint_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(banks::id)
-                        .get_result(connection)?
-                } else {
-                    banks.first().unwrap().id
-                };
+                let bank_id = insert_if_needed!(
+                    connection,
+                    banks,
+                    Banks,
+                    self.bank.to_string(),
+                    Banks {
+                        address: self.bank.to_string(),
+                        mint_id: bank_mint_id,
+                        ..Default::default()
+                    }
+                );
 
                 let repay_event = RepayEvents {
                     timestamp,
@@ -650,91 +509,57 @@ impl MarginfiEvent for WithdrawEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
-        let bank_data = entity_store
-            .get_or_fetch_bank(&self.bank.to_string())
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let users = users::dsl::users
-                    .filter(users::address.eq(self.authority.to_string()))
-                    .select(Users::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let authority_id = insert_if_needed!(
+                    connection,
+                    users,
+                    Users,
+                    self.authority.to_string(),
+                    Users {
+                        address: self.authority.to_string(),
+                        ..Default::default()
+                    }
+                );
 
-                let authority_id = if users.len() == 0 {
-                    diesel::insert_into(users::table)
-                        .values(vec![Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(users::id)
-                        .get_result(connection)?
-                } else {
-                    users.first().unwrap().id
-                };
+                let account_id = insert_if_needed!(
+                    connection,
+                    accounts,
+                    Accounts,
+                    self.account.to_string(),
+                    Accounts {
+                        address: self.account.to_string(),
+                        user_id: authority_id,
+                        ..Default::default()
+                    }
+                );
 
-                let accounts = accounts::dsl::accounts
-                    .filter(accounts::address.eq(self.account.to_string()))
-                    .select(Accounts::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let bank_mint_id = insert_if_needed!(
+                    connection,
+                    mints,
+                    Mints,
+                    bank_data.mint.address.clone(),
+                    Mints {
+                        address: bank_data.mint.address.clone(),
+                        symbol: bank_data.mint.symbol.clone(),
+                        decimals: bank_data.mint.decimals,
+                        ..Default::default()
+                    }
+                );
 
-                let account_id = if accounts.len() == 0 {
-                    diesel::insert_into(accounts::table)
-                        .values(vec![Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(accounts::id)
-                        .get_result(connection)?
-                } else {
-                    accounts.first().unwrap().id
-                };
-
-                let mints = mints::dsl::mints
-                    .filter(mints::address.eq(bank_data.mint.address.clone()))
-                    .select(Mints::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let mint_id = if mints.len() == 0 {
-                    diesel::insert_into(mints::table)
-                        .values(vec![Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(mints::id)
-                        .get_result(connection)?
-                } else {
-                    mints.first().unwrap().id
-                };
-
-                let banks = banks::dsl::banks
-                    .filter(banks::address.eq(self.bank.to_string()))
-                    .select(Banks::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let bank_id = if banks.len() == 0 {
-                    diesel::insert_into(banks::table)
-                        .values(vec![Banks {
-                            address: self.bank.to_string(),
-                            mint_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(banks::id)
-                        .get_result(connection)?
-                } else {
-                    banks.first().unwrap().id
-                };
+                let bank_id = insert_if_needed!(
+                    connection,
+                    banks,
+                    Banks,
+                    self.bank.to_string(),
+                    Banks {
+                        address: self.bank.to_string(),
+                        mint_id: bank_mint_id,
+                        ..Default::default()
+                    }
+                );
 
                 let withdraw_event = WithdrawEvents {
                     timestamp,
@@ -778,115 +603,73 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
-        let bank_data = entity_store
-            .get_or_fetch_bank(&self.bank.to_string())
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
         let emission_mint_data =
             entity_store.get_or_fetch_mint(&self.emissions_mint.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let users = users::dsl::users
-                    .filter(users::address.eq(self.authority.to_string()))
-                    .select(Users::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let authority_id = insert_if_needed!(
+                    connection,
+                    users,
+                    Users,
+                    self.authority.to_string(),
+                    Users {
+                        address: self.authority.to_string(),
+                        ..Default::default()
+                    }
+                );
 
-                let authority_id = if users.len() == 0 {
-                    diesel::insert_into(users::table)
-                        .values(vec![Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(users::id)
-                        .get_result(connection)?
-                } else {
-                    users.first().unwrap().id
-                };
+                let account_id = insert_if_needed!(
+                    connection,
+                    accounts,
+                    Accounts,
+                    self.account.to_string(),
+                    Accounts {
+                        address: self.account.to_string(),
+                        user_id: authority_id,
+                        ..Default::default()
+                    }
+                );
 
-                let accounts = accounts::dsl::accounts
-                    .filter(accounts::address.eq(self.account.to_string()))
-                    .select(Accounts::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let bank_mint_id = insert_if_needed!(
+                    connection,
+                    mints,
+                    Mints,
+                    bank_data.mint.address.clone(),
+                    Mints {
+                        address: bank_data.mint.address.clone(),
+                        symbol: bank_data.mint.symbol.clone(),
+                        decimals: bank_data.mint.decimals,
+                        ..Default::default()
+                    }
+                );
 
-                let account_id = if accounts.len() == 0 {
-                    diesel::insert_into(accounts::table)
-                        .values(vec![Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(accounts::id)
-                        .get_result(connection)?
-                } else {
-                    accounts.first().unwrap().id
-                };
+                let emission_mint_id = insert_if_needed!(
+                    connection,
+                    mints,
+                    Mints,
+                    self.emissions_mint.to_string(),
+                    Mints {
+                        address: self.emissions_mint.to_string(),
+                        symbol: emission_mint_data.symbol.clone(),
+                        decimals: emission_mint_data.decimals,
+                        ..Default::default()
+                    }
+                );
 
-                let mints = mints::dsl::mints
-                    .filter(mints::address.eq(bank_data.mint.address.clone()))
-                    .select(Mints::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let mint_id = if mints.len() == 0 {
-                    diesel::insert_into(mints::table)
-                        .values(vec![Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(mints::id)
-                        .get_result(connection)?
-                } else {
-                    mints.first().unwrap().id
-                };
-
-                let banks = banks::dsl::banks
-                    .filter(banks::address.eq(self.bank.to_string()))
-                    .select(Banks::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let bank_id = if banks.len() == 0 {
-                    diesel::insert_into(banks::table)
-                        .values(vec![Banks {
-                            address: self.bank.to_string(),
-                            mint_id,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(banks::id)
-                        .get_result(connection)?
-                } else {
-                    banks.first().unwrap().id
-                };
-
-                let emissions_mints = mints::dsl::mints
-                    .filter(mints::address.eq(self.emissions_mint.to_string()))
-                    .select(Mints::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let emission_mint_id = if emissions_mints.len() == 0 {
-                    diesel::insert_into(mints::table)
-                        .values(vec![Mints {
-                            address: self.emissions_mint.to_string(),
-                            symbol: emission_mint_data.symbol.clone(),
-                            decimals: emission_mint_data.decimals,
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(mints::id)
-                        .get_result(connection)?
-                } else {
-                    emissions_mints.first().unwrap().id
-                };
+                let bank_id = insert_if_needed!(
+                    connection,
+                    banks,
+                    Banks,
+                    self.bank.to_string(),
+                    Banks {
+                        address: self.bank.to_string(),
+                        mint_id: bank_mint_id,
+                        ..Default::default()
+                    }
+                );
 
                 let withdraw_emissions_event = WithdrawEmissionsEvents {
                     timestamp,
@@ -931,110 +714,111 @@ impl MarginfiEvent for LiquidateEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
-        let asset_bank_data = entity_store
-            .get_or_fetch_bank(&self.asset_bank.to_string())
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        let asset_bank_data = entity_store.get_or_fetch_bank(&self.asset_bank.to_string())?;
 
-        let liability_bank_data = entity_store
-            .get_or_fetch_bank(&self.liability_bank.to_string())
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        let liability_bank_data =
+            entity_store.get_or_fetch_bank(&self.liability_bank.to_string())?;
+
+        let liquidatee_account_data =
+            entity_store.get_or_fetch_account(&self.liquidatee_account.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let users = users::dsl::users
-                    .filter(users::address.eq(self.liquidator_authority.to_string()))
-                    .select(Users::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let liquidator_user_id = insert_if_needed!(
+                    connection,
+                    users,
+                    Users,
+                    self.liquidator_authority.to_string(),
+                    Users {
+                        address: self.liquidator_authority.to_string(),
+                        ..Default::default()
+                    }
+                );
 
-                let liquidator_user_id = if users.len() == 0 {
-                    diesel::insert_into(users::table)
-                        .values(vec![Users {
-                            address: self.liquidator_authority.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(users::id)
-                        .get_result(connection)?
-                } else {
-                    users.first().unwrap().id
-                };
+                let liquidatee_user_id = insert_if_needed!(
+                    connection,
+                    users,
+                    Users,
+                    liquidatee_account_data.authority.clone(),
+                    Users {
+                        address: liquidatee_account_data.authority.clone(),
+                        ..Default::default()
+                    }
+                );
 
-                let accounts = accounts::dsl::accounts
-                    .filter(accounts::address.eq(self.liquidator_account.to_string()))
-                    .select(Accounts::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let liquidator_account_id = insert_if_needed!(
+                    connection,
+                    accounts,
+                    Accounts,
+                    self.liquidator_account.to_string(),
+                    Accounts {
+                        address: self.liquidator_account.to_string(),
+                        user_id: liquidator_user_id,
+                        ..Default::default()
+                    }
+                );
 
-                let liquidator_account_id = if accounts.len() == 0 {
-                    diesel::insert_into(accounts::table)
-                        .values(vec![Accounts {
-                            address: self.liquidator_account.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(accounts::id)
-                        .get_result(connection)?
-                } else {
-                    accounts.first().unwrap().id
-                };
+                let liquidatee_account_id = insert_if_needed!(
+                    connection,
+                    accounts,
+                    Accounts,
+                    self.liquidatee_account.to_string(),
+                    Accounts {
+                        address: self.liquidatee_account.to_string(),
+                        user_id: liquidatee_user_id,
+                        ..Default::default()
+                    }
+                );
 
-                let accounts = accounts::dsl::accounts
-                    .filter(accounts::address.eq(self.liquidatee_account.to_string()))
-                    .select(Accounts::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let asset_mint_id = insert_if_needed!(
+                    connection,
+                    mints,
+                    Mints,
+                    asset_bank_data.mint.address.clone(),
+                    Mints {
+                        address: asset_bank_data.mint.address.clone(),
+                        symbol: asset_bank_data.mint.symbol.clone(),
+                        decimals: asset_bank_data.mint.decimals,
+                        ..Default::default()
+                    }
+                );
 
-                let liquidatee_account_id = if accounts.len() == 0 {
-                    diesel::insert_into(accounts::table)
-                        .values(vec![Accounts {
-                            address: self.liquidatee_account.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(accounts::id)
-                        .get_result(connection)?
-                } else {
-                    accounts.first().unwrap().id
-                };
+                let liability_mint_id = insert_if_needed!(
+                    connection,
+                    mints,
+                    Mints,
+                    liability_bank_data.mint.address.clone(),
+                    Mints {
+                        address: liability_bank_data.mint.address.clone(),
+                        symbol: liability_bank_data.mint.symbol.clone(),
+                        decimals: liability_bank_data.mint.decimals,
+                        ..Default::default()
+                    }
+                );
 
-                let banks = banks::dsl::banks
-                    .filter(banks::address.eq(self.asset_bank.to_string()))
-                    .select(Banks::as_select())
-                    .limit(1)
-                    .load(connection)?;
+                let asset_bank_id = insert_if_needed!(
+                    connection,
+                    banks,
+                    Banks,
+                    self.asset_bank.to_string(),
+                    Banks {
+                        address: self.asset_bank.to_string(),
+                        mint_id: asset_mint_id,
+                        ..Default::default()
+                    }
+                );
 
-                let asset_bank_id = if banks.len() == 0 {
-                    diesel::insert_into(banks::table)
-                        .values(vec![Banks {
-                            address: self.asset_bank.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(banks::id)
-                        .get_result(connection)?
-                } else {
-                    banks.first().unwrap().id
-                };
-
-                let banks = banks::dsl::banks
-                    .filter(banks::address.eq(self.liability_bank.to_string()))
-                    .select(Banks::as_select())
-                    .limit(1)
-                    .load(connection)?;
-
-                let liability_bank_id = if banks.len() == 0 {
-                    diesel::insert_into(banks::table)
-                        .values(vec![Banks {
-                            address: self.liability_bank.to_string(),
-                            ..Default::default()
-                        }])
-                        .on_conflict_do_nothing()
-                        .returning(banks::id)
-                        .get_result(connection)?
-                } else {
-                    banks.first().unwrap().id
-                };
+                let liability_bank_id = insert_if_needed!(
+                    connection,
+                    banks,
+                    Banks,
+                    self.liability_bank.to_string(),
+                    Banks {
+                        address: self.liability_bank.to_string(),
+                        mint_id: liability_mint_id,
+                        ..Default::default()
+                    }
+                );
 
                 let liquidate_event = LiquidateEvents {
                     timestamp,

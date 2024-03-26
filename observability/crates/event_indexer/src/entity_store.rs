@@ -1,8 +1,10 @@
 use std::{collections::HashMap, str::FromStr};
 
 use anchor_lang::AccountDeserialize;
-use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper};
-use marginfi::state::marginfi_group::Bank;
+use diesel::{
+    prelude::*, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper,
+};
+use marginfi::state::{marginfi_account::MarginfiAccount, marginfi_group::Bank};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
@@ -67,6 +69,17 @@ impl EntityStore {
             Ok(bank)
         }
     }
+
+    pub fn get_or_fetch_account(&mut self, address: &str) -> Result<AccountData, IndexingError> {
+        let maybe_account = self.account_cache.get(&address.to_string());
+
+        if let Some(account) = maybe_account {
+            Ok(account.clone())
+        } else {
+            let account = AccountData::fetch(&self.rpc_client, &mut self.db_connection, address)?;
+            Ok(account)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -82,14 +95,14 @@ impl MintData {
         rpc_client: &RpcClient,
         db_connection: &mut PgConnection,
         address: &str,
-    ) -> Result<MintData, IndexingError> {
-        let db_record = MintData::fetch_from_db(db_connection, address)?;
+    ) -> Result<Self, IndexingError> {
+        let db_record = Self::fetch_from_db(db_connection, address)?;
 
         if let Some(db_record) = db_record {
             return Ok(db_record);
         }
 
-        let mint = MintData::fetch_from_rpc(rpc_client, address)?;
+        let mint = Self::fetch_from_rpc(rpc_client, address)?;
 
         Ok(mint)
     }
@@ -97,7 +110,7 @@ impl MintData {
     fn fetch_from_db(
         db_connection: &mut PgConnection,
         address: &str,
-    ) -> Result<Option<MintData>, IndexingError> {
+    ) -> Result<Option<Self>, IndexingError> {
         let db_records = mints::dsl::mints
             .filter(mints::address.eq(address.to_string()))
             .select(Mints::as_select())
@@ -116,7 +129,7 @@ impl MintData {
 
         let db_record = db_records.get(0).unwrap();
 
-        Ok(Some(MintData {
+        Ok(Some(Self {
             id: Some(db_record.id),
             address: db_record.address.clone(),
             symbol: db_record.symbol.clone(),
@@ -124,7 +137,7 @@ impl MintData {
         }))
     }
 
-    fn fetch_from_rpc(rpc_client: &RpcClient, address: &str) -> Result<MintData, IndexingError> {
+    fn fetch_from_rpc(rpc_client: &RpcClient, address: &str) -> Result<Self, IndexingError> {
         let mint_data = rpc_client
             .get_account_data(&Pubkey::from_str(address).unwrap())
             .map_err(|e| {
@@ -141,7 +154,7 @@ impl MintData {
             ))
         })?;
 
-        Ok(MintData {
+        Ok(Self {
             id: None,
             address: address.to_string(),
             symbol: "".to_string(),
@@ -162,14 +175,14 @@ impl BankData {
         rpc_client: &RpcClient,
         db_connection: &mut PgConnection,
         address: &str,
-    ) -> Result<BankData, IndexingError> {
-        let db_record = BankData::fetch_from_db(db_connection, address)?;
+    ) -> Result<Self, IndexingError> {
+        let db_record = Self::fetch_from_db(db_connection, address)?;
 
         if let Some(db_record) = db_record {
             return Ok(db_record);
         }
 
-        let mint = BankData::fetch_from_rpc(rpc_client, db_connection, address)?;
+        let mint = Self::fetch_from_rpc(rpc_client, db_connection, address)?;
 
         Ok(mint)
     }
@@ -177,7 +190,7 @@ impl BankData {
     fn fetch_from_db(
         db_connection: &mut PgConnection,
         address: &str,
-    ) -> Result<Option<BankData>, IndexingError> {
+    ) -> Result<Option<Self>, IndexingError> {
         let db_records = banks::dsl::banks
             .filter(banks::address.eq(address.to_string()))
             .select(Banks::as_select())
@@ -200,7 +213,7 @@ impl BankData {
             .unwrap()
             .unwrap();
 
-        Ok(Some(BankData {
+        Ok(Some(Self {
             id: Some(db_record.id),
             address: db_record.address.clone(),
             mint: mint_data,
@@ -211,7 +224,7 @@ impl BankData {
         rpc_client: &RpcClient,
         db_connection: &mut PgConnection,
         address: &str,
-    ) -> Result<BankData, IndexingError> {
+    ) -> Result<Self, IndexingError> {
         let mint_data = rpc_client
             .get_account_data(&Pubkey::from_str(address).unwrap())
             .map_err(|e| {
@@ -230,7 +243,7 @@ impl BankData {
 
         let mint_data = MintData::fetch(rpc_client, db_connection, &bank.mint.to_string())?;
 
-        Ok(BankData {
+        Ok(Self {
             id: None,
             address: address.to_string(),
             mint: mint_data,
@@ -242,12 +255,88 @@ impl BankData {
 pub struct AccountData {
     pub id: Option<i32>,
     pub address: String,
-    pub user_id: i32,
+    pub authority: String,
 }
 
 impl AccountData {
-    fn get_cache_or_fetch(&mut self, address: &str) -> AccountData {
-        todo!()
+    pub fn fetch(
+        rpc_client: &RpcClient,
+        db_connection: &mut PgConnection,
+        address: &str,
+    ) -> Result<Self, IndexingError> {
+        let db_record = Self::fetch_from_db(db_connection, address)?;
+
+        if let Some(db_record) = db_record {
+            return Ok(db_record);
+        }
+
+        let mint = Self::fetch_from_rpc(rpc_client, address)?;
+
+        Ok(mint)
+    }
+
+    fn fetch_from_db(
+        db_connection: &mut PgConnection,
+        address: &str,
+    ) -> Result<Option<Self>, IndexingError> {
+        let maybe_db_record = accounts::dsl::accounts
+            .filter(accounts::address.eq(address.to_string()))
+            .select(Accounts::as_select())
+            .get_result(db_connection)
+            .optional()
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "account".to_string(),
+                    e.to_string(),
+                ))
+            })?;
+
+        if maybe_db_record.is_none() {
+            return Ok(None);
+        }
+
+        let db_record = maybe_db_record.unwrap();
+
+        let authority = users::dsl::users
+            .find(&db_record.user_id)
+            .select(Users::as_select())
+            .first(db_connection)
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "account".to_string(),
+                    e.to_string(),
+                ))
+            })?;
+
+        Ok(Some(Self {
+            id: Some(db_record.id),
+            address: db_record.address.clone(),
+            authority: authority.address.clone(),
+        }))
+    }
+
+    fn fetch_from_rpc(rpc_client: &RpcClient, address: &str) -> Result<Self, IndexingError> {
+        let mint_data = rpc_client
+            .get_account_data(&Pubkey::from_str(address).unwrap())
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "account".to_string(),
+                    e.to_string(),
+                ))
+            })?;
+
+        let account = MarginfiAccount::try_deserialize(&mut mint_data.as_slice()).map_err(|e| {
+            IndexingError::FailedToFetchEntity(FetchEntityError::UnpackError(
+                "account".to_string(),
+                e.to_string(),
+            ))
+        })?;
+
+        Ok(Self {
+            id: None,
+            address: address.to_string(),
+            authority: account.authority.to_string(),
+        })
     }
 }
 
