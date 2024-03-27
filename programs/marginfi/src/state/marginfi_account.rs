@@ -3,7 +3,7 @@ use super::{
     price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
 };
 use crate::{
-    assert_struct_size, check,
+    assert_struct_align, assert_struct_size, check,
     constants::{
         BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
         EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME,
@@ -24,6 +24,7 @@ use std::{
 use type_layout::TypeLayout;
 
 assert_struct_size!(MarginfiAccount, 2304);
+assert_struct_align!(MarginfiAccount, 8);
 #[account(zero_copy(unsafe))]
 #[repr(C)]
 #[cfg_attr(
@@ -663,6 +664,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 assert_struct_size!(LendingAccount, 1728);
+assert_struct_align!(LendingAccount, 8);
 #[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
@@ -694,6 +696,7 @@ impl LendingAccount {
 }
 
 assert_struct_size!(Balance, 104);
+assert_struct_align!(Balance, 8);
 #[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
