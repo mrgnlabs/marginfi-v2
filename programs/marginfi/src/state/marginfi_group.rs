@@ -5,7 +5,7 @@ use super::{
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
-    assert_struct_size, check,
+    assert_struct_align, assert_struct_size, check,
     constants::{
         FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
@@ -39,8 +39,8 @@ use type_layout::TypeLayout;
 #[derive(Default)]
 pub struct MarginfiGroup {
     pub admin: Pubkey,
-    pub _padding_0: [u128; 32],
-    pub _padding_1: [u128; 32],
+    pub _padding_0: [[u64; 2]; 32],
+    pub _padding_1: [[u64; 2]; 32],
 }
 
 impl MarginfiGroup {
@@ -106,7 +106,7 @@ impl From<InterestRateConfigCompact> for InterestRateConfig {
             insurance_ir_fee: ir_config.insurance_ir_fee,
             protocol_fixed_fee_apr: ir_config.protocol_fixed_fee_apr,
             protocol_ir_fee: ir_config.protocol_ir_fee,
-            _padding: [0; 8],
+            _padding: [[0; 2]; 8],
         }
     }
 }
@@ -144,7 +144,7 @@ pub struct InterestRateConfig {
     pub protocol_fixed_fee_apr: WrappedI80F48,
     pub protocol_ir_fee: WrappedI80F48,
 
-    pub _padding: [u128; 8], // 16 * 8 = 128 bytes
+    pub _padding: [[u64; 2]; 8], // 16 * 8 = 128 bytes
 }
 
 impl InterestRateConfig {
@@ -277,6 +277,7 @@ pub struct InterestRateConfigOpt {
 }
 
 assert_struct_size!(Bank, 1856);
+assert_struct_align!(Bank, 8);
 #[account(zero_copy(unsafe))]
 #[repr(C)]
 #[cfg_attr(
@@ -326,8 +327,8 @@ pub struct Bank {
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
-    pub _padding_0: [u128; 28],
-    pub _padding_1: [u128; 32], // 16 * 2 * 32 = 1024B
+    pub _padding_0: [[u64; 2]; 28],
+    pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
 }
 
 impl Bank {
@@ -373,8 +374,8 @@ impl Bank {
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
-            _padding_0: [0; 28],
-            _padding_1: [0; 32],
+            _padding_0: [[0; 2]; 28],
+            _padding_1: [[0; 2]; 32],
         }
     }
 
@@ -946,6 +947,7 @@ impl From<BankConfig> for BankConfigCompact {
 }
 
 assert_struct_size!(BankConfig, 544);
+assert_struct_align!(BankConfig, 8);
 #[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
@@ -1091,31 +1093,33 @@ impl BankConfig {
 }
 
 #[zero_copy]
-#[repr(C)]
+#[repr(C, align(8))]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
 #[derive(Default, AnchorDeserialize, AnchorSerialize)]
 pub struct WrappedI80F48 {
-    pub value: i128,
+    pub value: [u8; 16],
 }
 
 impl Debug for WrappedI80F48 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", I80F48::from_bits(self.value))
+        write!(f, "{}", I80F48::from_le_bytes(self.value))
     }
 }
 
 impl From<I80F48> for WrappedI80F48 {
     fn from(i: I80F48) -> Self {
-        Self { value: i.to_bits() }
+        Self {
+            value: i.to_le_bytes(),
+        }
     }
 }
 
 impl From<WrappedI80F48> for I80F48 {
     fn from(w: WrappedI80F48) -> Self {
-        Self::from_bits(w.value)
+        Self::from_le_bytes(w.value)
     }
 }
 
