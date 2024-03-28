@@ -400,7 +400,7 @@ impl MarginfiEvent for BorrowEvent {
                     )
                 };
 
-                let bank_mint_id = if let Some(id) = account_data.id {
+                let bank_mint_id = if let Some(id) = bank_data.mint.id {
                     id
                 } else {
                     insert!(
@@ -511,7 +511,7 @@ impl MarginfiEvent for RepayEvent {
                     )
                 };
 
-                let bank_mint_id = if let Some(id) = account_data.id {
+                let bank_mint_id = if let Some(id) = bank_data.mint.id {
                     id
                 } else {
                     insert!(
@@ -623,7 +623,7 @@ impl MarginfiEvent for WithdrawEvent {
                     )
                 };
 
-                let bank_mint_id = if let Some(id) = account_data.id {
+                let bank_mint_id = if let Some(id) = bank_data.mint.id {
                     id
                 } else {
                     insert!(
@@ -737,7 +737,7 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
                     )
                 };
 
-                let bank_mint_id = if let Some(id) = account_data.id {
+                let bank_mint_id = if let Some(id) = bank_data.mint.id {
                     id
                 } else {
                     insert!(
