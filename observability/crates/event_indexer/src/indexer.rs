@@ -289,7 +289,13 @@ async fn store_events(
                 {
                     let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
                     let tx_sig = tx_sig.to_string();
-                    let call_stack = serde_json::to_string(&call_stack).unwrap();
+                    let call_stack = serde_json::to_string(
+                        &call_stack
+                            .into_iter()
+                            .map(|cs| cs.to_string())
+                            .collect::<Vec<_>>(),
+                    )
+                    .unwrap_or_else(|_| "null".to_string());
                     println!("Storing event: {:?}", event);
                     event
                         .db_insert(
