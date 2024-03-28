@@ -2,7 +2,7 @@
 
 CREATE TABLE "mints"(
 	"id" SERIAL PRIMARY KEY,
-	"address" VARCHAR NOT NULL,
+	"address" VARCHAR NOT NULL UNIQUE,
 	"symbol" VARCHAR NOT NULL,
 	"decimals" SMALLINT NOT NULL,
 	"created_at" TIMESTAMP NOT NULL DEFAULT NOW(),

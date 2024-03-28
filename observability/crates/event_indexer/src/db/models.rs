@@ -13,6 +13,7 @@ pub struct Mints {
 }
 
 #[derive(Default, Debug, Queryable, Selectable, Insertable)]
+#[diesel(belongs_to(Mints, foreign_key = mint_id))]
 #[diesel(table_name = banks)]
 pub struct Banks {
     #[diesel(skip_insertion)]
