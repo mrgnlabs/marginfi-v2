@@ -32,7 +32,7 @@ use crate::{
     db::{models::*, schema::*},
     entity_store::EntityStore,
     error::IndexingError,
-    insert_if_needed,
+    get_and_insert_if_needed, insert,
 };
 
 const SPL_TRANSFER_DISCRIMINATOR: u8 = 3;
@@ -91,22 +91,29 @@ impl MarginfiEvent for CreateAccountEvent {
         in_flashloan: bool,
         call_stack: String,
         db_connection: &mut PgConnection,
-        _entity_store: &mut EntityStore,
+        entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let authority_data = entity_store.get_or_fetch_user(&self.authority.to_string())?;
+
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let authority_id = insert_if_needed!(
-                    connection,
-                    users,
-                    Users,
-                    self.authority.to_string(),
-                    Users {
-                        address: self.authority.to_string(),
-                        ..Default::default()
-                    }
-                );
+                let authority_id = if let Some(id) = authority_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        users,
+                        Users,
+                        self.authority.to_string(),
+                        Users {
+                            address: self.authority.to_string(),
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let account_id = insert_if_needed!(
+                // Not RPC fetching the account data here because it could lead to race condition with the RPC when live ingesting,
+                let account_id = get_and_insert_if_needed!(
                     connection,
                     accounts,
                     Accounts,
@@ -153,43 +160,59 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
         in_flashloan: bool,
         call_stack: String,
         db_connection: &mut PgConnection,
-        _entity_store: &mut EntityStore,
+        entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let old_authority_data = entity_store.get_or_fetch_user(&self.old_authority.to_string())?;
+        let new_authority_data = entity_store.get_or_fetch_user(&self.new_authority.to_string())?;
+        let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
+
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let old_authority_id = insert_if_needed!(
-                    connection,
-                    users,
-                    Users,
-                    self.old_authority.to_string(),
-                    Users {
-                        address: self.old_authority.to_string(),
-                        ..Default::default()
-                    }
-                );
+                let old_authority_id = if let Some(id) = old_authority_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        users,
+                        Users,
+                        self.old_authority.to_string(),
+                        Users {
+                            address: self.old_authority.to_string(),
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let new_authority_id = insert_if_needed!(
-                    connection,
-                    users,
-                    Users,
-                    self.new_authority.to_string(),
-                    Users {
-                        address: self.new_authority.to_string(),
-                        ..Default::default()
-                    }
-                );
+                let new_authority_id = if let Some(id) = new_authority_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        users,
+                        Users,
+                        self.new_authority.to_string(),
+                        Users {
+                            address: self.new_authority.to_string(),
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let account_id = insert_if_needed!(
-                    connection,
-                    accounts,
-                    Accounts,
-                    self.account.to_string(),
-                    Accounts {
-                        address: self.account.to_string(),
-                        user_id: new_authority_id,
-                        ..Default::default()
-                    }
-                );
+                let account_id = if let Some(id) = account_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        accounts,
+                        Accounts,
+                        self.account.to_string(),
+                        Accounts {
+                            address: self.account.to_string(),
+                            user_id: new_authority_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
                 let account_authority_transfer_event = TransferAccountAuthorityEvents {
                     timestamp,
@@ -230,57 +253,75 @@ impl MarginfiEvent for DepositEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let authority_data = entity_store.get_or_fetch_user(&self.authority.to_string())?;
+        let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let authority_id = insert_if_needed!(
-                    connection,
-                    users,
-                    Users,
-                    self.authority.to_string(),
-                    Users {
-                        address: self.authority.to_string(),
-                        ..Default::default()
-                    }
-                );
+                let authority_id = if let Some(id) = authority_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        users,
+                        Users,
+                        self.authority.to_string(),
+                        Users {
+                            address: self.authority.to_string(),
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let account_id = insert_if_needed!(
-                    connection,
-                    accounts,
-                    Accounts,
-                    self.account.to_string(),
-                    Accounts {
-                        address: self.account.to_string(),
-                        user_id: authority_id,
-                        ..Default::default()
-                    }
-                );
+                let account_id = if let Some(id) = account_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        accounts,
+                        Accounts,
+                        self.account.to_string(),
+                        Accounts {
+                            address: self.account.to_string(),
+                            user_id: authority_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let bank_mint_id = insert_if_needed!(
-                    connection,
-                    mints,
-                    Mints,
-                    bank_data.mint.address.clone(),
-                    Mints {
-                        address: bank_data.mint.address.clone(),
-                        symbol: bank_data.mint.symbol.clone(),
-                        decimals: bank_data.mint.decimals,
-                        ..Default::default()
-                    }
-                );
+                let bank_mint_id = if let Some(id) = bank_data.mint.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        mints,
+                        Mints,
+                        bank_data.mint.address.clone(),
+                        Mints {
+                            address: bank_data.mint.address.clone(),
+                            symbol: bank_data.mint.symbol.clone(),
+                            decimals: bank_data.mint.decimals,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let bank_id = insert_if_needed!(
-                    connection,
-                    banks,
-                    Banks,
-                    self.bank.to_string(),
-                    Banks {
-                        address: self.bank.to_string(),
-                        mint_id: bank_mint_id,
-                        ..Default::default()
-                    }
-                );
+                let bank_id = if let Some(id) = bank_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        banks,
+                        Banks,
+                        self.bank.to_string(),
+                        Banks {
+                            address: self.bank.to_string(),
+                            mint_id: bank_mint_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
                 let deposit_event = DepositEvents {
                     timestamp,
@@ -322,57 +363,75 @@ impl MarginfiEvent for BorrowEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let authority_data = entity_store.get_or_fetch_user(&self.authority.to_string())?;
+        let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let authority_id = insert_if_needed!(
-                    connection,
-                    users,
-                    Users,
-                    self.authority.to_string(),
-                    Users {
-                        address: self.authority.to_string(),
-                        ..Default::default()
-                    }
-                );
+                let authority_id = if let Some(id) = authority_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        users,
+                        Users,
+                        self.authority.to_string(),
+                        Users {
+                            address: self.authority.to_string(),
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let account_id = insert_if_needed!(
-                    connection,
-                    accounts,
-                    Accounts,
-                    self.account.to_string(),
-                    Accounts {
-                        address: self.account.to_string(),
-                        user_id: authority_id,
-                        ..Default::default()
-                    }
-                );
+                let account_id = if let Some(id) = account_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        accounts,
+                        Accounts,
+                        self.account.to_string(),
+                        Accounts {
+                            address: self.account.to_string(),
+                            user_id: authority_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let bank_mint_id = insert_if_needed!(
-                    connection,
-                    mints,
-                    Mints,
-                    bank_data.mint.address.clone(),
-                    Mints {
-                        address: bank_data.mint.address.clone(),
-                        symbol: bank_data.mint.symbol.clone(),
-                        decimals: bank_data.mint.decimals,
-                        ..Default::default()
-                    }
-                );
+                let bank_mint_id = if let Some(id) = account_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        mints,
+                        Mints,
+                        bank_data.mint.address.clone(),
+                        Mints {
+                            address: bank_data.mint.address.clone(),
+                            symbol: bank_data.mint.symbol.clone(),
+                            decimals: bank_data.mint.decimals,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let bank_id = insert_if_needed!(
-                    connection,
-                    banks,
-                    Banks,
-                    self.bank.to_string(),
-                    Banks {
-                        address: self.bank.to_string(),
-                        mint_id: bank_mint_id,
-                        ..Default::default()
-                    }
-                );
+                let bank_id = if let Some(id) = bank_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        banks,
+                        Banks,
+                        self.bank.to_string(),
+                        Banks {
+                            address: self.bank.to_string(),
+                            mint_id: bank_mint_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
                 let borrow_event = BorrowEvents {
                     timestamp,
@@ -415,57 +474,75 @@ impl MarginfiEvent for RepayEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let authority_data = entity_store.get_or_fetch_user(&self.authority.to_string())?;
+        let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let authority_id = insert_if_needed!(
-                    connection,
-                    users,
-                    Users,
-                    self.authority.to_string(),
-                    Users {
-                        address: self.authority.to_string(),
-                        ..Default::default()
-                    }
-                );
+                let authority_id = if let Some(id) = authority_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        users,
+                        Users,
+                        self.authority.to_string(),
+                        Users {
+                            address: self.authority.to_string(),
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let account_id = insert_if_needed!(
-                    connection,
-                    accounts,
-                    Accounts,
-                    self.account.to_string(),
-                    Accounts {
-                        address: self.account.to_string(),
-                        user_id: authority_id,
-                        ..Default::default()
-                    }
-                );
+                let account_id = if let Some(id) = account_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        accounts,
+                        Accounts,
+                        self.account.to_string(),
+                        Accounts {
+                            address: self.account.to_string(),
+                            user_id: authority_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let bank_mint_id = insert_if_needed!(
-                    connection,
-                    mints,
-                    Mints,
-                    bank_data.mint.address.clone(),
-                    Mints {
-                        address: bank_data.mint.address.clone(),
-                        symbol: bank_data.mint.symbol.clone(),
-                        decimals: bank_data.mint.decimals,
-                        ..Default::default()
-                    }
-                );
+                let bank_mint_id = if let Some(id) = account_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        mints,
+                        Mints,
+                        bank_data.mint.address.clone(),
+                        Mints {
+                            address: bank_data.mint.address.clone(),
+                            symbol: bank_data.mint.symbol.clone(),
+                            decimals: bank_data.mint.decimals,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let bank_id = insert_if_needed!(
-                    connection,
-                    banks,
-                    Banks,
-                    self.bank.to_string(),
-                    Banks {
-                        address: self.bank.to_string(),
-                        mint_id: bank_mint_id,
-                        ..Default::default()
-                    }
-                );
+                let bank_id = if let Some(id) = bank_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        banks,
+                        Banks,
+                        self.bank.to_string(),
+                        Banks {
+                            address: self.bank.to_string(),
+                            mint_id: bank_mint_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
                 let repay_event = RepayEvents {
                     timestamp,
@@ -509,57 +586,75 @@ impl MarginfiEvent for WithdrawEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let authority_data = entity_store.get_or_fetch_user(&self.authority.to_string())?;
+        let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let authority_id = insert_if_needed!(
-                    connection,
-                    users,
-                    Users,
-                    self.authority.to_string(),
-                    Users {
-                        address: self.authority.to_string(),
-                        ..Default::default()
-                    }
-                );
+                let authority_id = if let Some(id) = authority_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        users,
+                        Users,
+                        self.authority.to_string(),
+                        Users {
+                            address: self.authority.to_string(),
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let account_id = insert_if_needed!(
-                    connection,
-                    accounts,
-                    Accounts,
-                    self.account.to_string(),
-                    Accounts {
-                        address: self.account.to_string(),
-                        user_id: authority_id,
-                        ..Default::default()
-                    }
-                );
+                let account_id = if let Some(id) = account_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        accounts,
+                        Accounts,
+                        self.account.to_string(),
+                        Accounts {
+                            address: self.account.to_string(),
+                            user_id: authority_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let bank_mint_id = insert_if_needed!(
-                    connection,
-                    mints,
-                    Mints,
-                    bank_data.mint.address.clone(),
-                    Mints {
-                        address: bank_data.mint.address.clone(),
-                        symbol: bank_data.mint.symbol.clone(),
-                        decimals: bank_data.mint.decimals,
-                        ..Default::default()
-                    }
-                );
+                let bank_mint_id = if let Some(id) = account_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        mints,
+                        Mints,
+                        bank_data.mint.address.clone(),
+                        Mints {
+                            address: bank_data.mint.address.clone(),
+                            symbol: bank_data.mint.symbol.clone(),
+                            decimals: bank_data.mint.decimals,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let bank_id = insert_if_needed!(
-                    connection,
-                    banks,
-                    Banks,
-                    self.bank.to_string(),
-                    Banks {
-                        address: self.bank.to_string(),
-                        mint_id: bank_mint_id,
-                        ..Default::default()
-                    }
-                );
+                let bank_id = if let Some(id) = bank_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        banks,
+                        Banks,
+                        self.bank.to_string(),
+                        Banks {
+                            address: self.bank.to_string(),
+                            mint_id: bank_mint_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
                 let withdraw_event = WithdrawEvents {
                     timestamp,
@@ -603,73 +698,94 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        let authority_data = entity_store.get_or_fetch_user(&self.authority.to_string())?;
+        let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
-
         let emission_mint_data =
             entity_store.get_or_fetch_mint(&self.emissions_mint.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let authority_id = insert_if_needed!(
-                    connection,
-                    users,
-                    Users,
-                    self.authority.to_string(),
-                    Users {
-                        address: self.authority.to_string(),
-                        ..Default::default()
-                    }
-                );
+                let authority_id = if let Some(id) = authority_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        users,
+                        Users,
+                        self.authority.to_string(),
+                        Users {
+                            address: self.authority.to_string(),
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let account_id = insert_if_needed!(
-                    connection,
-                    accounts,
-                    Accounts,
-                    self.account.to_string(),
-                    Accounts {
-                        address: self.account.to_string(),
-                        user_id: authority_id,
-                        ..Default::default()
-                    }
-                );
+                let account_id = if let Some(id) = account_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        accounts,
+                        Accounts,
+                        self.account.to_string(),
+                        Accounts {
+                            address: self.account.to_string(),
+                            user_id: authority_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let bank_mint_id = insert_if_needed!(
-                    connection,
-                    mints,
-                    Mints,
-                    bank_data.mint.address.clone(),
-                    Mints {
-                        address: bank_data.mint.address.clone(),
-                        symbol: bank_data.mint.symbol.clone(),
-                        decimals: bank_data.mint.decimals,
-                        ..Default::default()
-                    }
-                );
+                let bank_mint_id = if let Some(id) = account_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        mints,
+                        Mints,
+                        bank_data.mint.address.clone(),
+                        Mints {
+                            address: bank_data.mint.address.clone(),
+                            symbol: bank_data.mint.symbol.clone(),
+                            decimals: bank_data.mint.decimals,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let emission_mint_id = insert_if_needed!(
-                    connection,
-                    mints,
-                    Mints,
-                    self.emissions_mint.to_string(),
-                    Mints {
-                        address: self.emissions_mint.to_string(),
-                        symbol: emission_mint_data.symbol.clone(),
-                        decimals: emission_mint_data.decimals,
-                        ..Default::default()
-                    }
-                );
+                let emission_mint_id = if let Some(id) = emission_mint_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        mints,
+                        Mints,
+                        self.emissions_mint.to_string(),
+                        Mints {
+                            address: self.emissions_mint.to_string(),
+                            symbol: emission_mint_data.symbol.clone(),
+                            decimals: emission_mint_data.decimals,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let bank_id = insert_if_needed!(
-                    connection,
-                    banks,
-                    Banks,
-                    self.bank.to_string(),
-                    Banks {
-                        address: self.bank.to_string(),
-                        mint_id: bank_mint_id,
-                        ..Default::default()
-                    }
-                );
+                let bank_id = if let Some(id) = bank_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        banks,
+                        Banks,
+                        self.bank.to_string(),
+                        Banks {
+                            address: self.bank.to_string(),
+                            mint_id: bank_mint_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
                 let withdraw_emissions_event = WithdrawEmissionsEvents {
                     timestamp,
@@ -714,111 +830,148 @@ impl MarginfiEvent for LiquidateEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
+        // Need to fetch this on explicitly as authority of the liquidator account might have changed since this event
+        let liquidator_user_data =
+            entity_store.get_or_fetch_user(&self.liquidator_authority.to_string())?;
         let asset_bank_data = entity_store.get_or_fetch_bank(&self.asset_bank.to_string())?;
-
         let liability_bank_data =
             entity_store.get_or_fetch_bank(&self.liability_bank.to_string())?;
-
+        let liquidator_account_data =
+            entity_store.get_or_fetch_account(&self.liquidator_account.to_string())?;
         let liquidatee_account_data =
             entity_store.get_or_fetch_account(&self.liquidatee_account.to_string())?;
 
         db_connection
             .transaction(|connection: &mut PgConnection| {
-                let liquidator_user_id = insert_if_needed!(
-                    connection,
-                    users,
-                    Users,
-                    self.liquidator_authority.to_string(),
-                    Users {
-                        address: self.liquidator_authority.to_string(),
-                        ..Default::default()
-                    }
-                );
+                let liquidator_user_id = if let Some(id) = liquidator_user_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        users,
+                        Users,
+                        self.liquidator_authority.to_string(),
+                        Users {
+                            address: self.liquidator_authority.to_string(),
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let liquidatee_user_id = insert_if_needed!(
-                    connection,
-                    users,
-                    Users,
-                    liquidatee_account_data.authority.clone(),
-                    Users {
-                        address: liquidatee_account_data.authority.clone(),
-                        ..Default::default()
-                    }
-                );
+                // Using the current liquidatee account authority as we do no know the authority at time of liquidation (not in the event data)
+                let current_liquidatee_user_id =
+                    if let Some(id) = liquidatee_account_data.authority.id {
+                        id
+                    } else {
+                        get_and_insert_if_needed!(
+                            connection,
+                            users,
+                            Users,
+                            liquidatee_account_data.authority.address.clone(),
+                            Users {
+                                address: liquidatee_account_data.authority.address.clone(),
+                                ..Default::default()
+                            }
+                        )
+                    };
 
-                let liquidator_account_id = insert_if_needed!(
-                    connection,
-                    accounts,
-                    Accounts,
-                    self.liquidator_account.to_string(),
-                    Accounts {
-                        address: self.liquidator_account.to_string(),
-                        user_id: liquidator_user_id,
-                        ..Default::default()
-                    }
-                );
+                let liquidator_account_id = if let Some(id) = liquidator_account_data.id {
+                    id
+                } else {
+                    get_and_insert_if_needed!(
+                        connection,
+                        accounts,
+                        Accounts,
+                        self.liquidator_account.to_string(),
+                        Accounts {
+                            address: self.liquidator_account.to_string(),
+                            user_id: liquidator_user_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let liquidatee_account_id = insert_if_needed!(
-                    connection,
-                    accounts,
-                    Accounts,
-                    self.liquidatee_account.to_string(),
-                    Accounts {
-                        address: self.liquidatee_account.to_string(),
-                        user_id: liquidatee_user_id,
-                        ..Default::default()
-                    }
-                );
+                let liquidatee_account_id = if let Some(id) = liquidatee_account_data.id {
+                    id
+                } else {
+                    get_and_insert_if_needed!(
+                        connection,
+                        accounts,
+                        Accounts,
+                        self.liquidatee_account.to_string(),
+                        Accounts {
+                            address: self.liquidatee_account.to_string(),
+                            user_id: current_liquidatee_user_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let asset_mint_id = insert_if_needed!(
-                    connection,
-                    mints,
-                    Mints,
-                    asset_bank_data.mint.address.clone(),
-                    Mints {
-                        address: asset_bank_data.mint.address.clone(),
-                        symbol: asset_bank_data.mint.symbol.clone(),
-                        decimals: asset_bank_data.mint.decimals,
-                        ..Default::default()
-                    }
-                );
+                let asset_mint_id = if let Some(id) = asset_bank_data.mint.id {
+                    id
+                } else {
+                    get_and_insert_if_needed!(
+                        connection,
+                        mints,
+                        Mints,
+                        asset_bank_data.mint.address.clone(),
+                        Mints {
+                            address: asset_bank_data.mint.address.clone(),
+                            symbol: asset_bank_data.mint.symbol.clone(),
+                            decimals: asset_bank_data.mint.decimals,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let liability_mint_id = insert_if_needed!(
-                    connection,
-                    mints,
-                    Mints,
-                    liability_bank_data.mint.address.clone(),
-                    Mints {
-                        address: liability_bank_data.mint.address.clone(),
-                        symbol: liability_bank_data.mint.symbol.clone(),
-                        decimals: liability_bank_data.mint.decimals,
-                        ..Default::default()
-                    }
-                );
+                let liability_mint_id = if let Some(id) = liability_bank_data.mint.id {
+                    id
+                } else {
+                    get_and_insert_if_needed!(
+                        connection,
+                        mints,
+                        Mints,
+                        liability_bank_data.mint.address.clone(),
+                        Mints {
+                            address: liability_bank_data.mint.address.clone(),
+                            symbol: liability_bank_data.mint.symbol.clone(),
+                            decimals: liability_bank_data.mint.decimals,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let asset_bank_id = insert_if_needed!(
-                    connection,
-                    banks,
-                    Banks,
-                    self.asset_bank.to_string(),
-                    Banks {
-                        address: self.asset_bank.to_string(),
-                        mint_id: asset_mint_id,
-                        ..Default::default()
-                    }
-                );
+                let asset_bank_id = if let Some(id) = asset_bank_data.id {
+                    id
+                } else {
+                    get_and_insert_if_needed!(
+                        connection,
+                        banks,
+                        Banks,
+                        self.asset_bank.to_string(),
+                        Banks {
+                            address: self.asset_bank.to_string(),
+                            mint_id: asset_mint_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
-                let liability_bank_id = insert_if_needed!(
-                    connection,
-                    banks,
-                    Banks,
-                    self.liability_bank.to_string(),
-                    Banks {
-                        address: self.liability_bank.to_string(),
-                        mint_id: liability_mint_id,
-                        ..Default::default()
-                    }
-                );
+                let liability_bank_id = if let Some(id) = liability_bank_data.id {
+                    id
+                } else {
+                    get_and_insert_if_needed!(
+                        connection,
+                        banks,
+                        Banks,
+                        self.liability_bank.to_string(),
+                        Banks {
+                            address: self.liability_bank.to_string(),
+                            mint_id: liability_mint_id,
+                            ..Default::default()
+                        }
+                    )
+                };
 
                 let liquidate_event = LiquidateEvents {
                     timestamp,
