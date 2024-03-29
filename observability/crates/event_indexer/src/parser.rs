@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use anchor_lang::{AnchorDeserialize, Discriminator};
 use chrono::NaiveDateTime;
 use diesel::{
-    Connection, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper,
+    Connection, ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl,
+    SelectableHelper,
 };
 use enum_dispatch::enum_dispatch;
 use marginfi::instruction::{
@@ -26,7 +27,7 @@ use solana_sdk::{
 use solana_transaction_status::{
     InnerInstruction, InnerInstructions, VersionedTransactionWithStatusMeta,
 };
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use crate::{
     db::{models::*, schema::*},
@@ -135,9 +136,16 @@ impl MarginfiEvent for CreateAccountEvent {
                     ..Default::default()
                 };
 
-                diesel::insert_into(create_account_events::table)
+                let id: Option<i32> = diesel::insert_into(create_account_events::table)
                     .values(&create_account_event)
-                    .execute(connection)?;
+                    .on_conflict_do_nothing()
+                    .returning(create_account_events::id)
+                    .get_result(connection)
+                    .optional()?;
+
+                if id.is_none() {
+                    info!("event already exists");
+                }
 
                 diesel::result::QueryResult::Ok(())
             })
@@ -225,9 +233,16 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
                     ..Default::default()
                 };
 
-                diesel::insert_into(transfer_account_authority_events::table)
+                let id: Option<i32> = diesel::insert_into(transfer_account_authority_events::table)
                     .values(&account_authority_transfer_event)
-                    .execute(connection)?;
+                    .on_conflict_do_nothing()
+                    .returning(transfer_account_authority_events::id)
+                    .get_result(connection)
+                    .optional()?;
+
+                if id.is_none() {
+                    info!("event already exists");
+                }
 
                 diesel::result::QueryResult::Ok(())
             })
@@ -335,9 +350,16 @@ impl MarginfiEvent for DepositEvent {
                     ..Default::default()
                 };
 
-                diesel::insert_into(deposit_events::table)
+                let id: Option<i32> = diesel::insert_into(deposit_events::table)
                     .values(&deposit_event)
-                    .execute(connection)?;
+                    .on_conflict_do_nothing()
+                    .returning(deposit_events::id)
+                    .get_result(connection)
+                    .optional()?;
+
+                if id.is_none() {
+                    info!("event already exists");
+                }
 
                 diesel::result::QueryResult::Ok(())
             })
@@ -445,9 +467,16 @@ impl MarginfiEvent for BorrowEvent {
                     ..Default::default()
                 };
 
-                diesel::insert_into(borrow_events::table)
+                let id: Option<i32> = diesel::insert_into(borrow_events::table)
                     .values(&borrow_event)
-                    .execute(connection)?;
+                    .on_conflict_do_nothing()
+                    .returning(borrow_events::id)
+                    .get_result(connection)
+                    .optional()?;
+
+                if id.is_none() {
+                    info!("event already exists");
+                }
 
                 diesel::result::QueryResult::Ok(())
             })
@@ -557,9 +586,16 @@ impl MarginfiEvent for RepayEvent {
                     ..Default::default()
                 };
 
-                diesel::insert_into(repay_events::table)
+                let id: Option<i32> = diesel::insert_into(repay_events::table)
                     .values(&repay_event)
-                    .execute(connection)?;
+                    .on_conflict_do_nothing()
+                    .returning(repay_events::id)
+                    .get_result(connection)
+                    .optional()?;
+
+                if id.is_none() {
+                    info!("event already exists");
+                }
 
                 diesel::result::QueryResult::Ok(())
             })
@@ -669,9 +705,16 @@ impl MarginfiEvent for WithdrawEvent {
                     ..Default::default()
                 };
 
-                diesel::insert_into(withdraw_events::table)
-                    .values(&withdraw_event)
-                    .execute(connection)?;
+                let id: Option<i32> = diesel::insert_into(withdraw_events::table)
+                    .values(vec![withdraw_event])
+                    .on_conflict_do_nothing()
+                    .returning(withdraw_events::id)
+                    .get_result(connection)
+                    .optional()?;
+
+                if id.is_none() {
+                    info!("event already exists");
+                }
 
                 diesel::result::QueryResult::Ok(())
             })
@@ -800,9 +843,16 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
                     ..Default::default()
                 };
 
-                diesel::insert_into(withdraw_emissions_events::table)
+                let id: Option<i32> = diesel::insert_into(withdraw_emissions_events::table)
                     .values(&withdraw_emissions_event)
-                    .execute(connection)?;
+                    .on_conflict_do_nothing()
+                    .returning(withdraw_emissions_events::id)
+                    .get_result(connection)
+                    .optional()?;
+
+                if id.is_none() {
+                    info!("event already exists");
+                }
 
                 diesel::result::QueryResult::Ok(())
             })
@@ -987,9 +1037,16 @@ impl MarginfiEvent for LiquidateEvent {
                     ..Default::default()
                 };
 
-                diesel::insert_into(liquidate_events::table)
+                let id: Option<i32> = diesel::insert_into(liquidate_events::table)
                     .values(&liquidate_event)
-                    .execute(connection)?;
+                    .on_conflict_do_nothing()
+                    .returning(liquidate_events::id)
+                    .get_result(connection)
+                    .optional()?;
+
+                if id.is_none() {
+                    info!("event already exists");
+                }
 
                 diesel::result::QueryResult::Ok(())
             })

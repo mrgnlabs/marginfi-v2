@@ -73,6 +73,7 @@ CREATE TABLE "deposit_events"(
 	"authority_id" INT4 NOT NULL REFERENCES "users"("id"),
 	"bank_id" INT4 NOT NULL REFERENCES "banks"("id"),
 	"amount" NUMERIC NOT NULL,
+	"price" NUMERIC,
 	"created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
 	"updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -88,6 +89,7 @@ CREATE TABLE "borrow_events"(
 	"authority_id" INT4 NOT NULL REFERENCES "users"("id"),
 	"bank_id" INT4 NOT NULL REFERENCES "banks"("id"),
 	"amount" NUMERIC NOT NULL,
+	"price" NUMERIC,
 	"created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
 	"updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -103,6 +105,7 @@ CREATE TABLE "repay_events"(
 	"authority_id" INT4 NOT NULL REFERENCES "users"("id"),
 	"bank_id" INT4 NOT NULL REFERENCES "banks"("id"),
 	"amount" NUMERIC NOT NULL,
+	"price" NUMERIC,
 	"all" BOOLEAN NOT NULL,
 	"created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
 	"updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
@@ -119,6 +122,7 @@ CREATE TABLE "withdraw_events"(
 	"authority_id" INT4 NOT NULL REFERENCES "users"("id"),
 	"bank_id" INT4 NOT NULL REFERENCES "banks"("id"),
 	"amount" NUMERIC NOT NULL,
+	"price" NUMERIC,
 	"all" BOOLEAN NOT NULL,
 	"created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
 	"updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
@@ -136,6 +140,7 @@ CREATE TABLE "withdraw_emissions_events"(
 	"bank_id" INT4 NOT NULL REFERENCES "banks"("id"),
 	"emission_mint_id" INT4 NOT NULL REFERENCES "mints"("id"),
 	"amount" NUMERIC NOT NULL,
+	"price" NUMERIC,
 	"created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
 	"updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -153,6 +158,8 @@ CREATE TABLE "liquidate_events"(
 	"asset_bank_id" INT4 NOT NULL REFERENCES "banks"("id"),
 	"liability_bank_id" INT4 NOT NULL REFERENCES "banks"("id"),
 	"asset_amount" NUMERIC NOT NULL,
+	"asset_price" NUMERIC,
+	"liability_price" NUMERIC,
 	"created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
 	"updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
 );
