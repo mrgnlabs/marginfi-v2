@@ -110,7 +110,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal 
-          toolchain: nightly-2023-04-19
+          toolchain: nightly-2024-03-26
           components: rust-src
           override: true
       - name: Run fuzz tests in fuzz dir
