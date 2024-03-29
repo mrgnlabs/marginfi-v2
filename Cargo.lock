@@ -1497,10 +1497,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "dirs-next"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b98cf8ebf19c3d1b223e151f99a4f9f0690dca41414773390fc824184ac833e1"
+dependencies = [
+ "cfg-if",
+ "dirs-sys-next",
+]
+
+[[package]]
 name = "dirs-sys"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b1d1d91c932ef41c0f2663aa8b0ca0342d444d842c06914aa0a7e352d0bada6"
+dependencies = [
+ "libc",
+ "redox_users",
+ "winapi",
+]
+
+[[package]]
+name = "dirs-sys-next"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ebda144c4fe02d1f7ea1a7d9641b6fc6b580adcfa024ae48797ecdeb6825b4d"
 dependencies = [
  "libc",
  "redox_users",
@@ -2740,6 +2761,7 @@ dependencies = [
  "anchor-spl",
  "anyhow",
  "assert_matches",
+ "base64 0.21.5",
  "bincode",
  "bytemuck",
  "cfg-if",
@@ -2751,6 +2773,10 @@ dependencies = [
  "pretty_assertions",
  "pyth-sdk-solana",
  "rust_decimal",
+ "serde",
+ "serde_json",
+ "solana-account-decoder",
+ "solana-cli-output",
  "solana-logger",
  "solana-program",
  "solana-program-test",
@@ -3607,6 +3633,12 @@ name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
+
+[[package]]
+name = "pretty-hex"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6fa0831dd7cc608c38a5e323422a0077678fa5744aa2be4ad91c4ece8eec8d5"
 
 [[package]]
 name = "pretty_assertions"
@@ -4932,6 +4964,49 @@ dependencies = [
  "tiny-bip39",
  "uriparse",
  "url",
+]
+
+[[package]]
+name = "solana-cli-config"
+version = "1.16.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "864dce71e749d7a523eca56f8ee22c35fe8dae4c182c50a4a9e7acd49313ac48"
+dependencies = [
+ "dirs-next",
+ "lazy_static",
+ "serde",
+ "serde_derive",
+ "serde_yaml",
+ "solana-clap-utils",
+ "solana-sdk",
+ "url",
+]
+
+[[package]]
+name = "solana-cli-output"
+version = "1.16.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d6338b80376eb99f4dbffed10a5f2efea2894704106f1a9c09891fab924770b"
+dependencies = [
+ "Inflector",
+ "base64 0.21.5",
+ "chrono",
+ "clap 2.34.0",
+ "console",
+ "humantime",
+ "indicatif",
+ "pretty-hex",
+ "semver",
+ "serde",
+ "serde_json",
+ "solana-account-decoder",
+ "solana-clap-utils",
+ "solana-cli-config",
+ "solana-rpc-client-api",
+ "solana-sdk",
+ "solana-transaction-status",
+ "solana-vote-program",
+ "spl-memo 4.0.0",
 ]
 
 [[package]]

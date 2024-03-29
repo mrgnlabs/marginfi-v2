@@ -4,6 +4,7 @@ members = ["programs/*", "clients/rust/*", "tools/*", "observability/indexer"]
 exclude = ["programs/brick"]
 
 [workspace.dependencies]
+solana-cli-output = "1.16.23"
 solana-client = "1.16.23"
 solana-sdk = "1.16.23"
 solana-logger = "1.16.23"
