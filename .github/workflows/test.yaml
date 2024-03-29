@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
         RUST_TOOLCHAIN: 1.77.1
-        RUSTUP_TOOLCHAIN: nightly-2023-04-19
+        RUSTUP_TOOLCHAIN: nightly-2024-03-26
 
     steps:
       - uses: actions/checkout@v3
