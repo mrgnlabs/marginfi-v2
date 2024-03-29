@@ -1,5 +1,5 @@
 use anchor_lang::prelude::Clock;
-use anchor_lang::{InstructionData, ToAccountMetas};
+use anchor_lang::{AccountDeserialize, InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
@@ -2460,6 +2460,34 @@ async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Resu
     // Assert the response is an error due to fact that a non-owner of the
     // acount attempted to initialize this account transfer
     assert!(res.is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn account_field_values_reg() -> anyhow::Result<()> {
+    let bank_fixtures_path = "tests/fixtures/account";
+
+    // Sample 1
+
+    let mut path = PathBuf::from_str(bank_fixtures_path).unwrap();
+    path.push("account_sample_1.json");
+    let mut file = File::open(&path).unwrap();
+    let mut account_info_raw = String::new();
+    file.read_to_string(&mut account_info_raw).unwrap();
+
+    let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
+    let UiAccountData::Binary(data, _) = account.keyed_account.account.data else {
+        bail!("Expecting Binary format for fixtures")
+    };
+    let account = MarginfiAccount::try_deserialize(&mut STANDARD.decode(data)?.as_slice())?;
+
+    println!("account: {:?}", account);
+
+    assert_eq!(
+        account.authority,
+        pubkey!("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn")
+    );
 
     Ok(())
 }

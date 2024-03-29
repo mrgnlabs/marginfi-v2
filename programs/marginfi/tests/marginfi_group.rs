@@ -1305,7 +1305,7 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
 
     let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
     let UiAccountData::Binary(data, _) = account.keyed_account.account.data else {
-        bail!("Expecting JSON format for fixtures")
+        bail!("Expecting Binary format for fixtures")
     };
     let bank = Bank::try_deserialize(&mut STANDARD.decode(data)?.as_slice())?;
 
@@ -1397,7 +1397,7 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
 
     let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
     let UiAccountData::Binary(data, _) = account.keyed_account.account.data else {
-        bail!("Expecting JSON format for fixtures")
+        bail!("Expecting Binary format for fixtures")
     };
     let bank = Bank::try_deserialize(&mut STANDARD.decode(data)?.as_slice())?;
 
@@ -1489,7 +1489,7 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
 
     let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
     let UiAccountData::Binary(data, _) = account.keyed_account.account.data else {
-        bail!("Expecting JSON format for fixtures")
+        bail!("Expecting Binary format for fixtures")
     };
     let bank = Bank::try_deserialize(&mut STANDARD.decode(data)?.as_slice())?;
 
