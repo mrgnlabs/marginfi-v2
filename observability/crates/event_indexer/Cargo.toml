@@ -11,6 +11,10 @@ path = "bin/index_events.rs"
 name = "backfill-events"
 path = "bin/backfill_events.rs"
 
+[[bin]]
+name = "inspect-tx"
+path = "bin/inspect_tx.rs"
+
 [features]
 default = ["mainnet-beta"]
 mainnet-beta = ["marginfi/mainnet-beta"]
