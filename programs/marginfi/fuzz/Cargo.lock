@@ -1442,6 +1442,7 @@ dependencies = [
 name = "marginfi-fuzz"
 version = "0.0.0"
 dependencies = [
+ "ahash 0.7.7",
  "anchor-lang",
  "anyhow",
  "arbitrary",

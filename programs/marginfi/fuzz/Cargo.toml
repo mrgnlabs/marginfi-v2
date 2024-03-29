@@ -17,7 +17,7 @@ doc = false
 solana-sdk = "1.16.23"
 solana-program = "1.16.23"
 spl-token = "4.0.0"
-
+ahash = "0.7.7"
 anchor-lang = "0.28.0"
 
 pyth-sdk-solana = "0.8.0"
