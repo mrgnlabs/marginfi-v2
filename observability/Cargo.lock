@@ -3459,10 +3459,16 @@ dependencies = [
 name = "rpc_utils"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "backoff",
+ "base64 0.21.7",
+ "bs58 0.4.0",
  "futures",
  "solana-client",
  "solana-sdk",
+ "solana-transaction-status",
+ "yellowstone-grpc-client",
+ "yellowstone-grpc-proto",
 ]
 
 [[package]]

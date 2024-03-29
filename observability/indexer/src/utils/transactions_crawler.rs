@@ -34,7 +34,6 @@ pub const DEFAULT_MAX_CONCURRENT_REQUESTS: usize = 10;
 #[derive(Debug, Clone)]
 pub struct TransactionsCrawlerConfig {
     pub rpc_endpoint: String,
-    pub signature_fetch_limit: usize,
     pub max_concurrent_requests: usize,
     pub max_pending_signatures: usize,
     pub monitor_interval: u64,
@@ -45,7 +44,6 @@ impl TransactionsCrawlerConfig {
     pub fn new(targets: Vec<Target>) -> Self {
         Self {
             rpc_endpoint: DEFAULT_RPC_ENDPOINT.to_string(),
-            signature_fetch_limit: DEFAULT_SIGNATURE_FETCH_LIMIT,
             max_concurrent_requests: DEFAULT_MAX_CONCURRENT_REQUESTS,
             max_pending_signatures: DEFAULT_MAX_PENDING_SIGNATURES,
             monitor_interval: DEFAULT_MONITOR_INTERVAL,
@@ -63,6 +61,7 @@ pub struct SlotMeta {
 #[derive(Debug)]
 pub struct TransactionData {
     pub indexing_address: Pubkey,
+    pub signature: Signature,
     pub transaction: EncodedConfirmedTransactionWithStatusMeta,
 }
 
@@ -347,6 +346,7 @@ impl TransactionsCrawler {
                                     .unwrap()
                                     .push(TransactionData {
                                         indexing_address: signature_data.indexing_address,
+                                        signature: signature_data.signature,
                                         transaction,
                                     })
                                     .unwrap();
