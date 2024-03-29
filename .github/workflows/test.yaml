@@ -100,7 +100,7 @@ jobs:
     name: Fuzz The marginfi Program
     runs-on: ubuntu-latest
     env:
-        RUSTUP_TOOLCHAIN: nightly
+        RUSTUP_TOOLCHAIN: nightly-2023-04-19
 
     steps:
       - uses: actions/checkout@v3
