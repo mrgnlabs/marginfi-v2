@@ -115,6 +115,7 @@ jobs:
           override: true
       - name: Run fuzz tests in fuzz dir
         run: |
+          rustup component add rust-src --toolchain nightly-2023-04-19-x86_64-unknown-linux-gnu
           cd programs/marginfi
           cargo install cargo-fuzz --locked
           cargo fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
