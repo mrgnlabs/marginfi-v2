@@ -1,4 +1,4 @@
-use anchor_lang::prelude::{AnchorError, Clock};
+use anchor_lang::prelude::Clock;
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
@@ -1878,9 +1878,7 @@ async fn flashloan_success_3op() -> anyhow::Result<()> {
         ixs.push(repay_ix);
     }
 
-    ixs.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(1_400_000),
-    );
+    ixs.push(ComputeBudgetInstruction::set_compute_unit_limit(1_400_000));
 
     let flash_loan_result = borrower_mfi_account_f
         .try_flashloan(ixs, vec![], vec![])

@@ -1,9 +1,6 @@
 use fixtures::{
-    assert_custom_error, native,
-    test::{
-        BankMint, TestFixture, TestSettings, PYTH_SOL_EQUIVALENT_FEED, PYTH_SOL_FEED,
-        PYTH_USDC_FEED,
-    },
+    assert_custom_error,
+    test::{BankMint, TestFixture, TestSettings, PYTH_SOL_FEED, PYTH_USDC_FEED},
 };
 use marginfi::prelude::MarginfiError;
 use solana_program_test::tokio;

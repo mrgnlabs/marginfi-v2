@@ -1,5 +1,10 @@
-use anchor_lang::{prelude::Clock, InstructionData, ToAccountMetas};
+use std::fs::File;
+use std::io::Read;
 
+use anchor_lang::AccountDeserialize;
+use anchor_lang::{prelude::Clock, InstructionData, ToAccountMetas};
+use anyhow::bail;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
@@ -13,9 +18,13 @@ use marginfi::{
 };
 use pretty_assertions::assert_eq;
 
+use solana_account_decoder::UiAccountData;
+use solana_cli_output::CliAccount;
+use solana_program::pubkey;
 use solana_program::{instruction::Instruction, system_program};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+use std::fs;
 
 #[tokio::test]
 async fn marginfi_group_create_success() -> anyhow::Result<()> {
@@ -1284,6 +1293,34 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn bank_field_values_reg() -> anyhow::Result<()> {
+    let bank_fixtures_path = "tests/fixtures/bank";
+    let entries = fs::read_dir(bank_fixtures_path)?;
+
+    for entry in entries {
+        let entry = entry?;
+        let mut file = File::open(&entry.path()).unwrap();
+        let mut account_info_raw = String::new();
+        file.read_to_string(&mut account_info_raw).unwrap();
+
+        let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
+
+        let UiAccountData::Binary(data, _) = account.keyed_account.account.data else { bail!("Expecting JSON format for fixtures") };
+        let bank = Bank::try_deserialize(&mut STANDARD.decode(data)?.as_slice())?;
+
+        // assert fields
+        assert_eq!(bank.mint, pubkey!("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"));
+        assert_eq!(bank.mint_decimals, 9);
+        assert_eq!(bank.group, pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8"));
+
+        assert_eq!(I80F48::from(bank.asset_share_value), I80F48::from_str("1.000561350454294").unwrap());
+        assert_eq!(I80F48::from(bank.liability_share_value), I80F48::from_str("1.007378938693705").unwrap());
+    }
 
     Ok(())
 }
