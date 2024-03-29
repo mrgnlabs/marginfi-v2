@@ -11,7 +11,7 @@ runs:
         name: Install minimal rust toolchain with clippy and rustfmt
         with:
           profile: minimal
-          toolchain: nightly
+          toolchain: nightly-2023-04-19
           target: x86_64-unknown-linux-gnu
           components: rustfmt, clippy
           default: true
