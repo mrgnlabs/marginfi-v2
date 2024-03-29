@@ -100,7 +100,8 @@ jobs:
     name: Fuzz The marginfi Program
     runs-on: ubuntu-latest
     env:
-        RUSTUP_TOOLCHAIN: nightly-2023-04-19
+        RUST_TOOLCHAIN: 1.77.1
+        RUSTUP_TOOLCHAIN: nightly-2024-03-26
 
     steps:
       - uses: actions/checkout@v3
@@ -115,7 +116,6 @@ jobs:
           override: true
       - name: Run fuzz tests in fuzz dir
         run: |
-          rustup component add rust-src --toolchain nightly-2023-04-19-x86_64-unknown-linux-gnu
           cd programs/marginfi
           cargo install cargo-fuzz --locked
           cargo fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
