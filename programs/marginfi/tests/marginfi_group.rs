@@ -1,30 +1,24 @@
-use std::fs::File;
-use std::io::Read;
+use std::{fs::File, io::Read, path::PathBuf, str::FromStr};
 
-use anchor_lang::AccountDeserialize;
-use anchor_lang::{prelude::Clock, InstructionData, ToAccountMetas};
+use anchor_lang::{prelude::Clock, AccountDeserialize, InstructionData, ToAccountMetas};
 use anyhow::bail;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use fixtures::prelude::*;
-use fixtures::{assert_custom_error, assert_eq_noise, native};
-use marginfi::constants::TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE;
-use marginfi::prelude::GroupConfig;
-use marginfi::state::marginfi_group::{BankVaultType, InterestRateConfig};
+use fixtures::{assert_custom_error, assert_eq_noise, native, prelude::*};
 use marginfi::{
-    prelude::{MarginfiError, MarginfiGroup},
-    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankOperationalState},
+    constants::TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
+    prelude::{GroupConfig, MarginfiError, MarginfiGroup},
+    state::marginfi_group::{
+        Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType, InterestRateConfig,
+    },
 };
 use pretty_assertions::assert_eq;
-
 use solana_account_decoder::UiAccountData;
 use solana_cli_output::CliAccount;
-use solana_program::pubkey;
-use solana_program::{instruction::Instruction, system_program};
+use solana_program::{instruction::Instruction, pubkey, system_program};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
-use std::fs;
 
 #[tokio::test]
 async fn marginfi_group_create_success() -> anyhow::Result<()> {
@@ -520,7 +514,7 @@ async fn marginfi_group_handle_bankruptcy_success_no_debt() -> anyhow::Result<()
     let mut borrower_mfi_account = borrower_mfi_account_f.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
-        .value = 0;
+        .value = 0_i128.to_le_bytes();
     borrower_mfi_account_f
         .set_account(&borrower_mfi_account)
         .await?;
@@ -596,7 +590,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
-        .value = 0;
+        .value = 0_i128.to_le_bytes();
     borrower_account.set_account(&borrower_mfi_account).await?;
 
     {
@@ -757,7 +751,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
-        .value = 0;
+        .value = 0_i128.to_le_bytes();
     borrower_account.set_account(&borrower_mfi_account).await?;
 
     test_f
@@ -858,7 +852,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured() -> anyhow::Resul
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
-        .value = 0;
+        .value = 0_i128.to_le_bytes();
 
     borrower_account.set_account(&borrower_mfi_account).await?;
 
@@ -959,7 +953,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
     let mut borrower_mfi_account = borrower_mfi_account_f.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
-        .value = 0;
+        .value = 0_i128.to_le_bytes();
 
     borrower_mfi_account_f
         .set_account(&borrower_mfi_account)
@@ -1300,27 +1294,282 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
 #[tokio::test]
 async fn bank_field_values_reg() -> anyhow::Result<()> {
     let bank_fixtures_path = "tests/fixtures/bank";
-    let entries = fs::read_dir(bank_fixtures_path)?;
 
-    for entry in entries {
-        let entry = entry?;
-        let mut file = File::open(&entry.path()).unwrap();
-        let mut account_info_raw = String::new();
-        file.read_to_string(&mut account_info_raw).unwrap();
+    // Sample 1 (Jito)
 
-        let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
+    let mut path = PathBuf::from_str(bank_fixtures_path).unwrap();
+    path.push("bank_sample_1.json");
+    let mut file = File::open(&path).unwrap();
+    let mut account_info_raw = String::new();
+    file.read_to_string(&mut account_info_raw).unwrap();
 
-        let UiAccountData::Binary(data, _) = account.keyed_account.account.data else { bail!("Expecting JSON format for fixtures") };
-        let bank = Bank::try_deserialize(&mut STANDARD.decode(data)?.as_slice())?;
+    let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
+    let UiAccountData::Binary(data, _) = account.keyed_account.account.data else {
+        bail!("Expecting JSON format for fixtures")
+    };
+    let bank = Bank::try_deserialize(&mut STANDARD.decode(data)?.as_slice())?;
 
-        // assert fields
-        assert_eq!(bank.mint, pubkey!("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"));
-        assert_eq!(bank.mint_decimals, 9);
-        assert_eq!(bank.group, pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8"));
+    assert_eq!(
+        bank.mint,
+        pubkey!("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn")
+    );
+    assert_eq!(bank.mint_decimals, 9);
+    assert_eq!(
+        bank.group,
+        pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+    );
+    assert_eq!(
+        I80F48::from(bank.asset_share_value),
+        I80F48::from_str("1.000561264812955").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.liability_share_value),
+        I80F48::from_str("1.00737674726716").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.collected_insurance_fees_outstanding),
+        I80F48::from_str("61174.580321107215052").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.collected_group_fees_outstanding),
+        I80F48::from_str("35660072279.35465946938668").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.total_liability_shares),
+        I80F48::from_str("79763493059362.858709822356737").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.total_asset_shares),
+        I80F48::from_str("998366336320727.44918120920092").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.asset_weight_init),
+        I80F48::from_str("0.649999976158142").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.asset_weight_maint),
+        I80F48::from_str("0.80000001192093").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.liability_weight_init),
+        I80F48::from_str("1.3").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.liability_weight_maint),
+        I80F48::from_str("1.2").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.optimal_utilization_rate),
+        I80F48::from_str("0.8").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.plateau_interest_rate),
+        I80F48::from_str("0.1").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.max_interest_rate),
+        I80F48::from_str("3").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.insurance_fee_fixed_apr),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.insurance_ir_fee),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.protocol_fixed_fee_apr),
+        I80F48::from_str("0.01").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
+        I80F48::from_str("0.05").unwrap()
+    );
 
-        assert_eq!(I80F48::from(bank.asset_share_value), I80F48::from_str("1.000561350454294").unwrap());
-        assert_eq!(I80F48::from(bank.liability_share_value), I80F48::from_str("1.007378938693705").unwrap());
-    }
+    // Sample 2 (META)
+
+    let mut path = PathBuf::from_str(bank_fixtures_path).unwrap();
+    path.push("bank_sample_2.json");
+    let mut file = File::open(&path).unwrap();
+    let mut account_info_raw = String::new();
+    file.read_to_string(&mut account_info_raw).unwrap();
+
+    let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
+    let UiAccountData::Binary(data, _) = account.keyed_account.account.data else {
+        bail!("Expecting JSON format for fixtures")
+    };
+    let bank = Bank::try_deserialize(&mut STANDARD.decode(data)?.as_slice())?;
+
+    assert_eq!(
+        bank.mint,
+        pubkey!("METADDFL6wWMWEoKTFJwcThTbUmtarRJZjRpzUvkxhr")
+    );
+    assert_eq!(bank.mint_decimals, 9);
+    assert_eq!(
+        bank.group,
+        pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+    );
+    assert_eq!(
+        I80F48::from(bank.asset_share_value),
+        I80F48::from_str("1").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.liability_share_value),
+        I80F48::from_str("1").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.collected_insurance_fees_outstanding),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.collected_group_fees_outstanding),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.total_liability_shares),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.total_asset_shares),
+        I80F48::from_str("698503862367").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.asset_weight_init),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.asset_weight_maint),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.liability_weight_init),
+        I80F48::from_str("2.5").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.liability_weight_maint),
+        I80F48::from_str("1.5").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.optimal_utilization_rate),
+        I80F48::from_str("0.8").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.plateau_interest_rate),
+        I80F48::from_str("0.1").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.max_interest_rate),
+        I80F48::from_str("3").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.insurance_fee_fixed_apr),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.insurance_ir_fee),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.protocol_fixed_fee_apr),
+        I80F48::from_str("0.01").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
+        I80F48::from_str("0.05").unwrap()
+    );
+
+    // Sample 3 (USDT)
+
+    let mut path = PathBuf::from_str(bank_fixtures_path).unwrap();
+    path.push("bank_sample_3.json");
+    let mut file = File::open(&path).unwrap();
+    let mut account_info_raw = String::new();
+    file.read_to_string(&mut account_info_raw).unwrap();
+
+    let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
+    let UiAccountData::Binary(data, _) = account.keyed_account.account.data else {
+        bail!("Expecting JSON format for fixtures")
+    };
+    let bank = Bank::try_deserialize(&mut STANDARD.decode(data)?.as_slice())?;
+
+    assert_eq!(
+        bank.mint,
+        pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
+    );
+    assert_eq!(bank.mint_decimals, 6);
+    assert_eq!(
+        bank.group,
+        pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+    );
+    assert_eq!(
+        I80F48::from(bank.asset_share_value),
+        I80F48::from_str("1.063003765188338").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.liability_share_value),
+        I80F48::from_str("1.12089611736063").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.collected_insurance_fees_outstanding),
+        I80F48::from_str("45839.746526861401865").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.collected_group_fees_outstanding),
+        I80F48::from_str("28634360131.219557095675654").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.total_liability_shares),
+        I80F48::from_str("32109684419718.204607882232235").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.total_asset_shares),
+        I80F48::from_str("43231381120800.339303417329994").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.asset_weight_init),
+        I80F48::from_str("1").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.asset_weight_maint),
+        I80F48::from_str("1").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.liability_weight_init),
+        I80F48::from_str("1.25").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.liability_weight_maint),
+        I80F48::from_str("1.1").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.optimal_utilization_rate),
+        I80F48::from_str("0.8").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.plateau_interest_rate),
+        I80F48::from_str("0.2").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.max_interest_rate),
+        I80F48::from_str("4").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.insurance_fee_fixed_apr),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.insurance_ir_fee),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.protocol_fixed_fee_apr),
+        I80F48::from_str("0.01").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
+        I80F48::from_str("0.05").unwrap()
+    );
 
     Ok(())
 }
