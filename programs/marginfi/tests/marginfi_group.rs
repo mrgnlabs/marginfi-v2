@@ -514,7 +514,7 @@ async fn marginfi_group_handle_bankruptcy_success_no_debt() -> anyhow::Result<()
     let mut borrower_mfi_account = borrower_mfi_account_f.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
-        .value = 0_i128.to_le_bytes();
+        .value = 0;
     borrower_mfi_account_f
         .set_account(&borrower_mfi_account)
         .await?;
@@ -590,7 +590,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
-        .value = 0_i128.to_le_bytes();
+        .value = 0;
     borrower_account.set_account(&borrower_mfi_account).await?;
 
     {
@@ -751,7 +751,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
-        .value = 0_i128.to_le_bytes();
+        .value = 0;
     borrower_account.set_account(&borrower_mfi_account).await?;
 
     test_f
@@ -852,7 +852,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured() -> anyhow::Resul
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
-        .value = 0_i128.to_le_bytes();
+        .value = 0;
 
     borrower_account.set_account(&borrower_mfi_account).await?;
 
@@ -953,7 +953,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
     let mut borrower_mfi_account = borrower_mfi_account_f.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
-        .value = 0_i128.to_le_bytes();
+        .value = 0;
 
     borrower_mfi_account_f
         .set_account(&borrower_mfi_account)
