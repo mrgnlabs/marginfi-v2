@@ -66,7 +66,7 @@ pub fn process_update_lookup_tables(
             marginfi_group.to_bytes().to_vec(),
         ))])?;
 
-    let bank_pks = banks.iter().map(|(pk, _)| *pk).collect::<Vec<Pubkey>>();
+    let _bank_pks = banks.iter().map(|(pk, _)| *pk).collect::<Vec<Pubkey>>();
 
     let oracle_pks = banks
         .iter()
@@ -75,7 +75,7 @@ pub fn process_update_lookup_tables(
         .collect::<Vec<Pubkey>>();
 
     // Dedup the oracle pks.
-    let oracle_pks = oracle_pks
+    let _oracle_pks = oracle_pks
         .into_iter()
         .fold(vec![], |mut acc, pk| {
             if !acc.contains(&pk) {

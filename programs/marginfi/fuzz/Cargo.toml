@@ -17,14 +17,14 @@ doc = false
 solana-sdk = "1.16.23"
 solana-program = "1.16.23"
 spl-token = "4.0.0"
-
+ahash = "=0.8.8"
 anchor-lang = "0.28.0"
 
 pyth-sdk-solana = "0.8.0"
 
 anyhow = "1.0.68"
 arbitrary = { version = "1.2.2", features = ["derive"] }
-bumpalo = "3.11.1"
+bumpalo = "=3.11.1"
 libfuzzer-sys = "0.4"
 safe-transmute = "0.11.2"
 rand = "0.8.5"

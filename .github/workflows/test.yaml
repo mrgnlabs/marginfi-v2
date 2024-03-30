@@ -100,7 +100,8 @@ jobs:
     name: Fuzz The marginfi Program
     runs-on: ubuntu-latest
     env:
-        RUSTUP_TOOLCHAIN: nightly-2023-04-19
+        RUST_TOOLCHAIN: 1.77.1
+        RUSTUP_TOOLCHAIN: nightly-2024-03-26
 
     steps:
       - uses: actions/checkout@v3
@@ -110,7 +111,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal 
-          toolchain: nightly-2023-04-19
+          toolchain: nightly-2024-03-26
           components: rust-src
           override: true
       - name: Run fuzz tests in fuzz dir
