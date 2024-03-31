@@ -11,6 +11,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    bank_operational_state (id) {
+        id -> Int4,
+        name -> Varchar,
+    }
+}
+
+diesel::table! {
     banks (id) {
         id -> Int4,
         address -> Varchar,
@@ -31,6 +38,38 @@ diesel::table! {
         authority_id -> Int4,
         bank_id -> Int4,
         amount -> Numeric,
+        price -> Nullable<Numeric>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    configure_bank_events (id) {
+        id -> Int4,
+        timestamp -> Timestamp,
+        tx_sig -> Varchar,
+        in_flashloan -> Bool,
+        call_stack -> Varchar,
+        bank_id -> Int4,
+        asset_weight_init -> Nullable<Numeric>,
+        asset_weight_maint -> Nullable<Numeric>,
+        liability_weight_init -> Nullable<Numeric>,
+        liability_weight_maint -> Nullable<Numeric>,
+        deposit_limit -> Nullable<Numeric>,
+        borrow_limit -> Nullable<Numeric>,
+        operational_state_id -> Nullable<Int4>,
+        oracle_setup_id -> Nullable<Int4>,
+        oracle_keys -> Nullable<Varchar>,
+        optimal_utilization_rate -> Nullable<Numeric>,
+        plateau_interest_rate -> Nullable<Numeric>,
+        max_interest_rate -> Nullable<Numeric>,
+        insurance_fee_fixed_apr -> Nullable<Numeric>,
+        insurance_ir_fee -> Nullable<Numeric>,
+        protocol_fixed_fee_apr -> Nullable<Numeric>,
+        protocol_ir_fee -> Nullable<Numeric>,
+        risk_tier_id -> Nullable<Int4>,
+        total_asset_value_init_limit -> Nullable<Numeric>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
@@ -51,6 +90,37 @@ diesel::table! {
 }
 
 diesel::table! {
+    create_bank_events (id) {
+        id -> Int4,
+        timestamp -> Timestamp,
+        tx_sig -> Varchar,
+        in_flashloan -> Bool,
+        call_stack -> Varchar,
+        bank_id -> Int4,
+        asset_weight_init -> Numeric,
+        asset_weight_maint -> Numeric,
+        liability_weight_init -> Numeric,
+        liability_weight_maint -> Numeric,
+        deposit_limit -> Numeric,
+        optimal_utilization_rate -> Numeric,
+        plateau_interest_rate -> Numeric,
+        max_interest_rate -> Numeric,
+        insurance_fee_fixed_apr -> Numeric,
+        insurance_ir_fee -> Numeric,
+        protocol_fixed_fee_apr -> Numeric,
+        protocol_ir_fee -> Numeric,
+        operational_state_id -> Int4,
+        oracle_setup_id -> Int4,
+        oracle_keys -> Varchar,
+        borrow_limit -> Numeric,
+        risk_tier_id -> Int4,
+        total_asset_value_init_limit -> Numeric,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     deposit_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
@@ -61,6 +131,7 @@ diesel::table! {
         authority_id -> Int4,
         bank_id -> Int4,
         amount -> Numeric,
+        price -> Nullable<Numeric>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
@@ -79,6 +150,8 @@ diesel::table! {
         asset_bank_id -> Int4,
         liability_bank_id -> Int4,
         asset_amount -> Numeric,
+        asset_price -> Nullable<Numeric>,
+        liability_price -> Nullable<Numeric>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
@@ -96,6 +169,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    oracle_setup (id) {
+        id -> Int4,
+        name -> Varchar,
+    }
+}
+
+diesel::table! {
     repay_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
@@ -106,9 +186,17 @@ diesel::table! {
         authority_id -> Int4,
         bank_id -> Int4,
         amount -> Numeric,
+        price -> Nullable<Numeric>,
         all -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    risk_tier (id) {
+        id -> Int4,
+        name -> Varchar,
     }
 }
 
@@ -148,6 +236,7 @@ diesel::table! {
         bank_id -> Int4,
         emission_mint_id -> Int4,
         amount -> Numeric,
+        price -> Nullable<Numeric>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
@@ -164,6 +253,7 @@ diesel::table! {
         authority_id -> Int4,
         bank_id -> Int4,
         amount -> Numeric,
+        price -> Nullable<Numeric>,
         all -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
@@ -175,8 +265,16 @@ diesel::joinable!(banks -> mints (mint_id));
 diesel::joinable!(borrow_events -> accounts (account_id));
 diesel::joinable!(borrow_events -> banks (bank_id));
 diesel::joinable!(borrow_events -> users (authority_id));
+diesel::joinable!(configure_bank_events -> bank_operational_state (operational_state_id));
+diesel::joinable!(configure_bank_events -> banks (bank_id));
+diesel::joinable!(configure_bank_events -> oracle_setup (oracle_setup_id));
+diesel::joinable!(configure_bank_events -> risk_tier (risk_tier_id));
 diesel::joinable!(create_account_events -> accounts (account_id));
 diesel::joinable!(create_account_events -> users (authority_id));
+diesel::joinable!(create_bank_events -> bank_operational_state (operational_state_id));
+diesel::joinable!(create_bank_events -> banks (bank_id));
+diesel::joinable!(create_bank_events -> oracle_setup (oracle_setup_id));
+diesel::joinable!(create_bank_events -> risk_tier (risk_tier_id));
 diesel::joinable!(deposit_events -> accounts (account_id));
 diesel::joinable!(deposit_events -> banks (bank_id));
 diesel::joinable!(deposit_events -> users (authority_id));
@@ -195,13 +293,18 @@ diesel::joinable!(withdraw_events -> users (authority_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     accounts,
+    bank_operational_state,
     banks,
     borrow_events,
+    configure_bank_events,
     create_account_events,
+    create_bank_events,
     deposit_events,
     liquidate_events,
     mints,
+    oracle_setup,
     repay_events,
+    risk_tier,
     transfer_account_authority_events,
     users,
     withdraw_emissions_events,

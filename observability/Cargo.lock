@@ -1613,6 +1613,7 @@ dependencies = [
  "dotenv",
  "enum_dispatch",
  "envconfig",
+ "fixed",
  "futures",
  "marginfi",
  "rpc_utils",

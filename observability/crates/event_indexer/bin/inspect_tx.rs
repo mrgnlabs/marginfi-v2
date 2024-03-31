@@ -1,15 +1,18 @@
 use std::{panic, process, str::FromStr};
 
+use chrono::Utc;
 use dotenv::dotenv;
 use envconfig::Envconfig;
-use event_indexer::{error::IndexingError,parser::{MarginfiEventParser, MARGINFI_GROUP_ADDRESS}};
-use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
-use chrono::Utc;
+use event_indexer::{
+    error::IndexingError,
+    parser::{MarginfiEventParser, MARGINFI_GROUP_ADDRESS},
+};
 use rpc_utils::conversion::convert_encoded_ui_transaction;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcTransactionConfig};
 use solana_sdk::{commitment_config::CommitmentConfig, signature::Signature};
 use solana_transaction_status::UiTransactionEncoding;
 use std::env;
+use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
 
 #[derive(Envconfig, Debug, Clone)]
 pub struct Config {
@@ -61,12 +64,16 @@ pub async fn main() -> Result<(), IndexingError> {
                 commitment: Some(CommitmentConfig::confirmed()),
             },
         )
-        .await.unwrap();
+        .await
+        .unwrap();
 
     let versioned_tx_with_meta = convert_encoded_ui_transaction(encoded_tx.transaction).unwrap();
 
-    let events =
-        event_parser.extract_events(Utc::now().timestamp(), encoded_tx.slot, versioned_tx_with_meta);
+    let events = event_parser.extract_events(
+        Utc::now().timestamp(),
+        encoded_tx.slot,
+        versioned_tx_with_meta,
+    );
 
     if events.is_empty() {
         println!("No event detected");
