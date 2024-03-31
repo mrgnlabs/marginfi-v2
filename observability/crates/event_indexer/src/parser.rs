@@ -7,12 +7,17 @@ use diesel::{
     SelectableHelper,
 };
 use enum_dispatch::enum_dispatch;
-use marginfi::instruction::{
-    LendingAccountBorrow, LendingAccountCloseBalance, LendingAccountDeposit,
-    LendingAccountEndFlashloan, LendingAccountLiquidate, LendingAccountRepay,
-    LendingAccountSettleEmissions, LendingAccountStartFlashloan, LendingAccountWithdraw,
-    LendingAccountWithdrawEmissions, LendingPoolAccrueBankInterest, LendingPoolAddBankWithSeed,
-    LendingPoolConfigureBank, MarginfiAccountInitialize, SetNewAccountAuthority,
+use fixed::types::I80F48;
+use marginfi::{
+    instruction::{
+        LendingAccountBorrow, LendingAccountCloseBalance, LendingAccountDeposit,
+        LendingAccountEndFlashloan, LendingAccountLiquidate, LendingAccountRepay,
+        LendingAccountSettleEmissions, LendingAccountStartFlashloan, LendingAccountWithdraw,
+        LendingAccountWithdrawEmissions, LendingPoolAccrueBankInterest, LendingPoolAddBank,
+        LendingPoolAddBankWithSeed, LendingPoolConfigureBank, MarginfiAccountInitialize,
+        SetNewAccountAuthority,
+    },
+    state::marginfi_group::{BankConfig, BankConfigCompact, BankConfigOpt},
 };
 use rust_decimal::{prelude::FromPrimitive, Decimal};
 use solana_sdk::{
@@ -38,7 +43,7 @@ use crate::{
 
 const SPL_TRANSFER_DISCRIMINATOR: u8 = 3;
 pub const MARGINFI_GROUP_ADDRESS: Pubkey = pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8");
-const COMPACT_BANK_CONFIG_ARG_UPGRADE_SLOT: u64 = 232_836_972;
+const COMPACT_BANK_CONFIG_ARG_UPGRADE_SLOT: u64 = 232_933_019;
 
 #[derive(Debug)]
 pub struct MarginfiEventWithMeta {
@@ -74,8 +79,10 @@ pub enum Event {
     Withdraw(WithdrawEvent),
     WithdrawEmissions(WithdrawEmissionsEvent),
     Liquidate(LiquidateEvent),
-    // // Admin actions
-    // AddBank(AddBankEvent),
+
+    // Admin actions
+    AddBank(AddBankEvent),
+    ConfigureBank(ConfigureBankEvent),
 }
 
 #[derive(Debug)]
@@ -1054,25 +1061,330 @@ impl MarginfiEvent for LiquidateEvent {
     }
 }
 
-// #[derive(Debug)]
-// pub struct AddBankEvent {
-//     pub bank: Pubkey,
-//     pub mint: Pubkey,
-//     pub config: BankConfig,
-// }
+#[derive(Debug)]
+pub struct AddBankEvent {
+    pub bank: Pubkey,
+    pub mint: Pubkey,
+    pub config: BankConfig,
+}
 
-// impl MarginfiEvent for AddBankEvent {
-//     fn db_insert(
-//         &self,
-//         timestamp: NaiveDateTime,
-//         tx_sig: String,
-//         in_flashloan: bool,
-//         call_stack: String,
-//         db_connection: &mut PgConnection,
-//     ) -> Result<(), IndexingError> {
-//         todo!("AddBankEvent::db_insert")
-//     }
-// }
+impl MarginfiEvent for AddBankEvent {
+    fn db_insert(
+        &self,
+        timestamp: NaiveDateTime,
+        tx_sig: String,
+        in_flashloan: bool,
+        call_stack: String,
+        db_connection: &mut PgConnection,
+        entity_store: &mut EntityStore,
+    ) -> Result<(), IndexingError> {
+        let mint_data = entity_store.get_or_fetch_mint(&self.mint.to_string())?;
+
+        db_connection
+            .transaction(|connection: &mut PgConnection| {
+                let bank_mint_id = if let Some(id) = mint_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        mints,
+                        Mints,
+                        self.mint.to_string(),
+                        Mints {
+                            address: mint_data.address.clone(),
+                            symbol: mint_data.symbol.clone(),
+                            decimals: mint_data.decimals,
+                            ..Default::default()
+                        }
+                    )
+                };
+
+                // Not RPC fetching the account data here because it could lead to race condition with the RPC when live ingesting,
+                let bank_id = get_and_insert_if_needed!(
+                    connection,
+                    banks,
+                    Banks,
+                    self.bank.to_string(),
+                    Banks {
+                        address: self.bank.to_string(),
+                        mint_id: bank_mint_id,
+                        ..Default::default()
+                    }
+                );
+
+                let create_bank_event = CreateBankEvents {
+                    timestamp,
+                    tx_sig,
+                    call_stack,
+                    in_flashloan,
+
+                    bank_id,
+                    asset_weight_init: Decimal::from_f64(
+                        I80F48::from(self.config.asset_weight_init).to_num(),
+                    )
+                    .unwrap(),
+                    asset_weight_maint: Decimal::from_f64(
+                        I80F48::from(self.config.asset_weight_maint).to_num(),
+                    )
+                    .unwrap(),
+                    liability_weight_init: Decimal::from_f64(
+                        I80F48::from(self.config.liability_weight_init).to_num(),
+                    )
+                    .unwrap(),
+                    liability_weight_maint: Decimal::from_f64(
+                        I80F48::from(self.config.liability_weight_maint).to_num(),
+                    )
+                    .unwrap(),
+                    deposit_limit: Decimal::from_u64(self.config.deposit_limit).unwrap(),
+                    optimal_utilization_rate: Decimal::from_f64(
+                        I80F48::from(self.config.interest_rate_config.optimal_utilization_rate)
+                            .to_num(),
+                    )
+                    .unwrap(),
+                    plateau_interest_rate: Decimal::from_f64(
+                        I80F48::from(self.config.interest_rate_config.plateau_interest_rate)
+                            .to_num(),
+                    )
+                    .unwrap(),
+                    max_interest_rate: Decimal::from_f64(
+                        I80F48::from(self.config.interest_rate_config.max_interest_rate).to_num(),
+                    )
+                    .unwrap(),
+                    insurance_fee_fixed_apr: Decimal::from_f64(
+                        I80F48::from(self.config.interest_rate_config.insurance_fee_fixed_apr)
+                            .to_num(),
+                    )
+                    .unwrap(),
+                    insurance_ir_fee: Decimal::from_f64(
+                        I80F48::from(self.config.interest_rate_config.insurance_ir_fee).to_num(),
+                    )
+                    .unwrap(),
+                    protocol_fixed_fee_apr: Decimal::from_f64(
+                        I80F48::from(self.config.interest_rate_config.protocol_fixed_fee_apr)
+                            .to_num(),
+                    )
+                    .unwrap(),
+                    protocol_ir_fee: Decimal::from_f64(
+                        I80F48::from(self.config.interest_rate_config.protocol_ir_fee).to_num(),
+                    )
+                    .unwrap(),
+                    operational_state_id: self.config.operational_state as i32,
+                    oracle_setup_id: self.config.oracle_setup as i32,
+                    oracle_keys: serde_json::to_string(
+                        &self
+                            .config
+                            .oracle_keys
+                            .iter()
+                            .map(|k| k.to_string())
+                            .collect::<Vec<_>>(),
+                    )
+                    .unwrap(),
+                    borrow_limit: Decimal::from_u64(self.config.borrow_limit).unwrap(),
+                    risk_tier_id: self.config.risk_tier as i32,
+
+                    ..Default::default()
+                };
+
+                let id: Option<i32> = diesel::insert_into(create_bank_events::table)
+                    .values(&create_bank_event)
+                    .on_conflict_do_nothing()
+                    .returning(create_bank_events::id)
+                    .get_result(connection)
+                    .optional()?;
+
+                if id.is_none() {
+                    info!("event already exists");
+                }
+
+                diesel::result::QueryResult::Ok(())
+            })
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    }
+}
+
+#[derive(Debug)]
+pub struct ConfigureBankEvent {
+    pub bank: Pubkey,
+    pub config: BankConfigOpt,
+}
+
+impl MarginfiEvent for ConfigureBankEvent {
+    fn db_insert(
+        &self,
+        timestamp: NaiveDateTime,
+        tx_sig: String,
+        in_flashloan: bool,
+        call_stack: String,
+        db_connection: &mut PgConnection,
+        entity_store: &mut EntityStore,
+    ) -> Result<(), IndexingError> {
+        let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
+
+        db_connection
+            .transaction(|connection: &mut PgConnection| {
+                let bank_mint_id = if let Some(id) = bank_data.mint.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        mints,
+                        Mints,
+                        bank_data.mint.address.clone(),
+                        Mints {
+                            address: bank_data.mint.address.clone(),
+                            symbol: bank_data.mint.symbol.clone(),
+                            decimals: bank_data.mint.decimals,
+                            ..Default::default()
+                        }
+                    )
+                };
+
+                let bank_id = if let Some(id) = bank_data.id {
+                    id
+                } else {
+                    insert!(
+                        connection,
+                        banks,
+                        Banks,
+                        self.bank.to_string(),
+                        Banks {
+                            address: self.bank.to_string(),
+                            mint_id: bank_mint_id,
+                            ..Default::default()
+                        }
+                    )
+                };
+
+                let configure_bank_event = ConfigureBankEvents {
+                    timestamp,
+                    tx_sig,
+                    call_stack,
+                    in_flashloan,
+
+                    bank_id,
+                    asset_weight_init: self
+                        .config
+                        .asset_weight_init
+                        .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap()),
+                    asset_weight_maint: self
+                        .config
+                        .asset_weight_maint
+                        .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap()),
+                    liability_weight_init: self
+                        .config
+                        .liability_weight_init
+                        .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap()),
+                    liability_weight_maint: self
+                        .config
+                        .liability_weight_maint
+                        .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap()),
+                    deposit_limit: self
+                        .config
+                        .deposit_limit
+                        .map(|v| Decimal::from_u64(v).unwrap()),
+                    optimal_utilization_rate: self
+                        .config
+                        .interest_rate_config
+                        .as_ref()
+                        .map(|v| {
+                            v.optimal_utilization_rate
+                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+                        })
+                        .flatten()
+                        .clone(),
+                    plateau_interest_rate: self
+                        .config
+                        .interest_rate_config
+                        .as_ref()
+                        .map(|v| {
+                            v.plateau_interest_rate
+                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+                        })
+                        .flatten()
+                        .clone(),
+                    max_interest_rate: self
+                        .config
+                        .interest_rate_config
+                        .as_ref()
+                        .map(|v| {
+                            v.max_interest_rate
+                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+                        })
+                        .flatten()
+                        .clone(),
+                    insurance_fee_fixed_apr: self
+                        .config
+                        .interest_rate_config
+                        .as_ref()
+                        .map(|v| {
+                            v.insurance_fee_fixed_apr
+                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+                        })
+                        .flatten()
+                        .clone(),
+                    insurance_ir_fee: self
+                        .config
+                        .interest_rate_config
+                        .as_ref()
+                        .map(|v| {
+                            v.insurance_ir_fee
+                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+                        })
+                        .flatten()
+                        .clone(),
+                    protocol_fixed_fee_apr: self
+                        .config
+                        .interest_rate_config
+                        .as_ref()
+                        .map(|v| {
+                            v.protocol_fixed_fee_apr
+                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+                        })
+                        .flatten()
+                        .clone(),
+                    protocol_ir_fee: self
+                        .config
+                        .interest_rate_config
+                        .as_ref()
+                        .map(|v| {
+                            v.protocol_ir_fee
+                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+                        })
+                        .flatten()
+                        .clone(),
+                    operational_state_id: self.config.operational_state.map(|v| v as i32),
+                    oracle_setup_id: self.config.oracle.map(|v| v.setup as i32),
+                    oracle_keys: self.config.oracle.map(|v| {
+                        serde_json::to_string(
+                            &v.keys.iter().map(|k| k.to_string()).collect::<Vec<_>>(),
+                        )
+                        .unwrap()
+                    }),
+                    borrow_limit: self
+                        .config
+                        .borrow_limit
+                        .map(|v| Decimal::from_u64(v).unwrap()),
+                    risk_tier_id: self.config.risk_tier.map(|v| v as i32),
+
+                    ..Default::default()
+                };
+
+                let id: Option<i32> = diesel::insert_into(configure_bank_events::table)
+                    .values(&configure_bank_event)
+                    .on_conflict_do_nothing()
+                    .returning(configure_bank_events::id)
+                    .get_result(connection)
+                    .optional()?;
+
+                if id.is_none() {
+                    info!("event already exists");
+                }
+
+                diesel::result::QueryResult::Ok(())
+            })
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    }
+}
 
 pub struct MarginfiEventParser {
     program_id: Pubkey,
@@ -1437,29 +1749,64 @@ impl MarginfiEventParser {
                     amount: spl_transfer_amount,
                 }))
             }
-            // LendingPoolAddBank::DISCRIMINATOR => {
-            //     let marginfi_group = *ix_accounts.get(0).unwrap();
-            //     if !marginfi_group.eq(&self.marginfi_group) {
-            //         return None;
-            //     }
+            LendingPoolAddBank::DISCRIMINATOR => {
+                let marginfi_group = *ix_accounts.get(0).unwrap();
+                if !marginfi_group.eq(&self.marginfi_group) {
+                    return None;
+                }
 
-            //     let bank_config = if slot < COMPACT_BANK_CONFIG_ARG_UPGRADE_SLOT {
-            //         BankConfig::deserialize(&mut &instruction_data[..531]).unwrap()
-            //     } else {
-            //         BankConfigCompact::deserialize(&mut &instruction_data[..531])
-            //             .unwrap()
-            //             .into()
-            //     };
+                let bank_config = if slot < COMPACT_BANK_CONFIG_ARG_UPGRADE_SLOT {
+                    BankConfig::deserialize(&mut &instruction_data[..531]).unwrap()
+                } else {
+                    BankConfigCompact::deserialize(&mut &instruction_data[..363])
+                        .unwrap()
+                        .into()
+                };
 
-            //     let bank_mint = *ix_accounts.get(3).unwrap();
-            //     let bank = *ix_accounts.get(4).unwrap();
+                let bank_mint = *ix_accounts.get(3).unwrap();
+                let bank = *ix_accounts.get(4).unwrap();
 
-            //     Some(Event::AddBank(AddBankEvent {
-            //         bank,
-            //         mint: bank_mint,
-            //         config: bank_config,
-            //     }))
-            // }
+                Some(Event::AddBank(AddBankEvent {
+                    bank,
+                    mint: bank_mint,
+                    config: bank_config,
+                }))
+            }
+            LendingPoolAddBankWithSeed::DISCRIMINATOR => {
+                let marginfi_group = *ix_accounts.get(0).unwrap();
+                if !marginfi_group.eq(&self.marginfi_group) {
+                    return None;
+                }
+
+                let bank_config = BankConfigCompact::deserialize(&mut &instruction_data[..363])
+                    .unwrap()
+                    .into();
+
+                let bank_mint = *ix_accounts.get(3).unwrap();
+                let bank = *ix_accounts.get(4).unwrap();
+
+                Some(Event::AddBank(AddBankEvent {
+                    bank,
+                    mint: bank_mint,
+                    config: bank_config,
+                }))
+            }
+            LendingPoolConfigureBank::DISCRIMINATOR => {
+                let marginfi_group = *ix_accounts.get(0).unwrap();
+                if !marginfi_group.eq(&self.marginfi_group) {
+                    return None;
+                }
+
+                let bank_config_opt =
+                    BankConfigOpt::deserialize(&mut &instruction_data[..363]).unwrap();
+
+                let bank = *ix_accounts.get(2).unwrap();
+
+                Some(Event::ConfigureBank(ConfigureBankEvent {
+                    bank,
+                    config: bank_config_opt,
+                }))
+            }
             LendingAccountStartFlashloan::DISCRIMINATOR => {
                 *in_flashloan = true;
 
@@ -1472,9 +1819,7 @@ impl MarginfiEventParser {
             }
             LendingAccountCloseBalance::DISCRIMINATOR
             | LendingPoolAccrueBankInterest::DISCRIMINATOR
-            | LendingAccountSettleEmissions::DISCRIMINATOR
-            | LendingPoolConfigureBank::DISCRIMINATOR
-            | LendingPoolAddBankWithSeed::DISCRIMINATOR => None,
+            | LendingAccountSettleEmissions::DISCRIMINATOR => None,
             _ => {
                 warn!(
                     "Unknown instruction discriminator {:?} in {:?}",

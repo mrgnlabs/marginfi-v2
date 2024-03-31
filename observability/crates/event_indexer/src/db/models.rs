@@ -50,6 +50,7 @@ pub struct CreateAccountEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+
     pub account_id: i32,
     pub authority_id: i32,
 }
@@ -63,6 +64,7 @@ pub struct TransferAccountAuthorityEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+
     pub account_id: i32,
     pub old_authority_id: i32,
     pub new_authority_id: i32,
@@ -77,6 +79,7 @@ pub struct DepositEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+
     pub account_id: i32,
     pub authority_id: i32,
     pub bank_id: i32,
@@ -92,6 +95,7 @@ pub struct BorrowEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+
     pub account_id: i32,
     pub authority_id: i32,
     pub bank_id: i32,
@@ -107,6 +111,7 @@ pub struct RepayEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+
     pub account_id: i32,
     pub authority_id: i32,
     pub bank_id: i32,
@@ -123,6 +128,7 @@ pub struct WithdrawEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+
     pub account_id: i32,
     pub authority_id: i32,
     pub bank_id: i32,
@@ -139,6 +145,7 @@ pub struct WithdrawEmissionsEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+
     pub account_id: i32,
     pub authority_id: i32,
     pub bank_id: i32,
@@ -155,10 +162,73 @@ pub struct LiquidateEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+
     pub liquidator_account_id: i32,
     pub liquidatee_account_id: i32,
     pub liquidator_user_id: i32,
     pub asset_bank_id: i32,
     pub liability_bank_id: i32,
     pub asset_amount: Decimal,
+}
+
+#[derive(Default, Debug, Queryable, Selectable, Insertable)]
+#[diesel(table_name = create_bank_events)]
+pub struct CreateBankEvents {
+    #[diesel(skip_insertion)]
+    pub id: i32,
+    pub timestamp: chrono::NaiveDateTime,
+    pub tx_sig: String,
+    pub in_flashloan: bool,
+    pub call_stack: String,
+
+    pub bank_id: i32,
+    pub asset_weight_init: Decimal,
+    pub asset_weight_maint: Decimal,
+    pub liability_weight_init: Decimal,
+    pub liability_weight_maint: Decimal,
+    pub deposit_limit: Decimal,
+    pub optimal_utilization_rate: Decimal,
+    pub plateau_interest_rate: Decimal,
+    pub max_interest_rate: Decimal,
+    pub insurance_fee_fixed_apr: Decimal,
+    pub insurance_ir_fee: Decimal,
+    pub protocol_fixed_fee_apr: Decimal,
+    pub protocol_ir_fee: Decimal,
+    pub operational_state_id: i32,
+    pub oracle_setup_id: i32,
+    pub oracle_keys: String,
+    pub borrow_limit: Decimal,
+    pub risk_tier_id: i32,
+    pub total_asset_value_init_limit: Decimal,
+}
+
+#[derive(Default, Debug, Queryable, Selectable, Insertable)]
+#[diesel(table_name = configure_bank_events)]
+pub struct ConfigureBankEvents {
+    #[diesel(skip_insertion)]
+    pub id: i32,
+    pub timestamp: chrono::NaiveDateTime,
+    pub tx_sig: String,
+    pub in_flashloan: bool,
+    pub call_stack: String,
+
+    pub bank_id: i32,
+    pub asset_weight_init: Option<Decimal>,
+    pub asset_weight_maint: Option<Decimal>,
+    pub liability_weight_init: Option<Decimal>,
+    pub liability_weight_maint: Option<Decimal>,
+    pub deposit_limit: Option<Decimal>,
+    pub optimal_utilization_rate: Option<Decimal>,
+    pub plateau_interest_rate: Option<Decimal>,
+    pub max_interest_rate: Option<Decimal>,
+    pub insurance_fee_fixed_apr: Option<Decimal>,
+    pub insurance_ir_fee: Option<Decimal>,
+    pub protocol_fixed_fee_apr: Option<Decimal>,
+    pub protocol_ir_fee: Option<Decimal>,
+    pub operational_state_id: Option<i32>,
+    pub oracle_setup_id: Option<i32>,
+    pub oracle_keys: Option<String>,
+    pub borrow_limit: Option<Decimal>,
+    pub risk_tier_id: Option<i32>,
+    pub total_asset_value_init_limit: Option<Decimal>,
 }

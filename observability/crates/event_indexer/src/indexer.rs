@@ -5,6 +5,7 @@ use std::{
     vec,
 };
 
+use backoff::{exponential::ExponentialBackoffBuilder, retry, SystemClock};
 use chrono::DateTime;
 use crossbeam::channel::{Receiver, Sender};
 use diesel::PgConnection;
@@ -297,16 +298,37 @@ async fn store_events(
                     )
                     .unwrap_or_else(|_| "null".to_string());
                     println!("Storing event: {:?}", event);
-                    event
-                        .db_insert(
+
+                    let mut retries = 0;
+                    retry(
+                        ExponentialBackoffBuilder::<SystemClock>::new()
+                            .with_max_interval(Duration::from_secs(5))
+                            .build(),
+                        || match event.db_insert(
                             timestamp,
-                            tx_sig,
+                            tx_sig.clone(),
                             in_flashloan,
-                            call_stack,
+                            call_stack.clone(),
                             db_connection,
                             entity_store,
-                        )
-                        .unwrap();
+                        ) {
+                            Ok(signatures) => Ok(signatures),
+                            Err(e) => {
+                                if retries > 5 {
+                                    error!(
+                                        "Failed to insert event after 5 retries: {:?} - {:?}",
+                                        event, e
+                                    );
+                                    Err(backoff::Error::permanent(e))
+                                } else {
+                                    warn!("Failed to insert event, retrying: {:?}", e);
+                                    retries += 1;
+                                    Err(backoff::Error::transient(e))
+                                }
+                            }
+                        },
+                    )
+                    .unwrap();
                 }
             }
         }

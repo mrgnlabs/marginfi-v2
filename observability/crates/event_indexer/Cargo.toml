@@ -29,6 +29,7 @@ diesel = { workspace = true, features = ["postgres", "chrono", "numeric"] }
 dotenv = { workspace = true }
 enum_dispatch = { workspace = true }
 envconfig = { workspace = true }
+fixed = "1.12.0"
 futures = { workspace = true }
 marginfi = { workspace = true }
 rpc_utils = { path = "../rpc_utils" }
