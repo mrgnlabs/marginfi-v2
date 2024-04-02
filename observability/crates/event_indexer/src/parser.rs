@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, vec};
 
 use anchor_lang::{AnchorDeserialize, Discriminator};
 use chrono::NaiveDateTime;
@@ -24,10 +24,9 @@ use solana_sdk::{
     hash::Hash,
     instruction::CompiledInstruction,
     message::SimpleAddressLoader,
-    pubkey,
-    pubkey::Pubkey,
     signature::Signature,
     transaction::{MessageHash, SanitizedTransaction},
+    {pubkey, pubkey::Pubkey},
 };
 use solana_transaction_status::{
     InnerInstruction, InnerInstructions, VersionedTransactionWithStatusMeta,
@@ -44,6 +43,10 @@ use crate::{
 const SPL_TRANSFER_DISCRIMINATOR: u8 = 3;
 pub const MARGINFI_GROUP_ADDRESS: Pubkey = pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8");
 const COMPACT_BANK_CONFIG_ARG_UPGRADE_SLOT: u64 = 232_933_019;
+const TOTAL_ASSET_VALUE_INIT_LIMIT_UPGRADE_SLOT: u64 = 204_502_867;
+const ADD_BANK_IX_ACCOUNTS_CHANGE_UPGRADE_SLOT: u64 = 232_933_019;
+const RISK_TIER_UPGRADE_SLOT: u64 = 179_862_046;
+const INTEREST_RATE_CONFIG_UPGRADE_SLOT: u64 = 178_870_399;
 
 #[derive(Debug)]
 pub struct MarginfiEventWithMeta {
@@ -1763,8 +1766,11 @@ impl MarginfiEventParser {
                         .into()
                 };
 
-                let bank_mint = *ix_accounts.get(3).unwrap();
-                let bank = *ix_accounts.get(4).unwrap();
+                let (bank_mint, bank) = if slot < ADD_BANK_IX_ACCOUNTS_CHANGE_UPGRADE_SLOT {
+                    (*ix_accounts.get(2).unwrap(), *ix_accounts.get(3).unwrap())
+                } else {
+                    (*ix_accounts.get(3).unwrap(), *ix_accounts.get(4).unwrap())
+                };
 
                 Some(Event::AddBank(AddBankEvent {
                     bank,
@@ -1797,8 +1803,34 @@ impl MarginfiEventParser {
                     return None;
                 }
 
-                let bank_config_opt =
-                    BankConfigOpt::deserialize(&mut &instruction_data[..363]).unwrap();
+                // println!("Instruction data: {:?}", instruction_data);
+                // println!("data len: {:?}", instruction_data.len());
+
+                // let parsed = BankConfigOpt {
+                //     interest_rate_config: Some(InterestRateConfigOpt {
+                //         optimal_utilization_rate: Some(I80F48::from_num(0.95).into()),
+                //         plateau_interest_rate: Some(I80F48::from_num(0.05).into()),
+                //         max_interest_rate: Some(I80F48::from_num(2).into()),
+                //         insurance_fee_fixed_apr: Some(I80F48::from_num(0).into()),
+                //         ..Default::default()
+                //     }),
+                //     ..Default::default()
+                // };
+                // println!("Parsed: {:?}", parsed);
+                // let ser = parsed.try_to_vec().unwrap();
+                // println!("Serialized: {:?}", ser);
+
+                let mut data = vec![];
+                data.extend_from_slice(&instruction_data);
+                if slot < INTEREST_RATE_CONFIG_UPGRADE_SLOT {
+                    data.extend_from_slice(&[0, 0, 0, 0]);
+                } else if slot < RISK_TIER_UPGRADE_SLOT {
+                    data.extend_from_slice(&[0, 0, 0]);
+                } else if slot < TOTAL_ASSET_VALUE_INIT_LIMIT_UPGRADE_SLOT {
+                    data.extend_from_slice(&[0]);
+                }
+
+                let bank_config_opt = BankConfigOpt::deserialize(&mut data.as_slice()).unwrap();
 
                 let bank = *ix_accounts.get(2).unwrap();
 

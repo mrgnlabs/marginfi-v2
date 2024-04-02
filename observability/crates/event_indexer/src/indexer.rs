@@ -297,7 +297,6 @@ async fn store_events(
                             .collect::<Vec<_>>(),
                     )
                     .unwrap_or_else(|_| "null".to_string());
-                    println!("Storing event: {:?}", event);
 
                     let mut retries = 0;
                     retry(
@@ -316,12 +315,15 @@ async fn store_events(
                             Err(e) => {
                                 if retries > 5 {
                                     error!(
-                                        "Failed to insert event after 5 retries: {:?} - {:?}",
-                                        event, e
+                                        "Failed to insert event after 5 retries: {:?} - {:?} ({:?})",
+                                        event, e, tx_sig
                                     );
                                     Err(backoff::Error::permanent(e))
                                 } else {
-                                    warn!("Failed to insert event, retrying: {:?}", e);
+                                    warn!(
+                                        "Failed to insert event, retrying: {:?} ({:?})",
+                                        e, tx_sig
+                                    );
                                     retries += 1;
                                     Err(backoff::Error::transient(e))
                                 }

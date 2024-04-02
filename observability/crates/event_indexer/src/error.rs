@@ -21,6 +21,9 @@ pub enum IndexingError {
     #[error("Failed to insert event: {0}")]
     FailedToInsertEvent(String),
 
+    #[error("Failed to generate range: {0}")]
+    FailedToGenerateRange(String),
+
     #[error("An unknown error occurred")]
     Unknown,
 }

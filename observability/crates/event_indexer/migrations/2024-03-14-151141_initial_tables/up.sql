@@ -5,29 +5,29 @@ CREATE TABLE "bank_operational_state" (
 	"name" VARCHAR NOT NULL
 );
 
-INSERT INTO "bank_operational_state" ("name")
-VALUES ('Paused'),
-			 ('Operational'),
-			 ('ReduceOnly');
+INSERT INTO "bank_operational_state" ("id", "name")
+VALUES (0, 'Paused'),
+			 (1, 'Operational'),
+			 (2, 'ReduceOnly');
 
 CREATE TABLE "oracle_setup" (
 	"id" SERIAL PRIMARY KEY,
 	"name" VARCHAR NOT NULL
 );
 
-INSERT INTO "oracle_setup" ("name")
-VALUES ('None'),
-			 ('PythEma'),
-			 ('SwitchboardV2');
+INSERT INTO "oracle_setup" ("id", "name")
+VALUES (0, 'None'),
+			 (1, 'PythEma'),
+			 (2, 'SwitchboardV2');
 
 CREATE TABLE "risk_tier" (
 	"id" SERIAL PRIMARY KEY,
 	"name" VARCHAR NOT NULL
 );
 
-INSERT INTO "risk_tier" ("name")
-VALUES ('Collateral'),
-			 ('Isolated');
+INSERT INTO "risk_tier" ("id", "name")
+VALUES (0, 'Collateral'),
+			 (1, 'Isolated');
 
 -- Entities
 

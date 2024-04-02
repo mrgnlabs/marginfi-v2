@@ -1,22 +1,38 @@
-use std::{panic, process, str::FromStr, thread::available_parallelism};
+use std::{
+    panic, process,
+    str::FromStr,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread::available_parallelism,
+    time::Duration,
+};
 
+use backoff::{exponential::ExponentialBackoffBuilder, retry, SystemClock};
 use bytemuck::Contiguous;
+use chrono::DateTime;
+use concurrent_queue::ConcurrentQueue;
 use dotenv::dotenv;
 use envconfig::Envconfig;
-use event_indexer::backfiller::{
-    crawl_signatures_for_range, find_boundary_signatures_for_range, TransactionData,
-    MARGINFI_PROGRAM_GENESIS_SIG,
+use event_indexer::{
+    backfiller::{
+        crawl_signatures_for_range, generate_ranges, get_default_before_signature, Range,
+        TransactionData, MARGINFI_PROGRAM_GENESIS_SIG,
+    },
+    db::establish_connection,
+    entity_store::EntityStore,
+    error::IndexingError,
+    parser::{MarginfiEvent, MarginfiEventParser, MarginfiEventWithMeta, MARGINFI_GROUP_ADDRESS},
 };
-use solana_client::{
-    nonblocking::rpc_client::RpcClient, rpc_client::SerializableTransaction,
-    rpc_config::RpcBlockConfig,
-};
+use rpc_utils::conversion::convert_encoded_ui_transaction;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
     signature::Signature,
 };
-use solana_transaction_status::UiTransactionEncoding;
-use tracing::info;
+use tokio::time::interval;
+use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
 
 #[derive(Envconfig, Debug, Clone)]
@@ -29,6 +45,8 @@ pub struct Config {
     pub before: Option<String>,
     #[envconfig(from = "UNTIL_SIGNATURE")]
     pub until: Option<String>,
+    #[envconfig(from = "DATABASE_URL")]
+    pub database_url: String,
     #[envconfig(from = "GOOGLE_APPLICATION_CREDENTIALS_JSON")]
     pub gcp_sa_key: String,
     #[envconfig(from = "PRETTY_LOGS")]
@@ -68,44 +86,12 @@ pub async fn main() {
         },
     );
 
-    let latest_slot = rpc_client
-        .get_slot()
-        .await
-        .expect("Failed to fetch latest slot");
-    let latest_block_slots = rpc_client
-        .get_blocks(latest_slot - 100, None)
-        .await
-        .expect("Failed to fetch block ids");
-    if latest_block_slots.is_empty() {
-        panic!("Failed to find blocks in the last 100 slots");
-    }
-
-    let latest_block = rpc_client
-        .get_block_with_config(
-            *latest_block_slots.last().unwrap(),
-            RpcBlockConfig {
-                encoding: Some(UiTransactionEncoding::Base64),
-                max_supported_transaction_version: Some(0),
-                ..Default::default()
-            },
-        )
-        .await
-        .expect("Failed to fetch latest block");
-    let before_sig = latest_block
-        .transactions
-        .unwrap()
-        .last()
-        .unwrap()
-        .transaction
-        .decode()
-        .unwrap()
-        .get_signature()
-        .clone();
-
+    let default_before_sig = get_default_before_signature(&rpc_client).await;
+    let before_sig = Signature::from_str(&config.before.unwrap_or(default_before_sig)).unwrap();
     let until_sig = Signature::from_str(
         &config
             .until
-            .unwrap_or_else(|| MARGINFI_PROGRAM_GENESIS_SIG.to_string()),
+            .unwrap_or(MARGINFI_PROGRAM_GENESIS_SIG.to_string()),
     )
     .unwrap();
 
@@ -113,19 +99,40 @@ pub async fn main() {
         .map(|c| c.into_integer() as usize)
         .unwrap_or(1);
 
-    let boundary_sigs =
-        find_boundary_signatures_for_range(&rpc_client, threads, before_sig, until_sig)
-            .await
-            .unwrap();
+    let mut tasks: Vec<std::thread::JoinHandle<Result<(), IndexingError>>> = vec![];
 
-    info!("Boundary signatures: {:?}", boundary_sigs);
+    let range_queue = Arc::new(ConcurrentQueue::<Range>::bounded(threads * 2));
+    let is_range_complete = Arc::new(AtomicBool::new(false));
+
+    let range_queue_clone = range_queue.clone();
+    let rpc_endpoint_clone = rpc_endpoint.clone();
+    let is_range_complete_clone = is_range_complete.clone();
+    tasks.push(std::thread::spawn(move || {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let rpc_client = RpcClient::new_with_commitment(
+                rpc_endpoint_clone,
+                CommitmentConfig {
+                    commitment: CommitmentLevel::Confirmed,
+                },
+            );
+            generate_ranges(
+                rpc_client,
+                before_sig,
+                until_sig,
+                &range_queue_clone,
+                is_range_complete_clone,
+            )
+            .await
+            .map_err(|e| IndexingError::FailedToGenerateRange(e.to_string()))?;
+
+            Ok(())
+        })
+    }));
 
     let (transaction_tx, transaction_rx) = crossbeam::channel::unbounded::<TransactionData>();
 
-    let mut tasks = vec![];
     for i in 0..threads {
-        let until_sig = boundary_sigs[i];
-        let before_sig = boundary_sigs[i + 1];
+        info!("Spawning thread: {:?}", i);
 
         let local_transaction_tx = transaction_tx.clone();
         let rpc_client = RpcClient::new_with_commitment(
@@ -134,49 +141,129 @@ pub async fn main() {
                 commitment: CommitmentLevel::Confirmed,
             },
         );
-
-        info!(
-            "Spawning thread for range: {:?}..{:?}",
-            until_sig, before_sig
-        );
+        let range_queue = range_queue.clone();
+        let is_range_complete = is_range_complete.clone();
 
         tasks.push(std::thread::spawn(move || {
             tokio::runtime::Runtime::new().unwrap().block_on(async {
-                crawl_signatures_for_range(
-                    i as u64,
-                    rpc_client,
-                    marginfi::ID,
-                    before_sig.1,
-                    until_sig.1,
-                    local_transaction_tx,
-                    None,
-                )
-                .await
+                let mut timer = interval(Duration::from_millis(200));
+                while !is_range_complete.load(Ordering::Relaxed) {
+                    if let Ok(Range {
+                        before_sig,
+                        until_sig,
+                        before_slot,
+                        until_slot,
+                        progress,
+                    }) = range_queue.pop()
+                    {
+                        info!(
+                            "Thread {:?} got range: {:?} - {:?} ({:.2?}%)",
+                            i, until_slot, before_slot, progress
+                        );
+                        crawl_signatures_for_range(
+                            i as u64,
+                            &rpc_client,
+                            marginfi::ID,
+                            before_sig,
+                            until_sig,
+                            &local_transaction_tx,
+                            None,
+                        )
+                        .await?;
+                    }
+
+                    timer.tick().await;
+                }
+
+                Ok(())
             })
         }));
     }
 
-    let mut tx_count = 0;
+    let parser = MarginfiEventParser::new(marginfi::ID, MARGINFI_GROUP_ADDRESS);
+    let mut entity_store = EntityStore::new(rpc_endpoint, config.database_url.clone());
+    let mut db_connection = establish_connection(config.database_url.clone());
+
+    let mut event_counter = 0;
+    let mut print_time = std::time::Instant::now();
+
     while let Ok(TransactionData {
-        task_id,
         transaction,
+        task_id,
         ..
     }) = transaction_rx.recv()
     {
-        tx_count += 1;
-        let until_slot = boundary_sigs[task_id as usize].0;
-        let before_slot = boundary_sigs[task_id as usize + 1].0;
-        println!(
-            "[{}] {:.1}% complete (total: {}, remaining ranges: {})",
-            task_id,
-            (before_slot - transaction.slot) as f64 / (before_slot - until_slot) as f64 * 100.0,
-            tx_count,
-            tasks.iter().fold(0, |mut acc, task| {
-                if !task.is_finished() {
-                    acc = acc + 1;
-                }
-                acc
-            })
-        );
+        if tasks.iter().all(|task| task.is_finished()) {
+            break;
+        }
+
+        let timestamp = transaction.block_time.unwrap();
+        let slot = transaction.slot;
+        let versioned_tx_with_meta =
+            convert_encoded_ui_transaction(transaction.transaction).unwrap();
+
+        let events = parser.extract_events(timestamp, slot, versioned_tx_with_meta);
+        event_counter += events.len();
+
+        let elapsed = print_time.elapsed().as_secs();
+        if elapsed > 30 {
+            warn!("Events processed: {:?}", event_counter);
+            print_time = std::time::Instant::now();
+        }
+
+        for MarginfiEventWithMeta {
+            event,
+            timestamp,
+            in_flashloan,
+            call_stack,
+            tx_sig,
+        } in events
+        {
+            let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
+            let tx_sig = tx_sig.to_string();
+            let call_stack = serde_json::to_string(
+                &call_stack
+                    .into_iter()
+                    .map(|cs| cs.to_string())
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap_or_else(|_| "null".to_string());
+
+            let mut retries = 0;
+            retry(
+                ExponentialBackoffBuilder::<SystemClock>::new()
+                    .with_max_interval(Duration::from_secs(5))
+                    .build(),
+                || match event.db_insert(
+                    timestamp,
+                    tx_sig.clone(),
+                    in_flashloan,
+                    call_stack.clone(),
+                    &mut db_connection,
+                    &mut entity_store,
+                ) {
+                    Ok(signatures) => Ok(signatures),
+                    Err(e) => {
+                        if retries > 5 {
+                            error!(
+                                "[{:?}] Failed to insert event after 5 retries: {:?} - {:?} ({:?})",
+                                task_id, event, e, tx_sig
+                            );
+                            Err(backoff::Error::permanent(e))
+                        } else {
+                            warn!(
+                                "[{:?}] Failed to insert event, retrying: {:?} - {:?} ({:?})",
+                                task_id, event, e, tx_sig
+                            );
+                            retries += 1;
+                            Err(backoff::Error::transient(e))
+                        }
+                    }
+                },
+            )
+            .unwrap();
+        }
     }
+
+    info!("Done!");
 }
