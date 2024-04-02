@@ -1608,6 +1608,7 @@ dependencies = [
  "backoff",
  "bytemuck",
  "chrono",
+ "concurrent-queue",
  "crossbeam",
  "diesel",
  "dotenv",

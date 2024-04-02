@@ -1,6 +1,7 @@
 use backoff::{future::retry, ExponentialBackoffBuilder};
+use concurrent_queue::ConcurrentQueue;
 use crossbeam::channel::Sender;
-use futures::{future::try_join_all, stream, StreamExt};
+use futures::{future::try_join_all, lock::Mutex, stream, StreamExt};
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
     rpc_client::{GetConfirmedSignaturesForAddress2Config, SerializableTransaction},
@@ -10,13 +11,22 @@ use solana_client::{
 use solana_rpc_client_api::client_error::{Error as ClientError, ErrorKind};
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signature};
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
-use std::{str::FromStr, time::Duration};
+use std::{
+    str::FromStr,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+use tokio::time::interval;
 use tracing::{info, warn};
 
 use crate::error::IndexingError;
 
 pub const MARGINFI_PROGRAM_GENESIS_SIG: &str =
     "36ViByXbDDgXHo3fTghrrT9zHMu9mYCJMhpKYTpytHcj7Nxkpb6gQdBJRxtDbF53mebNc8HR4aC7pcKmRNypxTWC";
+const SLOT_RANGE_SIZE: u64 = 5000; // ~40 minutes
 
 #[derive(Debug)]
 pub struct TransactionData {
@@ -69,8 +79,8 @@ pub async fn find_boundary_signatures_for_range(
     let boundary_sigs = try_join_all(boundary_slots.into_iter().enumerate().map(
         |(index, slot)| async move {
             let forward = index != last_boundary_index;
-            let boundary_slot = find_boundary_signature(rpc_client, slot, forward, None).await?;
-            Ok((slot, boundary_slot))
+            let boundary_sig = find_boundary_signature(rpc_client, slot, forward, None).await?;
+            Ok((slot, boundary_sig))
         },
     ))
     .await?;
@@ -172,11 +182,11 @@ pub async fn find_boundary_signature(
 
 pub async fn crawl_signatures_for_range(
     task_id: u64,
-    rpc_client: RpcClient,
+    rpc_client: &RpcClient,
     address: Pubkey,
     before: Signature,
     until: Signature,
-    transaction_tx: Sender<TransactionData>,
+    transaction_tx: &Sender<TransactionData>,
     max_concurrent_requests: Option<usize>,
 ) -> Result<(), IndexingError> {
     let mut last_fetched_signature = before;
@@ -276,4 +286,158 @@ pub async fn crawl_signatures_for_range(
     }
 
     Ok(())
+}
+
+#[derive(Debug)]
+pub struct Range {
+    pub before_sig: Signature,
+    pub until_sig: Signature,
+    pub before_slot: u64,
+    pub until_slot: u64,
+    pub progress: f64,
+}
+
+pub async fn generate_ranges(
+    rpc_client: RpcClient,
+    overall_before_sig: Signature,
+    overall_until_sig: Signature,
+    range_queue: &ConcurrentQueue<Range>,
+    is_range_complete: Arc<AtomicBool>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let sig_statuses = rpc_client
+        .get_signature_statuses_with_history(&[overall_before_sig, overall_until_sig])
+        .await?
+        .value;
+    let (overall_before_slot, overall_until_slot) = (
+        sig_statuses[0].as_ref().unwrap().slot,
+        sig_statuses[1].as_ref().unwrap().slot,
+    );
+
+    let mut cursor_slot = overall_until_slot;
+
+    let mut timer = interval(Duration::from_millis(200));
+    loop {
+        if range_queue.is_full() {
+            timer.tick().await;
+            continue;
+        }
+
+        let remaining_capacity = range_queue.capacity().unwrap() - range_queue.len();
+        println!("Remaining capacity: {}", remaining_capacity);
+
+        let mut boundary_slots = vec![cursor_slot];
+        for _ in 0..remaining_capacity {
+            cursor_slot = (cursor_slot + SLOT_RANGE_SIZE).min(overall_before_slot);
+            boundary_slots.push(cursor_slot);
+
+            if cursor_slot == overall_before_slot {
+                break;
+            }
+        }
+        println!("Boundary slots: {:?}", boundary_slots);
+
+        let rpc_client_ref = &rpc_client;
+
+        let prev_cursor_sig = Arc::new(Mutex::new(overall_until_sig));
+        let prev_cursor_slot = Arc::new(AtomicU64::new(boundary_slots.remove(0)));
+
+        stream::iter(
+            boundary_slots
+                .iter()
+                .map(|slot| (*slot, prev_cursor_sig.clone(), prev_cursor_slot.clone())),
+        )
+        .map(|(slot, prev_cursor_sig, prev_cursor_slot)| async move {
+            if slot == overall_before_slot {
+                (slot, overall_before_sig, prev_cursor_sig, prev_cursor_slot)
+            } else {
+                retry(
+                    ExponentialBackoffBuilder::new()
+                        .with_max_interval(Duration::from_secs(5))
+                        .build(),
+                    || async {
+                        match find_boundary_signature(rpc_client_ref, slot, true, None).await {
+                            Ok(sig) => {
+                                Ok((slot, sig, prev_cursor_sig.clone(), prev_cursor_slot.clone()))
+                            }
+                            Err(e) => Err(backoff::Error::transient(e)),
+                        }
+                    },
+                )
+                .await
+                .unwrap()
+            }
+        })
+        .buffered(10)
+        .for_each(
+            |(cursor_slot, cursor_sig, prev_cursor_sig, prev_cursor_slot)| async move {
+                println!(
+                    "Pushing range: {:?} [{:?} -> {:?}]",
+                    prev_cursor_sig, prev_cursor_slot, cursor_slot,
+                );
+                range_queue
+                    .push(Range {
+                        before_sig: cursor_sig,
+                        before_slot: cursor_slot,
+                        until_sig: prev_cursor_sig.lock().await.clone(),
+                        until_slot: prev_cursor_slot.load(Ordering::Relaxed),
+                        progress: ((cursor_slot as f64 - overall_until_slot as f64)
+                            / (overall_before_slot as f64 - overall_until_slot as f64))
+                            * 100.0,
+                    })
+                    .unwrap();
+
+                *prev_cursor_sig.lock().await = cursor_sig; // ok because we are doing an ordered buffering
+                prev_cursor_slot.store(cursor_slot, Ordering::Relaxed);
+            },
+        )
+        .await;
+
+        if cursor_slot == overall_before_slot {
+            break;
+        }
+
+        timer.tick().await;
+    }
+
+    is_range_complete.store(true, Ordering::Relaxed);
+
+    Ok(())
+}
+
+pub async fn get_default_before_signature(rpc_client: &RpcClient) -> String {
+    let latest_slot = rpc_client
+        .get_slot()
+        .await
+        .expect("Failed to fetch latest slot");
+    let latest_block_slots = rpc_client
+        .get_blocks(latest_slot - 100, None)
+        .await
+        .expect("Failed to fetch block ids");
+    if latest_block_slots.is_empty() {
+        panic!("Failed to find blocks in the last 100 slots");
+    }
+
+    let latest_block = rpc_client
+        .get_block_with_config(
+            *latest_block_slots.last().unwrap(),
+            RpcBlockConfig {
+                encoding: Some(UiTransactionEncoding::Base64),
+                max_supported_transaction_version: Some(0),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("Failed to fetch latest block");
+    let before_sig = latest_block
+        .transactions
+        .unwrap()
+        .last()
+        .unwrap()
+        .transaction
+        .decode()
+        .unwrap()
+        .get_signature()
+        .clone();
+
+    before_sig.to_string()
 }

@@ -24,6 +24,7 @@ anchor-lang = { workspace = true }
 backoff = { workspace = true }
 bytemuck = { workspace = true }
 chrono = { workspace = true }
+concurrent-queue = "2.4.0"
 crossbeam = { workspace = true }
 diesel = { workspace = true, features = ["postgres", "chrono", "numeric"] }
 dotenv = { workspace = true }
