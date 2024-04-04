@@ -1,13 +1,13 @@
 use super::{
     marginfi_account::{BalanceSide, RequirementType},
-    price::{self, OraclePriceFeedAdapter, OracleSetup},
+    price::{OraclePriceFeedAdapter, OracleSetup},
 };
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        self, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
+        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
         MAX_ORACLE_KEYS, MAX_PRICE_AGE_SEC, PYTH_ID, SECONDS_PER_YEAR,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
