@@ -47,12 +47,6 @@ pub fn lending_pool_collect_bank_fees(ctx: Context<LendingPoolCollectBankFees>) 
 
     bank.collected_group_fees_outstanding = new_outstanding_group_fees.into();
 
-    // msg!(
-    //     "Collecting fees\nInsurance: {}\nProtocol: {}",
-    //     insurance_fee_transfer_amount,
-    //     group_fee_transfer_amount
-    // );
-
     bank.withdraw_spl_transfer(
         group_fee_transfer_amount
             .checked_to_num()

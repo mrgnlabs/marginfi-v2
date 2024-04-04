@@ -444,10 +444,9 @@ impl Bank {
                 I80F48::from_num(self.config.total_asset_value_init_limit);
 
             #[cfg(target_os = "solana")]
-            msg!(
+            debug!(
                 "Init limit active, limit: {}, total_assets: {}",
-                total_asset_value_init_limit,
-                bank_total_assets_value
+                total_asset_value_init_limit, bank_total_assets_value
             );
 
             if bank_total_assets_value > total_asset_value_init_limit {
@@ -456,11 +455,9 @@ impl Bank {
                     .ok_or_else(math_error!())?;
 
                 #[cfg(target_os = "solana")]
-                msg!(
+                debug!(
                     "Discounting assets by {:.2} because of total deposits {} over {} usd cap",
-                    discount,
-                    bank_total_assets_value,
-                    total_asset_value_init_limit
+                    discount, bank_total_assets_value, total_asset_value_init_limit
                 );
 
                 Ok(Some(discount))
@@ -558,7 +555,7 @@ impl Bank {
         current_timestamp: i64,
         #[cfg(not(feature = "client"))] bank: Pubkey,
     ) -> MarginfiResult<()> {
-        #[cfg(not(feature = "client"))]
+        #[cfg(all(not(feature = "client"), feature = "debug"))]
         solana_program::log::sol_log_compute_units();
 
         let time_delta: u64 = (current_timestamp - self.last_update).try_into().unwrap();
@@ -622,6 +619,7 @@ impl Bank {
 
         #[cfg(not(feature = "client"))]
         {
+            #[cfg(feature = "debug")]
             solana_program::log::sol_log_compute_units();
 
             emit!(LendingPoolBankAccrueInterestEvent {
@@ -651,12 +649,9 @@ impl Bank {
             MarginfiError::InvalidTransfer
         );
 
-        msg!(
+        debug!(
             "deposit_spl_transfer: amount: {} from {} to {}, auth {}",
-            amount,
-            accounts.from.key,
-            accounts.to.key,
-            accounts.authority.key
+            amount, accounts.from.key, accounts.to.key, accounts.authority.key
         );
 
         transfer(CpiContext::new(program, accounts), amount)
@@ -669,12 +664,9 @@ impl Bank {
         program: AccountInfo<'c>,
         signer_seeds: &[&[&[u8]]],
     ) -> MarginfiResult {
-        msg!(
+        debug!(
             "withdraw_spl_transfer: amount: {} from {} to {}, auth {}",
-            amount,
-            accounts.from.key,
-            accounts.to.key,
-            accounts.authority.key
+            amount, accounts.from.key, accounts.to.key, accounts.authority.key
         );
 
         transfer(

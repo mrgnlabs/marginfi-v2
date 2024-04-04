@@ -10,7 +10,7 @@ use crate::{
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
 };
-use crate::{check, prelude::*};
+use crate::{check, debug, prelude::*};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
@@ -176,12 +176,9 @@ pub fn lending_account_liquidate(
             "Insurance fund fee cannot be negative"
         );
 
-        msg!(
+        debug!(
             "liab_quantity_liq: {}, liab_q_final: {}, asset_amount: {}, insurance_fund_fee: {}",
-            liab_amount_liquidator,
-            liab_amount_final,
-            asset_amount,
-            insurance_fund_fee
+            liab_amount_liquidator, liab_amount_final, asset_amount, insurance_fund_fee
         );
 
         // Liquidator pays off liability
