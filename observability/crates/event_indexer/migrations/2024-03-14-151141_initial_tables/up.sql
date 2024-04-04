@@ -73,6 +73,18 @@ SELECT diesel_manage_updated_at('accounts');
 
 -- Events
 
+CREATE TABLE "unknown_events"(
+	"id" SERIAL PRIMARY KEY,
+	"timestamp" TIMESTAMP NOT NULL,
+	"tx_sig" VARCHAR NOT NULL,
+	"in_flashloan" BOOLEAN NOT NULL,
+	"call_stack" VARCHAR NOT NULL,
+
+	"created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+	"updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+SELECT diesel_manage_updated_at('unknown_events');
+
 CREATE TABLE "create_account_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
