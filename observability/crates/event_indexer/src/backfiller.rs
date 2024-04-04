@@ -110,7 +110,20 @@ pub async fn find_boundary_signature(
     let mut i = 0;
     let mut candidate_slot = slot;
 
-    loop {
+    'block_search: loop {
+        if i > 0 {
+            i += 1;
+            if forward {
+                candidate_slot += i;
+            } else {
+                candidate_slot -= i;
+            }
+
+            if i > max_retries {
+                return Err(IndexingError::BoundarySignatureNotFound(slot, max_retries));
+            }
+        }
+
         let result = rpc_client
             .get_block_with_config(
                 candidate_slot,
@@ -124,52 +137,57 @@ pub async fn find_boundary_signature(
 
         match result {
             Ok(block) => {
-                if let Some(mut boundary_txs) = block.transactions {
-                    // Look for a non-mfi transaction in the block, as the boundary
-                    let boundary_tx = loop {
-                        if forward {
-                            boundary_txs.reverse();
-                        }
-                        let mut boundary_txs_iter = boundary_txs.iter();
+                let Some(mut boundary_txs) = block.transactions else {
+                    warn!("No transactions in block for slot {}", candidate_slot);
+                    continue;
+                };
 
-                        let Some(boundary_tx) = boundary_txs_iter.next() else {
-                            panic!("ONLY MFI TXS IN BLOCK FOR SLOT {}???!!!", candidate_slot);
-                        };
+                if boundary_txs.is_empty() {
+                    warn!("No transactions in block for slot {}", candidate_slot);
+                    continue;
+                }
 
-                        let versioned_tx_with_meta =
-                            convert_encoded_ui_transaction(boundary_tx.clone()).unwrap();
-                        let sanitized_tx = SanitizedTransaction::try_create(
-                            versioned_tx_with_meta.transaction,
-                            MessageHash::Precomputed(Hash::default()),
-                            None,
-                            SimpleAddressLoader::Enabled(
-                                versioned_tx_with_meta.meta.loaded_addresses,
-                            ),
-                            true,
-                        )
-                        .unwrap();
+                // Look for a non-mfi transaction in the block, as the boundary
+                let boundary_tx = loop {
+                    if forward {
+                        boundary_txs.reverse();
+                    }
+                    let mut boundary_txs_iter = boundary_txs.iter();
 
-                        if !sanitized_tx
-                            .message()
-                            .account_keys()
-                            .iter()
-                            .any(|key| key == program_id)
-                        {
-                            break boundary_tx;
-                        }
+                    let Some(boundary_tx) = boundary_txs_iter.next() else {
+                        warn!("ONLY MFI TXS IN BLOCK FOR SLOT {}???!!!", candidate_slot);
+                        continue 'block_search;
                     };
 
-                    let boundary_sig = boundary_tx
-                        .transaction
-                        .decode()
-                        .unwrap()
-                        .get_signature()
-                        .clone();
+                    let versioned_tx_with_meta =
+                        convert_encoded_ui_transaction(boundary_tx.clone()).unwrap();
+                    let sanitized_tx = SanitizedTransaction::try_create(
+                        versioned_tx_with_meta.transaction,
+                        MessageHash::Precomputed(Hash::default()),
+                        None,
+                        SimpleAddressLoader::Enabled(versioned_tx_with_meta.meta.loaded_addresses),
+                        true,
+                    )
+                    .unwrap();
 
-                    return Ok(boundary_sig);
-                } else {
-                    warn!("No transactions in block for slot {}", candidate_slot);
-                }
+                    if !sanitized_tx
+                        .message()
+                        .account_keys()
+                        .iter()
+                        .any(|key| key == program_id)
+                    {
+                        break boundary_tx;
+                    }
+                };
+
+                let boundary_sig = boundary_tx
+                    .transaction
+                    .decode()
+                    .unwrap()
+                    .get_signature()
+                    .clone();
+
+                return Ok(boundary_sig);
             }
             Err(error) => {
                 match error {
@@ -205,18 +223,6 @@ pub async fn find_boundary_signature(
                 };
             }
         }
-
-        i += 1;
-        if forward {
-            candidate_slot += i;
-        } else {
-            candidate_slot -= i;
-        }
-
-        if i > max_retries {
-            return Err(IndexingError::BoundarySignatureNotFound(slot, max_retries));
-        }
-        continue;
     }
 }
 
