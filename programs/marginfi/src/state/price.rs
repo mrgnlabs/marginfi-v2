@@ -12,7 +12,7 @@ use switchboard_v2::{
 use crate::{
     check,
     constants::{CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL, PYTH_ID},
-    math_error,
+    debug, math_error,
     prelude::*,
 };
 
@@ -63,8 +63,22 @@ impl OraclePriceFeedAdapter {
         bank_config: &BankConfig,
         ais: &[AccountInfo],
         current_timestamp: i64,
+    ) -> MarginfiResult<Self> {
+        Self::try_from_bank_config_with_max_age(
+            bank_config,
+            ais,
+            current_timestamp,
+            bank_config.get_oracle_max_age(),
+        )
+    }
+
+    pub fn try_from_bank_config_with_max_age(
+        bank_config: &BankConfig,
+        ais: &[AccountInfo],
+        current_timestamp: i64,
         max_age: u64,
     ) -> MarginfiResult<Self> {
+        debug!("Max age: {}", max_age);
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
             OracleSetup::PythEma => {

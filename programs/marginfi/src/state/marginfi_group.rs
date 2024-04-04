@@ -1,15 +1,16 @@
 use super::{
     marginfi_account::{BalanceSide, RequirementType},
-    price::{OraclePriceFeedAdapter, OracleSetup},
+    price::{self, OraclePriceFeedAdapter, OracleSetup},
 };
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
+        self, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        MAX_ORACLE_KEYS, PYTH_ID, SECONDS_PER_YEAR, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
+        MAX_ORACLE_KEYS, MAX_PRICE_AGE_SEC, PYTH_ID, SECONDS_PER_YEAR,
+        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
     prelude::MarginfiError,
@@ -546,16 +547,6 @@ impl Bank {
         Ok(())
     }
 
-    #[inline]
-    pub fn load_price_feed_from_account_info(
-        &self,
-        ais: &[AccountInfo],
-        current_timestamp: i64,
-        max_age: u64,
-    ) -> MarginfiResult<OraclePriceFeedAdapter> {
-        OraclePriceFeedAdapter::try_from_bank_config(&self.config, ais, current_timestamp, max_age)
-    }
-
     /// Calculate the interest rate accrual state changes for a given time period
     ///
     /// Collected protocol and insurance fees are stored in state.
@@ -898,6 +889,9 @@ pub struct BankConfigCompact {
     ///
     /// Value is UI USD value, for example value 100 -> $100
     pub total_asset_value_init_limit: u64,
+
+    /// Time window in seconds for the oracle price feed to be considered live.
+    pub oracle_max_age: u16,
 }
 
 impl From<BankConfigCompact> for BankConfig {
@@ -922,7 +916,8 @@ impl From<BankConfigCompact> for BankConfig {
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             total_asset_value_init_limit: config.total_asset_value_init_limit,
-            _padding: [0; 5],
+            oracle_max_age: config.oracle_max_age,
+            _padding: [0; 19],
         }
     }
 }
@@ -942,6 +937,7 @@ impl From<BankConfig> for BankConfigCompact {
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             total_asset_value_init_limit: config.total_asset_value_init_limit,
+            oracle_max_age: config.oracle_max_age,
         }
     }
 }
@@ -985,7 +981,10 @@ pub struct BankConfig {
     /// Value is UI USD value, for example value 100 -> $100
     pub total_asset_value_init_limit: u64,
 
-    pub _padding: [u64; 5], // 16 * 4 = 64 bytes
+    /// Time window in seconds for the oracle price feed to be considered live.
+    pub oracle_max_age: u16,
+
+    pub _padding: [u16; 19], // 16 * 4 = 64 bytes
 }
 
 impl Default for BankConfig {
@@ -1003,7 +1002,8 @@ impl Default for BankConfig {
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
             risk_tier: RiskTier::Isolated,
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
-            _padding: [0; 5],
+            oracle_max_age: 0,
+            _padding: [0; 19],
         }
     }
 }
@@ -1089,6 +1089,14 @@ impl BankConfig {
 
     pub fn usd_init_limit_active(&self) -> bool {
         self.total_asset_value_init_limit != TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE
+    }
+
+    #[inline]
+    pub fn get_oracle_max_age(&self) -> u64 {
+        match self.oracle_max_age {
+            0 => MAX_PRICE_AGE_SEC,
+            n => n as u64,
+        }
     }
 }
 

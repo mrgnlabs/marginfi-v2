@@ -1033,9 +1033,13 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
     let price_oracle_ai =
         (&bank.config.oracle_keys[0], &mut price_oracle_account).into_account_info();
 
-    let opfa =
-        OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[price_oracle_ai], 0, u64::MAX)
-            .unwrap();
+    let opfa = OraclePriceFeedAdapter::try_from_bank_config_with_max_age(
+        &bank.config,
+        &[price_oracle_ai],
+        0,
+        u64::MAX,
+    )
+    .unwrap();
 
     let (real_price, maint_asset_price, maint_liab_price, init_asset_price, init_liab_price) = (
         opfa.get_price_of_type(OraclePriceType::RealTime, None)?,

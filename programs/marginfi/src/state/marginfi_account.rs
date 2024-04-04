@@ -194,7 +194,6 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
                         &bank.config,
                         oracle_ais,
                         current_timestamp,
-                        MAX_PRICE_AGE_SEC,
                     ))
                 };
 

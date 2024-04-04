@@ -126,7 +126,6 @@ pub fn lending_account_liquidate(
                 &asset_bank.config,
                 oracle_ais,
                 current_timestamp,
-                MAX_PRICE_AGE_SEC,
             )?;
             asset_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?
         };
@@ -138,7 +137,6 @@ pub fn lending_account_liquidate(
                 &liab_bank.config,
                 oracle_ais,
                 current_timestamp,
-                MAX_PRICE_AGE_SEC,
             )?;
             liab_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?
         };
