@@ -109,9 +109,10 @@ pub async fn find_boundary_signature(
 
     let mut i = 0;
     let mut candidate_slot = slot;
+    let mut first = true;
 
     'block_search: loop {
-        if i > 0 {
+        if !first {
             i += 1;
             if forward {
                 candidate_slot += i;
@@ -123,6 +124,7 @@ pub async fn find_boundary_signature(
                 return Err(IndexingError::BoundarySignatureNotFound(slot, max_retries));
             }
         }
+        first = false;
 
         let result = rpc_client
             .get_block_with_config(
