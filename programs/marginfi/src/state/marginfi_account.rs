@@ -161,8 +161,8 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
             .filter(|balance| balance.active)
             .collect::<Vec<_>>();
 
-        msg!("Expecting {} remaining accounts", active_balances.len() * 2);
-        msg!("Got {} remaining accounts", remaining_ais.len());
+        debug!("Expecting {} remaining accounts", active_balances.len() * 2);
+        debug!("Got {} remaining accounts", remaining_ais.len());
 
         check!(
             active_balances.len() * 2 == remaining_ais.len(),
@@ -336,11 +336,9 @@ pub fn calc_value(
     };
 
     #[cfg(target_os = "solana")]
-    msg!(
+    debug!(
         "weighted_asset_qt: {}, price: {}, expo: {}",
-        weighted_asset_amount,
-        price,
-        mint_decimals
+        weighted_asset_amount, price, mint_decimals
     );
 
     let value = weighted_asset_amount
@@ -470,10 +468,9 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(requirement_type)?;
 
-        msg!(
+        debug!(
             "check_health: assets {} - liabs: {}",
-            total_weighted_assets,
-            total_weighted_liabilities
+            total_weighted_assets, total_weighted_liabilities
         );
 
         check!(
@@ -521,11 +518,9 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 
-        msg!(
+        debug!(
             "pre_liquidation_health: {} ({} - {})",
-            account_health,
-            assets,
-            liabs
+            account_health, assets, liabs
         );
 
         check!(
@@ -588,12 +583,9 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
             "Liquidation too severe, account above maintenance requirement"
         );
 
-        msg!(
+        debug!(
             "account_health: {} ({} - {}), pre_liquidation_health: {}",
-            account_health,
-            assets,
-            liabs,
-            pre_liquidation_health,
+            account_health, assets, liabs, pre_liquidation_health,
         );
 
         check!(
@@ -1029,10 +1021,9 @@ impl<'a> BankAccountWrapper<'a> {
         balance_delta: I80F48,
         operation_type: BalanceIncreaseType,
     ) -> MarginfiResult {
-        msg!(
+        debug!(
             "Balance increase: {} (type: {:?})",
-            balance_delta,
-            operation_type
+            balance_delta, operation_type
         );
 
         self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
@@ -1095,10 +1086,9 @@ impl<'a> BankAccountWrapper<'a> {
         balance_delta: I80F48,
         operation_type: BalanceDecreaseType,
     ) -> MarginfiResult {
-        msg!(
+        debug!(
             "Balance decrease: {} of (type: {:?})",
-            balance_delta,
-            operation_type
+            balance_delta, operation_type
         );
 
         self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
@@ -1197,14 +1187,16 @@ impl<'a> BankAccountWrapper<'a> {
 
             let emissions_real = min(emissions, I80F48::from(self.bank.emissions_remaining));
 
-            msg!(
-                "Emitting {} ({} calculated) for period {}s",
-                emissions_real,
-                emissions,
-                period
-            );
+            if emissions != emissions_real {
+                msg!(
+                    "Emissions capped: {} ({} calculated) for period {}s",
+                    emissions_real,
+                    emissions,
+                    period
+                );
+            }
 
-            msg!(
+            debug!(
                 "Outstanding emissions: {}",
                 I80F48::from(self.balance.emissions_outstanding)
             );
