@@ -305,15 +305,21 @@ pub async fn generate_ranges(
     is_range_complete: Arc<AtomicBool>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let sig_statuses = rpc_client
-        .get_signature_statuses_with_history(&[overall_before_sig, overall_until_sig])
+        .get_signature_statuses_with_history(&[overall_until_sig, overall_before_sig])
         .await?
         .value;
-    let (overall_before_slot, overall_until_slot) = (
+    let (overall_until_slot, overall_before_slot) = (
         sig_statuses[0].as_ref().unwrap().slot,
         sig_statuses[1].as_ref().unwrap().slot,
     );
 
+    info!(
+        "Starting to generate ranges between {:?} ({:?}) and {:?} ({:?})",
+        overall_until_sig, overall_until_slot, overall_before_sig, overall_before_slot
+    );
+
     let mut cursor_slot = overall_until_slot;
+    let prev_cursor_sig = Arc::new(Mutex::new(overall_until_sig));
 
     let mut timer = interval(Duration::from_millis(200));
     loop {
@@ -323,7 +329,6 @@ pub async fn generate_ranges(
         }
 
         let remaining_capacity = range_queue.capacity().unwrap() - range_queue.len();
-        println!("Remaining capacity: {}", remaining_capacity);
 
         let mut boundary_slots = vec![cursor_slot];
         for _ in 0..remaining_capacity {
@@ -334,11 +339,8 @@ pub async fn generate_ranges(
                 break;
             }
         }
-        println!("Boundary slots: {:?}", boundary_slots);
 
         let rpc_client_ref = &rpc_client;
-
-        let prev_cursor_sig = Arc::new(Mutex::new(overall_until_sig));
         let prev_cursor_slot = Arc::new(AtomicU64::new(boundary_slots.remove(0)));
 
         stream::iter(
@@ -370,15 +372,13 @@ pub async fn generate_ranges(
         .buffered(10)
         .for_each(
             |(cursor_slot, cursor_sig, prev_cursor_sig, prev_cursor_slot)| async move {
-                println!(
-                    "Pushing range: {:?} [{:?} -> {:?}]",
-                    prev_cursor_sig, prev_cursor_slot, cursor_slot,
-                );
+                let mut until_sig = prev_cursor_sig.lock().await;
+
                 range_queue
                     .push(Range {
                         before_sig: cursor_sig,
                         before_slot: cursor_slot,
-                        until_sig: prev_cursor_sig.lock().await.clone(),
+                        until_sig: until_sig.clone(),
                         until_slot: prev_cursor_slot.load(Ordering::Relaxed),
                         progress: ((cursor_slot as f64 - overall_until_slot as f64)
                             / (overall_before_slot as f64 - overall_until_slot as f64))
@@ -386,7 +386,7 @@ pub async fn generate_ranges(
                     })
                     .unwrap();
 
-                *prev_cursor_sig.lock().await = cursor_sig; // ok because we are doing an ordered buffering
+                *until_sig = cursor_sig; // ok because we are doing an ordered buffering
                 prev_cursor_slot.store(cursor_slot, Ordering::Relaxed);
             },
         )

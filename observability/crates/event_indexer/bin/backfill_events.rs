@@ -13,6 +13,7 @@ use backoff::{exponential::ExponentialBackoffBuilder, retry, SystemClock};
 use bytemuck::Contiguous;
 use chrono::DateTime;
 use concurrent_queue::ConcurrentQueue;
+use crossbeam::channel::TryRecvError;
 use dotenv::dotenv;
 use envconfig::Envconfig;
 use event_indexer::{
@@ -125,6 +126,8 @@ pub async fn main() {
             .await
             .map_err(|e| IndexingError::FailedToGenerateRange(e.to_string()))?;
 
+            info!("Finished generating ranges");
+
             Ok(())
         })
     }));
@@ -147,7 +150,7 @@ pub async fn main() {
         tasks.push(std::thread::spawn(move || {
             tokio::runtime::Runtime::new().unwrap().block_on(async {
                 let mut timer = interval(Duration::from_millis(200));
-                while !is_range_complete.load(Ordering::Relaxed) {
+                while range_queue.len() > 0 || !is_range_complete.load(Ordering::Relaxed) {
                     if let Ok(Range {
                         before_sig,
                         until_sig,
@@ -157,8 +160,8 @@ pub async fn main() {
                     }) = range_queue.pop()
                     {
                         info!(
-                            "Thread {:?} got range: {:?} - {:?} ({:.2?}%)",
-                            i, until_slot, before_slot, progress
+                            "[{:?}] Processing {:?} -> {:?} ({:?} -> {:?})",
+                            i, until_slot, before_slot, until_sig, before_sig
                         );
                         crawl_signatures_for_range(
                             i as u64,
@@ -170,10 +173,16 @@ pub async fn main() {
                             None,
                         )
                         .await?;
+                        info!(
+                            "[{:?}] {:.2?}% completed {:?} - {:?} ({:?} -> {:?})",
+                            i, progress, until_slot, before_slot, until_sig, before_sig
+                        );
                     }
 
                     timer.tick().await;
                 }
+
+                info!("Thread {:?} done", i);
 
                 Ok(())
             })
@@ -187,15 +196,29 @@ pub async fn main() {
     let mut event_counter = 0;
     let mut print_time = std::time::Instant::now();
 
-    while let Ok(TransactionData {
-        transaction,
-        task_id,
-        ..
-    }) = transaction_rx.recv()
-    {
-        if tasks.iter().all(|task| task.is_finished()) {
-            break;
-        }
+    loop {
+        let maybe_item = transaction_rx.try_recv();
+
+        let TransactionData {
+            transaction,
+            task_id,
+            ..
+        } = match maybe_item {
+            Err(TryRecvError::Empty) => {
+                if tasks.iter().all(|task| task.is_finished()) {
+                    info!("Done!");
+                    break;
+                } else {
+                    std::thread::sleep(Duration::from_millis(100));
+                    continue;
+                }
+            }
+            Err(TryRecvError::Disconnected) => {
+                error!("Transaction channel disconnected! Exiting...");
+                break;
+            }
+            Ok(tx_data) => tx_data,
+        };
 
         let timestamp = transaction.block_time.unwrap();
         let slot = transaction.slot;
@@ -264,6 +287,4 @@ pub async fn main() {
             .unwrap();
         }
     }
-
-    info!("Done!");
 }
