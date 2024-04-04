@@ -1,0 +1,18 @@
+[package]
+name = "solana_price_indexer"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "index-solana-prices"
+path = "bin/index_solana_prices.rs"
+
+[dependencies]
+backoff = { workspace = true }
+dotenv = { workspace = true }
+envconfig = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-stackdriver = { workspace = true }
+tracing-subscriber = { workspace = true }

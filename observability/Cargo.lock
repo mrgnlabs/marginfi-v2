@@ -4661,6 +4661,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana_price_indexer"
+version = "0.1.0"
+dependencies = [
+ "backoff",
+ "dotenv",
+ "envconfig",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-stackdriver",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "solana_rbpf"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
