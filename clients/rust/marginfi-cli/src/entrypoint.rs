@@ -127,6 +127,12 @@ pub enum GroupCommand {
         risk_tier: RiskTierArg,
         #[clap(long, arg_enum)]
         oracle_type: OracleTypeArg,
+        #[clap(
+            long,
+            help = "Max oracle age in seconds, 0 for default (60s)",
+            default_value = "60"
+        )]
+        oracle_max_age: u16,
     },
     #[cfg(feature = "admin")]
     HandleBankruptcy {
@@ -238,6 +244,8 @@ pub enum BankCommand {
         oracle_key: Option<Pubkey>,
         #[clap(long, help = "Soft USD init limit")]
         usd_init_limit: Option<u64>,
+        #[clap(long, help = "Oracle max age in seconds, 0 to use default value (60s)")]
+        oracle_max_age: Option<u16>,
     },
     #[cfg(feature = "dev")]
     InspectPriceOracle {
@@ -496,6 +504,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             borrow_limit_ui,
             risk_tier,
             oracle_type,
+            oracle_max_age,
         } => processor::group_add_bank(
             config,
             profile,
@@ -517,6 +526,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_fixed_fee_apr,
             protocol_ir_fee,
             risk_tier,
+            oracle_max_age,
         ),
         #[cfg(feature = "admin")]
         GroupCommand::HandleBankruptcy { accounts } => {
@@ -567,6 +577,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             oracle_type,
             oracle_key,
             usd_init_limit,
+            oracle_max_age,
         } => {
             let bank = config
                 .mfi_program
@@ -613,6 +624,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     }),
                     risk_tier: risk_tier.map(|x| x.into()),
                     total_asset_value_init_limit: usd_init_limit,
+                    oracle_max_age,
                 },
             )
         }

@@ -314,6 +314,7 @@ pub fn group_add_bank(
     protocol_fixed_fee_apr: f64,
     protocol_ir_fee: f64,
     risk_tier: crate::RiskTierArg,
+    oracle_max_age: u16,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
@@ -377,6 +378,7 @@ pub fn group_add_bank(
             interest_rate_config,
             oracle_setup,
             risk_tier,
+            oracle_max_age,
         )?
     } else {
         create_bank_ix(
@@ -394,6 +396,7 @@ pub fn group_add_bank(
             interest_rate_config,
             oracle_setup,
             risk_tier,
+            oracle_max_age,
         )?
     };
 
@@ -427,6 +430,7 @@ fn create_bank_ix_with_seed(
     interest_rate_config: InterestRateConfig,
     oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
+    oracle_max_age: u16,
 ) -> Result<Vec<Instruction>> {
     use solana_sdk::commitment_config::CommitmentConfig;
 
@@ -511,6 +515,7 @@ fn create_bank_ix_with_seed(
                 oracle_setup: oracle_setup.into(),
                 oracle_keys: create_oracle_key_array(oracle_key),
                 risk_tier: risk_tier.into(),
+                oracle_max_age,
                 ..BankConfig::default()
             }
             .into(),
@@ -540,6 +545,7 @@ fn create_bank_ix(
     interest_rate_config: InterestRateConfig,
     oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
+    oracle_max_age: u16,
 ) -> Result<Vec<Instruction>> {
     let add_bank_ixs_builder = config.mfi_program.request();
     let add_bank_ixs = add_bank_ixs_builder
@@ -603,6 +609,7 @@ fn create_bank_ix(
                 oracle_setup: oracle_setup.into(),
                 oracle_keys: create_oracle_key_array(oracle_key),
                 risk_tier: risk_tier.into(),
+                oracle_max_age,
                 ..BankConfig::default()
             }
             .into(),
@@ -1033,9 +1040,13 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
     let price_oracle_ai =
         (&bank.config.oracle_keys[0], &mut price_oracle_account).into_account_info();
 
-    let opfa =
-        OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[price_oracle_ai], 0, u64::MAX)
-            .unwrap();
+    let opfa = OraclePriceFeedAdapter::try_from_bank_config_with_max_age(
+        &bank.config,
+        &[price_oracle_ai],
+        0,
+        u64::MAX,
+    )
+    .unwrap();
 
     let (real_price, maint_asset_price, maint_liab_price, init_asset_price, init_liab_price) = (
         opfa.get_price_of_type(OraclePriceType::RealTime, None)?,

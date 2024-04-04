@@ -6,8 +6,8 @@ use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
         BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
-        EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MAX_PRICE_AGE_SEC, MIN_EMISSIONS_START_TIME,
-        SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
+        EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR,
+        ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -194,7 +194,6 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
                         &bank.config,
                         oracle_ais,
                         current_timestamp,
-                        MAX_PRICE_AGE_SEC,
                     ))
                 };
 
