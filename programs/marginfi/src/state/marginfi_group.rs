@@ -542,6 +542,8 @@ impl Bank {
             config.total_asset_value_init_limit
         );
 
+        set_if_some!(self.config.oracle_max_age, config.oracle_max_age);
+
         self.config.validate()?;
 
         Ok(())
@@ -1155,6 +1157,8 @@ pub struct BankConfigOpt {
     pub risk_tier: Option<RiskTier>,
 
     pub total_asset_value_init_limit: Option<u64>,
+
+    pub oracle_max_age: Option<u16>,
 }
 
 #[cfg_attr(

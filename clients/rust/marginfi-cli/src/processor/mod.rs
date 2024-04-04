@@ -314,6 +314,7 @@ pub fn group_add_bank(
     protocol_fixed_fee_apr: f64,
     protocol_ir_fee: f64,
     risk_tier: crate::RiskTierArg,
+    oracle_max_age: u16,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
@@ -377,6 +378,7 @@ pub fn group_add_bank(
             interest_rate_config,
             oracle_setup,
             risk_tier,
+            oracle_max_age,
         )?
     } else {
         create_bank_ix(
@@ -394,6 +396,7 @@ pub fn group_add_bank(
             interest_rate_config,
             oracle_setup,
             risk_tier,
+            oracle_max_age,
         )?
     };
 
@@ -427,6 +430,7 @@ fn create_bank_ix_with_seed(
     interest_rate_config: InterestRateConfig,
     oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
+    oracle_max_age: u16,
 ) -> Result<Vec<Instruction>> {
     use solana_sdk::commitment_config::CommitmentConfig;
 
@@ -511,6 +515,7 @@ fn create_bank_ix_with_seed(
                 oracle_setup: oracle_setup.into(),
                 oracle_keys: create_oracle_key_array(oracle_key),
                 risk_tier: risk_tier.into(),
+                oracle_max_age,
                 ..BankConfig::default()
             }
             .into(),
@@ -540,6 +545,7 @@ fn create_bank_ix(
     interest_rate_config: InterestRateConfig,
     oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
+    oracle_max_age: u16,
 ) -> Result<Vec<Instruction>> {
     let add_bank_ixs_builder = config.mfi_program.request();
     let add_bank_ixs = add_bank_ixs_builder
@@ -603,6 +609,7 @@ fn create_bank_ix(
                 oracle_setup: oracle_setup.into(),
                 oracle_keys: create_oracle_key_array(oracle_key),
                 risk_tier: risk_tier.into(),
+                oracle_max_age,
                 ..BankConfig::default()
             }
             .into(),
