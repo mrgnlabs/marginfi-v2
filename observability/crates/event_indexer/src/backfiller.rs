@@ -125,7 +125,6 @@ pub async fn find_boundary_signature(
         match result {
             Ok(block) => {
                 if let Some(mut boundary_txs) = block.transactions {
-                    let mut counter = 0;
                     // Look for a non-mfi transaction in the block, as the boundary
                     let boundary_tx = loop {
                         if forward {
@@ -149,9 +148,6 @@ pub async fn find_boundary_signature(
                             true,
                         )
                         .unwrap();
-
-                        println!("pass {}", counter);
-                        counter += 1;
 
                         if !sanitized_tx
                             .message()
