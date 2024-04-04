@@ -216,6 +216,18 @@ diesel::table! {
 }
 
 diesel::table! {
+    unknown_events (id) {
+        id -> Int4,
+        timestamp -> Timestamp,
+        tx_sig -> Varchar,
+        in_flashloan -> Bool,
+        call_stack -> Varchar,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     users (id) {
         id -> Int4,
         address -> Varchar,
@@ -306,6 +318,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     repay_events,
     risk_tier,
     transfer_account_authority_events,
+    unknown_events,
     users,
     withdraw_emissions_events,
     withdraw_events,

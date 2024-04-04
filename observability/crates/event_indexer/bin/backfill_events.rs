@@ -206,7 +206,7 @@ pub async fn main() {
         } = match maybe_item {
             Err(TryRecvError::Empty) => {
                 if tasks.iter().all(|task| task.is_finished()) {
-                    info!("Done!");
+                    info!("Done! {:?} events processed", event_counter);
                     break;
                 } else {
                     std::thread::sleep(Duration::from_millis(100));

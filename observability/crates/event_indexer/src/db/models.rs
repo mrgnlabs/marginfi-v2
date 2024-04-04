@@ -40,6 +40,17 @@ pub struct Accounts {
     pub user_id: i32,
 }
 
+#[derive(Default, Debug, Queryable, Selectable, Insertable)]
+#[diesel(table_name = unknown_events)]
+pub struct UnknownEvents {
+    #[diesel(skip_insertion)]
+    pub id: i32,
+    pub timestamp: chrono::NaiveDateTime,
+    pub tx_sig: String,
+    pub in_flashloan: bool,
+    pub call_stack: String,
+}
+
 #[derive(Default, Debug, Queryable, Selectable, Insertable, Associations)]
 #[diesel(table_name = create_account_events)]
 #[diesel(belongs_to(Accounts, foreign_key = account_id), belongs_to(Users, foreign_key = authority_id))]

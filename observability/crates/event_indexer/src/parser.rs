@@ -10,10 +10,9 @@ use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use marginfi::{
     instruction::{
-        LendingAccountBorrow, LendingAccountCloseBalance, LendingAccountDeposit,
-        LendingAccountEndFlashloan, LendingAccountLiquidate, LendingAccountRepay,
-        LendingAccountSettleEmissions, LendingAccountStartFlashloan, LendingAccountWithdraw,
-        LendingAccountWithdrawEmissions, LendingPoolAccrueBankInterest, LendingPoolAddBank,
+        LendingAccountBorrow, LendingAccountDeposit, LendingAccountEndFlashloan,
+        LendingAccountLiquidate, LendingAccountRepay, LendingAccountStartFlashloan,
+        LendingAccountWithdraw, LendingAccountWithdrawEmissions, LendingPoolAddBank,
         LendingPoolAddBankWithSeed, LendingPoolConfigureBank, MarginfiAccountInitialize,
         SetNewAccountAuthority,
     },
@@ -86,6 +85,43 @@ pub enum Event {
     // Admin actions
     AddBank(AddBankEvent),
     ConfigureBank(ConfigureBankEvent),
+
+    Unknown(UnknownEvent),
+}
+
+#[derive(Debug)]
+pub struct UnknownEvent {}
+
+impl MarginfiEvent for UnknownEvent {
+    fn db_insert(
+        &self,
+        timestamp: NaiveDateTime,
+        tx_sig: String,
+        in_flashloan: bool,
+        call_stack: String,
+        db_connection: &mut PgConnection,
+        _entity_store: &mut EntityStore,
+    ) -> Result<(), IndexingError> {
+        let id: Option<i32> = diesel::insert_into(unknown_events::table)
+            .values(&UnknownEvents {
+                timestamp,
+                tx_sig,
+                call_stack,
+                in_flashloan,
+                ..Default::default()
+            })
+            .on_conflict_do_nothing()
+            .returning(unknown_events::id)
+            .get_result(db_connection)
+            .optional()
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+
+        if id.is_none() {
+            info!("event already exists");
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -1849,15 +1885,12 @@ impl MarginfiEventParser {
 
                 None
             }
-            LendingAccountCloseBalance::DISCRIMINATOR
-            | LendingPoolAccrueBankInterest::DISCRIMINATOR
-            | LendingAccountSettleEmissions::DISCRIMINATOR => None,
             _ => {
                 warn!(
                     "Unknown instruction discriminator {:?} in {:?}",
                     discriminator, tx_signature
                 );
-                None
+                Some(Event::Unknown(UnknownEvent {}))
             }
         }
     }
