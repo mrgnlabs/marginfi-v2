@@ -117,6 +117,7 @@ pub async fn main() {
                 },
             );
             generate_ranges(
+                &marginfi::ID,
                 rpc_client,
                 before_sig,
                 until_sig,

@@ -2,6 +2,7 @@ use backoff::{future::retry, ExponentialBackoffBuilder};
 use concurrent_queue::ConcurrentQueue;
 use crossbeam::channel::Sender;
 use futures::{future::try_join_all, lock::Mutex, stream, StreamExt};
+use rpc_utils::conversion::convert_encoded_ui_transaction;
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
     rpc_client::{GetConfirmedSignaturesForAddress2Config, SerializableTransaction},
@@ -9,7 +10,14 @@ use solana_client::{
     rpc_request::RpcError,
 };
 use solana_rpc_client_api::client_error::{Error as ClientError, ErrorKind};
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signature};
+use solana_sdk::{
+    commitment_config::CommitmentConfig,
+    hash::Hash,
+    message::SimpleAddressLoader,
+    pubkey::Pubkey,
+    signature::Signature,
+    transaction::{MessageHash, SanitizedTransaction},
+};
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use std::{
     str::FromStr,
@@ -36,6 +44,7 @@ pub struct TransactionData {
 }
 
 pub async fn find_boundary_signatures_for_range(
+    program_id: &Pubkey,
     rpc_client: &RpcClient,
     task_count: usize,
     before: Signature,
@@ -79,7 +88,8 @@ pub async fn find_boundary_signatures_for_range(
     let boundary_sigs = try_join_all(boundary_slots.into_iter().enumerate().map(
         |(index, slot)| async move {
             let forward = index != last_boundary_index;
-            let boundary_sig = find_boundary_signature(rpc_client, slot, forward, None).await?;
+            let boundary_sig =
+                find_boundary_signature(program_id, rpc_client, slot, forward, None).await?;
             Ok((slot, boundary_sig))
         },
     ))
@@ -89,6 +99,7 @@ pub async fn find_boundary_signatures_for_range(
 }
 
 pub async fn find_boundary_signature(
+    program_id: &Pubkey,
     rpc_client: &RpcClient,
     slot: u64,
     forward: bool,
@@ -113,12 +124,45 @@ pub async fn find_boundary_signature(
 
         match result {
             Ok(block) => {
-                if let Some(boundary_txs) = block.transactions {
-                    let boundary_tx = if forward {
-                        boundary_txs.last().unwrap()
-                    } else {
-                        boundary_txs.first().unwrap()
+                if let Some(mut boundary_txs) = block.transactions {
+                    let mut counter = 0;
+                    // Look for a non-mfi transaction in the block, as the boundary
+                    let boundary_tx = loop {
+                        if forward {
+                            boundary_txs.reverse();
+                        }
+                        let mut boundary_txs_iter = boundary_txs.iter();
+
+                        let Some(boundary_tx) = boundary_txs_iter.next() else {
+                            panic!("ONLY MFI TXS IN BLOCK FOR SLOT {}???!!!", candidate_slot);
+                        };
+
+                        let versioned_tx_with_meta =
+                            convert_encoded_ui_transaction(boundary_tx.clone()).unwrap();
+                        let sanitized_tx = SanitizedTransaction::try_create(
+                            versioned_tx_with_meta.transaction,
+                            MessageHash::Precomputed(Hash::default()),
+                            None,
+                            SimpleAddressLoader::Enabled(
+                                versioned_tx_with_meta.meta.loaded_addresses,
+                            ),
+                            true,
+                        )
+                        .unwrap();
+
+                        println!("pass {}", counter);
+                        counter += 1;
+
+                        if !sanitized_tx
+                            .message()
+                            .account_keys()
+                            .iter()
+                            .any(|key| key == program_id)
+                        {
+                            break boundary_tx;
+                        }
                     };
+
                     let boundary_sig = boundary_tx
                         .transaction
                         .decode()
@@ -298,6 +342,7 @@ pub struct Range {
 }
 
 pub async fn generate_ranges(
+    program_id: &Pubkey,
     rpc_client: RpcClient,
     overall_before_sig: Signature,
     overall_until_sig: Signature,
@@ -357,7 +402,9 @@ pub async fn generate_ranges(
                         .with_max_interval(Duration::from_secs(5))
                         .build(),
                     || async {
-                        match find_boundary_signature(rpc_client_ref, slot, true, None).await {
+                        match find_boundary_signature(program_id, rpc_client_ref, slot, true, None)
+                            .await
+                        {
                             Ok(sig) => {
                                 Ok((slot, sig, prev_cursor_sig.clone(), prev_cursor_slot.clone()))
                             }
