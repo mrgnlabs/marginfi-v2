@@ -1885,13 +1885,7 @@ impl MarginfiEventParser {
 
                 None
             }
-            _ => {
-                warn!(
-                    "Unknown instruction discriminator {:?} in {:?}",
-                    discriminator, tx_signature
-                );
-                Some(Event::Unknown(UnknownEvent {}))
-            }
+            _ => Some(Event::Unknown(UnknownEvent {})),
         }
     }
 }
