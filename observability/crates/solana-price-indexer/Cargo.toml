@@ -8,9 +8,14 @@ name = "index-solana-prices"
 path = "bin/index_solana_prices.rs"
 
 [dependencies]
+anyhow = "1.0.81"
 backoff = { workspace = true }
 dotenv = { workspace = true }
 envconfig = { workspace = true }
+futures = { workspace = true }
+reqwest = { version = "0.12.2", features = ["json"] }
+serde = { workspace = true }
+serde_qs = "0.12.0"
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

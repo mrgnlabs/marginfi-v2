@@ -50,7 +50,9 @@ pub async fn main() -> Result<(), IndexingError> {
         tracing::subscriber::set_global_default(subscriber).unwrap();
     };
 
-    let mut indexer = SolanaPriceIndexer::new();
+    let mut indexer = SolanaPriceIndexer::new("https://quote-api.jup.ag/v6/".to_string())
+        .await
+        .unwrap();
 
     indexer.run().await;
 
