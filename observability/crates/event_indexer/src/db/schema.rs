@@ -31,6 +31,7 @@ diesel::table! {
     borrow_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,
@@ -48,6 +49,7 @@ diesel::table! {
     configure_bank_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,
@@ -79,6 +81,7 @@ diesel::table! {
     create_account_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,
@@ -93,6 +96,7 @@ diesel::table! {
     create_bank_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,
@@ -124,6 +128,7 @@ diesel::table! {
     deposit_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,
@@ -141,6 +146,7 @@ diesel::table! {
     liquidate_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,
@@ -179,6 +185,7 @@ diesel::table! {
     repay_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,
@@ -204,6 +211,7 @@ diesel::table! {
     transfer_account_authority_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,
@@ -219,6 +227,7 @@ diesel::table! {
     unknown_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,
@@ -240,6 +249,7 @@ diesel::table! {
     withdraw_emissions_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,
@@ -258,6 +268,7 @@ diesel::table! {
     withdraw_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
+        slot -> Numeric,
         tx_sig -> Varchar,
         in_flashloan -> Bool,
         call_stack -> Varchar,

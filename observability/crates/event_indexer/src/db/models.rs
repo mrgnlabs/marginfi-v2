@@ -46,6 +46,7 @@ pub struct UnknownEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
@@ -58,6 +59,7 @@ pub struct CreateAccountEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
@@ -72,6 +74,7 @@ pub struct TransferAccountAuthorityEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
@@ -87,6 +90,7 @@ pub struct DepositEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
@@ -103,6 +107,7 @@ pub struct BorrowEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
@@ -119,6 +124,7 @@ pub struct RepayEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
@@ -136,6 +142,7 @@ pub struct WithdrawEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
@@ -153,6 +160,7 @@ pub struct WithdrawEmissionsEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
@@ -170,6 +178,7 @@ pub struct LiquidateEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
@@ -188,6 +197,7 @@ pub struct CreateBankEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
@@ -219,6 +229,7 @@ pub struct ConfigureBankEvents {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,

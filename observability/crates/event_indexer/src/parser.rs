@@ -10,9 +10,10 @@ use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use marginfi::{
     instruction::{
-        LendingAccountBorrow, LendingAccountDeposit, LendingAccountEndFlashloan,
-        LendingAccountLiquidate, LendingAccountRepay, LendingAccountStartFlashloan,
-        LendingAccountWithdraw, LendingAccountWithdrawEmissions, LendingPoolAddBank,
+        LendingAccountBorrow, LendingAccountCloseBalance, LendingAccountDeposit,
+        LendingAccountEndFlashloan, LendingAccountLiquidate, LendingAccountRepay,
+        LendingAccountSettleEmissions, LendingAccountStartFlashloan, LendingAccountWithdraw,
+        LendingAccountWithdrawEmissions, LendingPoolAccrueBankInterest, LendingPoolAddBank,
         LendingPoolAddBankWithSeed, LendingPoolConfigureBank, MarginfiAccountInitialize,
         SetNewAccountAuthority,
     },
@@ -30,7 +31,7 @@ use solana_sdk::{
 use solana_transaction_status::{
     InnerInstruction, InnerInstructions, VersionedTransactionWithStatusMeta,
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, warn};
 
 use crate::{
     db::{models::*, schema::*},
@@ -50,6 +51,7 @@ const INTEREST_RATE_CONFIG_UPGRADE_SLOT: u64 = 178_870_399;
 #[derive(Debug)]
 pub struct MarginfiEventWithMeta {
     pub timestamp: i64,
+    pub slot: u64,
     pub tx_sig: Signature,
     pub event: Event,
     pub in_flashloan: bool,
@@ -61,6 +63,7 @@ pub trait MarginfiEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -96,6 +99,7 @@ impl MarginfiEvent for UnknownEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -106,6 +110,7 @@ impl MarginfiEvent for UnknownEvent {
             .values(&UnknownEvents {
                 timestamp,
                 tx_sig,
+                slot: Decimal::from_u64(slot).unwrap(),
                 call_stack,
                 in_flashloan,
                 ..Default::default()
@@ -117,7 +122,7 @@ impl MarginfiEvent for UnknownEvent {
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
 
         if id.is_none() {
-            info!("event already exists");
+            debug!("event already exists");
         }
 
         Ok(())
@@ -134,6 +139,7 @@ impl MarginfiEvent for CreateAccountEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -174,6 +180,7 @@ impl MarginfiEvent for CreateAccountEvent {
 
                 let create_account_event = CreateAccountEvents {
                     timestamp,
+                    slot: Decimal::from_u64(slot).unwrap(),
                     authority_id,
                     tx_sig,
                     call_stack,
@@ -190,7 +197,7 @@ impl MarginfiEvent for CreateAccountEvent {
                     .optional()?;
 
                 if id.is_none() {
-                    info!("event already exists");
+                    debug!("event already exists");
                 }
 
                 diesel::result::QueryResult::Ok(())
@@ -210,6 +217,7 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -270,6 +278,7 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
 
                 let account_authority_transfer_event = TransferAccountAuthorityEvents {
                     timestamp,
+                    slot: Decimal::from_u64(slot).unwrap(),
                     old_authority_id,
                     new_authority_id,
                     tx_sig,
@@ -287,7 +296,7 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
                     .optional()?;
 
                 if id.is_none() {
-                    info!("event already exists");
+                    debug!("event already exists");
                 }
 
                 diesel::result::QueryResult::Ok(())
@@ -308,6 +317,7 @@ impl MarginfiEvent for DepositEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -386,6 +396,7 @@ impl MarginfiEvent for DepositEvent {
 
                 let deposit_event = DepositEvents {
                     timestamp,
+                    slot: Decimal::from_u64(slot).unwrap(),
                     authority_id,
                     tx_sig,
                     call_stack,
@@ -404,7 +415,7 @@ impl MarginfiEvent for DepositEvent {
                     .optional()?;
 
                 if id.is_none() {
-                    info!("event already exists");
+                    debug!("event already exists");
                 }
 
                 diesel::result::QueryResult::Ok(())
@@ -425,6 +436,7 @@ impl MarginfiEvent for BorrowEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -503,6 +515,7 @@ impl MarginfiEvent for BorrowEvent {
 
                 let borrow_event = BorrowEvents {
                     timestamp,
+                    slot: Decimal::from_u64(slot).unwrap(),
                     authority_id,
                     tx_sig,
                     call_stack,
@@ -521,7 +534,7 @@ impl MarginfiEvent for BorrowEvent {
                     .optional()?;
 
                 if id.is_none() {
-                    info!("event already exists");
+                    debug!("event already exists");
                 }
 
                 diesel::result::QueryResult::Ok(())
@@ -543,6 +556,7 @@ impl MarginfiEvent for RepayEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -621,6 +635,7 @@ impl MarginfiEvent for RepayEvent {
 
                 let repay_event = RepayEvents {
                     timestamp,
+                    slot: Decimal::from_u64(slot).unwrap(),
                     authority_id,
                     tx_sig,
                     call_stack,
@@ -640,7 +655,7 @@ impl MarginfiEvent for RepayEvent {
                     .optional()?;
 
                 if id.is_none() {
-                    info!("event already exists");
+                    debug!("event already exists");
                 }
 
                 diesel::result::QueryResult::Ok(())
@@ -662,6 +677,7 @@ impl MarginfiEvent for WithdrawEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -740,6 +756,7 @@ impl MarginfiEvent for WithdrawEvent {
 
                 let withdraw_event = WithdrawEvents {
                     timestamp,
+                    slot: Decimal::from_u64(slot).unwrap(),
                     authority_id,
                     tx_sig,
                     call_stack,
@@ -759,7 +776,7 @@ impl MarginfiEvent for WithdrawEvent {
                     .optional()?;
 
                 if id.is_none() {
-                    info!("event already exists");
+                    debug!("event already exists");
                 }
 
                 diesel::result::QueryResult::Ok(())
@@ -781,6 +798,7 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -878,6 +896,7 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
 
                 let withdraw_emissions_event = WithdrawEmissionsEvents {
                     timestamp,
+                    slot: Decimal::from_u64(slot).unwrap(),
                     authority_id,
                     tx_sig,
                     call_stack,
@@ -897,7 +916,7 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
                     .optional()?;
 
                 if id.is_none() {
-                    info!("event already exists");
+                    debug!("event already exists");
                 }
 
                 diesel::result::QueryResult::Ok(())
@@ -920,6 +939,7 @@ impl MarginfiEvent for LiquidateEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -1071,6 +1091,7 @@ impl MarginfiEvent for LiquidateEvent {
 
                 let liquidate_event = LiquidateEvents {
                     timestamp,
+                    slot: Decimal::from_u64(slot).unwrap(),
                     tx_sig,
                     call_stack,
                     in_flashloan,
@@ -1091,7 +1112,7 @@ impl MarginfiEvent for LiquidateEvent {
                     .optional()?;
 
                 if id.is_none() {
-                    info!("event already exists");
+                    debug!("event already exists");
                 }
 
                 diesel::result::QueryResult::Ok(())
@@ -1111,6 +1132,7 @@ impl MarginfiEvent for AddBankEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -1153,6 +1175,7 @@ impl MarginfiEvent for AddBankEvent {
 
                 let create_bank_event = CreateBankEvents {
                     timestamp,
+                    slot: Decimal::from_u64(slot).unwrap(),
                     tx_sig,
                     call_stack,
                     in_flashloan,
@@ -1232,7 +1255,7 @@ impl MarginfiEvent for AddBankEvent {
                     .optional()?;
 
                 if id.is_none() {
-                    info!("event already exists");
+                    debug!("event already exists");
                 }
 
                 diesel::result::QueryResult::Ok(())
@@ -1251,6 +1274,7 @@ impl MarginfiEvent for ConfigureBankEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
+        slot: u64,
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
@@ -1296,6 +1320,7 @@ impl MarginfiEvent for ConfigureBankEvent {
 
                 let configure_bank_event = ConfigureBankEvents {
                     timestamp,
+                    slot: Decimal::from_u64(slot).unwrap(),
                     tx_sig,
                     call_stack,
                     in_flashloan,
@@ -1416,7 +1441,7 @@ impl MarginfiEvent for ConfigureBankEvent {
                     .optional()?;
 
                 if id.is_none() {
-                    info!("event already exists");
+                    debug!("event already exists");
                 }
 
                 diesel::result::QueryResult::Ok(())
@@ -1503,12 +1528,12 @@ impl MarginfiEventParser {
                     let call_stack = call_stack.iter().cloned().cloned().collect();
                     let event_with_meta = MarginfiEventWithMeta {
                         timestamp,
+                        slot,
                         tx_sig,
                         event,
                         in_flashloan,
                         call_stack,
                     };
-                    // info!("Event: {:?}", event_with_meta);
                     events.push(event_with_meta);
                 }
             }
@@ -1541,12 +1566,12 @@ impl MarginfiEventParser {
                         let call_stack = call_stack.iter().cloned().cloned().collect();
                         let event_with_meta = MarginfiEventWithMeta {
                             timestamp,
+                            slot,
                             tx_sig,
                             event,
                             in_flashloan,
                             call_stack,
                         };
-                        // info!("Inner event: {:?}", event_with_meta);
                         events.push(event_with_meta);
                     }
                 }
@@ -1885,6 +1910,9 @@ impl MarginfiEventParser {
 
                 None
             }
+            LendingAccountSettleEmissions::DISCRIMINATOR
+            | LendingPoolAccrueBankInterest::DISCRIMINATOR
+            | LendingAccountCloseBalance::DISCRIMINATOR => None,
             _ => Some(Event::Unknown(UnknownEvent {})),
         }
     }

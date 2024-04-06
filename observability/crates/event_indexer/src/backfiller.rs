@@ -28,7 +28,7 @@ use std::{
     time::Duration,
 };
 use tokio::time::interval;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::error::IndexingError;
 
@@ -209,7 +209,7 @@ pub async fn find_boundary_signature(
                         );
                             continue;
                         } else {
-                            info!(
+                            debug!(
                                 "Block for slot {} not available yet, trying next...",
                                 candidate_slot
                             )

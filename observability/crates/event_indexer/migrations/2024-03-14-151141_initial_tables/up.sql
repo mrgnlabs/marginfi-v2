@@ -76,6 +76,7 @@ SELECT diesel_manage_updated_at('accounts');
 CREATE TABLE "unknown_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,
@@ -88,6 +89,7 @@ SELECT diesel_manage_updated_at('unknown_events');
 CREATE TABLE "create_account_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,
@@ -103,6 +105,7 @@ SELECT diesel_manage_updated_at('create_account_events');
 CREATE TABLE "transfer_account_authority_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,
@@ -119,6 +122,7 @@ SELECT diesel_manage_updated_at('transfer_account_authority_events');
 CREATE TABLE "deposit_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,
@@ -137,6 +141,7 @@ SELECT diesel_manage_updated_at('deposit_events');
 CREATE TABLE "borrow_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,
@@ -155,6 +160,7 @@ SELECT diesel_manage_updated_at('borrow_events');
 CREATE TABLE "repay_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,
@@ -174,6 +180,7 @@ SELECT diesel_manage_updated_at('repay_events');
 CREATE TABLE "withdraw_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,
@@ -193,6 +200,7 @@ SELECT diesel_manage_updated_at('withdraw_events');
 CREATE TABLE "withdraw_emissions_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,
@@ -212,6 +220,7 @@ SELECT diesel_manage_updated_at('withdraw_emissions_events');
 CREATE TABLE "liquidate_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,
@@ -233,6 +242,7 @@ SELECT diesel_manage_updated_at('liquidate_events');
 CREATE TABLE "create_bank_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,
@@ -265,6 +275,7 @@ SELECT diesel_manage_updated_at('create_bank_events');
 CREATE TABLE "configure_bank_events"(
 	"id" SERIAL PRIMARY KEY,
 	"timestamp" TIMESTAMP NOT NULL,
+	"slot" NUMERIC NOT NULL,
 	"tx_sig" VARCHAR NOT NULL,
 	"in_flashloan" BOOLEAN NOT NULL,
 	"call_stack" VARCHAR NOT NULL,

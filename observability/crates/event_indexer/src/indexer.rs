@@ -283,6 +283,7 @@ async fn store_events(
                 for MarginfiEventWithMeta {
                     event,
                     timestamp,
+                    slot,
                     in_flashloan,
                     call_stack,
                     tx_sig,
@@ -305,6 +306,7 @@ async fn store_events(
                             .build(),
                         || match event.db_insert(
                             timestamp,
+                            slot,
                             tx_sig.clone(),
                             in_flashloan,
                             call_stack.clone(),

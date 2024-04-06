@@ -33,7 +33,7 @@ use solana_sdk::{
     signature::Signature,
 };
 use tokio::time::interval;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
 
 #[derive(Envconfig, Debug, Clone)]
@@ -160,7 +160,7 @@ pub async fn main() {
                         progress,
                     }) = range_queue.pop()
                     {
-                        info!(
+                        debug!(
                             "[{:?}] Processing {:?} -> {:?} ({:?} -> {:?})",
                             i, until_slot, before_slot, until_sig, before_sig
                         );
@@ -174,7 +174,7 @@ pub async fn main() {
                             None,
                         )
                         .await?;
-                        info!(
+                        debug!(
                             "[{:?}] {:.2?}% completed {:?} - {:?} ({:?} -> {:?})",
                             i, progress, until_slot, before_slot, until_sig, before_sig
                         );
@@ -231,13 +231,14 @@ pub async fn main() {
 
         let elapsed = print_time.elapsed().as_secs();
         if elapsed > 30 {
-            warn!("Events processed: {:?}", event_counter);
+            debug!("Events processed: {:?}", event_counter);
             print_time = std::time::Instant::now();
         }
 
         for MarginfiEventWithMeta {
             event,
             timestamp,
+            slot,
             in_flashloan,
             call_stack,
             tx_sig,
@@ -260,6 +261,7 @@ pub async fn main() {
                     .build(),
                 || match event.db_insert(
                     timestamp,
+                    slot,
                     tx_sig.clone(),
                     in_flashloan,
                     call_stack.clone(),
