@@ -155,6 +155,7 @@ Config:
   Oracle Setup:
     Type: {:?}
     Keys: {:#?}
+    Max Age: {:#?}s
 Emissions:
   Flags: 0b{:b}
   Rate: {:?}
@@ -189,6 +190,7 @@ Last Update: {:?}h ago ({})
         bank.config.interest_rate_config.protocol_fixed_fee_apr,
         bank.config.oracle_setup,
         bank.config.oracle_keys,
+        bank.config.get_oracle_max_age(),
         bank.emissions_flags,
         I80F48::from(bank.emissions_rate),
         bank.emissions_mint,
