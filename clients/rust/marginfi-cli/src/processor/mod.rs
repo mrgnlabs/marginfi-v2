@@ -1205,13 +1205,13 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 
         let mut pyth_ages = pyth_feed_accounts
             .iter()
-            .map(|(mint, pa, max_age)| ((now - pa.get_publish_time()) as f64 / 60f64, mint.clone()))
+            .map(|(mint, pa, _)| ((now - pa.get_publish_time()) as f64 / 60f64, mint.clone()))
             .collect::<Vec<_>>();
         pyth_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
 
         let mut swb_ages = swb_feed_accounts
             .iter()
-            .map(|(mint, pa, max_age)| {
+            .map(|(mint, pa, _)| {
                 (
                     (now - pa.latest_confirmed_round.round_open_timestamp) as f64 / 60f64,
                     mint.clone(),
@@ -1231,7 +1231,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
                 *max_age as f64 / 60f64
             };
 
-            if only_stale && pa < max_age {
+            if only_stale && *max_duration < max_age {
                 continue;
             }
             println!("- {:?}: {:.2}min (max: {:.2}min) - allowed: {:.2}min", mint, pa, max_duration, max_age);
@@ -1247,7 +1247,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
                 *max_age as f64 / 60f64
             };
 
-            if only_stale && pa < max_age {
+            if only_stale && *max_duration < max_age {
                 continue;
             }
             println!("- {:?}: {:.2}min (max: {:.2}min) - allowed: {:.2}min", mint, pa, max_duration, max_age);
