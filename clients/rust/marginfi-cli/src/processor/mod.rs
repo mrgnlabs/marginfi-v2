@@ -1086,6 +1086,144 @@ Prince:
     Ok(())
 }
 
+#[cfg(feature = "dev")]
+pub fn show_oracle_ages(config: Config) -> Result<()> {
+    use marginfi::state::price::OracleSetup;
+    use pyth_sdk_solana::state::load_price_account;
+    use solana_sdk::{account::ReadableAccount, pubkey};
+    use switchboard_v2::AggregatorAccountData;
+
+    let banks = config
+        .mfi_program
+        .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+            8 + size_of::<Pubkey>() + size_of::<u8>(),
+            pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+                .to_bytes()
+                .to_vec(),
+        ))])?;
+
+    let (pyth_feeds, swb_feeds): (Vec<_>, Vec<_>) = banks
+        .into_iter()
+        .map(|(_, b)| {
+            (
+                b.config.oracle_setup,
+                b.mint,
+                b.config.oracle_keys.clone().get(0).unwrap().clone(),
+            )
+        })
+        .partition(|(setup, _, _)| match setup {
+            OracleSetup::PythEma => true,
+            OracleSetup::SwitchboardV2 => false,
+            _ => panic!("Unknown oracle setup"),
+        });
+
+    let pyth_feeds = pyth_feeds
+        .into_iter()
+        .map(|(_, mint, key)| (mint, key))
+        .collect::<Vec<_>>();
+
+    let swb_feeds = swb_feeds
+        .into_iter()
+        .map(|(_, mint, key)| (mint, key))
+        .collect::<Vec<_>>();
+
+    let mut pyth_max_ages: HashMap<Pubkey, f64> = HashMap::from_iter(
+        pyth_feeds
+            .iter()
+            .map(|(mint, _)| mint.clone())
+            .map(|mint| (mint, 0f64)),
+    );
+    let mut swb_max_ages: HashMap<Pubkey, f64> = HashMap::from_iter(
+        swb_feeds
+            .iter()
+            .map(|(mint, _)| mint.clone())
+            .map(|mint| (mint, 0f64)),
+    );
+
+    loop {
+        let pyth_keys = pyth_feeds
+            .iter()
+            .map(|(_, key)| key.clone())
+            .collect::<Vec<_>>();
+        let pyth_mints = pyth_feeds
+            .iter()
+            .map(|(key, _)| key.clone())
+            .collect::<Vec<_>>();
+        let pyth_feed_accounts = config
+            .mfi_program
+            .rpc()
+            .get_multiple_accounts(pyth_keys.as_slice())?
+            .into_iter()
+            .zip(pyth_mints)
+            .map(|(maybe_account, mint)| {
+                let account = maybe_account.unwrap();
+                let pa = load_price_account(account.data()).unwrap().clone();
+
+                (mint, pa)
+            })
+            .collect::<Vec<_>>();
+
+        let swb_keys = swb_feeds
+            .iter()
+            .map(|(_, key)| key.clone())
+            .collect::<Vec<_>>();
+        let swb_mints = swb_feeds
+            .iter()
+            .map(|(key, _)| key.clone())
+            .collect::<Vec<_>>();
+        let swb_feed_accounts = config
+            .mfi_program
+            .rpc()
+            .get_multiple_accounts(swb_keys.as_slice())?
+            .into_iter()
+            .zip(swb_mints)
+            .map(|(maybe_account, mint)| {
+                let account = maybe_account.unwrap();
+                let pa = AggregatorAccountData::new_from_bytes(account.data())
+                    .unwrap()
+                    .clone();
+
+                (mint, pa)
+            })
+            .collect::<Vec<_>>();
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs() as i64;
+
+        let mut pyth_ages = pyth_feed_accounts
+            .iter()
+            .map(|(mint, pa)| ((now - pa.get_publish_time()) as f64 / 60f64, mint.clone()))
+            .collect::<Vec<_>>();
+        pyth_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
+
+        let mut swb_ages = swb_feed_accounts
+            .iter()
+            .map(|(mint, pa)| {
+                (
+                    (now - pa.latest_confirmed_round.round_open_timestamp) as f64 / 60f64,
+                    mint.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        swb_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
+
+        println!("Pyth");
+        for (pa, mint) in pyth_ages.into_iter() {
+            let max_age = pyth_max_ages.get_mut(&mint).unwrap();
+            *max_age = pa.max(*max_age);
+            println!("- {:?}: {:.2}min (max: {:.2}min)", mint, pa, max_age);
+        }
+        println!("Switchboard");
+        for (pa, mint) in swb_ages.into_iter() {
+            let max_age = swb_max_ages.get_mut(&mint).unwrap();
+            *max_age = pa.max(*max_age);
+            println!("- {:?}: {:.2}min (max: {:.2}min)", mint, pa, max_age);
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 #[cfg(feature = "admin")]
 pub fn bank_setup_emissions(

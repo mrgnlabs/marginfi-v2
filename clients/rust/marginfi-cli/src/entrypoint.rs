@@ -70,6 +70,8 @@ pub enum Command {
     },
     #[cfg(feature = "dev")]
     InspectSwitchboardFeed { switchboard_feed: Pubkey },
+    #[cfg(feature = "dev")]
+    ShowOracleAges
 }
 
 #[derive(Debug, Parser)]
@@ -406,6 +408,15 @@ pub fn entry(opts: Opts) -> Result<()> {
         }
         #[cfg(feature = "dev")]
         Command::InspectSize {} => inspect_size(),
+        #[cfg(feature = "dev")]
+        Command::ShowOracleAges {} => {
+            let profile = load_profile()?;
+            let config = profile.get_config(Some(&opts.cfg_override))?;
+
+            processor::show_oracle_ages(config)?;
+
+            Ok(())
+        }
     }
 }
 

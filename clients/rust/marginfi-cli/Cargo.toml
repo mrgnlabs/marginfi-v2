@@ -25,6 +25,7 @@ spl-associated-token-account = { workspace = true }
 anchor-client = { workspace = true }
 anchor-spl = { workspace = true }
 
+pyth-sdk-solana = { workspace = true }
 switchboard-v2 = { workspace = true }
 
 marginfi = { path = "../../../programs/marginfi", version = "0.1.0", features = [

@@ -2807,6 +2807,7 @@ dependencies = [
  "liquidity-incentive-program",
  "log",
  "marginfi",
+ "pyth-sdk-solana",
  "serde",
  "serde_json",
  "shellexpand",
