@@ -1845,7 +1845,7 @@ impl MarginfiEventParser {
                     return None;
                 }
 
-                let bank_config = BankConfigCompact::deserialize(&mut &instruction_data[..363])
+                let bank_config = BankConfigCompact::deserialize(&mut &instruction_data[..243])
                     .unwrap()
                     .into();
 
