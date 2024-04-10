@@ -427,7 +427,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
             .any(|balance| balance.active && balance.is_empty(BalanceSide::Liabilities).not());
         let is_in_flashloan = marginfi_account.get_flag(IN_FLASHLOAN_FLAG);
 
-        if is_in_flashloan || !have_borrows  {
+        if is_in_flashloan || !have_borrows {
             return Ok(());
         }
 

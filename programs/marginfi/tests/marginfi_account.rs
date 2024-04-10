@@ -2528,10 +2528,7 @@ async fn deposit_only_account_with_stale_feed() -> anyhow::Result<()> {
         .sol_equivalent_mint
         .create_token_account_and_mint_to(1_000)
         .await;
-    let user_b_token_account_sol = test_f
-        .sol_mint
-        .create_token_account_and_mint_to(0)
-        .await;
+    let user_b_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
 
     user_b_mfi_account_f
         .try_bank_deposit(user_b_token_account_usdc.key, usdc_bank, 1_000)
@@ -2563,7 +2560,7 @@ async fn deposit_only_account_with_stale_feed() -> anyhow::Result<()> {
     let res = user_b_mfi_account_f
         .try_bank_withdraw(user_b_token_account_usdc.key, usdc_bank, 10, None)
         .await;
-    
+
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
 
