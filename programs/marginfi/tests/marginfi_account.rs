@@ -2475,6 +2475,102 @@ async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Resu
 }
 
 #[tokio::test]
+/// Withdrawing from a account that has no borrows should go through, even if one of the account's positions is stale.
+async fn deposit_only_account_with_stale_feed() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let usdc_bank = test_f.get_bank(&BankMint::USDC);
+    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
+
+    // Fund SOL bank for borrow
+
+    let funder_mfi_account_f = test_f.create_marginfi_account().await;
+
+    let funder_token_account_sol = test_f
+        .sol_mint
+        .create_token_account_and_mint_to(1_000_000)
+        .await;
+    funder_mfi_account_f
+        .try_bank_deposit(funder_token_account_sol.key, sol_bank, 1_000)
+        .await?;
+
+    // Setup user A: only deposits (USDC & SOL_EQ)
+
+    let user_a_mfi_account_f = test_f.create_marginfi_account().await;
+
+    let user_a_token_account_usdc = test_f
+        .usdc_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    let user_a_token_account_sol_eq = test_f
+        .sol_equivalent_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+
+    user_a_mfi_account_f
+        .try_bank_deposit(user_a_token_account_usdc.key, usdc_bank, 1_000)
+        .await?;
+
+    user_a_mfi_account_f
+        .try_bank_deposit(user_a_token_account_sol_eq.key, sol_eq_bank, 1_000)
+        .await?;
+
+    // Setup user B: deposit (USDC & SOL_EQ) + borrow (SOL)
+
+    let user_b_mfi_account_f = test_f.create_marginfi_account().await;
+
+    let user_b_token_account_usdc = test_f
+        .usdc_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    let user_b_token_account_sol_equivalent = test_f
+        .sol_equivalent_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    let user_b_token_account_sol = test_f
+        .sol_mint
+        .create_token_account_and_mint_to(0)
+        .await;
+
+    user_b_mfi_account_f
+        .try_bank_deposit(user_b_token_account_usdc.key, usdc_bank, 1_000)
+        .await?;
+    user_b_mfi_account_f
+        .try_bank_deposit(user_b_token_account_sol_equivalent.key, sol_eq_bank, 1_000)
+        .await?;
+    user_b_mfi_account_f
+        .try_bank_borrow(user_b_token_account_sol.key, sol_bank, 1)
+        .await?;
+
+    // Make USDC feed stale (both have a position in it)
+    // Works because the banks all have the default 1 minute max age
+
+    test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 60).await;
+    test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
+    test_f
+        .set_pyth_oracle_timestamp(PYTH_SOL_EQUIVALENT_FEED, 120)
+        .await;
+    test_f.advance_time(121).await;
+
+    // Attempt to withdraw collateral
+
+    let res = user_a_mfi_account_f
+        .try_bank_withdraw(user_a_token_account_usdc.key, usdc_bank, 10, None)
+        .await;
+    assert!(res.is_ok());
+
+    let res = user_b_mfi_account_f
+        .try_bank_withdraw(user_b_token_account_usdc.key, usdc_bank, 10, None)
+        .await;
+    
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn account_field_values_reg() -> anyhow::Result<()> {
     let account_fixtures_path = "tests/fixtures/marginfi_account";
 
