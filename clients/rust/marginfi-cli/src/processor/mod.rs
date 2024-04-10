@@ -1234,7 +1234,10 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             if only_stale && *max_duration < max_age {
                 continue;
             }
-            println!("- {:?}: {:.2}min (max: {:.2}min) - allowed: {:.2}min", mint, pa, max_duration, max_age);
+            println!(
+                "- {:?}: {:.2}min (max: {:.2}min) - allowed: {:.2}min",
+                mint, pa, max_duration, max_age
+            );
         }
         println!("Switchboard");
         for (pa, mint) in swb_ages.into_iter() {
@@ -1250,7 +1253,10 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             if only_stale && *max_duration < max_age {
                 continue;
             }
-            println!("- {:?}: {:.2}min (max: {:.2}min) - allowed: {:.2}min", mint, pa, max_duration, max_age);
+            println!(
+                "- {:?}: {:.2}min (max: {:.2}min) - allowed: {:.2}min",
+                mint, pa, max_duration, max_age
+            );
         }
     }
 }
