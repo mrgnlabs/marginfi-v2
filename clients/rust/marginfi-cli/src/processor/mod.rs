@@ -1514,7 +1514,7 @@ pub fn bank_configure(
 pub fn create_profile(
     name: String,
     cluster: Cluster,
-    keypair_path: Option<String>,
+    keypair_path: String,
     multisig: Option<Pubkey>,
     rpc_url: String,
     program_id: Option<Pubkey>,

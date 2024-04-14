@@ -298,7 +298,7 @@ pub enum ProfileCommand {
         #[clap(long)]
         cluster: Cluster,
         #[clap(long)]
-        keypair_path: Option<String>,
+        keypair_path: String,
         #[clap(long)]
         multisig: Option<Pubkey>,
         #[clap(long)]

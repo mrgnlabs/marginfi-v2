@@ -19,7 +19,7 @@ use {
 pub struct Profile {
     pub name: String,
     pub cluster: Cluster,
-    pub keypair_path: Option<String>,
+    pub keypair_path: String,
     pub multisig: Option<Pubkey>,
     pub rpc_url: String,
     pub program_id: Option<Pubkey>,
@@ -38,7 +38,7 @@ impl Profile {
     pub fn new(
         name: String,
         cluster: Cluster,
-        keypair_path: Option<String>,
+        keypair_path: String,
         multisig: Option<Pubkey>,
         rpc_url: String,
         program_id: Option<Pubkey>,
@@ -46,14 +46,6 @@ impl Profile {
         marginfi_group: Option<Pubkey>,
         marginfi_account: Option<Pubkey>,
     ) -> Self {
-        if keypair_path.is_none() && multisig.is_none() {
-            panic!("Either keypair_path or multisig must be set");
-        }
-
-        if keypair_path.is_some() && multisig.is_some() {
-            panic!("Only one of keypair_path or multisig can be set");
-        }
-
         Profile {
             name,
             cluster,
@@ -68,12 +60,8 @@ impl Profile {
     }
 
     pub fn get_config(&self, global_options: Option<&GlobalOptions>) -> Result<Config> {
-        let fee_payer = if let Some(keypair_path) = self.keypair_path.clone() {
-            read_keypair_file(&*shellexpand::tilde(&keypair_path))
-                .expect("Example requires a keypair file")
-        } else {
-            Keypair::new()
-        };
+        let fee_payer = read_keypair_file(&*shellexpand::tilde(&self.keypair_path))
+                .expect("Example requires a keypair file");
 
         let multisig = self.multisig;
 
@@ -138,22 +126,17 @@ impl Profile {
         group: Option<Pubkey>,
         account: Option<Pubkey>,
     ) -> Result<()> {
-        if keypair_path.is_some() && multisig.is_some() {
-            panic!("Only one of keypair_path or multisig can be set");
-        }
 
         if let Some(cluster) = cluster {
             self.cluster = cluster;
         }
 
         if let Some(keypair_path) = keypair_path {
-            self.keypair_path = Some(keypair_path);
-            self.multisig = None;
+            self.keypair_path = keypair_path;
         }
 
         if let Some(multisig) = multisig {
             self.multisig = Some(multisig);
-            self.keypair_path = None;
         }
 
         if let Some(rpc_url) = rpc_url {
@@ -285,8 +268,7 @@ Profile:
             config.explicit_fee_payer(),
             config.authority(),
             self.keypair_path
-                .clone()
-                .unwrap_or_else(|| "None".to_owned()),
+                .clone(),
             self.multisig
                 .map(|x| x.to_string())
                 .unwrap_or_else(|| "None".to_owned()),
