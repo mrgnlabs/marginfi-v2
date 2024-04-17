@@ -18,6 +18,7 @@ path = "bin/inspect_tx.rs"
 [features]
 default = ["mainnet-beta"]
 mainnet-beta = ["marginfi/mainnet-beta"]
+dry-run = []
 
 [dependencies]
 anchor-lang = { workspace = true }

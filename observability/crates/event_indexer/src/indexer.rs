@@ -23,7 +23,11 @@ use yellowstone_grpc_proto::{
     },
 };
 
-use crate::{db::establish_connection, entity_store::EntityStore, parser::MarginfiEvent};
+use crate::{
+    db::establish_connection,
+    entity_store::EntityStore,
+    parser::{Event, MarginfiEvent},
+};
 
 use super::parser::{MarginfiEventParser, MarginfiEventWithMeta, MARGINFI_GROUP_ADDRESS};
 
@@ -56,14 +60,23 @@ impl EventIndexer {
             .await
         });
 
+        #[cfg(not(feature = "dry-run"))]
         let mut db_connection = establish_connection(database_connection_url.clone());
 
         let rpc_endpoint = format!("{}/{}", rpc_host, rpc_auth_token).to_string();
+        #[cfg(not(feature = "dry-run"))]
         let mut entity_store = EntityStore::new(rpc_endpoint, database_connection_url);
 
-        tokio::spawn(
-            async move { store_events(&mut db_connection, event_rx, &mut entity_store).await },
-        );
+        tokio::spawn(async move {
+            store_events(
+                #[cfg(not(feature = "dry-run"))]
+                &mut db_connection,
+                event_rx,
+                #[cfg(not(feature = "dry-run"))]
+                &mut entity_store,
+            )
+            .await
+        });
 
         Self {
             parser,
@@ -273,9 +286,9 @@ async fn listen_to_updates(
 }
 
 async fn store_events(
-    db_connection: &mut PgConnection,
+    #[cfg(not(feature = "dry-run"))] db_connection: &mut PgConnection,
     event_rx: Receiver<Vec<MarginfiEventWithMeta>>,
-    entity_store: &mut EntityStore,
+    #[cfg(not(feature = "dry-run"))] entity_store: &mut EntityStore,
 ) {
     loop {
         while let Ok(events) = event_rx.try_recv() {
@@ -289,8 +302,8 @@ async fn store_events(
                     tx_sig,
                 } in events
                 {
-                    let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
                     let tx_sig = tx_sig.to_string();
+                    let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
                     let call_stack = serde_json::to_string(
                         &call_stack
                             .into_iter()
@@ -299,8 +312,17 @@ async fn store_events(
                     )
                     .unwrap_or_else(|_| "null".to_string());
 
-                    let mut retries = 0;
-                    retry(
+                    #[cfg(feature = "dry-run")]
+                    {
+                        if let Event::Liquidate(e) = event {
+                            info!("Event: {:?} ({:?})", e, tx_sig);
+                        }
+                    }
+
+                    #[cfg(not(feature = "dry-run"))]
+                    {
+                        let mut retries = 0;
+                        retry(
                         ExponentialBackoffBuilder::<SystemClock>::new()
                             .with_max_interval(Duration::from_secs(5))
                             .build(),
@@ -333,6 +355,7 @@ async fn store_events(
                         },
                     )
                     .unwrap();
+                    }
                 }
             }
         }

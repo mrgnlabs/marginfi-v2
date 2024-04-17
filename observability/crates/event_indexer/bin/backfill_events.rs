@@ -191,8 +191,6 @@ pub async fn main() {
     }
 
     let parser = MarginfiEventParser::new(marginfi::ID, MARGINFI_GROUP_ADDRESS);
-    let mut entity_store = EntityStore::new(rpc_endpoint, config.database_url.clone());
-    let mut db_connection = establish_connection(config.database_url.clone());
 
     let mut event_counter = 0;
     let mut print_time = std::time::Instant::now();
@@ -202,6 +200,7 @@ pub async fn main() {
 
         let TransactionData {
             transaction,
+            #[cfg(not(feature = "dry-run"))]
             task_id,
             ..
         } = match maybe_item {
@@ -235,59 +234,73 @@ pub async fn main() {
             print_time = std::time::Instant::now();
         }
 
-        for MarginfiEventWithMeta {
-            event,
-            timestamp,
-            slot,
-            in_flashloan,
-            call_stack,
-            tx_sig,
-        } in events
+        #[cfg(not(feature = "dry-run"))]
         {
-            let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
-            let tx_sig = tx_sig.to_string();
-            let call_stack = serde_json::to_string(
-                &call_stack
-                    .into_iter()
-                    .map(|cs| cs.to_string())
-                    .collect::<Vec<_>>(),
-            )
-            .unwrap_or_else(|_| "null".to_string());
+            let mut entity_store = EntityStore::new(rpc_endpoint, config.database_url.clone());
+            let mut db_connection = establish_connection(config.database_url.clone());
 
-            let mut retries = 0;
-            retry(
-                ExponentialBackoffBuilder::<SystemClock>::new()
-                    .with_max_interval(Duration::from_secs(5))
-                    .build(),
-                || match event.db_insert(
-                    timestamp,
-                    slot,
-                    tx_sig.clone(),
-                    in_flashloan,
-                    call_stack.clone(),
-                    &mut db_connection,
-                    &mut entity_store,
-                ) {
-                    Ok(signatures) => Ok(signatures),
-                    Err(e) => {
-                        if retries > 5 {
-                            error!(
+            for MarginfiEventWithMeta {
+                event,
+                timestamp,
+                slot,
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            } in events
+            {
+                let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
+                let tx_sig = tx_sig.to_string();
+                let call_stack = serde_json::to_string(
+                    &call_stack
+                        .into_iter()
+                        .map(|cs| cs.to_string())
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap_or_else(|_| "null".to_string());
+
+                #[cfg(feature = "dry-run")]
+                {
+                    info!("Event: {:?} ({:?})", event, tx_sig);
+                }
+
+                #[cfg(not(feature = "dry-run"))]
+                {
+                    let mut retries = 0;
+                    retry(
+                        ExponentialBackoffBuilder::<SystemClock>::new()
+                            .with_max_interval(Duration::from_secs(5))
+                            .build(),
+                        || match event.db_insert(
+                            timestamp,
+                            slot,
+                            tx_sig.clone(),
+                            in_flashloan,
+                            call_stack.clone(),
+                            &mut db_connection,
+                            &mut entity_store,
+                        ) {
+                            Ok(signatures) => Ok(signatures),
+                            Err(e) => {
+                                if retries > 5 {
+                                    error!(
                                 "[{:?}] Failed to insert event after 5 retries: {:?} - {:?} ({:?})",
                                 task_id, event, e, tx_sig
                             );
-                            Err(backoff::Error::permanent(e))
-                        } else {
-                            warn!(
-                                "[{:?}] Failed to insert event, retrying: {:?} - {:?} ({:?})",
-                                task_id, event, e, tx_sig
-                            );
-                            retries += 1;
-                            Err(backoff::Error::transient(e))
-                        }
-                    }
-                },
-            )
-            .unwrap();
+                                    Err(backoff::Error::permanent(e))
+                                } else {
+                                    warn!(
+                                    "[{:?}] Failed to insert event, retrying: {:?} - {:?} ({:?})",
+                                    task_id, event, e, tx_sig
+                                );
+                                    retries += 1;
+                                    Err(backoff::Error::transient(e))
+                                }
+                            }
+                        },
+                    )
+                    .unwrap();
+                }
+            }
         }
     }
 }
