@@ -11,7 +11,9 @@ use switchboard_v2::{
 
 use crate::{
     check,
-    constants::{CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL, PYTH_ID},
+    constants::{
+        CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL, PYTH_ID, STD_DEV_MULTIPLE,
+    },
     debug, math_error,
     prelude::*,
 };
@@ -188,6 +190,11 @@ impl PythEmaPriceFeed {
             .ok_or_else(math_error!())?;
 
         assert!(
+            max_conf_interval >= I80F48::ZERO,
+            "Negative max confidence interval"
+        );
+
+        assert!(
             conf_interval >= I80F48::ZERO,
             "Negative confidence interval"
         );
@@ -296,15 +303,26 @@ impl SwitchboardV2PriceFeed {
             .ok_or(MarginfiError::InvalidSwitchboardDecimalConversion)?;
 
         let conf_interval = std_div
-            .checked_mul(CONF_INTERVAL_MULTIPLE)
+            .checked_mul(STD_DEV_MULTIPLE)
             .ok_or_else(math_error!())?;
+
+        let price = self.get_price()?;
+
+        let max_conf_interval = price
+            .checked_mul(MAX_CONF_INTERVAL)
+            .ok_or_else(math_error!())?;
+
+        assert!(
+            max_conf_interval >= I80F48::ZERO,
+            "Negative max confidence interval"
+        );
 
         assert!(
             conf_interval >= I80F48::ZERO,
             "Negative confidence interval"
         );
 
-        Ok(conf_interval)
+        Ok(min(conf_interval, max_conf_interval))
     }
 }
 
@@ -507,5 +525,45 @@ mod tests {
         let low_conf_interval = pyth_adapter.get_confidence_interval(false).unwrap();
         // The confidence interval should be the calculated value (2.12%)
         assert_eq!(low_conf_interval, I80F48!(2.12));
+    }
+
+    #[test]
+    fn switchboard_conf_interval_cap() {
+        // Define a price with a 10% confidence interval
+        // Initialize SwitchboardV2PriceFeed with high confidence price
+        let swb_adapter_high_confidence = SwitchboardV2PriceFeed {
+            aggregator_account: Box::new(LiteAggregatorAccountData {
+                resolution_mode: AggregatorResolutionMode::ModeSlidingResolution,
+                latest_confirmed_round_result: SwitchboardDecimal::from_f64(100.0),
+                latest_confirmed_round_num_success: 1,
+                latest_confirmed_round_std_deviation: SwitchboardDecimal::from_f64(10.0),
+                min_oracle_results: 1,
+            }),
+        };
+
+        let swb_adapter_low_confidence = SwitchboardV2PriceFeed {
+            aggregator_account: Box::new(LiteAggregatorAccountData {
+                resolution_mode: AggregatorResolutionMode::ModeSlidingResolution,
+                latest_confirmed_round_result: SwitchboardDecimal::from_f64(100.0),
+                latest_confirmed_round_num_success: 1,
+                latest_confirmed_round_std_deviation: SwitchboardDecimal::from_f64(1.0),
+                min_oracle_results: 1,
+            }),
+        };
+
+        // Test confidence interval
+        let high_conf_interval = swb_adapter_high_confidence
+            .get_confidence_interval()
+            .unwrap();
+        // The confidence interval should be capped at 5%
+        assert_eq!(high_conf_interval, I80F48!(5.00000000000007));
+
+        let low_conf_interval = swb_adapter_low_confidence
+            .get_confidence_interval()
+            .unwrap();
+
+        // The confidence interval should be the calculated value (1.96%)
+
+        assert_eq!(low_conf_interval, I80F48!(1.96));
     }
 }
