@@ -190,6 +190,11 @@ impl PythEmaPriceFeed {
             .ok_or_else(math_error!())?;
 
         assert!(
+            max_conf_interval >= I80F48::ZERO,
+            "Negative max confidence interval"
+        );
+
+        assert!(
             conf_interval >= I80F48::ZERO,
             "Negative confidence interval"
         );
