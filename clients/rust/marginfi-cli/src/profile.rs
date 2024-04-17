@@ -61,7 +61,7 @@ impl Profile {
 
     pub fn get_config(&self, global_options: Option<&GlobalOptions>) -> Result<Config> {
         let fee_payer = read_keypair_file(&*shellexpand::tilde(&self.keypair_path))
-                .expect("Example requires a keypair file");
+            .expect("Example requires a keypair file");
 
         let multisig = self.multisig;
 
@@ -126,7 +126,6 @@ impl Profile {
         group: Option<Pubkey>,
         account: Option<Pubkey>,
     ) -> Result<()> {
-
         if let Some(cluster) = cluster {
             self.cluster = cluster;
         }
@@ -267,8 +266,7 @@ Profile:
             self.rpc_url,
             config.explicit_fee_payer(),
             config.authority(),
-            self.keypair_path
-                .clone(),
+            self.keypair_path.clone(),
             self.multisig
                 .map(|x| x.to_string())
                 .unwrap_or_else(|| "None".to_owned()),
