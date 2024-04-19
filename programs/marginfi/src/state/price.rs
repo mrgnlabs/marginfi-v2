@@ -151,6 +151,12 @@ pub struct PythEmaPriceFeed {
 impl PythEmaPriceFeed {
     pub fn load_checked(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
         let price_feed = load_pyth_price_feed(ai)?;
+
+        debug!(
+            "Oracle age: {}s",
+            (price_feed.get_price_unchecked().publish_time - current_time).abs()
+        );
+
         let ema_price = price_feed
             .get_ema_price_no_older_than(current_time, max_age)
             .ok_or(MarginfiError::StaleOracle)?;

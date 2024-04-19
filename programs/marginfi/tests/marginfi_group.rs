@@ -457,7 +457,7 @@ async fn marginfi_group_handle_bankruptcy_failure_not_bankrupt() -> anyhow::Resu
 
     let res = test_f
         .marginfi_group
-        .try_handle_bankruptcy(usdc_bank_f, &borrower_mfi_account_f)
+        .try_handle_bankruptcy(usdc_bank_f, &borrower_mfi_account_f, 100)
         .await;
 
     assert!(res.is_err());
@@ -521,7 +521,7 @@ async fn marginfi_group_handle_bankruptcy_success_no_debt() -> anyhow::Result<()
 
     let res = test_f
         .marginfi_group
-        .try_handle_bankruptcy(sol_bank_f, &borrower_mfi_account_f)
+        .try_handle_bankruptcy(sol_bank_f, &borrower_mfi_account_f, 100)
         .await;
 
     assert!(res.is_err());
@@ -606,7 +606,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
 
     test_f
         .marginfi_group
-        .try_handle_bankruptcy(test_f.get_bank(&BankMint::USDC), &borrower_account)
+        .try_handle_bankruptcy(test_f.get_bank(&BankMint::USDC), &borrower_account, 100)
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
@@ -768,7 +768,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
 
     test_f
         .marginfi_group
-        .try_handle_bankruptcy(test_f.get_bank(&BankMint::USDC), &borrower_account)
+        .try_handle_bankruptcy(test_f.get_bank(&BankMint::USDC), &borrower_account, 100)
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
@@ -858,7 +858,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured() -> anyhow::Resul
 
     test_f
         .marginfi_group
-        .try_handle_bankruptcy(usdc_bank_f, &borrower_account)
+        .try_handle_bankruptcy(usdc_bank_f, &borrower_account, 100)
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
@@ -961,7 +961,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
 
     test_f
         .marginfi_group
-        .try_handle_bankruptcy(usdc_bank_f, &borrower_mfi_account_f)
+        .try_handle_bankruptcy(usdc_bank_f, &borrower_mfi_account_f, 100)
         .await?;
 
     let borrower_mfi_account = borrower_mfi_account_f.load().await;

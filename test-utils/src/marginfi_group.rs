@@ -11,7 +11,8 @@ use marginfi::{
 use solana_program::sysvar;
 use solana_program_test::*;
 use solana_sdk::{
-    instruction::Instruction, signature::Keypair, signer::Signer, transaction::Transaction,
+    compute_budget::ComputeBudgetInstruction, instruction::Instruction, signature::Keypair,
+    signer::Signer, transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
 
@@ -300,6 +301,7 @@ impl MarginfiGroupFixture {
         &self,
         bank: &BankFixture,
         marginfi_account: &MarginfiAccountFixture,
+        nonce: u64,
     ) -> Result<(), BanksClientError> {
         let mut accounts = marginfi::accounts::LendingPoolHandleBankruptcy {
             marginfi_group: self.key,
@@ -328,7 +330,7 @@ impl MarginfiGroupFixture {
         };
 
         let tx = Transaction::new_signed_with_payer(
-            &[ix],
+            &[ix, ComputeBudgetInstruction::set_compute_unit_price(nonce)],
             Some(&ctx.payer.pubkey()),
             &[&ctx.payer],
             ctx.last_blockhash,
