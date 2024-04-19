@@ -55,7 +55,7 @@ async fn stale_bank_should_error() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::BadAccountHealth);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::RiskEngineInitRejected);
 
     Ok(())
 }

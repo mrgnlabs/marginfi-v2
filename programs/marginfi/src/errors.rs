@@ -23,8 +23,8 @@ pub enum MarginfiError {
     MissingBankAccount,
     #[msg("Invalid Bank account")] // 6009
     InvalidBankAccount,
-    #[msg("Bad account health")] // 6010
-    BadAccountHealth,
+    #[msg("RiskEngine rejected due to either bad health or stale oracles")] // 6010
+    RiskEngineInitRejected,
     #[msg("Lending account balance slots are full")] // 6011
     LendingAccountBalanceSlotsFull,
     #[msg("Bank already exists")] // 6012

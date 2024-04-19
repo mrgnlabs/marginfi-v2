@@ -57,7 +57,7 @@ async fn bank_oracle_staleness_test() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::BadAccountHealth);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::RiskEngineInitRejected);
 
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 200).await;
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 200).await;

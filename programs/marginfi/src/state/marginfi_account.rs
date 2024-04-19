@@ -497,7 +497,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 
         check!(
             total_weighted_assets >= total_weighted_liabilities,
-            MarginfiError::BadAccountHealth
+            MarginfiError::RiskEngineInitRejected
         );
 
         self.check_account_risk_tiers()?;
