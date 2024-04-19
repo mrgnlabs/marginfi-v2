@@ -1,6 +1,9 @@
 use fixtures::{
     assert_custom_error,
-    test::{BankMint, TestFixture, TestSettings, PYTH_SOL_FEED, PYTH_USDC_FEED},
+    test::{
+        BankMint, TestFixture, TestSettings, PYTH_SOL_EQUIVALENT_FEED, PYTH_SOL_FEED,
+        PYTH_USDC_FEED,
+    },
 };
 use marginfi::{prelude::MarginfiError, state::marginfi_group::BankConfigOpt};
 use solana_program_test::tokio;
@@ -41,11 +44,11 @@ async fn bank_oracle_staleness_test() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 500)
         .await?;
 
     // Borrow SOL
@@ -54,7 +57,14 @@ async fn bank_oracle_staleness_test() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BadAccountHealth);
+
+    test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 200).await;
+    test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 200).await;
+    test_f
+        .set_pyth_oracle_timestamp(PYTH_SOL_EQUIVALENT_FEED, 200)
+        .await;
+    test_f.advance_time(80).await;
 
     usdc_bank
         .update_config(BankConfigOpt {

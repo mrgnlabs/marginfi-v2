@@ -15,7 +15,6 @@ program_dir=${program_lib_name//_/-}  # Substitute dashes with underscores
 
 cd $ROOT/programs/$program_dir
 
-# cmd="RUST_LOG=error cargo test-sbf --features=test -- --test-threads=1"
-cmd="RUST_LOG=error cargo test-sbf --features=test"
+cmd="RUST_LOG=solana_runtime::message_processor::stable_log=debug cargo test --package marginfi --features=test-bpf --  --nocapture"
 echo "Running: $cmd"
 eval "$cmd"
