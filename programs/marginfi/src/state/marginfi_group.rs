@@ -748,12 +748,6 @@ impl Bank {
     }
 
     pub fn maybe_setup_native_oracle(&mut self, ais: &[AccountInfo]) -> MarginfiResult {
-        check!(
-            matches!(self.native_oracle, NativeOracle::None(_)),
-            MarginfiError::InvalidOracleSetup,
-            "Native oracle already setup"
-        );
-
         match self.config.oracle_setup {
             OracleSetup::NativePythnet => {
                 let price_update_account = &ais[0];

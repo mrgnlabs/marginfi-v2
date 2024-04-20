@@ -19,6 +19,7 @@ pub fn lending_pool_configure_bank(
     bank.configure(&bank_config)?;
 
     if bank_config.oracle.is_some() {
+        bank.maybe_setup_native_oracle(ctx.remaining_accounts)?;
         bank.validate_oracle_setup(ctx.remaining_accounts)?;
     }
 
