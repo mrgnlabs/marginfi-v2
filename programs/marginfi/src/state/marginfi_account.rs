@@ -20,8 +20,6 @@ use std::{
     cmp::{max, min},
     ops::Not,
 };
-#[cfg(any(feature = "test", feature = "client"))]
-use type_layout::TypeLayout;
 
 assert_struct_size!(MarginfiAccount, 2304);
 assert_struct_align!(MarginfiAccount, 8);
@@ -29,7 +27,7 @@ assert_struct_align!(MarginfiAccount, 8);
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
+    derive(Debug, PartialEq, Eq, type_layout::TypeLayout)
 )]
 pub struct MarginfiAccount {
     pub group: Pubkey,                   // 32
@@ -660,7 +658,7 @@ assert_struct_align!(LendingAccount, 8);
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
+    derive(Debug, PartialEq, Eq, type_layout::TypeLayout)
 )]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES], // 104 * 16 = 1664
@@ -692,7 +690,7 @@ assert_struct_align!(Balance, 8);
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
+    derive(Debug, PartialEq, Eq, type_layout::TypeLayout)
 )]
 pub struct Balance {
     pub active: bool,

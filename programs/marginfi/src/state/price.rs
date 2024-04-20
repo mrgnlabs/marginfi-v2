@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, cmp::min};
+use std::cmp::min;
 
 use anchor_lang::prelude::*;
 
@@ -20,10 +20,7 @@ use crate::{
     state::native_oracle::NativeOracle,
 };
 
-use super::{
-    marginfi_group::{Bank, BankConfig},
-    native_oracle::pyth_crosschain::PythnetPriceFeed,
-};
+use super::{marginfi_group::Bank, native_oracle::pyth_crosschain::PythnetPriceFeed};
 
 #[repr(u8)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
