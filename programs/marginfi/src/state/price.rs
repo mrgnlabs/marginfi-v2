@@ -1,10 +1,11 @@
-use std::cmp::min;
+use std::{borrow::BorrowMut, cmp::min};
 
 use anchor_lang::prelude::*;
 
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, Price, PriceFeed};
+use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use switchboard_v2::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
@@ -16,17 +17,22 @@ use crate::{
     },
     debug, math_error,
     prelude::*,
+    state::native_oracle::NativeOracle,
 };
 
-use super::marginfi_group::BankConfig;
+use super::{
+    marginfi_group::{Bank, BankConfig},
+    native_oracle::pyth_crosschain::PythnetPriceFeed,
+};
 
 #[repr(u8)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
 pub enum OracleSetup {
     None,
-    PythEma,
+    Pyth,
     SwitchboardV2,
+    NativePythnet,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -56,34 +62,38 @@ pub trait PriceAdapter {
 #[enum_dispatch(PriceAdapter)]
 #[cfg_attr(feature = "client", derive(Clone))]
 pub enum OraclePriceFeedAdapter {
-    PythEma(PythEmaPriceFeed),
+    Pyth(PythPriceFeed),
     SwitchboardV2(SwitchboardV2PriceFeed),
+    PythCrosschain(PythnetPriceFeed),
 }
 
 impl OraclePriceFeedAdapter {
     pub fn try_from_bank_config(
-        bank_config: &BankConfig,
+        bank: &Bank,
         ais: &[AccountInfo],
         current_timestamp: i64,
     ) -> MarginfiResult<Self> {
         Self::try_from_bank_config_with_max_age(
-            bank_config,
+            bank,
             ais,
             current_timestamp,
-            bank_config.get_oracle_max_age(),
+            bank.config.get_oracle_max_age(),
         )
     }
 
     pub fn try_from_bank_config_with_max_age(
-        bank_config: &BankConfig,
+        bank: &Bank,
         ais: &[AccountInfo],
         current_timestamp: i64,
         max_age: u64,
     ) -> MarginfiResult<Self> {
+        let bank_config = &bank.config;
+
         debug!("Max age: {}", max_age);
+
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
-            OracleSetup::PythEma => {
+            OracleSetup::Pyth => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
                 check!(
                     ais[0].key == &bank_config.oracle_keys[0],
@@ -92,9 +102,11 @@ impl OraclePriceFeedAdapter {
 
                 let account_info = &ais[0];
 
-                Ok(OraclePriceFeedAdapter::PythEma(
-                    PythEmaPriceFeed::load_checked(account_info, current_timestamp, max_age)?,
-                ))
+                Ok(OraclePriceFeedAdapter::Pyth(PythPriceFeed::load_checked(
+                    account_info,
+                    current_timestamp,
+                    max_age,
+                )?))
             }
             OracleSetup::SwitchboardV2 => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
@@ -107,23 +119,35 @@ impl OraclePriceFeedAdapter {
                     SwitchboardV2PriceFeed::load_checked(&ais[0], current_timestamp, max_age)?,
                 ))
             }
+            OracleSetup::NativePythnet => {
+                let pythnet_price_feed = match bank.native_oracle {
+                    NativeOracle::PythCrosschain(pythnet_price_feed) => pythnet_price_feed,
+                    _ => panic!("Incorrect oracle setup"),
+                };
+
+                pythnet_price_feed.check_staleness(current_timestamp, max_age)?;
+
+                Ok(OraclePriceFeedAdapter::PythCrosschain(pythnet_price_feed))
+            }
         }
     }
 
-    pub fn validate_bank_config(
-        bank_config: &BankConfig,
-        oracle_ais: &[AccountInfo],
-    ) -> MarginfiResult {
+    /// Validate the oracle account info for the given bank.
+    ///
+    /// - NativePythnet
+    /// We check that a pythnet price update account is provided and that the feed_id matches the bank's oracle key.
+    pub fn validate_bank(bank: &Bank, oracle_ais: &[AccountInfo]) -> MarginfiResult {
+        let bank_config = &bank.config;
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
-            OracleSetup::PythEma => {
+            OracleSetup::Pyth => {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
                 check!(
                     oracle_ais[0].key == &bank_config.oracle_keys[0],
                     MarginfiError::InvalidOracleAccount
                 );
 
-                PythEmaPriceFeed::check_ais(&oracle_ais[0])?;
+                PythPriceFeed::check_ais(&oracle_ais[0])?;
 
                 Ok(())
             }
@@ -138,17 +162,42 @@ impl OraclePriceFeedAdapter {
 
                 Ok(())
             }
+            OracleSetup::NativePythnet => {
+                check!(
+                    matches!(bank.native_oracle, NativeOracle::PythCrosschain(_)),
+                    MarginfiError::InvalidOracleSetup,
+                    "Incorrect oracle setup"
+                );
+
+                check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
+
+                let price_update_account = &oracle_ais[0];
+
+                let data = price_update_account.try_borrow_data()?;
+
+                let price_update_v2 = PriceUpdateV2::try_deserialize(&mut &data[..])?;
+
+                check!(
+                    price_update_v2
+                        .price_message
+                        .feed_id
+                        .eq(bank_config.oracle_keys[0].as_ref()),
+                    MarginfiError::InvalidOracleAccount
+                );
+
+                Ok(())
+            }
         }
     }
 }
 
 #[cfg_attr(feature = "client", derive(Clone, Debug))]
-pub struct PythEmaPriceFeed {
+pub struct PythPriceFeed {
     ema_price: Box<Price>,
     price: Box<Price>,
 }
 
-impl PythEmaPriceFeed {
+impl PythPriceFeed {
     pub fn load_checked(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
         let price_feed = load_pyth_price_feed(ai)?;
         let ema_price = price_feed
@@ -213,7 +262,7 @@ impl PythEmaPriceFeed {
     }
 }
 
-impl PriceAdapter for PythEmaPriceFeed {
+impl PriceAdapter for PythPriceFeed {
     fn get_price_of_type(
         &self,
         price_type: OraclePriceType,
@@ -404,7 +453,7 @@ impl LiteAggregatorAccountData {
 }
 
 #[inline(always)]
-fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
+pub fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
     let scaling_factor = EXP_10_I80F48[exponent.unsigned_abs() as usize];
 
     let price = if exponent == 0 {
@@ -511,7 +560,7 @@ mod tests {
         });
 
         // Initialize PythEmaPriceFeed with high confidence price as EMA
-        let pyth_adapter = PythEmaPriceFeed {
+        let pyth_adapter = PythPriceFeed {
             ema_price: high_confidence_price,
             price: low_confidence_price,
         };

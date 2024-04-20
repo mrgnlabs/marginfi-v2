@@ -51,7 +51,7 @@ pub enum BankUpdateRoutingType {
 
 #[derive(Clone, Debug)]
 pub enum OracleData {
-    Pyth(PythEmaPriceFeed),
+    Pyth(PythPriceFeed),
     Switchboard(SwitchboardV2PriceFeed),
 }
 
@@ -212,7 +212,7 @@ impl Snapshot {
 
                 match bank.config.oracle_setup {
                     OracleSetup::None => (),
-                    OracleSetup::PythEma => {
+                    OracleSetup::Pyth => {
                         let oracle_address = bank.config.oracle_keys[0];
                         self.routing_lookup
                             .insert(oracle_address, AccountRoutingType::PriceFeedPyth);
@@ -278,7 +278,7 @@ impl Snapshot {
             AccountRoutingType::PriceFeedPyth => {
                 let mut account = account.clone();
                 let ai = (account_pubkey, &mut account).into_account_info();
-                let pf = PythEmaPriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
+                let pf = PythPriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
                 self.price_feeds
                     .insert(*account_pubkey, OracleData::Pyth(pf));
             }

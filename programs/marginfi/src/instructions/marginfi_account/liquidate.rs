@@ -123,7 +123,7 @@ pub fn lending_account_liquidate(
         let asset_price = {
             let oracle_ais = &ctx.remaining_accounts[0..1];
             let asset_pf = OraclePriceFeedAdapter::try_from_bank_config(
-                &asset_bank.config,
+                &asset_bank,
                 oracle_ais,
                 current_timestamp,
             )?;
@@ -134,7 +134,7 @@ pub fn lending_account_liquidate(
         let liab_price = {
             let oracle_ais = &ctx.remaining_accounts[1..2];
             let liab_pf = OraclePriceFeedAdapter::try_from_bank_config(
-                &liab_bank.config,
+                &liab_bank,
                 oracle_ais,
                 current_timestamp,
             )?;

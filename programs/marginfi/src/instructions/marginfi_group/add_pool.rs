@@ -55,7 +55,8 @@ pub fn lending_pool_add_bank(
     );
 
     bank.config.validate()?;
-    bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
+    bank.maybe_setup_native_oracle(ctx.remaining_accounts)?;
+    bank.validate_oracle_setup(ctx.remaining_accounts)?;
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {
@@ -211,7 +212,8 @@ pub fn lending_pool_add_bank_with_seed(
     );
 
     bank.config.validate()?;
-    bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
+    bank.maybe_setup_native_oracle(ctx.remaining_accounts)?;
+    bank.validate_oracle_setup(ctx.remaining_accounts)?;
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {

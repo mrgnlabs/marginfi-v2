@@ -91,6 +91,8 @@ pub enum MarginfiError {
     IllegalBalanceState,
     #[msg("Illegal account authority transfer")] // 6044
     IllegalAccountAuthorityTransfer,
+    #[msg("Illegal oracle update")] // 6045
+    IllegalOracleUpdate,
 }
 
 impl From<MarginfiError> for ProgramError {

@@ -191,7 +191,7 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
                     let bank = bank_al.load()?;
 
                     Box::new(OraclePriceFeedAdapter::try_from_bank_config(
-                        &bank.config,
+                        &bank,
                         oracle_ais,
                         current_timestamp,
                     ))

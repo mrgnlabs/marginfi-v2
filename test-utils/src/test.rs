@@ -206,7 +206,7 @@ lazy_static! {
             ..Default::default()
         };
     pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythEma,
+        oracle_setup: OracleSetup::Pyth,
         asset_weight_maint: I80F48!(1).into(),
         asset_weight_init: I80F48!(1).into(),
         liability_weight_init: I80F48!(1).into(),

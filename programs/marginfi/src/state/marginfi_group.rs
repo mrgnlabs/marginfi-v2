@@ -1,5 +1,9 @@
 use super::{
     marginfi_account::{BalanceSide, RequirementType},
+    native_oracle::{
+        pyth_crosschain::{PythnetPriceFeed, PythnetPriceFeedControl},
+        NativeOracle,
+    },
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
 #[cfg(not(feature = "client"))]
@@ -22,6 +26,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
+use pyth_solana_receiver_sdk::price_update::{PriceUpdateV2, VerificationLevel};
 #[cfg(feature = "client")]
 use std::fmt::Display;
 use std::{
@@ -281,10 +286,7 @@ assert_struct_size!(Bank, 1856);
 assert_struct_align!(Bank, 8);
 #[account(zero_copy(unsafe))]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
+#[cfg_attr(any(feature = "test", feature = "client"), derive(Debug, TypeLayout))]
 #[derive(Default)]
 pub struct Bank {
     pub mint: Pubkey,
@@ -328,7 +330,10 @@ pub struct Bank {
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 28],
+    /// Native Oracle
+    pub native_oracle: NativeOracle,
+
+    pub _padding_0: [[u64; 2]; 24],
     pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
 }
 
@@ -375,7 +380,8 @@ impl Bank {
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
-            _padding_0: [[0; 2]; 28],
+            native_oracle: NativeOracle::default(),
+            _padding_0: [[0; 2]; 24],
             _padding_1: [[0; 2]; 32],
         }
     }
@@ -719,6 +725,57 @@ impl Bank {
 
     pub fn get_emissions_flag(&self, flag: u64) -> bool {
         (self.emissions_flags & flag) == flag
+    }
+
+    pub fn get_pyth_crosschain_verificaiton_ctl(&self) -> MarginfiResult<PythnetPriceFeedControl> {
+        check!(
+            matches!(self.config.oracle_setup, OracleSetup::NativePythnet),
+            MarginfiError::InvalidOracleSetup,
+            "Oracle setup is not NativePythnet"
+        );
+
+        let min_verificaiton_level = match self.native_oracle {
+            NativeOracle::PythCrosschain(oracle) => oracle.min_verificaiton_level,
+            _ => return Err(MarginfiError::InvalidOracleSetup.into()),
+        };
+
+        let price_feed_id = self.config.oracle_keys[0].as_ref().try_into().unwrap();
+
+        Ok(PythnetPriceFeedControl {
+            price_feed_id,
+            min_verificaiton_level,
+        })
+    }
+
+    pub fn maybe_setup_native_oracle(&mut self, ais: &[AccountInfo]) -> MarginfiResult {
+        check!(
+            matches!(self.native_oracle, NativeOracle::None(_)),
+            MarginfiError::InvalidOracleSetup,
+            "Native oracle already setup"
+        );
+
+        match self.config.oracle_setup {
+            OracleSetup::NativePythnet => {
+                let price_update_account = &ais[0];
+                let data = price_update_account.try_borrow_data()?;
+                let price_update_v2 = PriceUpdateV2::try_deserialize(&mut &data[..])?;
+
+                let pythnet_price_feed = PythnetPriceFeed::new_no_staleness_check(
+                    price_update_v2,
+                    VerificationLevel::Full,
+                )?;
+
+                self.native_oracle = NativeOracle::PythCrosschain(pythnet_price_feed)
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    pub fn validate_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
+        OraclePriceFeedAdapter::validate_bank(self, ais)?;
+        Ok(())
     }
 }
 
@@ -1074,11 +1131,6 @@ impl BankConfig {
     #[inline]
     pub fn is_borrow_limit_active(&self) -> bool {
         self.borrow_limit != u64::MAX
-    }
-
-    pub fn validate_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
-        OraclePriceFeedAdapter::validate_bank_config(self, ais)?;
-        Ok(())
     }
 
     pub fn usd_init_limit_active(&self) -> bool {

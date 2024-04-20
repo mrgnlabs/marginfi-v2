@@ -218,7 +218,7 @@ async fn marginfi_group_add_bank_failure_fake_pyth_feed() -> anyhow::Result<()> 
         .try_lending_pool_add_bank(
             &bank_asset_mint_fixture,
             BankConfig {
-                oracle_setup: marginfi::state::price::OracleSetup::PythEma,
+                oracle_setup: marginfi::state::price::OracleSetup::Pyth,
                 oracle_keys: create_oracle_key_array(FAKE_PYTH_USDC_FEED),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
