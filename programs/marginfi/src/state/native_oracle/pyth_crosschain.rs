@@ -112,7 +112,7 @@ impl PythnetPriceFeed {
     /// - Update is newer than the current price update
     pub fn try_update(
         &mut self,
-        new_price_update: PriceUpdateV2,
+        new_price_update: &PriceUpdateV2,
         ctl: PythnetPriceFeedControl,
     ) -> MarginfiResult<()> {
         let PriceFeedMessage {
