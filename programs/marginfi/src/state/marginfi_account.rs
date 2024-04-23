@@ -1174,15 +1174,12 @@ impl<'a> BankAccountWrapper<'a> {
                     .ok_or_else(math_error!())?,
             );
             let emissions_rate = I80F48::from_num(self.bank.emissions_rate);
-            let emissions = period
-                .checked_mul(balance_amount)
-                .ok_or_else(math_error!())?
-                .checked_div(EXP_10_I80F48[self.bank.mint_decimals as usize])
-                .ok_or_else(math_error!())?
-                .checked_mul(emissions_rate)
-                .ok_or_else(math_error!())?
-                .checked_div(SECONDS_PER_YEAR)
-                .ok_or_else(math_error!())?;
+            let emissions = calc_emissions(
+                period,
+                balance_amount,
+                self.bank.mint_decimals as usize,
+                emissions_rate,
+            )?;
 
             let emissions_real = min(emissions, I80F48::from(self.bank.emissions_remaining));
 
@@ -1260,6 +1257,44 @@ impl<'a> BankAccountWrapper<'a> {
     }
 }
 
+/// Calculates the emissions based on the given period, balance amount, mint decimals,
+/// emissions rate, and seconds per year.
+///
+/// Formula:
+/// emissions = period * balance_amount / (10 ^ mint_decimals) * emissions_rate
+///
+/// # Arguments
+///
+/// * `period` - The period for which emissions are calculated.
+/// * `balance_amount` - The balance amount used in the calculation.
+/// * `mint_decimals` - The number of decimal places for the mint.
+/// * `emissions_rate` - The emissions rate used in the calculation.
+///
+/// # Returns
+///
+/// The calculated emissions value.
+fn calc_emissions(
+    period: I80F48,
+    balance_amount: I80F48,
+    mint_decimals: usize,
+    emissions_rate: I80F48,
+) -> MarginfiResult<I80F48> {
+    let exponent = EXP_10_I80F48[mint_decimals];
+    let balance_amount_ui = balance_amount
+        .checked_div(exponent)
+        .ok_or_else(math_error!())?;
+
+    let emissions = period
+        .checked_mul(balance_amount_ui)
+        .ok_or_else(math_error!())?
+        .checked_div(SECONDS_PER_YEAR)
+        .ok_or_else(math_error!())?
+        .checked_mul(emissions_rate)
+        .ok_or_else(math_error!())?;
+
+    Ok(emissions)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1314,6 +1349,112 @@ mod test {
         match acc.set_new_account_authority_checked(new_authority.into()) {
             Ok(_) => (),
             Err(_) => panic!("transerring account authority failed"),
+        }
+    }
+
+    #[test]
+    fn test_calc_emissions() {
+        let balance_amount: u64 = 106153222432271169;
+        let emissions_rate = 1.5;
+
+        // 1 second
+        let period = 1;
+        let emissions = calc_emissions(
+            I80F48::from_num(period),
+            I80F48::from_num(balance_amount),
+            9,
+            I80F48::from_num(emissions_rate),
+        );
+        assert!(emissions.is_ok());
+        assert_eq!(emissions.unwrap(), I80F48::from_num(5.049144902600414));
+
+        // 126 days
+        let period = 126 * 24 * 60 * 60;
+        let emissions = calc_emissions(
+            I80F48::from_num(period),
+            I80F48::from_num(balance_amount),
+            9,
+            I80F48::from_num(emissions_rate),
+        );
+        assert!(emissions.is_ok());
+
+        // 2 years
+        let period = 2 * 365 * 24 * 60 * 60;
+        let emissions = calc_emissions(
+            I80F48::from_num(period),
+            I80F48::from_num(balance_amount),
+            9,
+            I80F48::from_num(emissions_rate),
+        );
+        assert!(emissions.is_ok());
+
+        {
+            // 10x balance amount
+            let balance_amount = balance_amount * 10;
+            let emissions = calc_emissions(
+                I80F48::from_num(period),
+                I80F48::from_num(balance_amount),
+                9,
+                I80F48::from_num(emissions_rate),
+            );
+            assert!(emissions.is_ok());
+        }
+
+        // 20 years + 100x emissions rate
+        let period = 20 * 365 * 24 * 60 * 60;
+        let emissions_rate = emissions_rate * 100.0;
+        let emissions = calc_emissions(
+            I80F48::from_num(period),
+            I80F48::from_num(balance_amount),
+            9,
+            I80F48::from_num(emissions_rate),
+        );
+        assert!(emissions.is_ok());
+
+        {
+            // u64::MAX deposit amount
+            let balance_amount = u64::MAX;
+            let emissions_rate = emissions_rate;
+            let emissions = calc_emissions(
+                I80F48::from_num(period),
+                I80F48::from_num(balance_amount),
+                9,
+                I80F48::from_num(emissions_rate),
+            );
+            assert!(emissions.is_ok());
+        }
+
+        {
+            // 10000x emissions rate
+            let balance_amount = u64::MAX;
+            let emissions_rate = emissions_rate * 10000.;
+            let emissions = calc_emissions(
+                I80F48::from_num(period),
+                I80F48::from_num(balance_amount),
+                9,
+                I80F48::from_num(emissions_rate),
+            );
+            assert!(emissions.is_ok());
+        }
+
+        {
+            let balance_amount = I80F48::from_num(10000000);
+            let emissions_rate = I80F48::from_num(1.5);
+            let period = I80F48::from_num(10 * 24 * 60 * 60);
+
+            let emissions = period
+                .checked_mul(balance_amount)
+                .unwrap()
+                .checked_div(EXP_10_I80F48[9])
+                .unwrap()
+                .checked_mul(emissions_rate)
+                .unwrap()
+                .checked_div(SECONDS_PER_YEAR)
+                .unwrap();
+
+            let emissions_new = calc_emissions(period, balance_amount, 9, emissions_rate).unwrap();
+
+            assert!(emissions_new - emissions < I80F48::from_num(0.00000001));
         }
     }
 }
