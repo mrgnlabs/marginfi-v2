@@ -1400,7 +1400,7 @@ mod test {
             assert!(emissions.is_ok());
         }
 
-        // 20 years
+        // 20 years + 100x emissions rate
         let period = 20 * 365 * 24 * 60 * 60;
         let emissions_rate = emissions_rate * 100.0;
         let emissions = calc_emissions(
@@ -1412,7 +1412,7 @@ mod test {
         assert!(emissions.is_ok());
 
         {
-            // 1000x deposit amount
+            // u64::MAX deposit amount
             let balance_amount = u64::MAX;
             let emissions_rate = emissions_rate;
             let emissions = calc_emissions(
@@ -1425,7 +1425,7 @@ mod test {
         }
 
         {
-            // 1000x deposit amount
+            // 10000x emissions rate
             let balance_amount = u64::MAX;
             let emissions_rate = emissions_rate * 10000.;
             let emissions = calc_emissions(
