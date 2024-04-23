@@ -8,7 +8,7 @@ pub mod pyth_crosschain;
 pub enum NativeOracle {
     /// Adding padding to ensure the enum is 64 bytes.
     None([u8; 56]),
-    PythCrosschain(PythnetPriceFeed),
+    Pythnet(PythnetPriceFeed),
 }
 
 impl Default for NativeOracle {

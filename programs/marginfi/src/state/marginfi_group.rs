@@ -727,7 +727,7 @@ impl Bank {
         (self.emissions_flags & flag) == flag
     }
 
-    pub fn get_pyth_crosschain_verificaiton_ctl(&self) -> MarginfiResult<PythnetPriceFeedControl> {
+    pub fn get_pythnet_verificaiton_ctl(&self) -> MarginfiResult<PythnetPriceFeedControl> {
         check!(
             matches!(self.config.oracle_setup, OracleSetup::NativePythnet),
             MarginfiError::InvalidOracleSetup,
@@ -735,7 +735,7 @@ impl Bank {
         );
 
         let min_verificaiton_level = match self.native_oracle {
-            NativeOracle::PythCrosschain(oracle) => oracle.min_verificaiton_level,
+            NativeOracle::Pythnet(oracle) => oracle.min_verificaiton_level,
             _ => return Err(MarginfiError::InvalidOracleSetup.into()),
         };
 
@@ -751,6 +751,9 @@ impl Bank {
         match self.config.oracle_setup {
             OracleSetup::NativePythnet => {
                 let price_update_account = &ais[0];
+
+                // TODO: Check the account owner is pyth-crosschain-receiver
+
                 let data = price_update_account.try_borrow_data()?;
                 let price_update_v2 = PriceUpdateV2::try_deserialize(&mut &data[..])?;
 
@@ -759,7 +762,7 @@ impl Bank {
                     VerificationLevel::Full,
                 )?;
 
-                self.native_oracle = NativeOracle::PythCrosschain(pythnet_price_feed)
+                self.native_oracle = NativeOracle::Pythnet(pythnet_price_feed)
             }
             _ => {}
         }
@@ -769,6 +772,7 @@ impl Bank {
 
     pub fn validate_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
         OraclePriceFeedAdapter::validate_bank(self, ais)?;
+
         Ok(())
     }
 }

@@ -1,8 +1,4 @@
-use anchor_lang::{
-    accounts::{account::Account, account_loader::AccountLoader, signer::Signer},
-    context::Context,
-    emit, Accounts, Key,
-};
+use anchor_lang::prelude::*;
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
 use crate::{
@@ -11,7 +7,9 @@ use crate::{
     MarginfiError, MarginfiGroup, MarginfiResult,
 };
 
-pub fn lending_pool_configure_bank(ctx: Context<LendingPoolConfigureBank>) -> MarginfiResult {
+pub fn bank_update_native_oracle_pythnet(
+    ctx: Context<BankUpdateNativeOraclePythnet>,
+) -> MarginfiResult {
     let mut bank = ctx.accounts.bank.load_mut()?;
 
     check!(
@@ -20,10 +18,12 @@ pub fn lending_pool_configure_bank(ctx: Context<LendingPoolConfigureBank>) -> Ma
         "Oracle setup is not NativePythnet"
     );
 
+    let pythnet_verificaiton_ctl = bank.get_pythnet_verificaiton_ctl()?;
+
     match bank.native_oracle {
-        NativeOracle::PythCrosschain(ref mut native_oracle) => native_oracle.try_update(
+        NativeOracle::Pythnet(ref mut native_oracle) => native_oracle.try_update(
             ctx.accounts.price_update_v2.as_ref(),
-            bank.get_pyth_crosschain_verificaiton_ctl()?,
+            pythnet_verificaiton_ctl,
         ),
         _ => unreachable!(),
     };
@@ -42,13 +42,8 @@ pub fn lending_pool_configure_bank(ctx: Context<LendingPoolConfigureBank>) -> Ma
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolConfigureBank<'info> {
+pub struct BankUpdateNativeOraclePythnet<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
-    #[account(
-        address = marginfi_group.load()?.admin,
-    )]
-    pub admin: Signer<'info>,
 
     #[account(
         mut,

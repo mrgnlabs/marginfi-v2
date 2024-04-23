@@ -118,7 +118,7 @@ impl OraclePriceFeedAdapter {
             }
             OracleSetup::NativePythnet => {
                 let pythnet_price_feed = match bank.native_oracle {
-                    NativeOracle::PythCrosschain(pythnet_price_feed) => pythnet_price_feed,
+                    NativeOracle::Pythnet(pythnet_price_feed) => pythnet_price_feed,
                     _ => panic!("Incorrect oracle setup"),
                 };
 
@@ -161,7 +161,7 @@ impl OraclePriceFeedAdapter {
             }
             OracleSetup::NativePythnet => {
                 check!(
-                    matches!(bank.native_oracle, NativeOracle::PythCrosschain(_)),
+                    matches!(bank.native_oracle, NativeOracle::Pythnet(_)),
                     MarginfiError::InvalidOracleSetup,
                     "Incorrect oracle setup"
                 );
