@@ -13,16 +13,16 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct PythnetPriceFeedControl<'a> {
-    pub price_feed_id: &'a [u8; 32],
+pub struct PythnetPriceFeedControl {
+    pub price_feed_id: [u8; 32],
     pub min_verificaiton_level: VerificationLevel,
 }
 
-impl PythnetPriceFeedControl<'_> {
+impl PythnetPriceFeedControl {
     /// Check that the feed ID matches the expected feed ID
     pub fn check_feed_id_matches(&self, feed_id: &[u8; 32]) -> MarginfiResult<()> {
         check!(
-            feed_id == self.price_feed_id,
+            self.price_feed_id.eq(feed_id),
             MarginfiError::IllegalOracleUpdate,
             "Price feed ID mismatch"
         );

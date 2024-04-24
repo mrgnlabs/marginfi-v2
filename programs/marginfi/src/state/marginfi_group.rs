@@ -11,9 +11,9 @@ use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        MAX_ORACLE_KEYS, MAX_PRICE_AGE_SEC, PYTH_ID, SECONDS_PER_YEAR,
+        DEFAULT_PYTHNET_VERIFICAITON_LEVEL, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
+        LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PRICE_AGE_SEC, PYTH_ID, SECONDS_PER_YEAR,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
@@ -747,19 +747,24 @@ impl Bank {
         })
     }
 
-    pub fn maybe_setup_native_oracle(&mut self, ais: &[AccountInfo]) -> MarginfiResult {
+    pub fn maybe_setup_native_oracle(
+        &mut self,
+        ais: &[AccountInfo],
+        native_oracle_cfg: Option<NativeOracleCfg>,
+    ) -> MarginfiResult {
         match self.config.oracle_setup {
             OracleSetup::NativePythnet => {
                 let price_update_account = &ais[0];
 
                 // TODO: Check the account owner is pyth-crosschain-receiver
-
                 let data = price_update_account.try_borrow_data()?;
                 let price_update_v2 = PriceUpdateV2::try_deserialize(&mut &data[..])?;
 
                 let pythnet_price_feed = PythnetPriceFeed::new_no_staleness_check(
                     price_update_v2,
-                    VerificationLevel::Full,
+                    native_oracle_cfg
+                        .map(|cfg| cfg.get_pythnet_verification_level())
+                        .unwrap_or(DEFAULT_PYTHNET_VERIFICAITON_LEVEL),
                 )?;
 
                 self.native_oracle = NativeOracle::Pythnet(pythnet_price_feed)
@@ -941,6 +946,8 @@ pub struct BankConfigCompact {
 
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
+
+    pub native_oracle_cfg: Option<NativeOracleCfg>,
 }
 
 impl From<BankConfigCompact> for BankConfig {
@@ -987,6 +994,7 @@ impl From<BankConfig> for BankConfigCompact {
             risk_tier: config.risk_tier,
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
+            native_oracle_cfg: None,
         }
     }
 }
@@ -1201,6 +1209,8 @@ pub struct BankConfigOpt {
     pub total_asset_value_init_limit: Option<u64>,
 
     pub oracle_max_age: Option<u16>,
+
+    pub native_oracle_cfg: Option<NativeOracleCfg>,
 }
 
 #[cfg_attr(
@@ -1211,6 +1221,26 @@ pub struct BankConfigOpt {
 pub struct OracleConfig {
     pub setup: OracleSetup,
     pub keys: [Pubkey; MAX_ORACLE_KEYS],
+}
+
+#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
+#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize, Debug)]
+pub enum NativeOracleCfg {
+    PythnetVerificaitonFull,
+    PythnetVerificationPartial { num_signatures: u8 },
+}
+
+impl NativeOracleCfg {
+    pub fn get_pythnet_verification_level(&self) -> VerificationLevel {
+        match self {
+            NativeOracleCfg::PythnetVerificaitonFull => VerificationLevel::Full,
+            NativeOracleCfg::PythnetVerificationPartial { num_signatures } => {
+                VerificationLevel::Partial {
+                    num_signatures: *num_signatures,
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

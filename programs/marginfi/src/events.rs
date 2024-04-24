@@ -146,3 +146,16 @@ pub struct MarginfiAccountTransferAccountAuthorityEvent {
     pub old_account_authority: Pubkey,
     pub new_account_authority: Pubkey,
 }
+
+#[event]
+pub struct NativeOraclePythnetUpdateEvent {
+    pub header: GroupEventHeader,
+    pub bank: Pubkey,
+    pub feed_id: [u8; 32],
+    pub timestamp: i64,
+    pub publish_timestamp: i64,
+    pub price: i64,
+    pub conf: u64,
+    pub ema_price: i64,
+    pub ema_conf: u64,
+}

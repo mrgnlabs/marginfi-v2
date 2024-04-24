@@ -4,7 +4,7 @@ use crate::{
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
-    state::marginfi_group::{Bank, BankConfig, BankConfigCompact, MarginfiGroup},
+    state::marginfi_group::{Bank, BankConfigCompact, MarginfiGroup},
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -17,7 +17,7 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 /// TODO: Allow for different oracle configurations
 pub fn lending_pool_add_bank(
     ctx: Context<LendingPoolAddBank>,
-    bank_config: BankConfig,
+    bank_config: BankConfigCompact,
 ) -> MarginfiResult {
     let LendingPoolAddBank {
         bank_mint,
@@ -39,7 +39,7 @@ pub fn lending_pool_add_bank(
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
-        bank_config,
+        bank_config.into(),
         bank_mint.key(),
         bank_mint.decimals,
         liquidity_vault.key(),
@@ -55,7 +55,7 @@ pub fn lending_pool_add_bank(
     );
 
     bank.config.validate()?;
-    bank.maybe_setup_native_oracle(ctx.remaining_accounts)?;
+    bank.maybe_setup_native_oracle(ctx.remaining_accounts, bank_config.native_oracle_cfg)?;
     bank.validate_oracle_setup(ctx.remaining_accounts)?;
 
     emit!(LendingPoolBankCreateEvent {
@@ -173,7 +173,7 @@ pub struct LendingPoolAddBank<'info> {
 /// The previous lending_pool_add_bank is preserved for backwards-compatibility.
 pub fn lending_pool_add_bank_with_seed(
     ctx: Context<LendingPoolAddBankWithSeed>,
-    bank_config: BankConfig,
+    bank_config: BankConfigCompact,
     _bank_seed: u64,
 ) -> MarginfiResult {
     let LendingPoolAddBankWithSeed {
@@ -196,7 +196,7 @@ pub fn lending_pool_add_bank_with_seed(
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
-        bank_config,
+        bank_config.into(),
         bank_mint.key(),
         bank_mint.decimals,
         liquidity_vault.key(),
@@ -212,7 +212,7 @@ pub fn lending_pool_add_bank_with_seed(
     );
 
     bank.config.validate()?;
-    bank.maybe_setup_native_oracle(ctx.remaining_accounts)?;
+    bank.maybe_setup_native_oracle(ctx.remaining_accounts, bank_config.native_oracle_cfg)?;
     bank.validate_oracle_setup(ctx.remaining_accounts)?;
 
     emit!(LendingPoolBankCreateEvent {

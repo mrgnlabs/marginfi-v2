@@ -41,7 +41,7 @@ pub mod marginfi {
         ctx: Context<LendingPoolAddBank>,
         bank_config: BankConfigCompact,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank(ctx, bank_config.into())
+        marginfi_group::lending_pool_add_bank(ctx, bank_config)
     }
 
     /// A copy of lending_pool_add_bank with an additional bank seed.
@@ -52,7 +52,7 @@ pub mod marginfi {
         bank_config: BankConfigCompact,
         bank_seed: u64,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config.into(), bank_seed)
+        marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config, bank_seed)
     }
 
     pub fn lending_pool_configure_bank(
@@ -193,6 +193,12 @@ pub mod marginfi {
         ctx: Context<MarginfiAccountSetAccountAuthority>,
     ) -> MarginfiResult {
         marginfi_account::set_account_transfer_authority(ctx)
+    }
+
+    pub fn update_native_oracle_pythnet(
+        ctx: Context<BankUpdateNativeOraclePythnet>,
+    ) -> MarginfiResult {
+        marginfi_group::bank_update_native_oracle_pythnet(ctx)
     }
 }
 
