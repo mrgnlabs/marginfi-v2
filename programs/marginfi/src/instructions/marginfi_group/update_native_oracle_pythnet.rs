@@ -57,5 +57,6 @@ pub struct BankUpdateNativeOraclePythnet<'info> {
     )]
     pub bank: AccountLoader<'info, Bank>,
 
+    #[account(owner = pyth_solana_receiver_sdk::ID)]
     pub price_update_v2: Account<'info, PriceUpdateV2>,
 }
