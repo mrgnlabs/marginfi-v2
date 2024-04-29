@@ -29,7 +29,7 @@ use solana_cli_output::CliAccount;
 use solana_program::{instruction::Instruction, pubkey, system_program};
 use solana_program_test::*;
 use solana_sdk::{
-    account::{AccountSharedData, ReadableAccount},
+    account::AccountSharedData,
     instruction::InstructionError,
     pubkey::Pubkey,
     signature::Keypair,
@@ -1727,7 +1727,6 @@ async fn bank_update_native_oracle() -> anyhow::Result<()> {
         .set_account(&stale_update_key, &account);
     let res = bank.update_native_oracle(&stale_update_key).await;
     let expected_error = MarginfiError::IllegalOracleUpdate as u32 + ERROR_CODE_OFFSET;
-    dbg!(&res);
     assert!(matches!(
         res.unwrap_err(),
         BanksClientError::TransactionError(TransactionError::InstructionError(
