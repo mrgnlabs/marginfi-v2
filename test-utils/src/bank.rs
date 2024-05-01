@@ -285,7 +285,7 @@ impl BankFixture {
                 bank: self.key,
                 admin: signer_pk,
                 fee_vault: bank.fee_vault,
-                fee_vault_authority: fee_vault_authority,
+                fee_vault_authority,
                 dst_token_account: receiving_account.key,
             }
             .to_account_metas(Some(true)),

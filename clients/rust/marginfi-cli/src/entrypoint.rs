@@ -1,6 +1,6 @@
 use crate::{
     config::GlobalOptions,
-    processor::{self, group::process_update_lookup_tables, process_set_user_flag},
+    processor::{self, process_set_user_flag},
     profile::{load_profile, Profile},
 };
 use anchor_client::Cluster;
