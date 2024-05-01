@@ -5,6 +5,11 @@ use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 use anchor_spl::token;
 use anyhow::Result;
 use marginfi::{
+    constants::{
+        LIQUID_INSURANCE_MINT_AUTHORITY_SEED, LIQUID_INSURANCE_MINT_METADATA_SEED,
+        LIQUID_INSURANCE_MINT_SEED,
+    },
+    instructions::InitMintParams,
     prelude::MarginfiGroup,
     state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
 };
@@ -374,5 +379,99 @@ impl MarginfiGroupFixture {
             &self.key,
         )
         .await
+    }
+
+    pub async fn try_create_liquid_insurance_fund(
+        &self,
+        bank_asset_mint_fixture: &MintFixture,
+        init_mint_params: InitMintParams,
+        min_withdraw_period: u64,
+    ) -> Result<(), BanksClientError> {
+        let bank_key = Keypair::new();
+        let bank_fixture =
+            BankFixture::new(self.ctx.clone(), bank_key.pubkey(), bank_asset_mint_fixture);
+
+        // Create PDA for LIF
+        let (lif_pda, _) = Pubkey::find_program_address(
+            [self.key.as_ref(), bank_fixture.mint.key.as_ref()].as_slice(),
+            &marginfi::id(),
+        );
+
+        // Create PDA for LIF Mint
+        let (mint_pda, _) = Pubkey::find_program_address(
+            [
+                LIQUID_INSURANCE_MINT_SEED.as_bytes(),
+                bank_key.pubkey().as_ref(),
+            ]
+            .as_slice(),
+            &marginfi::id(),
+        );
+
+        // Create PDA for LIF Mint Authority
+        let (mint_authority_pda, _) = Pubkey::find_program_address(
+            [
+                LIQUID_INSURANCE_MINT_AUTHORITY_SEED.as_bytes(),
+                bank_key.pubkey().as_ref(),
+            ]
+            .as_slice(),
+            &marginfi::id(),
+        );
+
+        // Create PDA for LIF Mint Authority
+        let (mint_metadata_pda, _) = Pubkey::find_program_address(
+            [
+                LIQUID_INSURANCE_MINT_METADATA_SEED.as_bytes(),
+                bank_key.pubkey().as_ref(),
+            ]
+            .as_slice(),
+            &marginfi::id(),
+        );
+
+        let mut accounts = marginfi::accounts::CreateNewLiquidInsuranceFund {
+            marginfi_group: self.key,
+            marginfi_authority: self.ctx.borrow().payer.pubkey(),
+            signer: self.ctx.borrow().payer.pubkey(),
+            bank: bank_key.pubkey(),
+            bank_insurance_fund_mint: bank_fixture.mint.key,
+            bank_insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
+            bank_insurance_vault_authority: bank_fixture
+                .get_vault_authority(BankVaultType::Insurance)
+                .0,
+            rent: sysvar::rent::id(),
+            token_program: token::ID,
+            system_program: system_program::id(),
+            liquid_insurance_fund: lif_pda,
+            mint: mint_pda,
+            mint_authority: mint_authority_pda,
+            metadata: mint_metadata_pda,
+            token_metadata_program: token::ID, // ? TODO how to find this
+        }
+        .to_account_metas(Some(true));
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::CreateNewLiquidInsuranceFund {
+                params: init_mint_params,
+                min_withdraw_period: min_withdraw_period.try_into().unwrap(),
+                init_number_of_shares: None,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey().clone()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
     }
 }

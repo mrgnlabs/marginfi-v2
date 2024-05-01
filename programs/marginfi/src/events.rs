@@ -17,6 +17,13 @@ pub struct AccountEventHeader {
     pub marginfi_group: Pubkey,
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct LiquidInsuranceFundEventHeader {
+    pub bank: Pubkey,
+    pub bank_insurance_vault: Pubkey,
+    pub token_mint: Pubkey,
+}
+
 // marginfi group events
 
 #[event]
@@ -145,4 +152,32 @@ pub struct MarginfiAccountTransferAccountAuthorityEvent {
     pub header: AccountEventHeader,
     pub old_account_authority: Pubkey,
     pub new_account_authority: Pubkey,
+}
+
+// liquid insurance fund events
+
+#[event]
+pub struct MarginfiCreateNewLiquidInsuranceFundEvent {
+    pub header: LiquidInsuranceFundEventHeader,
+    pub mint_metadata_account: Pubkey,
+}
+
+#[event]
+pub struct MarginfiDepositIntoLiquidInsuranceFundEvent {
+    pub header: LiquidInsuranceFundEventHeader,
+    pub amount: u64,
+    pub signer_token_address: Pubkey,
+}
+
+#[event]
+pub struct MarginfiWithdrawClaimLiquidInsuranceFundEvent {
+    pub header: LiquidInsuranceFundEventHeader,
+    pub amount: u64,
+    pub success: bool,
+}
+
+#[event]
+pub struct MarginfiWithdrawRequestLiquidInsuranceFundEvent {
+    pub header: LiquidInsuranceFundEventHeader,
+    pub amount: u64,
 }

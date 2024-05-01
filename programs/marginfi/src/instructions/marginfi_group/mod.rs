@@ -5,6 +5,7 @@ mod configure;
 mod configure_bank;
 mod handle_bankruptcy;
 mod initialize;
+mod liquid_insurance_fund;
 
 pub use accrue_bank_interest::*;
 pub use add_pool::*;
@@ -13,3 +14,4 @@ pub use configure::*;
 pub use configure_bank::*;
 pub use handle_bankruptcy::*;
 pub use initialize::*;
+pub use liquid_insurance_fund::*;

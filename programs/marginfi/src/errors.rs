@@ -93,6 +93,8 @@ pub enum MarginfiError {
     IllegalAccountAuthorityTransfer,
     #[msg("Unauthorized")] // 6045
     Unauthorized,
+    #[msg("InvalidWithdrawal")] // 6046
+    InvalidWithdrawal,
 }
 
 impl From<MarginfiError> for ProgramError {

@@ -6,10 +6,15 @@ use solana_program::pubkey;
 pub const LIQUIDITY_VAULT_AUTHORITY_SEED: &str = "liquidity_vault_auth";
 pub const INSURANCE_VAULT_AUTHORITY_SEED: &str = "insurance_vault_auth";
 pub const FEE_VAULT_AUTHORITY_SEED: &str = "fee_vault_auth";
+pub const LIQUID_INSURANCE_MINT_AUTHORITY_SEED: &str = "liquid_insurance_mint_auth";
 
 pub const LIQUIDITY_VAULT_SEED: &str = "liquidity_vault";
 pub const INSURANCE_VAULT_SEED: &str = "insurance_vault";
 pub const FEE_VAULT_SEED: &str = "fee_vault";
+
+pub const LIQUID_INSURANCE_MINT_SEED: &str = "liquid_insurance_mint";
+pub const LIQUID_INSURANCE_MINT_METADATA_SEED: &str = "liquid_insurance_mint_metadata";
+pub const LIQUID_INSURANCE_WITHDRAW_SEED: &str = "liquid_insurance_withdraw";
 
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";

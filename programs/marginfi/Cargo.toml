@@ -25,10 +25,13 @@ debug = []
 solana-program = { workspace = true }
 
 anchor-lang = { workspace = true }
-anchor-spl = { workspace = true }
+anchor-spl = { workspace = true, features = ["metadata"] }
 
 pyth-sdk-solana = { workspace = true }
 switchboard-v2 = { workspace = true }
+
+mpl-token-metadata = "1.13.2"
+spl-token = "1.0"
 
 bytemuck = "1.9.1"
 cfg-if = "1.0.0"
