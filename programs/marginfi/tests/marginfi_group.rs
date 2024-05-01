@@ -1,6 +1,10 @@
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr};
 
-use anchor_lang::{prelude::Clock, AccountDeserialize, InstructionData, ToAccountMetas};
+use anchor_lang::{
+    error::{ErrorCode, ERROR_CODE_OFFSET},
+    prelude::Clock,
+    AccountDeserialize, Discriminator, InstructionData, ToAccountMetas,
+};
 use anyhow::bail;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use fixed::types::I80F48;
@@ -9,16 +13,29 @@ use fixtures::{assert_custom_error, assert_eq_noise, native, prelude::*};
 use marginfi::{
     constants::TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     prelude::{GroupConfig, MarginfiError, MarginfiGroup},
-    state::marginfi_group::{
-        Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType, InterestRateConfig,
+    state::{
+        marginfi_group::{
+            Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
+            InterestRateConfig, NativeOracleCfg, OracleConfig,
+        },
+        price::OracleSetup,
     },
 };
 use pretty_assertions::assert_eq;
+use pyth_solana_receiver_sdk::price_update::{PriceUpdateV2, VerificationLevel};
+use pythnet_sdk::messages::PriceFeedMessage;
 use solana_account_decoder::UiAccountData;
 use solana_cli_output::CliAccount;
 use solana_program::{instruction::Instruction, pubkey, system_program};
 use solana_program_test::*;
-use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+use solana_sdk::{
+    account::AccountSharedData,
+    instruction::InstructionError,
+    pubkey::Pubkey,
+    signature::Keypair,
+    signer::Signer,
+    transaction::{Transaction, TransactionError},
+};
 
 #[tokio::test]
 async fn marginfi_group_create_success() -> anyhow::Result<()> {
@@ -1570,6 +1587,169 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
         I80F48::from_str("0.05").unwrap()
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn bank_update_native_oracle() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    // 1) Create & initialize marginfi group and bank
+    let marginfi_group_key = Keypair::new();
+
+    let accounts = marginfi::accounts::MarginfiGroupInitialize {
+        marginfi_group: marginfi_group_key.pubkey(),
+        admin: test_f.payer(),
+        system_program: system_program::id(),
+    };
+    let init_marginfi_group_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: accounts.to_account_metas(Some(true)),
+        data: marginfi::instruction::MarginfiGroupInitialize {}.data(),
+    };
+    let tx = Transaction::new_signed_with_payer(
+        &[init_marginfi_group_ix],
+        Some(&test_f.payer().clone()),
+        &[&test_f.payer_keypair(), &marginfi_group_key],
+        test_f.get_latest_blockhash().await,
+    );
+    test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await?;
+
+    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
+
+    let bank = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(&bank_asset_mint_fixture, *DEFAULT_USDC_TEST_BANK_CONFIG)
+        .await?;
+
+    // 2) Configure bank with native oracle
+    let mut oracles = [Pubkey::default(); 5];
+    let price_feed = Pubkey::new_unique();
+    oracles[0] = price_feed;
+
+    // Create some price update
+    let current_root_slot = test_f
+        .context
+        .borrow_mut()
+        .banks_client
+        .get_root_slot()
+        .await
+        .unwrap();
+    let mut price_update = PriceUpdateV2 {
+        write_authority: Pubkey::default(),
+        verification_level: VerificationLevel::Full,
+        price_message: PriceFeedMessage {
+            feed_id: price_feed.to_bytes(),
+            price: 1_000_000,
+            conf: 1_000_000 / 10,
+            exponent: -6,
+            publish_time: 0,
+            prev_publish_time: 0,
+            ema_price: 1_000_000,
+            ema_conf: 1_000_000 / 10,
+        },
+        posted_slot: current_root_slot,
+    };
+
+    // Need valid price update account to configure
+    let valid_price_account_key = Pubkey::new_unique();
+    let mut account = AccountSharedData::new(
+        1_000_000_000,
+        PriceUpdateV2::LEN + 8,
+        // correct owner
+        &pyth_solana_receiver_sdk::ID,
+    );
+    account.set_data(
+        anchor_lang::prelude::borsh::to_vec(&(PriceUpdateV2::DISCRIMINATOR, &price_update))
+            .unwrap(),
+    );
+    test_f
+        .context
+        .borrow_mut()
+        .set_account(&valid_price_account_key, &account);
+
+    bank.configure_native_oracle(
+        &valid_price_account_key,
+        OracleConfig {
+            setup: OracleSetup::NativePythnet,
+            keys: oracles,
+        },
+        NativeOracleCfg::PythnetVerificaitonFull,
+    )
+    .await
+    .unwrap();
+
+    // 3) Update should fail with invalid price update account (invalid account owner)
+    let invalid_price_account_key = Pubkey::new_unique();
+    let mut invalid_account = AccountSharedData::new(
+        1_000_000_000,
+        PriceUpdateV2::LEN + 8,
+        // invalid account owner!!
+        &system_program::ID,
+    );
+    invalid_account.set_data(
+        anchor_lang::prelude::borsh::to_vec(&(PriceUpdateV2::DISCRIMINATOR, &price_update))
+            .unwrap(),
+    );
+    test_f
+        .context
+        .borrow_mut()
+        .set_account(&invalid_price_account_key, &invalid_account);
+    let res = bank.update_native_oracle(&invalid_price_account_key).await;
+    let expected_error = ErrorCode::AccountOwnedByWrongProgram as u32;
+    assert!(matches!(
+        res.unwrap_err(),
+        BanksClientError::TransactionError(TransactionError::InstructionError(
+            // first ix in tx
+            0,
+            InstructionError::Custom(e),
+        ))
+        if e == expected_error
+    ));
+
+    // 4) Update should fail if stale
+    let stale_update_key = Pubkey::new_unique();
+    let old_time = price_update.price_message.publish_time;
+    price_update.price_message.publish_time = i64::MIN;
+    account.set_data(
+        anchor_lang::prelude::borsh::to_vec(&(PriceUpdateV2::DISCRIMINATOR, &price_update))
+            .unwrap(),
+    );
+    test_f
+        .context
+        .borrow_mut()
+        .set_account(&stale_update_key, &account);
+    let res = bank.update_native_oracle(&stale_update_key).await;
+    let expected_error = MarginfiError::IllegalOracleUpdate as u32 + ERROR_CODE_OFFSET;
+    assert!(matches!(
+        res.unwrap_err(),
+        BanksClientError::TransactionError(TransactionError::InstructionError(
+            // first ix in tx
+            0,
+            InstructionError::Custom(e),
+        ))
+        if e == expected_error
+    ));
+
+    // 5) Update should succeed if not stale
+    let valid_update_key = Pubkey::new_unique();
+    price_update.price_message.publish_time = old_time + 1;
+    account.set_data(
+        anchor_lang::prelude::borsh::to_vec(&(PriceUpdateV2::DISCRIMINATOR, &price_update))
+            .unwrap(),
+    );
+    test_f
+        .context
+        .borrow_mut()
+        .set_account(&valid_update_key, &account);
+    let res = bank.update_native_oracle(&valid_update_key).await;
+    assert!(res.is_ok());
 
     Ok(())
 }

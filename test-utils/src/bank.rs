@@ -9,7 +9,7 @@ use anchor_lang::{
 };
 use fixed::types::I80F48;
 use marginfi::{
-    state::marginfi_group::{Bank, BankConfigOpt, BankVaultType},
+    state::marginfi_group::{Bank, BankConfigOpt, BankVaultType, NativeOracleCfg, OracleConfig},
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
 use solana_program::instruction::Instruction;
@@ -74,6 +74,52 @@ impl BankFixture {
             accounts,
             data: marginfi::instruction::LendingPoolConfigureBank {
                 bank_config_opt: config,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
+    }
+
+    /// This is done separately since the native oracles specify a price feed id instead of an account key
+    pub async fn configure_native_oracle(
+        &self,
+        // this is not fixed. can be any valid price update account owned by receiver proggram
+        price_update_account: &Pubkey,
+        oracle_config: OracleConfig,
+        native_oracle_config: NativeOracleCfg,
+    ) -> anyhow::Result<()> {
+        let mut accounts = marginfi::accounts::LendingPoolConfigureBank {
+            marginfi_group: self.load().await.group,
+            admin: self.ctx.borrow().payer.pubkey(),
+            bank: self.key,
+        }
+        .to_account_metas(Some(true));
+
+        accounts.push(AccountMeta::new_readonly(*price_update_account, false));
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolConfigureBank {
+                bank_config_opt: BankConfigOpt {
+                    native_oracle_cfg: Some(native_oracle_config),
+                    oracle: Some(oracle_config),
+                    ..Default::default()
+                },
             }
             .data(),
         };
@@ -284,6 +330,41 @@ impl BankFixture {
         self.ctx
             .borrow_mut()
             .set_account(&self.key, &bank_ai.into());
+    }
+
+    pub async fn update_native_oracle(
+        &self,
+        price_update_account: &Pubkey,
+    ) -> Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::BankUpdateNativeOraclePythnet {
+                marginfi_group: self.load().await.group,
+                bank: self.key,
+                price_update_v2: *price_update_account,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::UpdateNativeOraclePythnet {}.data(),
+        };
+
+        let tx = {
+            let ctx = self.ctx.borrow_mut();
+
+            Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
+                ctx.last_blockhash,
+            )
+        };
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
     }
 }
 

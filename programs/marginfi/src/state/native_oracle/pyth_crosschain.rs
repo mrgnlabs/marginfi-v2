@@ -132,7 +132,9 @@ impl PythnetPriceFeed {
         check!(
             publish_time > self.publish_time,
             MarginfiError::IllegalOracleUpdate,
-            "Update is older than current price update"
+            "Update is older than current price update: proposed {} vs current {}",
+            publish_time,
+            self.publish_time,
         );
 
         *self = Self {
