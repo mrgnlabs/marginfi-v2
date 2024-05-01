@@ -288,6 +288,20 @@ pub enum BankCommand {
     SettleAllEmissions {
         bank: Pubkey,
     },
+    #[cfg(feature = "admin")]
+    CollectFees {
+        bank: Pubkey,
+    },
+    #[cfg(feature = "admin")]
+    WithdrawFees {
+        bank: Pubkey,
+        amount: f64,
+    },
+    #[cfg(feature = "admin")]
+    WithdrawInsurance {
+        bank: Pubkey,
+        amount: f64,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -678,6 +692,16 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         #[cfg(feature = "admin")]
         BankCommand::SettleAllEmissions { bank } => {
             processor::emissions::claim_all_emissions_for_bank(&config, &profile, bank)
+        }
+        #[cfg(feature = "admin")]
+        BankCommand::CollectFees { bank } => processor::admin::process_collect_fees(config, bank),
+        #[cfg(feature = "admin")]
+        BankCommand::WithdrawFees { bank, amount } => {
+            processor::admin::process_withdraw_fees(config, bank, amount)
+        }
+        #[cfg(feature = "admin")]
+        BankCommand::WithdrawInsurance { bank, amount } => {
+            processor::admin::process_withdraw_insurance(config, bank, amount)
         }
     }
 }

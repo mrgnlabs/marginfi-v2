@@ -1,3 +1,4 @@
+use crate::constants::{FEE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_AUTHORITY_SEED};
 use crate::events::{GroupEventHeader, LendingPoolBankCollectFeesEvent};
 use crate::{
     bank_signer,
@@ -149,6 +150,154 @@ pub struct LendingPoolCollectBankFees<'info> {
         bump = bank.load()?.fee_vault_bump
     )]
     pub fee_vault: AccountInfo<'info>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+pub fn lending_pool_withdraw_fees(
+    ctx: Context<LendingPoolWithdrawFees>,
+    amount: u64,
+) -> MarginfiResult {
+    let LendingPoolWithdrawFees {
+        bank: bank_loader,
+        fee_vault,
+        fee_vault_authority,
+        dst_token_account,
+        token_program,
+        ..
+    } = ctx.accounts;
+
+    let bank = bank_loader.load()?;
+
+    bank.withdraw_spl_transfer(
+        amount,
+        Transfer {
+            from: fee_vault.to_account_info(),
+            to: dst_token_account.to_account_info(),
+            authority: fee_vault_authority.to_account_info(),
+        },
+        token_program.to_account_info(),
+        bank_signer!(
+            BankVaultType::Fee,
+            bank_loader.key(),
+            bank.fee_vault_authority_bump
+        ),
+    )?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LendingPoolWithdrawFees<'info> {
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        constraint = bank.load()?.group == marginfi_group.key(),
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+
+    #[account(
+        address = marginfi_group.load()?.admin,
+    )]
+    pub admin: Signer<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        mut,
+        seeds = [
+            FEE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.fee_vault_bump
+    )]
+    pub fee_vault: AccountInfo<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        seeds = [
+            FEE_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.fee_vault_authority_bump
+    )]
+    pub fee_vault_authority: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub dst_token_account: AccountInfo<'info>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+pub fn lending_pool_withdraw_insurance(
+    ctx: Context<LendingPoolWithdrawInsurance>,
+    amount: u64,
+) -> MarginfiResult {
+    let LendingPoolWithdrawInsurance {
+        bank: bank_loader,
+        insurance_vault,
+        insurance_vault_authority,
+        dst_token_account,
+        token_program,
+        ..
+    } = ctx.accounts;
+
+    let bank = bank_loader.load()?;
+
+    bank.withdraw_spl_transfer(
+        amount,
+        Transfer {
+            from: insurance_vault.to_account_info(),
+            to: dst_token_account.to_account_info(),
+            authority: insurance_vault_authority.to_account_info(),
+        },
+        token_program.to_account_info(),
+        bank_signer!(
+            BankVaultType::Insurance,
+            bank_loader.key(),
+            bank.insurance_vault_authority_bump
+        ),
+    )?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LendingPoolWithdrawInsurance<'info> {
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        constraint = bank.load()?.group == marginfi_group.key(),
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+
+    #[account(
+        address = marginfi_group.load()?.admin,
+    )]
+    pub admin: Signer<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        mut,
+        seeds = [
+            INSURANCE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.insurance_vault_bump
+    )]
+    pub insurance_vault: AccountInfo<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        seeds = [
+            INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.insurance_vault_authority_bump
+    )]
+    pub insurance_vault_authority: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub dst_token_account: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
 }

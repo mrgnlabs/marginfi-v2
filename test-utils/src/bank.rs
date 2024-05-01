@@ -7,8 +7,10 @@ use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
     InstructionData, ToAccountMetas,
 };
+use anchor_spl::token;
 use fixed::types::I80F48;
 use marginfi::{
+    bank_authority_seed,
     state::marginfi_group::{Bank, BankConfigOpt, BankVaultType},
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
@@ -258,6 +260,86 @@ impl BankFixture {
             .banks_client
             .process_transaction(tx)
             .await?;
+
+        Ok(())
+    }
+
+    pub async fn try_withdraw_fees(
+        &self,
+        receiving_account: &TokenAccountFixture,
+        amount: u64,
+    ) -> Result<(), BanksClientError> {
+        let bank = self.load().await;
+        let mut ctx = self.ctx.borrow_mut();
+        let signer_pk = ctx.payer.pubkey();
+        let (fee_vault_authority, _) = Pubkey::find_program_address(
+            bank_authority_seed!(BankVaultType::Fee, self.key),
+            &marginfi::id(),
+        );
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolWithdrawFees {
+                marginfi_group: bank.group,
+                token_program: token::ID,
+                bank: self.key,
+                admin: signer_pk,
+                fee_vault: bank.fee_vault,
+                fee_vault_authority: fee_vault_authority,
+                dst_token_account: receiving_account.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolWithdrawFees { amount }.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_withdraw_insurance(
+        &self,
+        receiving_account: &TokenAccountFixture,
+        amount: u64,
+    ) -> Result<(), BanksClientError> {
+        let bank = self.load().await;
+        let mut ctx = self.ctx.borrow_mut();
+        let signer_pk = ctx.payer.pubkey();
+        let (insurance_vault_authority, _) = Pubkey::find_program_address(
+            bank_authority_seed!(BankVaultType::Insurance, self.key),
+            &marginfi::id(),
+        );
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolWithdrawInsurance {
+                marginfi_group: bank.group,
+                token_program: token::ID,
+                bank: self.key,
+                admin: signer_pk,
+                insurance_vault: bank.insurance_vault,
+                insurance_vault_authority,
+                dst_token_account: receiving_account.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolWithdrawInsurance { amount }.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
 
         Ok(())
     }

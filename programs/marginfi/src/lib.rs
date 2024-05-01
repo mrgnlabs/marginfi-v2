@@ -181,6 +181,20 @@ pub mod marginfi {
         marginfi_group::lending_pool_collect_bank_fees(ctx)
     }
 
+    pub fn lending_pool_withdraw_fees(
+        ctx: Context<LendingPoolWithdrawFees>,
+        amount: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_withdraw_fees(ctx, amount)
+    }
+
+    pub fn lending_pool_withdraw_insurance(
+        ctx: Context<LendingPoolWithdrawInsurance>,
+        amount: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_withdraw_insurance(ctx, amount)
+    }
+
     pub fn set_account_flag(ctx: Context<SetAccountFlag>, flag: u64) -> MarginfiResult {
         marginfi_group::set_account_flag(ctx, flag)
     }
