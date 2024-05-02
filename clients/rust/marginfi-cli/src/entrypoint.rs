@@ -296,11 +296,15 @@ pub enum BankCommand {
     WithdrawFees {
         bank: Pubkey,
         amount: f64,
+        #[clap(about = "Destination address, defaults to the profile authority")]
+        destination_address: Option<Pubkey>,
     },
     #[cfg(feature = "admin")]
     WithdrawInsurance {
         bank: Pubkey,
         amount: f64,
+        #[clap(about = "Destination address, defaults to the profile authority")]
+        destination_address: Option<Pubkey>,
     },
 }
 
@@ -700,12 +704,18 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         #[cfg(feature = "admin")]
         BankCommand::CollectFees { bank } => processor::admin::process_collect_fees(config, bank),
         #[cfg(feature = "admin")]
-        BankCommand::WithdrawFees { bank, amount } => {
-            processor::admin::process_withdraw_fees(config, bank, amount)
-        }
+        BankCommand::WithdrawFees {
+            bank,
+            amount,
+            destination_address,
+        } => processor::admin::process_withdraw_fees(config, bank, amount, destination_address),
         #[cfg(feature = "admin")]
-        BankCommand::WithdrawInsurance { bank, amount } => {
-            processor::admin::process_withdraw_insurance(config, bank, amount)
+        BankCommand::WithdrawInsurance {
+            bank,
+            amount,
+            destination_address,
+        } => {
+            processor::admin::process_withdraw_insurance(config, bank, amount, destination_address)
         }
     }
 }

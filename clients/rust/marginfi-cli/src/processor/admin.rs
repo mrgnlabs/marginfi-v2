@@ -54,10 +54,16 @@ pub fn process_collect_fees(config: Config, bank_pk: Pubkey) -> Result<()> {
     Ok(())
 }
 
-pub fn process_withdraw_fees(config: Config, bank_pk: Pubkey, amount_ui: f64) -> Result<()> {
+pub fn process_withdraw_fees(
+    config: Config,
+    bank_pk: Pubkey,
+    amount_ui: f64,
+    dst_address: Option<Pubkey>,
+) -> Result<()> {
     let bank = config.mfi_program.account::<Bank>(bank_pk)?;
     let amount = ui_to_native(amount_ui, bank.mint_decimals);
-    let ata = associated_token::get_associated_token_address(&config.authority(), &bank.mint);
+    let dst_address = dst_address.unwrap_or(config.authority());
+    let ata = associated_token::get_associated_token_address(&dst_address, &bank.mint);
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -104,10 +110,16 @@ pub fn process_withdraw_fees(config: Config, bank_pk: Pubkey, amount_ui: f64) ->
     Ok(())
 }
 
-pub fn process_withdraw_insurance(config: Config, bank_pk: Pubkey, amount_ui: f64) -> Result<()> {
+pub fn process_withdraw_insurance(
+    config: Config,
+    bank_pk: Pubkey,
+    amount_ui: f64,
+    dst_address: Option<Pubkey>,
+) -> Result<()> {
     let bank = config.mfi_program.account::<Bank>(bank_pk)?;
     let amount = ui_to_native(amount_ui, bank.mint_decimals);
-    let ata = associated_token::get_associated_token_address(&config.authority(), &bank.mint);
+    let dst_address = dst_address.unwrap_or(config.authority());
+    let ata = associated_token::get_associated_token_address(&dst_address, &bank.mint);
 
     let rpc_client = config.mfi_program.rpc();
 
