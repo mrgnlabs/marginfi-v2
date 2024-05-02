@@ -505,7 +505,7 @@ mod tests {
         // Define a price with a 1% confidence interval
         let low_confidence_price = Box::new(Price {
             price: 100i64 * EXP_10[6] as i64,
-            conf: 1u64 * EXP_10[6] as u64,
+            conf: EXP_10[6] as u64,
             expo: -6,
             publish_time: 0,
         });

@@ -1,6 +1,6 @@
 use crate::{
     config::GlobalOptions,
-    processor::{self, group::process_update_lookup_tables, process_set_user_flag},
+    processor::{self, process_set_user_flag},
     profile::{load_profile, Profile},
 };
 use anchor_client::Cluster;
@@ -288,6 +288,24 @@ pub enum BankCommand {
     SettleAllEmissions {
         bank: Pubkey,
     },
+    #[cfg(feature = "admin")]
+    CollectFees {
+        bank: Pubkey,
+    },
+    #[cfg(feature = "admin")]
+    WithdrawFees {
+        bank: Pubkey,
+        amount: f64,
+        #[clap(help = "Destination address, defaults to the profile authority")]
+        destination_address: Option<Pubkey>,
+    },
+    #[cfg(feature = "admin")]
+    WithdrawInsurance {
+        bank: Pubkey,
+        amount: f64,
+        #[clap(help = "Destination address, defaults to the profile authority")]
+        destination_address: Option<Pubkey>,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -549,7 +567,11 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         #[cfg(feature = "admin")]
         GroupCommand::UpdateLookupTable {
             existing_token_lookup_tables,
-        } => process_update_lookup_tables(&config, &profile, existing_token_lookup_tables),
+        } => processor::group::process_update_lookup_tables(
+            &config,
+            &profile,
+            existing_token_lookup_tables,
+        ),
     }
 }
 
@@ -678,6 +700,22 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         #[cfg(feature = "admin")]
         BankCommand::SettleAllEmissions { bank } => {
             processor::emissions::claim_all_emissions_for_bank(&config, &profile, bank)
+        }
+        #[cfg(feature = "admin")]
+        BankCommand::CollectFees { bank } => processor::admin::process_collect_fees(config, bank),
+        #[cfg(feature = "admin")]
+        BankCommand::WithdrawFees {
+            bank,
+            amount,
+            destination_address,
+        } => processor::admin::process_withdraw_fees(config, bank, amount, destination_address),
+        #[cfg(feature = "admin")]
+        BankCommand::WithdrawInsurance {
+            bank,
+            amount,
+            destination_address,
+        } => {
+            processor::admin::process_withdraw_insurance(config, bank, amount, destination_address)
         }
     }
 }
