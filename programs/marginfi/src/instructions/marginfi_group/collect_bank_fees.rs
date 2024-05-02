@@ -222,6 +222,7 @@ pub struct LendingPoolWithdrawFees<'info> {
     )]
     pub fee_vault_authority: AccountInfo<'info>,
 
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(mut)]
     pub dst_token_account: AccountInfo<'info>,
 
@@ -296,6 +297,7 @@ pub struct LendingPoolWithdrawInsurance<'info> {
     )]
     pub insurance_vault_authority: AccountInfo<'info>,
 
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(mut)]
     pub dst_token_account: AccountInfo<'info>,
 

@@ -563,7 +563,11 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         #[cfg(feature = "admin")]
         GroupCommand::UpdateLookupTable {
             existing_token_lookup_tables,
-        } => process_update_lookup_tables(&config, &profile, existing_token_lookup_tables),
+        } => processor::group::process_update_lookup_tables(
+            &config,
+            &profile,
+            existing_token_lookup_tables,
+        ),
     }
 }
 

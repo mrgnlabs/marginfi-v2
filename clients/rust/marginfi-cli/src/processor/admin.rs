@@ -81,7 +81,7 @@ pub fn process_withdraw_fees(config: Config, bank_pk: Pubkey, amount_ui: f64) ->
             bank: bank_pk,
             admin: config.authority(),
             fee_vault: bank.fee_vault,
-            fee_vault_authority: fee_vault_authority,
+            fee_vault_authority,
             dst_token_account: ata,
             token_program: spl_token::id(),
         }
