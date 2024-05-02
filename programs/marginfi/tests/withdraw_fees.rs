@@ -4,7 +4,7 @@ use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 
 #[tokio::test]
-async fn marginfi_group_add_bank_success() -> anyhow::Result<()> {
+async fn marginfi_group_withdraw_fees_and_insurance() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
