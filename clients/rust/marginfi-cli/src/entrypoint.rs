@@ -296,14 +296,14 @@ pub enum BankCommand {
     WithdrawFees {
         bank: Pubkey,
         amount: f64,
-        #[clap(about = "Destination address, defaults to the profile authority")]
+        #[clap(help = "Destination address, defaults to the profile authority")]
         destination_address: Option<Pubkey>,
     },
     #[cfg(feature = "admin")]
     WithdrawInsurance {
         bank: Pubkey,
         amount: f64,
-        #[clap(about = "Destination address, defaults to the profile authority")]
+        #[clap(help = "Destination address, defaults to the profile authority")]
         destination_address: Option<Pubkey>,
     },
 }
