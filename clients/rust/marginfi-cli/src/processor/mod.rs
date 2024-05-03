@@ -164,6 +164,9 @@ Emissions:
   Rate: {:?}
   Mint: {:?}
   Remaining: {:?}
+Unclaimed
+  Fees: {:?}
+  Insurance: {:?}
 Last Update: {:?}h ago ({})
 "#,
         bank.group,
@@ -198,6 +201,10 @@ Last Update: {:?}h ago ({})
         I80F48::from(bank.emissions_rate),
         bank.emissions_mint,
         I80F48::from(bank.emissions_remaining),
+        I80F48::from(bank.collected_group_fees_outstanding)
+            / EXP_10_I80F48[bank.mint_decimals as usize],
+        I80F48::from(bank.collected_insurance_fees_outstanding)
+            / EXP_10_I80F48[bank.mint_decimals as usize],
         SystemTime::now()
             .duration_since(UNIX_EPOCH + Duration::from_secs(bank.last_update as u64))
             .unwrap()

@@ -29,22 +29,40 @@ pub fn lending_pool_collect_bank_fees(ctx: Context<LendingPoolCollectBankFees>) 
     let mut available_liquidity = I80F48::from_num(liquidity_vault.amount);
 
     let (insurance_fee_transfer_amount, new_outstanding_insurance_fees) = {
-        let outstanding_fees = I80F48::from(bank.collected_insurance_fees_outstanding);
-        let transfer_amount = min(outstanding_fees, available_liquidity).int();
+        let outstanding = I80F48::from(bank.collected_insurance_fees_outstanding);
+        let transfer_amount = min(outstanding, available_liquidity).int();
 
-        (transfer_amount.int(), outstanding_fees - transfer_amount)
+        (
+            transfer_amount.int(),
+            outstanding
+                .checked_sub(transfer_amount)
+                .ok_or_else(math_error!())?,
+        )
     };
 
     bank.collected_insurance_fees_outstanding = new_outstanding_insurance_fees.into();
 
-    available_liquidity -= insurance_fee_transfer_amount;
+    available_liquidity = available_liquidity
+        .checked_sub(insurance_fee_transfer_amount)
+        .ok_or_else(math_error!())?;
 
     let (group_fee_transfer_amount, new_outstanding_group_fees) = {
-        let outstanding_fees = I80F48::from(bank.collected_group_fees_outstanding);
-        let transfer_amount = min(outstanding_fees, available_liquidity).int();
+        let outstanding = I80F48::from(bank.collected_group_fees_outstanding);
+        let transfer_amount = min(outstanding, available_liquidity).int();
 
-        (transfer_amount.int(), outstanding_fees - transfer_amount)
+        (
+            transfer_amount.int(),
+            outstanding
+                .checked_sub(transfer_amount)
+                .ok_or_else(math_error!())?,
+        )
     };
+
+    available_liquidity = available_liquidity
+        .checked_sub(group_fee_transfer_amount)
+        .ok_or_else(math_error!())?;
+
+    assert!(available_liquidity >= I80F48::ZERO);
 
     bank.collected_group_fees_outstanding = new_outstanding_group_fees.into();
 
