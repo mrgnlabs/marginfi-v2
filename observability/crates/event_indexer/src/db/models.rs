@@ -114,37 +114,7 @@ impl CreateAccountEvents {
         call_stack: &str,
         tx_sig: &str,
     ) -> QueryResult<i32> {
-        let sql = r#"
-        WITH upsert_authority AS (
-            INSERT INTO users (address)
-            VALUES ($1)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_authority AS (
-            SELECT id FROM users WHERE address = $1
-        ), combined_authority AS (
-            SELECT id FROM upsert_authority
-            UNION ALL
-            SELECT id FROM existing_authority
-            LIMIT 1
-        ),
-        upsert_account AS (
-            INSERT INTO accounts (address, user_id)
-            VALUES ($2, (SELECT id FROM combined_authority))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_account AS (
-            SELECT id FROM accounts WHERE address = $2
-        ), combined_account AS (
-            SELECT id FROM upsert_account
-            UNION ALL
-            SELECT id FROM existing_account
-            LIMIT 1
-        )
-        INSERT INTO create_account_events (timestamp, slot, tx_sig, in_flashloan, call_stack, account_id, authority_id)
-        VALUES ($3, $4, $5, $6, $7, (SELECT id FROM combined_account), (SELECT id FROM combined_authority))
-        RETURNING id;
-        "#;
+        let sql = include_str!("queries/insert_create_account_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
             .bind::<Text, _>(authority)
@@ -222,48 +192,8 @@ impl TransferAccountAuthorityEvents {
         call_stack: &str,
         tx_sig: &str,
     ) -> QueryResult<i32> {
-        let sql = r#"
-        WITH upsert_old_authority AS (
-            INSERT INTO users (address)
-            VALUES ($1)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_old_authority AS (
-            SELECT id FROM users WHERE address = $1
-        ), combined_old_authority AS (
-            SELECT id FROM upsert_old_authority
-            UNION ALL
-            SELECT id FROM existing_old_authority
-            LIMIT 1
-        ),
-        upsert_new_authority AS (
-            INSERT INTO users (address)
-            VALUES ($2)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_new_authority AS (
-            SELECT id FROM users WHERE address = $2
-        ), combined_new_authority AS (
-            SELECT id FROM upsert_new_authority
-            UNION ALL
-            SELECT id FROM existing_new_authority
-            LIMIT 1
-        ),
-        upsert_account AS (
-            INSERT INTO accounts (address, user_id)
-            VALUES ($3, (SELECT id FROM combined_new_authority))
-        ), existing_old_authority AS (
-            SELECT id FROM users WHERE address = $1
-        ), combined_old_authority AS (
-            SELECT id FROM upsert_old_authority
-            UNION ALL
-            SELECT id FROM existing_old_authority
-            LIMIT 1
-        ),
-        INSERT INTO transfer_account_authority_events (timestamp, slot, tx_sig, in_flashloan, call_stack, account_id, old_authority_id, new_authority_id)
-        VALUES ($4, $5, $6, $7, $8, (SELECT id FROM combined_account), (SELECT id FROM combined_old_authority), (SELECT id FROM combined_new_authority))
-        RETURNING id;
-        "#;
+        let sql =
+            include_str!("queries/insert_transfer_account_authority_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
             .bind::<Text, _>(old_authority)
@@ -349,63 +279,7 @@ impl DepositEvents {
         call_stack: &str,
         tx_sig: &str,
     ) -> QueryResult<i32> {
-        let sql = r#"
-        WITH upsert_authority AS (
-            INSERT INTO users (address)
-            VALUES ($1)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_authority AS (
-            SELECT id FROM users WHERE address = $1
-        ), combined_authority AS (
-            SELECT id FROM upsert_authority
-            UNION ALL
-            SELECT id FROM existing_authority
-            LIMIT 1
-        ),
-        upsert_account AS (
-            INSERT INTO accounts (address, user_id)
-            VALUES ($2, (SELECT id FROM combined_authority))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_account AS (
-            SELECT id FROM accounts WHERE address = $2
-        ), combined_account AS (
-            SELECT id FROM upsert_account
-            UNION ALL
-            SELECT id FROM existing_account
-            LIMIT 1
-        ),
-        upsert_bank_mint AS (
-            INSERT INTO mints (address, symbol, decimals)
-            VALUES ($3, $4, $5)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank_mint AS (
-            SELECT id FROM
-        ), combined_bank_mint AS (
-            SELECT id FROM upsert_bank_mint
-            UNION ALL
-            SELECT id FROM existing_bank_mint
-            LIMIT 1
-        )
-        upsert_bank AS (
-            INSERT INTO banks (address, mint_id)
-            VALUES ($6, (SELECT id FROM combined_bank_mint))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank AS (
-            SELECT id FROM
-        ), combined_bank AS (
-            SELECT id FROM upsert_bank
-            UNION ALL
-            SELECT id FROM existing_bank
-            LIMIT 1
-        )
-        INSERT INTO deposit_events (timestamp, slot, tx_sig, in_flashloan, call_stack, account_id, authority_id, bank_id, amount)
-        VALUES ($7, $8, $9, $10, $11, (SELECT id FROM combined_account), (SELECT id FROM combined_authority), (SELECT id FROM combined_bank), $12)
-        RETURNING id;
-        "#;
+        let sql = include_str!("./queries/insert_deposit_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
             .bind::<Text, _>(authority)
@@ -495,60 +369,7 @@ impl BorrowEvents {
         call_stack: &str,
         tx_sig: &str,
     ) -> QueryResult<i32> {
-        let sql = r#"
-        WITH upsert_authority AS (
-            INSERT INTO users (address)
-            VALUES ($1)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_authority AS (
-            SELECT id FROM users WHERE address = $1
-        ), combined_authority AS (
-            SELECT id FROM upsert_authority
-            UNION ALL
-            SELECT id FROM existing_authority
-            LIMIT 1
-        ),
-        upsert_account AS (
-            INSERT INTO accounts (address, user_id)
-            VALUES ($2, (SELECT id FROM combined_authority))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_account AS (
-            SELECT id FROM accounts WHERE address = $2
-        ), combined_account AS (
-            SELECT id FROM upsert_account
-            UNION ALL
-            SELECT id FROM existing_account
-            LIMIT 1
-        ),
-        upsert_bank_mint AS (
-            INSERT INTO mints (address
-        ), existing_bank_mint AS (
-            SELECT id FROM
-        ), combined_bank_mint AS (
-            SELECT id FROM upsert_bank_mint
-            UNION ALL
-            SELECT id FROM existing_bank_mint
-            LIMIT 1
-        )
-        upsert_bank AS (
-            INSERT INTO banks (address, mint_id)
-            VALUES ($6, (SELECT id FROM combined_bank_mint))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank AS (
-            SELECT id FROM
-        ), combined_bank AS (
-            SELECT id FROM upsert_bank
-            UNION ALL
-            SELECT id FROM existing_bank
-            LIMIT 1
-        )
-        INSERT INTO borrow_events (timestamp, slot, tx_sig, in_flashloan, call_stack, account_id, authority_id, bank_id, amount)
-        VALUES ($7, $8, $9, $10, $11, (SELECT id FROM combined_account), (SELECT id FROM combined_authority), (SELECT id FROM combined_bank), $12)
-        RETURNING id;
-        "#;
+        let sql = include_str!("queries/insert_borrow_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
             .bind::<Text, _>(authority)
@@ -642,63 +463,7 @@ impl RepayEvents {
         call_stack: &str,
         tx_sig: &str,
     ) -> QueryResult<i32> {
-        let sql = r#"
-        WITH upsert_authority AS (
-            INSERT INTO users (address)
-            VALUES ($1)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_authority AS (
-            SELECT id FROM users WHERE address = $1
-        ), combined_authority AS (
-            SELECT id FROM upsert_authority
-            UNION ALL
-            SELECT id FROM existing_authority
-            LIMIT 1
-        ),
-        upsert_account AS (
-            INSERT INTO accounts (address, user_id)
-            VALUES ($2, (SELECT id FROM combined_authority))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_account AS (
-            SELECT id FROM accounts WHERE address = $2
-        ), combined_account AS (
-            SELECT id FROM upsert_account
-            UNION ALL
-            SELECT id FROM existing_account
-            LIMIT 1
-        ),
-        upsert_bank_mint AS (
-            INSERT INTO mints (address, symbol, decimals)
-            VALUES ($3, $4, $5)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank_mint AS (
-            SELECT id FROM mints WHERE address = $3
-        ), combined_bank_mint AS (
-            SELECT id FROM upsert_bank_mint
-            UNION ALL
-            SELECT id FROM existing_bank_mint
-            LIMIT 1
-        ),
-        upsert_bank AS (
-            INSERT INTO banks (address, mint_id)
-            VALUES ($6, (SELECT id FROM combined_bank_mint))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank AS (
-            SELECT id FROM banks WHERE address = $6
-        ), combined_bank AS (
-            SELECT id FROM upsert_bank
-            UNION ALL
-            SELECT id FROM existing_bank
-            LIMIT 1
-        )
-        INSERT INTO repay_events (timestamp, slot, tx_sig, in_flashloan, call_stack, account_id, authority_id, bank_id, amount, all)
-        VALUES ($7, $8, $9, $10, $11, (SELECT id FROM combined_account), (SELECT id FROM combined_authority), (SELECT id FROM combined_bank), $12, $13)
-        RETURNING id;
-        "#;
+        let sql = include_str!("queries/insert_repay_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
             .bind::<Text, _>(authority)
@@ -793,63 +558,7 @@ impl WithdrawEvents {
         call_stack: &str,
         tx_sig: &str,
     ) -> QueryResult<i32> {
-        let sql = r#"
-        WITH upsert_authority AS (
-            INSERT INTO users (address)
-            VALUES ($1)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_authority AS (
-            SELECT id FROM users WHERE address = $1
-        ), combined_authority AS (
-            SELECT id FROM upsert_authority
-            UNION ALL
-            SELECT id FROM existing_authority
-            LIMIT 1
-        ),
-        upsert_account AS (
-            INSERT INTO accounts (address, user_id)
-            VALUES ($2, (SELECT id FROM combined_authority))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_account AS (
-            SELECT id FROM accounts WHERE address = $2
-        ), combined_account AS (
-            SELECT id FROM upsert_account
-            UNION ALL
-            SELECT id FROM existing_account
-            LIMIT 1
-        ),
-        upsert_bank_mint AS (
-            INSERT INTO mints (address, symbol, decimals)
-            VALUES ($3, $4, $5)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank_mint AS (
-            SELECT id FROM mints WHERE address = $3
-        ), combined_bank_mint AS (
-            SELECT id FROM upsert_bank_mint
-            UNION ALL
-            SELECT id FROM existing_bank_mint
-            LIMIT 1
-        ),
-        upsert_bank AS (
-            INSERT INTO banks (address, mint_id)
-            VALUES ($6, (SELECT id FROM combined_bank_mint))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank AS (
-            SELECT id FROM banks WHERE address = $6
-        ), combined_bank AS (
-            SELECT id FROM upsert_bank
-            UNION ALL
-            SELECT id FROM existing_bank
-            LIMIT 1
-        )
-        INSERT INTO withdraw_events (timestamp, slot, tx_sig, in_flashloan, call_stack, account_id, authority_id, bank_id, amount, all)
-        VALUES ($7, $8, $9, $10, $11, (SELECT id FROM combined_account), (SELECT id FROM combined_authority), (SELECT id FROM combined_bank), $12, $13)
-        RETURNING id;
-        "#;
+        let sql = include_str!("queries/insert_withdraw_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
             .bind::<Text, _>(authority)
@@ -946,64 +655,7 @@ impl WithdrawEmissionsEvents {
         call_stack: &str,
         tx_sig: &str,
     ) -> QueryResult<i32> {
-        let sql = r#"
-        WITH upsert_authority AS (
-            INSERT INTO users (address)
-            VALUES ($1)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_authority AS (
-            SELECT id FROM users WHERE address = $1
-        ), combined_authority AS (
-            SELECT id FROM upsert_authority
-            UNION ALL
-            SELECT id FROM existing_authority
-            LIMIT 1
-        ),
-        upsert_account AS (
-            INSERT INTO accounts (address, user_id)
-            VALUES ($2, (SELECT id FROM combined_authority))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_account AS (
-            SELECT id
-        ), combined_account AS (
-            SELECT id
-        ),
-        upsert_bank_mint AS (
-            INSERT INTO mints (address, symbol, decimals)
-            VALUES ($3, $4, $5)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank_mint AS (
-            SELECT id
-        ), combined_bank_mint AS (
-            SELECT id
-        ),
-        upsert_bank AS (
-            INSERT INTO banks (address, mint_id)
-            VALUES ($6, (SELECT id FROM combined_bank_mint))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank AS (
-            SELECT id
-        ), combined_bank AS (
-            SELECT id
-        ),
-        upsert_emission_mint AS (
-            INSERT INTO mints (address, symbol, decimals)
-            VALUES ($7, $8, $9)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_emission_mint AS (
-            SELECT id
-        ), combined_emission_mint AS (
-            SELECT id
-        )
-        INSERT INTO withdraw_emissions_events (timestamp, slot, tx_sig, in_flashloan, call_stack, account_id, authority_id, bank_id, emission_mint_id, amount)
-        VALUES ($10, $11, $12, $13, $14, (SELECT id FROM combined_account), (SELECT id FROM combined_authority), (SELECT id FROM combined_bank), (SELECT id FROM combined_emission_mint), $15)
-        RETURNING id;
-        "#;
+        let sql = include_str!("queries/insert_withdraw_emissions_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
             .bind::<Text, _>(authority)
@@ -1108,115 +760,7 @@ impl LiquidateEvents {
         call_stack: &str,
         tx_sig: &str,
     ) -> QueryResult<i32> {
-        let sql = r#"
-        WITH upsert_user_liquidator AS (
-            INSERT INTO users (address)
-            VALUES ($1)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_user_liquidator AS (
-            SELECT id FROM users WHERE address = $1
-        ), combined_user_liquidator AS (
-            SELECT id FROM upsert_user_liquidator
-            UNION ALL
-            SELECT id FROM existing_user_liquidator
-            LIMIT 1
-        ),
-        upsert_user_liquidatee AS (
-            INSERT INTO users (address)
-            VALUES ($2)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_user_liquidatee AS (
-            SELECT id FROM users WHERE address = $2
-        ), combined_user_liquidatee AS (
-            SELECT id FROM upsert_user_liquidatee
-            UNION ALL
-            SELECT id FROM existing_user_liquidatee
-            LIMIT 1
-        ),
-        upsert_account_liquidator AS (
-            INSERT INTO accounts (address, user_id)
-            VALUES ($3, (SELECT id FROM combined_user_liquidator))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_account_liquidator AS (
-            SELECT id FROM accounts WHERE address = $3
-        ), combined_account_liquidator AS (
-            SELECT id FROM upsert_account_liquidator
-            UNION ALL
-            SELECT id FROM existing_account_liquidator
-            LIMIT 1
-        ),
-        upsert_account_liquidatee AS (
-            INSERT INTO accounts (address, user_id)
-            VALUES ($4, (SELECT id FROM combined_user_liquidatee))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_account_liquidatee AS (
-            SELECT id FROM accounts WHERE address = $4
-        ), combined_account_liquidatee AS (
-            SELECT id FROM upsert_account_liquidatee
-            UNION ALL
-            SELECT id FROM existing_account_liquidatee
-            LIMIT 1
-        ),
-        upsert_mint_asset AS (
-            INSERT INTO mints (address, symbol, decimals)
-            VALUES ($5, $6, $7)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_mint_asset AS (
-            SELECT id FROM mints WHERE address = $5
-        ), combined_mint_asset AS (
-            SELECT id FROM upsert_mint_asset
-            UNION ALL
-            SELECT id FROM existing_mint_asset
-            LIMIT 1
-        ),
-        upsert_mint_liability AS (
-            INSERT INTO mints (address, symbol, decimals)
-            VALUES ($8, $9, $10)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_mint_liability AS (
-            SELECT id FROM mints WHERE address = $8
-        ), combined_mint_liability AS (
-            SELECT id FROM upsert_mint_liability
-            UNION ALL
-            SELECT id FROM existing_mint_liability
-            LIMIT 1
-        ),
-        upsert_bank_asset AS (
-            INSERT INTO banks (address, mint_id)
-            VALUES ($11, (SELECT id FROM combined_mint_asset))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank_asset AS (
-            SELECT id FROM banks WHERE address = $11
-        ), combined_bank_asset AS (
-            SELECT id FROM upsert_bank_asset
-            UNION ALL
-            SELECT id FROM existing_bank_asset
-            LIMIT 1
-        ),
-        upsert_bank_liability AS (
-            INSERT INTO banks (address, mint_id)
-            VALUES ($12, (SELECT id FROM combined_mint_liability))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank_liability AS (
-            SELECT id FROM banks WHERE address = $12
-        ), combined_bank_liability AS (
-            SELECT id FROM upsert_bank_liability
-            UNION ALL
-            SELECT id FROM existing_bank_liability
-            LIMIT 1
-        )
-        INSERT INTO liquidate_events (timestamp, slot, tx_sig, in_flashloan, call_stack, liquidator_account_id, liquidatee_account_id, liquidator_user_id, asset_bank_id, liability_bank_id, asset_amount)
-        VALUES ($13, $14, $15, $16, $17, (SELECT id FROM combined_account_liquidator), (SELECT id FROM combined_account_liquidatee), (SELECT id FROM combined_user_liquidator), (SELECT id FROM combined_bank_asset), (SELECT id FROM combined_bank_liability), $18)
-        RETURNING id;
-        "#;
+        let sql = include_str!("queries/insert_liquidate_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
             .bind::<Text, _>(liquidator_user)
@@ -1376,38 +920,7 @@ impl CreateBankEvents {
         call_stack: &str,
         tx_sig: &str,
     ) -> QueryResult<i32> {
-        let sql = r#"
-        WITH upsert_bank_mint AS (
-            INSERT INTO mints (address, symbol, decimals)
-            VALUES ($2, $3, $4)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank_mint AS (
-            SELECT id FROM mints WHERE address = $2
-        ), combined_bank_mint AS (
-            SELECT id FROM upsert_bank_mint
-            UNION ALL
-            SELECT id FROM existing_bank_mint
-            LIMIT 1
-        ),
-        upsert_bank AS (
-            INSERT INTO banks (address, mint_id)
-            VALUES ($1, (SELECT id FROM combined_bank_mint))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank AS (
-            SELECT id FROM banks WHERE address = $1
-        ), combined_bank AS (
-            SELECT id FROM upsert_bank
-            UNION ALL
-            SELECT id FROM existing_bank
-            LIMIT 1
-        )
-
-        INSERT INTO create_bank_events (timestamp, slot, tx_sig, in_flashloan, call_stack, bank_id, asset_weight_init, asset_weight_maint, liability_weight_init, liability_weight_maint, deposit_limit, optimal_utilization_rate, plateau_interest_rate, max_interest_rate, insurance_fee_fixed_apr, insurance_ir_fee, protocol_fixed_fee_apr, protocol_ir_fee, operational_state_id, oracle_setup_id, oracle_keys, borrow_limit, risk_tier_id, total_asset_value_init_limit, oracle_max_age)
-        VALUES ($15, $16, $17, $18, $19, (SELECT id FROM combined_bank), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $20, $21, $22, $23, $24, $25, $26, $27)
-        RETURNING id;
-        "#;
+        let sql = include_str!("queries/insert_create_bank_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
             .bind::<Text, _>(bank_address)
@@ -1577,38 +1090,7 @@ impl ConfigureBankEvents {
         call_stack: &str,
         tx_sig: &str,
     ) -> QueryResult<i32> {
-        let sql = r#"
-        WITH upsert_bank_mint AS (
-            INSERT INTO mints (address, symbol, decimals)
-            VALUES ($2, $3, $4)
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank_mint AS (
-            SELECT id FROM mints WHERE address = $2
-        ), combined_bank_mint AS (
-            SELECT id FROM upsert_bank_mint
-            UNION ALL
-            SELECT id FROM existing_bank_mint
-            LIMIT 1
-        ),
-        upsert_bank AS (
-            INSERT INTO banks (address, mint_id)
-            VALUES ($1, (SELECT id FROM combined_bank_mint))
-            ON CONFLICT (address) DO NOTHING
-            RETURNING id
-        ), existing_bank AS (
-            SELECT id FROM banks WHERE address = $1
-        ), combined_bank AS (
-            SELECT id FROM upsert_bank
-            UNION ALL
-            SELECT id FROM existing_bank
-            LIMIT 1
-        )
-
-        INSERT INTO configure_bank_events (timestamp, slot, tx_sig, in_flashloan, call_stack, bank_id, asset_weight_init, asset_weight_maint, liability_weight_init, liability_weight_maint, deposit_limit, optimal_utilization_rate, plateau_interest_rate, max_interest_rate, insurance_fee_fixed_apr, insurance_ir_fee, protocol_fixed_fee_apr, protocol_ir_fee, operational_state_id, oracle_setup_id, oracle_keys, borrow_limit, risk_tier_id, total_asset_value_init_limit, oracle_max_age)
-        VALUES ($15, $16, $17, $18, $19, (SELECT id FROM combined_bank), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $20, $21, $22, $23, $24, $25, $26, $27)
-        RETURNING id;
-        "#;
+        let sql = include_str!("queries/insert_configure_bank_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
             .bind::<Text, _>(bank_address)
