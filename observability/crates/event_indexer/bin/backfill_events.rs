@@ -7,15 +7,17 @@ use std::{
     },
     thread::available_parallelism,
     time::Duration,
+    vec,
 };
 
-use backoff::{exponential::ExponentialBackoffBuilder, retry, SystemClock};
+use backoff::{retry, ExponentialBackoffBuilder, SystemClock};
 use bytemuck::Contiguous;
 use chrono::DateTime;
 use concurrent_queue::ConcurrentQueue;
 use crossbeam::channel::TryRecvError;
 use dotenv::dotenv;
 use envconfig::Envconfig;
+use event_indexer::parser::MarginfiEvent;
 use event_indexer::{
     backfiller::{
         crawl_signatures_for_range, generate_ranges, get_default_before_signature, Range,
@@ -24,9 +26,10 @@ use event_indexer::{
     db::establish_connection,
     entity_store::EntityStore,
     error::IndexingError,
-    parser::{MarginfiEvent, MarginfiEventParser, MarginfiEventWithMeta, MARGINFI_GROUP_ADDRESS},
+    parser::{MarginfiEventParser, MarginfiEventWithMeta, MARGINFI_GROUP_ADDRESS},
 };
 use rpc_utils::conversion::convert_encoded_ui_transaction;
+use serde::Serialize;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
@@ -100,7 +103,10 @@ pub async fn main() {
         .map(|c| c.into_integer() as usize)
         .unwrap_or(1);
 
-    let mut tasks: Vec<std::thread::JoinHandle<Result<(), IndexingError>>> = vec![];
+    let fetcher_threads = 5;
+    let processor_threads = threads - fetcher_threads;
+
+    let mut fetcher_tasks: Vec<std::thread::JoinHandle<Result<(), IndexingError>>> = vec![];
 
     let range_queue = Arc::new(ConcurrentQueue::<Range>::bounded(threads * 2));
     let is_range_complete = Arc::new(AtomicBool::new(false));
@@ -108,7 +114,7 @@ pub async fn main() {
     let range_queue_clone = range_queue.clone();
     let rpc_endpoint_clone = rpc_endpoint.clone();
     let is_range_complete_clone = is_range_complete.clone();
-    tasks.push(std::thread::spawn(move || {
+    fetcher_tasks.push(std::thread::spawn(move || {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let rpc_client = RpcClient::new_with_commitment(
                 rpc_endpoint_clone,
@@ -135,8 +141,9 @@ pub async fn main() {
 
     let (transaction_tx, transaction_rx) = crossbeam::channel::unbounded::<TransactionData>();
 
-    for i in 0..threads {
-        info!("Spawning thread: {:?}", i);
+    let is_fetching_complete = Arc::new(AtomicBool::new(false));
+    for i in 0..fetcher_threads {
+        info!("Spawning fetcher thread: {:?}", i);
 
         let local_transaction_tx = transaction_tx.clone();
         let rpc_client = RpcClient::new_with_commitment(
@@ -148,10 +155,16 @@ pub async fn main() {
         let range_queue = range_queue.clone();
         let is_range_complete = is_range_complete.clone();
 
-        tasks.push(std::thread::spawn(move || {
+        fetcher_tasks.push(std::thread::spawn(move || {
             tokio::runtime::Runtime::new().unwrap().block_on(async {
                 let mut timer = interval(Duration::from_millis(200));
                 while range_queue.len() > 0 || !is_range_complete.load(Ordering::Relaxed) {
+                    if local_transaction_tx.len() > 1000 {
+                        warn!("[{:?}] Tx backlog too long. Waiting 30 seconds...", i);
+                        tokio::time::sleep(Duration::from_secs(30)).await;
+                        continue;
+                    }
+
                     if let Ok(Range {
                         before_sig,
                         until_sig,
@@ -183,124 +196,184 @@ pub async fn main() {
                     timer.tick().await;
                 }
 
-                info!("Thread {:?} done", i);
+                info!("Fetcher thread {:?} done", i);
 
                 Ok(())
             })
         }));
     }
-
-    let parser = MarginfiEventParser::new(marginfi::ID, MARGINFI_GROUP_ADDRESS);
-
-    let mut event_counter = 0;
-    let mut print_time = std::time::Instant::now();
-
-    loop {
-        let maybe_item = transaction_rx.try_recv();
-
-        let TransactionData {
-            transaction,
-            #[cfg(not(feature = "dry-run"))]
-            task_id,
-            ..
-        } = match maybe_item {
-            Err(TryRecvError::Empty) => {
-                if tasks.iter().all(|task| task.is_finished()) {
-                    info!("Done! {:?} events processed", event_counter);
-                    break;
-                } else {
-                    std::thread::sleep(Duration::from_millis(100));
-                    continue;
-                }
-            }
-            Err(TryRecvError::Disconnected) => {
-                error!("Transaction channel disconnected! Exiting...");
+    let is_fetching_complete_clone = is_fetching_complete.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            if fetcher_tasks.iter().all(|task| task.is_finished()) {
+                is_fetching_complete_clone.store(true, Ordering::Relaxed);
                 break;
             }
-            Ok(tx_data) => tx_data,
-        };
-
-        let timestamp = transaction.block_time.unwrap();
-        let slot = transaction.slot;
-        let versioned_tx_with_meta =
-            convert_encoded_ui_transaction(transaction.transaction).unwrap();
-
-        let events = parser.extract_events(timestamp, slot, versioned_tx_with_meta);
-        event_counter += events.len();
-
-        let elapsed = print_time.elapsed().as_secs();
-        if elapsed > 30 {
-            debug!("Events processed: {:?}", event_counter);
-            print_time = std::time::Instant::now();
         }
+        Ok::<(), String>(())
+    });
 
-        #[cfg(not(feature = "dry-run"))]
-        {
-            let mut entity_store = EntityStore::new(rpc_endpoint, config.database_url.clone());
-            let mut db_connection = establish_connection(config.database_url.clone());
+    let mut processor_tasks: Vec<std::thread::JoinHandle<Result<(), IndexingError>>> = vec![];
 
-            for MarginfiEventWithMeta {
-                event,
-                timestamp,
-                slot,
-                in_flashloan,
-                call_stack,
-                tx_sig,
-            } in events
-            {
-                let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
-                let tx_sig = tx_sig.to_string();
-                let call_stack = serde_json::to_string(
-                    &call_stack
-                        .into_iter()
-                        .map(|cs| cs.to_string())
-                        .collect::<Vec<_>>(),
-                )
-                .unwrap_or_else(|_| "null".to_string());
+    let mut print_time = std::time::Instant::now();
 
-                #[cfg(feature = "dry-run")]
-                {
-                    info!("Event: {:?} ({:?})", event, tx_sig);
-                }
+    for i in 0..processor_threads {
+        info!("Spawning processor thread: {:?}", i);
 
-                #[cfg(not(feature = "dry-run"))]
-                {
-                    let mut retries = 0;
-                    retry(
-                        ExponentialBackoffBuilder::<SystemClock>::new()
-                            .with_max_interval(Duration::from_secs(5))
-                            .build(),
-                        || match event.db_insert(
+        let local_transaction_rx = transaction_rx.clone();
+        let is_fetching_complete_clone = is_fetching_complete.clone();
+        let rpc_endpoint = rpc_endpoint.clone();
+        let database_url = config.database_url.clone();
+
+        processor_tasks.push(std::thread::spawn(move || {
+            tokio::runtime::Runtime::new().unwrap().block_on(async {
+                let parser = MarginfiEventParser::new(marginfi::ID, MARGINFI_GROUP_ADDRESS);
+                loop {
+                    let elapsed = print_time.elapsed().as_secs();
+                    if elapsed > 30 {
+                        debug!("Queue size: {:?}", local_transaction_rx.len());
+                        print_time = std::time::Instant::now();
+                    }
+
+                    let t1 = std::time::Instant::now();
+                    let maybe_item = local_transaction_rx.try_recv();
+                    let elapsed = t1.elapsed();
+                    // println!("1. {:?}", elapsed);
+
+                    let t1 = std::time::Instant::now();
+                    let TransactionData {
+                        transaction,
+                        #[cfg(not(feature = "dry-run"))]
+                        task_id,
+                        ..
+                    } = match maybe_item {
+                        Err(TryRecvError::Empty) => {
+                            if is_fetching_complete_clone.load(Ordering::Relaxed) {
+                                info!("Processor thread {} done", i);
+                                break;
+                            } else {
+                                std::thread::sleep(Duration::from_millis(100));
+                                continue;
+                            }
+                        }
+                        Err(TryRecvError::Disconnected) => {
+                            error!("Transaction channel disconnected! Exiting...");
+                            break;
+                        }
+                        Ok(tx_data) => tx_data,
+                    };
+                    let elapsed = t1.elapsed();
+                    // println!("2. {:?}", elapsed);
+
+                    let t1 = std::time::Instant::now();
+                    let timestamp = transaction.block_time.unwrap();
+                    let slot = transaction.slot;
+                    let versioned_tx_with_meta =
+                        convert_encoded_ui_transaction(transaction.transaction).unwrap();
+                    let elapsed = t1.elapsed();
+                    // println!("3. {:?}", elapsed);
+
+                    let t1 = std::time::Instant::now();
+                    let events = parser.extract_events(timestamp, slot, versioned_tx_with_meta);
+                    let elapsed = t1.elapsed();
+                    // println!("4. {:?}", elapsed);
+
+                    #[cfg(feature = "dry-run")]
+                    {
+                        for MarginfiEventWithMeta {
+                            event,
+                            tx_sig,
+                            ..
+                        } in events
+                        {
+                            info!("Event: {:?} ({:?})", event, tx_sig);
+                        }
+                    }
+
+
+                    let t1 = std::time::Instant::now();
+                    #[cfg(not(feature = "dry-run"))]
+                    {
+                        let mut entity_store = EntityStore::new(rpc_endpoint.clone(), database_url.clone());
+                        let mut db_connection = establish_connection(database_url.clone());
+
+                        for MarginfiEventWithMeta {
+                            event,
                             timestamp,
                             slot,
-                            tx_sig.clone(),
                             in_flashloan,
-                            call_stack.clone(),
-                            &mut db_connection,
-                            &mut entity_store,
-                        ) {
-                            Ok(signatures) => Ok(signatures),
-                            Err(e) => {
-                                if retries > 5 {
-                                    error!(
-                                "[{:?}] Failed to insert event after 5 retries: {:?} - {:?} ({:?})",
-                                task_id, event, e, tx_sig
-                            );
-                                    Err(backoff::Error::permanent(e))
-                                } else {
-                                    warn!(
-                                    "[{:?}] Failed to insert event, retrying: {:?} - {:?} ({:?})",
-                                    task_id, event, e, tx_sig
-                                );
-                                    retries += 1;
-                                    Err(backoff::Error::transient(e))
-                                }
+                            call_stack,
+                            tx_sig,
+                        } in events
+                        {
+                            let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
+                            let tx_sig = tx_sig.to_string();
+                            let call_stack = serde_json::to_string(
+                                &call_stack
+                                    .into_iter()
+                                    .map(|cs| cs.to_string())
+                                    .collect::<Vec<_>>(),
+                            )
+                            .unwrap_or_else(|_| "null".to_string());
+
+                            // #[cfg(feature = "dry-run")]
+                            // {
+                                info!("Event: {:?} ({:?})", event, tx_sig);
+                            // }
+
+                            #[cfg(not(feature = "dry-run"))]
+                            {
+                                let mut retries = 0;
+                                retry(
+                                    ExponentialBackoffBuilder::new()
+                                        .with_max_interval(Duration::from_secs(5))
+                                        .build(),
+                                    || match event.db_insert(
+                                        timestamp,
+                                        slot,
+                                        tx_sig.clone(),
+                                        in_flashloan,
+                                        call_stack.clone(),
+                                        &mut db_connection,
+                                        &mut entity_store,
+                                    ) {
+                                        Ok(signatures) => Ok(signatures),
+                                        Err(e) => {
+                                            if retries > 5 {
+                                                error!(
+                                            "[{:?}] Failed to insert event after 5 retries: {:?} - {:?} ({:?})",
+                                            task_id, event, e, tx_sig
+                                        );
+                                                Err(backoff::Error::permanent(e))
+                                            } else {
+                                                warn!(
+                                                "[{:?}] Failed to insert event, retrying: {:?} - {:?} ({:?})",
+                                                task_id, event, e, tx_sig
+                                            );
+                                                retries += 1;
+                                                Err(backoff::Error::transient(e))
+                                            }
+                                        }
+                                    },
+                                )
+                                .unwrap();
                             }
-                        },
-                    )
-                    .unwrap();
+                        }
+                    }
+                    let elapsed = t1.elapsed();
+                    // println!("5. {:?}", elapsed);
                 }
-            }
+            });
+
+            Ok(())
+        }))
+    }
+
+    loop {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        if processor_tasks.iter().all(|task| task.is_finished()) {
+            break;
         }
     }
 }

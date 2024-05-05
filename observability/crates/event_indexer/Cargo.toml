@@ -23,10 +23,12 @@ dry-run = []
 [dependencies]
 anchor-lang = { workspace = true }
 backoff = { workspace = true }
+base64 = "0.22.0"
 bytemuck = { workspace = true }
 chrono = { workspace = true }
 concurrent-queue = "2.4.0"
 crossbeam = { workspace = true }
+csv = "1.3.0"
 diesel = { workspace = true, features = ["postgres", "chrono", "numeric"] }
 dotenv = { workspace = true }
 enum_dispatch = { workspace = true }
@@ -34,6 +36,7 @@ envconfig = { workspace = true }
 fixed = "1.12.0"
 futures = { workspace = true }
 marginfi = { workspace = true }
+regex = "1.10.4"
 rpc_utils = { path = "../rpc_utils" }
 rust_decimal = { workspace = true, features = ["db-diesel2-postgres"] }
 serde = { workspace = true }

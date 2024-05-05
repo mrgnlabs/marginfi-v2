@@ -2,10 +2,7 @@ use std::{collections::HashMap, vec};
 
 use anchor_lang::{AnchorDeserialize, Discriminator};
 use chrono::NaiveDateTime;
-use diesel::{
-    Connection, ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl,
-    SelectableHelper,
-};
+use diesel::{OptionalExtension, PgConnection, RunQueryDsl};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use marginfi::{
@@ -37,7 +34,6 @@ use crate::{
     db::{models::*, schema::*},
     entity_store::EntityStore,
     error::IndexingError,
-    get_and_insert_if_needed, insert,
 };
 
 const SPL_TRANSFER_DISCRIMINATOR: u8 = 3;
@@ -70,6 +66,8 @@ pub trait MarginfiEvent {
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError>;
+
+    fn name(&self) -> &'static str;
 }
 
 #[enum_dispatch(MarginfiEvent)]
@@ -88,7 +86,6 @@ pub enum Event {
     // Admin actions
     AddBank(AddBankEvent),
     ConfigureBank(ConfigureBankEvent),
-
     Unknown(UnknownEvent),
 }
 
@@ -127,6 +124,10 @@ impl MarginfiEvent for UnknownEvent {
 
         Ok(())
     }
+
+    fn name(&self) -> &'static str {
+        "unknown"
+    }
 }
 
 #[derive(Debug)]
@@ -147,62 +148,42 @@ impl MarginfiEvent for CreateAccountEvent {
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
         let authority_data = entity_store.get_or_fetch_user(&self.authority.to_string())?;
+        let account_data = entity_store.get_or_fetch_account_no_rpc(&self.account.to_string())?;
 
-        db_connection
-            .transaction(|connection: &mut PgConnection| {
-                let authority_id = if let Some(id) = authority_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        users,
-                        Users,
-                        self.authority.to_string(),
-                        Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }
-                    )
-                };
+        let all_dependencies_exist = authority_data.id.is_some()
+            && account_data.as_ref().map(|ad| ad.id).flatten().is_some();
 
-                // Not RPC fetching the account data here because it could lead to race condition with the RPC when live ingesting,
-                let account_id = get_and_insert_if_needed!(
-                    connection,
-                    accounts,
-                    Accounts,
-                    self.account.to_string(),
-                    Accounts {
-                        address: self.account.to_string(),
-                        user_id: authority_id,
-                        ..Default::default()
-                    }
-                );
+        if all_dependencies_exist {
+            CreateAccountEvents::insert(
+                db_connection,
+                account_data.unwrap().id.unwrap(),
+                authority_data.id.unwrap(),
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            CreateAccountEvents::insert_with_dependents(
+                db_connection,
+                &self.account.to_string(),
+                &self.authority.to_string(),
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
 
-                let create_account_event = CreateAccountEvents {
-                    timestamp,
-                    slot: Decimal::from_u64(slot).unwrap(),
-                    authority_id,
-                    tx_sig,
-                    call_stack,
-                    in_flashloan,
-                    account_id,
-                    ..Default::default()
-                };
+        Ok(())
+    }
 
-                let id: Option<i32> = diesel::insert_into(create_account_events::table)
-                    .values(&create_account_event)
-                    .on_conflict_do_nothing()
-                    .returning(create_account_events::id)
-                    .get_result(connection)
-                    .optional()?;
-
-                if id.is_none() {
-                    debug!("event already exists");
-                }
-
-                diesel::result::QueryResult::Ok(())
-            })
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    fn name(&self) -> &'static str {
+        "create_account"
     }
 }
 
@@ -228,80 +209,43 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
         let new_authority_data = entity_store.get_or_fetch_user(&self.new_authority.to_string())?;
         let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
 
-        db_connection
-            .transaction(|connection: &mut PgConnection| {
-                let old_authority_id = if let Some(id) = old_authority_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        users,
-                        Users,
-                        self.old_authority.to_string(),
-                        Users {
-                            address: self.old_authority.to_string(),
-                            ..Default::default()
-                        }
-                    )
-                };
+        let all_dependencies_exist = old_authority_data.id.is_some()
+            && new_authority_data.id.is_some()
+            && account_data.id.is_some();
 
-                let new_authority_id = if let Some(id) = new_authority_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        users,
-                        Users,
-                        self.new_authority.to_string(),
-                        Users {
-                            address: self.new_authority.to_string(),
-                            ..Default::default()
-                        }
-                    )
-                };
+        if all_dependencies_exist {
+            TransferAccountAuthorityEvents::insert(
+                db_connection,
+                account_data.id.unwrap(),
+                old_authority_data.id.unwrap(),
+                new_authority_data.id.unwrap(),
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            TransferAccountAuthorityEvents::insert_with_dependents(
+                db_connection,
+                &self.account.to_string(),
+                &self.old_authority.to_string(),
+                &self.new_authority.to_string(),
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
 
-                let account_id = if let Some(id) = account_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        accounts,
-                        Accounts,
-                        self.account.to_string(),
-                        Accounts {
-                            address: self.account.to_string(),
-                            user_id: new_authority_id,
-                            ..Default::default()
-                        }
-                    )
-                };
+        Ok(())
+    }
 
-                let account_authority_transfer_event = TransferAccountAuthorityEvents {
-                    timestamp,
-                    slot: Decimal::from_u64(slot).unwrap(),
-                    old_authority_id,
-                    new_authority_id,
-                    tx_sig,
-                    call_stack,
-                    in_flashloan,
-                    account_id,
-                    ..Default::default()
-                };
-
-                let id: Option<i32> = diesel::insert_into(transfer_account_authority_events::table)
-                    .values(&account_authority_transfer_event)
-                    .on_conflict_do_nothing()
-                    .returning(transfer_account_authority_events::id)
-                    .get_result(connection)
-                    .optional()?;
-
-                if id.is_none() {
-                    debug!("event already exists");
-                }
-
-                diesel::result::QueryResult::Ok(())
-            })
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    fn name(&self) -> &'static str {
+        "account_authority_transfer"
     }
 }
 
@@ -328,99 +272,49 @@ impl MarginfiEvent for DepositEvent {
         let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
-        db_connection
-            .transaction(|connection: &mut PgConnection| {
-                let authority_id = if let Some(id) = authority_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        users,
-                        Users,
-                        self.authority.to_string(),
-                        Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }
-                    )
-                };
+        let all_dependencies_exist = authority_data.id.is_some()
+            && account_data.id.is_some()
+            && bank_data.mint.id.is_some()
+            && bank_data.id.is_some();
 
-                let account_id = if let Some(id) = account_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        accounts,
-                        Accounts,
-                        self.account.to_string(),
-                        Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }
-                    )
-                };
+        if all_dependencies_exist {
+            DepositEvents::insert(
+                db_connection,
+                account_data.id.unwrap(),
+                authority_data.id.unwrap(),
+                bank_data.id.unwrap(),
+                Decimal::from_u64(self.amount).unwrap(),
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            DepositEvents::insert_with_dependents(
+                db_connection,
+                &self.authority.to_string(),
+                &self.account.to_string(),
+                &bank_data.mint.address,
+                &bank_data.mint.symbol,
+                bank_data.mint.decimals,
+                &self.bank.to_string(),
+                Decimal::from_u64(self.amount).unwrap(),
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
 
-                let bank_mint_id = if let Some(id) = bank_data.mint.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        mints,
-                        Mints,
-                        bank_data.mint.address.clone(),
-                        Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }
-                    )
-                };
+        Ok(())
+    }
 
-                let bank_id = if let Some(id) = bank_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        banks,
-                        Banks,
-                        self.bank.to_string(),
-                        Banks {
-                            address: self.bank.to_string(),
-                            mint_id: bank_mint_id,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let deposit_event = DepositEvents {
-                    timestamp,
-                    slot: Decimal::from_u64(slot).unwrap(),
-                    authority_id,
-                    tx_sig,
-                    call_stack,
-                    in_flashloan,
-                    account_id,
-                    bank_id,
-                    amount: Decimal::from_u64(self.amount).unwrap(),
-                    ..Default::default()
-                };
-
-                let id: Option<i32> = diesel::insert_into(deposit_events::table)
-                    .values(&deposit_event)
-                    .on_conflict_do_nothing()
-                    .returning(deposit_events::id)
-                    .get_result(connection)
-                    .optional()?;
-
-                if id.is_none() {
-                    debug!("event already exists");
-                }
-
-                diesel::result::QueryResult::Ok(())
-            })
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    fn name(&self) -> &'static str {
+        "LendingAccountDeposit"
     }
 }
 
@@ -447,99 +341,49 @@ impl MarginfiEvent for BorrowEvent {
         let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
-        db_connection
-            .transaction(|connection: &mut PgConnection| {
-                let authority_id = if let Some(id) = authority_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        users,
-                        Users,
-                        self.authority.to_string(),
-                        Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }
-                    )
-                };
+        let all_dependencies_exist = authority_data.id.is_some()
+            && account_data.id.is_some()
+            && bank_data.mint.id.is_some()
+            && bank_data.id.is_some();
 
-                let account_id = if let Some(id) = account_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        accounts,
-                        Accounts,
-                        self.account.to_string(),
-                        Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }
-                    )
-                };
+        if all_dependencies_exist {
+            BorrowEvents::insert(
+                db_connection,
+                account_data.id.unwrap(),
+                authority_data.id.unwrap(),
+                bank_data.id.unwrap(),
+                Decimal::from_u64(self.amount).unwrap(),
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            BorrowEvents::insert_with_dependents(
+                db_connection,
+                &self.authority.to_string(),
+                &self.account.to_string(),
+                &bank_data.mint.address,
+                &bank_data.mint.symbol,
+                bank_data.mint.decimals,
+                &self.bank.to_string(),
+                Decimal::from_u64(self.amount).unwrap(),
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
 
-                let bank_mint_id = if let Some(id) = bank_data.mint.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        mints,
-                        Mints,
-                        bank_data.mint.address.clone(),
-                        Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }
-                    )
-                };
+        Ok(())
+    }
 
-                let bank_id = if let Some(id) = bank_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        banks,
-                        Banks,
-                        self.bank.to_string(),
-                        Banks {
-                            address: self.bank.to_string(),
-                            mint_id: bank_mint_id,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let borrow_event = BorrowEvents {
-                    timestamp,
-                    slot: Decimal::from_u64(slot).unwrap(),
-                    authority_id,
-                    tx_sig,
-                    call_stack,
-                    in_flashloan,
-                    account_id,
-                    bank_id,
-                    amount: Decimal::from_u64(self.amount).unwrap(),
-                    ..Default::default()
-                };
-
-                let id: Option<i32> = diesel::insert_into(borrow_events::table)
-                    .values(&borrow_event)
-                    .on_conflict_do_nothing()
-                    .returning(borrow_events::id)
-                    .get_result(connection)
-                    .optional()?;
-
-                if id.is_none() {
-                    debug!("event already exists");
-                }
-
-                diesel::result::QueryResult::Ok(())
-            })
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    fn name(&self) -> &'static str {
+        "LendingAccountBorrow"
     }
 }
 
@@ -567,100 +411,51 @@ impl MarginfiEvent for RepayEvent {
         let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
-        db_connection
-            .transaction(|connection: &mut PgConnection| {
-                let authority_id = if let Some(id) = authority_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        users,
-                        Users,
-                        self.authority.to_string(),
-                        Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }
-                    )
-                };
+        let all_dependencies_exist = authority_data.id.is_some()
+            && account_data.id.is_some()
+            && bank_data.mint.id.is_some()
+            && bank_data.id.is_some();
 
-                let account_id = if let Some(id) = account_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        accounts,
-                        Accounts,
-                        self.account.to_string(),
-                        Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }
-                    )
-                };
+        if all_dependencies_exist {
+            RepayEvents::insert(
+                db_connection,
+                account_data.id.unwrap(),
+                authority_data.id.unwrap(),
+                bank_data.id.unwrap(),
+                Decimal::from_u64(self.amount).unwrap(),
+                self.all,
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            RepayEvents::insert_with_dependents(
+                db_connection,
+                &self.authority.to_string(),
+                &self.account.to_string(),
+                &bank_data.mint.address,
+                &bank_data.mint.symbol,
+                bank_data.mint.decimals,
+                &self.bank.to_string(),
+                Decimal::from_u64(self.amount).unwrap(),
+                self.all,
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
 
-                let bank_mint_id = if let Some(id) = bank_data.mint.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        mints,
-                        Mints,
-                        bank_data.mint.address.clone(),
-                        Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }
-                    )
-                };
+        Ok(())
+    }
 
-                let bank_id = if let Some(id) = bank_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        banks,
-                        Banks,
-                        self.bank.to_string(),
-                        Banks {
-                            address: self.bank.to_string(),
-                            mint_id: bank_mint_id,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let repay_event = RepayEvents {
-                    timestamp,
-                    slot: Decimal::from_u64(slot).unwrap(),
-                    authority_id,
-                    tx_sig,
-                    call_stack,
-                    in_flashloan,
-                    account_id,
-                    bank_id,
-                    amount: Decimal::from_u64(self.amount).unwrap(),
-                    all: self.all,
-                    ..Default::default()
-                };
-
-                let id: Option<i32> = diesel::insert_into(repay_events::table)
-                    .values(&repay_event)
-                    .on_conflict_do_nothing()
-                    .returning(repay_events::id)
-                    .get_result(connection)
-                    .optional()?;
-
-                if id.is_none() {
-                    debug!("event already exists");
-                }
-
-                diesel::result::QueryResult::Ok(())
-            })
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    fn name(&self) -> &'static str {
+        "LendingAccountRepay"
     }
 }
 
@@ -688,100 +483,51 @@ impl MarginfiEvent for WithdrawEvent {
         let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
-        db_connection
-            .transaction(|connection: &mut PgConnection| {
-                let authority_id = if let Some(id) = authority_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        users,
-                        Users,
-                        self.authority.to_string(),
-                        Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }
-                    )
-                };
+        let all_dependencies_exist = authority_data.id.is_some()
+            && account_data.id.is_some()
+            && bank_data.mint.id.is_some()
+            && bank_data.id.is_some();
 
-                let account_id = if let Some(id) = account_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        accounts,
-                        Accounts,
-                        self.account.to_string(),
-                        Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }
-                    )
-                };
+        if all_dependencies_exist {
+            WithdrawEvents::insert(
+                db_connection,
+                account_data.id.unwrap(),
+                authority_data.id.unwrap(),
+                bank_data.id.unwrap(),
+                Decimal::from_u64(self.amount).unwrap(),
+                self.all,
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            WithdrawEvents::insert_with_dependents(
+                db_connection,
+                &self.authority.to_string(),
+                &self.account.to_string(),
+                &bank_data.mint.address,
+                &bank_data.mint.symbol,
+                bank_data.mint.decimals,
+                &self.bank.to_string(),
+                Decimal::from_u64(self.amount).unwrap(),
+                self.all,
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
 
-                let bank_mint_id = if let Some(id) = bank_data.mint.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        mints,
-                        Mints,
-                        bank_data.mint.address.clone(),
-                        Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }
-                    )
-                };
+        Ok(())
+    }
 
-                let bank_id = if let Some(id) = bank_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        banks,
-                        Banks,
-                        self.bank.to_string(),
-                        Banks {
-                            address: self.bank.to_string(),
-                            mint_id: bank_mint_id,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let withdraw_event = WithdrawEvents {
-                    timestamp,
-                    slot: Decimal::from_u64(slot).unwrap(),
-                    authority_id,
-                    tx_sig,
-                    call_stack,
-                    in_flashloan,
-                    account_id,
-                    bank_id,
-                    amount: Decimal::from_u64(self.amount).unwrap(),
-                    all: self.all,
-                    ..Default::default()
-                };
-
-                let id: Option<i32> = diesel::insert_into(withdraw_events::table)
-                    .values(vec![withdraw_event])
-                    .on_conflict_do_nothing()
-                    .returning(withdraw_events::id)
-                    .get_result(connection)
-                    .optional()?;
-
-                if id.is_none() {
-                    debug!("event already exists");
-                }
-
-                diesel::result::QueryResult::Ok(())
-            })
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    fn name(&self) -> &'static str {
+        "LendingAccountWithdraw"
     }
 }
 
@@ -811,117 +557,54 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
         let emission_mint_data =
             entity_store.get_or_fetch_mint(&self.emissions_mint.to_string())?;
 
-        db_connection
-            .transaction(|connection: &mut PgConnection| {
-                let authority_id = if let Some(id) = authority_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        users,
-                        Users,
-                        self.authority.to_string(),
-                        Users {
-                            address: self.authority.to_string(),
-                            ..Default::default()
-                        }
-                    )
-                };
+        let all_dependencies_exist = authority_data.id.is_some()
+            && account_data.id.is_some()
+            && bank_data.mint.id.is_some()
+            && bank_data.id.is_some()
+            && emission_mint_data.id.is_some();
 
-                let account_id = if let Some(id) = account_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        accounts,
-                        Accounts,
-                        self.account.to_string(),
-                        Accounts {
-                            address: self.account.to_string(),
-                            user_id: authority_id,
-                            ..Default::default()
-                        }
-                    )
-                };
+        if all_dependencies_exist {
+            WithdrawEmissionsEvents::insert(
+                db_connection,
+                account_data.id.unwrap(),
+                authority_data.id.unwrap(),
+                bank_data.id.unwrap(),
+                emission_mint_data.id.unwrap(),
+                Decimal::from_u64(self.amount).unwrap(),
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            WithdrawEmissionsEvents::insert_with_dependents(
+                db_connection,
+                &self.authority.to_string(),
+                &self.account.to_string(),
+                &bank_data.mint.address,
+                &bank_data.mint.symbol,
+                bank_data.mint.decimals,
+                &self.bank.to_string(),
+                &emission_mint_data.address,
+                &emission_mint_data.symbol,
+                emission_mint_data.decimals,
+                Decimal::from_u64(self.amount).unwrap(),
+                timestamp,
+                Decimal::from_u64(slot).unwrap(),
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
 
-                let bank_mint_id = if let Some(id) = bank_data.mint.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        mints,
-                        Mints,
-                        bank_data.mint.address.clone(),
-                        Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }
-                    )
-                };
+        Ok(())
+    }
 
-                let emission_mint_id = if let Some(id) = emission_mint_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        mints,
-                        Mints,
-                        self.emissions_mint.to_string(),
-                        Mints {
-                            address: self.emissions_mint.to_string(),
-                            symbol: emission_mint_data.symbol.clone(),
-                            decimals: emission_mint_data.decimals,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let bank_id = if let Some(id) = bank_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        banks,
-                        Banks,
-                        self.bank.to_string(),
-                        Banks {
-                            address: self.bank.to_string(),
-                            mint_id: bank_mint_id,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let withdraw_emissions_event = WithdrawEmissionsEvents {
-                    timestamp,
-                    slot: Decimal::from_u64(slot).unwrap(),
-                    authority_id,
-                    tx_sig,
-                    call_stack,
-                    in_flashloan,
-                    account_id,
-                    bank_id,
-                    emission_mint_id,
-                    amount: Decimal::from_u64(self.amount).unwrap(),
-                    ..Default::default()
-                };
-
-                let id: Option<i32> = diesel::insert_into(withdraw_emissions_events::table)
-                    .values(&withdraw_emissions_event)
-                    .on_conflict_do_nothing()
-                    .returning(withdraw_emissions_events::id)
-                    .get_result(connection)
-                    .optional()?;
-
-                if id.is_none() {
-                    debug!("event already exists");
-                }
-
-                diesel::result::QueryResult::Ok(())
-            })
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    fn name(&self) -> &'static str {
+        "LendingAccountWithdrawEmissions"
     }
 }
 
@@ -957,167 +640,64 @@ impl MarginfiEvent for LiquidateEvent {
         let liquidatee_account_data =
             entity_store.get_or_fetch_account(&self.liquidatee_account.to_string())?;
 
-        db_connection
-            .transaction(|connection: &mut PgConnection| {
-                let liquidator_user_id = if let Some(id) = liquidator_user_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        users,
-                        Users,
-                        self.liquidator_authority.to_string(),
-                        Users {
-                            address: self.liquidator_authority.to_string(),
-                            ..Default::default()
-                        }
-                    )
-                };
+        let all_dependencies_exist = liquidator_user_data.id.is_some()
+            && liquidatee_account_data.authority.id.is_some()
+            && liquidator_account_data.id.is_some()
+            && liquidatee_account_data.id.is_some()
+            && asset_bank_data.mint.id.is_some()
+            && liability_bank_data.mint.id.is_some()
+            && asset_bank_data.id.is_some()
+            && liability_bank_data.id.is_some();
 
-                // Using the current liquidatee account authority as we do no know the authority at time of liquidation (not in the event data)
-                let current_liquidatee_user_id =
-                    if let Some(id) = liquidatee_account_data.authority.id {
-                        id
-                    } else {
-                        get_and_insert_if_needed!(
-                            connection,
-                            users,
-                            Users,
-                            liquidatee_account_data.authority.address.clone(),
-                            Users {
-                                address: liquidatee_account_data.authority.address.clone(),
-                                ..Default::default()
-                            }
-                        )
-                    };
+        let slot = Decimal::from_u64(slot).unwrap();
+        let asset_amount = Decimal::from_u64(self.asset_amount).unwrap();
 
-                let liquidator_account_id = if let Some(id) = liquidator_account_data.id {
-                    id
-                } else {
-                    get_and_insert_if_needed!(
-                        connection,
-                        accounts,
-                        Accounts,
-                        self.liquidator_account.to_string(),
-                        Accounts {
-                            address: self.liquidator_account.to_string(),
-                            user_id: liquidator_user_id,
-                            ..Default::default()
-                        }
-                    )
-                };
+        if all_dependencies_exist {
+            LiquidateEvents::insert(
+                db_connection,
+                liquidator_account_data.id.unwrap(),
+                liquidatee_account_data.id.unwrap(),
+                liquidator_user_data.id.unwrap(),
+                asset_bank_data.id.unwrap(),
+                liability_bank_data.id.unwrap(),
+                asset_amount,
+                timestamp,
+                slot,
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            LiquidateEvents::insert_with_dependents(
+                db_connection,
+                &liquidator_account_data.authority.address,
+                &liquidatee_account_data.authority.address,
+                &liquidator_account_data.address,
+                &liquidatee_account_data.address,
+                &asset_bank_data.mint.address,
+                &asset_bank_data.mint.symbol,
+                asset_bank_data.mint.decimals,
+                &liability_bank_data.mint.address,
+                &liability_bank_data.mint.symbol,
+                liability_bank_data.mint.decimals,
+                &asset_bank_data.address,
+                &liability_bank_data.address,
+                asset_amount,
+                timestamp,
+                slot,
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
 
-                let liquidatee_account_id = if let Some(id) = liquidatee_account_data.id {
-                    id
-                } else {
-                    get_and_insert_if_needed!(
-                        connection,
-                        accounts,
-                        Accounts,
-                        self.liquidatee_account.to_string(),
-                        Accounts {
-                            address: self.liquidatee_account.to_string(),
-                            user_id: current_liquidatee_user_id,
-                            ..Default::default()
-                        }
-                    )
-                };
+        Ok(())
+    }
 
-                let asset_mint_id = if let Some(id) = asset_bank_data.mint.id {
-                    id
-                } else {
-                    get_and_insert_if_needed!(
-                        connection,
-                        mints,
-                        Mints,
-                        asset_bank_data.mint.address.clone(),
-                        Mints {
-                            address: asset_bank_data.mint.address.clone(),
-                            symbol: asset_bank_data.mint.symbol.clone(),
-                            decimals: asset_bank_data.mint.decimals,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let liability_mint_id = if let Some(id) = liability_bank_data.mint.id {
-                    id
-                } else {
-                    get_and_insert_if_needed!(
-                        connection,
-                        mints,
-                        Mints,
-                        liability_bank_data.mint.address.clone(),
-                        Mints {
-                            address: liability_bank_data.mint.address.clone(),
-                            symbol: liability_bank_data.mint.symbol.clone(),
-                            decimals: liability_bank_data.mint.decimals,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let asset_bank_id = if let Some(id) = asset_bank_data.id {
-                    id
-                } else {
-                    get_and_insert_if_needed!(
-                        connection,
-                        banks,
-                        Banks,
-                        self.asset_bank.to_string(),
-                        Banks {
-                            address: self.asset_bank.to_string(),
-                            mint_id: asset_mint_id,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let liability_bank_id = if let Some(id) = liability_bank_data.id {
-                    id
-                } else {
-                    get_and_insert_if_needed!(
-                        connection,
-                        banks,
-                        Banks,
-                        self.liability_bank.to_string(),
-                        Banks {
-                            address: self.liability_bank.to_string(),
-                            mint_id: liability_mint_id,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let liquidate_event = LiquidateEvents {
-                    timestamp,
-                    slot: Decimal::from_u64(slot).unwrap(),
-                    tx_sig,
-                    call_stack,
-                    in_flashloan,
-                    liquidator_account_id,
-                    liquidatee_account_id,
-                    liquidator_user_id,
-                    asset_bank_id,
-                    liability_bank_id,
-                    asset_amount: Decimal::from_u64(self.asset_amount).unwrap(),
-                    ..Default::default()
-                };
-
-                let id: Option<i32> = diesel::insert_into(liquidate_events::table)
-                    .values(&liquidate_event)
-                    .on_conflict_do_nothing()
-                    .returning(liquidate_events::id)
-                    .get_result(connection)
-                    .optional()?;
-
-                if id.is_none() {
-                    debug!("event already exists");
-                }
-
-                diesel::result::QueryResult::Ok(())
-            })
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    fn name(&self) -> &'static str {
+        "LendingAccountLiquidate"
     }
 }
 
@@ -1140,127 +720,137 @@ impl MarginfiEvent for AddBankEvent {
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
         let mint_data = entity_store.get_or_fetch_mint(&self.mint.to_string())?;
+        let bank_data = entity_store.get_or_fetch_bank_no_rpc(&self.bank.to_string())?;
 
-        db_connection
-            .transaction(|connection: &mut PgConnection| {
-                let bank_mint_id = if let Some(id) = mint_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        mints,
-                        Mints,
-                        self.mint.to_string(),
-                        Mints {
-                            address: mint_data.address.clone(),
-                            symbol: mint_data.symbol.clone(),
-                            decimals: mint_data.decimals,
-                            ..Default::default()
-                        }
-                    )
-                };
+        let slot = Decimal::from_u64(slot).unwrap();
 
-                // Not RPC fetching the account data here because it could lead to race condition with the RPC when live ingesting,
-                let bank_id = get_and_insert_if_needed!(
-                    connection,
-                    banks,
-                    Banks,
-                    self.bank.to_string(),
-                    Banks {
-                        address: self.bank.to_string(),
-                        mint_id: bank_mint_id,
-                        ..Default::default()
-                    }
-                );
+        let asset_weight_init =
+            Decimal::from_f64(I80F48::from(self.config.asset_weight_init).to_num()).unwrap();
+        let asset_weight_maint =
+            Decimal::from_f64(I80F48::from(self.config.asset_weight_maint).to_num()).unwrap();
+        let liability_weight_init =
+            Decimal::from_f64(I80F48::from(self.config.liability_weight_init).to_num()).unwrap();
+        let liability_weight_maint =
+            Decimal::from_f64(I80F48::from(self.config.liability_weight_maint).to_num()).unwrap();
+        let deposit_limit = Decimal::from_u64(self.config.deposit_limit).unwrap();
+        let optimal_utilization_rate = Decimal::from_f64(
+            I80F48::from(self.config.interest_rate_config.optimal_utilization_rate).to_num(),
+        )
+        .unwrap();
+        let plateau_interest_rate = Decimal::from_f64(
+            I80F48::from(self.config.interest_rate_config.plateau_interest_rate).to_num(),
+        )
+        .unwrap();
+        let max_interest_rate = Decimal::from_f64(
+            I80F48::from(self.config.interest_rate_config.max_interest_rate).to_num(),
+        )
+        .unwrap();
+        let insurance_fee_fixed_apr = Decimal::from_f64(
+            I80F48::from(self.config.interest_rate_config.insurance_fee_fixed_apr).to_num(),
+        )
+        .unwrap();
+        let insurance_ir_fee = Decimal::from_f64(
+            I80F48::from(self.config.interest_rate_config.insurance_ir_fee).to_num(),
+        )
+        .unwrap();
+        let protocol_fixed_fee_apr = Decimal::from_f64(
+            I80F48::from(self.config.interest_rate_config.protocol_fixed_fee_apr).to_num(),
+        )
+        .unwrap();
+        let protocol_ir_fee = Decimal::from_f64(
+            I80F48::from(self.config.interest_rate_config.protocol_ir_fee).to_num(),
+        )
+        .unwrap();
+        let operational_state_id = self.config.operational_state as i32;
+        let oracle_setup_id = self.config.oracle_setup as i32;
+        let oracle_keys = serde_json::to_string(
+            &self
+                .config
+                .oracle_keys
+                .iter()
+                .map(|k| k.to_string())
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        let borrow_limit = Decimal::from_u64(self.config.borrow_limit).unwrap();
+        let risk_tier_id = self.config.risk_tier as i32;
+        let total_asset_value_init_limit =
+            Decimal::from_u64(self.config.total_asset_value_init_limit).unwrap();
+        let oracle_max_age = self.config.oracle_max_age as i32;
 
-                let create_bank_event = CreateBankEvents {
-                    timestamp,
-                    slot: Decimal::from_u64(slot).unwrap(),
-                    tx_sig,
-                    call_stack,
-                    in_flashloan,
+        let all_dependencies_exist =
+            mint_data.id.is_some() && bank_data.as_ref().map(|bd| bd.id).flatten().is_some();
 
-                    bank_id,
-                    asset_weight_init: Decimal::from_f64(
-                        I80F48::from(self.config.asset_weight_init).to_num(),
-                    )
-                    .unwrap(),
-                    asset_weight_maint: Decimal::from_f64(
-                        I80F48::from(self.config.asset_weight_maint).to_num(),
-                    )
-                    .unwrap(),
-                    liability_weight_init: Decimal::from_f64(
-                        I80F48::from(self.config.liability_weight_init).to_num(),
-                    )
-                    .unwrap(),
-                    liability_weight_maint: Decimal::from_f64(
-                        I80F48::from(self.config.liability_weight_maint).to_num(),
-                    )
-                    .unwrap(),
-                    deposit_limit: Decimal::from_u64(self.config.deposit_limit).unwrap(),
-                    optimal_utilization_rate: Decimal::from_f64(
-                        I80F48::from(self.config.interest_rate_config.optimal_utilization_rate)
-                            .to_num(),
-                    )
-                    .unwrap(),
-                    plateau_interest_rate: Decimal::from_f64(
-                        I80F48::from(self.config.interest_rate_config.plateau_interest_rate)
-                            .to_num(),
-                    )
-                    .unwrap(),
-                    max_interest_rate: Decimal::from_f64(
-                        I80F48::from(self.config.interest_rate_config.max_interest_rate).to_num(),
-                    )
-                    .unwrap(),
-                    insurance_fee_fixed_apr: Decimal::from_f64(
-                        I80F48::from(self.config.interest_rate_config.insurance_fee_fixed_apr)
-                            .to_num(),
-                    )
-                    .unwrap(),
-                    insurance_ir_fee: Decimal::from_f64(
-                        I80F48::from(self.config.interest_rate_config.insurance_ir_fee).to_num(),
-                    )
-                    .unwrap(),
-                    protocol_fixed_fee_apr: Decimal::from_f64(
-                        I80F48::from(self.config.interest_rate_config.protocol_fixed_fee_apr)
-                            .to_num(),
-                    )
-                    .unwrap(),
-                    protocol_ir_fee: Decimal::from_f64(
-                        I80F48::from(self.config.interest_rate_config.protocol_ir_fee).to_num(),
-                    )
-                    .unwrap(),
-                    operational_state_id: self.config.operational_state as i32,
-                    oracle_setup_id: self.config.oracle_setup as i32,
-                    oracle_keys: serde_json::to_string(
-                        &self
-                            .config
-                            .oracle_keys
-                            .iter()
-                            .map(|k| k.to_string())
-                            .collect::<Vec<_>>(),
-                    )
-                    .unwrap(),
-                    borrow_limit: Decimal::from_u64(self.config.borrow_limit).unwrap(),
-                    risk_tier_id: self.config.risk_tier as i32,
+        if all_dependencies_exist {
+            CreateBankEvents::insert(
+                db_connection,
+                bank_data.unwrap().id.unwrap(),
+                asset_weight_init,
+                asset_weight_maint,
+                liability_weight_init,
+                liability_weight_maint,
+                deposit_limit,
+                optimal_utilization_rate,
+                plateau_interest_rate,
+                max_interest_rate,
+                insurance_fee_fixed_apr,
+                insurance_ir_fee,
+                protocol_fixed_fee_apr,
+                protocol_ir_fee,
+                operational_state_id,
+                oracle_setup_id,
+                oracle_keys,
+                borrow_limit,
+                risk_tier_id,
+                total_asset_value_init_limit,
+                oracle_max_age,
+                timestamp,
+                slot,
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            CreateBankEvents::insert_with_dependents(
+                db_connection,
+                &self.bank.to_string(),
+                &self.mint.to_string(),
+                &mint_data.symbol,
+                mint_data.decimals,
+                asset_weight_init,
+                asset_weight_maint,
+                liability_weight_init,
+                liability_weight_maint,
+                deposit_limit,
+                optimal_utilization_rate,
+                plateau_interest_rate,
+                max_interest_rate,
+                insurance_fee_fixed_apr,
+                insurance_ir_fee,
+                protocol_fixed_fee_apr,
+                protocol_ir_fee,
+                operational_state_id,
+                oracle_setup_id,
+                &oracle_keys,
+                borrow_limit,
+                risk_tier_id,
+                total_asset_value_init_limit,
+                oracle_max_age,
+                timestamp,
+                slot,
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
 
-                    ..Default::default()
-                };
+        Ok(())
+    }
 
-                let id: Option<i32> = diesel::insert_into(create_bank_events::table)
-                    .values(&create_bank_event)
-                    .on_conflict_do_nothing()
-                    .returning(create_bank_events::id)
-                    .get_result(connection)
-                    .optional()?;
-
-                if id.is_none() {
-                    debug!("event already exists");
-                }
-
-                diesel::result::QueryResult::Ok(())
-            })
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+    fn name(&self) -> &'static str {
+        "add_bank"
     }
 }
 
@@ -1283,170 +873,187 @@ impl MarginfiEvent for ConfigureBankEvent {
     ) -> Result<(), IndexingError> {
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
-        db_connection
-            .transaction(|connection: &mut PgConnection| {
-                let bank_mint_id = if let Some(id) = bank_data.mint.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        mints,
-                        Mints,
-                        bank_data.mint.address.clone(),
-                        Mints {
-                            address: bank_data.mint.address.clone(),
-                            symbol: bank_data.mint.symbol.clone(),
-                            decimals: bank_data.mint.decimals,
-                            ..Default::default()
-                        }
-                    )
-                };
+        let slot = Decimal::from_u64(slot).unwrap();
 
-                let bank_id = if let Some(id) = bank_data.id {
-                    id
-                } else {
-                    insert!(
-                        connection,
-                        banks,
-                        Banks,
-                        self.bank.to_string(),
-                        Banks {
-                            address: self.bank.to_string(),
-                            mint_id: bank_mint_id,
-                            ..Default::default()
-                        }
-                    )
-                };
-
-                let configure_bank_event = ConfigureBankEvents {
-                    timestamp,
-                    slot: Decimal::from_u64(slot).unwrap(),
-                    tx_sig,
-                    call_stack,
-                    in_flashloan,
-
-                    bank_id,
-                    asset_weight_init: self
-                        .config
-                        .asset_weight_init
-                        .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap()),
-                    asset_weight_maint: self
-                        .config
-                        .asset_weight_maint
-                        .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap()),
-                    liability_weight_init: self
-                        .config
-                        .liability_weight_init
-                        .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap()),
-                    liability_weight_maint: self
-                        .config
-                        .liability_weight_maint
-                        .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap()),
-                    deposit_limit: self
-                        .config
-                        .deposit_limit
-                        .map(|v| Decimal::from_u64(v).unwrap()),
-                    optimal_utilization_rate: self
-                        .config
-                        .interest_rate_config
-                        .as_ref()
-                        .map(|v| {
-                            v.optimal_utilization_rate
-                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
-                        })
-                        .flatten()
-                        .clone(),
-                    plateau_interest_rate: self
-                        .config
-                        .interest_rate_config
-                        .as_ref()
-                        .map(|v| {
-                            v.plateau_interest_rate
-                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
-                        })
-                        .flatten()
-                        .clone(),
-                    max_interest_rate: self
-                        .config
-                        .interest_rate_config
-                        .as_ref()
-                        .map(|v| {
-                            v.max_interest_rate
-                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
-                        })
-                        .flatten()
-                        .clone(),
-                    insurance_fee_fixed_apr: self
-                        .config
-                        .interest_rate_config
-                        .as_ref()
-                        .map(|v| {
-                            v.insurance_fee_fixed_apr
-                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
-                        })
-                        .flatten()
-                        .clone(),
-                    insurance_ir_fee: self
-                        .config
-                        .interest_rate_config
-                        .as_ref()
-                        .map(|v| {
-                            v.insurance_ir_fee
-                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
-                        })
-                        .flatten()
-                        .clone(),
-                    protocol_fixed_fee_apr: self
-                        .config
-                        .interest_rate_config
-                        .as_ref()
-                        .map(|v| {
-                            v.protocol_fixed_fee_apr
-                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
-                        })
-                        .flatten()
-                        .clone(),
-                    protocol_ir_fee: self
-                        .config
-                        .interest_rate_config
-                        .as_ref()
-                        .map(|v| {
-                            v.protocol_ir_fee
-                                .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
-                        })
-                        .flatten()
-                        .clone(),
-                    operational_state_id: self.config.operational_state.map(|v| v as i32),
-                    oracle_setup_id: self.config.oracle.map(|v| v.setup as i32),
-                    oracle_keys: self.config.oracle.map(|v| {
-                        serde_json::to_string(
-                            &v.keys.iter().map(|k| k.to_string()).collect::<Vec<_>>(),
-                        )
-                        .unwrap()
-                    }),
-                    borrow_limit: self
-                        .config
-                        .borrow_limit
-                        .map(|v| Decimal::from_u64(v).unwrap()),
-                    risk_tier_id: self.config.risk_tier.map(|v| v as i32),
-
-                    ..Default::default()
-                };
-
-                let id: Option<i32> = diesel::insert_into(configure_bank_events::table)
-                    .values(&configure_bank_event)
-                    .on_conflict_do_nothing()
-                    .returning(configure_bank_events::id)
-                    .get_result(connection)
-                    .optional()?;
-
-                if id.is_none() {
-                    debug!("event already exists");
-                }
-
-                diesel::result::QueryResult::Ok(())
+        let asset_weight_init = self
+            .config
+            .asset_weight_init
+            .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap());
+        let asset_weight_maint = self
+            .config
+            .asset_weight_maint
+            .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap());
+        let liability_weight_init = self
+            .config
+            .liability_weight_init
+            .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap());
+        let liability_weight_maint = self
+            .config
+            .liability_weight_maint
+            .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap());
+        let deposit_limit = self
+            .config
+            .deposit_limit
+            .map(|v| Decimal::from_u64(v).unwrap());
+        let optimal_utilization_rate = self
+            .config
+            .interest_rate_config
+            .as_ref()
+            .map(|v| {
+                v.optimal_utilization_rate
+                    .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
             })
-            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))
+            .flatten()
+            .clone();
+        let plateau_interest_rate = self
+            .config
+            .interest_rate_config
+            .as_ref()
+            .map(|v| {
+                v.plateau_interest_rate
+                    .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+            })
+            .flatten()
+            .clone();
+        let max_interest_rate = self
+            .config
+            .interest_rate_config
+            .as_ref()
+            .map(|v| {
+                v.max_interest_rate
+                    .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+            })
+            .flatten()
+            .clone();
+        let insurance_fee_fixed_apr = self
+            .config
+            .interest_rate_config
+            .as_ref()
+            .map(|v| {
+                v.insurance_fee_fixed_apr
+                    .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+            })
+            .flatten()
+            .clone();
+        let insurance_ir_fee = self
+            .config
+            .interest_rate_config
+            .as_ref()
+            .map(|v| {
+                v.insurance_ir_fee
+                    .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+            })
+            .flatten()
+            .clone();
+        let protocol_fixed_fee_apr = self
+            .config
+            .interest_rate_config
+            .as_ref()
+            .map(|v| {
+                v.protocol_fixed_fee_apr
+                    .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+            })
+            .flatten()
+            .clone();
+        let protocol_ir_fee = self
+            .config
+            .interest_rate_config
+            .as_ref()
+            .map(|v| {
+                v.protocol_ir_fee
+                    .map(|v| Decimal::from_f64(I80F48::from(v).to_num()).unwrap())
+            })
+            .flatten()
+            .clone();
+        let operational_state_id = self.config.operational_state.map(|v| v as i32);
+        let oracle_setup_id = self.config.oracle.map(|v| v.setup as i32);
+        let oracle_keys = self.config.oracle.map(|v| {
+            serde_json::to_string(&v.keys.iter().map(|k| k.to_string()).collect::<Vec<_>>())
+                .unwrap()
+        });
+        let borrow_limit = self
+            .config
+            .borrow_limit
+            .map(|v| Decimal::from_u64(v).unwrap());
+        let risk_tier_id = self.config.risk_tier.map(|v| v as i32);
+        let total_asset_value_init_limit = self
+            .config
+            .total_asset_value_init_limit
+            .map(|v| Decimal::from_u64(v).unwrap());
+        let oracle_max_age = self.config.oracle_max_age.map(|v| v as i32);
+
+        let all_dependencies_exist = bank_data.mint.id.is_some() && bank_data.id.is_some();
+
+        if all_dependencies_exist {
+            ConfigureBankEvents::insert(
+                db_connection,
+                bank_data.id.unwrap(),
+                asset_weight_init,
+                asset_weight_maint,
+                liability_weight_init,
+                liability_weight_maint,
+                deposit_limit,
+                optimal_utilization_rate,
+                plateau_interest_rate,
+                max_interest_rate,
+                insurance_fee_fixed_apr,
+                insurance_ir_fee,
+                protocol_fixed_fee_apr,
+                protocol_ir_fee,
+                operational_state_id,
+                oracle_setup_id,
+                oracle_keys,
+                borrow_limit,
+                risk_tier_id,
+                total_asset_value_init_limit,
+                oracle_max_age,
+                timestamp,
+                slot,
+                in_flashloan,
+                call_stack,
+                tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            ConfigureBankEvents::insert_with_dependents(
+                db_connection,
+                &self.bank.to_string(),
+                &bank_data.mint.address,
+                &bank_data.mint.symbol,
+                bank_data.mint.decimals,
+                asset_weight_init,
+                asset_weight_maint,
+                liability_weight_init,
+                liability_weight_maint,
+                deposit_limit,
+                optimal_utilization_rate,
+                plateau_interest_rate,
+                max_interest_rate,
+                insurance_fee_fixed_apr,
+                insurance_ir_fee,
+                protocol_fixed_fee_apr,
+                protocol_ir_fee,
+                operational_state_id,
+                oracle_setup_id,
+                oracle_keys,
+                borrow_limit,
+                risk_tier_id,
+                total_asset_value_init_limit,
+                oracle_max_age,
+                timestamp,
+                slot,
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        "configure_bank"
     }
 }
 
@@ -1515,7 +1122,6 @@ impl MarginfiEventParser {
                 .unwrap_or_default();
 
             if top_level_program_id.eq(&self.program_id) {
-                // println!("Instruction {}: {:?}", i, top_level_program_id);
                 let event = self.parse_event(
                     slot,
                     &tx_sig,
@@ -1793,17 +1399,23 @@ impl MarginfiEventParser {
                     return None;
                 }
 
-                if remaining_instructions.is_empty() {
-                    return None;
-                }
-
-                let transfer_ix = &remaining_instructions.get(0).unwrap().instruction;
-                let spl_transfer_amount = get_spl_transfer_amount(transfer_ix, account_keys)?;
-
                 let marginfi_account = *ix_accounts.get(1).unwrap();
                 let signer = *ix_accounts.get(2).unwrap();
                 let bank = *ix_accounts.get(3).unwrap();
                 let emissions_mint = *ix_accounts.get(4).unwrap();
+
+                if remaining_instructions.len() == 0 {
+                    return Some(Event::WithdrawEmissions(WithdrawEmissionsEvent {
+                        account: marginfi_account,
+                        authority: signer,
+                        bank,
+                        emissions_mint,
+                        amount: 0,
+                    }));
+                }
+
+                let transfer_ix = &remaining_instructions.get(0).unwrap().instruction;
+                let spl_transfer_amount = get_spl_transfer_amount(transfer_ix, account_keys)?;
 
                 Some(Event::WithdrawEmissions(WithdrawEmissionsEvent {
                     account: marginfi_account,

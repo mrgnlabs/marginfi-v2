@@ -80,6 +80,25 @@ impl EntityStore {
         }
     }
 
+    pub fn get_or_fetch_bank_no_rpc(
+        &mut self,
+        address: &str,
+    ) -> Result<Option<BankData>, IndexingError> {
+        let maybe_bank = self.bank_cache.get(&address.to_string());
+
+        if let Some(bank) = maybe_bank {
+            Ok(Some(bank.clone()))
+        } else {
+            let maybe_bank = BankData::fetch_from_db(self, address)?;
+
+            if let Some(bank) = &maybe_bank {
+                self.bank_cache.insert(address.to_string(), bank.clone());
+            }
+
+            Ok(maybe_bank)
+        }
+    }
+
     pub fn get_or_fetch_account(&mut self, address: &str) -> Result<AccountData, IndexingError> {
         let maybe_account = { self.account_cache.get(&address.to_string()).cloned() };
 
@@ -94,6 +113,26 @@ impl EntityStore {
             }
 
             Ok(account)
+        }
+    }
+
+    pub fn get_or_fetch_account_no_rpc(
+        &mut self,
+        address: &str,
+    ) -> Result<Option<AccountData>, IndexingError> {
+        let maybe_account = { self.account_cache.get(&address.to_string()).cloned() };
+
+        if let Some(account) = maybe_account {
+            Ok(Some(account))
+        } else {
+            let maybe_account = AccountData::fetch_from_db(self, address)?;
+
+            if let Some(account) = &maybe_account {
+                self.account_cache
+                    .insert(address.to_string(), account.clone());
+            }
+
+            Ok(maybe_account)
         }
     }
 

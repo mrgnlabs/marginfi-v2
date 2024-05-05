@@ -314,9 +314,7 @@ async fn store_events(
 
                     #[cfg(feature = "dry-run")]
                     {
-                        if let Event::Liquidate(e) = event {
-                            info!("Event: {:?} ({:?})", e, tx_sig);
-                        }
+                        info!("Event: {:?} ({:?})", event, tx_sig);
                     }
 
                     #[cfg(not(feature = "dry-run"))]

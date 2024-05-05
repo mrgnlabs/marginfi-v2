@@ -74,6 +74,7 @@ diesel::table! {
         total_asset_value_init_limit -> Nullable<Numeric>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        oracle_max_age -> Int4,
     }
 }
 
@@ -121,6 +122,7 @@ diesel::table! {
         total_asset_value_init_limit -> Numeric,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        oracle_max_age -> Int4,
     }
 }
 
