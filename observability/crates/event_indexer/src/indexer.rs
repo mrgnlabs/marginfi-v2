@@ -23,13 +23,8 @@ use yellowstone_grpc_proto::{
     },
 };
 
-use crate::{
-    db::establish_connection,
-    entity_store::EntityStore,
-    parser::{Event, MarginfiEvent},
-};
-
 use super::parser::{MarginfiEventParser, MarginfiEventWithMeta, MARGINFI_GROUP_ADDRESS};
+use crate::{entity_store::EntityStore, parser::MarginfiEvent};
 
 const BLOCK_META_BUFFER_LENGTH: usize = 30;
 
@@ -40,7 +35,11 @@ pub struct EventIndexer {
 }
 
 impl EventIndexer {
-    pub fn new(rpc_host: String, rpc_auth_token: String, database_connection_url: String) -> Self {
+    pub fn new(
+        rpc_host: String,
+        rpc_auth_token: String,
+        #[cfg(not(feature = "dry-run"))] database_connection_url: String,
+    ) -> Self {
         let program_id = marginfi::ID;
 
         let parser = MarginfiEventParser::new(program_id, MARGINFI_GROUP_ADDRESS);
@@ -61,21 +60,17 @@ impl EventIndexer {
         });
 
         #[cfg(not(feature = "dry-run"))]
-        let mut db_connection = establish_connection(database_connection_url.clone());
-
+        let mut db_connection = crate::db::establish_connection(database_connection_url.clone());
+        #[cfg(not(feature = "dry-run"))]
         let rpc_endpoint = format!("{}/{}", rpc_host, rpc_auth_token).to_string();
         #[cfg(not(feature = "dry-run"))]
         let mut entity_store = EntityStore::new(rpc_endpoint, database_connection_url);
 
         tokio::spawn(async move {
-            store_events(
-                #[cfg(not(feature = "dry-run"))]
-                &mut db_connection,
-                event_rx,
-                #[cfg(not(feature = "dry-run"))]
-                &mut entity_store,
-            )
-            .await
+            #[cfg(feature = "dry-run")]
+            print_events(event_rx);
+            #[cfg(not(feature = "dry-run"))]
+            store_events(&mut db_connection, event_rx, &mut entity_store)
         });
 
         Self {
@@ -285,10 +280,42 @@ async fn listen_to_updates(
     }
 }
 
-async fn store_events(
-    #[cfg(not(feature = "dry-run"))] db_connection: &mut PgConnection,
+#[allow(dead_code)]
+fn print_events(event_rx: Receiver<Vec<MarginfiEventWithMeta>>) {
+    loop {
+        while let Ok(events) = event_rx.try_recv() {
+            if !events.is_empty() {
+                for MarginfiEventWithMeta {
+                    event,
+                    tx_sig,
+                    outer_ix_index,
+                    inner_ix_index,
+                    ..
+                } in events
+                {
+                    info!(
+                        "[{:?}] Event: {:?} ({:?})",
+                        event,
+                        tx_sig.to_string(),
+                        if inner_ix_index.is_some() {
+                            format!("{:?}-{:?}", outer_ix_index, inner_ix_index)
+                        } else {
+                            format!("{:?}", outer_ix_index)
+                        }
+                    );
+                }
+            }
+        }
+
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+#[allow(dead_code)]
+fn store_events(
+    db_connection: &mut PgConnection,
     event_rx: Receiver<Vec<MarginfiEventWithMeta>>,
-    #[cfg(not(feature = "dry-run"))] entity_store: &mut EntityStore,
+    entity_store: &mut EntityStore,
 ) {
     loop {
         while let Ok(events) = event_rx.try_recv() {
@@ -300,6 +327,8 @@ async fn store_events(
                     in_flashloan,
                     call_stack,
                     tx_sig,
+                    outer_ix_index,
+                    inner_ix_index,
                 } in events
                 {
                     let tx_sig = tx_sig.to_string();
@@ -312,24 +341,17 @@ async fn store_events(
                     )
                     .unwrap_or_else(|_| "null".to_string());
 
-                    #[cfg(feature = "dry-run")]
-                    {
-                        info!("Event: {:?} ({:?})", event, tx_sig);
-                    }
-
-                    #[cfg(not(feature = "dry-run"))]
-                    {
-                        let mut retries = 0;
-                        retry(
-                        ExponentialBackoffBuilder::<SystemClock>::new()
-                            .with_max_interval(Duration::from_secs(5))
-                            .build(),
+                    let mut retries = 0;
+                    retry(
+                        ExponentialBackoffBuilder::<SystemClock>::new().with_max_interval(Duration::from_secs(5)).build(),
                         || match event.db_insert(
                             timestamp,
                             slot,
                             tx_sig.clone(),
                             in_flashloan,
                             call_stack.clone(),
+                            outer_ix_index,
+                            inner_ix_index,
                             db_connection,
                             entity_store,
                         ) {
@@ -353,7 +375,6 @@ async fn store_events(
                         },
                     )
                     .unwrap();
-                    }
                 }
             }
         }

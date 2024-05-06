@@ -52,6 +52,8 @@ pub struct MarginfiEventWithMeta {
     pub event: Event,
     pub in_flashloan: bool,
     pub call_stack: Vec<Pubkey>,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 }
 
 #[enum_dispatch]
@@ -63,6 +65,8 @@ pub trait MarginfiEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError>;
@@ -100,6 +104,8 @@ impl MarginfiEvent for UnknownEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         _entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -110,6 +116,8 @@ impl MarginfiEvent for UnknownEvent {
                 slot: Decimal::from_u64(slot).unwrap(),
                 call_stack,
                 in_flashloan,
+                outer_ix_index,
+                inner_ix_index,
                 ..Default::default()
             })
             .on_conflict_do_nothing()
@@ -144,6 +152,8 @@ impl MarginfiEvent for CreateAccountEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -163,6 +173,8 @@ impl MarginfiEvent for CreateAccountEvent {
                 in_flashloan,
                 call_stack,
                 tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -175,6 +187,8 @@ impl MarginfiEvent for CreateAccountEvent {
                 in_flashloan,
                 &call_stack,
                 &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -202,6 +216,8 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -224,6 +240,8 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
                 in_flashloan,
                 call_stack,
                 tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -237,6 +255,8 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
                 in_flashloan,
                 &call_stack,
                 &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -265,6 +285,8 @@ impl MarginfiEvent for DepositEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -289,6 +311,8 @@ impl MarginfiEvent for DepositEvent {
                 in_flashloan,
                 call_stack,
                 tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -306,6 +330,8 @@ impl MarginfiEvent for DepositEvent {
                 in_flashloan,
                 &call_stack,
                 &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -334,6 +360,8 @@ impl MarginfiEvent for BorrowEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -358,6 +386,8 @@ impl MarginfiEvent for BorrowEvent {
                 in_flashloan,
                 call_stack,
                 tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -375,6 +405,8 @@ impl MarginfiEvent for BorrowEvent {
                 in_flashloan,
                 &call_stack,
                 &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -404,6 +436,8 @@ impl MarginfiEvent for RepayEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -429,6 +463,8 @@ impl MarginfiEvent for RepayEvent {
                 in_flashloan,
                 call_stack,
                 tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -447,6 +483,8 @@ impl MarginfiEvent for RepayEvent {
                 in_flashloan,
                 &call_stack,
                 &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -476,6 +514,8 @@ impl MarginfiEvent for WithdrawEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -501,6 +541,8 @@ impl MarginfiEvent for WithdrawEvent {
                 in_flashloan,
                 call_stack,
                 tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -519,6 +561,8 @@ impl MarginfiEvent for WithdrawEvent {
                 in_flashloan,
                 &call_stack,
                 &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -548,6 +592,8 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -576,6 +622,8 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
                 in_flashloan,
                 call_stack,
                 tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -596,6 +644,8 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
                 in_flashloan,
                 &call_stack,
                 &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -626,6 +676,8 @@ impl MarginfiEvent for LiquidateEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -666,6 +718,8 @@ impl MarginfiEvent for LiquidateEvent {
                 in_flashloan,
                 call_stack,
                 tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -689,6 +743,8 @@ impl MarginfiEvent for LiquidateEvent {
                 in_flashloan,
                 &call_stack,
                 &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -716,6 +772,8 @@ impl MarginfiEvent for AddBankEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -809,6 +867,8 @@ impl MarginfiEvent for AddBankEvent {
                 in_flashloan,
                 call_stack,
                 tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -842,6 +902,8 @@ impl MarginfiEvent for AddBankEvent {
                 in_flashloan,
                 &call_stack,
                 &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -868,6 +930,8 @@ impl MarginfiEvent for ConfigureBankEvent {
         tx_sig: String,
         in_flashloan: bool,
         call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         db_connection: &mut PgConnection,
         entity_store: &mut EntityStore,
     ) -> Result<(), IndexingError> {
@@ -1012,6 +1076,8 @@ impl MarginfiEvent for ConfigureBankEvent {
                 in_flashloan,
                 call_stack,
                 tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -1045,6 +1111,8 @@ impl MarginfiEvent for ConfigureBankEvent {
                 in_flashloan,
                 &call_stack,
                 &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -1139,6 +1207,8 @@ impl MarginfiEventParser {
                         event,
                         in_flashloan,
                         call_stack,
+                        outer_ix_index: outer_ix_index as i16,
+                        inner_ix_index: None,
                     };
                     events.push(event_with_meta);
                 }
@@ -1177,6 +1247,8 @@ impl MarginfiEventParser {
                             event,
                             in_flashloan,
                             call_stack,
+                            outer_ix_index: outer_ix_index as i16,
+                            inner_ix_index: Some(inner_ix_index as i16),
                         };
                         events.push(event_with_meta);
                     }

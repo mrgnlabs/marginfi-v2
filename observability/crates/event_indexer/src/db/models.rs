@@ -4,7 +4,7 @@ use rust_decimal::Decimal;
 
 #[derive(QueryableByName)]
 struct IdResult {
-    #[sql_type = "Integer"]
+    #[diesel(sql_type = Integer)]
     pub id: i32,
 }
 
@@ -56,6 +56,8 @@ pub struct UnknownEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 }
 
 #[derive(Default, Debug, Queryable, Selectable, Insertable, Associations)]
@@ -69,6 +71,8 @@ pub struct CreateAccountEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 
     pub account_id: i32,
     pub authority_id: i32,
@@ -84,6 +88,8 @@ impl CreateAccountEvents {
         in_flashloan: bool,
         call_stack: String,
         tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<Option<i32>> {
         let create_account_event = CreateAccountEvents {
             timestamp,
@@ -91,6 +97,8 @@ impl CreateAccountEvents {
             tx_sig,
             call_stack,
             in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
             account_id,
             authority_id,
             ..Default::default()
@@ -113,6 +121,8 @@ impl CreateAccountEvents {
         in_flashloan: bool,
         call_stack: &str,
         tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql = include_str!("queries/insert_create_account_event_with_dependents.sql");
 
@@ -124,6 +134,8 @@ impl CreateAccountEvents {
             .bind::<Text, _>(tx_sig)
             .bind::<Bool, _>(in_flashloan)
             .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")
@@ -143,6 +155,8 @@ pub struct TransferAccountAuthorityEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 
     pub account_id: i32,
     pub old_authority_id: i32,
@@ -160,6 +174,8 @@ impl TransferAccountAuthorityEvents {
         in_flashloan: bool,
         call_stack: String,
         tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<Option<i32>> {
         let transfer_account_authority_event = TransferAccountAuthorityEvents {
             timestamp,
@@ -167,6 +183,8 @@ impl TransferAccountAuthorityEvents {
             tx_sig,
             call_stack,
             in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
             account_id,
             old_authority_id,
             new_authority_id,
@@ -191,6 +209,8 @@ impl TransferAccountAuthorityEvents {
         in_flashloan: bool,
         call_stack: &str,
         tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql =
             include_str!("queries/insert_transfer_account_authority_event_with_dependents.sql");
@@ -204,6 +224,8 @@ impl TransferAccountAuthorityEvents {
             .bind::<Text, _>(tx_sig)
             .bind::<Bool, _>(in_flashloan)
             .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")
@@ -223,6 +245,8 @@ pub struct DepositEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 
     pub account_id: i32,
     pub authority_id: i32,
@@ -242,6 +266,8 @@ impl DepositEvents {
         in_flashloan: bool,
         call_stack: String,
         tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<Option<i32>> {
         let deposit_event = DepositEvents {
             timestamp,
@@ -249,6 +275,8 @@ impl DepositEvents {
             tx_sig,
             call_stack,
             in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
             account_id,
             authority_id,
             bank_id,
@@ -278,6 +306,8 @@ impl DepositEvents {
         in_flashloan: bool,
         call_stack: &str,
         tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql = include_str!("./queries/insert_deposit_event_with_dependents.sql");
 
@@ -293,6 +323,8 @@ impl DepositEvents {
             .bind::<Text, _>(tx_sig)
             .bind::<Bool, _>(in_flashloan)
             .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Numeric, _>(amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -313,6 +345,8 @@ pub struct BorrowEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 
     pub account_id: i32,
     pub authority_id: i32,
@@ -332,6 +366,8 @@ impl BorrowEvents {
         in_flashloan: bool,
         call_stack: String,
         tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<Option<i32>> {
         let borrow_event = BorrowEvents {
             timestamp,
@@ -339,6 +375,8 @@ impl BorrowEvents {
             tx_sig,
             call_stack,
             in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
             account_id,
             authority_id,
             bank_id,
@@ -368,6 +406,8 @@ impl BorrowEvents {
         in_flashloan: bool,
         call_stack: &str,
         tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql = include_str!("queries/insert_borrow_event_with_dependents.sql");
 
@@ -383,6 +423,8 @@ impl BorrowEvents {
             .bind::<Text, _>(tx_sig)
             .bind::<Bool, _>(in_flashloan)
             .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Numeric, _>(amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -403,6 +445,8 @@ pub struct RepayEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 
     pub account_id: i32,
     pub authority_id: i32,
@@ -424,6 +468,8 @@ impl RepayEvents {
         in_flashloan: bool,
         call_stack: String,
         tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<Option<i32>> {
         let repay_event = RepayEvents {
             timestamp,
@@ -431,6 +477,8 @@ impl RepayEvents {
             tx_sig,
             call_stack,
             in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
             account_id,
             authority_id,
             bank_id,
@@ -462,6 +510,8 @@ impl RepayEvents {
         in_flashloan: bool,
         call_stack: &str,
         tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql = include_str!("queries/insert_repay_event_with_dependents.sql");
 
@@ -477,6 +527,8 @@ impl RepayEvents {
             .bind::<Text, _>(tx_sig)
             .bind::<Bool, _>(in_flashloan)
             .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Numeric, _>(amount)
             .bind::<Bool, _>(all)
             .load::<IdResult>(connection)?
@@ -498,6 +550,8 @@ pub struct WithdrawEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 
     pub account_id: i32,
     pub authority_id: i32,
@@ -519,6 +573,8 @@ impl WithdrawEvents {
         in_flashloan: bool,
         call_stack: String,
         tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<Option<i32>> {
         let withdraw_event = WithdrawEvents {
             timestamp,
@@ -526,6 +582,8 @@ impl WithdrawEvents {
             tx_sig,
             call_stack,
             in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
             account_id,
             authority_id,
             bank_id,
@@ -557,6 +615,8 @@ impl WithdrawEvents {
         in_flashloan: bool,
         call_stack: &str,
         tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql = include_str!("queries/insert_withdraw_event_with_dependents.sql");
 
@@ -572,6 +632,8 @@ impl WithdrawEvents {
             .bind::<Text, _>(tx_sig)
             .bind::<Bool, _>(in_flashloan)
             .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Numeric, _>(amount)
             .bind::<Bool, _>(all)
             .load::<IdResult>(connection)?
@@ -593,6 +655,8 @@ pub struct WithdrawEmissionsEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 
     pub account_id: i32,
     pub authority_id: i32,
@@ -614,6 +678,8 @@ impl WithdrawEmissionsEvents {
         in_flashloan: bool,
         call_stack: String,
         tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<Option<i32>> {
         let withdraw_emissions_event = WithdrawEmissionsEvents {
             timestamp,
@@ -621,6 +687,8 @@ impl WithdrawEmissionsEvents {
             tx_sig,
             call_stack,
             in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
             account_id,
             authority_id,
             bank_id,
@@ -654,6 +722,8 @@ impl WithdrawEmissionsEvents {
         in_flashloan: bool,
         call_stack: &str,
         tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql = include_str!("queries/insert_withdraw_emissions_event_with_dependents.sql");
 
@@ -672,6 +742,8 @@ impl WithdrawEmissionsEvents {
             .bind::<Text, _>(tx_sig)
             .bind::<Bool, _>(in_flashloan)
             .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Numeric, _>(amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -692,6 +764,8 @@ pub struct LiquidateEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 
     pub liquidator_account_id: i32,
     pub liquidatee_account_id: i32,
@@ -715,6 +789,8 @@ impl LiquidateEvents {
         in_flashloan: bool,
         call_stack: String,
         tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<Option<i32>> {
         let liquidate_event = LiquidateEvents {
             timestamp,
@@ -722,6 +798,8 @@ impl LiquidateEvents {
             tx_sig,
             call_stack,
             in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
             liquidator_account_id,
             liquidatee_account_id,
             liquidator_user_id,
@@ -759,6 +837,8 @@ impl LiquidateEvents {
         in_flashloan: bool,
         call_stack: &str,
         tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql = include_str!("queries/insert_liquidate_event_with_dependents.sql");
 
@@ -780,6 +860,8 @@ impl LiquidateEvents {
             .bind::<Text, _>(tx_sig)
             .bind::<Bool, _>(in_flashloan)
             .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Numeric, _>(asset_amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -800,6 +882,8 @@ pub struct CreateBankEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 
     pub bank_id: i32,
     pub asset_weight_init: Decimal,
@@ -851,6 +935,8 @@ impl CreateBankEvents {
         in_flashloan: bool,
         call_stack: String,
         tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<Option<i32>> {
         let create_bank_event = CreateBankEvents {
             timestamp,
@@ -858,6 +944,8 @@ impl CreateBankEvents {
             tx_sig,
             call_stack,
             in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
             bank_id,
             asset_weight_init,
             asset_weight_maint,
@@ -919,6 +1007,8 @@ impl CreateBankEvents {
         in_flashloan: bool,
         call_stack: &str,
         tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql = include_str!("queries/insert_create_bank_event_with_dependents.sql");
 
@@ -951,6 +1041,8 @@ impl CreateBankEvents {
             .bind::<Text, _>(tx_sig)
             .bind::<Bool, _>(in_flashloan)
             .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")
@@ -970,6 +1062,8 @@ pub struct ConfigureBankEvents {
     pub tx_sig: String,
     pub in_flashloan: bool,
     pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
 
     pub bank_id: i32,
     pub asset_weight_init: Option<Decimal>,
@@ -1021,6 +1115,8 @@ impl ConfigureBankEvents {
         in_flashloan: bool,
         call_stack: String,
         tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<Option<i32>> {
         let configure_bank_event = ConfigureBankEvents {
             timestamp,
@@ -1028,6 +1124,8 @@ impl ConfigureBankEvents {
             tx_sig,
             call_stack,
             in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
             bank_id,
             asset_weight_init,
             asset_weight_maint,
@@ -1089,6 +1187,8 @@ impl ConfigureBankEvents {
         in_flashloan: bool,
         call_stack: &str,
         tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql = include_str!("queries/insert_configure_bank_event_with_dependents.sql");
 
@@ -1121,6 +1221,8 @@ impl ConfigureBankEvents {
             .bind::<Text, _>(tx_sig)
             .bind::<Bool, _>(in_flashloan)
             .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")

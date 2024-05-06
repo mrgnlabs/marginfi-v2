@@ -10,26 +10,20 @@ use std::{
     vec,
 };
 
-use backoff::{retry, ExponentialBackoffBuilder, SystemClock};
 use bytemuck::Contiguous;
-use chrono::DateTime;
 use concurrent_queue::ConcurrentQueue;
 use crossbeam::channel::TryRecvError;
 use dotenv::dotenv;
 use envconfig::Envconfig;
-use event_indexer::parser::MarginfiEvent;
 use event_indexer::{
     backfiller::{
         crawl_signatures_for_range, generate_ranges, get_default_before_signature, Range,
         TransactionData, MARGINFI_PROGRAM_GENESIS_SIG,
     },
-    db::establish_connection,
-    entity_store::EntityStore,
     error::IndexingError,
     parser::{MarginfiEventParser, MarginfiEventWithMeta, MARGINFI_GROUP_ADDRESS},
 };
 use rpc_utils::conversion::convert_encoded_ui_transaction;
-use serde::Serialize;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
@@ -223,7 +217,9 @@ pub async fn main() {
 
         let local_transaction_rx = transaction_rx.clone();
         let is_fetching_complete_clone = is_fetching_complete.clone();
+        #[cfg(not(feature = "dry-run"))]
         let rpc_endpoint = rpc_endpoint.clone();
+        #[cfg(not(feature = "dry-run"))]
         let database_url = config.database_url.clone();
 
         processor_tasks.push(std::thread::spawn(move || {
@@ -236,16 +232,10 @@ pub async fn main() {
                         print_time = std::time::Instant::now();
                     }
 
-                    let t1 = std::time::Instant::now();
                     let maybe_item = local_transaction_rx.try_recv();
-                    let elapsed = t1.elapsed();
-                    // println!("1. {:?}", elapsed);
 
-                    let t1 = std::time::Instant::now();
                     let TransactionData {
                         transaction,
-                        #[cfg(not(feature = "dry-run"))]
-                        task_id,
                         ..
                     } = match maybe_item {
                         Err(TryRecvError::Empty) => {
@@ -263,21 +253,13 @@ pub async fn main() {
                         }
                         Ok(tx_data) => tx_data,
                     };
-                    let elapsed = t1.elapsed();
-                    // println!("2. {:?}", elapsed);
 
-                    let t1 = std::time::Instant::now();
                     let timestamp = transaction.block_time.unwrap();
                     let slot = transaction.slot;
                     let versioned_tx_with_meta =
                         convert_encoded_ui_transaction(transaction.transaction).unwrap();
-                    let elapsed = t1.elapsed();
-                    // println!("3. {:?}", elapsed);
 
-                    let t1 = std::time::Instant::now();
                     let events = parser.extract_events(timestamp, slot, versioned_tx_with_meta);
-                    let elapsed = t1.elapsed();
-                    // println!("4. {:?}", elapsed);
 
                     #[cfg(feature = "dry-run")]
                     {
@@ -292,9 +274,12 @@ pub async fn main() {
                     }
 
 
-                    let t1 = std::time::Instant::now();
                     #[cfg(not(feature = "dry-run"))]
                     {
+                        use backoff::{retry, ExponentialBackoffBuilder};
+                        use chrono::DateTime;
+                        use event_indexer::{parser::MarginfiEvent, entity_store::EntityStore, db::establish_connection};
+                        
                         let mut entity_store = EntityStore::new(rpc_endpoint.clone(), database_url.clone());
                         let mut db_connection = establish_connection(database_url.clone());
 
@@ -305,6 +290,8 @@ pub async fn main() {
                             in_flashloan,
                             call_stack,
                             tx_sig,
+                            outer_ix_index,
+                            inner_ix_index,
                         } in events
                         {
                             let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc();
@@ -317,52 +304,44 @@ pub async fn main() {
                             )
                             .unwrap_or_else(|_| "null".to_string());
 
-                            // #[cfg(feature = "dry-run")]
-                            // {
-                                info!("Event: {:?} ({:?})", event, tx_sig);
-                            // }
-
-                            #[cfg(not(feature = "dry-run"))]
-                            {
-                                let mut retries = 0;
-                                retry(
-                                    ExponentialBackoffBuilder::new()
-                                        .with_max_interval(Duration::from_secs(5))
-                                        .build(),
-                                    || match event.db_insert(
-                                        timestamp,
-                                        slot,
-                                        tx_sig.clone(),
-                                        in_flashloan,
-                                        call_stack.clone(),
-                                        &mut db_connection,
-                                        &mut entity_store,
-                                    ) {
-                                        Ok(signatures) => Ok(signatures),
-                                        Err(e) => {
-                                            if retries > 5 {
-                                                error!(
-                                            "[{:?}] Failed to insert event after 5 retries: {:?} - {:?} ({:?})",
-                                            task_id, event, e, tx_sig
+                            let mut retries = 0;
+                            retry(
+                                ExponentialBackoffBuilder::new()
+                                    .with_max_interval(Duration::from_secs(5))
+                                    .build(),
+                                || match event.db_insert(
+                                    timestamp,
+                                    slot,
+                                    tx_sig.clone(),
+                                    in_flashloan,
+                                    call_stack.clone(),
+                                    outer_ix_index,
+                                    inner_ix_index,
+                                    &mut db_connection,
+                                    &mut entity_store,
+                                ) {
+                                    Ok(signatures) => Ok(signatures),
+                                    Err(e) => {
+                                        if retries > 5 {
+                                            error!(
+                                        "[{:?}] Failed to insert event after 5 retries: {:?} - {:?} ({:?})",
+                                        i, event, e, tx_sig
+                                    );
+                                            Err(backoff::Error::permanent(e))
+                                        } else {
+                                            warn!(
+                                            "[{:?}] Failed to insert event, retrying: {:?} - {:?} ({:?})",
+                                            i, event, e, tx_sig
                                         );
-                                                Err(backoff::Error::permanent(e))
-                                            } else {
-                                                warn!(
-                                                "[{:?}] Failed to insert event, retrying: {:?} - {:?} ({:?})",
-                                                task_id, event, e, tx_sig
-                                            );
-                                                retries += 1;
-                                                Err(backoff::Error::transient(e))
-                                            }
+                                            retries += 1;
+                                            Err(backoff::Error::transient(e))
                                         }
-                                    },
-                                )
-                                .unwrap();
-                            }
+                                    }
+                                },
+                            )
+                            .unwrap();
                         }
                     }
-                    let elapsed = t1.elapsed();
-                    // println!("5. {:?}", elapsed);
                 }
             });
 

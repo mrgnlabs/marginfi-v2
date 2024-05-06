@@ -42,6 +42,8 @@ diesel::table! {
         price -> Nullable<Numeric>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 
@@ -75,6 +77,8 @@ diesel::table! {
         created_at -> Timestamp,
         updated_at -> Timestamp,
         oracle_max_age -> Int4,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 
@@ -90,6 +94,8 @@ diesel::table! {
         authority_id -> Int4,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 
@@ -123,6 +129,8 @@ diesel::table! {
         created_at -> Timestamp,
         updated_at -> Timestamp,
         oracle_max_age -> Int4,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 
@@ -141,6 +149,8 @@ diesel::table! {
         price -> Nullable<Numeric>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 
@@ -162,6 +172,8 @@ diesel::table! {
         liability_price -> Nullable<Numeric>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 
@@ -199,6 +211,8 @@ diesel::table! {
         all -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 
@@ -222,6 +236,8 @@ diesel::table! {
         new_authority_id -> Int4,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 
@@ -235,6 +251,8 @@ diesel::table! {
         call_stack -> Varchar,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 
@@ -263,6 +281,8 @@ diesel::table! {
         price -> Nullable<Numeric>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 
@@ -282,6 +302,8 @@ diesel::table! {
         all -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
     }
 }
 

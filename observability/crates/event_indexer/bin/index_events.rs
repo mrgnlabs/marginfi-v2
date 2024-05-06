@@ -54,6 +54,7 @@ pub async fn main() -> Result<(), IndexingError> {
     let mut indexer = EventIndexer::new(
         config.rpc_host.clone(),
         config.rpc_token.clone(),
+        #[cfg(not(feature = "dry-run"))]
         config.database_url,
     );
     let first_sig = indexer.init().await;
