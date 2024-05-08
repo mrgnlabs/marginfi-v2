@@ -665,7 +665,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             &marginfi::ID,
             &mut marginfi::instructions::LendingPoolHandleBankruptcy {
                 marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
-                admin: Signer::try_from(&self.owner)?,
+                signer: Signer::try_from(&self.owner)?,
                 bank: AccountLoader::try_from(&bank.bank.clone())?,
                 marginfi_account: AccountLoader::try_from(
                     &marginfi_account.margin_account.clone(),
