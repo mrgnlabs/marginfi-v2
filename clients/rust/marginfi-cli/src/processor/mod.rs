@@ -736,7 +736,7 @@ fn handle_bankruptcy_for_an_account(
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
             marginfi_group: profile.marginfi_group.unwrap(),
-            admin: config.authority(),
+            signer: config.authority(),
             bank: bank_pk,
             marginfi_account: marginfi_account_pk,
             liquidity_vault: find_bank_vault_pda(
@@ -881,7 +881,7 @@ fn make_bankruptcy_ix(
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
             marginfi_group: profile.marginfi_group.unwrap(),
-            admin: config.fee_payer.pubkey(),
+            signer: config.fee_payer.pubkey(),
             bank: bank_pk,
             marginfi_account: marginfi_account_pk,
             liquidity_vault: find_bank_vault_pda(
