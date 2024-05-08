@@ -330,7 +330,7 @@ impl MarginfiGroupFixture {
     ) -> Result<(), BanksClientError> {
         let mut accounts = marginfi::accounts::LendingPoolHandleBankruptcy {
             marginfi_group: self.key,
-            admin: self.ctx.borrow().payer.pubkey(),
+            signer: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
             marginfi_account: marginfi_account.key,
             liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,

@@ -65,7 +65,9 @@ pub fn lending_pool_setup_emissions(
     );
 
     bank.emissions_mint = ctx.accounts.emissions_mint.key();
-    bank.emissions_flags = emissions_flags;
+
+    bank.override_emissions_flag(emissions_flags);
+
     bank.emissions_rate = emissions_rate;
     bank.emissions_remaining = I80F48::from_num(total_emissions).into();
 
@@ -155,7 +157,7 @@ pub fn lending_pool_update_emissions_parameters(
 
     if let Some(flags) = emissions_flags {
         msg!("Updating emissions flags to {:#010b}", flags);
-        bank.emissions_flags = flags;
+        bank.flags = flags;
     }
 
     if let Some(rate) = emissions_rate {

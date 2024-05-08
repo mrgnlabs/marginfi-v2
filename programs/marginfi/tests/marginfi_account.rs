@@ -1716,10 +1716,7 @@ async fn emissions_test_2() -> anyhow::Result<()> {
 
     let usdc_bank_data = usdc_bank.load().await;
 
-    assert_eq!(
-        usdc_bank_data.emissions_flags,
-        EMISSIONS_FLAG_LENDING_ACTIVE
-    );
+    assert_eq!(usdc_bank_data.flags, EMISSIONS_FLAG_LENDING_ACTIVE);
 
     assert_eq!(usdc_bank_data.emissions_rate, 1_000_000);
 
@@ -1738,7 +1735,7 @@ async fn emissions_test_2() -> anyhow::Result<()> {
 
     let usdc_bank_data = usdc_bank.load().await;
 
-    assert_eq!(usdc_bank_data.emissions_flags, EMISSIONS_FLAG_BORROW_ACTIVE);
+    assert_eq!(usdc_bank_data.flags, EMISSIONS_FLAG_BORROW_ACTIVE);
 
     assert_eq!(usdc_bank_data.emissions_rate, 500_000);
 

@@ -1,4 +1,4 @@
-use crate::constants::ZERO_AMOUNT_THRESHOLD;
+use crate::constants::{PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD};
 use crate::events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent};
 use crate::state::marginfi_account::DISABLED_FLAG;
 use crate::{
@@ -29,8 +29,19 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
         insurance_vault,
         token_program,
         bank: bank_loader,
+        marginfi_group: marginfi_group_loader,
         ..
     } = ctx.accounts;
+    let bank = bank_loader.load()?;
+
+    if !bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG) {
+        check!(
+            ctx.accounts.signer.key() == marginfi_group_loader.load()?.admin,
+            MarginfiError::Unauthorized
+        );
+    }
+
+    drop(bank);
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
@@ -107,7 +118,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
 
     emit!(LendingPoolBankHandleBankruptcyEvent {
         header: AccountEventHeader {
-            signer: Some(ctx.accounts.admin.key()),
+            signer: Some(ctx.accounts.signer.key()),
             marginfi_account: marginfi_account_loader.key(),
             marginfi_account_authority: marginfi_account.authority,
             marginfi_group: marginfi_account.group,
@@ -126,8 +137,8 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
 pub struct LendingPoolHandleBankruptcy<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(address = marginfi_group.load()?.admin)]
-    pub admin: Signer<'info>,
+    // #[account(address = marginfi_group.load()?.admin)]
+    pub signer: Signer<'info>,
 
     #[account(
         mut,
