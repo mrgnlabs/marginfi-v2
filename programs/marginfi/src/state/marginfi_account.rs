@@ -1150,8 +1150,8 @@ impl<'a> BankAccountWrapper<'a> {
     pub fn claim_emissions(&mut self, current_timestamp: u64) -> MarginfiResult {
         if let Some(balance_amount) = match (
             self.balance.get_side(),
-            self.bank.get_emissions_flag(EMISSIONS_FLAG_LENDING_ACTIVE),
-            self.bank.get_emissions_flag(EMISSIONS_FLAG_BORROW_ACTIVE),
+            self.bank.get_flag(EMISSIONS_FLAG_LENDING_ACTIVE),
+            self.bank.get_flag(EMISSIONS_FLAG_BORROW_ACTIVE),
         ) {
             (Some(BalanceSide::Assets), true, _) => Some(
                 self.bank

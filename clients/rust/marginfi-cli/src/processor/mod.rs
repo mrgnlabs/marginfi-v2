@@ -197,7 +197,7 @@ Last Update: {:?}h ago ({})
         bank.config.oracle_setup,
         bank.config.oracle_keys,
         bank.config.get_oracle_max_age(),
-        bank.emissions_flags,
+        bank.flags,
         I80F48::from(bank.emissions_rate),
         bank.emissions_mint,
         I80F48::from(bank.emissions_remaining),

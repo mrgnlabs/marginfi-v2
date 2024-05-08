@@ -172,12 +172,12 @@ impl DefiLammaPoolInfo {
                 / I80F48::from_num(token_price);
 
             (
-                if bank.get_emissions_flag(EMISSIONS_FLAG_LENDING_ACTIVE) {
+                if bank.get_flag(EMISSIONS_FLAG_LENDING_ACTIVE) {
                     Some(relative_emissions_value)
                 } else {
                     None
                 },
-                if bank.get_emissions_flag(EMISSIONS_FLAG_BORROW_ACTIVE) {
+                if bank.get_flag(EMISSIONS_FLAG_BORROW_ACTIVE) {
                     Some(relative_emissions_value)
                 } else {
                     None
