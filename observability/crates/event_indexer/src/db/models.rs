@@ -114,7 +114,7 @@ impl CreateAccountEvents {
 
     pub fn insert_with_dependents(
         connection: &mut PgConnection,
-        account: &str,
+        account_address: &str,
         authority: &str,
         timestamp: chrono::NaiveDateTime,
         slot: Decimal,
@@ -127,8 +127,6 @@ impl CreateAccountEvents {
         let sql = include_str!("queries/insert_create_account_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
-            .bind::<Text, _>(authority)
-            .bind::<Text, _>(account)
             .bind::<Timestamp, _>(timestamp)
             .bind::<Numeric, _>(slot)
             .bind::<Text, _>(tx_sig)
@@ -136,6 +134,8 @@ impl CreateAccountEvents {
             .bind::<Text, _>(call_stack)
             .bind::<SmallInt, _>(outer_ix_index)
             .bind::<Nullable<SmallInt>, _>(inner_ix_index)
+            .bind::<Text, _>(account_address)
+            .bind::<Text, _>(authority)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")
@@ -216,9 +216,6 @@ impl TransferAccountAuthorityEvents {
             include_str!("queries/insert_transfer_account_authority_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
-            .bind::<Text, _>(old_authority)
-            .bind::<Text, _>(new_authority)
-            .bind::<Text, _>(account)
             .bind::<Timestamp, _>(timestamp)
             .bind::<Numeric, _>(slot)
             .bind::<Text, _>(tx_sig)
@@ -226,6 +223,9 @@ impl TransferAccountAuthorityEvents {
             .bind::<Text, _>(call_stack)
             .bind::<SmallInt, _>(outer_ix_index)
             .bind::<Nullable<SmallInt>, _>(inner_ix_index)
+            .bind::<Text, _>(old_authority)
+            .bind::<Text, _>(new_authority)
+            .bind::<Text, _>(account)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")
@@ -294,12 +294,12 @@ impl DepositEvents {
 
     pub fn insert_with_dependents(
         connection: &mut PgConnection,
-        authority: &str,
-        account: &str,
+        authority_address: &str,
+        account_address: &str,
         bank_mint_address: &str,
         bank_mint_symbol: &str,
         bank_mint_decimals: i16,
-        bank: &str,
+        bank_address: &str,
         amount: Decimal,
         timestamp: chrono::NaiveDateTime,
         slot: Decimal,
@@ -312,12 +312,6 @@ impl DepositEvents {
         let sql = include_str!("./queries/insert_deposit_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
-            .bind::<Text, _>(authority)
-            .bind::<Text, _>(account)
-            .bind::<Text, _>(bank_mint_address)
-            .bind::<Text, _>(bank_mint_symbol)
-            .bind::<SmallInt, _>(bank_mint_decimals)
-            .bind::<Text, _>(bank)
             .bind::<Timestamp, _>(timestamp)
             .bind::<Numeric, _>(slot)
             .bind::<Text, _>(tx_sig)
@@ -325,6 +319,12 @@ impl DepositEvents {
             .bind::<Text, _>(call_stack)
             .bind::<SmallInt, _>(outer_ix_index)
             .bind::<Nullable<SmallInt>, _>(inner_ix_index)
+            .bind::<Text, _>(authority_address)
+            .bind::<Text, _>(account_address)
+            .bind::<Text, _>(bank_mint_address)
+            .bind::<Text, _>(bank_mint_symbol)
+            .bind::<SmallInt, _>(bank_mint_decimals)
+            .bind::<Text, _>(bank_address)
             .bind::<Numeric, _>(amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -399,7 +399,7 @@ impl BorrowEvents {
         bank_mint_address: &str,
         bank_mint_symbol: &str,
         bank_mint_decimals: i16,
-        bank: &str,
+        bank_address: &str,
         amount: Decimal,
         timestamp: chrono::NaiveDateTime,
         slot: Decimal,
@@ -412,12 +412,6 @@ impl BorrowEvents {
         let sql = include_str!("queries/insert_borrow_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
-            .bind::<Text, _>(authority)
-            .bind::<Text, _>(account)
-            .bind::<Text, _>(bank_mint_address)
-            .bind::<Text, _>(bank_mint_symbol)
-            .bind::<SmallInt, _>(bank_mint_decimals)
-            .bind::<Text, _>(bank)
             .bind::<Timestamp, _>(timestamp)
             .bind::<Numeric, _>(slot)
             .bind::<Text, _>(tx_sig)
@@ -425,6 +419,12 @@ impl BorrowEvents {
             .bind::<Text, _>(call_stack)
             .bind::<SmallInt, _>(outer_ix_index)
             .bind::<Nullable<SmallInt>, _>(inner_ix_index)
+            .bind::<Text, _>(authority)
+            .bind::<Text, _>(account)
+            .bind::<Text, _>(bank_mint_address)
+            .bind::<Text, _>(bank_mint_symbol)
+            .bind::<SmallInt, _>(bank_mint_decimals)
+            .bind::<Text, _>(bank_address)
             .bind::<Numeric, _>(amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -502,7 +502,7 @@ impl RepayEvents {
         bank_mint_address: &str,
         bank_mint_symbol: &str,
         bank_mint_decimals: i16,
-        bank: &str,
+        bank_address: &str,
         amount: Decimal,
         all: bool,
         timestamp: chrono::NaiveDateTime,
@@ -516,12 +516,6 @@ impl RepayEvents {
         let sql = include_str!("queries/insert_repay_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
-            .bind::<Text, _>(authority)
-            .bind::<Text, _>(account)
-            .bind::<Text, _>(bank_mint_address)
-            .bind::<Text, _>(bank_mint_symbol)
-            .bind::<SmallInt, _>(bank_mint_decimals)
-            .bind::<Text, _>(bank)
             .bind::<Timestamp, _>(timestamp)
             .bind::<Numeric, _>(slot)
             .bind::<Text, _>(tx_sig)
@@ -529,6 +523,12 @@ impl RepayEvents {
             .bind::<Text, _>(call_stack)
             .bind::<SmallInt, _>(outer_ix_index)
             .bind::<Nullable<SmallInt>, _>(inner_ix_index)
+            .bind::<Text, _>(authority)
+            .bind::<Text, _>(account)
+            .bind::<Text, _>(bank_mint_address)
+            .bind::<Text, _>(bank_mint_symbol)
+            .bind::<SmallInt, _>(bank_mint_decimals)
+            .bind::<Text, _>(bank_address)
             .bind::<Numeric, _>(amount)
             .bind::<Bool, _>(all)
             .load::<IdResult>(connection)?
@@ -607,7 +607,7 @@ impl WithdrawEvents {
         bank_mint_address: &str,
         bank_mint_symbol: &str,
         bank_mint_decimals: i16,
-        bank: &str,
+        bank_address: &str,
         amount: Decimal,
         all: bool,
         timestamp: chrono::NaiveDateTime,
@@ -621,12 +621,6 @@ impl WithdrawEvents {
         let sql = include_str!("queries/insert_withdraw_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
-            .bind::<Text, _>(authority)
-            .bind::<Text, _>(account)
-            .bind::<Text, _>(bank_mint_address)
-            .bind::<Text, _>(bank_mint_symbol)
-            .bind::<SmallInt, _>(bank_mint_decimals)
-            .bind::<Text, _>(bank)
             .bind::<Timestamp, _>(timestamp)
             .bind::<Numeric, _>(slot)
             .bind::<Text, _>(tx_sig)
@@ -634,6 +628,12 @@ impl WithdrawEvents {
             .bind::<Text, _>(call_stack)
             .bind::<SmallInt, _>(outer_ix_index)
             .bind::<Nullable<SmallInt>, _>(inner_ix_index)
+            .bind::<Text, _>(authority)
+            .bind::<Text, _>(account)
+            .bind::<Text, _>(bank_mint_address)
+            .bind::<Text, _>(bank_mint_symbol)
+            .bind::<SmallInt, _>(bank_mint_decimals)
+            .bind::<Text, _>(bank_address)
             .bind::<Numeric, _>(amount)
             .bind::<Bool, _>(all)
             .load::<IdResult>(connection)?
@@ -728,6 +728,13 @@ impl WithdrawEmissionsEvents {
         let sql = include_str!("queries/insert_withdraw_emissions_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
+            .bind::<Timestamp, _>(timestamp)
+            .bind::<Numeric, _>(slot)
+            .bind::<Text, _>(tx_sig)
+            .bind::<Bool, _>(in_flashloan)
+            .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Text, _>(authority)
             .bind::<Text, _>(account)
             .bind::<Text, _>(bank_mint_address)
@@ -737,13 +744,6 @@ impl WithdrawEmissionsEvents {
             .bind::<Text, _>(emission_mint_address)
             .bind::<Text, _>(emission_mint_symbol)
             .bind::<SmallInt, _>(emission_mint_decimals)
-            .bind::<Timestamp, _>(timestamp)
-            .bind::<Numeric, _>(slot)
-            .bind::<Text, _>(tx_sig)
-            .bind::<Bool, _>(in_flashloan)
-            .bind::<Text, _>(call_stack)
-            .bind::<SmallInt, _>(outer_ix_index)
-            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Numeric, _>(amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -843,6 +843,13 @@ impl LiquidateEvents {
         let sql = include_str!("queries/insert_liquidate_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
+            .bind::<Timestamp, _>(timestamp)
+            .bind::<Numeric, _>(slot)
+            .bind::<Text, _>(tx_sig)
+            .bind::<Bool, _>(in_flashloan)
+            .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Text, _>(liquidator_user)
             .bind::<Text, _>(liquidatee_user)
             .bind::<Text, _>(liquidator_account)
@@ -855,13 +862,6 @@ impl LiquidateEvents {
             .bind::<SmallInt, _>(liability_mint_decimals)
             .bind::<Text, _>(asset_bank)
             .bind::<Text, _>(liability_bank)
-            .bind::<Timestamp, _>(timestamp)
-            .bind::<Numeric, _>(slot)
-            .bind::<Text, _>(tx_sig)
-            .bind::<Bool, _>(in_flashloan)
-            .bind::<Text, _>(call_stack)
-            .bind::<SmallInt, _>(outer_ix_index)
-            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Numeric, _>(asset_amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -1013,6 +1013,13 @@ impl CreateBankEvents {
         let sql = include_str!("queries/insert_create_bank_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
+            .bind::<Timestamp, _>(timestamp)
+            .bind::<Numeric, _>(slot)
+            .bind::<Text, _>(tx_sig)
+            .bind::<Bool, _>(in_flashloan)
+            .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Text, _>(bank_address)
             .bind::<Text, _>(bank_mint_address)
             .bind::<Text, _>(bank_mint_symbol)
@@ -1036,13 +1043,6 @@ impl CreateBankEvents {
             .bind::<Integer, _>(risk_tier_id)
             .bind::<Numeric, _>(total_asset_value_init_limit)
             .bind::<Integer, _>(oracle_max_age)
-            .bind::<Timestamp, _>(timestamp)
-            .bind::<Numeric, _>(slot)
-            .bind::<Text, _>(tx_sig)
-            .bind::<Bool, _>(in_flashloan)
-            .bind::<Text, _>(call_stack)
-            .bind::<SmallInt, _>(outer_ix_index)
-            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")
@@ -1159,6 +1159,13 @@ impl ConfigureBankEvents {
 
     pub fn insert_with_dependents(
         connection: &mut PgConnection,
+        timestamp: chrono::NaiveDateTime,
+        slot: Decimal,
+        in_flashloan: bool,
+        call_stack: &str,
+        tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
         bank_address: &str,
         bank_mint_address: &str,
         bank_mint_symbol: &str,
@@ -1182,17 +1189,17 @@ impl ConfigureBankEvents {
         risk_tier_id: Option<i32>,
         total_asset_value_init_limit: Option<Decimal>,
         oracle_max_age: Option<i32>,
-        timestamp: chrono::NaiveDateTime,
-        slot: Decimal,
-        in_flashloan: bool,
-        call_stack: &str,
-        tx_sig: &str,
-        outer_ix_index: i16,
-        inner_ix_index: Option<i16>,
     ) -> QueryResult<i32> {
         let sql = include_str!("queries/insert_configure_bank_event_with_dependents.sql");
 
         let id = diesel::sql_query(sql)
+            .bind::<Timestamp, _>(timestamp)
+            .bind::<Numeric, _>(slot)
+            .bind::<Text, _>(tx_sig)
+            .bind::<Bool, _>(in_flashloan)
+            .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Text, _>(bank_address)
             .bind::<Text, _>(bank_mint_address)
             .bind::<Text, _>(bank_mint_symbol)
@@ -1216,13 +1223,6 @@ impl ConfigureBankEvents {
             .bind::<Nullable<Integer>, _>(risk_tier_id)
             .bind::<Nullable<Numeric>, _>(total_asset_value_init_limit)
             .bind::<Nullable<Integer>, _>(oracle_max_age)
-            .bind::<Timestamp, _>(timestamp)
-            .bind::<Numeric, _>(slot)
-            .bind::<Text, _>(tx_sig)
-            .bind::<Bool, _>(in_flashloan)
-            .bind::<Text, _>(call_stack)
-            .bind::<SmallInt, _>(outer_ix_index)
-            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")

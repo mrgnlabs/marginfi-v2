@@ -1,10 +1,10 @@
 WITH upsert_authority AS (
     INSERT INTO users (address)
-    VALUES ($1)
+    VALUES ($8)
     ON CONFLICT (address) DO NOTHING
     RETURNING id
 ), existing_authority AS (
-    SELECT id FROM users WHERE address = $1
+    SELECT id FROM users WHERE address = $8
 ), combined_authority AS (
     SELECT id FROM upsert_authority
     UNION ALL
@@ -13,11 +13,11 @@ WITH upsert_authority AS (
 ),
 upsert_account AS (
     INSERT INTO accounts (address, user_id)
-    VALUES ($2, (SELECT id FROM combined_authority))
+    VALUES ($9, (SELECT id FROM combined_authority))
     ON CONFLICT (address) DO NOTHING
     RETURNING id
 ), existing_account AS (
-    SELECT id FROM accounts WHERE address = $2
+    SELECT id FROM accounts WHERE address = $9
 ), combined_account AS (
     SELECT id FROM upsert_account
     UNION ALL
@@ -26,11 +26,11 @@ upsert_account AS (
 ),
 upsert_bank_mint AS (
     INSERT INTO mints (address, symbol, decimals)
-    VALUES ($3, $4, $5)
+    VALUES ($10, $11, $12)
     ON CONFLICT (address) DO NOTHING
     RETURNING id
 ), existing_bank_mint AS (
-    SELECT id FROM mints WHERE address = $3
+    SELECT id FROM mints WHERE address = $10
 ), combined_bank_mint AS (
     SELECT id FROM upsert_bank_mint
     UNION ALL
@@ -39,17 +39,17 @@ upsert_bank_mint AS (
 ),
 upsert_bank AS (
     INSERT INTO banks (address, mint_id)
-    VALUES ($6, (SELECT id FROM combined_bank_mint))
+    VALUES ($13, (SELECT id FROM combined_bank_mint))
     ON CONFLICT (address) DO NOTHING
     RETURNING id
 ), existing_bank AS (
-    SELECT id FROM banks WHERE address = $6
+    SELECT id FROM banks WHERE address = $13
 ), combined_bank AS (
     SELECT id FROM upsert_bank
     UNION ALL
     SELECT id FROM existing_bank
     LIMIT 1
 )
-INSERT INTO withdraw_events (timestamp, slot, tx_sig, in_flashloan, call_stack, account_id, authority_id, bank_id, amount, all)
-VALUES ($7, $8, $9, $10, $11, (SELECT id FROM combined_account), (SELECT id FROM combined_authority), (SELECT id FROM combined_bank), $12, $13)
+INSERT INTO withdraw_events (timestamp, slot, tx_sig, in_flashloan, call_stack, outer_ix_index, inner_ix_index, account_id, authority_id, bank_id, amount, all)
+VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM combined_account), (SELECT id FROM combined_authority), (SELECT id FROM combined_bank), $14, $15)
 RETURNING id;
