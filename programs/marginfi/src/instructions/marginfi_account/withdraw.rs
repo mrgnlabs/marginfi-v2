@@ -148,5 +148,9 @@ pub struct LendingAccountWithdraw<'info> {
     )]
     pub bank_liquidity_vault: Account<'info, TokenAccount>,
 
-    pub token_program: Program<'info, Token>,
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        address = bank.load()?.token_program.to_program_id(),
+    )]
+    pub token_program: AccountInfo<'info>,
 }

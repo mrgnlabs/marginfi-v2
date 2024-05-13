@@ -319,5 +319,9 @@ pub struct LendingPoolWithdrawInsurance<'info> {
     #[account(mut)]
     pub dst_token_account: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        address = bank.load()?.token_program.to_program_id(),
+    )]
+    pub token_program: AccountInfo<'info>,
 }

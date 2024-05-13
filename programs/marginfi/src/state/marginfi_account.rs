@@ -42,7 +42,7 @@ pub struct MarginfiAccount {
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
     pub account_flags: u64, // 8
-    pub _padding: [u64; 63],             // 8 * 63 = 512
+    pub _padding: [u64; 63],             // 504
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;

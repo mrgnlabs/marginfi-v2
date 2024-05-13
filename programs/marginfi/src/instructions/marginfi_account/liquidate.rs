@@ -431,5 +431,9 @@ pub struct LendingAccountLiquidate<'info> {
     )]
     pub bank_insurance_vault: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        address = liab_bank.load()?.token_program.to_program_id(),
+    )]
+    pub token_program: AccountInfo<'info>,
 }

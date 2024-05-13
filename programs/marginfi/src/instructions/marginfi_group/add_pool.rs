@@ -4,7 +4,7 @@ use crate::{
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
-    state::marginfi_group::{Bank, BankConfig, BankConfigCompact, MarginfiGroup},
+    state::marginfi_group::{Bank, BankConfig, BankConfigCompact, MarginfiGroup, SplTokenProgram},
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -25,6 +25,7 @@ pub fn lending_pool_add_bank(
         insurance_vault,
         fee_vault,
         bank: bank_loader,
+        token_program,
         ..
     } = ctx.accounts;
 
@@ -36,6 +37,11 @@ pub fn lending_pool_add_bank(
     let insurance_vault_authority_bump = *ctx.bumps.get("insurance_vault_authority").unwrap();
     let fee_vault_bump = *ctx.bumps.get("fee_vault").unwrap();
     let fee_vault_authority_bump = *ctx.bumps.get("fee_vault_authority").unwrap();
+
+    let spl_program =
+        SplTokenProgram::try_from_program_id(bank_mint.to_account_info().owner).unwrap();
+
+    assert_eq!(token_program.key, &spl_program.to_program_id());
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
@@ -52,6 +58,7 @@ pub fn lending_pool_add_bank(
         insurance_vault_authority_bump,
         fee_vault_bump,
         fee_vault_authority_bump,
+        spl_program,
     );
 
     bank.config.validate()?;
@@ -162,7 +169,8 @@ pub struct LendingPoolAddBank<'info> {
     pub fee_vault: Box<Account<'info, TokenAccount>>,
 
     pub rent: Sysvar<'info, Rent>,
-    pub token_program: Program<'info, Token>,
+    /// CHECK: Verified manually that its either token or token22
+    pub token_program: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -181,6 +189,7 @@ pub fn lending_pool_add_bank_with_seed(
         insurance_vault,
         fee_vault,
         bank: bank_loader,
+        token_program,
         ..
     } = ctx.accounts;
 
@@ -192,6 +201,11 @@ pub fn lending_pool_add_bank_with_seed(
     let insurance_vault_authority_bump = *ctx.bumps.get("insurance_vault_authority").unwrap();
     let fee_vault_bump = *ctx.bumps.get("fee_vault").unwrap();
     let fee_vault_authority_bump = *ctx.bumps.get("fee_vault_authority").unwrap();
+
+    let spl_program =
+        SplTokenProgram::try_from_program_id(bank_mint.to_account_info().owner).unwrap();
+
+    assert_eq!(token_program.key, &spl_program.to_program_id());
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
@@ -208,6 +222,7 @@ pub fn lending_pool_add_bank_with_seed(
         insurance_vault_authority_bump,
         fee_vault_bump,
         fee_vault_authority_bump,
+        spl_program,
     );
 
     bank.config.validate()?;
@@ -328,6 +343,7 @@ pub struct LendingPoolAddBankWithSeed<'info> {
     pub fee_vault: Box<Account<'info, TokenAccount>>,
 
     pub rent: Sysvar<'info, Rent>,
-    pub token_program: Program<'info, Token>,
+    /// CHECK: Verified manually that its either token or token22
+    pub token_program: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
 }

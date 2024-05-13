@@ -10,8 +10,8 @@ use crate::{
         EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PRICE_AGE_SEC,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_ID, SECONDS_PER_YEAR,
-        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_ID, SECONDS_PER_YEAR, SPL_TOKEN_22_PROGRAM,
+        SPL_TOKEN_PROGRAM, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
     prelude::MarginfiError,
@@ -278,6 +278,36 @@ pub struct InterestRateConfigOpt {
     pub protocol_ir_fee: Option<WrappedI80F48>,
 }
 
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SplTokenProgram {
+    Legacy = 0,
+    Token22 = 1,
+}
+
+impl Default for SplTokenProgram {
+    fn default() -> Self {
+        SplTokenProgram::Legacy
+    }
+}
+
+impl SplTokenProgram {
+    pub fn try_from_program_id(program_id: &Pubkey) -> Option<Self> {
+        match program_id {
+            &SPL_TOKEN_PROGRAM => Some(SplTokenProgram::Legacy),
+            &SPL_TOKEN_22_PROGRAM => Some(SplTokenProgram::Token22),
+            _ => None,
+        }
+    }
+
+    pub fn to_program_id(&self) -> Pubkey {
+        match self {
+            SplTokenProgram::Legacy => SPL_TOKEN_PROGRAM,
+            SplTokenProgram::Token22 => SPL_TOKEN_22_PROGRAM,
+        }
+    }
+}
+
 assert_struct_size!(Bank, 1856);
 assert_struct_align!(Bank, 8);
 #[account(zero_copy(unsafe))]
@@ -330,8 +360,11 @@ pub struct Bank {
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 28],
+    pub token_program: SplTokenProgram,
+
+    pub _padding_0: [[u64; 2]; 27],
     pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
+    pub _padding_3: [u8; 8],
 }
 
 impl Bank {
@@ -351,6 +384,7 @@ impl Bank {
         insurance_vault_authority_bump: u8,
         fee_vault_bump: u8,
         fee_vault_authority_bump: u8,
+        token_program: SplTokenProgram,
     ) -> Bank {
         Bank {
             mint,
@@ -377,8 +411,8 @@ impl Bank {
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
-            _padding_0: [[0; 2]; 28],
-            _padding_1: [[0; 2]; 32],
+            token_program,
+            ..Default::default()
         }
     }
 
@@ -748,6 +782,13 @@ impl Bank {
 
     const fn verify_group_flags(flags: u64) -> bool {
         flags & GROUP_FLAGS == flags
+    }
+
+    pub fn get_token_program(&self) -> Pubkey {
+        match self.token_program {
+            SplTokenProgram::Legacy => SPL_TOKEN_PROGRAM,
+            SplTokenProgram::Token22 => SPL_TOKEN_22_PROGRAM,
+        }
     }
 }
 
