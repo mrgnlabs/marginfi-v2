@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, Transfer};
+use anchor_spl::token::Transfer;
 use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 

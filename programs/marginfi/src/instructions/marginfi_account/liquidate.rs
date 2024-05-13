@@ -12,7 +12,7 @@ use crate::{
 };
 use crate::{check, debug, prelude::*};
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Transfer};
+use anchor_spl::token::{TokenAccount, Transfer};
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
