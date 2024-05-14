@@ -1,6 +1,9 @@
 #[cfg(feature = "admin")]
 pub mod emissions;
 
+#[cfg(feature = "admin")]
+pub mod admin;
+
 pub mod group;
 
 use {
@@ -161,6 +164,9 @@ Emissions:
   Rate: {:?}
   Mint: {:?}
   Remaining: {:?}
+Unclaimed
+  Fees: {:?}
+  Insurance: {:?}
 Last Update: {:?}h ago ({})
 "#,
         bank.group,
@@ -191,10 +197,14 @@ Last Update: {:?}h ago ({})
         bank.config.oracle_setup,
         bank.config.oracle_keys,
         bank.config.get_oracle_max_age(),
-        bank.emissions_flags,
+        bank.flags,
         I80F48::from(bank.emissions_rate),
         bank.emissions_mint,
         I80F48::from(bank.emissions_remaining),
+        I80F48::from(bank.collected_group_fees_outstanding)
+            / EXP_10_I80F48[bank.mint_decimals as usize],
+        I80F48::from(bank.collected_insurance_fees_outstanding)
+            / EXP_10_I80F48[bank.mint_decimals as usize],
         SystemTime::now()
             .duration_since(UNIX_EPOCH + Duration::from_secs(bank.last_update as u64))
             .unwrap()
@@ -726,7 +736,7 @@ fn handle_bankruptcy_for_an_account(
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
             marginfi_group: profile.marginfi_group.unwrap(),
-            admin: config.authority(),
+            signer: config.authority(),
             bank: bank_pk,
             marginfi_account: marginfi_account_pk,
             liquidity_vault: find_bank_vault_pda(
@@ -871,7 +881,7 @@ fn make_bankruptcy_ix(
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
             marginfi_group: profile.marginfi_group.unwrap(),
-            admin: config.fee_payer.pubkey(),
+            signer: config.fee_payer.pubkey(),
             bank: bank_pk,
             marginfi_account: marginfi_account_pk,
             liquidity_vault: find_bank_vault_pda(

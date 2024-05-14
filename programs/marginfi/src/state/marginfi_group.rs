@@ -7,9 +7,10 @@ use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        MAX_ORACLE_KEYS, MAX_PRICE_AGE_SEC, PYTH_ID, SECONDS_PER_YEAR,
+        EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
+        LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PRICE_AGE_SEC,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_ID, SECONDS_PER_YEAR,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
@@ -316,12 +317,13 @@ pub struct Bank {
 
     pub config: BankConfig,
 
-    /// Emissions Config Flags
+    /// Bank Config Flags
     ///
     /// - EMISSIONS_FLAG_BORROW_ACTIVE: 1
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
+    /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
     ///
-    pub emissions_flags: u64,
+    pub flags: u64,
     /// Emissions APR.
     /// Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens (bank mint) (native amount) per 1 YEAR.
     pub emissions_rate: u64,
@@ -371,7 +373,7 @@ impl Bank {
             total_asset_shares: I80F48::ZERO.into(),
             last_update: current_timestamp,
             config,
-            emissions_flags: 0,
+            flags: 0,
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
@@ -540,6 +542,10 @@ impl Bank {
         );
 
         set_if_some!(self.config.oracle_max_age, config.oracle_max_age);
+
+        if let Some(flag) = config.permissionless_bad_debt_settlement {
+            self.update_flag(flag, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG);
+        }
 
         self.config.validate()?;
 
@@ -717,8 +723,31 @@ impl Bank {
         }
     }
 
-    pub fn get_emissions_flag(&self, flag: u64) -> bool {
-        (self.emissions_flags & flag) == flag
+    pub fn get_flag(&self, flag: u64) -> bool {
+        (self.flags & flag) == flag
+    }
+
+    pub(crate) fn override_emissions_flag(&mut self, flag: u64) {
+        assert!(Self::verify_emissions_flags(flag));
+        self.flags = flag;
+    }
+
+    pub(crate) fn update_flag(&mut self, value: bool, flag: u64) {
+        assert!(Self::verify_group_flags(flag));
+
+        if value {
+            self.flags |= flag;
+        } else {
+            self.flags &= !flag;
+        }
+    }
+
+    const fn verify_emissions_flags(flags: u64) -> bool {
+        flags & EMISSION_FLAGS == flags
+    }
+
+    const fn verify_group_flags(flags: u64) -> bool {
+        flags & GROUP_FLAGS == flags
     }
 }
 
@@ -1151,6 +1180,8 @@ pub struct BankConfigOpt {
     pub total_asset_value_init_limit: Option<u64>,
 
     pub oracle_max_age: Option<u16>,
+
+    pub permissionless_bad_debt_settlement: Option<bool>,
 }
 
 #[cfg_attr(

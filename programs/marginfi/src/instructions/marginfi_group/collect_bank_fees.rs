@@ -1,3 +1,4 @@
+use crate::constants::{FEE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_AUTHORITY_SEED};
 use crate::events::{GroupEventHeader, LendingPoolBankCollectFeesEvent};
 use crate::{
     bank_signer,
@@ -28,22 +29,40 @@ pub fn lending_pool_collect_bank_fees(ctx: Context<LendingPoolCollectBankFees>) 
     let mut available_liquidity = I80F48::from_num(liquidity_vault.amount);
 
     let (insurance_fee_transfer_amount, new_outstanding_insurance_fees) = {
-        let outstanding_fees = I80F48::from(bank.collected_insurance_fees_outstanding);
-        let transfer_amount = min(outstanding_fees, available_liquidity).int();
+        let outstanding = I80F48::from(bank.collected_insurance_fees_outstanding);
+        let transfer_amount = min(outstanding, available_liquidity).int();
 
-        (transfer_amount.int(), outstanding_fees - transfer_amount)
+        (
+            transfer_amount.int(),
+            outstanding
+                .checked_sub(transfer_amount)
+                .ok_or_else(math_error!())?,
+        )
     };
 
     bank.collected_insurance_fees_outstanding = new_outstanding_insurance_fees.into();
 
-    available_liquidity -= insurance_fee_transfer_amount;
+    available_liquidity = available_liquidity
+        .checked_sub(insurance_fee_transfer_amount)
+        .ok_or_else(math_error!())?;
 
     let (group_fee_transfer_amount, new_outstanding_group_fees) = {
-        let outstanding_fees = I80F48::from(bank.collected_group_fees_outstanding);
-        let transfer_amount = min(outstanding_fees, available_liquidity).int();
+        let outstanding = I80F48::from(bank.collected_group_fees_outstanding);
+        let transfer_amount = min(outstanding, available_liquidity).int();
 
-        (transfer_amount.int(), outstanding_fees - transfer_amount)
+        (
+            transfer_amount.int(),
+            outstanding
+                .checked_sub(transfer_amount)
+                .ok_or_else(math_error!())?,
+        )
     };
+
+    available_liquidity = available_liquidity
+        .checked_sub(group_fee_transfer_amount)
+        .ok_or_else(math_error!())?;
+
+    assert!(available_liquidity >= I80F48::ZERO);
 
     bank.collected_group_fees_outstanding = new_outstanding_group_fees.into();
 
@@ -149,6 +168,156 @@ pub struct LendingPoolCollectBankFees<'info> {
         bump = bank.load()?.fee_vault_bump
     )]
     pub fee_vault: AccountInfo<'info>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+pub fn lending_pool_withdraw_fees(
+    ctx: Context<LendingPoolWithdrawFees>,
+    amount: u64,
+) -> MarginfiResult {
+    let LendingPoolWithdrawFees {
+        bank: bank_loader,
+        fee_vault,
+        fee_vault_authority,
+        dst_token_account,
+        token_program,
+        ..
+    } = ctx.accounts;
+
+    let bank = bank_loader.load()?;
+
+    bank.withdraw_spl_transfer(
+        amount,
+        Transfer {
+            from: fee_vault.to_account_info(),
+            to: dst_token_account.to_account_info(),
+            authority: fee_vault_authority.to_account_info(),
+        },
+        token_program.to_account_info(),
+        bank_signer!(
+            BankVaultType::Fee,
+            bank_loader.key(),
+            bank.fee_vault_authority_bump
+        ),
+    )?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LendingPoolWithdrawFees<'info> {
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        constraint = bank.load()?.group == marginfi_group.key(),
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+
+    #[account(
+        address = marginfi_group.load()?.admin,
+    )]
+    pub admin: Signer<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        mut,
+        seeds = [
+            FEE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.fee_vault_bump
+    )]
+    pub fee_vault: AccountInfo<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        seeds = [
+            FEE_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.fee_vault_authority_bump
+    )]
+    pub fee_vault_authority: AccountInfo<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(mut)]
+    pub dst_token_account: AccountInfo<'info>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+pub fn lending_pool_withdraw_insurance(
+    ctx: Context<LendingPoolWithdrawInsurance>,
+    amount: u64,
+) -> MarginfiResult {
+    let LendingPoolWithdrawInsurance {
+        bank: bank_loader,
+        insurance_vault,
+        insurance_vault_authority,
+        dst_token_account,
+        token_program,
+        ..
+    } = ctx.accounts;
+
+    let bank = bank_loader.load()?;
+
+    bank.withdraw_spl_transfer(
+        amount,
+        Transfer {
+            from: insurance_vault.to_account_info(),
+            to: dst_token_account.to_account_info(),
+            authority: insurance_vault_authority.to_account_info(),
+        },
+        token_program.to_account_info(),
+        bank_signer!(
+            BankVaultType::Insurance,
+            bank_loader.key(),
+            bank.insurance_vault_authority_bump
+        ),
+    )?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LendingPoolWithdrawInsurance<'info> {
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        constraint = bank.load()?.group == marginfi_group.key(),
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+
+    #[account(
+        address = marginfi_group.load()?.admin,
+    )]
+    pub admin: Signer<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        mut,
+        seeds = [
+            INSURANCE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.insurance_vault_bump
+    )]
+    pub insurance_vault: AccountInfo<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        seeds = [
+            INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.insurance_vault_authority_bump
+    )]
+    pub insurance_vault_authority: AccountInfo<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(mut)]
+    pub dst_token_account: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
 }

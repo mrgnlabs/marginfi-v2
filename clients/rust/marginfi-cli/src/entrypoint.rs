@@ -1,6 +1,6 @@
 use crate::{
     config::GlobalOptions,
-    processor::{self, group::process_update_lookup_tables, process_set_user_flag},
+    processor::{self, process_set_user_flag},
     profile::{load_profile, Profile},
 };
 use anchor_client::Cluster;
@@ -251,6 +251,11 @@ pub enum BankCommand {
         usd_init_limit: Option<u64>,
         #[clap(long, help = "Oracle max age in seconds, 0 to use default value (60s)")]
         oracle_max_age: Option<u16>,
+        #[clap(
+            long,
+            help = "Permissionless bad debt settlement, if true the group admin is not required to settle bad debt"
+        )]
+        permissionless_bad_debt_settlement: Option<bool>,
     },
     #[cfg(feature = "dev")]
     InspectPriceOracle {
@@ -287,6 +292,24 @@ pub enum BankCommand {
     #[cfg(feature = "admin")]
     SettleAllEmissions {
         bank: Pubkey,
+    },
+    #[cfg(feature = "admin")]
+    CollectFees {
+        bank: Pubkey,
+    },
+    #[cfg(feature = "admin")]
+    WithdrawFees {
+        bank: Pubkey,
+        amount: f64,
+        #[clap(help = "Destination address, defaults to the profile authority")]
+        destination_address: Option<Pubkey>,
+    },
+    #[cfg(feature = "admin")]
+    WithdrawInsurance {
+        bank: Pubkey,
+        amount: f64,
+        #[clap(help = "Destination address, defaults to the profile authority")]
+        destination_address: Option<Pubkey>,
     },
 }
 
@@ -549,7 +572,11 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         #[cfg(feature = "admin")]
         GroupCommand::UpdateLookupTable {
             existing_token_lookup_tables,
-        } => process_update_lookup_tables(&config, &profile, existing_token_lookup_tables),
+        } => processor::group::process_update_lookup_tables(
+            &config,
+            &profile,
+            existing_token_lookup_tables,
+        ),
     }
 }
 
@@ -592,6 +619,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             oracle_key,
             usd_init_limit,
             oracle_max_age,
+            permissionless_bad_debt_settlement,
         } => {
             let bank = config
                 .mfi_program
@@ -639,6 +667,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     risk_tier: risk_tier.map(|x| x.into()),
                     total_asset_value_init_limit: usd_init_limit,
                     oracle_max_age,
+                    permissionless_bad_debt_settlement,
                 },
             )
         }
@@ -678,6 +707,22 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         #[cfg(feature = "admin")]
         BankCommand::SettleAllEmissions { bank } => {
             processor::emissions::claim_all_emissions_for_bank(&config, &profile, bank)
+        }
+        #[cfg(feature = "admin")]
+        BankCommand::CollectFees { bank } => processor::admin::process_collect_fees(config, bank),
+        #[cfg(feature = "admin")]
+        BankCommand::WithdrawFees {
+            bank,
+            amount,
+            destination_address,
+        } => processor::admin::process_withdraw_fees(config, bank, amount, destination_address),
+        #[cfg(feature = "admin")]
+        BankCommand::WithdrawInsurance {
+            bank,
+            amount,
+            destination_address,
+        } => {
+            processor::admin::process_withdraw_insurance(config, bank, amount, destination_address)
         }
     }
 }

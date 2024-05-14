@@ -267,6 +267,33 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
+    pub async fn try_update(&self, config: GroupConfig) -> Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::MarginfiGroupConfigure {
+                marginfi_group: self.key,
+                admin: self.ctx.borrow().payer.pubkey(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::MarginfiGroupConfigure { config }.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey().clone()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn try_collect_fees(&self, bank: &BankFixture) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
 
@@ -305,7 +332,7 @@ impl MarginfiGroupFixture {
     ) -> Result<(), BanksClientError> {
         let mut accounts = marginfi::accounts::LendingPoolHandleBankruptcy {
             marginfi_group: self.key,
-            admin: self.ctx.borrow().payer.pubkey(),
+            signer: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
             marginfi_account: marginfi_account.key,
             liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
