@@ -1083,6 +1083,13 @@ impl MarginfiEvent for ConfigureBankEvent {
         } else {
             ConfigureBankEvents::insert_with_dependents(
                 db_connection,
+                timestamp,
+                slot,
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
                 &self.bank.to_string(),
                 &bank_data.mint.address,
                 &bank_data.mint.symbol,
@@ -1106,13 +1113,6 @@ impl MarginfiEvent for ConfigureBankEvent {
                 risk_tier_id,
                 total_asset_value_init_limit,
                 oracle_max_age,
-                timestamp,
-                slot,
-                in_flashloan,
-                &call_stack,
-                &tx_sig,
-                outer_ix_index,
-                inner_ix_index,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
