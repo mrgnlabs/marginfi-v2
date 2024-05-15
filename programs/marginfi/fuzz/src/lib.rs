@@ -1,9 +1,7 @@
 use account_state::{AccountInfoCache, AccountsState};
 use anchor_lang::{
-    prelude::{
-        Account, AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer, SolanaSysvar,
-        Sysvar,
-    },
+    accounts::{interface::Interface, interface_account::InterfaceAccount},
+    prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer, Sysvar},
     Discriminator, Key,
 };
 use arbitrary_helpers::{AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange};
@@ -226,16 +224,20 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                     marginfi_group: AccountLoader::try_from(&self.marginfi_group).unwrap(),
                     admin: Signer::try_from(&self.owner).unwrap(),
                     fee_payer: Signer::try_from(&self.owner).unwrap(),
-                    bank_mint: Box::new(Account::try_from(&mint).unwrap()),
+                    bank_mint: Box::new(InterfaceAccount::try_from(&mint).unwrap()),
                     bank: AccountLoader::try_from_unchecked(&marginfi::ID, &bank).unwrap(),
                     liquidity_vault_authority: liquidity_vault_authority.clone(),
-                    liquidity_vault: Box::new(Account::try_from(&liquidity_vault).unwrap()),
+                    liquidity_vault: Box::new(
+                        InterfaceAccount::try_from(&liquidity_vault).unwrap(),
+                    ),
                     insurance_vault_authority: insurance_vault_authority.clone(),
-                    insurance_vault: Box::new(Account::try_from(&insurance_vault).unwrap()),
+                    insurance_vault: Box::new(
+                        InterfaceAccount::try_from(&insurance_vault).unwrap(),
+                    ),
                     fee_vault_authority: fee_vault_authority.clone(),
-                    fee_vault: Box::new(Account::try_from(&fee_vault).unwrap()),
+                    fee_vault: Box::new(InterfaceAccount::try_from(&fee_vault).unwrap()),
                     rent: Sysvar::from_account_info(&self.rent_sysvar).unwrap(),
-                    token_program: Program::try_from(&self.token_program).unwrap(),
+                    token_program: Interface::try_from(&self.token_program).unwrap(),
                     system_program: Program::try_from(&self.system_program).unwrap(),
                 },
                 &[oracle.clone()],
@@ -359,7 +361,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                     signer_token_account: marginfi_account.token_accounts[bank_idx.0 as usize]
                         .clone(),
                     bank_liquidity_vault: bank.liquidity_vault.clone(),
-                    token_program: Program::try_from(&self.token_program)?,
+                    token_program: Interface::try_from(&self.token_program)?,
                 },
                 &[],
                 BTreeMap::new(),
@@ -407,7 +409,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                     signer_token_account: marginfi_account.token_accounts[bank_idx.0 as usize]
                         .clone(),
                     bank_liquidity_vault: bank.liquidity_vault.clone(),
-                    token_program: Program::try_from(&self.token_program)?,
+                    token_program: Interface::try_from(&self.token_program)?,
                 },
                 &[],
                 BTreeMap::new(),
@@ -465,12 +467,12 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                     marginfi_account: AccountLoader::try_from(&marginfi_account.margin_account)?,
                     signer: Signer::try_from(&self.owner)?,
                     bank: AccountLoader::try_from(&bank.bank)?,
-                    token_program: Program::try_from(&self.token_program)?,
-                    destination_token_account: Account::try_from(
+                    token_program: Interface::try_from(&self.token_program)?,
+                    destination_token_account: InterfaceAccount::try_from(
                         &marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
                     )?,
                     bank_liquidity_vault_authority: bank.liquidity_vault_authority.clone(),
-                    bank_liquidity_vault: Account::try_from(&bank.liquidity_vault)?,
+                    bank_liquidity_vault: InterfaceAccount::try_from(&bank.liquidity_vault)?,
                 },
                 &marginfi_account.get_remaining_accounts(
                     &self.get_bank_map(),
@@ -520,12 +522,12 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                     marginfi_account: AccountLoader::try_from(&marginfi_account.margin_account)?,
                     signer: Signer::try_from(&self.owner)?,
                     bank: AccountLoader::try_from(&bank.bank)?,
-                    token_program: Program::try_from(&self.token_program)?,
-                    destination_token_account: Account::try_from(
+                    token_program: Interface::try_from(&self.token_program)?,
+                    destination_token_account: InterfaceAccount::try_from(
                         &marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
                     )?,
                     bank_liquidity_vault_authority: bank.liquidity_vault_authority.clone(),
-                    bank_liquidity_vault: Account::try_from(&bank.liquidity_vault)?,
+                    bank_liquidity_vault: InterfaceAccount::try_from(&bank.liquidity_vault)?,
                 },
                 &marginfi_account.get_remaining_accounts(
                     &self.get_bank_map(),
@@ -615,11 +617,11 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                         &liquidatee_account.margin_account.clone(),
                     )?,
                     bank_liquidity_vault_authority: liab_bank.liquidity_vault_authority.clone(),
-                    bank_liquidity_vault: Box::new(Account::try_from(
+                    bank_liquidity_vault: Box::new(InterfaceAccount::try_from(
                         &liab_bank.liquidity_vault.clone(),
                     )?),
                     bank_insurance_vault: liab_bank.insurance_vault.clone(),
-                    token_program: Program::try_from(&self.token_program)?,
+                    token_program: Interface::try_from(&self.token_program)?,
                 },
                 &remaining_accounts,
                 BTreeMap::new(),
@@ -671,9 +673,11 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                     &marginfi_account.margin_account.clone(),
                 )?,
                 liquidity_vault: bank.liquidity_vault.clone(),
-                insurance_vault: Box::new(Account::try_from(&bank.insurance_vault.clone())?),
+                insurance_vault: Box::new(InterfaceAccount::try_from(
+                    &bank.insurance_vault.clone(),
+                )?),
                 insurance_vault_authority: bank.insurance_vault_authority.clone(),
-                token_program: Program::try_from(&self.token_program)?,
+                token_program: Interface::try_from(&self.token_program)?,
             },
             &marginfi_account.get_remaining_accounts(&self.get_bank_map(), vec![], vec![]),
             BTreeMap::new(),

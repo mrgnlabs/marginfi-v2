@@ -1,4 +1,6 @@
 use anchor_lang::prelude::{AccountInfo, Clock, Pubkey};
+use base64::Engine;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use solana_program::{entrypoint::ProgramResult, instruction::Instruction, program_stubs};
 
@@ -30,7 +32,13 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
         if *VERBOSE == 0 {
             return;
         }
-        log!("data: {}", fields.iter().map(base64::encode).join(" "));
+        log!(
+            "data: {}",
+            fields
+                .iter()
+                .map(|field| base64::engine::general_purpose::STANDARD.encode(field))
+                .join(" ")
+        );
     }
 
     fn sol_invoke_signed(
