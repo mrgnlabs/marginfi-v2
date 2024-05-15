@@ -23,7 +23,7 @@ use yellowstone_grpc_proto::{
     },
 };
 
-use super::parser::{MarginfiEventParser, MarginfiEventWithMeta, MARGINFI_GROUP_ADDRESS};
+use super::parser::{MarginfiEventParser, MarginfiEventWithMeta};
 use crate::{entity_store::EntityStore, parser::MarginfiEvent};
 
 const BLOCK_META_BUFFER_LENGTH: usize = 30;
@@ -42,7 +42,7 @@ impl EventIndexer {
     ) -> Self {
         let program_id = marginfi::ID;
 
-        let parser = MarginfiEventParser::new(program_id, MARGINFI_GROUP_ADDRESS);
+        let parser = MarginfiEventParser::new(program_id);
 
         let (transaction_tx, transaction_rx) = crossbeam::channel::unbounded::<TransactionUpdate>();
         let (event_tx, event_rx) = crossbeam::channel::unbounded::<Vec<MarginfiEventWithMeta>>();

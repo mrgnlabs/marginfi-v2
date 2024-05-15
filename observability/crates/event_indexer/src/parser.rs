@@ -21,9 +21,9 @@ use solana_sdk::{
     hash::Hash,
     instruction::CompiledInstruction,
     message::SimpleAddressLoader,
+    pubkey::Pubkey,
     signature::Signature,
     transaction::{MessageHash, SanitizedTransaction},
-    {pubkey, pubkey::Pubkey},
 };
 use solana_transaction_status::{
     InnerInstruction, InnerInstructions, VersionedTransactionWithStatusMeta,
@@ -37,7 +37,6 @@ use crate::{
 };
 
 const SPL_TRANSFER_DISCRIMINATOR: u8 = 3;
-pub const MARGINFI_GROUP_ADDRESS: Pubkey = pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8");
 const COMPACT_BANK_CONFIG_ARG_UPGRADE_SLOT: u64 = 232_933_019;
 const TOTAL_ASSET_VALUE_INIT_LIMIT_UPGRADE_SLOT: u64 = 204_502_867;
 const ADD_BANK_IX_ACCOUNTS_CHANGE_UPGRADE_SLOT: u64 = 232_933_019;
@@ -1240,7 +1239,7 @@ impl MarginfiEvent for ConfigureGroupEvent {
                 outer_ix_index,
                 inner_ix_index,
                 group_data.id.unwrap(),
-                group_data.admin,
+                self.admin.to_string(),
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         } else {
@@ -1254,7 +1253,7 @@ impl MarginfiEvent for ConfigureGroupEvent {
                 outer_ix_index,
                 inner_ix_index,
                 &self.group.to_string(),
-                &group_data.admin,
+                &self.admin.to_string(),
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -1269,15 +1268,11 @@ impl MarginfiEvent for ConfigureGroupEvent {
 
 pub struct MarginfiEventParser {
     program_id: Pubkey,
-    marginfi_group: Pubkey,
 }
 
 impl MarginfiEventParser {
-    pub fn new(program_id: Pubkey, marginfi_group: Pubkey) -> Self {
-        Self {
-            program_id,
-            marginfi_group,
-        }
+    pub fn new(program_id: Pubkey) -> Self {
+        Self { program_id }
     }
 
     pub fn extract_events(
