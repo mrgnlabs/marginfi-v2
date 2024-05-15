@@ -12,7 +12,7 @@ use marginfi::{
         LendingAccountSettleEmissions, LendingAccountStartFlashloan, LendingAccountWithdraw,
         LendingAccountWithdrawEmissions, LendingPoolAccrueBankInterest, LendingPoolAddBank,
         LendingPoolAddBankWithSeed, LendingPoolConfigureBank, MarginfiAccountInitialize,
-        SetNewAccountAuthority,
+        MarginfiGroupConfigure, MarginfiGroupInitialize, SetNewAccountAuthority,
     },
     state::marginfi_group::{BankConfig, BankConfigCompact, BankConfigOpt},
 };
@@ -88,7 +88,9 @@ pub enum Event {
     Liquidate(LiquidateEvent),
 
     // Admin actions
-    AddBank(AddBankEvent),
+    CreateGroup(CreateGroupEvent),
+    ConfigureGroup(ConfigureGroupEvent),
+    CreateBank(CreateBankEvent),
     ConfigureBank(ConfigureBankEvent),
     Unknown(UnknownEvent),
 }
@@ -140,6 +142,7 @@ impl MarginfiEvent for UnknownEvent {
 
 #[derive(Debug)]
 pub struct CreateAccountEvent {
+    pub group: Pubkey,
     pub account: Pubkey,
     pub authority: Pubkey,
 }
@@ -159,8 +162,10 @@ impl MarginfiEvent for CreateAccountEvent {
     ) -> Result<(), IndexingError> {
         let authority_data = entity_store.get_or_fetch_user(&self.authority.to_string())?;
         let account_data = entity_store.get_or_fetch_account_no_rpc(&self.account.to_string())?;
+        let group_data = entity_store.get_or_fetch_group(&self.group.to_string())?;
 
         let all_dependencies_exist = authority_data.id.is_some()
+            && group_data.id.is_some()
             && account_data.as_ref().map(|ad| ad.id).flatten().is_some();
 
         if all_dependencies_exist {
@@ -182,6 +187,8 @@ impl MarginfiEvent for CreateAccountEvent {
                 db_connection,
                 &self.account.to_string(),
                 &self.authority.to_string(),
+                &self.group.to_string(),
+                &group_data.admin,
                 timestamp,
                 Decimal::from_u64(slot).unwrap(),
                 in_flashloan,
@@ -250,6 +257,8 @@ impl MarginfiEvent for AccountAuthorityTransferEvent {
                 &self.account.to_string(),
                 &self.old_authority.to_string(),
                 &self.new_authority.to_string(),
+                &account_data.group.address,
+                &account_data.group.admin,
                 timestamp,
                 Decimal::from_u64(slot).unwrap(),
                 in_flashloan,
@@ -294,10 +303,8 @@ impl MarginfiEvent for DepositEvent {
         let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
-        let all_dependencies_exist = authority_data.id.is_some()
-            && account_data.id.is_some()
-            && bank_data.mint.id.is_some()
-            && bank_data.id.is_some();
+        let all_dependencies_exist =
+            authority_data.id.is_some() && account_data.id.is_some() && bank_data.id.is_some();
 
         if all_dependencies_exist {
             DepositEvents::insert(
@@ -324,6 +331,8 @@ impl MarginfiEvent for DepositEvent {
                 &bank_data.mint.symbol,
                 bank_data.mint.decimals,
                 &self.bank.to_string(),
+                &account_data.group.address,
+                &account_data.group.admin,
                 Decimal::from_u64(self.amount).unwrap(),
                 timestamp,
                 Decimal::from_u64(slot).unwrap(),
@@ -369,10 +378,8 @@ impl MarginfiEvent for BorrowEvent {
         let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
-        let all_dependencies_exist = authority_data.id.is_some()
-            && account_data.id.is_some()
-            && bank_data.mint.id.is_some()
-            && bank_data.id.is_some();
+        let all_dependencies_exist =
+            authority_data.id.is_some() && account_data.id.is_some() && bank_data.id.is_some();
 
         if all_dependencies_exist {
             BorrowEvents::insert(
@@ -399,6 +406,8 @@ impl MarginfiEvent for BorrowEvent {
                 &bank_data.mint.symbol,
                 bank_data.mint.decimals,
                 &self.bank.to_string(),
+                &account_data.group.address,
+                &account_data.group.admin,
                 Decimal::from_u64(self.amount).unwrap(),
                 timestamp,
                 Decimal::from_u64(slot).unwrap(),
@@ -445,10 +454,8 @@ impl MarginfiEvent for RepayEvent {
         let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
-        let all_dependencies_exist = authority_data.id.is_some()
-            && account_data.id.is_some()
-            && bank_data.mint.id.is_some()
-            && bank_data.id.is_some();
+        let all_dependencies_exist =
+            authority_data.id.is_some() && account_data.id.is_some() && bank_data.id.is_some();
 
         if all_dependencies_exist {
             RepayEvents::insert(
@@ -476,6 +483,8 @@ impl MarginfiEvent for RepayEvent {
                 &bank_data.mint.symbol,
                 bank_data.mint.decimals,
                 &self.bank.to_string(),
+                &account_data.group.address,
+                &account_data.group.admin,
                 Decimal::from_u64(self.amount).unwrap(),
                 self.all,
                 timestamp,
@@ -523,10 +532,8 @@ impl MarginfiEvent for WithdrawEvent {
         let account_data = entity_store.get_or_fetch_account(&self.account.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank(&self.bank.to_string())?;
 
-        let all_dependencies_exist = authority_data.id.is_some()
-            && account_data.id.is_some()
-            && bank_data.mint.id.is_some()
-            && bank_data.id.is_some();
+        let all_dependencies_exist =
+            authority_data.id.is_some() && account_data.id.is_some() && bank_data.id.is_some();
 
         if all_dependencies_exist {
             WithdrawEvents::insert(
@@ -554,6 +561,8 @@ impl MarginfiEvent for WithdrawEvent {
                 &bank_data.mint.symbol,
                 bank_data.mint.decimals,
                 &self.bank.to_string(),
+                &account_data.group.address,
+                &account_data.group.admin,
                 Decimal::from_u64(self.amount).unwrap(),
                 self.all,
                 timestamp,
@@ -605,7 +614,6 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
 
         let all_dependencies_exist = authority_data.id.is_some()
             && account_data.id.is_some()
-            && bank_data.mint.id.is_some()
             && bank_data.id.is_some()
             && emission_mint_data.id.is_some();
 
@@ -638,6 +646,8 @@ impl MarginfiEvent for WithdrawEmissionsEvent {
                 &emission_mint_data.address,
                 &emission_mint_data.symbol,
                 emission_mint_data.decimals,
+                &account_data.group.address,
+                &account_data.group.admin,
                 Decimal::from_u64(self.amount).unwrap(),
                 timestamp,
                 Decimal::from_u64(slot).unwrap(),
@@ -693,11 +703,8 @@ impl MarginfiEvent for LiquidateEvent {
             entity_store.get_or_fetch_account(&self.liquidatee_account.to_string())?;
 
         let all_dependencies_exist = liquidator_user_data.id.is_some()
-            && liquidatee_account_data.authority.id.is_some()
             && liquidator_account_data.id.is_some()
             && liquidatee_account_data.id.is_some()
-            && asset_bank_data.mint.id.is_some()
-            && liability_bank_data.mint.id.is_some()
             && asset_bank_data.id.is_some()
             && liability_bank_data.id.is_some();
 
@@ -737,6 +744,8 @@ impl MarginfiEvent for LiquidateEvent {
                 liability_bank_data.mint.decimals,
                 &asset_bank_data.address,
                 &liability_bank_data.address,
+                &liquidator_account_data.group.address,
+                &liquidator_account_data.group.admin,
                 asset_amount,
                 timestamp,
                 slot,
@@ -758,13 +767,14 @@ impl MarginfiEvent for LiquidateEvent {
 }
 
 #[derive(Debug)]
-pub struct AddBankEvent {
+pub struct CreateBankEvent {
+    pub group: Pubkey,
     pub bank: Pubkey,
     pub mint: Pubkey,
     pub config: BankConfig,
 }
 
-impl MarginfiEvent for AddBankEvent {
+impl MarginfiEvent for CreateBankEvent {
     fn db_insert(
         &self,
         timestamp: NaiveDateTime,
@@ -779,6 +789,7 @@ impl MarginfiEvent for AddBankEvent {
     ) -> Result<(), IndexingError> {
         let mint_data = entity_store.get_or_fetch_mint(&self.mint.to_string())?;
         let bank_data = entity_store.get_or_fetch_bank_no_rpc(&self.bank.to_string())?;
+        let group_data = entity_store.get_or_fetch_group(&self.group.to_string())?;
 
         let slot = Decimal::from_u64(slot).unwrap();
 
@@ -897,6 +908,8 @@ impl MarginfiEvent for AddBankEvent {
                 risk_tier_id,
                 total_asset_value_init_limit,
                 oracle_max_age,
+                &group_data.address,
+                &group_data.admin,
                 timestamp,
                 slot,
                 in_flashloan,
@@ -1113,6 +1126,8 @@ impl MarginfiEvent for ConfigureBankEvent {
                 risk_tier_id,
                 total_asset_value_init_limit,
                 oracle_max_age,
+                &bank_data.group.address,
+                &bank_data.group.admin,
             )
             .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
         }
@@ -1122,6 +1137,133 @@ impl MarginfiEvent for ConfigureBankEvent {
 
     fn name(&self) -> &'static str {
         "configure_bank"
+    }
+}
+
+#[derive(Debug)]
+pub struct CreateGroupEvent {
+    group: Pubkey,
+    admin: Pubkey,
+}
+
+impl MarginfiEvent for CreateGroupEvent {
+    fn db_insert(
+        &self,
+        timestamp: NaiveDateTime,
+        slot: u64,
+        tx_sig: String,
+        in_flashloan: bool,
+        call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
+        db_connection: &mut PgConnection,
+        entity_store: &mut EntityStore,
+    ) -> Result<(), IndexingError> {
+        let group_data = entity_store.get_or_fetch_group_no_rpc(&self.group.to_string())?;
+
+        let all_dependencies_exist = group_data.as_ref().map(|data| data.id).flatten().is_some();
+
+        let slot = Decimal::from_u64(slot).unwrap();
+
+        if all_dependencies_exist {
+            let group_data = group_data.unwrap();
+            CreateGroupEvents::insert(
+                db_connection,
+                timestamp,
+                slot,
+                in_flashloan,
+                call_stack,
+                tx_sig,
+                outer_ix_index,
+                inner_ix_index,
+                group_data.id.unwrap(),
+                group_data.admin,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            CreateGroupEvents::insert_with_dependents(
+                db_connection,
+                timestamp,
+                slot,
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
+                &self.group.to_string(),
+                &self.admin.to_string(),
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        "create_group"
+    }
+}
+
+#[derive(Debug)]
+pub struct ConfigureGroupEvent {
+    group: Pubkey,
+    admin: Pubkey,
+}
+
+impl MarginfiEvent for ConfigureGroupEvent {
+    fn db_insert(
+        &self,
+        timestamp: NaiveDateTime,
+        slot: u64,
+        tx_sig: String,
+        in_flashloan: bool,
+        call_stack: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
+        db_connection: &mut PgConnection,
+        entity_store: &mut EntityStore,
+    ) -> Result<(), IndexingError> {
+        let group_data = entity_store.get_or_fetch_group(&self.group.to_string())?;
+
+        let all_dependencies_exist = group_data.id.is_some();
+
+        let slot = Decimal::from_u64(slot).unwrap();
+
+        if all_dependencies_exist {
+            ConfigureGroupEvents::insert(
+                db_connection,
+                timestamp,
+                slot,
+                in_flashloan,
+                call_stack,
+                tx_sig,
+                outer_ix_index,
+                inner_ix_index,
+                group_data.id.unwrap(),
+                group_data.admin,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        } else {
+            ConfigureGroupEvents::insert_with_dependents(
+                db_connection,
+                timestamp,
+                slot,
+                in_flashloan,
+                &call_stack,
+                &tx_sig,
+                outer_ix_index,
+                inner_ix_index,
+                &self.group.to_string(),
+                &group_data.admin,
+            )
+            .map_err(|err| IndexingError::FailedToInsertEvent(err.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        "configure_group"
     }
 }
 
@@ -1292,24 +1434,16 @@ impl MarginfiEventParser {
         match discriminator {
             MarginfiAccountInitialize::DISCRIMINATOR => {
                 let marginfi_group = *ix_accounts.get(0).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
-
                 let marginfi_account = *ix_accounts.get(1).unwrap();
                 let authority = *ix_accounts.get(2).unwrap();
 
                 Some(Event::CreateAccount(CreateAccountEvent {
+                    group: marginfi_group,
                     account: marginfi_account,
                     authority,
                 }))
             }
             SetNewAccountAuthority::DISCRIMINATOR => {
-                let marginfi_group = *ix_accounts.get(1).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
-
                 let marginfi_account = *ix_accounts.get(0).unwrap();
                 let signer = *ix_accounts.get(2).unwrap();
                 let new_authority = *ix_accounts.get(3).unwrap();
@@ -1323,11 +1457,6 @@ impl MarginfiEventParser {
                 ))
             }
             LendingAccountDeposit::DISCRIMINATOR => {
-                let marginfi_group = *ix_accounts.get(0).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
-
                 if remaining_instructions.is_empty() {
                     warn!(
                         "Expected non-empty remaining instructions after deposit in {:?}",
@@ -1351,11 +1480,6 @@ impl MarginfiEventParser {
                 }))
             }
             LendingAccountBorrow::DISCRIMINATOR => {
-                let marginfi_group = *ix_accounts.get(0).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
-
                 if remaining_instructions.is_empty() {
                     warn!(
                         "Expected non-empty remaining instructions after borrow in {:?}",
@@ -1379,11 +1503,6 @@ impl MarginfiEventParser {
                 }))
             }
             LendingAccountRepay::DISCRIMINATOR => {
-                let marginfi_group = *ix_accounts.get(0).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
-
                 let instruction = LendingAccountRepay::deserialize(&mut instruction_data).ok()?;
 
                 if remaining_instructions.is_empty() {
@@ -1410,11 +1529,6 @@ impl MarginfiEventParser {
                 }))
             }
             LendingAccountWithdraw::DISCRIMINATOR => {
-                let marginfi_group = *ix_accounts.get(0).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
-
                 let instruction =
                     LendingAccountWithdraw::deserialize(&mut instruction_data).ok()?;
 
@@ -1442,11 +1556,6 @@ impl MarginfiEventParser {
                 }))
             }
             LendingAccountLiquidate::DISCRIMINATOR => {
-                let marginfi_group = *ix_accounts.get(0).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
-
                 let instruction =
                     LendingAccountLiquidate::deserialize(&mut instruction_data).ok()?;
 
@@ -1466,11 +1575,6 @@ impl MarginfiEventParser {
                 }))
             }
             LendingAccountWithdrawEmissions::DISCRIMINATOR => {
-                let marginfi_group = *ix_accounts.get(0).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
-
                 let marginfi_account = *ix_accounts.get(1).unwrap();
                 let signer = *ix_accounts.get(2).unwrap();
                 let bank = *ix_accounts.get(3).unwrap();
@@ -1499,9 +1603,6 @@ impl MarginfiEventParser {
             }
             LendingPoolAddBank::DISCRIMINATOR => {
                 let marginfi_group = *ix_accounts.get(0).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
 
                 let bank_config = if slot < COMPACT_BANK_CONFIG_ARG_UPGRADE_SLOT {
                     BankConfig::deserialize(&mut &instruction_data[..531]).unwrap()
@@ -1517,7 +1618,8 @@ impl MarginfiEventParser {
                     (*ix_accounts.get(3).unwrap(), *ix_accounts.get(4).unwrap())
                 };
 
-                Some(Event::AddBank(AddBankEvent {
+                Some(Event::CreateBank(CreateBankEvent {
+                    group: marginfi_group,
                     bank,
                     mint: bank_mint,
                     config: bank_config,
@@ -1525,9 +1627,6 @@ impl MarginfiEventParser {
             }
             LendingPoolAddBankWithSeed::DISCRIMINATOR => {
                 let marginfi_group = *ix_accounts.get(0).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
 
                 let bank_config = BankConfigCompact::deserialize(&mut &instruction_data[..243])
                     .unwrap()
@@ -1536,18 +1635,14 @@ impl MarginfiEventParser {
                 let bank_mint = *ix_accounts.get(3).unwrap();
                 let bank = *ix_accounts.get(4).unwrap();
 
-                Some(Event::AddBank(AddBankEvent {
+                Some(Event::CreateBank(CreateBankEvent {
+                    group: marginfi_group,
                     bank,
                     mint: bank_mint,
                     config: bank_config,
                 }))
             }
             LendingPoolConfigureBank::DISCRIMINATOR => {
-                let marginfi_group = *ix_accounts.get(0).unwrap();
-                if !marginfi_group.eq(&self.marginfi_group) {
-                    return None;
-                }
-
                 // println!("Instruction data: {:?}", instruction_data);
                 // println!("data len: {:?}", instruction_data.len());
 
@@ -1582,6 +1677,24 @@ impl MarginfiEventParser {
                 Some(Event::ConfigureBank(ConfigureBankEvent {
                     bank,
                     config: bank_config_opt,
+                }))
+            }
+            MarginfiGroupInitialize::DISCRIMINATOR => {
+                let marginfi_group = *ix_accounts.get(0).unwrap();
+                let admin = *ix_accounts.get(1).unwrap();
+
+                Some(Event::CreateGroup(CreateGroupEvent {
+                    group: marginfi_group,
+                    admin,
+                }))
+            }
+            MarginfiGroupConfigure::DISCRIMINATOR => {
+                let marginfi_group = *ix_accounts.get(0).unwrap();
+                let admin = *ix_accounts.get(1).unwrap();
+
+                Some(Event::ConfigureGroup(ConfigureGroupEvent {
+                    group: marginfi_group,
+                    admin,
                 }))
             }
             LendingAccountStartFlashloan::DISCRIMINATOR => {

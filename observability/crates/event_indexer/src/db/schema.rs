@@ -7,6 +7,7 @@ diesel::table! {
         user_id -> Int4,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        group_id -> Int4,
     }
 }
 
@@ -24,6 +25,7 @@ diesel::table! {
         mint_id -> Int4,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        group_id -> Int4,
     }
 }
 
@@ -83,6 +85,23 @@ diesel::table! {
 }
 
 diesel::table! {
+    configure_group_events (id) {
+        id -> Int4,
+        timestamp -> Timestamp,
+        slot -> Numeric,
+        tx_sig -> Varchar,
+        in_flashloan -> Bool,
+        call_stack -> Varchar,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
+        group_id -> Int4,
+        admin -> Nullable<Varchar>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     create_account_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
@@ -135,6 +154,23 @@ diesel::table! {
 }
 
 diesel::table! {
+    create_group_events (id) {
+        id -> Int4,
+        timestamp -> Timestamp,
+        slot -> Numeric,
+        tx_sig -> Varchar,
+        in_flashloan -> Bool,
+        call_stack -> Varchar,
+        outer_ix_index -> Int2,
+        inner_ix_index -> Nullable<Int2>,
+        group_id -> Int4,
+        admin -> Varchar,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     deposit_events (id) {
         id -> Int4,
         timestamp -> Timestamp,
@@ -151,6 +187,16 @@ diesel::table! {
         updated_at -> Timestamp,
         outer_ix_index -> Int2,
         inner_ix_index -> Nullable<Int2>,
+    }
+}
+
+diesel::table! {
+    groups (id) {
+        id -> Int4,
+        address -> Varchar,
+        admin -> Varchar,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -307,7 +353,9 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(accounts -> groups (group_id));
 diesel::joinable!(accounts -> users (user_id));
+diesel::joinable!(banks -> groups (group_id));
 diesel::joinable!(banks -> mints (mint_id));
 diesel::joinable!(borrow_events -> accounts (account_id));
 diesel::joinable!(borrow_events -> banks (bank_id));
@@ -316,12 +364,14 @@ diesel::joinable!(configure_bank_events -> bank_operational_state (operational_s
 diesel::joinable!(configure_bank_events -> banks (bank_id));
 diesel::joinable!(configure_bank_events -> oracle_setup (oracle_setup_id));
 diesel::joinable!(configure_bank_events -> risk_tier (risk_tier_id));
+diesel::joinable!(configure_group_events -> groups (group_id));
 diesel::joinable!(create_account_events -> accounts (account_id));
 diesel::joinable!(create_account_events -> users (authority_id));
 diesel::joinable!(create_bank_events -> bank_operational_state (operational_state_id));
 diesel::joinable!(create_bank_events -> banks (bank_id));
 diesel::joinable!(create_bank_events -> oracle_setup (oracle_setup_id));
 diesel::joinable!(create_bank_events -> risk_tier (risk_tier_id));
+diesel::joinable!(create_group_events -> groups (group_id));
 diesel::joinable!(deposit_events -> accounts (account_id));
 diesel::joinable!(deposit_events -> banks (bank_id));
 diesel::joinable!(deposit_events -> users (authority_id));
@@ -344,9 +394,12 @@ diesel::allow_tables_to_appear_in_same_query!(
     banks,
     borrow_events,
     configure_bank_events,
+    configure_group_events,
     create_account_events,
     create_bank_events,
+    create_group_events,
     deposit_events,
+    groups,
     liquidate_events,
     mints,
     oracle_setup,

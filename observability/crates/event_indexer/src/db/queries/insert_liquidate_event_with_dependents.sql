@@ -1,4 +1,17 @@
-WITH upsert_user_liquidator AS (
+WITH upsert_group AS (
+    INSERT INTO groups (address, admin)
+    VALUES ($20, $21)
+    ON CONFLICT (address) DO NOTHING
+    RETURNING id
+), existing_group AS (
+    SELECT id FROM groups WHERE address = $14
+), combined_group AS (
+    SELECT id FROM upsert_group
+    UNION ALL
+    SELECT id FROM existing_group
+    LIMIT 1
+),
+upsert_user_liquidator AS (
     INSERT INTO users (address)
     VALUES ($8)
     ON CONFLICT (address) DO NOTHING
@@ -25,8 +38,8 @@ upsert_user_liquidatee AS (
     LIMIT 1
 ),
 upsert_account_liquidator AS (
-    INSERT INTO accounts (address, user_id)
-    VALUES ($10, (SELECT id FROM combined_user_liquidator))
+    INSERT INTO accounts (address, user_id, group_id)
+    VALUES ($10, (SELECT id FROM combined_user_liquidator), (SELECT id FROM combined_group))
     ON CONFLICT (address) DO NOTHING
     RETURNING id
 ), existing_account_liquidator AS (
@@ -38,8 +51,8 @@ upsert_account_liquidator AS (
     LIMIT 1
 ),
 upsert_account_liquidatee AS (
-    INSERT INTO accounts (address, user_id)
-    VALUES ($11, (SELECT id FROM combined_user_liquidatee))
+    INSERT INTO accounts (address, user_id, group_id)
+    VALUES ($11, (SELECT id FROM combined_user_liquidatee), (SELECT id FROM combined_group))
     ON CONFLICT (address) DO NOTHING
     RETURNING id
 ), existing_account_liquidatee AS (
@@ -77,8 +90,8 @@ upsert_mint_liability AS (
     LIMIT 1
 ),
 upsert_bank_asset AS (
-    INSERT INTO banks (address, mint_id)
-    VALUES ($18, (SELECT id FROM combined_mint_asset))
+    INSERT INTO banks (address, mint_id, group_id)
+    VALUES ($18, (SELECT id FROM combined_mint_asset), (SELECT id FROM combined_group))
     ON CONFLICT (address) DO NOTHING
     RETURNING id
 ), existing_bank_asset AS (
@@ -90,8 +103,8 @@ upsert_bank_asset AS (
     LIMIT 1
 ),
 upsert_bank_liability AS (
-    INSERT INTO banks (address, mint_id)
-    VALUES ($19, (SELECT id FROM combined_mint_liability))
+    INSERT INTO banks (address, mint_id, group_id)
+    VALUES ($19, (SELECT id FROM combined_mint_liability), (SELECT id FROM combined_group))
     ON CONFLICT (address) DO NOTHING
     RETURNING id
 ), existing_bank_liability AS (
@@ -103,5 +116,5 @@ upsert_bank_liability AS (
     LIMIT 1
 )
 INSERT INTO liquidate_events (timestamp, slot, tx_sig, in_flashloan, call_stack, outer_ix_index, inner_ix_index, liquidator_account_id, liquidatee_account_id, liquidator_user_id, asset_bank_id, liability_bank_id, asset_amount)
-VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM combined_account_liquidator), (SELECT id FROM combined_account_liquidatee), (SELECT id FROM combined_user_liquidator), (SELECT id FROM combined_bank_asset), (SELECT id FROM combined_bank_liability), $20)
+VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM combined_account_liquidator), (SELECT id FROM combined_account_liquidatee), (SELECT id FROM combined_user_liquidator), (SELECT id FROM combined_bank_asset), (SELECT id FROM combined_bank_liability), $22)
 RETURNING id;

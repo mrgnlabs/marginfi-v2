@@ -1,4 +1,17 @@
-WITH upsert_old_authority AS (
+WITH upsert_group AS (
+    INSERT INTO groups (address, admin)
+    VALUES ($11, $12)
+    ON CONFLICT (address) DO NOTHING
+    RETURNING id
+), existing_group AS (
+    SELECT id FROM groups WHERE address = $11
+), combined_group AS (
+    SELECT id FROM upsert_group
+    UNION ALL
+    SELECT id FROM existing_group
+    LIMIT 1
+),
+upsert_old_authority AS (
     INSERT INTO users (address)
     VALUES ($8)
     ON CONFLICT (address) DO NOTHING

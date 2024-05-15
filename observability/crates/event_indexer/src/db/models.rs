@@ -19,13 +19,23 @@ pub struct Mints {
 }
 
 #[derive(Default, Debug, Queryable, Selectable, Insertable)]
-#[diesel(belongs_to(Mints, foreign_key = mint_id))]
+#[diesel(table_name = groups)]
+pub struct Groups {
+    #[diesel(skip_insertion)]
+    pub id: i32,
+    pub address: String,
+    pub admin: String,
+}
+
+#[derive(Default, Debug, Queryable, Selectable, Insertable)]
+#[diesel(belongs_to(Mints, foreign_key = mint_id), belongs_to(Groups, foreign_key = group_id))]
 #[diesel(table_name = banks)]
 pub struct Banks {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub address: String,
     pub mint_id: i32,
+    pub group_id: i32,
 }
 
 #[derive(Default, Debug, Queryable, Selectable, Insertable)]
@@ -38,12 +48,13 @@ pub struct Users {
 
 #[derive(Default, Debug, Queryable, Selectable, Insertable, Associations)]
 #[diesel(table_name = accounts)]
-#[diesel(belongs_to(Users, foreign_key = user_id))]
+#[diesel(belongs_to(Users, foreign_key = user_id), belongs_to(Groups, foreign_key = group_id))]
 pub struct Accounts {
     #[diesel(skip_insertion)]
     pub id: i32,
     pub address: String,
     pub user_id: i32,
+    pub group_id: i32,
 }
 
 #[derive(Default, Debug, Queryable, Selectable, Insertable)]
@@ -116,6 +127,8 @@ impl CreateAccountEvents {
         connection: &mut PgConnection,
         account_address: &str,
         authority: &str,
+        group_address: &str,
+        group_admin: &str,
         timestamp: chrono::NaiveDateTime,
         slot: Decimal,
         in_flashloan: bool,
@@ -136,6 +149,8 @@ impl CreateAccountEvents {
             .bind::<Nullable<SmallInt>, _>(inner_ix_index)
             .bind::<Text, _>(account_address)
             .bind::<Text, _>(authority)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")
@@ -204,6 +219,8 @@ impl TransferAccountAuthorityEvents {
         account: &str,
         old_authority: &str,
         new_authority: &str,
+        group_address: &str,
+        group_admin: &str,
         timestamp: chrono::NaiveDateTime,
         slot: Decimal,
         in_flashloan: bool,
@@ -226,6 +243,8 @@ impl TransferAccountAuthorityEvents {
             .bind::<Text, _>(old_authority)
             .bind::<Text, _>(new_authority)
             .bind::<Text, _>(account)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")
@@ -300,6 +319,8 @@ impl DepositEvents {
         bank_mint_symbol: &str,
         bank_mint_decimals: i16,
         bank_address: &str,
+        group_address: &str,
+        group_admin: &str,
         amount: Decimal,
         timestamp: chrono::NaiveDateTime,
         slot: Decimal,
@@ -325,6 +346,8 @@ impl DepositEvents {
             .bind::<Text, _>(bank_mint_symbol)
             .bind::<SmallInt, _>(bank_mint_decimals)
             .bind::<Text, _>(bank_address)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
             .bind::<Numeric, _>(amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -400,6 +423,8 @@ impl BorrowEvents {
         bank_mint_symbol: &str,
         bank_mint_decimals: i16,
         bank_address: &str,
+        group_address: &str,
+        group_admin: &str,
         amount: Decimal,
         timestamp: chrono::NaiveDateTime,
         slot: Decimal,
@@ -425,6 +450,8 @@ impl BorrowEvents {
             .bind::<Text, _>(bank_mint_symbol)
             .bind::<SmallInt, _>(bank_mint_decimals)
             .bind::<Text, _>(bank_address)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
             .bind::<Numeric, _>(amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -503,6 +530,8 @@ impl RepayEvents {
         bank_mint_symbol: &str,
         bank_mint_decimals: i16,
         bank_address: &str,
+        group_address: &str,
+        group_admin: &str,
         amount: Decimal,
         all: bool,
         timestamp: chrono::NaiveDateTime,
@@ -529,6 +558,8 @@ impl RepayEvents {
             .bind::<Text, _>(bank_mint_symbol)
             .bind::<SmallInt, _>(bank_mint_decimals)
             .bind::<Text, _>(bank_address)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
             .bind::<Numeric, _>(amount)
             .bind::<Bool, _>(all)
             .load::<IdResult>(connection)?
@@ -608,6 +639,8 @@ impl WithdrawEvents {
         bank_mint_symbol: &str,
         bank_mint_decimals: i16,
         bank_address: &str,
+        group_address: &str,
+        group_admin: &str,
         amount: Decimal,
         all: bool,
         timestamp: chrono::NaiveDateTime,
@@ -634,6 +667,8 @@ impl WithdrawEvents {
             .bind::<Text, _>(bank_mint_symbol)
             .bind::<SmallInt, _>(bank_mint_decimals)
             .bind::<Text, _>(bank_address)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
             .bind::<Numeric, _>(amount)
             .bind::<Bool, _>(all)
             .load::<IdResult>(connection)?
@@ -712,10 +747,12 @@ impl WithdrawEmissionsEvents {
         bank_mint_address: &str,
         bank_mint_symbol: &str,
         bank_mint_decimals: i16,
-        bank: &str,
+        bank_address: &str,
         emission_mint_address: &str,
         emission_mint_symbol: &str,
         emission_mint_decimals: i16,
+        group_address: &str,
+        group_admin: &str,
         amount: Decimal,
         timestamp: chrono::NaiveDateTime,
         slot: Decimal,
@@ -740,10 +777,12 @@ impl WithdrawEmissionsEvents {
             .bind::<Text, _>(bank_mint_address)
             .bind::<Text, _>(bank_mint_symbol)
             .bind::<SmallInt, _>(bank_mint_decimals)
-            .bind::<Text, _>(bank)
+            .bind::<Text, _>(bank_address)
             .bind::<Text, _>(emission_mint_address)
             .bind::<Text, _>(emission_mint_symbol)
             .bind::<SmallInt, _>(emission_mint_decimals)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
             .bind::<Numeric, _>(amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -831,6 +870,8 @@ impl LiquidateEvents {
         liability_mint_decimals: i16,
         asset_bank: &str,
         liability_bank: &str,
+        group_address: &str,
+        group_admin: &str,
         asset_amount: Decimal,
         timestamp: chrono::NaiveDateTime,
         slot: Decimal,
@@ -862,6 +903,8 @@ impl LiquidateEvents {
             .bind::<SmallInt, _>(liability_mint_decimals)
             .bind::<Text, _>(asset_bank)
             .bind::<Text, _>(liability_bank)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
             .bind::<Numeric, _>(asset_amount)
             .load::<IdResult>(connection)?
             .pop()
@@ -1002,6 +1045,8 @@ impl CreateBankEvents {
         risk_tier_id: i32,
         total_asset_value_init_limit: Decimal,
         oracle_max_age: i32,
+        group_address: &str,
+        group_admin: &str,
         timestamp: chrono::NaiveDateTime,
         slot: Decimal,
         in_flashloan: bool,
@@ -1043,6 +1088,8 @@ impl CreateBankEvents {
             .bind::<Integer, _>(risk_tier_id)
             .bind::<Numeric, _>(total_asset_value_init_limit)
             .bind::<Integer, _>(oracle_max_age)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")
@@ -1189,6 +1236,8 @@ impl ConfigureBankEvents {
         risk_tier_id: Option<i32>,
         total_asset_value_init_limit: Option<Decimal>,
         oracle_max_age: Option<i32>,
+        group_address: &str,
+        group_admin: &str,
     ) -> QueryResult<i32> {
         let sql = include_str!("queries/insert_configure_bank_event_with_dependents.sql");
 
@@ -1223,6 +1272,176 @@ impl ConfigureBankEvents {
             .bind::<Nullable<Integer>, _>(risk_tier_id)
             .bind::<Nullable<Numeric>, _>(total_asset_value_init_limit)
             .bind::<Nullable<Integer>, _>(oracle_max_age)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
+            .load::<IdResult>(connection)?
+            .pop()
+            .expect("Expected at least one id")
+            .id;
+
+        Ok(id)
+    }
+}
+
+#[derive(Default, Debug, Queryable, Selectable, Insertable)]
+#[diesel(table_name = create_group_events)]
+pub struct CreateGroupEvents {
+    #[diesel(skip_insertion)]
+    pub id: i32,
+    pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
+    pub tx_sig: String,
+    pub in_flashloan: bool,
+    pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
+
+    pub group_id: i32,
+    pub admin: String,
+}
+
+impl CreateGroupEvents {
+    pub fn insert(
+        db_connection: &mut PgConnection,
+        timestamp: chrono::NaiveDateTime,
+        slot: Decimal,
+        in_flashloan: bool,
+        call_stack: String,
+        tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
+        group_id: i32,
+        admin_address: String,
+    ) -> QueryResult<Option<i32>> {
+        let create_group_event = CreateGroupEvents {
+            timestamp,
+            slot,
+            tx_sig,
+            call_stack,
+            in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
+            group_id,
+            admin: admin_address,
+            id: Default::default(),
+        };
+
+        diesel::insert_into(create_group_events::table)
+            .values(&create_group_event)
+            .on_conflict_do_nothing()
+            .returning(create_group_events::id)
+            .get_result(db_connection)
+            .optional()
+    }
+
+    pub fn insert_with_dependents(
+        connection: &mut PgConnection,
+        timestamp: chrono::NaiveDateTime,
+        slot: Decimal,
+        in_flashloan: bool,
+        call_stack: &str,
+        tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
+        group_address: &str,
+        group_admin: &str,
+    ) -> QueryResult<i32> {
+        let sql = include_str!("queries/insert_create_group_event_with_dependents.sql");
+
+        let id = diesel::sql_query(sql)
+            .bind::<Timestamp, _>(timestamp)
+            .bind::<Numeric, _>(slot)
+            .bind::<Text, _>(tx_sig)
+            .bind::<Bool, _>(in_flashloan)
+            .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
+            .load::<IdResult>(connection)?
+            .pop()
+            .expect("Expected at least one id")
+            .id;
+
+        Ok(id)
+    }
+}
+
+#[derive(Default, Debug, Queryable, Selectable, Insertable)]
+#[diesel(table_name = configure_group_events)]
+pub struct ConfigureGroupEvents {
+    #[diesel(skip_insertion)]
+    pub id: i32,
+    pub timestamp: chrono::NaiveDateTime,
+    pub slot: Decimal,
+    pub tx_sig: String,
+    pub in_flashloan: bool,
+    pub call_stack: String,
+    pub outer_ix_index: i16,
+    pub inner_ix_index: Option<i16>,
+
+    pub group_id: i32,
+    pub admin: String,
+}
+
+impl ConfigureGroupEvents {
+    pub fn insert(
+        db_connection: &mut PgConnection,
+        timestamp: chrono::NaiveDateTime,
+        slot: Decimal,
+        in_flashloan: bool,
+        call_stack: String,
+        tx_sig: String,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
+        group_id: i32,
+        admin_address: String,
+    ) -> QueryResult<Option<i32>> {
+        let configure_group_event = Self {
+            timestamp,
+            slot,
+            tx_sig,
+            call_stack,
+            in_flashloan,
+            outer_ix_index,
+            inner_ix_index,
+            group_id,
+            admin: admin_address,
+            id: Default::default(),
+        };
+
+        diesel::insert_into(configure_group_events::table)
+            .values(&configure_group_event)
+            .on_conflict_do_nothing()
+            .returning(configure_group_events::id)
+            .get_result(db_connection)
+            .optional()
+    }
+
+    pub fn insert_with_dependents(
+        connection: &mut PgConnection,
+        timestamp: chrono::NaiveDateTime,
+        slot: Decimal,
+        in_flashloan: bool,
+        call_stack: &str,
+        tx_sig: &str,
+        outer_ix_index: i16,
+        inner_ix_index: Option<i16>,
+        group_address: &str,
+        group_admin: &str,
+    ) -> QueryResult<i32> {
+        let sql = include_str!("queries/insert_configure_group_event_with_dependents.sql");
+
+        let id = diesel::sql_query(sql)
+            .bind::<Timestamp, _>(timestamp)
+            .bind::<Numeric, _>(slot)
+            .bind::<Text, _>(tx_sig)
+            .bind::<Bool, _>(in_flashloan)
+            .bind::<Text, _>(call_stack)
+            .bind::<SmallInt, _>(outer_ix_index)
+            .bind::<Nullable<SmallInt>, _>(inner_ix_index)
+            .bind::<Text, _>(group_address)
+            .bind::<Text, _>(group_admin)
             .load::<IdResult>(connection)?
             .pop()
             .expect("Expected at least one id")

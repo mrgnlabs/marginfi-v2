@@ -4,7 +4,10 @@ use anchor_lang::AccountDeserialize;
 use diesel::{
     prelude::*, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper,
 };
-use marginfi::state::{marginfi_account::MarginfiAccount, marginfi_group::Bank};
+use marginfi::state::{
+    marginfi_account::MarginfiAccount,
+    marginfi_group::{Bank, MarginfiGroup},
+};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
@@ -22,6 +25,7 @@ pub struct EntityStore {
     pub rpc_client: RpcClient,
     pub db_connection: PgConnection,
     mint_cache: HashMap<String, MintData>,
+    group_cache: HashMap<String, GroupData>,
     bank_cache: HashMap<String, BankData>,
     account_cache: HashMap<String, AccountData>,
     user_cache: HashMap<String, UserData>,
@@ -42,6 +46,7 @@ impl EntityStore {
             rpc_client,
             db_connection,
             mint_cache: HashMap::new(),
+            group_cache: HashMap::new(),
             bank_cache: HashMap::new(),
             account_cache: HashMap::new(),
             user_cache: HashMap::new(),
@@ -61,6 +66,41 @@ impl EntityStore {
             }
 
             Ok(mint)
+        }
+    }
+
+    pub fn get_or_fetch_group(&mut self, address: &str) -> Result<GroupData, IndexingError> {
+        let maybe_group = self.group_cache.get(&address.to_string());
+
+        if let Some(group) = maybe_group {
+            Ok(group.clone())
+        } else {
+            let group = GroupData::fetch(self, address)?;
+
+            if group.id.is_some() {
+                self.group_cache.insert(address.to_string(), group.clone());
+            }
+
+            Ok(group)
+        }
+    }
+
+    pub fn get_or_fetch_group_no_rpc(
+        &mut self,
+        address: &str,
+    ) -> Result<Option<GroupData>, IndexingError> {
+        let maybe_group = self.group_cache.get(&address.to_string());
+
+        if let Some(group) = maybe_group {
+            Ok(Some(group.clone()))
+        } else {
+            let maybe_group = GroupData::fetch_from_db(self, address)?;
+
+            if let Some(group) = &maybe_group {
+                self.group_cache.insert(address.to_string(), group.clone());
+            }
+
+            Ok(maybe_group)
         }
     }
 
@@ -231,10 +271,85 @@ impl MintData {
 }
 
 #[derive(Debug, Clone)]
+pub struct GroupData {
+    pub id: Option<i32>,
+    pub address: String,
+    pub admin: String,
+}
+
+impl GroupData {
+    pub fn fetch(entity_store: &mut EntityStore, address: &str) -> Result<Self, IndexingError> {
+        let db_record = Self::fetch_from_db(entity_store, address)?;
+
+        if let Some(db_record) = db_record {
+            return Ok(db_record);
+        }
+
+        let group = Self::fetch_from_rpc(&entity_store.rpc_client, address)?;
+
+        Ok(group)
+    }
+
+    fn fetch_from_db(
+        entity_store: &mut EntityStore,
+        address: &str,
+    ) -> Result<Option<Self>, IndexingError> {
+        let db_records = groups::dsl::groups
+            .filter(groups::address.eq(address.to_string()))
+            .select(Groups::as_select())
+            .limit(1)
+            .load(&mut entity_store.db_connection)
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "group".to_string(),
+                    e.to_string(),
+                ))
+            })?;
+
+        if db_records.is_empty() {
+            return Ok(None);
+        }
+
+        let db_record = db_records.get(0).unwrap();
+
+        Ok(Some(Self {
+            id: Some(db_record.id),
+            address: db_record.address.clone(),
+            admin: db_record.admin.clone(),
+        }))
+    }
+
+    fn fetch_from_rpc(rpc_client: &RpcClient, address: &str) -> Result<Self, IndexingError> {
+        let group_data = rpc_client
+            .get_account_data(&Pubkey::from_str(address).unwrap())
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "group".to_string(),
+                    e.to_string(),
+                ))
+            })?;
+
+        let group = MarginfiGroup::try_deserialize(&mut group_data.as_slice()).map_err(|e| {
+            IndexingError::FailedToFetchEntity(FetchEntityError::UnpackError(
+                "group".to_string(),
+                e.to_string(),
+            ))
+        })?;
+
+        Ok(Self {
+            id: None,
+            address: address.to_string(),
+            admin: group.admin.to_string(),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct BankData {
     pub id: Option<i32>,
     pub address: String,
     pub mint: MintData,
+    pub group: GroupData,
 }
 
 impl BankData {
@@ -286,7 +401,26 @@ impl BankData {
         let mint_data = if let Some(mint_data) = entity_store.mint_cache.get(&mint.address) {
             mint_data.clone()
         } else {
-            MintData::fetch(entity_store, &mint.address)?
+            MintData::fetch_from_db(entity_store, &mint.address)?
+                .expect(&format!("Mint {:?} should be in DB.", mint.address))
+        };
+
+        let group = groups::dsl::groups
+            .find(&db_record.group_id)
+            .select(Groups::as_select())
+            .first(&mut entity_store.db_connection)
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "group".to_string(),
+                    e.to_string(),
+                ))
+            })?;
+
+        let group_data = if let Some(group_data) = entity_store.group_cache.get(&group.address) {
+            group_data.clone()
+        } else {
+            GroupData::fetch_from_db(entity_store, &group.address)?
+                .expect(&format!("Group {:?} should be in DB.", group.address))
         };
 
         Ok(Some(Self {
@@ -298,6 +432,7 @@ impl BankData {
                 symbol: mint_data.symbol,
                 decimals: mint_data.decimals,
             },
+            group: group_data,
         }))
     }
 
@@ -324,10 +459,13 @@ impl BankData {
 
         let mint_data = MintData::fetch(entity_store, &bank.mint.to_string())?;
 
+        let group_data = GroupData::fetch(entity_store, &bank.group.to_string())?;
+
         Ok(Self {
             id: None,
             address: address.to_string(),
             mint: mint_data,
+            group: group_data,
         })
     }
 }
@@ -337,6 +475,7 @@ pub struct AccountData {
     pub id: Option<i32>,
     pub address: String,
     pub authority: UserData,
+    pub group: GroupData,
 }
 
 impl AccountData {
@@ -347,9 +486,9 @@ impl AccountData {
             return Ok(db_record);
         }
 
-        let mint = Self::fetch_from_rpc(entity_store, address)?;
+        let account = Self::fetch_from_rpc(entity_store, address)?;
 
-        Ok(mint)
+        Ok(account)
     }
 
     fn fetch_from_db(
@@ -388,13 +527,33 @@ impl AccountData {
         let user_data = if let Some(user_data) = entity_store.user_cache.get(&authority.address) {
             user_data.clone()
         } else {
-            UserData::fetch(&mut entity_store.db_connection, address)?
+            UserData::fetch_from_db(&mut entity_store.db_connection, &authority.address)?
+                .expect(&format!("User {:?} should be in DB.", authority.address))
+        };
+
+        let group = groups::dsl::groups
+            .find(&db_record.group_id)
+            .select(Groups::as_select())
+            .first(&mut entity_store.db_connection)
+            .map_err(|e| {
+                IndexingError::FailedToFetchEntity(FetchEntityError::FetchError(
+                    "group".to_string(),
+                    e.to_string(),
+                ))
+            })?;
+
+        let group_data = if let Some(group_data) = entity_store.group_cache.get(&group.address) {
+            group_data.clone()
+        } else {
+            GroupData::fetch_from_db(entity_store, &group.address)?
+                .expect(&format!("Group {:?} should be in DB.", group.address))
         };
 
         Ok(Some(Self {
             id: Some(db_record.id),
             address: db_record.address.clone(),
             authority: user_data,
+            group: group_data,
         }))
     }
 
@@ -419,17 +578,25 @@ impl AccountData {
             ))
         })?;
 
-        let user_data =
-            if let Some(user_data) = entity_store.user_cache.get(&account.authority.to_string()) {
-                user_data.clone()
-            } else {
-                UserData::fetch(&mut entity_store.db_connection, address)?
-            };
+        let user_address = account.authority.to_string();
+        let user_data = if let Some(user_data) = entity_store.user_cache.get(&user_address) {
+            user_data.clone()
+        } else {
+            UserData::fetch(&mut entity_store.db_connection, &user_address)?
+        };
+
+        let group_address = account.group.to_string();
+        let group_data = if let Some(group_data) = entity_store.group_cache.get(&group_address) {
+            group_data.clone()
+        } else {
+            GroupData::fetch(entity_store, &group_address)?
+        };
 
         Ok(Self {
             id: None,
             address: address.to_string(),
             authority: user_data,
+            group: group_data,
         })
     }
 }

@@ -1,4 +1,17 @@
-WITH upsert_bank_mint AS (
+WITH upsert_group AS (
+    INSERT INTO groups (address, admin)
+    VALUES ($31, $32)
+    ON CONFLICT (address) DO NOTHING
+    RETURNING id
+), existing_group AS (
+    SELECT id FROM groups WHERE address = $31
+), combined_group AS (
+    SELECT id FROM upsert_group
+    UNION ALL
+    SELECT id FROM existing_group
+    LIMIT 1
+),
+upsert_bank_mint AS (
     INSERT INTO mints (address, symbol, decimals)
     VALUES ($9, $10, $11)
     ON CONFLICT (address) DO NOTHING
@@ -12,8 +25,8 @@ WITH upsert_bank_mint AS (
     LIMIT 1
 ),
 upsert_bank AS (
-    INSERT INTO banks (address, mint_id)
-    VALUES ($8, (SELECT id FROM combined_bank_mint))
+    INSERT INTO banks (address, mint_id, group_id)
+    VALUES ($8, (SELECT id FROM combined_bank_mint), (SELECT id FROM combined_group))
     ON CONFLICT (address) DO NOTHING
     RETURNING id
 ), existing_bank AS (
