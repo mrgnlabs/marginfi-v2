@@ -351,7 +351,7 @@ impl TokenAccountFixture {
         address: Pubkey,
     ) -> TokenAccountFixture {
         let token: TokenAccount = get_and_deserialize(ctx.clone(), address).await;
-        let token_program = token.owner.clone();
+        let token_program = token.owner;
 
         Self {
             ctx: ctx.clone(),
