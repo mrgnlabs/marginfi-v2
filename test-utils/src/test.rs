@@ -364,19 +364,19 @@ impl TestFixture {
             Some(USDC_MINT_DECIMALS),
         )
         .await;
-        let sol_mint_f = MintFixture::new_token_22(
+        let sol_mint_f = MintFixture::new(
             Rc::clone(&context),
             Some(sol_keypair),
             Some(SOL_MINT_DECIMALS),
         )
         .await;
-        let sol_equivalent_mint_f = MintFixture::new_token_22(
+        let sol_equivalent_mint_f = MintFixture::new(
             Rc::clone(&context),
             Some(sol_equivalent_keypair),
             Some(SOL_MINT_DECIMALS),
         )
         .await;
-        let mnde_mint_f = MintFixture::new_token_22(
+        let mnde_mint_f = MintFixture::new(
             Rc::clone(&context),
             Some(mnde_keypair),
             Some(MNDE_MINT_DECIMALS),

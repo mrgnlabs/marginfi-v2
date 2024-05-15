@@ -4,8 +4,9 @@ use crate::{
     state::{Campaign, Deposit},
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{
-    close_account, transfer, CloseAccount, Mint, Token, TokenAccount, Transfer,
+use anchor_spl::{
+    token_2022::{close_account, CloseAccount, Transfer},
+    token_interface::{Mint, TokenAccount, TokenInterface},
 };
 use marginfi::{program::Marginfi, state::marginfi_group::Bank};
 use std::mem::size_of;
@@ -35,7 +36,8 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
 
     msg!("User depositing {} tokens", amount);
 
-    transfer(
+    #[allow(deprecated)]
+    anchor_spl::token_2022::transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
@@ -152,10 +154,10 @@ pub struct CreateDeposit<'info> {
         token::mint = asset_mint,
         token::authority = mfi_pda_signer,
     )]
-    pub temp_token_account: Box<Account<'info, TokenAccount>>,
+    pub temp_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(address = marginfi_bank.load()?.mint)]
-    pub asset_mint: Box<Account<'info, Mint>>,
+    pub asset_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// CHECK: Asserted by mfi cpi call
     /// marginfi_bank is tied to a specific marginfi_group
@@ -187,7 +189,7 @@ pub struct CreateDeposit<'info> {
 
     /// CHECK: Asserted by CPI call
     pub marginfi_program: Program<'info, Marginfi>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
 }

@@ -3,7 +3,10 @@ use crate::{
     state::Campaign,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, Token, TokenAccount, Transfer};
+use anchor_spl::{
+    token_2022::Transfer,
+    token_interface::{TokenAccount, TokenInterface},
+};
 use marginfi::state::marginfi_group::Bank;
 use std::mem::size_of;
 
@@ -15,7 +18,8 @@ pub fn process(
 ) -> Result<()> {
     require_gt!(max_deposits, 0);
 
-    transfer(
+    #[allow(deprecated)]
+    anchor_spl::token_2022::transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
@@ -60,7 +64,7 @@ pub struct CreateCampaign<'info> {
         ],
         bump,
     )]
-    pub campaign_reward_vault: Box<Account<'info, TokenAccount>>,
+    pub campaign_reward_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         seeds = [
             CAMPAIGN_AUTH_SEED.as_bytes(),
@@ -83,6 +87,6 @@ pub struct CreateCampaign<'info> {
     #[account(mut)]
     pub funding_account: AccountInfo<'info>,
     pub rent: Sysvar<'info, Rent>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }

@@ -1,5 +1,8 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{close_account, transfer, Token, TokenAccount, Transfer};
+use anchor_spl::{
+    token_2022::{close_account, CloseAccount, Transfer},
+    token_interface::{TokenAccount, TokenInterface},
+};
 use fixed::types::I80F48;
 use marginfi::{program::Marginfi, state::marginfi_group::Bank};
 
@@ -101,7 +104,8 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
 
     // Transfer any additional rewards to the ephemeral token account
     if additional_reward_amount > 0 {
-        transfer(
+        #[allow(deprecated)]
+        anchor_spl::token_2022::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 Transfer {
@@ -129,8 +133,9 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
         ctx.accounts.temp_token_account.amount
     );
 
-    // Transfer the total amount to the user
-    transfer(
+    // Transfer the total:: amount to the user
+    #[allow(deprecated)]
+    anchor_spl::token_2022::transfer(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
@@ -150,7 +155,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
     // Close the temp token account
     close_account(CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
-        anchor_spl::token::CloseAccount {
+        CloseAccount {
             account: ctx.accounts.temp_token_account.to_account_info(),
             destination: ctx.accounts.signer.to_account_info(),
             authority: ctx.accounts.temp_token_account_authority.to_account_info(),
@@ -178,7 +183,7 @@ pub struct EndDeposit<'info> {
         ],
         bump,
     )]
-    pub campaign_reward_vault: Box<Account<'info, TokenAccount>>,
+    pub campaign_reward_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         seeds = [
@@ -215,7 +220,7 @@ pub struct EndDeposit<'info> {
         token::mint = asset_mint,
         token::authority = temp_token_account_authority,
     )]
-    pub temp_token_account: Box<Account<'info, TokenAccount>>,
+    pub temp_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         seeds = [
@@ -265,6 +270,6 @@ pub struct EndDeposit<'info> {
 
     /// CHECK: Asserted by CPI call
     pub marginfi_program: Program<'info, Marginfi>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }

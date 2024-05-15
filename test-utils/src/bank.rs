@@ -126,7 +126,7 @@ impl BankFixture {
                 admin: self.ctx.borrow().payer.pubkey(),
                 funding_account: reward_funding_account,
                 rent: solana_program::sysvar::rent::id(),
-                token_program: anchor_spl::token::ID,
+                token_program: self.get_token_program(),
                 system_program: solana_program::system_program::id(),
             }
             .to_account_metas(Some(true)),
