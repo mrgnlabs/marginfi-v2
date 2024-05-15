@@ -79,7 +79,7 @@ impl MarginfiAccountFixture {
                 bank: bank.key,
                 signer_token_account: funding_account,
                 bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
-                token_program: token::ID,
+                token_program: bank.get_token_program(),
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingAccountDeposit {
@@ -133,7 +133,7 @@ impl MarginfiAccountFixture {
                 bank_liquidity_vault_authority: bank
                     .get_vault_authority(BankVaultType::Liquidity)
                     .0,
-                token_program: token::ID,
+                token_program: bank.get_token_program(),
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingAccountWithdraw {
@@ -199,7 +199,7 @@ impl MarginfiAccountFixture {
                 bank_liquidity_vault_authority: bank
                     .get_vault_authority(BankVaultType::Liquidity)
                     .0,
-                token_program: token::ID,
+                token_program: bank.get_token_program(),
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingAccountBorrow {
@@ -261,7 +261,7 @@ impl MarginfiAccountFixture {
                 bank: bank.key,
                 signer_token_account: funding_account,
                 bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
-                token_program: token::ID,
+                token_program: bank.get_token_program(),
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingAccountRepay {
@@ -350,7 +350,7 @@ impl MarginfiAccountFixture {
                 .0,
             bank_liquidity_vault: liab_bank_fixture.get_vault(BankVaultType::Liquidity).0,
             bank_insurance_vault: liab_bank_fixture.get_vault(BankVaultType::Insurance).0,
-            token_program: token::ID,
+            token_program: liab_bank_fixture.get_token_program(),
         }
         .to_account_metas(Some(true));
 
@@ -402,7 +402,7 @@ impl MarginfiAccountFixture {
     pub async fn try_withdraw_emissions(
         &self,
         bank: &BankFixture,
-        recv_account: Pubkey,
+        recv_account: &TokenAccountFixture,
     ) -> std::result::Result<(), BanksClientError> {
         let emissions_mint = bank.load().await.emissions_mint;
         let ix = Instruction {
@@ -414,9 +414,9 @@ impl MarginfiAccountFixture {
                 emissions_mint,
                 emissions_auth: get_emissions_authority_address(bank.key, emissions_mint).0,
                 emissions_vault: get_emissions_token_account_address(bank.key, emissions_mint).0,
-                destination_account: recv_account,
+                destination_account: recv_account.key,
                 bank: bank.key,
-                token_program: token::ID,
+                token_program: recv_account.token_program,
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingAccountWithdrawEmissions {}.data(),

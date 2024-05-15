@@ -12,7 +12,8 @@ use crate::{
 };
 use crate::{check, debug, prelude::*};
 use anchor_lang::prelude::*;
-use anchor_spl::token::{TokenAccount, Transfer};
+use anchor_spl::token_2022::Transfer;
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
@@ -418,7 +419,7 @@ pub struct LendingAccountLiquidate<'info> {
         ],
         bump = liab_bank.load()?.liquidity_vault_bump
     )]
-    pub bank_liquidity_vault: Box<Account<'info, TokenAccount>>,
+    pub bank_liquidity_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Seed constraint
     #[account(
@@ -431,9 +432,5 @@ pub struct LendingAccountLiquidate<'info> {
     )]
     pub bank_insurance_vault: AccountInfo<'info>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
-    #[account(
-        address = liab_bank.load()?.token_program.to_program_id(),
-    )]
-    pub token_program: AccountInfo<'info>,
+    pub token_program: Interface<'info, TokenInterface>,
 }

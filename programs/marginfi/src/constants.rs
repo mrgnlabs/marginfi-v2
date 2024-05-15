@@ -124,6 +124,3 @@ pub const EXP_10: [i128; MAX_EXP_10] = [
 
 /// Value where total_asset_value_init_limit is considered inactive
 pub const TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE: u64 = 0;
-
-pub const SPL_TOKEN_PROGRAM: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
-pub const SPL_TOKEN_22_PROGRAM: Pubkey = pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");

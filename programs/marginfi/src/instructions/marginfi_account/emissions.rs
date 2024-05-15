@@ -1,9 +1,13 @@
 use anchor_lang::{prelude::*, Accounts, ToAccountInfo};
-use anchor_spl::token::{transfer, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::{
+    token_2022::{transfer, Transfer},
+    token_interface::{Mint, TokenAccount, TokenInterface},
+};
 
 use crate::{
     check,
     constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED},
+    debug,
     prelude::{MarginfiError, MarginfiResult},
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
@@ -33,6 +37,8 @@ pub fn lending_account_withdraw_emissions(
     let emissions_settle_amount = balance.settle_emissions_and_get_transfer_amount()?;
 
     if emissions_settle_amount > 0 {
+        debug!("Transferring {} emissions to user", emissions_settle_amount);
+
         let signer_seeds: &[&[&[u8]]] = &[&[
             EMISSIONS_AUTH_SEED.as_bytes(),
             &ctx.accounts.bank.key().to_bytes(),
@@ -81,7 +87,7 @@ pub struct LendingAccountWithdrawEmissions<'info> {
     #[account(
         address = bank.load()?.emissions_mint
     )]
-    pub emissions_mint: Account<'info, Mint>,
+    pub emissions_mint: InterfaceAccount<'info, Mint>,
 
     #[account(
         seeds = [
@@ -103,11 +109,11 @@ pub struct LendingAccountWithdrawEmissions<'info> {
         ],
         bump,
     )]
-    pub emissions_vault: Box<Account<'info, TokenAccount>>,
+    pub emissions_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub destination_account: Box<Account<'info, TokenAccount>>,
-    pub token_program: Program<'info, Token>,
+    pub destination_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 /// Permissionlessly settle unclaimed emissions to a users account.

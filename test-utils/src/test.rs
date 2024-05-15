@@ -48,6 +48,30 @@ impl TestSettings {
         }
     }
 
+    pub fn all_banks_with_t22_not_admin() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::USDCToken22,
+                    ..TestBankSetting::default()
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
+
     /// All banks with the same config, but USDC and SOL are using switchboard price oracls
     pub fn all_banks_swb_payer_not_admin() -> Self {
         Self {
@@ -159,6 +183,7 @@ pub enum BankMint {
     SolEquivalent7,
     SolEquivalent8,
     SolEquivalent9,
+    USDCToken22,
 }
 
 impl Default for BankMint {
@@ -175,6 +200,7 @@ pub struct TestFixture {
     pub sol_mint: MintFixture,
     pub sol_equivalent_mint: MintFixture,
     pub mnde_mint: MintFixture,
+    pub usdc_t22_mint: MintFixture,
 }
 
 pub const PYTH_USDC_FEED: Pubkey = pubkey!("PythUsdcPrice111111111111111111111111111111");
@@ -287,6 +313,7 @@ impl TestFixture {
         let sol_keypair = Keypair::new();
         let sol_equivalent_keypair = Keypair::new();
         let mnde_keypair = Keypair::new();
+        let usdc_t22_keypair = Keypair::new();
 
         program.add_account(
             PYTH_USDC_FEED,
@@ -331,28 +358,34 @@ impl TestFixture {
 
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 
-        let usdc_mint_f = MintFixture::new(
+        let usdc_mint_f = MintFixture::new_token_22(
             Rc::clone(&context),
             Some(usdc_keypair),
             Some(USDC_MINT_DECIMALS),
         )
         .await;
-        let sol_mint_f = MintFixture::new(
+        let sol_mint_f = MintFixture::new_token_22(
             Rc::clone(&context),
             Some(sol_keypair),
             Some(SOL_MINT_DECIMALS),
         )
         .await;
-        let sol_equivalent_mint_f = MintFixture::new(
+        let sol_equivalent_mint_f = MintFixture::new_token_22(
             Rc::clone(&context),
             Some(sol_equivalent_keypair),
             Some(SOL_MINT_DECIMALS),
         )
         .await;
-        let mnde_mint_f = MintFixture::new(
+        let mnde_mint_f = MintFixture::new_token_22(
             Rc::clone(&context),
             Some(mnde_keypair),
             Some(MNDE_MINT_DECIMALS),
+        )
+        .await;
+        let usdc_t22_mint_f = MintFixture::new_token_22(
+            Rc::clone(&context),
+            Some(usdc_t22_keypair),
+            Some(USDC_MINT_DECIMALS),
         )
         .await;
 
@@ -411,6 +444,7 @@ impl TestFixture {
                         &sol_equivalent_mint_f,
                         *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
                     ),
+                    BankMint::USDCToken22 => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
                 };
 
                 banks.insert(
@@ -431,6 +465,7 @@ impl TestFixture {
             sol_mint: sol_mint_f,
             sol_equivalent_mint: sol_equivalent_mint_f,
             mnde_mint: mnde_mint_f,
+            usdc_t22_mint: usdc_t22_mint_f,
         }
     }
 

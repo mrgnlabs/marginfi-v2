@@ -104,7 +104,7 @@ async fn marginfi_account_deposit_success() -> anyhow::Result<()> {
 
     let owner = test_f.payer();
     let token_account_f =
-        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint.key, &owner).await;
+        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint, &owner).await;
     test_f.usdc_mint.mint_to(&token_account_f.key, 1_000).await;
 
     let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
@@ -189,7 +189,7 @@ async fn marginfi_account_withdraw_success() -> anyhow::Result<()> {
 
     let owner = test_f.payer();
     let token_account_f =
-        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint.key, &owner).await;
+        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint, &owner).await;
     test_f.usdc_mint.mint_to(&token_account_f.key, 1_000).await;
 
     let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
@@ -250,7 +250,7 @@ async fn marginfi_account_withdraw_failure_withdrawing_too_much() -> anyhow::Res
 
     let owner = test_f.payer();
     let token_account_f =
-        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint.key, &owner).await;
+        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint, &owner).await;
     test_f.usdc_mint.mint_to(&token_account_f.key, 1_000).await;
 
     let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
@@ -346,7 +346,7 @@ async fn marginfi_account_withdraw_all_success() -> anyhow::Result<()> {
 
     let owner = test_f.payer();
     let token_account_f =
-        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint.key, &owner).await;
+        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint, &owner).await;
     test_f.usdc_mint.mint_to(&token_account_f.key, 1_000).await;
 
     let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
@@ -1527,11 +1527,12 @@ async fn emissions_test() -> anyhow::Result<()> {
             native!(50, "USDC"),
             usdc_bank.mint.key,
             funding_account.key,
+            usdc_bank.get_token_program(),
         )
         .await?;
 
     // SOL Emissions are not in SOL Bank mint
-    let sol_emissions_mint = MintFixture::new(test_f.context.clone(), None, Some(6)).await;
+    let sol_emissions_mint = MintFixture::new_token_22(test_f.context.clone(), None, Some(6)).await;
 
     let funding_account = sol_emissions_mint
         .create_token_account_and_mint_to(200)
@@ -1544,10 +1545,16 @@ async fn emissions_test() -> anyhow::Result<()> {
             native!(100, 6),
             sol_emissions_mint.key,
             funding_account.key,
+            sol_emissions_mint.token_program,
         )
         .await?;
 
-    let sol_emissions_mint_2 = MintFixture::new(test_f.context.clone(), None, Some(6)).await;
+    let sol_emissions_mint_2 =
+        MintFixture::new_token_22(test_f.context.clone(), None, Some(6)).await;
+
+    let funding_account = sol_emissions_mint_2
+        .create_token_account_and_mint_to(200)
+        .await;
 
     let res = sol_bank
         .try_setup_emissions(
@@ -1556,6 +1563,7 @@ async fn emissions_test() -> anyhow::Result<()> {
             native!(50, 6),
             sol_emissions_mint_2.key,
             funding_account.key,
+            sol_emissions_mint_2.token_program,
         )
         .await;
 
@@ -1597,13 +1605,13 @@ async fn emissions_test() -> anyhow::Result<()> {
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
 
     mfi_account_f
-        .try_withdraw_emissions(usdc_bank, lender_token_account_usdc.key)
+        .try_withdraw_emissions(usdc_bank, &lender_token_account_usdc)
         .await?;
 
     let sol_emissions_ta = sol_emissions_mint.create_token_account_and_mint_to(0).await;
 
     mfi_account_f
-        .try_withdraw_emissions(sol_bank, sol_emissions_ta.key)
+        .try_withdraw_emissions(sol_bank, &sol_emissions_ta)
         .await?;
 
     assert_eq_with_tolerance!(
@@ -1632,11 +1640,11 @@ async fn emissions_test() -> anyhow::Result<()> {
     }
 
     mfi_account_f
-        .try_withdraw_emissions(usdc_bank, lender_token_account_usdc.key)
+        .try_withdraw_emissions(usdc_bank, &lender_token_account_usdc)
         .await?;
 
     mfi_account_f
-        .try_withdraw_emissions(sol_bank, sol_emissions_ta.key)
+        .try_withdraw_emissions(sol_bank, &sol_emissions_ta)
         .await?;
 
     assert_eq_with_tolerance!(
@@ -1665,11 +1673,11 @@ async fn emissions_test() -> anyhow::Result<()> {
     test_f.advance_time((SECONDS_PER_YEAR / 2.0) as i64).await;
 
     mfi_account_f
-        .try_withdraw_emissions(usdc_bank, lender_token_account_usdc.key)
+        .try_withdraw_emissions(usdc_bank, &lender_token_account_usdc)
         .await?;
 
     mfi_account_f
-        .try_withdraw_emissions(sol_bank, sol_emissions_ta.key)
+        .try_withdraw_emissions(sol_bank, &sol_emissions_ta)
         .await?;
 
     assert_eq_with_tolerance!(
@@ -1688,7 +1696,7 @@ async fn emissions_test() -> anyhow::Result<()> {
     let sol_lender_emissions = sol_emissions_mint.create_token_account_and_mint_to(0).await;
 
     sol_lender_account
-        .try_withdraw_emissions(sol_bank, sol_lender_emissions.key)
+        .try_withdraw_emissions(sol_bank, &sol_lender_emissions)
         .await?;
 
     assert_eq!(sol_lender_emissions.balance().await as i64, 0);
@@ -1711,6 +1719,7 @@ async fn emissions_test_2() -> anyhow::Result<()> {
             native!(50, "USDC"),
             usdc_bank.mint.key,
             funding_account.key,
+            usdc_bank.get_token_program(),
         )
         .await?;
 
@@ -1730,6 +1739,7 @@ async fn emissions_test_2() -> anyhow::Result<()> {
             Some(EMISSIONS_FLAG_BORROW_ACTIVE),
             Some(500_000),
             Some((native!(25, "USDC"), funding_account.key)),
+            usdc_bank.get_token_program(),
         )
         .await?;
 

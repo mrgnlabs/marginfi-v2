@@ -9,7 +9,10 @@ use crate::{
     },
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{TokenAccount, Transfer};
+use anchor_spl::{
+    token_2022::Transfer,
+    token_interface::{TokenAccount, TokenInterface},
+};
 use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 
@@ -112,7 +115,7 @@ pub struct LendingAccountBorrow<'info> {
     pub bank: AccountLoader<'info, Bank>,
 
     #[account(mut)]
-    pub destination_token_account: Account<'info, TokenAccount>,
+    pub destination_token_account: InterfaceAccount<'info, TokenAccount>,
 
     /// CHECK: Seed constraint check
     #[account(
@@ -133,11 +136,7 @@ pub struct LendingAccountBorrow<'info> {
         ],
         bump = bank.load() ?.liquidity_vault_bump,
     )]
-    pub bank_liquidity_vault: Account<'info, TokenAccount>,
+    pub bank_liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
-    #[account(
-        address = bank.load()?.token_program.to_program_id(),
-    )]
-    pub token_program: AccountInfo<'info>,
+    pub token_program: Interface<'info, TokenInterface>,
 }

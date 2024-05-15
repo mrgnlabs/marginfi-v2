@@ -6394,6 +6394,7 @@ dependencies = [
  "solana-program",
  "solana-program-test",
  "solana-sdk",
+ "spl-token-2022 0.9.0",
  "static_assertions",
  "switchboard-v2",
  "type-layout",

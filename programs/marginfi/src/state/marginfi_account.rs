@@ -14,7 +14,7 @@ use crate::{
     utils::NumTraitsWithTolerance,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::Transfer;
+use anchor_spl::token_2022::Transfer;
 use fixed::types::I80F48;
 use std::{
     cmp::{max, min},

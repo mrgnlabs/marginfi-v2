@@ -10,7 +10,8 @@ use crate::{
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Transfer};
+use anchor_spl::token_2022::Transfer;
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use std::cmp::min;
 
@@ -145,7 +146,7 @@ pub struct LendingPoolCollectBankFees<'info> {
         ],
         bump = bank.load()?.liquidity_vault_bump
     )]
-    pub liquidity_vault: Account<'info, TokenAccount>,
+    pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -169,7 +170,7 @@ pub struct LendingPoolCollectBankFees<'info> {
     )]
     pub fee_vault: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 pub fn lending_pool_withdraw_fees(
@@ -244,7 +245,7 @@ pub struct LendingPoolWithdrawFees<'info> {
     #[account(mut)]
     pub dst_token_account: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 pub fn lending_pool_withdraw_insurance(
@@ -319,9 +320,5 @@ pub struct LendingPoolWithdrawInsurance<'info> {
     #[account(mut)]
     pub dst_token_account: AccountInfo<'info>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
-    #[account(
-        address = bank.load()?.token_program.to_program_id(),
-    )]
-    pub token_program: AccountInfo<'info>,
+    pub token_program: Interface<'info, TokenInterface>,
 }

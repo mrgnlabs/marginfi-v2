@@ -91,7 +91,7 @@ impl MarginfiGroupFixture {
             fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
             fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
             rent: sysvar::rent::id(),
-            token_program: token::ID,
+            token_program: bank_asset_mint_fixture.token_program,
             system_program: system_program::id(),
         }
         .to_account_metas(Some(true));
@@ -158,7 +158,7 @@ impl MarginfiGroupFixture {
             fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
             fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
             rent: sysvar::rent::id(),
-            token_program: token::ID,
+            token_program: bank_fixture.get_token_program(),
             system_program: system_program::id(),
         }
         .to_account_metas(Some(true));
@@ -305,7 +305,7 @@ impl MarginfiGroupFixture {
                 liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
                 insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
                 fee_vault: bank.get_vault(BankVaultType::Fee).0,
-                token_program: token::ID,
+                token_program: bank.get_token_program(),
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
@@ -336,7 +336,7 @@ impl MarginfiGroupFixture {
             liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
             insurance_vault_authority: bank.get_vault_authority(BankVaultType::Insurance).0,
-            token_program: token::ID,
+            token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
 

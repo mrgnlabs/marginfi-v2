@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::Transfer;
+use anchor_spl::{token_2022::Transfer, token_interface::TokenInterface};
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
@@ -113,9 +113,5 @@ pub struct LendingAccountDeposit<'info> {
     )]
     pub bank_liquidity_vault: AccountInfo<'info>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
-    #[account(
-        address = bank.load()?.token_program.to_program_id(),
-    )]
-    pub token_program: AccountInfo<'info>,
+    pub token_program: Interface<'info, TokenInterface>,
 }

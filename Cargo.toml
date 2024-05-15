@@ -18,7 +18,7 @@ spl-token = "4.0.0"
 spl-associated-token-account = "2.2.0"
 
 anchor-lang = "0.28.0"
-anchor-spl = "0.28.0"
+anchor-spl = { version = "0.28.0", features = ["token_2022"] }
 anchor-client = "0.28.0"
 
 switchboard-v2 = "0.4.0"

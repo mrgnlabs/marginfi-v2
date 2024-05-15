@@ -42,6 +42,10 @@ impl BankFixture {
         }
     }
 
+    pub fn get_token_program(&self) -> Pubkey {
+        self.mint.token_program
+    }
+
     pub fn get_vault(&self, vault_type: BankVaultType) -> (Pubkey, u8) {
         find_bank_vault_pda(&self.key, vault_type)
     }
@@ -165,6 +169,7 @@ impl BankFixture {
         total_emissions: u64,
         emissions_mint: Pubkey,
         funding_account: Pubkey,
+        token_program: Pubkey,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
             program_id: marginfi::id(),
@@ -180,7 +185,7 @@ impl BankFixture {
                     emissions_mint,
                 )
                 .0,
-                token_program: anchor_spl::token::ID,
+                token_program,
                 system_program: solana_program::system_program::id(),
             }
             .to_account_metas(Some(true)),
@@ -217,6 +222,7 @@ impl BankFixture {
         emissions_flags: Option<u64>,
         emissions_rate: Option<u64>,
         additional_emissions: Option<(u64, Pubkey)>,
+        token_program: Pubkey,
     ) -> Result<(), BanksClientError> {
         let bank = self.load().await;
 
@@ -233,7 +239,7 @@ impl BankFixture {
                     bank.emissions_mint,
                 )
                 .0,
-                token_program: anchor_spl::token::ID,
+                token_program,
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingPoolUpdateEmissionsParameters {
@@ -281,7 +287,7 @@ impl BankFixture {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolWithdrawFees {
                 marginfi_group: bank.group,
-                token_program: token::ID,
+                token_program: receiving_account.token_program,
                 bank: self.key,
                 admin: signer_pk,
                 fee_vault: bank.fee_vault,
@@ -321,7 +327,7 @@ impl BankFixture {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolWithdrawInsurance {
                 marginfi_group: bank.group,
-                token_program: token::ID,
+                token_program: receiving_account.token_program,
                 bank: self.key,
                 admin: signer_pk,
                 insurance_vault: bank.insurance_vault,
