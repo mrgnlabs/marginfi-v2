@@ -7,7 +7,7 @@ use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
     InstructionData, ToAccountMetas,
 };
-use anchor_spl::token;
+
 use fixed::types::I80F48;
 use marginfi::{
     bank_authority_seed,

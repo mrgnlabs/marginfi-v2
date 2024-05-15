@@ -2,7 +2,7 @@ use super::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
 use crate::prelude::MintFixture;
 use crate::utils::*;
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
-use anchor_spl::token;
+
 use anyhow::Result;
 use marginfi::{
     prelude::MarginfiGroup,
