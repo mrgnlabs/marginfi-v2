@@ -1,7 +1,6 @@
 use anchor_lang::{prelude::*, Accounts, ToAccountInfo};
-use anchor_spl::{
-    token_2022::{transfer, Transfer},
-    token_interface::{Mint, TokenAccount, TokenInterface},
+use anchor_spl::token_interface::{
+    transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 
 use crate::{
@@ -46,17 +45,19 @@ pub fn lending_account_withdraw_emissions(
             &[*ctx.bumps.get("emissions_auth").unwrap()],
         ]];
 
-        transfer(
+        transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
-                Transfer {
+                TransferChecked {
                     from: ctx.accounts.emissions_vault.to_account_info(),
                     to: ctx.accounts.destination_account.to_account_info(),
                     authority: ctx.accounts.emissions_auth.to_account_info(),
+                    mint: ctx.accounts.emissions_mint.to_account_info(),
                 },
                 signer_seeds,
             ),
             emissions_settle_amount,
+            ctx.accounts.emissions_mint.decimals,
         )?;
     }
 
