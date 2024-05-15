@@ -55,5 +55,5 @@ impl<'bump> BankAccounts<'bump> {
 pub fn get_bank_map<'bump>(
     banks: &'bump [BankAccounts<'bump>],
 ) -> HashMap<Pubkey, &'bump BankAccounts<'bump>> {
-    HashMap::from_iter(banks.iter().map(|bank| (bank.bank.key(), bank.clone())))
+    HashMap::from_iter(banks.iter().map(|bank| (bank.bank.key(), bank)))
 }

@@ -1,6 +1,4 @@
 use anchor_lang::prelude::{AccountInfo, Clock, Pubkey};
-use base64::Engine;
-use itertools::Itertools;
 use lazy_static::lazy_static;
 use solana_program::{entrypoint::ProgramResult, instruction::Instruction, program_stubs};
 
