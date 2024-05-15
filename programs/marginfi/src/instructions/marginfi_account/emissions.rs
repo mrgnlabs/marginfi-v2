@@ -1,6 +1,6 @@
 use anchor_lang::{prelude::*, Accounts, ToAccountInfo};
-use anchor_spl::{
-    token_interface::{transfer_checked, TransferChecked,Mint, TokenAccount, TokenInterface},
+use anchor_spl::token_interface::{
+    transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 
 use crate::{
