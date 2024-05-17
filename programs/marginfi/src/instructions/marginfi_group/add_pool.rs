@@ -69,7 +69,7 @@ pub fn lending_pool_add_bank(
     Ok(())
 }
 
-#[derive(anchor_lang::Accounts)]
+#[derive(Accounts)]
 #[instruction(bank_config: BankConfigCompact)]
 pub struct LendingPoolAddBank<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
@@ -328,7 +328,6 @@ pub struct LendingPoolAddBankWithSeed<'info> {
     pub fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub rent: Sysvar<'info, Rent>,
-    /// CHECK: Verified manually that its either token or token22
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
