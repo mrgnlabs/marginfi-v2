@@ -4,7 +4,7 @@ use fixed::types::I80F48;
 
 use crate::{check, debug, math_error, MarginfiError, MarginfiResult};
 
-use super::marginfi_group::share_value;
+use super::marginfi_group::WrappedI80F48;
 
 /// Fund that represents tokenized insurance pool backed by liquidators
 /// Uses the bank's underlying insurance vault to deposit funds
@@ -31,8 +31,8 @@ pub struct LiquidInsuranceFund {
     pub last_update: i64,
 
     // Share/Deposit model of the underlying insurance vault
-    pub total_shares: share_value,
-    pub share_value: share_value,
+    pub total_shares: WrappedI80F48,
+    pub share_value: WrappedI80F48,
 
     // TODO
     pub _padding: [[u64; 2]; 28],

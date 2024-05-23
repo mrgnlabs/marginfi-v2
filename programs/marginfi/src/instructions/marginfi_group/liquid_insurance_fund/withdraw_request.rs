@@ -8,10 +8,7 @@ use crate::{
     },
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawRequestLiquidInsuranceFundEvent},
     math_error,
-    state::{
-        liquid_insurance_fund::LiquidInsuranceFund, marginfi_account::DISABLED_FLAG,
-        marginfi_group::Bank,
-    },
+    state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
     MarginfiError, MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -26,7 +23,7 @@ pub struct WithdrawRequestLiquidInsuranceFund<'info> {
 
     #[account(
         mut,
-        address = marginfi_group.load()?.authority,
+        address = marginfi_group.load()?.admin,
     )]
     pub signer: Signer<'info>,
 
@@ -113,14 +110,6 @@ pub fn create_withdraw_request_from_liquid_token_fund(
         token_program,
         ..
     } = ctx.accounts;
-
-    check!(
-        !ctx.accounts
-            .marginfi_account
-            .load()?
-            .get_flag(DISABLED_FLAG),
-        MarginfiError::AccountDisabled
-    );
 
     check!(amount.ge(&0), MarginfiError::InvalidWithdrawal);
 

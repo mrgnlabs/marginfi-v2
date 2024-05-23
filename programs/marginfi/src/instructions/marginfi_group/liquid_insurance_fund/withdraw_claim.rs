@@ -4,11 +4,7 @@ use crate::{
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_WITHDRAW_SEED,
     },
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawClaimLiquidInsuranceFundEvent},
-    state::{
-        liquid_insurance_fund::LiquidInsuranceFund,
-        marginfi_account::{MarginfiAccount, DISABLED_FLAG},
-        marginfi_group::Bank,
-    },
+    state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
     MarginfiError, MarginfiGroup, MarginfiResult, WithdrawParams,
 };
 use anchor_lang::prelude::*;
@@ -91,14 +87,6 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
         withdraw_params_account,
         token_program,
     } = ctx.accounts;
-
-    check!(
-        !ctx.accounts
-            .marginfi_account
-            .load()?
-            .get_flag(DISABLED_FLAG),
-        MarginfiError::AccountDisabled
-    );
 
     let min_withdraw_period = ctx
         .accounts

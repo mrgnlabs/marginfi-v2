@@ -4,10 +4,7 @@ use crate::{
         INSURANCE_VAULT_SEED, LIQUID_INSURANCE_MINT_AUTHORITY_SEED, LIQUID_INSURANCE_MINT_SEED,
     },
     events::{LiquidInsuranceFundEventHeader, MarginfiDepositIntoLiquidInsuranceFundEvent},
-    state::{
-        liquid_insurance_fund::LiquidInsuranceFund, marginfi_account::DISABLED_FLAG,
-        marginfi_group::Bank,
-    },
+    state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
     MarginfiError, MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -22,7 +19,7 @@ pub struct DepositIntoLiquidInsuranceFund<'info> {
 
     #[account(
         mut,
-        address = marginfi_group.load()?.authority,
+        address = marginfi_group.load()?.admin,
     )]
     pub signer: Signer<'info>,
 
@@ -84,14 +81,6 @@ pub fn deposit_into_liquid_insurance_fund(
         token_program,
         ..
     } = ctx.accounts;
-
-    check!(
-        !ctx.accounts
-            .marginfi_account
-            .load()?
-            .get_flag(DISABLED_FLAG),
-        MarginfiError::AccountDisabled
-    );
 
     let mut liquid_insurance_fund = ctx.accounts.liquid_insurance_fund.load_mut()?;
 
