@@ -9,8 +9,7 @@ use crate::{
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawRequestLiquidInsuranceFundEvent},
     math_error,
     state::{
-        liquid_insurance_fund::LiquidInsuranceFund,
-        marginfi_account::{MarginfiAccount, DISABLED_FLAG},
+        liquid_insurance_fund::LiquidInsuranceFund, marginfi_account::DISABLED_FLAG,
         marginfi_group::Bank,
     },
     MarginfiError, MarginfiGroup, MarginfiResult,
@@ -23,17 +22,11 @@ use fixed::types::I80F48;
 pub struct WithdrawRequestLiquidInsuranceFund<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(
-        mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
-    )]
-    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-
     pub liquid_insurance_fund: AccountLoader<'info, LiquidInsuranceFund>,
 
     #[account(
         mut,
-        address = marginfi_account.load()?.authority,
+        address = marginfi_group.load()?.authority,
     )]
     pub signer: Signer<'info>,
 
@@ -109,7 +102,6 @@ pub fn create_withdraw_request_from_liquid_token_fund(
 ) -> MarginfiResult {
     let WithdrawRequestLiquidInsuranceFund {
         marginfi_group: marginfi_group_loader,
-        marginfi_account: marginfi_account_loader,
         liquid_insurance_fund,
         signer,
         signer_token_account,

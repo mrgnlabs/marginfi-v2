@@ -21,12 +21,6 @@ use fixed::types::I80F48;
 pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(
-        mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
-    )]
-    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-
     #[account(mut)]
     pub mint_token: Account<'info, Mint>,
 
@@ -87,7 +81,6 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
 ) -> MarginfiResult {
     let SettleWithdrawClaimInLiquidInsuranceFund {
         marginfi_group,
-        marginfi_account,
         mint_token,
         signer,
         signer_token_account,
