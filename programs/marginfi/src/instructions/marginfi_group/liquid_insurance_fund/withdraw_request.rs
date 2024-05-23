@@ -125,21 +125,13 @@ pub fn create_withdraw_request_from_liquid_token_fund(
 
     // Create withdraw claim with now + 2 weeks as the earliest possible withdraw time
     let current_timestamp = Clock::get()?.unix_timestamp;
-    let earliest_valid_timestamp = current_timestamp
-        .checked_add(
-            ctx.accounts
-                .liquid_insurance_fund
-                .load()?
-                .min_withdraw_period,
-        )
-        .ok_or_else(math_error!())?;
 
     // create withdraw account
     let mut withdraw_pda = ctx.accounts.withdraw_params_account.borrow_mut();
     let mut withdraw_data = WithdrawParams {
         signer: ctx.accounts.signer.key(),
         signer_token_account: ctx.accounts.signer_token_account.key(),
-        timestamp: earliest_valid_timestamp,
+        timestamp: current_timestamp,
         shares: withdraw_user_shares,
     };
     // TODO: turn withdraw_pda.data into withdraw_data

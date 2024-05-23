@@ -4,6 +4,7 @@ use crate::{
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_WITHDRAW_SEED,
     },
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawClaimLiquidInsuranceFundEvent},
+    math_error,
     state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
     MarginfiError, MarginfiGroup, MarginfiResult, WithdrawParams,
 };
@@ -93,12 +94,15 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
         .liquid_insurance_fund
         .load()?
         .min_withdraw_period;
+    let withdraw_request_timestamp = ctx.accounts.withdraw_params_account.load()?.timestamp;
     let current_time = Clock::get()?.unix_timestamp;
 
     // Ensure enough time has passed since the withdraw request was made
     check!(
-        current_time.checked_add(min_withdraw_period).unwrap()
-            > ctx.accounts.withdraw_params_account.load()?.timestamp,
+        withdraw_request_timestamp
+            .checked_add(min_withdraw_period)
+            .ok_or_else(math_error!())?
+            > current_time,
         MarginfiError::InvalidWithdrawal
     );
 
