@@ -20,12 +20,6 @@ pub struct LiquidInsuranceFund {
     pub bank_insurance_vault: Pubkey,
     pub bank_insurance_vault_authority: Pubkey,
 
-    pub mint: Pubkey,
-    pub mint_authority: Pubkey,
-    pub mint_metadata: Pubkey,
-    pub mint_bump: u8,
-    pub mint_authority_bump: u8,
-
     pub min_withdraw_period: i64,
 
     pub last_update: i64,
@@ -46,11 +40,6 @@ impl LiquidInsuranceFund {
         bank: Pubkey,
         bank_insurance_vault: Pubkey,
         bank_insurance_vault_authority: Pubkey,
-        mint: Pubkey,
-        mint_authority: Pubkey,
-        mint_metadata: Pubkey,
-        mint_bump: u8,
-        mint_authority_bump: u8,
         min_withdraw_period: i64,
         current_timestamp: i64,
         bank_insurance_vault_amount: u64,
@@ -70,12 +59,6 @@ impl LiquidInsuranceFund {
             bank,
             bank_insurance_vault,
             bank_insurance_vault_authority,
-
-            mint,
-            mint_authority,
-            mint_metadata,
-            mint_bump,
-            mint_authority_bump,
 
             min_withdraw_period,
 
@@ -234,11 +217,6 @@ fn test_share_deposit_accounting() {
         Pubkey::new_unique(),
         Pubkey::new_unique(),
         Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        0,
-        0,
-        0,
-        0,
         1000000,
         None,
     );
@@ -291,11 +269,6 @@ fn test_share_withdraw_accounting() {
         Pubkey::new_unique(),
         Pubkey::new_unique(),
         Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        0,
-        0,
-        0,
-        0,
         1000000,
         None,
     );

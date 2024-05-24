@@ -110,25 +110,10 @@ pub fn deposit_into_liquid_insurance_fund(
         .checked_to_num::<u64>()
         .ok_or(MarginfiError::MathError)?;
 
-    // mint tokens from mint and send to the senders token account
-    mint_to(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            MintTo {
-                authority: ctx.accounts.mint_authority.to_account_info(),
-                to: ctx.accounts.signer_token_account.to_account_info(),
-                mint: ctx.accounts.mint.to_account_info(),
-            },
-            &[&[&[*ctx.bumps.get(LIQUID_INSURANCE_MINT_SEED).unwrap()]]],
-        ),
-        user_deposited_share_amount,
-    )?;
-
     emit!(MarginfiDepositIntoLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {
             bank: liquid_insurance_fund.bank,
             bank_insurance_vault: liquid_insurance_fund.bank_insurance_vault,
-            token_mint: liquid_insurance_fund.mint
         },
         amount: user_deposited_share_amount,
         signer_token_address: ctx.accounts.signer_token_account.key(),

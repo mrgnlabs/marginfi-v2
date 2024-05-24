@@ -140,7 +140,6 @@ pub fn create_withdraw_request_from_liquid_token_fund(
         header: LiquidInsuranceFundEventHeader {
             bank: liquid_insurance_fund.bank,
             bank_insurance_vault: liquid_insurance_fund.bank_insurance_vault,
-            token_mint: liquid_insurance_fund.mint
         },
         amount: withdraw_user_shares,
     });

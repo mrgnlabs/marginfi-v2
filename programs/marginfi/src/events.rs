@@ -21,7 +21,6 @@ pub struct AccountEventHeader {
 pub struct LiquidInsuranceFundEventHeader {
     pub bank: Pubkey,
     pub bank_insurance_vault: Pubkey,
-    pub token_mint: Pubkey,
 }
 
 // marginfi group events
@@ -159,7 +158,6 @@ pub struct MarginfiAccountTransferAccountAuthorityEvent {
 #[event]
 pub struct MarginfiCreateNewLiquidInsuranceFundEvent {
     pub header: LiquidInsuranceFundEventHeader,
-    pub mint_metadata_account: Pubkey,
 }
 
 #[event]

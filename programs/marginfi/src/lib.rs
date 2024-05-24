@@ -213,13 +213,11 @@ pub mod marginfi {
 
     pub fn create_new_liquid_insurance_fund(
         ctx: Context<CreateNewLiquidInsuranceFund>,
-        params: InitMintParams,
         min_withdraw_period: i64,
         init_number_of_shares: Option<u64>,
     ) -> MarginfiResult {
         marginfi_group::create_new_liquid_insurance_fund(
             ctx,
-            params,
             min_withdraw_period,
             init_number_of_shares,
         )

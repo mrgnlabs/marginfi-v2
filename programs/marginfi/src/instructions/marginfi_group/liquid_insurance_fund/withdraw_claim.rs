@@ -135,19 +135,6 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
         token_program.to_account_info(),
     )?;
 
-    // Burn the amount of tokenized shares withdraw by the user
-    burn(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            Burn {
-                authority: ctx.accounts.signer.to_account_info(),
-                from: ctx.accounts.signer_token_account.to_account_info(),
-                mint: ctx.accounts.mint_token.to_account_info(),
-            },
-        ),
-        user_withdraw_shares,
-    )?;
-
     // close the withdraw params account
     let mut withdraw_params_account = ctx.accounts.withdraw_params_account.load_mut();
 
@@ -164,7 +151,6 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
         header: LiquidInsuranceFundEventHeader {
             bank: liquid_insurance_fund.bank,
             bank_insurance_vault: liquid_insurance_fund.bank_insurance_vault,
-            token_mint: liquid_insurance_fund.mint
         },
         amount: user_withdraw_shares,
         success: true,
