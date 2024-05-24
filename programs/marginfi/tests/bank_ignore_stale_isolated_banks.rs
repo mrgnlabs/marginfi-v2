@@ -61,7 +61,7 @@ async fn stale_bank_should_error() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-/// Borrowing with deposits in two banks (2 stale) should not error
+/// Borrowing with deposits in two banks (1 stale) should not error
 async fn non_stale_bank_should_error() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
