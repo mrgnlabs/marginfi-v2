@@ -269,7 +269,7 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
     let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
 
-    // Borrower deposits 100 SOLE worth of $1000
+    // Borrower deposits 100 SOL worth $1000
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100)
         .await?;
