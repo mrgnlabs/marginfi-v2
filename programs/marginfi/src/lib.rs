@@ -208,6 +208,10 @@ pub mod marginfi {
     ) -> MarginfiResult {
         marginfi_account::set_account_transfer_authority(ctx)
     }
+
+    pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
+        marginfi_account::close_account(ctx)
+    }
 }
 
 #[cfg(not(feature = "no-entrypoint"))]
