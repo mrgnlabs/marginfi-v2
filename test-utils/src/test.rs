@@ -197,8 +197,8 @@ lazy_static! {
         InterestRateConfig {
             insurance_fee_fixed_apr: I80F48!(0).into(),
             insurance_ir_fee: I80F48!(0).into(),
-            protocol_ir_fee: I80F48!(0).into(),
-            protocol_fixed_fee_apr: I80F48!(0).into(),
+            group_ir_fee: I80F48!(0).into(),
+            group_fixed_fee_apr: I80F48!(0).into(),
 
             optimal_utilization_rate: I80F48!(0.5).into(),
             plateau_interest_rate: I80F48!(0.6).into(),
@@ -218,8 +218,8 @@ lazy_static! {
         interest_rate_config: InterestRateConfig {
             insurance_fee_fixed_apr: I80F48!(0).into(),
             insurance_ir_fee: I80F48!(0).into(),
-            protocol_ir_fee: I80F48!(0).into(),
-            protocol_fixed_fee_apr: I80F48!(0).into(),
+            group_ir_fee: I80F48!(0).into(),
+            group_fixed_fee_apr: I80F48!(0).into(),
 
             optimal_utilization_rate: I80F48!(0.5).into(),
             plateau_interest_rate: I80F48!(0.6).into(),

@@ -108,8 +108,8 @@ async fn marginfi_group_config_check() -> anyhow::Result<()> {
                 max_interest_rate: Some(I80F48::from_num(1.44).into()),
                 insurance_fee_fixed_apr: Some(I80F48::from_num(0.13).into()),
                 insurance_ir_fee: Some(I80F48::from_num(0.11).into()),
-                protocol_fixed_fee_apr: Some(I80F48::from_num(0.51).into()),
-                protocol_ir_fee: Some(I80F48::from_num(0.011).into()),
+                group_fixed_fee_apr: Some(I80F48::from_num(0.51).into()),
+                group_ir_fee: Some(I80F48::from_num(0.011).into()),
             }),
             ..BankConfigOpt::default()
         })
@@ -147,12 +147,12 @@ async fn marginfi_group_config_check() -> anyhow::Result<()> {
     );
 
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.protocol_fixed_fee_apr),
+        I80F48::from(bank.config.interest_rate_config.group_fixed_fee_apr),
         I80F48::from_num(0.51)
     );
 
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.group_ir_fee),
         I80F48::from_num(0.011)
     );
 
@@ -324,7 +324,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
                     interest_rate_config: InterestRateConfig {
                         optimal_utilization_rate: I80F48!(0.9).into(),
                         plateau_interest_rate: I80F48!(1).into(),
-                        protocol_fixed_fee_apr: I80F48!(0.01).into(),
+                        group_fixed_fee_apr: I80F48!(0.01).into(),
                         insurance_fee_fixed_apr: I80F48!(0.01).into(),
                         ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
                     },
@@ -1379,11 +1379,11 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.protocol_fixed_fee_apr),
+        I80F48::from(bank.config.interest_rate_config.group_fixed_fee_apr),
         I80F48::from_str("0.01").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.group_ir_fee),
         I80F48::from_str("0.05").unwrap()
     );
 
@@ -1471,11 +1471,11 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.protocol_fixed_fee_apr),
+        I80F48::from(bank.config.interest_rate_config.group_fixed_fee_apr),
         I80F48::from_str("0.01").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.group_ir_fee),
         I80F48::from_str("0.05").unwrap()
     );
 
@@ -1563,11 +1563,11 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.protocol_fixed_fee_apr),
+        I80F48::from(bank.config.interest_rate_config.group_fixed_fee_apr),
         I80F48::from_str("0.01").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.group_ir_fee),
         I80F48::from_str("0.05").unwrap()
     );
 

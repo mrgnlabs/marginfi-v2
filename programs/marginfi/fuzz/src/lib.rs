@@ -254,8 +254,8 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                     max_interest_rate: I80F48!(4).into(),
                     insurance_fee_fixed_apr: I80F48!(0.01).into(),
                     insurance_ir_fee: I80F48!(0.05).into(),
-                    protocol_fixed_fee_apr: I80F48!(0.01).into(),
-                    protocol_ir_fee: I80F48!(0.1).into(),
+                    group_fixed_fee_apr: I80F48!(0.01).into(),
+                    group_ir_fee: I80F48!(0.1).into(),
                     ..Default::default()
                 },
                 oracle_setup: marginfi::state::price::OracleSetup::PythEma,

@@ -7,7 +7,7 @@ use futures::future::join_all;
 use lazy_static::lazy_static;
 use marginfi::{
     constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, SECONDS_PER_YEAR},
-    state::marginfi_group::Bank,
+    state::marginfi_group::{Bank, ComputedInterestRates},
 };
 use reqwest::header::CONTENT_TYPE;
 use s3::{creds::Credentials, Bucket, Region};
@@ -151,7 +151,11 @@ impl DefiLammaPoolInfo {
             I80F48::ZERO
         };
 
-        let (lending_rate, borrowing_rate, _, _) = bank
+        let ComputedInterestRates {
+            lending_rate_apr,
+            borrowing_rate_apr,
+            ..
+        } = bank
             .config
             .interest_rate_config
             .calc_interest_rate(ur)
@@ -201,22 +205,22 @@ impl DefiLammaPoolInfo {
             ltv: ltv.to_num(),
             reward_tokens,
             apy_base: dec_to_percentage(apr_to_apy(
-                lending_rate.to_num(),
+                lending_rate_apr.to_num(),
                 SECONDS_PER_YEAR.to_num(),
             )),
             apy_reward: apr_reward.map(|a| {
                 dec_to_percentage(apr_to_apy(
-                    (lending_rate + a).to_num(),
+                    (lending_rate_apr + a).to_num(),
                     SECONDS_PER_YEAR.to_num(),
                 ))
             }),
             apy_base_borrow: dec_to_percentage(apr_to_apy(
-                borrowing_rate.to_num(),
+                borrowing_rate_apr.to_num(),
                 SECONDS_PER_YEAR.to_num(),
             )),
             apy_reward_borrow: apr_reward_borrow.map(|a| {
                 dec_to_percentage(apr_to_apy(
-                    (borrowing_rate + a).to_num(),
+                    (borrowing_rate_apr + a).to_num(),
                     SECONDS_PER_YEAR.to_num(),
                 ))
             }),

@@ -6,13 +6,13 @@ use chrono::{NaiveDateTime, Utc};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use itertools::Itertools;
-use marginfi::constants::ZERO_AMOUNT_THRESHOLD;
 use marginfi::prelude::MarginfiGroup;
 use marginfi::state::marginfi_account::{
     calc_value, MarginfiAccount, RequirementType, RiskRequirementType,
 };
 use marginfi::state::marginfi_group::BankOperationalState;
 use marginfi::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceBias};
+use marginfi::{constants::ZERO_AMOUNT_THRESHOLD, state::marginfi_group::ComputedInterestRates};
 use serde::Serialize;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
@@ -319,7 +319,13 @@ impl LendingPoolBankMetrics {
         } else {
             I80F48::ZERO
         };
-        let (lending_apr, borrowing_apr, group_fee_apr, insurance_fee_apr) = bank_accounts
+        let ComputedInterestRates {
+            lending_rate_apr,
+            borrowing_rate_apr,
+            group_fee_apr,
+            insurance_fee_apr,
+            protocol_fee_apr: _,
+        }: marginfi::state::marginfi_group::ComputedInterestRates = bank_accounts
             .bank
             .config
             .interest_rate_config
@@ -345,8 +351,8 @@ impl LendingPoolBankMetrics {
             borrow_limit_in_usd: borrow_limit_usd,
             lenders_count,
             borrowers_count,
-            deposit_rate: lending_apr.to_num::<f64>(),
-            borrow_rate: borrowing_apr.to_num::<f64>(),
+            deposit_rate: lending_rate_apr.to_num::<f64>(),
+            borrow_rate: borrowing_rate_apr.to_num::<f64>(),
             group_fee: group_fee_apr.to_num::<f64>(),
             insurance_fee: insurance_fee_apr.to_num::<f64>(),
             total_assets_in_tokens: asset_amount.to_num::<f64>()

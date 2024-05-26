@@ -169,6 +169,12 @@ pub struct LendingPoolCollectBankFees<'info> {
     )]
     pub fee_vault: AccountInfo<'info>,
 
+    #[account(
+        mut,
+        address = crate::constants::PROTOCOL_FEE_TREASURY
+    )]
+    pub protocol_fee_vault: AccountInfo<'info>,
+
     pub token_program: Program<'info, Token>,
 }
 

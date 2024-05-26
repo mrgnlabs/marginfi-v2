@@ -306,6 +306,7 @@ impl MarginfiGroupFixture {
                 insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
                 fee_vault: bank.get_vault(BankVaultType::Fee).0,
                 token_program: token::ID,
+                protocol_fee_vault: marginfi::constants::PROTOCOL_FEE_TREASURY,
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),

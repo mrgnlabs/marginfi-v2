@@ -192,8 +192,8 @@ Last Update: {:?}h ago ({})
         bank.config.interest_rate_config.max_interest_rate,
         bank.config.interest_rate_config.insurance_ir_fee,
         bank.config.interest_rate_config.insurance_fee_fixed_apr,
-        bank.config.interest_rate_config.protocol_ir_fee,
-        bank.config.interest_rate_config.protocol_fixed_fee_apr,
+        bank.config.interest_rate_config.group_ir_fee,
+        bank.config.interest_rate_config.group_fixed_fee_apr,
         bank.config.oracle_setup,
         bank.config.oracle_keys,
         bank.config.get_oracle_max_age(),
@@ -323,8 +323,8 @@ pub fn group_add_bank(
     max_interest_rate: f64,
     insurance_fee_fixed_apr: f64,
     insurance_ir_fee: f64,
-    protocol_fixed_fee_apr: f64,
-    protocol_ir_fee: f64,
+    group_fixed_fee_apr: f64,
+    group_ir_fee: f64,
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
 ) -> Result<()> {
@@ -344,8 +344,8 @@ pub fn group_add_bank(
     let max_interest_rate: WrappedI80F48 = I80F48::from_num(max_interest_rate).into();
     let insurance_fee_fixed_apr: WrappedI80F48 = I80F48::from_num(insurance_fee_fixed_apr).into();
     let insurance_ir_fee: WrappedI80F48 = I80F48::from_num(insurance_ir_fee).into();
-    let protocol_fixed_fee_apr: WrappedI80F48 = I80F48::from_num(protocol_fixed_fee_apr).into();
-    let protocol_ir_fee: WrappedI80F48 = I80F48::from_num(protocol_ir_fee).into();
+    let group_fixed_fee_apr: WrappedI80F48 = I80F48::from_num(group_fixed_fee_apr).into();
+    let group_ir_fee: WrappedI80F48 = I80F48::from_num(group_ir_fee).into();
 
     let mint_account = rpc_client.get_account(&bank_mint)?;
     let mint = spl_token::state::Mint::unpack(&mint_account.data)?;
@@ -359,8 +359,8 @@ pub fn group_add_bank(
         max_interest_rate,
         insurance_fee_fixed_apr,
         insurance_ir_fee,
-        protocol_fixed_fee_apr,
-        protocol_ir_fee,
+        group_fixed_fee_apr: group_fixed_fee_apr,
+        group_ir_fee: group_ir_fee,
         ..InterestRateConfig::default()
     };
 

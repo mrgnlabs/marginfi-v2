@@ -124,3 +124,16 @@ pub const EXP_10: [i128; MAX_EXP_10] = [
 
 /// Value where total_asset_value_init_limit is considered inactive
 pub const TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE: u64 = 0;
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "devnet")] {
+        pub const PROTOCOL_FEE_TREASURY: Pubkey = pubkey!("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
+    } else if #[cfg(feature = "mainnet-beta")] {
+        pub const PROTOCOL_FEE_TREASURY: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");
+    } else {
+        pub const PROTOCOL_FEE_TREASURY: Pubkey = pubkey!("5rYvdyWAunZgD2EC1aKo7hQbutUUnkt7bBFM6xNq2z7Z");
+    }
+}
+
+pub const PROTOCOL_FEE_IR: I80F48 = I80F48!(0.025);
+pub const PROTOCOL_FEE_FIXED: I80F48 = I80F48!(0.01);

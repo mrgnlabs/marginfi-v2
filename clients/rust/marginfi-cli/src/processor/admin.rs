@@ -34,6 +34,7 @@ pub fn process_collect_fees(config: Config, bank_pk: Pubkey) -> Result<()> {
             liquidity_vault_authority,
             liquidity_vault: bank.liquidity_vault,
             insurance_vault: bank.insurance_vault,
+            protocol_fee_vault: marginfi::constants::PROTOCOL_FEE_TREASURY,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
