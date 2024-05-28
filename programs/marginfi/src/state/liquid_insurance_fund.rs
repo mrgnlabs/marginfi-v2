@@ -30,30 +30,19 @@ pub struct LiquidInsuranceFund {
 }
 
 impl LiquidInsuranceFund {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         bank: Pubkey,
         min_withdraw_period: i64,
         current_timestamp: i64,
-        bank_insurance_vault_amount: u64,
-        total_number_of_shares: Option<u64>,
         liquid_insurance_bump: u8,
     ) -> Self {
-        // calculate share value and price on creation
-        let total_number_of_shares_initial = I80F48::from_num(total_number_of_shares.unwrap_or(10));
-
-        let price_per_share_initial = I80F48::from_num(bank_insurance_vault_amount)
-            .checked_div(total_number_of_shares_initial)
-            .ok_or_else(math_error!())
-            .unwrap();
-
         LiquidInsuranceFund {
             bank,
 
             min_withdraw_period,
 
-            total_shares: total_number_of_shares_initial.into(),
-            share_value: price_per_share_initial.into(),
+            total_shares: I80F48::ZERO.into(),
+            share_value: I80F48::ONE.into(),
 
             last_update: current_timestamp,
 
@@ -126,14 +115,11 @@ impl LiquidInsuranceFund {
     }
 
     /// Internal arithmetic for increase the balance of the liquid insurance fund
-    pub fn increase_balance_internal(&mut self, amount: I80F48) -> MarginfiResult {
-        check!(amount > I80F48::ZERO, MarginfiError::InvalidTransfer);
-
-        // Calculate number of shares purchased by depositor
-        let share_increase = self.get_shares(amount)?;
+    pub fn increase_balance_internal(&mut self, shares: I80F48) -> MarginfiResult {
+        check!(shares > I80F48::ZERO, MarginfiError::InvalidTransfer);
 
         // Add new shares to existing collection of shares
-        self.add_shares(share_increase)?;
+        self.add_shares(shares)?;
 
         Ok(())
     }
@@ -152,10 +138,10 @@ impl LiquidInsuranceFund {
         Ok(())
     }
 
-    pub fn add_shares(&mut self, delta: I80F48) -> MarginfiResult {
+    pub fn add_shares(&mut self, shares: I80F48) -> MarginfiResult {
         let total_shares: I80F48 = self.total_shares.into();
         self.total_shares = total_shares
-            .checked_add(delta)
+            .checked_add(shares)
             .ok_or_else(math_error!())?
             .into();
         Ok(())

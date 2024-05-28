@@ -65,9 +65,12 @@ pub fn deposit_into_liquid_insurance_fund(
     // Get amount inside the bank's insurance vault
     let total_bank_insurance_vault_amount = ctx.accounts.bank_insurance_vault.amount;
 
+    // Derive shares from user deposit
+    let user_shares = liquid_insurance_fund.get_shares(I80F48::from_num(amount))?;
+
     // update shares of the liquid insurance fund
     liquid_insurance_fund.deposit_shares(
-        I80F48::from_num(amount),
+        user_shares,
         I80F48::from_num(total_bank_insurance_vault_amount),
     )?;
 
@@ -82,11 +85,12 @@ pub fn deposit_into_liquid_insurance_fund(
         token_program.to_account_info(),
     )?;
 
-    // Send the user a tokenized representation of their deposit as shares
-    let user_deposited_share_amount = liquid_insurance_fund.get_shares(I80F48::from_num(amount))?;
-    let user_deposited_share_amount = user_deposited_share_amount
+    let user_deposited_share_amount = user_shares
         .checked_to_num::<u64>()
         .ok_or(MarginfiError::MathError)?;
+
+    // Send the user a tokenized representation of their deposit as shares
+    // TODO is this still necessary?
 
     emit!(MarginfiDepositIntoLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {

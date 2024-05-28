@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 
 use crate::{
     check,
@@ -14,6 +13,9 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use fixed::types::I80F48;
 
+#[instruction(
+    signer_bump: u8,
+)]
 #[derive(Accounts)]
 pub struct WithdrawRequestLiquidInsuranceFund<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
@@ -63,13 +65,14 @@ pub struct WithdrawRequestLiquidInsuranceFund<'info> {
     #[account(
         init,
         seeds = [
-            LIQUID_INSURANCE_WITHDRAW_SEED.as_bytes(),
-            bank.key().as_ref(),
+            liquid_insurance_fund.key().as_ref(),
+            signer.key().as_ref(),
+            &[signer_bump],
         ],
         bump,
         payer = signer,
         space = 8 + std::mem::size_of::<WithdrawParamsAccount>())]
-    pub withdraw_params_account: AccountInfo<'info>,
+    pub withdraw_params_account: Account<'info, WithdrawParamsAccount>,
 
     pub system_program: Program<'info, System>,
 }
@@ -87,6 +90,8 @@ pub fn create_withdraw_request_from_liquid_token_fund(
         bank_insurance_vault,
         bank_insurance_vault_authority,
         token_program,
+        withdraw_params_account,
+        system_program,
         ..
     } = ctx.accounts;
 
@@ -97,7 +102,10 @@ pub fn create_withdraw_request_from_liquid_token_fund(
     let mut liquid_insurance_fund = ctx.accounts.liquid_insurance_fund.load_mut()?;
 
     // The current value of the shares being withdrawn
-    let withdraw_user_shares = liquid_insurance_fund.get_shares(I80F48::from_num(amount))?;
+    let withdraw_user_shares = I80F48::from_num(amount);
+
+    // TODO: lock up these shares inside of the lif.
+
     let withdraw_user_shares = withdraw_user_shares
         .checked_to_num::<u64>()
         .ok_or(MarginfiError::MathError)?;
@@ -106,14 +114,15 @@ pub fn create_withdraw_request_from_liquid_token_fund(
     let current_timestamp = Clock::get()?.unix_timestamp;
 
     // create withdraw account
-    let mut withdraw_pda = ctx.accounts.withdraw_params_account.borrow_mut();
-    let mut withdraw_data = WithdrawParams {
+
+    let w = WithdrawParams {
         signer: ctx.accounts.signer.key(),
         signer_token_account: ctx.accounts.signer_token_account.key(),
         timestamp: current_timestamp,
         shares: withdraw_user_shares,
     };
-    // TODO: turn withdraw_pda.data into withdraw_data
+
+    ctx.accounts.withdraw_params_account.data = w;
 
     emit!(MarginfiWithdrawRequestLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {

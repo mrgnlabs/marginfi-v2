@@ -76,7 +76,6 @@ pub struct CreateNewLiquidInsuranceFund<'info> {
 pub fn create_new_liquid_insurance_fund(
     ctx: Context<CreateNewLiquidInsuranceFund>,
     min_withdraw_period: i64,
-    initial_number_of_shares: Option<u64>,
 ) -> MarginfiResult {
     let CreateNewLiquidInsuranceFund {
         bank,
@@ -92,8 +91,6 @@ pub fn create_new_liquid_insurance_fund(
         ctx.accounts.marginfi_group.key(),
         min_withdraw_period,
         current_timestamp,
-        ctx.accounts.bank_insurance_vault.amount,
-        initial_number_of_shares,
         lif_bump,
     );
 
