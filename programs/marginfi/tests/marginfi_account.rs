@@ -1348,7 +1348,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
     let borrower_mfi_account = borrower_mfi_account_f.load().await;
     let lender_mfi_account = lender_mfi_account_f.load().await;
 
-    let collected_fees = 11.761;
+    let collected_fees = 13.04523;
 
     // Verify that interest accrued matches on both sides
     assert_eq_noise!(
@@ -1371,7 +1371,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
                     .into()
             )
             .unwrap(),
-        I80F48::from(native!(1000 + collected_fees, "SOL", f64)),
+        I80F48::from(native!(1000.0 + collected_fees, "SOL", f64)),
         native!(0.0002, "SOL", f64)
     );
     // TODO: check health is sane
@@ -2392,7 +2392,7 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
         .try_bank_repay(
             borrower_token_account_f_sol_eq.key,
             sol_eq_bank,
-            0.01,
+            0.0101,
             Some(false),
         )
         .await;
@@ -2407,6 +2407,7 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
             Some(true),
         )
         .await;
+
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::NoLiabilityFound);
 

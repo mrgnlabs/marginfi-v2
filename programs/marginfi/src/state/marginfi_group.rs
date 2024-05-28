@@ -180,44 +180,34 @@ impl InterestRateConfig {
             protocol_fee_fixed,
         } = self.get_fees();
 
-        let rate_fee = insurance_fee_ir + group_fee_ir + protocol_fee_ir;
-        let total_fixed_fee_apr = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
+        let fee_ir = insurance_fee_ir + group_fee_ir + protocol_fee_ir;
+        let fee_fixed = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
 
         let base_rate = self.interest_rate_curve(utilization_ratio)?;
 
         // Lending rate is adjusted for utilization ratio to symmetrize payments between borrowers and depositors.
-        let lending_rate = base_rate.checked_mul(utilization_ratio)?;
+        let lending_rate_apr = base_rate.checked_mul(utilization_ratio)?;
 
         // Borrowing rate is adjusted for fees.
         // borrowing_rate = base_rate + base_rate * rate_fee + total_fixed_fee_apr
-        let borrowing_rate = base_rate
-            .checked_mul(I80F48::ONE.checked_add(rate_fee)?)?
-            .checked_add(total_fixed_fee_apr)?;
+        let borrowing_rate_apr = base_rate
+            .checked_mul(I80F48::ONE.checked_add(fee_ir)?)?
+            .checked_add(fee_fixed)?;
 
-        let group_fee_apr = calc_fee_rate(
-            base_rate,
-            self.group_ir_fee.into(),
-            self.group_fixed_fee_apr.into(),
-        )?;
-
-        let insurance_fee_apr = calc_fee_rate(
-            base_rate,
-            self.insurance_ir_fee.into(),
-            self.insurance_fee_fixed_apr.into(),
-        )?;
-
+        let group_fee_apr = calc_fee_rate(base_rate, group_fee_ir, group_fee_fixed)?;
+        let insurance_fee_apr = calc_fee_rate(base_rate, insurance_fee_ir, insurance_fee_fixed)?;
         let protocol_fee_apr = calc_fee_rate(base_rate, protocol_fee_ir, protocol_fee_fixed)?;
 
-        assert!(lending_rate >= I80F48::ZERO);
-        assert!(borrowing_rate >= I80F48::ZERO);
+        assert!(lending_rate_apr >= I80F48::ZERO);
+        assert!(borrowing_rate_apr >= I80F48::ZERO);
         assert!(group_fee_apr >= I80F48::ZERO);
         assert!(insurance_fee_apr >= I80F48::ZERO);
         assert!(protocol_fee_apr >= I80F48::ZERO);
 
         // TODO: Add liquidation discount check
         Some(ComputedInterestRates {
-            lending_rate_apr: lending_rate,
-            borrowing_rate_apr: borrowing_rate,
+            lending_rate_apr,
+            borrowing_rate_apr,
             group_fee_apr,
             insurance_fee_apr,
             protocol_fee_apr,
@@ -1444,12 +1434,13 @@ mod tests {
             group_fee_apr: group_fees_apr,
             insurance_fee_apr: insurance_apr,
             protocol_fee_apr,
-        } = config.calc_interest_rate(I80F48!(0.7)).unwrap();
+        } = config.calc_interest_rate(I80F48!(0.6)).unwrap();
 
-        assert_eq_with_tolerance!(lending_apr, I80F48!(0), I80F48!(0.001));
-        assert_eq_with_tolerance!(borrow_apr, I80F48!(0.01), I80F48!(0.001));
+        assert_eq_with_tolerance!(lending_apr, I80F48!(0.24), I80F48!(0.001));
+        assert_eq_with_tolerance!(borrow_apr, I80F48!(0.41), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
         assert_eq_with_tolerance!(insurance_apr, I80F48!(0), I80F48!(0.001));
+        assert_eq_with_tolerance!(protocol_fee_apr, I80F48!(0), I80F48!(0.001));
     }
 
     #[test]
@@ -1463,6 +1454,8 @@ mod tests {
             plateau_interest_rate: I80F48!(0.4).into(),
             group_fixed_fee_apr: I80F48!(0.01).into(),
             insurance_ir_fee: I80F48!(0.1).into(),
+            protocol_fee_ir: I80F48!(0.05).into(),
+            protocol_fee_fixed: I80F48!(0.01).into(),
             ..Default::default()
         };
 
@@ -1472,12 +1465,25 @@ mod tests {
             group_fee_apr: group_fees_apr,
             insurance_fee_apr: insurance_apr,
             protocol_fee_apr,
-        } = config.calc_interest_rate(I80F48!(0.7)).unwrap();
+        } = config.calc_interest_rate(I80F48!(0.5)).unwrap();
 
         assert_eq_with_tolerance!(lending_apr, I80F48!(0.2), I80F48!(0.001));
-        assert_eq_with_tolerance!(borrow_apr, I80F48!(0.45), I80F48!(0.001));
+        assert_eq_with_tolerance!(borrow_apr, I80F48!(0.48), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
         assert_eq_with_tolerance!(insurance_apr, I80F48!(0.04), I80F48!(0.001));
+        assert_eq_with_tolerance!(protocol_fee_apr, I80F48!(0.03), I80F48!(0.001));
+    }
+
+    #[test]
+    fn calc_fee_rate_1() {
+        let rate = I80F48!(0.4);
+        let fee_ir = I80F48!(0.05);
+        let fee_fixed = I80F48!(0.01);
+
+        assert_eq!(
+            calc_fee_rate(rate, fee_ir, fee_fixed).unwrap(),
+            I80F48!(0.03)
+        );
     }
 
     /// ur: 0.8
