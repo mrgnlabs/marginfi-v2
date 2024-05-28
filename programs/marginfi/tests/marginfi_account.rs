@@ -1348,6 +1348,8 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
     let borrower_mfi_account = borrower_mfi_account_f.load().await;
     let lender_mfi_account = lender_mfi_account_f.load().await;
 
+    let collected_fees = 11.761;
+
     // Verify that interest accrued matches on both sides
     assert_eq_noise!(
         sol_bank
@@ -1357,7 +1359,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
                     .into()
             )
             .unwrap(),
-        I80F48::from(native!(11.761, "SOL", f64)),
+        I80F48::from(native!(collected_fees, "SOL", f64)),
         native!(0.0002, "SOL", f64)
     );
 
@@ -1369,7 +1371,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
                     .into()
             )
             .unwrap(),
-        I80F48::from(native!(1011.761, "SOL", f64)),
+        I80F48::from(native!(1000 + collected_fees, "SOL", f64)),
         native!(0.0002, "SOL", f64)
     );
     // TODO: check health is sane
