@@ -37,6 +37,7 @@ impl LiquidInsuranceFund {
         current_timestamp: i64,
         bank_insurance_vault_amount: u64,
         total_number_of_shares: Option<u64>,
+        liquid_insurance_bump: u8,
     ) -> Self {
         // calculate share value and price on creation
         let total_number_of_shares_initial = I80F48::from_num(total_number_of_shares.unwrap_or(10));
@@ -47,11 +48,7 @@ impl LiquidInsuranceFund {
             .unwrap();
 
         LiquidInsuranceFund {
-            group,
-            authority,
             bank,
-            bank_insurance_vault,
-            bank_insurance_vault_authority,
 
             min_withdraw_period,
 
@@ -59,6 +56,8 @@ impl LiquidInsuranceFund {
             share_value: price_per_share_initial.into(),
 
             last_update: current_timestamp,
+
+            liquid_insurance_bump,
 
             _padding: [[0; 2]; 28],
         }
@@ -71,10 +70,7 @@ impl LiquidInsuranceFund {
         program: AccountInfo<'c>,
     ) -> MarginfiResult {
         // Only deposits to the bank's insurance vault are allowed.
-        check!(
-            accounts.to.key.eq(&self.bank_insurance_vault),
-            MarginfiError::InvalidTransfer
-        );
+        // TODO add check against bank insurance vault? By deriving address
 
         debug!(
             "deposit_spl_transfer: amount: {} from {} to {}, auth {}",
@@ -91,10 +87,7 @@ impl LiquidInsuranceFund {
         program: AccountInfo<'c>,
     ) -> MarginfiResult {
         // Only withdraws from the bank's insurance vault are allowed.
-        check!(
-            accounts.from.key.eq(&self.bank_insurance_vault.key()),
-            MarginfiError::InvalidTransfer
-        );
+        // TODO add check against bank insurance vault? By deriving address
 
         debug!(
             "withdraw_spl_transfer: amount: {} from {} to {}, auth {}",
@@ -202,17 +195,7 @@ impl LiquidInsuranceFund {
 
 #[test]
 fn test_share_deposit_accounting() {
-    let mut lif = LiquidInsuranceFund::new(
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        1000000,
-        None,
-    );
+    let mut lif = LiquidInsuranceFund::new();
 
     // Total bank vault amount = 1_000_000
     // Total number of shares = 10 by default
@@ -254,17 +237,7 @@ fn test_share_deposit_accounting() {
 
 #[test]
 fn test_share_withdraw_accounting() {
-    let mut lif = LiquidInsuranceFund::new(
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        Pubkey::new_unique(),
-        1000000,
-        None,
-    );
+    let mut lif = LiquidInsuranceFund::new();
 
     // Total bank vault amount = 1_000_000
     // Total number of shares = 10 by default

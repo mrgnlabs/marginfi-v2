@@ -150,7 +150,6 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
     emit!(MarginfiWithdrawClaimLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {
             bank: liquid_insurance_fund.bank,
-            bank_insurance_vault: liquid_insurance_fund.bank_insurance_vault,
         },
         amount: user_withdraw_shares,
         success: true,

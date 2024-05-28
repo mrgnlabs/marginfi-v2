@@ -1,8 +1,5 @@
 use crate::{
-    constants::{
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_MINT_AUTHORITY_SEED,
-        LIQUID_INSURANCE_MINT_METADATA_SEED, LIQUID_INSURANCE_MINT_SEED,
-    },
+    constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_SEED},
     events::{LiquidInsuranceFundEventHeader, MarginfiCreateNewLiquidInsuranceFundEvent},
     state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
     MarginfiGroup, MarginfiResult,
@@ -87,28 +84,22 @@ pub fn create_new_liquid_insurance_fund(
         ..
     } = ctx.accounts;
 
-    let liquid_insurance_mint_bump = *ctx.bumps.get(LIQUID_INSURANCE_MINT_SEED).unwrap();
-    let liquid_insurance_mint_authority_bump =
-        *ctx.bumps.get(LIQUID_INSURANCE_MINT_AUTHORITY_SEED).unwrap();
+    let lif_bump = *ctx.bumps.get(LIQUID_INSURANCE_SEED).unwrap();
 
     let current_timestamp = Clock::get()?.unix_timestamp;
 
     let liquid_insurance_fund = LiquidInsuranceFund::new(
         ctx.accounts.marginfi_group.key(),
-        ctx.accounts.marginfi_authority.key(),
-        ctx.accounts.bank.key(),
-        ctx.accounts.bank_insurance_vault.key(),
-        ctx.accounts.bank_insurance_vault_authority.key(),
         min_withdraw_period,
         current_timestamp,
         ctx.accounts.bank_insurance_vault.amount,
         initial_number_of_shares,
+        lif_bump,
     );
 
     emit!(MarginfiCreateNewLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {
             bank: liquid_insurance_fund.bank,
-            bank_insurance_vault: liquid_insurance_fund.bank_insurance_vault,
         },
     });
 

@@ -3,8 +3,7 @@ use std::borrow::BorrowMut;
 use crate::{
     check,
     constants::{
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_MINT_AUTHORITY_SEED,
-        LIQUID_INSURANCE_MINT_SEED, LIQUID_INSURANCE_WITHDRAW_SEED,
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_WITHDRAW_SEED,
     },
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawRequestLiquidInsuranceFundEvent},
     math_error,
@@ -58,24 +57,6 @@ pub struct WithdrawRequestLiquidInsuranceFund<'info> {
     )]
     pub bank_insurance_vault_authority: AccountInfo<'info>,
 
-    #[account(
-        seeds = [
-            LIQUID_INSURANCE_MINT_AUTHORITY_SEED.as_bytes(),
-            bank.key().as_ref(),
-        ],
-        bump
-    )]
-    pub mint_authority: AccountInfo<'info>,
-
-    #[account(
-        seeds = [
-            LIQUID_INSURANCE_MINT_SEED.as_bytes(),
-            bank.key().as_ref(),
-        ],
-        bump,
-    )]
-    pub mint: Account<'info, Mint>,
-
     pub token_program: Program<'info, Token>,
 
     // PDA for the withdraw account
@@ -105,8 +86,6 @@ pub fn create_withdraw_request_from_liquid_token_fund(
         bank,
         bank_insurance_vault,
         bank_insurance_vault_authority,
-        mint_authority,
-        mint,
         token_program,
         ..
     } = ctx.accounts;
@@ -139,7 +118,6 @@ pub fn create_withdraw_request_from_liquid_token_fund(
     emit!(MarginfiWithdrawRequestLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {
             bank: liquid_insurance_fund.bank,
-            bank_insurance_vault: liquid_insurance_fund.bank_insurance_vault,
         },
         amount: withdraw_user_shares,
     });

@@ -20,7 +20,6 @@ pub struct AccountEventHeader {
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct LiquidInsuranceFundEventHeader {
     pub bank: Pubkey,
-    pub bank_insurance_vault: Pubkey,
 }
 
 // marginfi group events

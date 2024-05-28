@@ -1,8 +1,6 @@
 use crate::{
     check,
-    constants::{
-        INSURANCE_VAULT_SEED, LIQUID_INSURANCE_MINT_AUTHORITY_SEED, LIQUID_INSURANCE_MINT_SEED,
-    },
+    constants::INSURANCE_VAULT_SEED,
     events::{LiquidInsuranceFundEventHeader, MarginfiDepositIntoLiquidInsuranceFundEvent},
     state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
     MarginfiError, MarginfiGroup, MarginfiResult,
@@ -44,24 +42,6 @@ pub struct DepositIntoLiquidInsuranceFund<'info> {
     )]
     pub bank_insurance_vault: Box<Account<'info, TokenAccount>>,
 
-    #[account(
-        seeds = [
-            LIQUID_INSURANCE_MINT_AUTHORITY_SEED.as_bytes(),
-            bank.key().as_ref(),
-        ],
-        bump
-    )]
-    pub mint_authority: AccountInfo<'info>,
-
-    #[account(
-        seeds = [
-            LIQUID_INSURANCE_MINT_SEED.as_bytes(),
-            bank.key().as_ref(),
-        ],
-        bump,
-    )]
-    pub mint: Account<'info, Mint>,
-
     pub token_program: Program<'info, Token>,
 }
 
@@ -76,8 +56,6 @@ pub fn deposit_into_liquid_insurance_fund(
         signer_token_account,
         bank,
         bank_insurance_vault,
-        mint_authority,
-        mint,
         token_program,
         ..
     } = ctx.accounts;
@@ -113,7 +91,6 @@ pub fn deposit_into_liquid_insurance_fund(
     emit!(MarginfiDepositIntoLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {
             bank: liquid_insurance_fund.bank,
-            bank_insurance_vault: liquid_insurance_fund.bank_insurance_vault,
         },
         amount: user_deposited_share_amount,
         signer_token_address: ctx.accounts.signer_token_account.key(),
