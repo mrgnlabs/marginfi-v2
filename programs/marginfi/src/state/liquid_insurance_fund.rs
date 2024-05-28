@@ -13,12 +13,7 @@ use super::marginfi_group::WrappedI80F48;
 #[repr(C)]
 #[derive(AnchorDeserialize, AnchorSerialize)]
 pub struct LiquidInsuranceFund {
-    pub group: Pubkey,
-    pub authority: Pubkey,
-
     pub bank: Pubkey,
-    pub bank_insurance_vault: Pubkey,
-    pub bank_insurance_vault_authority: Pubkey,
 
     pub min_withdraw_period: i64,
 
@@ -28,6 +23,8 @@ pub struct LiquidInsuranceFund {
     pub total_shares: WrappedI80F48,
     pub share_value: WrappedI80F48,
 
+    pub liquid_insurance_bump: u8,
+
     // TODO
     pub _padding: [[u64; 2]; 28],
 }
@@ -35,11 +32,7 @@ pub struct LiquidInsuranceFund {
 impl LiquidInsuranceFund {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        group: Pubkey,
-        authority: Pubkey,
         bank: Pubkey,
-        bank_insurance_vault: Pubkey,
-        bank_insurance_vault_authority: Pubkey,
         min_withdraw_period: i64,
         current_timestamp: i64,
         bank_insurance_vault_amount: u64,
