@@ -18,9 +18,6 @@ use fixed::types::I80F48;
 pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(mut)]
-    pub mint_token: Account<'info, Mint>,
-
     #[account(
         mut,
         constraint = signer.key() == withdraw_params_account.load()?.signer.key(),
@@ -78,7 +75,6 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
 ) -> MarginfiResult {
     let SettleWithdrawClaimInLiquidInsuranceFund {
         marginfi_group,
-        mint_token,
         signer,
         signer_token_account,
         bank,
@@ -110,23 +106,17 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
     let total_bank_insurance_vault_amount = ctx.accounts.bank_insurance_vault.amount;
 
     // User shares
-    let user_withdraw_shares = ctx.accounts.withdraw_params_account.load()?.amount;
-    // Convert to units of bank insurance vault
-    let user_withdraw_tokens =
-        liquid_insurance_fund.get_value(I80F48::from_num(user_withdraw_shares))?;
-    let user_withdraw_tokens = user_withdraw_tokens
-        .checked_to_num::<u64>()
-        .ok_or(MarginfiError::MathError)?;
+    let user_withdraw_amount = ctx.accounts.withdraw_params_account.load()?.amount;
 
     // Internal accounting update
     liquid_insurance_fund.withdraw_shares(
-        I80F48::from_num(user_withdraw_shares),
+        I80F48::from_num(user_withdraw_amount),
         I80F48::from_num(total_bank_insurance_vault_amount),
     )?;
 
     // Withdraw user funds from the relevant insurance vault
     liquid_insurance_fund.withdraw_spl_transfer(
-        user_withdraw_tokens,
+        user_withdraw_amount,
         Transfer {
             from: ctx.accounts.bank_insurance_vault.to_account_info(),
             to: ctx.accounts.signer_token_account.to_account_info(),

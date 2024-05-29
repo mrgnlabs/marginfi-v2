@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
@@ -102,11 +104,11 @@ impl LiquidInsuranceFund {
 
     pub fn withdraw_shares(
         &mut self,
-        shares: I80F48,
+        amount: I80F48,
         bank_insurance_vault_amount: I80F48,
     ) -> MarginfiResult {
         // Update the internal count of shares
-        self.decrease_balance_internal(shares)?;
+        self.decrease_balance_internal(amount)?;
 
         // Update the share price
         self.update_share_price_internal(bank_insurance_vault_amount)?;
@@ -154,11 +156,17 @@ impl LiquidInsuranceFund {
     }
 
     /// Internal arithmetic for decreasing the balance of the liquid insurance fund
-    pub fn decrease_balance_internal(&mut self, shares: I80F48) -> MarginfiResult {
-        check!(shares > I80F48::ZERO, MarginfiError::InvalidTransfer);
+    pub fn decrease_balance_internal(&mut self, amount: I80F48) -> MarginfiResult {
+        check!(amount > I80F48::ZERO, MarginfiError::InvalidTransfer);
+
+        let current_shares: I80F48 = self.total_shares.into();
+        let current_amount = self.get_value(current_shares.into())?;
+        let delta_decrease = min(current_amount, amount);
+
+        let share_decrease = self.get_shares(delta_decrease)?;
 
         // Remove shares from existing collection of shares
-        self.remove_shares(shares)?;
+        self.remove_shares(share_decrease)?;
 
         Ok(())
     }

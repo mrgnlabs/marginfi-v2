@@ -124,7 +124,7 @@ pub fn create_withdraw_request_from_liquid_token_fund(
         header: LiquidInsuranceFundEventHeader {
             bank: liquid_insurance_fund.bank,
         },
-        amount: withdraw_user_shares,
+        amount: withdraw_user_amount,
     });
 
     Ok(())
