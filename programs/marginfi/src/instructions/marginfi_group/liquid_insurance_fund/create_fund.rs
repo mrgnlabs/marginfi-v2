@@ -84,7 +84,7 @@ pub fn create_new_liquid_insurance_fund(
         min_withdraw_period,
         current_timestamp,
         lif_bump,
-    );
+    )?;
 
     emit!(MarginfiCreateNewLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {

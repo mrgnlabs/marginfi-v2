@@ -37,8 +37,8 @@ impl LiquidInsuranceFund {
         min_withdraw_period: i64,
         current_timestamp: i64,
         liquid_insurance_bump: u8,
-    ) -> Self {
-        LiquidInsuranceFund {
+    ) -> MarginfiResult<Self> {
+        Ok(LiquidInsuranceFund {
             bank,
 
             min_withdraw_period,
@@ -51,7 +51,7 @@ impl LiquidInsuranceFund {
             liquid_insurance_bump,
 
             _padding: [[0; 2]; 28],
-        }
+        })
     }
 
     pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
