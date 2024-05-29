@@ -25,8 +25,8 @@ pub struct CreateNewLiquidInsuranceFund<'info> {
         space = 8 + std::mem::size_of::<LiquidInsuranceFund>(),
         payer = signer,
         seeds = [
-            marginfi_group.key().as_ref(),
-            bank.load()?.mint.key().as_ref(),
+            LIQUID_INSURANCE_SEED.as_bytes(),
+            bank.load()?.insurance_vault.key().as_ref(),
         ],
         bump,
     )]

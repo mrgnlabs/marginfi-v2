@@ -59,6 +59,8 @@ pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
     pub liquid_insurance_fund: AccountLoader<'info, LiquidInsuranceFund>,
 
     #[account(
+        mut,
+        close = bank_insurance_vault,
         seeds = [
             LIQUID_INSURANCE_WITHDRAW_SEED.as_bytes(),
             bank.key().as_ref(),
@@ -125,23 +127,11 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
         token_program.to_account_info(),
     )?;
 
-    // close the withdraw params account
-    let mut withdraw_params_account = ctx.accounts.withdraw_params_account.load_mut();
-
-    close_account(CpiContext::new(
-        ctx.accounts.token_program.to_account_info(),
-        CloseAccount {
-            account: ctx.accounts.withdraw_params_account.to_account_info(),
-            destination: ctx.accounts.signer.to_account_info(),
-            authority: ctx.accounts.signer.to_account_info(),
-        },
-    ))?;
-
     emit!(MarginfiWithdrawClaimLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {
             bank: liquid_insurance_fund.bank,
         },
-        amount: user_withdraw_shares,
+        amount: user_withdraw_amount,
         success: true,
     });
 
