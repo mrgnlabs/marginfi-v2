@@ -780,6 +780,14 @@ impl Bank {
 
         Ok(())
     }
+
+    pub fn get_oracle_account_count(&self) -> usize {
+        match self.config.oracle_setup {
+            OracleSetup::NativePythnet => 0,
+            OracleSetup::SwitchboardV2 | OracleSetup::Pyth => 1,
+            OracleSetup::None => unreachable!(),
+        }
+    }
 }
 
 /// We use a simple interest rate model that auto settles the accrued interest into the lending account balances.

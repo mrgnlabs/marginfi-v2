@@ -224,6 +224,7 @@ impl Snapshot {
                             .insert(oracle_address, AccountRoutingType::PriceFeedSwitchboard);
                         accounts_to_fetch.push(oracle_address);
                     }
+                    OracleSetup::NativePythnet => (),
                 }
 
                 self.banks.insert(

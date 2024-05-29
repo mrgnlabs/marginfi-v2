@@ -324,9 +324,11 @@ pub fn lending_account_liquidate(
     };
 
     // ## Risk checks ##
+    let bank_oracle_count = ctx.accounts.liab_bank.load()?.get_oracle_account_count()
+        + ctx.accounts.asset_bank.load()?.get_oracle_account_count();
 
     let (liquidator_remaining_accounts, liquidatee_remaining_accounts) = ctx.remaining_accounts
-        [2..]
+        [bank_oracle_count..]
         .split_at(liquidator_marginfi_account.get_remaining_accounts_len());
 
     // Verify liquidatee liquidation post health
