@@ -88,11 +88,11 @@ impl LiquidInsuranceFund {
 
     pub fn deposit_shares(
         &mut self,
-        amount: I80F48,
+        shares: I80F48,
         bank_insurance_vault_amount: I80F48,
     ) -> MarginfiResult {
         // Update the internal count of shares
-        self.increase_balance_internal(amount)?;
+        self.increase_balance_internal(shares)?;
 
         // Update share price
         self.update_share_price_internal(bank_insurance_vault_amount)?;

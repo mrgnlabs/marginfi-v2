@@ -1,4 +1,3 @@
-
 use crate::{
     check,
     constants::{
@@ -79,7 +78,7 @@ pub struct WithdrawRequestLiquidInsuranceFund<'info> {
 
 pub fn create_withdraw_request_from_liquid_token_fund(
     ctx: Context<WithdrawRequestLiquidInsuranceFund>,
-    amount: u64,
+    shares: u64,
 ) -> MarginfiResult {
     let WithdrawRequestLiquidInsuranceFund {
         marginfi_group: marginfi_group_loader,
@@ -95,18 +94,15 @@ pub fn create_withdraw_request_from_liquid_token_fund(
         ..
     } = ctx.accounts;
 
-    check!(amount.ge(&0), MarginfiError::InvalidWithdrawal);
+    check!(shares.ge(&0), MarginfiError::InvalidWithdrawal);
 
     // TODO: Additional withdraw validation?
 
-    let mut liquid_insurance_fund = ctx.accounts.liquid_insurance_fund.load_mut()?;
+    let liquid_insurance_fund = ctx.accounts.liquid_insurance_fund.load_mut()?;
 
     // The current value of the shares being withdrawn
-    let withdraw_user_shares = I80F48::from_num(amount);
-
-    // TODO: lock up these shares inside of the lif.
-
-    let withdraw_user_shares = withdraw_user_shares
+    let withdraw_user_amount = liquid_insurance_fund.get_value(I80F48::from_num(shares))?;
+    let withdraw_user_amount = withdraw_user_amount
         .checked_to_num::<u64>()
         .ok_or(MarginfiError::MathError)?;
 
@@ -119,7 +115,7 @@ pub fn create_withdraw_request_from_liquid_token_fund(
         signer: ctx.accounts.signer.key(),
         signer_token_account: ctx.accounts.signer_token_account.key(),
         timestamp: current_timestamp,
-        shares: withdraw_user_shares,
+        amount: withdraw_user_amount,
     };
 
     ctx.accounts.withdraw_params_account.data = w;
@@ -145,5 +141,5 @@ pub struct WithdrawParams {
     pub signer: Pubkey,
     pub signer_token_account: Pubkey,
     pub timestamp: i64,
-    pub shares: u64,
+    pub amount: u64,
 }

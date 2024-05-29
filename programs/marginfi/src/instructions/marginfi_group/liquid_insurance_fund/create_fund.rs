@@ -18,9 +18,6 @@ pub struct CreateNewLiquidInsuranceFund<'info> {
         mut,
         address = marginfi_group.load()?.admin,
     )]
-    pub marginfi_authority: Signer<'info>,
-
-    #[account(mut)]
     pub signer: Signer<'info>,
 
     #[account(
@@ -34,11 +31,6 @@ pub struct CreateNewLiquidInsuranceFund<'info> {
         bump,
     )]
     pub liquid_insurance_fund: AccountLoader<'info, LiquidInsuranceFund>,
-
-    #[account(
-        constraint = bank.load()?.mint == bank_insurance_fund_mint.key(),
-    )]
-    pub bank_insurance_fund_mint: Account<'info, Mint>,
 
     #[account(
         constraint = bank.load()?.group == marginfi_group.key(),
@@ -88,7 +80,7 @@ pub fn create_new_liquid_insurance_fund(
     let current_timestamp = Clock::get()?.unix_timestamp;
 
     let liquid_insurance_fund = LiquidInsuranceFund::new(
-        ctx.accounts.marginfi_group.key(),
+        ctx.accounts.bank.key(),
         min_withdraw_period,
         current_timestamp,
         lif_bump,

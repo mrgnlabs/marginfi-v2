@@ -110,7 +110,7 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
     let total_bank_insurance_vault_amount = ctx.accounts.bank_insurance_vault.amount;
 
     // User shares
-    let user_withdraw_shares = ctx.accounts.withdraw_params_account.load()?.shares;
+    let user_withdraw_shares = ctx.accounts.withdraw_params_account.load()?.amount;
     // Convert to units of bank insurance vault
     let user_withdraw_tokens =
         liquid_insurance_fund.get_value(I80F48::from_num(user_withdraw_shares))?;
