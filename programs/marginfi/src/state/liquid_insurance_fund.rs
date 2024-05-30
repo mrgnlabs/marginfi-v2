@@ -185,6 +185,23 @@ impl LiquidInsuranceFund {
             .into();
         Ok(())
     }
+
+    pub fn haircut_shares(&mut self, decrease_amount: u64) -> MarginfiResult {
+        let total_shares: I80F48 = self.total_shares.into();
+        let share_value: I80F48 = self.share_value.into();
+
+        let new_share_value = total_shares
+            .checked_mul(share_value)
+            .ok_or_else(math_error!())?
+            .checked_sub(decrease_amount.into())
+            .ok_or_else(math_error!())?
+            .checked_div(total_shares)
+            .ok_or_else(math_error!())?;
+
+        self.share_value = new_share_value.into();
+
+        Ok(())
+    }
 }
 
 #[test]

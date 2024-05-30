@@ -1,5 +1,8 @@
-use crate::constants::{PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD};
+use crate::constants::{
+    LIQUID_INSURANCE_SEED, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD,
+};
 use crate::events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent};
+use crate::state::liquid_insurance_fund::LiquidInsuranceFund;
 use crate::state::marginfi_account::DISABLED_FLAG;
 use crate::{
     bank_signer, check,
@@ -105,6 +108,17 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
     // Socialize bad debt among depositors.
     bank.socialize_loss(socialized_loss)?;
 
+    // Socialize loss among the liquid insurance fund shareholders
+    // Note: If no liquid insurance fund address exists, no update takes place.
+    // The value of LIF shares are discounted by same margin as the insurance loss in the insurance fund.
+    if let Some(lif) = &ctx.accounts.liquid_insurance_fund {
+        let covered_by_insurance = covered_by_insurance
+            .checked_to_num::<u64>()
+            .ok_or(MarginfiError::MathError)?;
+        let mut lif = lif.load_mut()?;
+        lif.haircut_shares(covered_by_insurance)?;
+    }
+
     // Settle bad debt.
     // The liabilities of this account and global total liabilities are reduced by `bad_debt`
     BankAccountWrapper::find_or_create(
@@ -184,4 +198,14 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     pub insurance_vault_authority: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
+
+    /// CHECK: Returns None if no lif address exists (no liquid insurance fund)
+    #[account(
+        seeds = [
+            LIQUID_INSURANCE_SEED.as_bytes(),
+            insurance_vault.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub liquid_insurance_fund: Option<AccountLoader<'info, LiquidInsuranceFund>>,
 }

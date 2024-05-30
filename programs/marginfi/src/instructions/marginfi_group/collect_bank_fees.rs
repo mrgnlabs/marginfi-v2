@@ -1,5 +1,8 @@
-use crate::constants::{FEE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_AUTHORITY_SEED};
+use crate::constants::{
+    FEE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_AUTHORITY_SEED, LIQUID_INSURANCE_SEED,
+};
 use crate::events::{GroupEventHeader, LendingPoolBankCollectFeesEvent};
+use crate::state::liquid_insurance_fund::LiquidInsuranceFund;
 use crate::{
     bank_signer,
     constants::{
@@ -277,6 +280,14 @@ pub fn lending_pool_withdraw_insurance(
         ),
     )?;
 
+    // Update bank's liquid insurance fund shares to reflect new balance.
+    // Note: If no liquid insurance fund address exists, no update takes place.
+    // The value of LIF shares are discounted by same margin as the amount taken from the insurance fund.
+    if let Some(lif) = &ctx.accounts.liquid_insurance_fund {
+        let mut lif = lif.load_mut()?;
+        lif.haircut_shares(amount)?;
+    }
+
     Ok(())
 }
 
@@ -320,4 +331,14 @@ pub struct LendingPoolWithdrawInsurance<'info> {
     pub dst_token_account: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
+
+    /// CHECK: Returns None if no lif address exists (no liquid insurance fund)
+    #[account(
+        seeds = [
+            LIQUID_INSURANCE_SEED.as_bytes(),
+            insurance_vault.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub liquid_insurance_fund: Option<AccountLoader<'info, LiquidInsuranceFund>>,
 }
