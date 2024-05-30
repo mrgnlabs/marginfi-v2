@@ -44,9 +44,9 @@ pub struct DepositIntoLiquidInsuranceFund<'info> {
         space = 8 + std::mem::size_of::<InsuranceFundAccount>(),
         payer = signer,
         seeds = [
-            LIQUID_INSURANCE_SEED,
-            signer.as_bytes(),
-            bank.load()?.key(),
+            LIQUID_INSURANCE_SEED.as_ref(),
+            signer.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump
     )]
