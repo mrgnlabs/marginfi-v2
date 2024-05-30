@@ -6,7 +6,7 @@ use crate::{
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawClaimLiquidInsuranceFundEvent},
     math_error,
     state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
-    MarginfiError, MarginfiGroup, MarginfiResult, WithdrawParams,
+    InsuranceFunderAccountData, MarginfiError, MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{
@@ -67,7 +67,7 @@ pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
             ],
             bump,
     )]
-    pub withdraw_params_account: AccountLoader<'info, WithdrawParams>,
+    pub withdraw_params_account: AccountLoader<'info, InsuranceFunderAccountData>,
 
     pub token_program: Program<'info, Token>,
 }

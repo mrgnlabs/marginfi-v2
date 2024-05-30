@@ -70,8 +70,8 @@ pub struct WithdrawRequestLiquidInsuranceFund<'info> {
         ],
         bump,
         payer = signer,
-        space = 8 + std::mem::size_of::<WithdrawParamsAccount>())]
-    pub withdraw_params_account: Account<'info, WithdrawParamsAccount>,
+        space = 8 + std::mem::size_of::<InsuranceFundAccount>())]
+    pub withdraw_params_account: AccountLoader<'info, InsuranceFundAccount>,
 
     pub system_program: Program<'info, System>,
 }
@@ -111,14 +111,14 @@ pub fn create_withdraw_request_from_liquid_token_fund(
 
     // create withdraw account
 
-    let w = WithdrawParams {
+    let w = InsuranceFunderAccountData {
         signer: ctx.accounts.signer.key(),
         signer_token_account: ctx.accounts.signer_token_account.key(),
         timestamp: current_timestamp,
         amount: withdraw_user_amount,
     };
 
-    ctx.accounts.withdraw_params_account.data = w;
+    ctx.accounts.withdraw_params_account.load_mut()?.data = w;
 
     emit!(MarginfiWithdrawRequestLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {
@@ -130,14 +130,14 @@ pub fn create_withdraw_request_from_liquid_token_fund(
     Ok(())
 }
 
-#[account]
-pub struct WithdrawParamsAccount {
-    data: WithdrawParams,
+#[account(zero_copy)]
+pub struct InsuranceFundAccount {
+    data: InsuranceFunderAccountData,
 }
 
 #[account(zero_copy)]
 #[derive(AnchorSerialize, AnchorDeserialize, Debug)]
-pub struct WithdrawParams {
+pub struct InsuranceFunderAccountData {
     pub signer: Pubkey,
     pub signer_token_account: Pubkey,
     pub timestamp: i64,

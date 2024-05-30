@@ -1,9 +1,9 @@
 use crate::{
     check,
-    constants::INSURANCE_VAULT_SEED,
+    constants::{INSURANCE_VAULT_SEED, LIQUID_INSURANCE_SEED},
     events::{LiquidInsuranceFundEventHeader, MarginfiDepositIntoLiquidInsuranceFundEvent},
     state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
-    MarginfiError, MarginfiGroup, MarginfiResult,
+    InsuranceFundAccount, MarginfiError, MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{mint_to, Mint, MintTo, Token, TokenAccount, Transfer};
@@ -15,10 +15,7 @@ pub struct DepositIntoLiquidInsuranceFund<'info> {
 
     pub liquid_insurance_fund: AccountLoader<'info, LiquidInsuranceFund>,
 
-    #[account(
-        mut,
-        address = marginfi_group.load()?.admin,
-    )]
+    #[account(mut)]
     pub signer: Signer<'info>,
 
     /// CHECK: Account to move tokens into
@@ -42,7 +39,22 @@ pub struct DepositIntoLiquidInsuranceFund<'info> {
     )]
     pub bank_insurance_vault: Box<Account<'info, TokenAccount>>,
 
+    #[account(
+        init,
+        space = 8 + std::mem::size_of::<InsuranceFundAccount>(),
+        payer = signer,
+        seeds = [
+            LIQUID_INSURANCE_SEED,
+            signer.as_bytes(),
+            bank.load()?.key(),
+        ],
+        bump
+    )]
+    pub user_insurance_fund_account: AccountLoader<'info, InsuranceFundAccount>,
+
     pub token_program: Program<'info, Token>,
+
+    pub system_program: Program<'info, System>,
 }
 
 pub fn deposit_into_liquid_insurance_fund(
@@ -88,9 +100,6 @@ pub fn deposit_into_liquid_insurance_fund(
     let user_deposited_share_amount = user_shares
         .checked_to_num::<u64>()
         .ok_or(MarginfiError::MathError)?;
-
-    // Send the user a tokenized representation of their deposit as shares
-    // TODO is this still necessary?
 
     emit!(MarginfiDepositIntoLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {
