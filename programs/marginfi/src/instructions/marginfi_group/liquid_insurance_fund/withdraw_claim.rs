@@ -5,8 +5,8 @@ use crate::{
     },
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawClaimLiquidInsuranceFundEvent},
     math_error,
-    state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
-    InsuranceFunderAccountData, MarginfiError, MarginfiGroup, MarginfiResult,
+    state::{liquid_insurance_fund::{InsuranceFunderAccountData, LiquidInsuranceFund}, marginfi_group::Bank},
+    MarginfiError, MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{

@@ -204,6 +204,20 @@ impl LiquidInsuranceFund {
     }
 }
 
+#[account(zero_copy)]
+pub struct InsuranceFundAccount {
+    pub data: InsuranceFunderAccountData,
+}
+
+#[account(zero_copy)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
+pub struct InsuranceFunderAccountData {
+    pub signer: Pubkey,
+    pub signer_token_account: Pubkey,
+    pub timestamp: i64,
+    pub amount: u64,
+}
+
 #[test]
 fn test_share_deposit_accounting() {
     let mut lif = LiquidInsuranceFund::new();

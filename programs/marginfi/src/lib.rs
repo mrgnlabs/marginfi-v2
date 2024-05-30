@@ -24,8 +24,6 @@ cfg_if::cfg_if! {
 
 #[program]
 pub mod marginfi {
-    use state::liquid_insurance_fund;
-
     use super::*;
 
     pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {

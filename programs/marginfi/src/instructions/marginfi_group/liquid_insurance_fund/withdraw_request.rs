@@ -5,7 +5,7 @@ use crate::{
     },
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawRequestLiquidInsuranceFundEvent},
     math_error,
-    state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
+    state::{liquid_insurance_fund::{InsuranceFundAccount, InsuranceFunderAccountData, LiquidInsuranceFund}, marginfi_group::Bank},
     MarginfiError, MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -128,18 +128,4 @@ pub fn create_withdraw_request_from_liquid_token_fund(
     });
 
     Ok(())
-}
-
-#[account(zero_copy)]
-pub struct InsuranceFundAccount {
-    data: InsuranceFunderAccountData,
-}
-
-#[account(zero_copy)]
-#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
-pub struct InsuranceFunderAccountData {
-    pub signer: Pubkey,
-    pub signer_token_account: Pubkey,
-    pub timestamp: i64,
-    pub amount: u64,
 }

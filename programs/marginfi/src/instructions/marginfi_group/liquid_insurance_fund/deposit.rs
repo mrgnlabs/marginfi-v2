@@ -2,8 +2,8 @@ use crate::{
     check,
     constants::{INSURANCE_VAULT_SEED, LIQUID_INSURANCE_SEED},
     events::{LiquidInsuranceFundEventHeader, MarginfiDepositIntoLiquidInsuranceFundEvent},
-    state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
-    InsuranceFundAccount, MarginfiError, MarginfiGroup, MarginfiResult,
+    state::{liquid_insurance_fund::{InsuranceFundAccount, LiquidInsuranceFund}, marginfi_group::Bank},
+    MarginfiError, MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{mint_to, Mint, MintTo, Token, TokenAccount, Transfer};
