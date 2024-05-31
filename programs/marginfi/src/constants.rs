@@ -13,6 +13,7 @@ pub const FEE_VAULT_SEED: &str = "fee_vault";
 
 pub const LIQUID_INSURANCE_SEED: &str = "liquid_insurance_seed";
 pub const LIQUID_INSURANCE_WITHDRAW_SEED: &str = "liquid_insurance_withdraw";
+pub const LIQUID_INSURANCE_USER_SEED: &str = "liquid_insurance_user";
 
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";

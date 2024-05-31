@@ -1,17 +1,21 @@
 use crate::{
     check,
     constants::{
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_WITHDRAW_SEED,
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_USER_SEED,
+        LIQUID_INSURANCE_WITHDRAW_SEED,
     },
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawClaimLiquidInsuranceFundEvent},
     math_error,
-    state::{liquid_insurance_fund::{InsuranceFunderAccountData, LiquidInsuranceFund}, marginfi_group::Bank},
+    state::{
+        liquid_insurance_fund::{
+            LiquidInsuranceFund, LiquidInsuranceFundAccount, LiquidInsuranceFundAccountData,
+        },
+        marginfi_group::Bank,
+    },
     MarginfiError, MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{
-    burn, close_account, Burn, CloseAccount, Mint, Token, TokenAccount, Transfer,
-};
+use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
 
 #[derive(Accounts)]
@@ -24,10 +28,7 @@ pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
     )]
     pub signer: Signer<'info>,
 
-    #[account(
-        mut,
-        constraint = signer_token_account.key() == withdraw_params_account.load()?.signer_token_account.key(),
-    )]
+    #[account(mut)]
     pub signer_token_account: Account<'info, TokenAccount>,
 
     #[account(
@@ -62,12 +63,12 @@ pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
         mut,
         close = bank_insurance_vault,
         seeds = [
-            LIQUID_INSURANCE_WITHDRAW_SEED.as_bytes(),
-            bank.key().as_ref(),
-            ],
-            bump,
+            LIQUID_INSURANCE_USER_SEED.as_bytes(),
+            signer.key().as_ref(),
+        ],
+        bump,
     )]
-    pub withdraw_params_account: AccountLoader<'info, InsuranceFunderAccountData>,
+    pub user_insurance_fund_account: AccountLoader<'info, LiquidInsuranceFundAccount>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -83,7 +84,7 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
         bank_insurance_vault,
         bank_insurance_vault_authority,
         liquid_insurance_fund,
-        withdraw_params_account,
+        user_insurance_fund_account,
         token_program,
     } = ctx.accounts;
 

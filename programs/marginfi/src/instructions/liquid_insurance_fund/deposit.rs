@@ -1,12 +1,15 @@
 use crate::{
     check,
-    constants::{INSURANCE_VAULT_SEED, LIQUID_INSURANCE_SEED},
+    constants::{INSURANCE_VAULT_SEED, LIQUID_INSURANCE_SEED, LIQUID_INSURANCE_USER_SEED},
     events::{LiquidInsuranceFundEventHeader, MarginfiDepositIntoLiquidInsuranceFundEvent},
-    state::{liquid_insurance_fund::{InsuranceFundAccount, LiquidInsuranceFund}, marginfi_group::Bank},
+    state::{
+        liquid_insurance_fund::{LiquidInsuranceFund, LiquidInsuranceFundAccount},
+        marginfi_group::Bank,
+    },
     MarginfiError, MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{mint_to, Mint, MintTo, Token, TokenAccount, Transfer};
+use anchor_spl::token::{Token, TokenAccount, Transfer};
 use fixed::types::I80F48;
 
 #[derive(Accounts)]
@@ -40,17 +43,13 @@ pub struct DepositIntoLiquidInsuranceFund<'info> {
     pub bank_insurance_vault: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        init,
-        space = 8 + std::mem::size_of::<InsuranceFundAccount>(),
-        payer = signer,
         seeds = [
-            LIQUID_INSURANCE_SEED.as_ref(),
+            LIQUID_INSURANCE_USER_SEED.as_bytes(),
             signer.key().as_ref(),
-            bank.key().as_ref(),
         ],
         bump
     )]
-    pub user_insurance_fund_account: AccountLoader<'info, InsuranceFundAccount>,
+    pub user_insurance_fund_account: AccountLoader<'info, LiquidInsuranceFundAccount>,
 
     pub token_program: Program<'info, Token>,
 
@@ -100,6 +99,12 @@ pub fn deposit_into_liquid_insurance_fund(
     let user_deposited_share_amount = user_shares
         .checked_to_num::<u64>()
         .ok_or(MarginfiError::MathError)?;
+
+    let mut user_insurance_fund_account = ctx.accounts.user_insurance_fund_account.load_mut()?;
+    user_insurance_fund_account.add_balance(
+        user_deposited_share_amount,
+        &ctx.accounts.bank_insurance_vault.key(),
+    );
 
     emit!(MarginfiDepositIntoLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {

@@ -205,17 +205,54 @@ impl LiquidInsuranceFund {
 }
 
 #[account(zero_copy)]
-pub struct InsuranceFundAccount {
-    pub data: InsuranceFunderAccountData,
+pub struct LiquidInsuranceFundAccount {
+    pub authority: Pubkey,
+    pub data: LiquidInsuranceFundAccountData,
+}
+
+impl LiquidInsuranceFundAccount {
+    pub fn initialize(&mut self, authority: Pubkey) {
+        self.authority = authority;
+    }
+
+    /// Adds a new balance to the user's account.
+    /// Note: each deposit must be its own balance due to the unique timestamp
+    pub fn add_balance(&mut self, shares: u64, bank_insurance_vault: &Pubkey) -> MarginfiResult {
+        let mut balance = self
+            .data
+            .balances
+            .iter()
+            .find(|balance| balance.bank_insurance_vault.eq(bank_insurance_vault));
+
+        match balance {
+            Some(balance) => {
+                balance.shares.checked_add(shares);
+            }
+            None => {
+                // Insert into first empty balance
+                let index = self
+                    .data
+                    .balances
+                    .iter()
+                    .position(|balance| balance.is_none());
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[account(zero_copy)]
 #[derive(AnchorSerialize, AnchorDeserialize, Debug)]
-pub struct InsuranceFunderAccountData {
-    pub signer: Pubkey,
-    pub signer_token_account: Pubkey,
-    pub timestamp: i64,
-    pub amount: u64,
+pub struct LiquidInsuranceFundAccountData {
+    pub balances: [LiquidInsuranceFundBalance; 16],
+}
+
+#[account(zero_copy)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
+pub struct LiquidInsuranceFundBalance {
+    pub bank_insurance_vault: Pubkey,
+    pub shares: u64,
 }
 
 #[test]

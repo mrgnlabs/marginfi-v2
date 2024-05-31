@@ -5,7 +5,12 @@ use crate::{
     },
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawRequestLiquidInsuranceFundEvent},
     math_error,
-    state::{liquid_insurance_fund::{InsuranceFundAccount, InsuranceFunderAccountData, LiquidInsuranceFund}, marginfi_group::Bank},
+    state::{
+        liquid_insurance_fund::{
+            LiquidInsuranceFund, LiquidInsuranceFundAccount, LiquidInsuranceFundAccountData,
+        },
+        marginfi_group::Bank,
+    },
     MarginfiError, MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -70,8 +75,8 @@ pub struct WithdrawRequestLiquidInsuranceFund<'info> {
         ],
         bump,
         payer = signer,
-        space = 8 + std::mem::size_of::<InsuranceFundAccount>())]
-    pub withdraw_params_account: AccountLoader<'info, InsuranceFundAccount>,
+        space = 8 + std::mem::size_of::<LiquidInsuranceFundAccount>())]
+    pub withdraw_params_account: AccountLoader<'info, LiquidInsuranceFundAccount>,
 
     pub system_program: Program<'info, System>,
 }
@@ -111,7 +116,7 @@ pub fn create_withdraw_request_from_liquid_token_fund(
 
     // create withdraw account
 
-    let w = InsuranceFunderAccountData {
+    let w = LiquidInsuranceFundAccountData {
         signer: ctx.accounts.signer.key(),
         signer_token_account: ctx.accounts.signer_token_account.key(),
         timestamp: current_timestamp,
