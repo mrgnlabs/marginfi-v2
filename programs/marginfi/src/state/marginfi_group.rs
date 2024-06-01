@@ -756,7 +756,12 @@ impl Bank {
             OracleSetup::NativePythnet => {
                 let price_update_account = &ais[0];
 
-                // TODO: Check the account owner is pyth-crosschain-receiver
+                check!(
+                    pyth_solana_receiver_sdk::check_id(price_update_account.owner),
+                    MarginfiError::InvalidOracleAccount,
+                    "Invalid owner of native pythnet price update account",
+                );
+
                 let data = price_update_account.try_borrow_data()?;
                 let price_update_v2 = PriceUpdateV2::try_deserialize(&mut &data[..])?;
 

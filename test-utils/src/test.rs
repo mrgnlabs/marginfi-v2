@@ -65,6 +65,29 @@ impl TestSettings {
         }
     }
 
+    pub fn all_banks_one_native() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    config: Some(BankConfig {
+                        oracle_setup: OracleSetup::NativePythnet,
+                        ..*DEFAULT_TEST_BANK_CONFIG
+                    }),
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent,
+                    ..TestBankSetting::default()
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
+
     pub fn all_banks_one_isolated() -> Self {
         Self {
             banks: vec![
@@ -184,6 +207,8 @@ pub const SWITCHBOARD_SOL_FEED: Pubkey = pubkey!("SwchSo1Price111111111111111111
 pub const PYTH_SOL_EQUIVALENT_FEED: Pubkey = pubkey!("PythSo1Equiva1entPrice111111111111111111111");
 pub const PYTH_MNDE_FEED: Pubkey = pubkey!("PythMndePrice111111111111111111111111111111");
 pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111111111111111");
+pub const PYTHNET_SOL_FEED: Pubkey = pubkey!("PythnetSo1Price1111111111111111111111111111");
+pub const PYTHNET_SOL_FEED_ID: [u8; 32] = [4; 32];
 
 pub fn create_oracle_key_array(pyth_oracle: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
     let mut keys = [Pubkey::default(); MAX_ORACLE_KEYS];
@@ -266,6 +291,11 @@ lazy_static! {
         oracle_keys: create_oracle_key_array(SWITCHBOARD_SOL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
+    pub static ref DEFAULT_SOL_NATIVE_ORACLE_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::NativePythnet,
+        oracle_keys: create_oracle_key_array(PYTHNET_SOL_FEED),
+        ..*DEFAULT_SOL_TEST_BANK_CONFIG
+    };
 }
 
 pub const USDC_MINT_DECIMALS: u8 = 6;
@@ -318,6 +348,11 @@ impl TestFixture {
         program.add_account(
             SWITCHBOARD_SOL_FEED,
             create_switchboard_price_feed(10, SOL_MINT_DECIMALS.into()),
+        );
+
+        program.add_account(
+            PYTHNET_SOL_FEED,
+            create_pythnet_receiver_price_feed(10, SOL_MINT_DECIMALS.into(), None, None),
         );
 
         let context = Rc::new(RefCell::new(program.start_with_context().await));
@@ -528,6 +563,11 @@ impl TestFixture {
         aso.set_data_from_slice(bytes);
 
         ctx.set_account(&address, &aso);
+    }
+
+    pub async fn update_account(&self, address: &Pubkey, account: &AccountSharedData) {
+        let mut ctx = self.context.borrow_mut();
+        ctx.set_account(address, account)
     }
 
     pub async fn advance_time(&self, seconds: i64) {

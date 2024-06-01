@@ -3,6 +3,8 @@ use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
 };
+use pyth_solana_receiver_sdk::price_update::{PriceUpdateV2, VerificationLevel};
+use pythnet_sdk::messages::PriceFeedMessage;
 use solana_program::{instruction::Instruction, pubkey};
 use solana_program_test::*;
 use solana_sdk::{account::Account, signature::Keypair};
@@ -12,6 +14,8 @@ use switchboard_v2::SWITCHBOARD_PROGRAM_ID;
 use switchboard_v2::{
     AggregatorAccountData, AggregatorResolutionMode, AggregatorRound, SwitchboardDecimal,
 };
+
+use crate::prelude::PYTHNET_SOL_FEED_ID;
 
 pub const MS_PER_SLOT: u64 = 400;
 pub const RUST_LOG_DEFAULT: &str = "solana_rbpf::vm=info,\
@@ -346,6 +350,44 @@ pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Accou
         lamports: 10000,
         data,
         owner: SWITCHBOARD_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 0,
+    }
+}
+
+pub fn create_pythnet_receiver_price_feed(
+    ui_price: i64,
+    mint_decimals: i32,
+    timestamp: Option<i64>,
+    verification_level: Option<VerificationLevel>,
+) -> Account {
+    let native_price = ui_price * 10_i32.pow(mint_decimals as u32) as i64;
+    let price_update = PriceUpdateV2 {
+        write_authority: Pubkey::default(),
+        verification_level: verification_level.unwrap_or(VerificationLevel::Full),
+        price_message: PriceFeedMessage {
+            feed_id: PYTHNET_SOL_FEED_ID,
+            price: native_price,
+            conf: 0,
+            exponent: mint_decimals,
+            publish_time: timestamp.unwrap_or_default(),
+            prev_publish_time: timestamp
+                .map(|time| time.saturating_sub(1))
+                .unwrap_or_default(),
+            ema_price: native_price,
+            ema_conf: 0,
+        },
+        posted_slot: 0,
+    };
+
+    let mut data = vec![];
+
+    price_update.serialize(&mut data).unwrap();
+
+    Account {
+        lamports: u64::MAX,
+        data,
+        owner: pyth_solana_receiver_sdk::ID,
         executable: false,
         rent_epoch: 0,
     }

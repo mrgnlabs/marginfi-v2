@@ -39,8 +39,8 @@ lazy_static = "1.4.0"
 static_assertions = "1.1.0"
 type-layout = "0.2.0"
 solana-security-txt = "1.1.1"
-pyth-solana-receiver-sdk = "0.1.0"
-pythnet-sdk = "2.0.0"
+pyth-solana-receiver-sdk = { workspace = true }
+pythnet-sdk = { workspace = true }
 
 [dev-dependencies]
 solana-account-decoder = { workspace = true }

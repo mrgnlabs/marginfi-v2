@@ -23,6 +23,8 @@ anchor-client = "0.28.0"
 
 switchboard-v2 = "0.4.0"
 pyth-sdk-solana = "0.8.0"
+pyth-solana-receiver-sdk = "0.1.0"
+pythnet-sdk = "2.0.0"
 
 [profile.release]
 overflow-checks = true

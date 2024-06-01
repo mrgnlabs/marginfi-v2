@@ -20,6 +20,8 @@ anchor-spl = { workspace = true }
 
 pyth-sdk-solana = { workspace = true }
 switchboard-v2 = { workspace = true }
+pyth-solana-receiver-sdk = { workspace = true }
+pythnet-sdk = { workspace = true }
 
 bytemuck = "1.9.1"
 fixed = "1.12.0"

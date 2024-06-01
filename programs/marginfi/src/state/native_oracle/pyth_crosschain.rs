@@ -231,3 +231,44 @@ impl PriceAdapter for PythnetPriceFeed {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    const FEED_ID: [u8; 32] = [3; 32];
+
+    #[test]
+    fn feed_ctl() {
+        let ctl_full_vl = PythnetPriceFeedControl {
+            price_feed_id: FEED_ID,
+            min_verificaiton_level: VerificationLevel::Full,
+        };
+
+        assert!(ctl_full_vl
+            .check_sufficient_verificaiton_level(VerificationLevel::Full)
+            .is_ok());
+        assert!(ctl_full_vl
+            .check_sufficient_verificaiton_level(VerificationLevel::Partial { num_signatures: 6 })
+            .is_err());
+
+        assert!(ctl_full_vl.check_feed_id_matches(&[0; 32]).is_err());
+        assert!(ctl_full_vl.check_feed_id_matches(&[4; 32]).is_err());
+        assert!(ctl_full_vl.check_feed_id_matches(&FEED_ID).is_ok());
+
+        let ctl_partial_vl = PythnetPriceFeedControl {
+            price_feed_id: FEED_ID,
+            min_verificaiton_level: VerificationLevel::Partial { num_signatures: 5 },
+        };
+
+        assert!(ctl_partial_vl
+            .check_sufficient_verificaiton_level(VerificationLevel::Full)
+            .is_ok());
+        assert!(ctl_partial_vl
+            .check_sufficient_verificaiton_level(VerificationLevel::Partial { num_signatures: 6 })
+            .is_ok());
+
+        assert!(ctl_partial_vl
+            .check_sufficient_verificaiton_level(VerificationLevel::Partial { num_signatures: 3 })
+            .is_err());
+    }
+}
