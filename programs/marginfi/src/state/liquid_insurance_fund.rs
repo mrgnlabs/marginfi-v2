@@ -4,7 +4,9 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 
-use crate::{check, debug, math_error, MarginfiError, MarginfiResult};
+use crate::{
+    check, constants::EMPTY_BALANCE_THRESHOLD, debug, math_error, MarginfiError, MarginfiResult,
+};
 
 use super::marginfi_group::WrappedI80F48;
 
@@ -216,25 +218,38 @@ impl LiquidInsuranceFundAccount {
     }
 
     /// Adds a new balance to the user's account.
-    /// Note: each deposit must be its own balance due to the unique timestamp
     pub fn add_balance(&mut self, shares: u64, bank_insurance_vault: &Pubkey) -> MarginfiResult {
-        let mut balance = self
+        let mut index = self
             .data
             .balances
             .iter()
-            .find(|balance| balance.bank_insurance_vault.eq(bank_insurance_vault));
+            .position(|balance| balance.bank_insurance_vault.eq(bank_insurance_vault));
 
-        match balance {
-            Some(balance) => {
-                balance.shares.checked_add(shares);
+        match index {
+            Some(index) => {
+                if let Some(balance) = self.data.balances.get_mut(index) {
+                    balance.shares += shares;
+                }
             }
             None => {
                 // Insert into first empty balance
-                let index = self
+                let empty_index = self
                     .data
                     .balances
                     .iter()
-                    .position(|balance| balance.is_none());
+                    .position(|balance| balance.is_empty());
+
+                match empty_index {
+                    Some(empty_index) => {
+                        self.data.balances.get_mut(empty_index).insert(
+                            &mut LiquidInsuranceFundBalance {
+                                bank_insurance_vault: *bank_insurance_vault,
+                                shares,
+                            },
+                        );
+                    }
+                    None => return Err(ProgramError::InvalidInstructionData.into()),
+                }
             }
         }
 
@@ -253,6 +268,12 @@ pub struct LiquidInsuranceFundAccountData {
 pub struct LiquidInsuranceFundBalance {
     pub bank_insurance_vault: Pubkey,
     pub shares: u64,
+}
+
+impl LiquidInsuranceFundBalance {
+    pub fn is_empty(&self) -> bool {
+        self.shares == 0_u64
+    }
 }
 
 #[test]
