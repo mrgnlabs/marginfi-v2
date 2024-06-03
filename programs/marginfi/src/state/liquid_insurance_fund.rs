@@ -248,9 +248,53 @@ impl LiquidInsuranceFundAccount {
                             },
                         );
                     }
-                    None => return Err(ProgramError::InvalidInstructionData.into()),
+                    None => return Err(ProgramError::InvalidAccountData.into()),
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    pub fn get_balance(&self, bank_insurance_vault: &Pubkey) -> MarginfiResult<u64> {
+        let account = self
+            .data
+            .balances
+            .iter()
+            .find(|balance| balance.bank_insurance_vault == *bank_insurance_vault);
+
+        match account {
+            Some(balance) => Ok(balance.shares),
+            None => return Err(ProgramError::InvalidInstructionData.into()),
+        }
+    }
+
+    pub fn create_withdrawal(
+        &mut self,
+        bank_insurance_fund: Pubkey,
+        locked_shares: u64,
+        timestamp: i64,
+    ) -> MarginfiResult {
+
+        // Insert into first empty balance
+        let empty_index = self
+            .data
+            .withdrawals
+            .iter()
+            .position(|withdrawal| withdrawal.is_empty());
+
+        match empty_index {
+            Some(empty_index) => {
+                self.data
+                    .withdrawals
+                    .get_mut(empty_index)
+                    .insert(&mut LiquidInsuranceFundWithdrawal {
+                        bank_insurance_fund,
+                        locked_shares,
+                        withdraw_request_timestamp: timestamp,
+                    });
+            }
+            None => return Err(ProgramError::InvalidAccountData.into()),
         }
 
         Ok(())
@@ -261,6 +305,7 @@ impl LiquidInsuranceFundAccount {
 #[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct LiquidInsuranceFundAccountData {
     pub balances: [LiquidInsuranceFundBalance; 16],
+    pub withdrawals: [LiquidInsuranceFundWithdrawal; 16],
 }
 
 #[account(zero_copy)]
@@ -273,6 +318,20 @@ pub struct LiquidInsuranceFundBalance {
 impl LiquidInsuranceFundBalance {
     pub fn is_empty(&self) -> bool {
         self.shares == 0_u64
+    }
+}
+
+#[account(zero_copy)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
+pub struct LiquidInsuranceFundWithdrawal {
+    pub bank_insurance_fund: Pubkey,
+    pub locked_shares: u64,
+    pub withdraw_request_timestamp: i64,
+}
+
+impl LiquidInsuranceFundWithdrawal {
+    pub fn is_empty(&self) -> bool {
+        self.locked_shares == 0_u64
     }
 }
 
