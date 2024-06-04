@@ -495,6 +495,11 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
                 // Handle no liabilities
                 .unwrap_or(I80F48::MAX);
 
+            debug!(
+                "end_flashloan health {}; start_flashloan_health {}",
+                end_flashloan_health, start_flashloan_health
+            );
+
             if end_flashloan_health.le(&start_flashloan_health) {
                 return err!(MarginfiError::BadAccountHealth);
             }
