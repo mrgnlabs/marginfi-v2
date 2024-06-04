@@ -20,7 +20,10 @@ pub fn lending_account_start_flashloan(
         end_index as usize,
     )?;
 
+    // Load account, calculate and store health, set IN_FLASHLOAN_FLAG
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+    let health = RiskEngine::start_flashloan_health(&marginfi_account, ctx.remaining_accounts)?;
+    marginfi_account.store_flashloan_health(&health);
     marginfi_account.set_flag(IN_FLASHLOAN_FLAG);
 
     Ok(())
@@ -131,9 +134,10 @@ pub fn lending_account_end_flashloan(
 
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
-    marginfi_account.unset_flag(IN_FLASHLOAN_FLAG);
+    RiskEngine::check_account_end_flashloan_health(&marginfi_account, ctx.remaining_accounts)?;
 
-    RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts)?;
+    marginfi_account.unset_flag(IN_FLASHLOAN_FLAG);
+    marginfi_account.unset_flashloan_health();
 
     Ok(())
 }

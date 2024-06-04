@@ -42,7 +42,8 @@ pub struct MarginfiAccount {
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
     pub account_flags: u64, // 8
-    pub _padding: [u64; 63],             // 8 * 63 = 512
+    pub flashloan_health: [u8; 16],
+    pub _padding: [u64; 61], // 8 * 61 = 488
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
@@ -100,6 +101,23 @@ impl MarginfiAccount {
             self.group,
         );
         Ok(())
+    }
+
+    // Can only be retrieved when flashloan flag is set
+    pub fn get_start_flashloan_health(&self) -> I80F48 {
+        debug_assert!(self.get_flag(IN_FLASHLOAN_FLAG));
+        I80F48::from_le_bytes(self.flashloan_health)
+    }
+
+    // Can only be set when flashloan flag is unset
+    pub fn store_flashloan_health(&mut self, health: &I80F48) {
+        debug_assert!(!self.get_flag(IN_FLASHLOAN_FLAG));
+        self.flashloan_health = health.to_le_bytes();
+    }
+
+    // Can only be set when flashloan flag is unset
+    pub fn unset_flashloan_health(&mut self) {
+        self.flashloan_health = I80F48::ZERO.to_le_bytes();
     }
 }
 
@@ -430,6 +448,61 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         Ok(())
     }
 
+    /// Calculate account health at the beginning of flashloan
+    pub fn start_flashloan_health(
+        marginfi_account: &'a MarginfiAccount,
+        remaining_ais: &[AccountInfo<'b>],
+    ) -> MarginfiResult<I80F48> {
+        let risk_engine = Self::new_no_flashloan_check(marginfi_account, remaining_ais)?;
+
+        // Calculate health components
+        let (total_weighted_assets, total_weighted_liabilities) =
+            risk_engine.get_account_health_components(RiskRequirementType::Initial)?;
+
+        // Calculate health
+        let health = total_weighted_assets
+            .checked_div(total_weighted_liabilities)
+            // Handle no liabilities
+            .unwrap_or(I80F48::MAX);
+
+        Ok(health)
+    }
+
+    /// Checks account is healty after performing actions that increase risk (removing liquidity).
+    ///
+    /// `IN_FLASHLOAN_FLAG` behaviour.
+    /// - Health check is skipped.
+    /// - `remaining_ais` can be an empty vec.
+    pub fn check_account_end_flashloan_health(
+        marginfi_account: &'a MarginfiAccount,
+        remaining_ais: &[AccountInfo<'b>],
+    ) -> MarginfiResult<()> {
+        let risk_engine = Self::new_no_flashloan_check(marginfi_account, remaining_ais)?;
+        risk_engine.check_account_risk_tiers()?;
+
+        // Is account in good health?
+        let (total_weighted_assets, total_weighted_liabilities) =
+            risk_engine.get_account_health_components(RiskRequirementType::Initial)?;
+        let is_in_good_health = total_weighted_assets >= total_weighted_liabilities;
+
+        if is_in_good_health {
+            return Ok(());
+        } else {
+            // If account is not in good health, did it's health improve during flashloan?
+            let start_flashloan_health = marginfi_account.get_start_flashloan_health();
+            let end_flashloan_health = total_weighted_assets
+                .checked_div(total_weighted_liabilities)
+                // Handle no liabilities
+                .unwrap_or(I80F48::MAX);
+
+            if end_flashloan_health.le(&start_flashloan_health) {
+                return err!(MarginfiError::BadAccountHealth);
+            }
+
+            return Ok(());
+        }
+    }
+
     /// Returns the total assets and liabilities of the account in the form of (assets, liabilities)
     pub fn get_account_health_components(
         &self,
@@ -463,7 +536,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
             .ok_or_else(math_error!())?)
     }
 
-    fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
+    fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult<()> {
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(requirement_type)?;
 
@@ -1341,7 +1414,8 @@ mod test {
                 _padding: [0; 8],
             },
             account_flags: TRANSFER_AUTHORITY_ALLOWED_FLAG,
-            _padding: [0; 63],
+            flashloan_health: [0; 16],
+            _padding: [0; 61],
         };
 
         assert!(acc.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
