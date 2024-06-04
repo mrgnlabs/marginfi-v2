@@ -34,6 +34,7 @@ use solana_program_test::*;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::timing::SECONDS_PER_YEAR;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+use test_case::test_case;
 
 // Feature baseline
 
@@ -1896,8 +1897,14 @@ async fn flashloan_success_3op() -> anyhow::Result<()> {
     Ok(())
 }
 
+// A flashloan initialized with an account that is in bad health
+// but which does not worsen health -> success
+#[test_case(1000; "keep_or_improve_health_success")]
+// A flashloan initialized with an account that is in bad health
+// which also worsens health --> failure
+#[test_case(999; "worsen_health_fail")]
 #[tokio::test]
-async fn flashloan_success_1op_bad_health() -> anyhow::Result<()> {
+async fn flashloan_1op_bad_health(repay_amount: u32) -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
@@ -1947,14 +1954,28 @@ async fn flashloan_success_1op_bad_health() -> anyhow::Result<()> {
         .await;
 
     let repay_ix = borrower_mfi_account_f
-        .make_bank_repay_ix(borrower_token_account_f_sol.key, sol_bank, 1_000, None)
+        .make_bank_repay_ix(
+            borrower_token_account_f_sol.key,
+            sol_bank,
+            repay_amount,
+            None,
+        )
         .await;
 
     let flash_loan_result = borrower_mfi_account_f
         .try_flashloan(vec![borrow_ix, repay_ix], vec![], vec![sol_bank.key])
         .await;
 
-    assert!(flash_loan_result.is_ok());
+    if repay_amount < 1000 {
+        // health was worsened during flashloan
+        assert_custom_error!(
+            flash_loan_result.unwrap_err(),
+            MarginfiError::BadAccountHealth
+        );
+    } else {
+        // health was not worsened during flashloan
+        assert!(flash_loan_result.is_ok());
+    }
 
     Ok(())
 }
