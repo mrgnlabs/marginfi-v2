@@ -486,7 +486,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         let is_in_good_health = total_weighted_assets >= total_weighted_liabilities;
 
         if is_in_good_health {
-            return Ok(());
+            Ok(())
         } else {
             // If account is not in good health, did it's health improve during flashloan?
             let start_flashloan_health = marginfi_account.get_start_flashloan_health();
@@ -504,7 +504,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
                 return err!(MarginfiError::BadAccountHealth);
             }
 
-            return Ok(());
+            Ok(())
         }
     }
 
