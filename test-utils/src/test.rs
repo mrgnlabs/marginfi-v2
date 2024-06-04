@@ -530,6 +530,31 @@ impl TestFixture {
         ctx.set_account(&address, &aso);
     }
 
+    pub async fn set_pyth_oracle_price(&self, address: Pubkey, price: i64) {
+        let mut ctx = self.context.borrow_mut();
+
+        let mut account = ctx
+            .banks_client
+            .get_account(address)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let data = account.data.as_mut_slice();
+        let mut data = *pyth_sdk_solana::state::load_price_account(data).unwrap();
+
+        data.ema_price.val = price;
+        data.ema_price.numer = price;
+
+        let bytes = bytemuck::bytes_of(&data);
+
+        let mut aso = AccountSharedData::from(account);
+
+        aso.set_data_from_slice(bytes);
+
+        ctx.set_account(&address, &aso);
+    }
+
     pub async fn advance_time(&self, seconds: i64) {
         let mut clock: Clock = self
             .context
