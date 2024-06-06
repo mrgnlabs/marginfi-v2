@@ -1,40 +1,24 @@
 use crate::{
     check,
-    constants::{
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_USER_SEED,
-        LIQUID_INSURANCE_WITHDRAW_SEED,
-    },
+    constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_USER_SEED},
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawClaimLiquidInsuranceFundEvent},
     math_error,
-    state::{
-        liquid_insurance_fund::{
-            LiquidInsuranceFund, LiquidInsuranceFundAccount, LiquidInsuranceFundAccountData,
-        },
-        marginfi_group::Bank,
-    },
-    MarginfiError, MarginfiGroup, MarginfiResult,
+    state::liquid_insurance_fund::{LiquidInsuranceFund, LiquidInsuranceFundAccount},
+    MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
-use fixed::types::I80F48;
 
 #[derive(Accounts)]
 pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
         mut,
-        constraint = signer.key() == withdraw_params_account.load()?.signer.key(),
+        address = user_insurance_fund_account.load()?.authority,
     )]
     pub signer: Signer<'info>,
 
     #[account(mut)]
     pub signer_token_account: Account<'info, TokenAccount>,
-
-    #[account(
-        constraint = bank.load()?.group == marginfi_group.key(),
-    )]
-    pub bank: AccountLoader<'info, Bank>,
 
     /// The corresponding insurance vault that the liquid insurance fund deposits into.
     /// This is the insurance vault of the underlying bank
@@ -42,18 +26,18 @@ pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
         mut,
         seeds = [
             INSURANCE_VAULT_SEED.as_bytes(),
-            bank.key().as_ref(),
+            liquid_insurance_fund.load()?.bank.key().as_ref(),
         ],
-        bump = bank.load()?.insurance_vault_bump
+        bump = liquid_insurance_fund.load()?.lif_vault_bump,
     )]
     pub bank_insurance_vault: Box<Account<'info, TokenAccount>>,
 
     #[account(
         seeds = [
             INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
-            bank.key().as_ref(),
+            liquid_insurance_fund.load()?.bank.key().as_ref(),
         ],
-        bump = bank.load()?.insurance_vault_authority_bump
+        bump = liquid_insurance_fund.load()?.lif_authority_bump,
     )]
     pub bank_insurance_vault_authority: AccountInfo<'info>,
 
@@ -73,64 +57,59 @@ pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+/// 1) Retrieve earliest withdraw request for this user, for this liquid insurance fund
+/// 2) Check whether enough time has passed
+/// 3) Process withdrawal
+/// 4) Transfer tokens
 pub fn settle_withdraw_claim_in_liquid_insurance_fund(
     ctx: Context<SettleWithdrawClaimInLiquidInsuranceFund>,
 ) -> MarginfiResult {
     let SettleWithdrawClaimInLiquidInsuranceFund {
-        marginfi_group,
-        signer,
         signer_token_account,
-        bank,
         bank_insurance_vault,
         bank_insurance_vault_authority,
         liquid_insurance_fund,
         user_insurance_fund_account,
         token_program,
+        signer: _,
     } = ctx.accounts;
+    let clock = Clock::get()?;
 
-    let min_withdraw_period = ctx
-        .accounts
-        .liquid_insurance_fund
-        .load()?
-        .min_withdraw_period;
-    let withdraw_request_timestamp = ctx.accounts.withdraw_params_account.load()?.timestamp;
-    let current_time = Clock::get()?.unix_timestamp;
+    // 1) Retrieve earliest withdraw request for this user, for this liquid insurance fund
+    let mut user_account = user_insurance_fund_account.load_mut()?;
+    let mut liquid_insurance_fund_account = liquid_insurance_fund.load_mut()?;
+    let withdrawal = user_account
+        .get_earliest_withdrawal(&liquid_insurance_fund.key())
+        .ok_or(MarginfiError::InvalidWithdrawal)?;
 
-    // Ensure enough time has passed since the withdraw request was made
+    // 2) Check whether enough time has passed
     check!(
-        withdraw_request_timestamp
-            .checked_add(min_withdraw_period)
+        withdrawal
+            .withdraw_request_timestamp
+            .checked_add(liquid_insurance_fund_account.min_withdraw_period)
             .ok_or_else(math_error!())?
-            > current_time,
+            > clock.unix_timestamp,
+        // TODO: more informative error
         MarginfiError::InvalidWithdrawal
     );
 
-    let mut liquid_insurance_fund = ctx.accounts.liquid_insurance_fund.load_mut()?;
-    let total_bank_insurance_vault_amount = ctx.accounts.bank_insurance_vault.amount;
-
-    // User shares
-    let user_withdraw_amount = ctx.accounts.withdraw_params_account.load()?.amount;
-
-    // Internal accounting update
-    liquid_insurance_fund.withdraw_shares(
-        I80F48::from_num(user_withdraw_amount),
-        I80F48::from_num(total_bank_insurance_vault_amount),
-    )?;
+    // 3) Calculate share value in tokens
+    let user_withdraw_amount: u64 = liquid_insurance_fund_account.process_withdrawal(withdrawal)?;
 
     // Withdraw user funds from the relevant insurance vault
-    liquid_insurance_fund.withdraw_spl_transfer(
+    liquid_insurance_fund_account.withdraw_spl_transfer(
         user_withdraw_amount,
         Transfer {
-            from: ctx.accounts.bank_insurance_vault.to_account_info(),
-            to: ctx.accounts.signer_token_account.to_account_info(),
-            authority: ctx.accounts.signer.to_account_info(),
+            from: bank_insurance_vault.to_account_info(),
+            to: signer_token_account.to_account_info(),
+            authority: bank_insurance_vault_authority.to_account_info(),
         },
         token_program.to_account_info(),
     )?;
 
     emit!(MarginfiWithdrawClaimLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {
-            bank: liquid_insurance_fund.bank,
+            bank: liquid_insurance_fund_account.bank,
         },
         amount: user_withdraw_amount,
         success: true,

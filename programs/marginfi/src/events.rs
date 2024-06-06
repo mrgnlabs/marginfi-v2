@@ -160,6 +160,11 @@ pub struct MarginfiCreateNewLiquidInsuranceFundEvent {
 }
 
 #[event]
+pub struct MarginfiCreateNewLiquidInsuranceFundAccountEvent {
+    pub user: Pubkey,
+}
+
+#[event]
 pub struct MarginfiDepositIntoLiquidInsuranceFundEvent {
     pub header: LiquidInsuranceFundEventHeader,
     pub amount: u64,
@@ -176,5 +181,5 @@ pub struct MarginfiWithdrawClaimLiquidInsuranceFundEvent {
 #[event]
 pub struct MarginfiWithdrawRequestLiquidInsuranceFundEvent {
     pub header: LiquidInsuranceFundEventHeader,
-    pub amount: u64,
+    pub shares: f64,
 }

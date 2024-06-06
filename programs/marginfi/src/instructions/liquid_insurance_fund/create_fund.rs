@@ -5,7 +5,7 @@ use crate::{
     MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount};
+use anchor_spl::token::{Token, TokenAccount};
 
 #[derive(Accounts)]
 #[instruction(
@@ -47,7 +47,7 @@ pub struct CreateNewLiquidInsuranceFund<'info> {
         ],
         bump = bank.load()?.insurance_vault_bump
     )]
-    pub bank_insurance_vault: Box<Account<'info, TokenAccount>>,
+    pub lif_vault: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -57,7 +57,7 @@ pub struct CreateNewLiquidInsuranceFund<'info> {
         ],
         bump = bank.load()?.insurance_vault_authority_bump
     )]
-    pub bank_insurance_vault_authority: AccountInfo<'info>,
+    pub lif_authority: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
 
@@ -71,25 +71,26 @@ pub fn create_new_liquid_insurance_fund(
 ) -> MarginfiResult {
     let CreateNewLiquidInsuranceFund {
         bank,
-        bank_insurance_vault_authority,
+        lif_authority,
+        liquid_insurance_fund,
         ..
     } = ctx.accounts;
 
-    let lif_bump = *ctx.bumps.get(LIQUID_INSURANCE_SEED).unwrap();
+    let lif_vault_bump = *ctx.bumps.get("lif_vault").unwrap();
+    let lif_authority_bump = *ctx.bumps.get("lif_authority").unwrap();
 
-    let current_timestamp = Clock::get()?.unix_timestamp;
+    let mut lif = liquid_insurance_fund.load_init()?;
 
-    let liquid_insurance_fund = LiquidInsuranceFund::new(
-        ctx.accounts.bank.key(),
+    lif.initialize(
+        bank.key(),
+        lif_authority.key(),
         min_withdraw_period,
-        current_timestamp,
-        lif_bump,
-    )?;
+        lif_vault_bump,
+        lif_authority_bump,
+    );
 
     emit!(MarginfiCreateNewLiquidInsuranceFundEvent {
-        header: LiquidInsuranceFundEventHeader {
-            bank: liquid_insurance_fund.bank,
-        },
+        header: LiquidInsuranceFundEventHeader { bank: lif.bank },
     });
 
     Ok(())

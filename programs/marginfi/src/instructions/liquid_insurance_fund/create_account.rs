@@ -1,7 +1,7 @@
 use crate::{
     constants::LIQUID_INSURANCE_USER_SEED,
-    prelude::*,
-    state::{liquid_insurance_fund::LiquidInsuranceFundAccount, marginfi_group::Bank},
+    events::MarginfiCreateNewLiquidInsuranceFundAccountEvent, prelude::*,
+    state::liquid_insurance_fund::LiquidInsuranceFundAccount,
 };
 use anchor_lang::prelude::*;
 use solana_program::sysvar::Sysvar;
@@ -13,11 +13,11 @@ pub fn initialize_account(ctx: Context<LiquidInsuranceFundAccountInitialize>) ->
         ..
     } = ctx.accounts;
 
-    let mut user_insurance_fund_account = ctx.accounts.user_insurance_fund_account.load_init()?;
+    let mut user_insurance_fund_account = user_insurance_fund_account.load_init()?;
 
     user_insurance_fund_account.initialize(signer.key());
 
-    // TODO: Emit event
+    emit!(MarginfiCreateNewLiquidInsuranceFundAccountEvent { user: signer.key() });
 
     Ok(())
 }

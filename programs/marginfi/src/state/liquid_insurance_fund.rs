@@ -4,9 +4,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Transfer};
 use fixed::types::I80F48;
 
-use crate::{
-    check, constants::EMPTY_BALANCE_THRESHOLD, debug, math_error, MarginfiError, MarginfiResult,
-};
+use crate::{check, debug, math_error, MarginfiError, MarginfiResult};
 
 use super::marginfi_group::WrappedI80F48;
 
@@ -18,45 +16,59 @@ use super::marginfi_group::WrappedI80F48;
 #[derive(AnchorDeserialize, AnchorSerialize)]
 pub struct LiquidInsuranceFund {
     pub bank: Pubkey,
-
+    pub vault_authority: Pubkey,
     pub min_withdraw_period: i64,
-
     pub last_update: i64,
 
-    // Share/Deposit model of the underlying insurance vault
     pub total_shares: WrappedI80F48,
     pub share_value: WrappedI80F48,
 
-    pub liquid_insurance_bump: u8,
+    pub lif_vault_bump: u8,
+    pub lif_authority_bump: u8,
 
     // TODO
     pub _padding: [[u64; 2]; 28],
 }
 
 impl LiquidInsuranceFund {
-    pub fn new(
+    pub fn initialize(
+        &mut self,
         bank: Pubkey,
+        vault_authority: Pubkey,
         min_withdraw_period: i64,
-        current_timestamp: i64,
-        liquid_insurance_bump: u8,
-    ) -> MarginfiResult<Self> {
-        Ok(LiquidInsuranceFund {
+        lif_vault_bump: u8,
+        lif_authority_bump: u8,
+    ) {
+        *self = LiquidInsuranceFund {
             bank,
-
             min_withdraw_period,
-
             total_shares: I80F48::ZERO.into(),
             share_value: I80F48::ONE.into(),
-
-            last_update: current_timestamp,
-
-            liquid_insurance_bump,
-
+            last_update: i64::MIN,
+            vault_authority,
+            lif_vault_bump,
+            lif_authority_bump,
             _padding: [[0; 2]; 28],
-        })
+        };
     }
 
-    pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
+    pub fn process_withdrawal(
+        &mut self,
+        withdrawal: &mut LiquidInsuranceFundWithdrawal,
+    ) -> MarginfiResult<u64> {
+        // Fetch shares to withdraw
+        let withdraw_shares: I80F48 = withdrawal.amount.into();
+
+        // Calculate token amount
+        let withdraw_token_amount = self.get_value(withdraw_shares)?;
+
+        // Decrement total share count and update share value
+        self.withdraw_shares(withdraw_shares, withdraw_token_amount);
+
+        Ok(withdraw_token_amount.to_num::<u64>())
+    }
+
+    pub(crate) fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
         &self,
         amount: u64,
         accounts: Transfer<'b>,
@@ -73,7 +85,7 @@ impl LiquidInsuranceFund {
         transfer(CpiContext::new(program, accounts), amount)
     }
 
-    pub fn withdraw_spl_transfer<'b: 'c, 'c: 'b>(
+    pub(crate) fn withdraw_spl_transfer<'b: 'c, 'c: 'b>(
         &self,
         amount: u64,
         accounts: Transfer<'b>,
@@ -90,7 +102,7 @@ impl LiquidInsuranceFund {
         transfer(CpiContext::new(program, accounts), amount)
     }
 
-    pub fn deposit_shares(
+    pub(crate) fn deposit_shares(
         &mut self,
         shares: I80F48,
         bank_insurance_vault_amount: I80F48,
@@ -104,7 +116,7 @@ impl LiquidInsuranceFund {
         Ok(())
     }
 
-    pub fn withdraw_shares(
+    pub(crate) fn withdraw_shares(
         &mut self,
         amount: I80F48,
         bank_insurance_vault_amount: I80F48,
@@ -119,7 +131,7 @@ impl LiquidInsuranceFund {
     }
 
     /// Internal arithmetic for increase the balance of the liquid insurance fund
-    pub fn increase_balance_internal(&mut self, shares: I80F48) -> MarginfiResult {
+    pub(crate) fn increase_balance_internal(&mut self, shares: I80F48) -> MarginfiResult {
         check!(shares > I80F48::ZERO, MarginfiError::InvalidTransfer);
 
         // Add new shares to existing collection of shares
@@ -128,7 +140,7 @@ impl LiquidInsuranceFund {
         Ok(())
     }
 
-    pub fn update_share_price_internal(
+    pub(crate) fn update_share_price_internal(
         &mut self,
         bank_insurance_vault_amount: I80F48,
     ) -> MarginfiResult {
@@ -142,7 +154,7 @@ impl LiquidInsuranceFund {
         Ok(())
     }
 
-    pub fn add_shares(&mut self, shares: I80F48) -> MarginfiResult {
+    pub(crate) fn add_shares(&mut self, shares: I80F48) -> MarginfiResult {
         let total_shares: I80F48 = self.total_shares.into();
         self.total_shares = total_shares
             .checked_add(shares)
@@ -151,18 +163,26 @@ impl LiquidInsuranceFund {
         Ok(())
     }
 
-    pub fn get_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
+    pub(crate) fn remove_shares(&mut self, shares: I80F48) -> MarginfiResult {
+        let total_shares: I80F48 = self.total_shares.into();
+        self.total_shares = total_shares
+            .checked_sub(shares)
+            .ok_or_else(math_error!())?
+            .into();
+        Ok(())
+    }
+
+    pub(crate) fn get_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
         Ok(value
             .checked_div(self.share_value.into())
             .ok_or_else(math_error!())?)
     }
 
     /// Internal arithmetic for decreasing the balance of the liquid insurance fund
-    pub fn decrease_balance_internal(&mut self, amount: I80F48) -> MarginfiResult {
+    pub(crate) fn decrease_balance_internal(&mut self, amount: I80F48) -> MarginfiResult {
         check!(amount > I80F48::ZERO, MarginfiError::InvalidTransfer);
 
-        let current_shares: I80F48 = self.total_shares.into();
-        let current_amount = self.get_value(current_shares.into())?;
+        let current_amount = self.get_value(self.total_shares.into())?;
         let delta_decrease = min(current_amount, amount);
 
         let share_decrease = self.get_shares(delta_decrease)?;
@@ -173,22 +193,21 @@ impl LiquidInsuranceFund {
         Ok(())
     }
 
-    pub fn get_value(&self, shares: I80F48) -> MarginfiResult<I80F48> {
+    pub(crate) fn get_value(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
             .checked_mul(self.share_value.into())
             .ok_or_else(math_error!())?)
     }
 
-    pub fn remove_shares(&mut self, delta: I80F48) -> MarginfiResult {
+    pub(crate) fn remove_shares(&mut self, delta: I80F48) -> MarginfiResult {
         let total_shares: I80F48 = self.total_shares.into();
-        self.total_shares = total_shares
-            .checked_sub(delta)
-            .ok_or_else(math_error!())?
-            .into();
+        let new_shares = total_shares.checked_sub(delta).ok_or_else(math_error!())?;
+        check!(new_shares >= 0, MarginfiError::MathError);
+        self.total_shares = new_shares.into();
         Ok(())
     }
 
-    pub fn haircut_shares(&mut self, decrease_amount: u64) -> MarginfiResult {
+    pub(crate) fn haircut_shares(&mut self, decrease_amount: u64) -> MarginfiResult {
         let total_shares: I80F48 = self.total_shares.into();
         let share_value: I80F48 = self.share_value.into();
 
@@ -209,7 +228,9 @@ impl LiquidInsuranceFund {
 #[account(zero_copy)]
 pub struct LiquidInsuranceFundAccount {
     pub authority: Pubkey,
-    pub data: LiquidInsuranceFundAccountData,
+    pub balances: [LiquidInsuranceFundBalance; 16],
+    pub withdrawals: [LiquidInsuranceFundWithdrawal; 16],
+    pub padding: [u64; 8],
 }
 
 impl LiquidInsuranceFundAccount {
@@ -217,87 +238,85 @@ impl LiquidInsuranceFundAccount {
         self.authority = authority;
     }
 
-    /// Adds a new balance to the user's account.
-    pub fn add_balance(&mut self, shares: u64, bank_insurance_vault: &Pubkey) -> MarginfiResult {
-        let mut index = self
-            .data
-            .balances
-            .iter()
-            .position(|balance| balance.bank_insurance_vault.eq(bank_insurance_vault));
-
-        match index {
-            Some(index) => {
-                if let Some(balance) = self.data.balances.get_mut(index) {
-                    balance.shares += shares;
-                }
+    /// Try to find an existing deposit for this insurance vault,
+    /// fallback to a new deposit if possible
+    pub fn get_or_init_deposit(
+        &mut self,
+        bank_insurance_fund: &Pubkey,
+    ) -> Option<&mut LiquidInsuranceFundBalance> {
+        let mut maybe_new = None;
+        for balance in self.balances.iter_mut() {
+            if balance.bank_insurance_fund.eq(bank_insurance_fund) {
+                return Some(balance);
+            } else if balance.is_empty() {
+                maybe_new.get_or_insert(balance);
             }
-            None => {
-                // Insert into first empty balance
-                let empty_index = self
-                    .data
-                    .balances
-                    .iter()
-                    .position(|balance| balance.is_empty());
+        }
 
-                match empty_index {
-                    Some(empty_index) => {
-                        self.data.balances.get_mut(empty_index).insert(
-                            &mut LiquidInsuranceFundBalance {
-                                bank_insurance_vault: *bank_insurance_vault,
-                                shares,
-                            },
-                        );
-                    }
-                    None => return Err(ProgramError::InvalidAccountData.into()),
+        maybe_new.map(|deposit| {
+            deposit.bank_insurance_fund = *bank_insurance_fund;
+            deposit
+        })
+    }
+
+    /// Try to find an existing withdraw claim for this insurance vault.
+    /// If there are multiple, the oldest/earliest is returned
+    pub fn get_earliest_withdrawal(
+        &mut self,
+        bank_insurance_fund: &Pubkey,
+    ) -> Option<&mut LiquidInsuranceFundWithdrawal> {
+        let mut oldest_withdrawal = None;
+        for (i, withdrawal) in self.withdrawals.iter().enumerate() {
+            if withdrawal.bank_insurance_fund.eq(bank_insurance_fund) {
+                if self.withdrawals[*oldest_withdrawal.get_or_insert(i)].withdraw_request_timestamp
+                    > withdrawal.withdraw_request_timestamp
+                {
+                    oldest_withdrawal.replace(i);
                 }
             }
         }
 
-        Ok(())
+        oldest_withdrawal.map(|i| &mut self.withdrawals[i])
     }
 
-    pub fn get_balance(&self, bank_insurance_vault: &Pubkey) -> MarginfiResult<u64> {
-        let account = self
-            .data
-            .balances
-            .iter()
-            .find(|balance| balance.bank_insurance_vault == *bank_insurance_vault);
-
-        match account {
-            Some(balance) => Ok(balance.shares),
-            None => return Err(ProgramError::InvalidInstructionData.into()),
-        }
-    }
-
+    /// 1) Look for existing deposit
+    /// 2) Validate and decrement requested shares
+    /// 3) Initialize withdrawal in empty slot
     pub fn create_withdrawal(
         &mut self,
-        bank_insurance_fund: Pubkey,
-        locked_shares: u64,
+        bank_insurance_fund: &Pubkey,
+        // All if None
+        shares: Option<I80F48>,
         timestamp: i64,
-    ) -> MarginfiResult {
+    ) -> MarginfiResult<I80F48> {
+        // 1) Look for existing deposit
+        let deposit = self
+            .balances
+            .iter_mut()
+            .find(|deposit| deposit.bank_insurance_fund.eq(bank_insurance_fund))
+            .ok_or(MarginfiError::InvalidWithdrawal)?;
 
-        // Insert into first empty balance
-        let empty_index = self
-            .data
-            .withdrawals
-            .iter()
-            .position(|withdrawal| withdrawal.is_empty());
-
-        match empty_index {
-            Some(empty_index) => {
-                self.data
-                    .withdrawals
-                    .get_mut(empty_index)
-                    .insert(&mut LiquidInsuranceFundWithdrawal {
-                        bank_insurance_fund,
-                        locked_shares,
-                        withdraw_request_timestamp: timestamp,
-                    });
-            }
-            None => return Err(ProgramError::InvalidAccountData.into()),
+        // 2) Validate and decrement requested shares
+        let deposit_shares: I80F48 = deposit.shares.into();
+        let requested_shares = shares.unwrap_or(deposit_shares);
+        if requested_shares > deposit_shares {
+            return err!(MarginfiError::InvalidWithdrawal);
         }
+        deposit.shares = (deposit_shares - requested_shares).into();
 
-        Ok(())
+        // 3) Initialize withdrawal in empty slot
+        let withdrawal_slot = self
+            .withdrawals
+            .iter_mut()
+            .find(|slot| slot.is_empty())
+            .ok_or(MarginfiError::InsuranceFundAccountWithdrawSlotsFull)?;
+        *withdrawal_slot = LiquidInsuranceFundWithdrawal {
+            bank_insurance_fund: *bank_insurance_fund,
+            amount: requested_shares.into(),
+            withdraw_request_timestamp: timestamp,
+        };
+
+        Ok(requested_shares)
     }
 }
 
@@ -311,13 +330,19 @@ pub struct LiquidInsuranceFundAccountData {
 #[account(zero_copy)]
 #[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct LiquidInsuranceFundBalance {
-    pub bank_insurance_vault: Pubkey,
-    pub shares: u64,
+    pub bank_insurance_fund: Pubkey,
+    pub shares: WrappedI80F48,
 }
 
 impl LiquidInsuranceFundBalance {
-    pub fn is_empty(&self) -> bool {
-        self.shares == 0_u64
+    fn is_empty(&self) -> bool {
+        self.shares.value == I80F48::ZERO.to_le_bytes()
+    }
+
+    /// Can be used to subtract given I80F48 is signed
+    pub fn add_shares(&mut self, shares: I80F48) {
+        let current_shares: I80F48 = self.shares.into();
+        self.shares = (current_shares + shares).into();
     }
 }
 
@@ -325,13 +350,25 @@ impl LiquidInsuranceFundBalance {
 #[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct LiquidInsuranceFundWithdrawal {
     pub bank_insurance_fund: Pubkey,
-    pub locked_shares: u64,
+    pub amount: WrappedI80F48,
     pub withdraw_request_timestamp: i64,
 }
 
 impl LiquidInsuranceFundWithdrawal {
     pub fn is_empty(&self) -> bool {
-        self.locked_shares == 0_u64
+        self.amount.value == I80F48::ZERO.to_le_bytes()
+    }
+
+    pub fn shares(&self) -> I80F48 {
+        self.amount.into()
+    }
+
+    pub fn free(&mut self) {
+        *self = LiquidInsuranceFundWithdrawal {
+            bank_insurance_fund: Pubkey::default(),
+            amount: I80F48::ZERO.into(),
+            withdraw_request_timestamp: i64::MAX,
+        }
     }
 }
 

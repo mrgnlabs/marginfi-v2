@@ -95,6 +95,10 @@ pub enum MarginfiError {
     Unauthorized,
     #[msg("InvalidWithdrawal")] // 6046
     InvalidWithdrawal,
+    #[msg("Insurance fund account balance slots are full")] // 6047
+    InsuranceFundAccountBalanceSlotsFull,
+    #[msg("Insurance fund account withdraw slots are full")] // 6048
+    InsuranceFundAccountWithdrawSlotsFull,
 }
 
 impl From<MarginfiError> for ProgramError {
