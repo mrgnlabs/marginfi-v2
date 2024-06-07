@@ -103,7 +103,8 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-/// User deposits $5000 SOLE and $500 USDC, borrowing $200 SOL should succeed due to enough USDC collateral, despite stale SOLE oracle
+/// User deposits $500 of SOLE and $500 of USDC, but SOLE oracle is stale
+/// -> borrowing 51 SOL should not succeed ($500 USDC collateral < $510 SOL borrow), but borrowing 40 SOL should go through despite the stale SOLE oracle ($500 USDC collateral > $400 SOL borrow)
 async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
