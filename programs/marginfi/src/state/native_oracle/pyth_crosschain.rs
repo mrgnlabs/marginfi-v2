@@ -12,7 +12,7 @@ use crate::{
     MarginfiError, MarginfiResult,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct PythnetPriceFeedControl {
     pub price_feed_id: [u8; 32],
     pub min_verificaiton_level: VerificationLevel,
@@ -234,6 +234,13 @@ impl PriceAdapter for PythnetPriceFeed {
 
 #[cfg(test)]
 mod test {
+    use std::error::Error;
+
+    use fixed_macro::types::I80F48;
+    use solana_sdk::pubkey::Pubkey;
+
+    use crate::constants::EXP_10;
+
     use super::*;
     const FEED_ID: [u8; 32] = [3; 32];
 
@@ -266,9 +273,267 @@ mod test {
         assert!(ctl_partial_vl
             .check_sufficient_verificaiton_level(VerificationLevel::Partial { num_signatures: 6 })
             .is_ok());
-
         assert!(ctl_partial_vl
             .check_sufficient_verificaiton_level(VerificationLevel::Partial { num_signatures: 3 })
             .is_err());
+    }
+
+    #[test]
+    fn feed_updating() -> Result<(), Box<dyn Error>> {
+        let pf = PythnetPriceFeed::new_no_staleness_check(
+            PriceUpdateV2 {
+                write_authority: Pubkey::default(),
+                verification_level: VerificationLevel::Partial { num_signatures: 3 },
+                price_message: PriceFeedMessage {
+                    feed_id: [0; 32],
+                    price: 10 * EXP_10[6] as i64,
+                    conf: 10 * EXP_10[4] as u64,
+                    exponent: -6,
+                    publish_time: 1,
+                    prev_publish_time: 0,
+                    ema_price: 10 * EXP_10[6] as i64,
+                    ema_conf: 10 * EXP_10[4] as u64,
+                },
+                posted_slot: 0,
+            },
+            VerificationLevel::Full,
+        );
+
+        assert!(pf.is_err());
+
+        let pf = PythnetPriceFeed::new_no_staleness_check(
+            PriceUpdateV2 {
+                write_authority: Pubkey::default(),
+                verification_level: VerificationLevel::Full,
+                price_message: PriceFeedMessage {
+                    feed_id: [0; 32],
+                    price: 10 * EXP_10[6] as i64,
+                    conf: 10 * EXP_10[4] as u64,
+                    exponent: -6,
+                    publish_time: 1,
+                    prev_publish_time: 0,
+                    ema_price: 10 * EXP_10[6] as i64,
+                    ema_conf: 10 * EXP_10[4] as u64,
+                },
+                posted_slot: 0,
+            },
+            VerificationLevel::Full,
+        );
+
+        assert!(pf.is_ok());
+
+        let mut pf = pf.unwrap();
+
+        assert!(pf.check_staleness(10, 5).is_err());
+        assert!(pf.check_staleness(5, 6).is_ok());
+
+        let ctl = PythnetPriceFeedControl {
+            price_feed_id: FEED_ID,
+            min_verificaiton_level: VerificationLevel::Full,
+        };
+
+        assert!(
+            pf.try_update(
+                &PriceUpdateV2 {
+                    write_authority: Pubkey::default(),
+                    verification_level: VerificationLevel::Partial { num_signatures: 2 },
+                    price_message: PriceFeedMessage {
+                        feed_id: FEED_ID,
+                        price: 10 * EXP_10[6] as i64,
+                        conf: 10 * EXP_10[4] as u64,
+                        exponent: -6,
+                        publish_time: 1,
+                        prev_publish_time: 0,
+                        ema_price: 10 * EXP_10[6] as i64,
+                        ema_conf: 10 * EXP_10[4] as u64,
+                    },
+                    posted_slot: 0,
+                },
+                ctl,
+            )
+            .is_err(),
+            "Should fail because of insufficient VerificationLevel"
+        );
+
+        assert!(
+            pf.try_update(
+                &PriceUpdateV2 {
+                    write_authority: Pubkey::default(),
+                    verification_level: VerificationLevel::Full,
+                    price_message: PriceFeedMessage {
+                        feed_id: [0; 32],
+                        price: 10 * EXP_10[6] as i64,
+                        conf: 10 * EXP_10[4] as u64,
+                        exponent: -6,
+                        publish_time: 1,
+                        prev_publish_time: 0,
+                        ema_price: 10 * EXP_10[6] as i64,
+                        ema_conf: 10 * EXP_10[4] as u64,
+                    },
+                    posted_slot: 0,
+                },
+                ctl,
+            )
+            .is_err(),
+            "Should fail because of incorrect feed id"
+        );
+
+        assert!(
+            pf.try_update(
+                &PriceUpdateV2 {
+                    write_authority: Pubkey::default(),
+                    verification_level: VerificationLevel::Full,
+                    price_message: PriceFeedMessage {
+                        feed_id: FEED_ID,
+                        price: 10 * EXP_10[6] as i64,
+                        conf: 10 * EXP_10[4] as u64,
+                        exponent: -6,
+                        publish_time: 1,
+                        prev_publish_time: 0,
+                        ema_price: 10 * EXP_10[6] as i64,
+                        ema_conf: 10 * EXP_10[4] as u64,
+                    },
+                    posted_slot: 0,
+                },
+                ctl,
+            )
+            .is_err(),
+            "Should fail because of update age"
+        );
+
+        assert!(
+            pf.try_update(
+                &PriceUpdateV2 {
+                    write_authority: Pubkey::default(),
+                    verification_level: VerificationLevel::Full,
+                    price_message: PriceFeedMessage {
+                        feed_id: FEED_ID,
+                        price: 10 * EXP_10[6] as i64,
+                        conf: 10 * EXP_10[4] as u64,
+                        exponent: -6,
+                        publish_time: 2,
+                        prev_publish_time: 0,
+                        ema_price: 10 * EXP_10[6] as i64,
+                        ema_conf: 10 * EXP_10[4] as u64,
+                    },
+                    posted_slot: 0,
+                },
+                ctl,
+            )
+            .is_ok(),
+            "Should succedd"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn price_adapter() -> Result<(), Box<dyn Error>> {
+        let mut pf = PythnetPriceFeed::new_no_staleness_check(
+            PriceUpdateV2 {
+                write_authority: Pubkey::default(),
+                verification_level: VerificationLevel::Full,
+                price_message: PriceFeedMessage {
+                    feed_id: FEED_ID,
+                    price: 10 * EXP_10[6] as i64,
+                    conf: 10 * EXP_10[4] as u64,
+                    exponent: -6,
+                    publish_time: 1,
+                    prev_publish_time: 0,
+                    ema_price: 5 * EXP_10[6] as i64,
+                    ema_conf: 15 * EXP_10[4] as u64,
+                },
+                posted_slot: 0,
+            },
+            VerificationLevel::Full,
+        )
+        .unwrap();
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::RealTime, None)?,
+            I80F48!(10)
+        );
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?,
+            I80F48!(10.211999999999993)
+        );
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?,
+            I80F48!(9.788000000000007)
+        );
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::TimeWeighted, None)?,
+            I80F48!(5)
+        );
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))?,
+            I80F48!(5.250000000000004)
+        );
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))?,
+            I80F48!(4.749999999999996)
+        );
+
+        let ctl = PythnetPriceFeedControl {
+            price_feed_id: FEED_ID,
+            min_verificaiton_level: VerificationLevel::Full,
+        };
+
+        pf.try_update(
+            &PriceUpdateV2 {
+                write_authority: Pubkey::default(),
+                verification_level: VerificationLevel::Full,
+                price_message: PriceFeedMessage {
+                    feed_id: FEED_ID,
+                    price: 20 * EXP_10[6] as i64,
+                    conf: 10 * EXP_10[4] as u64,
+                    exponent: -6,
+                    publish_time: 2,
+                    prev_publish_time: 0,
+                    ema_price: 40 * EXP_10[6] as i64,
+                    ema_conf: 10 * EXP_10[4] as u64,
+                },
+                posted_slot: 0,
+            },
+            ctl,
+        )
+        .unwrap();
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::RealTime, None)?,
+            I80F48!(20)
+        );
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?,
+            I80F48!(20.211999999999993)
+        );
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?,
+            I80F48!(19.788000000000007)
+        );
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::TimeWeighted, None)?,
+            I80F48!(40)
+        );
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))?,
+            I80F48!(40.211999999999993)
+        );
+
+        assert_eq!(
+            pf.get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))?,
+            I80F48!(39.788000000000007)
+        );
+
+        Ok(())
     }
 }

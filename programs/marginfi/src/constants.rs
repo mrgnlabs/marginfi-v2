@@ -42,8 +42,6 @@ pub const STD_DEV_MULTIPLE: I80F48 = I80F48!(1.96);
 /// Maximum confidence interval allowed
 pub const MAX_CONF_INTERVAL: I80F48 = I80F48!(0.05);
 
-pub const USDC_EXPONENT: i32 = 6;
-
 pub const MAX_ORACLE_KEYS: usize = 5;
 
 /// Any balance below 1 SPL token amount is treated as none,

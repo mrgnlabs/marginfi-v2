@@ -736,7 +736,7 @@ impl Bank {
 
         let min_verificaiton_level = match self.native_oracle {
             NativeOracle::Pythnet(oracle) => oracle.min_verificaiton_level,
-            _ => return Err(MarginfiError::InvalidOracleSetup.into()),
+            _ => unreachable!(),
         };
 
         let price_feed_id = self.config.oracle_keys[0].as_ref().try_into().unwrap();
@@ -773,6 +773,9 @@ impl Bank {
                 )?;
 
                 self.native_oracle = NativeOracle::Pythnet(pythnet_price_feed)
+            }
+            OracleSetup::None => {
+                panic!("oracle_setup should be set before calling maybe_setup_native_oracle")
             }
             _ => {}
         }

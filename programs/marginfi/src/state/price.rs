@@ -159,6 +159,8 @@ impl OraclePriceFeedAdapter {
 
                 Ok(())
             }
+            // oracle_keys[0] is an address of the pubkey that
+            //
             OracleSetup::NativePythnet => {
                 check!(
                     matches!(bank.native_oracle, NativeOracle::Pythnet(_)),
@@ -169,16 +171,13 @@ impl OraclePriceFeedAdapter {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
 
                 let price_update_account = &oracle_ais[0];
-
                 let data = price_update_account.try_borrow_data()?;
-
                 let price_update_v2 = PriceUpdateV2::try_deserialize(&mut &data[..])?;
 
+                let feed_id = &price_update_v2.price_message.feed_id;
+
                 check!(
-                    price_update_v2
-                        .price_message
-                        .feed_id
-                        .eq(bank_config.oracle_keys[0].as_ref()),
+                    feed_id.eq(bank_config.oracle_keys[0].as_ref()),
                     MarginfiError::InvalidOracleAccount
                 );
 
