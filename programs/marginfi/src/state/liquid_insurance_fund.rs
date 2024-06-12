@@ -25,7 +25,10 @@ pub struct LiquidInsuranceFund {
     pub last_update: i64,
 
     pub total_shares: WrappedI80F48,
-    pub share_value: WrappedI80F48,
+    /// This value is only updated at the beginning of relevant LIF instructions and
+    /// may be outdated. For the most up-to-date value (relevant for off-chain requests),
+    /// take the insurance vault balance and divide it by the total number of shares.
+    pub lazy_share_value: WrappedI80F48,
     pub admin_shares: WrappedI80F48,
 
     pub lif_vault_bump: u8,
@@ -50,7 +53,7 @@ impl LiquidInsuranceFund {
             bank,
             min_withdraw_period,
             total_shares: admin_shares.into(),
-            share_value: I80F48::ONE.into(),
+            lazy_share_value: I80F48::ONE.into(),
             admin_shares: self.admin_shares.into(),
             last_update: i64::MIN,
             vault_authority,
@@ -147,13 +150,13 @@ impl LiquidInsuranceFund {
     ) -> MarginfiResult {
         // Reset share value if there are no shares
         if self.get_total_shares() == I80F48::ZERO {
-            self.share_value = I80F48::ONE.into();
+            self.lazy_share_value = I80F48::ONE.into();
             return Ok(());
         }
 
         // Update share price based on latest number of shares and the
         // number of shares in the bank insurance vault
-        self.share_value = I80F48::from(bank_insurance_vault_amount)
+        self.lazy_share_value = I80F48::from(bank_insurance_vault_amount)
             .checked_div(self.total_shares.into())
             .ok_or_else(math_error!())?
             .into();
@@ -172,7 +175,7 @@ impl LiquidInsuranceFund {
 
     pub(crate) fn get_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
         Ok(value
-            .checked_div(self.share_value.into())
+            .checked_div(self.lazy_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
@@ -205,7 +208,7 @@ impl LiquidInsuranceFund {
 
     pub(crate) fn get_value(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
-            .checked_mul(self.share_value.into())
+            .checked_mul(self.lazy_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
@@ -219,7 +222,7 @@ impl LiquidInsuranceFund {
 
     pub(crate) fn haircut_shares(&mut self, decrease_amount: u64) -> MarginfiResult {
         let total_shares: I80F48 = self.total_shares.into();
-        let share_value: I80F48 = self.share_value.into();
+        let share_value: I80F48 = self.lazy_share_value.into();
 
         let new_share_value = total_shares
             .checked_mul(share_value)
@@ -229,7 +232,7 @@ impl LiquidInsuranceFund {
             .checked_div(total_shares)
             .ok_or_else(math_error!())?;
 
-        self.share_value = new_share_value.into();
+        self.lazy_share_value = new_share_value.into();
 
         Ok(())
     }
