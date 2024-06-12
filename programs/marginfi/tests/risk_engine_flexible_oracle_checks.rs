@@ -21,6 +21,7 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
     let sol_bank = test_f.get_bank(&BankMint::SOL);
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
 
+    // Make SOLE feed stale
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;
     test_f.advance_time(120).await;
@@ -57,33 +58,25 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
 
     // Borrow SOL
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 99)
+        .try_bank_borrow_with_nonce(borrower_token_account_f_sol.key, sol_bank, 99, 1)
         .await;
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::RiskEngineInitRejected);
 
-    test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 200).await;
-    test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 200).await;
-    test_f
-        .set_pyth_oracle_timestamp(PYTH_SOL_EQUIVALENT_FEED, 200)
-        .await;
-    test_f.advance_time(80).await;
-
+    // Make SOLE feed not stale
     usdc_bank
         .update_config(BankConfigOpt {
             oracle_max_age: Some(200),
             ..Default::default()
         })
         .await?;
-
     sol_bank
         .update_config(BankConfigOpt {
             oracle_max_age: Some(200),
             ..Default::default()
         })
         .await?;
-
     sol_eq_bank
         .update_config(BankConfigOpt {
             oracle_max_age: Some(200),
@@ -93,7 +86,7 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
 
     // Borrow SOL
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 98)
+        .try_bank_borrow_with_nonce(borrower_token_account_f_sol.key, sol_bank, 99, 2)
         .await;
 
     assert!(res.is_ok());
@@ -198,7 +191,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
 
     // Attempt to borrow SOL with stale oracle
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 40)
+        .try_bank_borrow_with_nonce(borrower_token_account_f_sol.key, sol_bank, 40, 1)
         .await;
 
     assert!(res.is_err());
@@ -209,7 +202,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
 
     // Borrow SOL
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 41)
+        .try_bank_borrow_with_nonce(borrower_token_account_f_sol.key, sol_bank, 40, 2)
         .await;
     assert!(res.is_ok());
 
@@ -399,7 +392,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_handle_bankruptcy(test_f.get_bank(&BankMint::USDC), &borrower_account, 100)
+        .try_handle_bankruptcy_with_nonce(test_f.get_bank(&BankMint::USDC), &borrower_account, 1)
         .await;
 
     assert!(res.is_err());
@@ -410,7 +403,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_handle_bankruptcy(test_f.get_bank(&BankMint::USDC), &borrower_account, 101)
+        .try_handle_bankruptcy_with_nonce(test_f.get_bank(&BankMint::USDC), &borrower_account, 2)
         .await;
 
     assert!(res.is_ok());

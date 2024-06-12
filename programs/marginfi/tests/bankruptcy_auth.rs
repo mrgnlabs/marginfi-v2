@@ -95,7 +95,7 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_handle_bankruptcy(bank, &borrower_account, 100)
+        .try_handle_bankruptcy(bank, &borrower_account)
         .await;
 
     assert!(res.is_err());
@@ -195,7 +195,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
 
     let res = test_f
         .marginfi_group
-        .try_handle_bankruptcy(bank, &borrower_account, 100)
+        .try_handle_bankruptcy(bank, &borrower_account)
         .await;
 
     assert!(res.is_ok());

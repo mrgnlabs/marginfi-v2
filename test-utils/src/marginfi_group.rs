@@ -328,6 +328,15 @@ impl MarginfiGroupFixture {
         &self,
         bank: &BankFixture,
         marginfi_account: &MarginfiAccountFixture,
+    ) -> Result<(), BanksClientError> {
+        self.try_handle_bankruptcy_with_nonce(bank, marginfi_account, 100)
+            .await
+    }
+
+    pub async fn try_handle_bankruptcy_with_nonce(
+        &self,
+        bank: &BankFixture,
+        marginfi_account: &MarginfiAccountFixture,
         nonce: u64,
     ) -> Result<(), BanksClientError> {
         let mut accounts = marginfi::accounts::LendingPoolHandleBankruptcy {
@@ -356,8 +365,10 @@ impl MarginfiGroupFixture {
             data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
         };
 
+        let nonce_ix = ComputeBudgetInstruction::set_compute_unit_price(nonce);
+
         let tx = Transaction::new_signed_with_payer(
-            &[ix, ComputeBudgetInstruction::set_compute_unit_price(nonce)],
+            &[ix, nonce_ix],
             Some(&ctx.payer.pubkey()),
             &[&ctx.payer],
             ctx.last_blockhash,
