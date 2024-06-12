@@ -251,25 +251,33 @@ pub struct LendingPoolWithdrawFees<'info> {
 }
 
 pub fn lending_pool_withdraw_insurance(
-    ctx: Context<LendingPoolWithdrawInsurance>,
-    amount: u64,
+    ctx: Context<LendingPoolAdminDepositWithdrawInsurance>,
+    amount: I80F48,
 ) -> MarginfiResult {
-    let LendingPoolWithdrawInsurance {
+    let LendingPoolAdminDepositWithdrawInsurance {
         bank: bank_loader,
         insurance_vault,
         insurance_vault_authority,
-        dst_token_account,
+        admin_token_account,
         token_program,
+        liquid_insurance_fund,
         ..
     } = ctx.accounts;
 
     let bank = bank_loader.load()?;
 
-    bank.withdraw_spl_transfer(
+    // If there exist a liquid insurance fund, admin should be limited to admin shares
+    let tokens = LiquidInsuranceFund::maybe_process_admin_withdraw(
+        liquid_insurance_fund,
+        insurance_vault.amount,
         amount,
+    )?;
+
+    bank.withdraw_spl_transfer(
+        tokens,
         Transfer {
             from: insurance_vault.to_account_info(),
-            to: dst_token_account.to_account_info(),
+            to: admin_token_account.to_account_info(),
             authority: insurance_vault_authority.to_account_info(),
         },
         token_program.to_account_info(),
@@ -280,19 +288,52 @@ pub fn lending_pool_withdraw_insurance(
         ),
     )?;
 
-    // Update bank's liquid insurance fund shares to reflect new balance.
-    // Note: If no liquid insurance fund address exists, no update takes place.
-    // The value of LIF shares are discounted by same margin as the amount taken from the insurance fund.
-    if let Some(lif) = &ctx.accounts.liquid_insurance_fund {
-        let mut lif = lif.load_mut()?;
-        lif.haircut_shares(amount)?;
-    }
+    Ok(())
+}
+
+pub fn lending_pool_deposit_insurance(
+    ctx: Context<LendingPoolAdminDepositWithdrawInsurance>,
+    amount: u64,
+) -> MarginfiResult {
+    let LendingPoolAdminDepositWithdrawInsurance {
+        bank: bank_loader,
+        insurance_vault,
+        admin_token_account,
+        token_program,
+        liquid_insurance_fund,
+        admin,
+        ..
+    } = ctx.accounts;
+
+    let bank = bank_loader.load()?;
+
+    // If there exist a liquid insurance fund, need to update shares
+    LiquidInsuranceFund::maybe_process_admin_deposit(
+        liquid_insurance_fund,
+        insurance_vault.amount,
+        amount,
+    )?;
+
+    bank.withdraw_spl_transfer(
+        amount,
+        Transfer {
+            from: admin_token_account.to_account_info(),
+            to: insurance_vault.to_account_info(),
+            authority: admin.to_account_info(),
+        },
+        token_program.to_account_info(),
+        bank_signer!(
+            BankVaultType::Insurance,
+            bank_loader.key(),
+            bank.insurance_vault_authority_bump
+        ),
+    )?;
 
     Ok(())
 }
 
 #[derive(Accounts)]
-pub struct LendingPoolWithdrawInsurance<'info> {
+pub struct LendingPoolAdminDepositWithdrawInsurance<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -314,7 +355,7 @@ pub struct LendingPoolWithdrawInsurance<'info> {
         ],
         bump = bank.load()?.insurance_vault_bump
     )]
-    pub insurance_vault: AccountInfo<'info>,
+    pub insurance_vault: Account<'info, TokenAccount>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -328,17 +369,17 @@ pub struct LendingPoolWithdrawInsurance<'info> {
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(mut)]
-    pub dst_token_account: AccountInfo<'info>,
+    pub admin_token_account: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
 
-    /// CHECK: Returns None if no lif address exists (no liquid insurance fund)
     #[account(
+        mut,
         seeds = [
             LIQUID_INSURANCE_SEED.as_bytes(),
-            insurance_vault.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump,
     )]
-    pub liquid_insurance_fund: Option<AccountLoader<'info, LiquidInsuranceFund>>,
+    pub liquid_insurance_fund: AccountInfo<'info>,
 }

@@ -6,8 +6,10 @@ use crate::{
 use anchor_lang::prelude::*;
 use solana_program::sysvar::Sysvar;
 
-pub fn initialize_account(ctx: Context<LiquidInsuranceFundAccountInitialize>) -> MarginfiResult {
-    let LiquidInsuranceFundAccountInitialize {
+pub fn create_liquid_insurance_fund_account(
+    ctx: Context<CreateLiquidInsuranceFundAccount>,
+) -> MarginfiResult {
+    let CreateLiquidInsuranceFundAccount {
         user_insurance_fund_account,
         signer,
         ..
@@ -23,7 +25,7 @@ pub fn initialize_account(ctx: Context<LiquidInsuranceFundAccountInitialize>) ->
 }
 
 #[derive(Accounts)]
-pub struct LiquidInsuranceFundAccountInitialize<'info> {
+pub struct CreateLiquidInsuranceFundAccount<'info> {
     #[account(
         init,
         payer = signer,

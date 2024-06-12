@@ -150,6 +150,32 @@ impl MintFixture {
 
         token_account_f
     }
+
+    pub async fn create_token_account_with_owner_and_mint_to<T: Into<f64>>(
+        &self,
+        owner: &Keypair,
+        ui_amount: T,
+    ) -> TokenAccountFixture {
+        let token_account_f =
+            TokenAccountFixture::new(self.ctx.clone(), &self.key, &owner.pubkey()).await;
+
+        let mint_to_ix = self.make_mint_to_ix(
+            &token_account_f.key,
+            ui_to_native!(ui_amount.into(), self.mint.decimals),
+        );
+        let mut ctx = self.ctx.borrow_mut();
+
+        let tx = Transaction::new_signed_with_payer(
+            &[mint_to_ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await.unwrap();
+
+        token_account_f
+    }
 }
 
 pub struct TokenAccountFixture {

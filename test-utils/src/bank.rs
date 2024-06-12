@@ -11,15 +11,17 @@ use anchor_spl::token;
 use fixed::types::I80F48;
 use marginfi::{
     bank_authority_seed,
-    state::marginfi_group::{Bank, BankConfigOpt, BankVaultType},
+    state::{
+        liquid_insurance_fund::{LiquidInsuranceFund, LiquidInsuranceFundAccount},
+        marginfi_group::{Bank, BankConfigOpt, BankVaultType},
+    },
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
 use solana_program::instruction::Instruction;
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
-#[cfg(feature = "lip")]
 use solana_sdk::signature::Keypair;
-use solana_sdk::{signer::Signer, transaction::Transaction};
+use solana_sdk::{signer::Signer, system_program, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 #[derive(Clone)]
@@ -27,6 +29,7 @@ pub struct BankFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
     pub mint: MintFixture,
+    pub lif: Option<Pubkey>,
 }
 
 impl BankFixture {
@@ -39,6 +42,7 @@ impl BankFixture {
             ctx,
             key,
             mint: mint_fixture.clone(),
+            lif: None,
         }
     }
 
@@ -304,9 +308,53 @@ impl BankFixture {
         Ok(())
     }
 
-    pub async fn try_withdraw_insurance(
+    pub async fn try_admin_withdraw_insurance(
         &self,
         receiving_account: &TokenAccountFixture,
+        amount: I80F48,
+    ) -> Result<(), BanksClientError> {
+        let bank = self.load().await;
+        let mut ctx = self.ctx.borrow_mut();
+        let signer_pk = ctx.payer.pubkey();
+        let (insurance_vault_authority, _) = Pubkey::find_program_address(
+            bank_authority_seed!(BankVaultType::Insurance, self.key),
+            &marginfi::id(),
+        );
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolAdminDepositWithdrawInsurance {
+                marginfi_group: bank.group,
+                token_program: token::ID,
+                bank: self.key,
+                admin: signer_pk,
+                insurance_vault: bank.insurance_vault,
+                insurance_vault_authority,
+                admin_token_account: receiving_account.key,
+                liquid_insurance_fund: LiquidInsuranceFund::address(&self.key),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolWithdrawInsurance {
+                amount: amount.into(),
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_admin_deposit_insurance(
+        &self,
+        source_account: &TokenAccountFixture,
         amount: u64,
     ) -> Result<(), BanksClientError> {
         let bank = self.load().await;
@@ -319,23 +367,50 @@ impl BankFixture {
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolWithdrawInsurance {
+            accounts: marginfi::accounts::LendingPoolAdminDepositWithdrawInsurance {
                 marginfi_group: bank.group,
                 token_program: token::ID,
                 bank: self.key,
                 admin: signer_pk,
                 insurance_vault: bank.insurance_vault,
                 insurance_vault_authority,
-                dst_token_account: receiving_account.key,
+                admin_token_account: source_account.key,
+                liquid_insurance_fund: LiquidInsuranceFund::address(&self.key),
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingPoolWithdrawInsurance { amount }.data(),
+            data: marginfi::instruction::LendingPoolDepositInsurance { amount: amount }.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
             &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_create_lif_account(&self, user: Keypair) -> Result<(), BanksClientError> {
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::CreateLiquidInsuranceFundAccount {
+                user_insurance_fund_account: LiquidInsuranceFundAccount::address(&user.pubkey()),
+                signer: user.pubkey(),
+                system_program: system_program::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::CreateLiquidInsuranceFundAccount {}.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer, &user],
             ctx.last_blockhash,
         );
 

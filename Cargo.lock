@@ -1022,24 +1022,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cbindgen"
-version = "0.14.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "104ca409bbff8293739438c71820a2606111b5f8f81835536dc673dfd807369e"
-dependencies = [
- "clap 2.34.0",
- "heck 0.3.3",
- "log",
- "proc-macro2 1.0.79",
- "quote 1.0.35",
- "serde",
- "serde_json",
- "syn 1.0.109",
- "tempfile",
- "toml",
-]
-
-[[package]]
 name = "cc"
 version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1708,9 +1690,9 @@ dependencies = [
 
 [[package]]
 name = "enum_dispatch"
-version = "0.3.12"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f33313078bb8d4d05a2733a94ac4c2d8a0df9a2b84424ebf4f33bfc224a890e"
+checksum = "aa18ce2bc66555b3218614519ac839ddb759a7d6720732f979ef8d13be147ecd"
 dependencies = [
  "once_cell",
  "proc-macro2 1.0.79",
@@ -2802,7 +2784,7 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "solana-security-txt",
- "spl-token 1.0.8",
+ "spl-token 4.0.0",
  "static_assertions",
  "switchboard-v2",
  "test-utilities",
@@ -4251,15 +4233,6 @@ name = "regex-syntax"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
-
-[[package]]
-name = "remove_dir_all"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfc5b3ce5d5ea144bb04ebd093a9e14e9765bcfec866aecda9b6dec43b3d1e24"
-dependencies = [
- "winapi",
-]
 
 [[package]]
 name = "reqwest"
@@ -6201,20 +6174,6 @@ dependencies = [
  "spl-pod",
  "spl-program-error",
  "spl-type-length-value",
-]
-
-[[package]]
-name = "spl-token"
-version = "1.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e8bee8b59279b46d0627490b544c3bc38e440ff4da9851a34a26ab0a24bfe7d"
-dependencies = [
- "cbindgen",
- "num-derive 0.3.3",
- "num-traits",
- "remove_dir_all",
- "solana-sdk",
- "thiserror",
 ]
 
 [[package]]

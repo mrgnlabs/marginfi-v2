@@ -1,4 +1,5 @@
 pub mod bank;
+pub mod lif;
 #[cfg(feature = "lip")]
 pub mod lip;
 pub mod marginfi_account;

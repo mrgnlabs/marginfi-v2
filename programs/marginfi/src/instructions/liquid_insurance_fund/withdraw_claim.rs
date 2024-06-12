@@ -1,9 +1,12 @@
 use crate::{
-    check,
+    bank_signer, check,
     constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_USER_SEED},
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawClaimLiquidInsuranceFundEvent},
     math_error,
-    state::liquid_insurance_fund::{LiquidInsuranceFund, LiquidInsuranceFundAccount},
+    state::{
+        liquid_insurance_fund::{LiquidInsuranceFund, LiquidInsuranceFundAccount},
+        marginfi_group::BankVaultType,
+    },
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -41,11 +44,11 @@ pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
     )]
     pub bank_insurance_vault_authority: AccountInfo<'info>,
 
+    #[account(mut)]
     pub liquid_insurance_fund: AccountLoader<'info, LiquidInsuranceFund>,
 
     #[account(
         mut,
-        close = bank_insurance_vault,
         seeds = [
             LIQUID_INSURANCE_USER_SEED.as_bytes(),
             signer.key().as_ref(),
@@ -78,17 +81,24 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
     // 1) Retrieve earliest withdraw request for this user, for this liquid insurance fund
     let mut user_account = user_insurance_fund_account.load_mut()?;
     let mut liquid_insurance_fund_account = liquid_insurance_fund.load_mut()?;
+    liquid_insurance_fund_account
+        .update_share_price_internal(bank_insurance_vault.amount.into())?;
     let withdrawal = user_account
         .get_earliest_withdrawal(&liquid_insurance_fund.key())
         .ok_or(MarginfiError::InvalidWithdrawal)?;
 
     // 2) Check whether enough time has passed
+    msg!(
+        "request {}; time {}",
+        withdrawal.withdraw_request_timestamp,
+        clock.unix_timestamp
+    );
     check!(
-        withdrawal
-            .withdraw_request_timestamp
-            .checked_add(liquid_insurance_fund_account.min_withdraw_period)
-            .ok_or_else(math_error!())?
-            > clock.unix_timestamp,
+        clock.unix_timestamp
+            >= withdrawal
+                .withdraw_request_timestamp
+                .checked_add(liquid_insurance_fund_account.min_withdraw_period)
+                .ok_or_else(math_error!())?,
         // TODO: more informative error
         MarginfiError::InvalidWithdrawal
     );
@@ -105,6 +115,11 @@ pub fn settle_withdraw_claim_in_liquid_insurance_fund(
             authority: bank_insurance_vault_authority.to_account_info(),
         },
         token_program.to_account_info(),
+        bank_signer!(
+            BankVaultType::Insurance,
+            liquid_insurance_fund_account.bank,
+            liquid_insurance_fund_account.lif_authority_bump
+        ),
     )?;
 
     emit!(MarginfiWithdrawClaimLiquidInsuranceFundEvent {

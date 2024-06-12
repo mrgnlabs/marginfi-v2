@@ -10,6 +10,7 @@ use fixed::types::I80F48;
 
 #[derive(Accounts)]
 pub struct DepositIntoLiquidInsuranceFund<'info> {
+    #[account(mut)]
     pub liquid_insurance_fund: AccountLoader<'info, LiquidInsuranceFund>,
 
     #[account(mut)]
@@ -32,6 +33,7 @@ pub struct DepositIntoLiquidInsuranceFund<'info> {
     pub bank_insurance_vault: Box<Account<'info, TokenAccount>>,
 
     #[account(
+        mut,
         seeds = [
             LIQUID_INSURANCE_USER_SEED.as_bytes(),
             signer.key().as_ref(),
@@ -47,12 +49,16 @@ pub struct DepositIntoLiquidInsuranceFund<'info> {
 
 /// 1) Check for existing deposit, or try to find free slot if non-existent
 /// 2) Calculate deposit_num_shares(deposit_amount)
-/// 3) Update user shares, total shares
-/// 4) SPL transfer to deposit
+/// 3) SPL transfer to deposit
+/// 4) Update user shares, total shares
 pub fn deposit_into_liquid_insurance_fund(
     ctx: Context<DepositIntoLiquidInsuranceFund>,
     deposit_amount: u64,
 ) -> MarginfiResult {
+    if deposit_amount == 0 {
+        return Ok(());
+    }
+
     let DepositIntoLiquidInsuranceFund {
         liquid_insurance_fund,
         signer,
@@ -71,19 +77,13 @@ pub fn deposit_into_liquid_insurance_fund(
         .ok_or(MarginfiError::InsuranceFundAccountBalanceSlotsFull)?;
 
     let mut liquid_insurance_fund = liquid_insurance_fund.load_mut()?;
+    liquid_insurance_fund.update_share_price_internal(bank_insurance_vault.amount.into())?;
 
     // 2) Calculate deposit_num_shares(deposit_amount)
     let deposit_num_shares: I80F48 =
         liquid_insurance_fund.get_shares(I80F48::from_num(deposit_amount))?;
 
-    // 3) Update user shares, total shares
-    deposit.add_shares(deposit_num_shares);
-    liquid_insurance_fund.deposit_shares(
-        deposit_num_shares,
-        I80F48::from_num(bank_insurance_vault.amount),
-    )?;
-
-    // Deposit user funds into the relevant insurance vault
+    //  SPL transfer to deposit
     liquid_insurance_fund.deposit_spl_transfer(
         deposit_amount,
         Transfer {
@@ -93,6 +93,10 @@ pub fn deposit_into_liquid_insurance_fund(
         },
         token_program.to_account_info(),
     )?;
+
+    // 3) Update user shares, total shares
+    deposit.add_shares(deposit_num_shares);
+    liquid_insurance_fund.deposit_shares(deposit_num_shares)?;
 
     emit!(MarginfiDepositIntoLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {

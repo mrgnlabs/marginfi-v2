@@ -1,5 +1,5 @@
 use crate::{
-    constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_SEED},
+    constants::{INSURANCE_VAULT_AUTHORITY_SEED, LIQUID_INSURANCE_SEED},
     events::{LiquidInsuranceFundEventHeader, MarginfiCreateNewLiquidInsuranceFundEvent},
     state::{liquid_insurance_fund::LiquidInsuranceFund, marginfi_group::Bank},
     MarginfiGroup, MarginfiResult,
@@ -8,10 +8,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 
 #[derive(Accounts)]
-#[instruction(
-    min_withdraw_period: u64,
-)]
-pub struct CreateNewLiquidInsuranceFund<'info> {
+pub struct CreateLiquidInsuranceFund<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -26,7 +23,7 @@ pub struct CreateNewLiquidInsuranceFund<'info> {
         payer = signer,
         seeds = [
             LIQUID_INSURANCE_SEED.as_bytes(),
-            bank.load()?.insurance_vault.key().as_ref(),
+            bank.key().as_ref(),
         ],
         bump,
     )]
@@ -41,11 +38,7 @@ pub struct CreateNewLiquidInsuranceFund<'info> {
     /// This is the insurance vault of the underlying bank
     #[account(
         mut,
-        seeds = [
-            INSURANCE_VAULT_SEED.as_bytes(),
-            bank.key().as_ref(),
-        ],
-        bump = bank.load()?.insurance_vault_bump
+        address = bank.load()?.insurance_vault,
     )]
     pub lif_vault: Box<Account<'info, TokenAccount>>,
 
@@ -65,19 +58,21 @@ pub struct CreateNewLiquidInsuranceFund<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn create_new_liquid_insurance_fund(
-    ctx: Context<CreateNewLiquidInsuranceFund>,
+pub fn create_liquid_insurance_fund(
+    ctx: Context<CreateLiquidInsuranceFund>,
     min_withdraw_period: i64,
 ) -> MarginfiResult {
-    let CreateNewLiquidInsuranceFund {
+    let CreateLiquidInsuranceFund {
         bank,
         lif_authority,
         liquid_insurance_fund,
+        lif_vault,
         ..
     } = ctx.accounts;
 
-    let lif_vault_bump = *ctx.bumps.get("lif_vault").unwrap();
-    let lif_authority_bump = *ctx.bumps.get("lif_authority").unwrap();
+    let bank_ = bank.load()?;
+    let lif_vault_bump = bank_.insurance_vault_bump;
+    let lif_authority_bump = bank_.insurance_vault_authority_bump;
 
     let mut lif = liquid_insurance_fund.load_init()?;
 
@@ -87,6 +82,7 @@ pub fn create_new_liquid_insurance_fund(
         min_withdraw_period,
         lif_vault_bump,
         lif_authority_bump,
+        lif_vault.amount,
     );
 
     emit!(MarginfiCreateNewLiquidInsuranceFundEvent {

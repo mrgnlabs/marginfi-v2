@@ -1,11 +1,10 @@
 use crate::{
-    constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUID_INSURANCE_USER_SEED},
+    constants::LIQUID_INSURANCE_USER_SEED,
     events::{LiquidInsuranceFundEventHeader, MarginfiWithdrawRequestLiquidInsuranceFundEvent},
     state::liquid_insurance_fund::{LiquidInsuranceFund, LiquidInsuranceFundAccount},
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount};
 use fixed::types::I80F48;
 
 #[derive(Accounts)]
@@ -19,35 +18,8 @@ pub struct WithdrawRequestLiquidInsuranceFund<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
 
-    /// CHECK: Account to move tokens out from
-    #[account(mut)]
-    pub signer_token_account: Box<Account<'info, TokenAccount>>,
-
-    /// The corresponding insurance vault that the liquid insurance fund deposits into.
-    /// This is the insurance vault of the underlying bank
     #[account(
         mut,
-        seeds = [
-            INSURANCE_VAULT_SEED.as_bytes(),
-            liquid_insurance_fund.load()?.bank.as_ref(),
-        ],
-        bump = liquid_insurance_fund.load()?.lif_vault_bump
-    )]
-    pub bank_insurance_vault: AccountInfo<'info>,
-
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
-    #[account(
-        seeds = [
-            INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(),
-            liquid_insurance_fund.load()?.bank.as_ref(),
-        ],
-        bump = liquid_insurance_fund.load()?.lif_vault_bump,
-    )]
-    pub bank_insurance_vault_authority: AccountInfo<'info>,
-
-    pub token_program: Program<'info, Token>,
-
-    #[account(
         seeds = [
             LIQUID_INSURANCE_USER_SEED.as_bytes(),
             signer.key().as_ref(),
@@ -55,8 +27,6 @@ pub struct WithdrawRequestLiquidInsuranceFund<'info> {
         bump
     )]
     pub user_insurance_fund_account: AccountLoader<'info, LiquidInsuranceFundAccount>,
-
-    pub system_program: Program<'info, System>,
 }
 
 pub fn create_withdraw_request_from_liquid_token_fund(
