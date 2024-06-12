@@ -14,10 +14,7 @@ use anchor_spl::token::{Token, TokenAccount, Transfer};
 
 #[derive(Accounts)]
 pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
-    #[account(
-        mut,
-        address = user_insurance_fund_account.load()?.authority,
-    )]
+    #[account(mut)]
     pub signer: Signer<'info>,
 
     #[account(mut)]
