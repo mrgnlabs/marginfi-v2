@@ -154,7 +154,7 @@ impl PythEmaPriceFeed {
 
         debug!(
             "Oracle age: {}s",
-            (price_feed.get_price_unchecked().publish_time - current_time).abs()
+            price_feed.get_price_unchecked().publish_time - current_time
         );
 
         let ema_price = price_feed

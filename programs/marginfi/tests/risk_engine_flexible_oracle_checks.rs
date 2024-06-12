@@ -1,7 +1,6 @@
-use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{
-    assert_custom_error, assert_eq_noise,
+    assert_custom_error,
     test::{
         BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG,
         PYTH_SOL_EQUIVALENT_FEED, PYTH_SOL_FEED, PYTH_USDC_FEED,
@@ -9,7 +8,7 @@ use fixtures::{
 };
 use marginfi::{
     prelude::MarginfiError,
-    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
 };
 use solana_program_test::tokio;
 
