@@ -30,7 +30,8 @@ pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
 
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 
-pub const MAX_PRICE_AGE_SEC: u64 = 60;
+pub const MAX_PYTH_ORACLE_AGE: u64 = 60;
+pub const MAX_SWB_ORACLE_AGE: u64 = 3 * 60;
 
 /// Range that contains 95% price data distribution
 ///
