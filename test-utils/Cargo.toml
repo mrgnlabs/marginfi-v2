@@ -36,6 +36,7 @@ spl-token-2022 = "0.9.0"
 
 [dependencies.marginfi]
 path = "../programs/marginfi"
+features = ["test-bpf"]
 
 [dependencies.liquidity-incentive-program]
 path = "../programs/liquidity-incentive-program"

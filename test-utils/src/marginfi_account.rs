@@ -223,15 +223,27 @@ impl MarginfiAccountFixture {
         bank: &BankFixture,
         ui_amount: T,
     ) -> anyhow::Result<(), BanksClientError> {
+        self.try_bank_borrow_with_nonce(destination_account, bank, ui_amount, 100)
+            .await
+    }
+
+    pub async fn try_bank_borrow_with_nonce<T: Into<f64>>(
+        &self,
+        destination_account: Pubkey,
+        bank: &BankFixture,
+        ui_amount: T,
+        nonce: u64,
+    ) -> anyhow::Result<(), BanksClientError> {
         let ix = self
             .make_bank_borrow_ix(destination_account, bank, ui_amount)
             .await;
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
+        let nonce_ix = ComputeBudgetInstruction::set_compute_unit_price(nonce);
 
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
-            &[compute_budget_ix, ix],
+            &[compute_budget_ix, nonce_ix, ix],
             Some(&ctx.payer.pubkey().clone()),
             &[&ctx.payer],
             ctx.last_blockhash,

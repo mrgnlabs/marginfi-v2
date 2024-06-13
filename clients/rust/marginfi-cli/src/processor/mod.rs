@@ -4,6 +4,7 @@ pub mod emissions;
 #[cfg(feature = "admin")]
 pub mod admin;
 
+#[cfg(feature = "admin")]
 pub mod group;
 
 use {
