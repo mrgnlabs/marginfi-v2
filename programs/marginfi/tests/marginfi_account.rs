@@ -1532,7 +1532,8 @@ async fn emissions_test() -> anyhow::Result<()> {
         .await?;
 
     // SOL Emissions are not in SOL Bank mint
-    let sol_emissions_mint = MintFixture::new_token_22(test_f.context.clone(), None, Some(6)).await;
+    let sol_emissions_mint =
+        MintFixture::new_token_22(test_f.context.clone(), None, Some(6), vec![]).await;
 
     let funding_account = sol_emissions_mint
         .create_token_account_and_mint_to(200)
@@ -1550,7 +1551,7 @@ async fn emissions_test() -> anyhow::Result<()> {
         .await?;
 
     let sol_emissions_mint_2 =
-        MintFixture::new_token_22(test_f.context.clone(), None, Some(6)).await;
+        MintFixture::new_token_22(test_f.context.clone(), None, Some(6), vec![]).await;
 
     let funding_account = sol_emissions_mint_2
         .create_token_account_and_mint_to(200)

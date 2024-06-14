@@ -300,6 +300,12 @@ pub const MNDE_MINT_DECIMALS: u8 = 9;
 
 impl TestFixture {
     pub async fn new(test_settings: Option<TestSettings>) -> TestFixture {
+        TestFixture::new_with_t22_extension(test_settings, vec![]).await
+    }
+    pub async fn new_with_t22_extension(
+        test_settings: Option<TestSettings>,
+        extensions: Vec<SupportedExtension>,
+    ) -> TestFixture {
         let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
 
         #[cfg(feature = "lip")]
@@ -358,7 +364,7 @@ impl TestFixture {
 
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 
-        let usdc_mint_f = MintFixture::new_token_22(
+        let usdc_mint_f = MintFixture::new(
             Rc::clone(&context),
             Some(usdc_keypair),
             Some(USDC_MINT_DECIMALS),
@@ -386,6 +392,7 @@ impl TestFixture {
             Rc::clone(&context),
             Some(usdc_t22_keypair),
             Some(USDC_MINT_DECIMALS),
+            extensions,
         )
         .await;
 

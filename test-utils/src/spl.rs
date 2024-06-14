@@ -1,16 +1,17 @@
 use crate::ui_to_native;
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    token::{
-        spl_token::{self},
-        Mint, TokenAccount,
-    },
-    token_2022,
+    token::{spl_token, Mint, TokenAccount},
+    token_2022::{self, spl_token_2022::pod::pod_get_packed_len},
 };
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     instruction::Instruction, signature::Keypair, signer::Signer,
     system_instruction::create_account, transaction::Transaction,
+};
+use spl_token_2022::extension::{
+    interest_bearing_mint::InterestBearingConfig, mint_close_authority::MintCloseAuthority,
+    permanent_delegate::PermanentDelegate, ExtensionType,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -82,6 +83,7 @@ impl MintFixture {
         ctx: Rc<RefCell<ProgramTestContext>>,
         mint_keypair: Option<Keypair>,
         mint_decimals: Option<u8>,
+        extensions: Vec<SupportedExtension>,
     ) -> MintFixture {
         let ctx_ref = Rc::clone(&ctx);
         let keypair = mint_keypair.unwrap_or_else(Keypair::new);
@@ -91,11 +93,21 @@ impl MintFixture {
 
             let rent = ctx.banks_client.get_rent().await.unwrap();
 
+            // let len = if extensions.is_empty() {
+            //     Mint::LEN
+            // } else {
+            //     Mint::LEN + SupportedExtension::space(extensions.iter()) + 84
+            // };
+            let extension_types = SupportedExtension::types(extensions.iter());
+            let len = ExtensionType::try_calculate_account_len::<spl_token_2022::state::Mint>(
+                &extension_types,
+            )
+            .unwrap();
             let init_account_ix = create_account(
                 &ctx.payer.pubkey(),
                 &keypair.pubkey(),
-                rent.minimum_balance(Mint::LEN),
-                Mint::LEN as u64,
+                rent.minimum_balance(len),
+                len as u64,
                 &program,
             );
             let init_mint_ix = spl_token_2022::instruction::initialize_mint(
@@ -107,8 +119,16 @@ impl MintFixture {
             )
             .unwrap();
 
+            let mut ixs = vec![init_account_ix];
+            ixs.extend(
+                extensions
+                    .iter()
+                    .map(|e| e.instruction(&keypair.pubkey(), &ctx.payer.pubkey())),
+            );
+            ixs.push(init_mint_ix);
+
             let tx = Transaction::new_signed_with_payer(
-                &[init_account_ix, init_mint_ix],
+                &ixs,
                 Some(&ctx.payer.pubkey()),
                 &[&ctx.payer, &keypair],
                 ctx.last_blockhash,
@@ -123,7 +143,7 @@ impl MintFixture {
                 .unwrap()
                 .unwrap();
 
-            Mint::try_deserialize(&mut mint_account.data.as_slice()).unwrap()
+            Mint::try_deserialize(&mut &mint_account.data[..Mint::LEN]).unwrap()
         };
 
         MintFixture {
@@ -381,4 +401,61 @@ pub async fn balance_of(ctx: Rc<RefCell<ProgramTestContext>>, pubkey: Pubkey) ->
     let token_account: TokenAccount = get_and_deserialize(ctx, pubkey).await;
 
     token_account.amount
+}
+
+#[derive(Debug, Clone)]
+pub enum SupportedExtension {
+    MintCloseAuthority,
+    InterestBearing,
+    PermanentDelegate,
+}
+
+impl SupportedExtension {
+    pub fn instruction(&self, mint: &Pubkey, key: &Pubkey) -> Instruction {
+        match self {
+            SupportedExtension::MintCloseAuthority => {
+                spl_token_2022::instruction::initialize_mint_close_authority(
+                    &token_2022::ID,
+                    mint,
+                    Some(key),
+                )
+                .unwrap()
+            }
+            SupportedExtension::InterestBearing => {
+                spl_token_2022::extension::interest_bearing_mint::instruction::initialize(
+                    &token_2022::ID,
+                    mint,
+                    Some(*key),
+                    1,
+                )
+                .unwrap()
+            }
+            SupportedExtension::PermanentDelegate => {
+                spl_token_2022::instruction::initialize_permanent_delegate(
+                    &token_2022::ID,
+                    mint,
+                    key,
+                )
+            }
+            .unwrap(),
+        }
+    }
+
+    pub fn space<'a>(exts: impl Iterator<Item = &'a SupportedExtension>) -> usize {
+        exts.map(|e| match e {
+            SupportedExtension::MintCloseAuthority => pod_get_packed_len::<MintCloseAuthority>(),
+            SupportedExtension::InterestBearing => pod_get_packed_len::<InterestBearingConfig>(),
+            SupportedExtension::PermanentDelegate => pod_get_packed_len::<PermanentDelegate>(),
+        })
+        .sum()
+    }
+
+    fn types<'a>(exts: impl Iterator<Item = &'a SupportedExtension>) -> Vec<ExtensionType> {
+        exts.map(|e| match e {
+            SupportedExtension::MintCloseAuthority => ExtensionType::MintCloseAuthority,
+            SupportedExtension::InterestBearing => ExtensionType::InterestBearingConfig,
+            SupportedExtension::PermanentDelegate => ExtensionType::PermanentDelegate,
+        })
+        .collect()
+    }
 }
