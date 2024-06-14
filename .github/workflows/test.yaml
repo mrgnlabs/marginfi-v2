@@ -50,7 +50,7 @@ jobs:
 
       - run: cargo fmt -- --check
 
-      - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A unused-imports -A clippy::result_large_err -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::bind_instead_of_map
+      - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A unused-imports -A clippy::result_large_err -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::bind_instead_of_map -A clippy::to-string-trait-impl
 
   test-unit:
     name: Rust Unit Tests
@@ -93,15 +93,15 @@ jobs:
       - run: ./scripts/test-program.sh marginfi
         shell: bash
 
-      - run: ./scripts/test-program.sh liquidity_incentive_program
+      - run: ./scripts/test-program.sh liquidity-incentive-program
         shell: bash
 
   fuzz:
     name: Fuzz The marginfi Program
     runs-on: ubuntu-latest
     env:
-        RUST_TOOLCHAIN: 1.77.1
-        RUSTUP_TOOLCHAIN: nightly-2024-03-26
+      RUST_TOOLCHAIN: 1.77.1
+      RUSTUP_TOOLCHAIN: nightly-2024-03-26
 
     steps:
       - uses: actions/checkout@v3
@@ -110,7 +110,7 @@ jobs:
       - name: Install full rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal 
+          profile: minimal
           toolchain: nightly-2024-03-26
           components: rust-src
           override: true

@@ -215,7 +215,7 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
     /// 3. Initial requirement is discounted by the initial discount, if enabled and the usd limit is exceeded.
     /// 4. Assets are only calculated for collateral risk tier.
     /// 5. Oracle errors are ignored for deposits in isolated risk tier.
-    pub fn calc_weighted_assets_and_liabilities_values(
+    fn calc_weighted_assets_and_liabilities_values(
         &self,
         requirement_type: RequirementType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
@@ -246,7 +246,18 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
     ) -> MarginfiResult<I80F48> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
-                let price_feed = self.try_get_price_feed()?;
+                let price_feed = self.try_get_price_feed();
+
+                if matches!(
+                    (&price_feed, requirement_type),
+                    (&Err(PriceFeedError::StaleOracle), RequirementType::Initial)
+                ) {
+                    debug!("Skipping stale oracle");
+                    return Ok(I80F48::ZERO);
+                }
+
+                let price_feed = price_feed?;
+
                 let mut asset_weight = bank
                     .config
                     .get_weight(requirement_type, BalanceSide::Assets);
@@ -301,16 +312,28 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
         )
     }
 
-    fn try_get_price_feed(&self) -> MarginfiResult<&OraclePriceFeedAdapter> {
+    fn try_get_price_feed(&self) -> std::result::Result<&OraclePriceFeedAdapter, PriceFeedError> {
         match self.price_feed.as_ref() {
             Ok(a) => Ok(a),
-            Err(_) => Err(MarginfiError::StaleOracle)?,
+            Err(_) => Err(PriceFeedError::StaleOracle),
         }
     }
 
     #[inline]
     pub fn is_empty(&self, side: BalanceSide) -> bool {
         self.balance.is_empty(side)
+    }
+}
+
+enum PriceFeedError {
+    StaleOracle,
+}
+
+impl From<PriceFeedError> for Error {
+    fn from(value: PriceFeedError) -> Self {
+        match value {
+            PriceFeedError::StaleOracle => error!(MarginfiError::StaleOracle),
+        }
     }
 }
 
@@ -411,9 +434,9 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         })
     }
 
-    /// Checks account is healty after performing actions that increase risk (removing liquidity).
+    /// Checks account is healthy after performing actions that increase risk (removing liquidity).
     ///
-    /// `IN_FLASHLOAN_FLAG` behaviour.
+    /// `IN_FLASHLOAN_FLAG` behavior.
     /// - Health check is skipped.
     /// - `remaining_ais` can be an empty vec.
     pub fn check_account_init_health(
@@ -474,7 +497,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 
         check!(
             total_weighted_assets >= total_weighted_liabilities,
-            MarginfiError::BadAccountHealth
+            MarginfiError::RiskEngineInitRejected
         );
 
         self.check_account_risk_tiers()?;
