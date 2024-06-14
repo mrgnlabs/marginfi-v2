@@ -33,6 +33,8 @@ bincode = "1.3.3"
 futures = "0.3.25"
 pretty_assertions = "1.2.1"
 spl-token-2022 = "0.9.0"
+spl-transfer-hook-interface = "0.1.0"
+spl-discriminator = "0.1.0"
 
 [dependencies.marginfi]
 path = "../programs/marginfi"
