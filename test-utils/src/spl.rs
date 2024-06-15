@@ -1,4 +1,4 @@
-use crate::ui_to_native;
+use crate::{transfer_hook::TEST_HOOK_ID, ui_to_native};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     token::{spl_token, Mint, TokenAccount},
@@ -11,7 +11,7 @@ use solana_sdk::{
 };
 use spl_token_2022::extension::{
     interest_bearing_mint::InterestBearingConfig, mint_close_authority::MintCloseAuthority,
-    permanent_delegate::PermanentDelegate, ExtensionType,
+    permanent_delegate::PermanentDelegate, transfer_hook::TransferHook, ExtensionType,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -43,7 +43,7 @@ impl MintFixture {
                 Mint::LEN as u64,
                 &spl_token::id(),
             );
-            let init_mint_ix = spl_token_2022::instruction::initialize_mint(
+            let init_mint_ix = spl_token::instruction::initialize_mint(
                 &spl_token::id(),
                 &keypair.pubkey(),
                 &ctx.payer.pubkey(),
@@ -408,6 +408,7 @@ pub enum SupportedExtension {
     MintCloseAuthority,
     InterestBearing,
     PermanentDelegate,
+    TransferHook,
 }
 
 impl SupportedExtension {
@@ -438,6 +439,15 @@ impl SupportedExtension {
                 )
             }
             .unwrap(),
+            Self::TransferHook => {
+                spl_token_2022::extension::transfer_hook::instruction::initialize(
+                    &token_2022::ID,
+                    mint,
+                    Some(*key),
+                    Some(TEST_HOOK_ID),
+                )
+                .unwrap()
+            }
         }
     }
 
@@ -446,6 +456,7 @@ impl SupportedExtension {
             SupportedExtension::MintCloseAuthority => pod_get_packed_len::<MintCloseAuthority>(),
             SupportedExtension::InterestBearing => pod_get_packed_len::<InterestBearingConfig>(),
             SupportedExtension::PermanentDelegate => pod_get_packed_len::<PermanentDelegate>(),
+            SupportedExtension::TransferHook => pod_get_packed_len::<TransferHook>(),
         })
         .sum()
     }
@@ -455,6 +466,7 @@ impl SupportedExtension {
             SupportedExtension::MintCloseAuthority => ExtensionType::MintCloseAuthority,
             SupportedExtension::InterestBearing => ExtensionType::InterestBearingConfig,
             SupportedExtension::PermanentDelegate => ExtensionType::PermanentDelegate,
+            SupportedExtension::TransferHook => ExtensionType::TransferHook,
         })
         .collect()
     }

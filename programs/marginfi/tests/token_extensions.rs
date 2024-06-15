@@ -32,6 +32,10 @@ async fn marginfi_account_liquidation_success_with_extension(
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
+                    mint: BankMint::USDCToken22,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
                     mint: BankMint::SOL,
                     config: Some(BankConfig {
                         asset_weight_init: I80F48!(1).into(),
@@ -46,21 +50,25 @@ async fn marginfi_account_liquidation_success_with_extension(
     )
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::USDCToken22);
     let sol_bank_f = test_f.get_bank(&BankMint::SOL);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f
-        .usdc_mint
+        .usdc_t22_mint
         .create_token_account_and_mint_to(2_000)
         .await;
     lender_mfi_account_f
         .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000)
-        .await?;
+        .await
+        .unwrap();
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f
+        .usdc_t22_mint
+        .create_token_account_and_mint_to(0)
+        .await;
 
     // Borrower deposits 100 SOL worth of $1000
     borrower_mfi_account_f

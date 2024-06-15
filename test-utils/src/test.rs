@@ -1,3 +1,4 @@
+use crate::transfer_hook::TEST_HOOK_ID;
 use crate::{marginfi_group::*, native, spl::*, utils::*};
 use anchor_lang::prelude::*;
 use bincode::deserialize;
@@ -307,6 +308,11 @@ impl TestFixture {
         extensions: Vec<SupportedExtension>,
     ) -> TestFixture {
         let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
+        program.add_program(
+            "transfer_hook",
+            TEST_HOOK_ID,
+            processor!(super::transfer_hook::process_instruction),
+        );
 
         #[cfg(feature = "lip")]
         program.add_program(
@@ -454,6 +460,10 @@ impl TestFixture {
                     BankMint::USDCToken22 => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
                 };
 
+                println!(
+                    "bank config {:?}; bank mint {:?} {:?} {:?}",
+                    &bank.config, bank_mint.key, bank_mint.mint, bank_mint.token_program
+                );
                 banks.insert(
                     bank.mint.clone(),
                     tester_group
