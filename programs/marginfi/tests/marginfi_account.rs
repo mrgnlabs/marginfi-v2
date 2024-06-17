@@ -34,6 +34,7 @@ use solana_program_test::*;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::timing::SECONDS_PER_YEAR;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+use test_case::test_case;
 
 // Feature baseline
 
@@ -1892,6 +1893,89 @@ async fn flashloan_success_3op() -> anyhow::Result<()> {
         .await;
 
     assert!(flash_loan_result.is_ok());
+
+    Ok(())
+}
+
+// A flashloan initialized with an account that is in bad health
+// but which does not worsen health -> success
+#[test_case(1000; "keep_or_improve_health_success")]
+// A flashloan initialized with an account that is in bad health
+// which also worsens health --> failure
+#[test_case(999; "worsen_health_fail")]
+#[tokio::test]
+async fn flashloan_1op_bad_health(repay_amount: u32) -> anyhow::Result<()> {
+    // Setup test executor with non-admin payer
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::USDC);
+
+    // Fund SOL and USDC lender
+    let lender_mfi_account_f = test_f.create_marginfi_account().await;
+    let lender_token_account_f_sol = test_f
+        .sol_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    lender_mfi_account_f
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .await?;
+
+    let lender_token_account_f_usdc = test_f
+        .usdc_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    lender_mfi_account_f
+        .try_bank_deposit(lender_token_account_f_usdc.key, usdc_bank, 1_000)
+        .await?;
+
+    // Fund SOL borrower (deposit, borrow, and get in bad health)
+    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
+
+    borrower_mfi_account_f
+        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
+        .await?;
+
+    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(10).await;
+    let borrower_token_account_f_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+
+    lender_mfi_account_f
+        .try_bank_deposit(borrower_token_account_f_sol.key, sol_bank, 1)
+        .await?;
+    lender_mfi_account_f
+        .try_bank_borrow(borrower_token_account_f_usdc.key, usdc_bank, 10)
+        .await?;
+    test_f.set_pyth_oracle_price(PYTH_SOL_FEED, 1).await;
+
+    // Borrow SOL
+
+    let borrow_ix = borrower_mfi_account_f
+        .make_bank_borrow_ix(borrower_token_account_f_sol.key, sol_bank, 1_000)
+        .await;
+
+    let repay_ix = borrower_mfi_account_f
+        .make_bank_repay_ix(
+            borrower_token_account_f_sol.key,
+            sol_bank,
+            repay_amount,
+            None,
+        )
+        .await;
+
+    let flash_loan_result = borrower_mfi_account_f
+        .try_flashloan(vec![borrow_ix, repay_ix], vec![], vec![sol_bank.key])
+        .await;
+
+    if repay_amount < 1000 {
+        // health was worsened during flashloan
+        assert_custom_error!(
+            flash_loan_result.unwrap_err(),
+            MarginfiError::BadAccountHealth
+        );
+    } else {
+        // health was not worsened during flashloan
+        assert!(flash_loan_result.is_ok());
+    }
 
     Ok(())
 }
