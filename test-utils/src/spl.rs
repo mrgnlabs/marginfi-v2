@@ -7,12 +7,13 @@ use anchor_spl::{
 };
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
-    instruction::Instruction, signature::Keypair, signer::Signer,
+    instruction::Instruction, program_pack::Pack, signature::Keypair, signer::Signer,
     system_instruction::create_account, transaction::Transaction,
 };
 use spl_token_2022::extension::{
     interest_bearing_mint::InterestBearingConfig, mint_close_authority::MintCloseAuthority,
-    permanent_delegate::PermanentDelegate, transfer_hook::TransferHook, ExtensionType,
+    permanent_delegate::PermanentDelegate, transfer_hook::TransferHook, BaseStateWithExtensions,
+    ExtensionType,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -246,30 +247,76 @@ pub struct TokenAccountFixture {
 
 impl TokenAccountFixture {
     pub async fn create_ixs(
+        ctx: &Rc<RefCell<ProgramTestContext>>,
         rent: Rent,
         mint_pk: &Pubkey,
         payer_pk: &Pubkey,
         owner_pk: &Pubkey,
         keypair: &Keypair,
         token_program: &Pubkey,
-    ) -> [Instruction; 2] {
-        let init_account_ix = create_account(
-            payer_pk,
-            &keypair.pubkey(),
-            rent.minimum_balance(TokenAccount::LEN),
-            TokenAccount::LEN as u64,
-            token_program,
-        );
+    ) -> Vec<Instruction> {
+        let mut ixs = vec![];
 
-        let init_token_ix = spl_token_2022::instruction::initialize_account(
-            token_program,
-            &keypair.pubkey(),
-            mint_pk,
-            owner_pk,
+        // Get extensions if t22 (should return no exts if spl_token)
+        // 1) Fetch mint
+        let mint_account = ctx
+            .borrow_mut()
+            .banks_client
+            .get_account(*mint_pk)
+            .await
+            .unwrap()
+            .unwrap();
+        let mint_exts =
+            spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Mint>::unpack(
+                &mint_account.data,
+            )
+            .unwrap();
+
+        let mint_extensions: Vec<ExtensionType> = mint_exts.get_extension_types().unwrap();
+        // let mut required_extensions =
+        //     ExtensionType::get_required_init_account_extensions(&mint_extensions);
+        // for extension_type in extensions.into_iter() {
+        //     if !required_extensions.contains(&extension_type) {
+        //         required_extensions.push(extension_type);
+        //     }
+        // }
+        let space = ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(
+            &mint_extensions,
         )
         .unwrap();
 
-        [init_account_ix, init_token_ix]
+        // Init account
+        ixs.push(create_account(
+            payer_pk,
+            &keypair.pubkey(),
+            rent.minimum_balance(space),
+            space as u64,
+            token_program,
+        ));
+
+        // 2) Add instructions
+        if mint_extensions.contains(&ExtensionType::ImmutableOwner) {
+            ixs.push(
+                spl_token_2022::instruction::initialize_immutable_owner(
+                    token_program,
+                    &keypair.pubkey(),
+                )
+                .unwrap(),
+            )
+        }
+
+        // Token Account init
+        ixs.push(
+            spl_token_2022::instruction::initialize_account(
+                token_program,
+                &keypair.pubkey(),
+                mint_pk,
+                owner_pk,
+            )
+            .unwrap(),
+        );
+
+        ixs
     }
 
     pub async fn new_account(&self) -> Pubkey {
@@ -277,6 +324,7 @@ impl TokenAccountFixture {
         let mut ctx = self.ctx.borrow_mut();
 
         let ixs = Self::create_ixs(
+            &self.ctx,
             ctx.banks_client.get_rent().await.unwrap(),
             &self.token.mint,
             &ctx.payer.pubkey(),
@@ -309,33 +357,56 @@ impl TokenAccountFixture {
         let ctx_ref = ctx.clone();
 
         {
-            let mut ctx = ctx.borrow_mut();
-
-            let rent = ctx.banks_client.get_rent().await.unwrap();
+            let payer = ctx.borrow().payer.pubkey();
+            let rent = ctx
+                .borrow_mut()
+                .banks_client
+                .get_rent()
+                .await
+                .unwrap()
+                .clone();
             let instructions = Self::create_ixs(
+                &ctx,
                 rent,
                 mint_pk,
-                &ctx.payer.pubkey(),
+                &payer,
                 owner_pk,
                 keypair,
                 token_program,
             )
             .await;
 
+            // Token extensions
+
             let tx = Transaction::new_signed_with_payer(
                 &instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer, keypair],
-                ctx.last_blockhash,
+                Some(&ctx.borrow().payer.pubkey()),
+                &[&ctx.borrow().payer, keypair],
+                ctx.borrow().last_blockhash,
             );
 
-            ctx.banks_client.process_transaction(tx).await.unwrap();
+            ctx.borrow_mut()
+                .banks_client
+                .process_transaction(tx)
+                .await
+                .unwrap();
         }
+
+        let mut ctx = ctx.borrow_mut();
+        let account = ctx
+            .banks_client
+            .get_account(keypair.pubkey())
+            .await
+            .unwrap()
+            .unwrap();
 
         Self {
             ctx: ctx_ref.clone(),
             key: keypair.pubkey(),
-            token: get_and_deserialize(ctx_ref.clone(), keypair.pubkey()).await,
+            token: TokenAccount::try_deserialize(
+                &mut &account.data[..spl_token::state::Account::LEN],
+            )
+            .unwrap(),
             token_program: *token_program,
         }
     }

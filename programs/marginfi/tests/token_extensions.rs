@@ -12,6 +12,7 @@ use solana_program_test::tokio;
 use test_case::test_case;
 
 #[test_case(vec![])]
+#[test_case(vec![SupportedExtension::TransferHook])]
 #[test_case(vec![SupportedExtension::PermanentDelegate])]
 #[test_case(vec![SupportedExtension::InterestBearing])]
 #[test_case(vec![SupportedExtension::MintCloseAuthority])]
