@@ -86,8 +86,8 @@ pub mod marginfi {
     }
 
     /// Handle bad debt of a bankrupt marginfi account for a given bank.
-    pub fn lending_pool_handle_bankruptcy(
-        ctx: Context<LendingPoolHandleBankruptcy>,
+    pub fn lending_pool_handle_bankruptcy<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolHandleBankruptcy<'info>>,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_handle_bankruptcy(ctx)
     }
@@ -114,16 +114,16 @@ pub mod marginfi {
         marginfi_account::lending_account_repay(ctx, amount, repay_all)
     }
 
-    pub fn lending_account_withdraw(
-        ctx: Context<LendingAccountWithdraw>,
+    pub fn lending_account_withdraw<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdraw<'info>>,
         amount: u64,
         withdraw_all: Option<bool>,
     ) -> MarginfiResult {
         marginfi_account::lending_account_withdraw(ctx, amount, withdraw_all)
     }
 
-    pub fn lending_account_borrow(
-        ctx: Context<LendingAccountBorrow>,
+    pub fn lending_account_borrow<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingAccountBorrow<'info>>,
         amount: u64,
     ) -> MarginfiResult {
         marginfi_account::lending_account_borrow(ctx, amount)
@@ -135,8 +135,8 @@ pub mod marginfi {
         marginfi_account::lending_account_close_balance(ctx)
     }
 
-    pub fn lending_account_withdraw_emissions(
-        ctx: Context<LendingAccountWithdrawEmissions>,
+    pub fn lending_account_withdraw_emissions<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdrawEmissions<'info>>,
     ) -> MarginfiResult {
         marginfi_account::lending_account_withdraw_emissions(ctx)
     }
@@ -148,8 +148,8 @@ pub mod marginfi {
     }
 
     /// Liquidate a lending account balance of an unhealthy marginfi account
-    pub fn lending_account_liquidate(
-        ctx: Context<LendingAccountLiquidate>,
+    pub fn lending_account_liquidate<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
         asset_amount: u64,
     ) -> MarginfiResult {
         marginfi_account::lending_account_liquidate(ctx, asset_amount)
@@ -162,8 +162,8 @@ pub mod marginfi {
         marginfi_account::lending_account_start_flashloan(ctx, end_index)
     }
 
-    pub fn lending_account_end_flashloan(
-        ctx: Context<LendingAccountEndFlashloan>,
+    pub fn lending_account_end_flashloan<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingAccountEndFlashloan<'info>>,
     ) -> MarginfiResult {
         marginfi_account::lending_account_end_flashloan(ctx)
     }

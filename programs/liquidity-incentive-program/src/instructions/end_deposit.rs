@@ -61,7 +61,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
             &[&[
                 DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
                 ctx.accounts.deposit.key().as_ref(),
-                &[*ctx.bumps.get("mfi_pda_signer").unwrap()],
+                &[ctx.bumps.mfi_pda_signer],
             ]],
         ),
         0,
@@ -119,7 +119,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
                 &[&[
                     CAMPAIGN_AUTH_SEED.as_bytes(),
                     ctx.accounts.campaign.key().as_ref(),
-                    &[*ctx.bumps.get("campaign_reward_vault_authority").unwrap()],
+                    &[ctx.bumps.campaign_reward_vault_authority],
                 ]],
             ),
             additional_reward_amount,
@@ -146,7 +146,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
             &[&[
                 TEMP_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
                 ctx.accounts.deposit.key().as_ref(),
-                &[*ctx.bumps.get("temp_token_account_authority").unwrap()],
+                &[ctx.bumps.temp_token_account_authority],
             ]],
         ),
         ctx.accounts.temp_token_account.amount,
@@ -163,7 +163,7 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
         &[&[
             TEMP_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
             ctx.accounts.deposit.key().as_ref(),
-            &[*ctx.bumps.get("temp_token_account_authority").unwrap()],
+            &[ctx.bumps.temp_token_account_authority],
         ]],
     ))?;
 

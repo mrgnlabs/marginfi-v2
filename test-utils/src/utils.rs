@@ -1,4 +1,4 @@
-use anchor_lang::{prelude::*, Discriminator};
+use anchor_lang::prelude::*;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
@@ -8,8 +8,8 @@ use solana_program_test::*;
 use solana_sdk::{account::Account, signature::Keypair};
 use std::mem::size_of;
 use std::{cell::RefCell, rc::Rc};
-use switchboard_v2::SWITCHBOARD_PROGRAM_ID;
-use switchboard_v2::{
+use switchboard_solana::SWITCHBOARD_PROGRAM_ID;
+use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, AggregatorRound, SwitchboardDecimal,
 };
 
@@ -92,7 +92,7 @@ pub fn create_pyth_price_account(
 
 pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Account {
     let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
-    let aggregator_account = switchboard_v2::AggregatorAccountData {
+    let aggregator_account = switchboard_solana::AggregatorAccountData {
         name: [0; 32],
         metadata: [0; 128],
         _reserved1: [0; 32],
@@ -311,7 +311,7 @@ pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Accou
             ],
         },
         job_pubkeys_data: [Pubkey::default(); 16],
-        job_hashes: [switchboard_v2::Hash::default(); 16],
+        job_hashes: [switchboard_solana::Hash::default(); 16],
         job_pubkeys_size: 5,
         jobs_checksum: [
             119, 207, 222, 177, 160, 127, 254, 198, 132, 153, 111, 54, 202, 89, 87, 81, 75, 152,
@@ -332,12 +332,20 @@ pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Accou
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0,
+            0,
+            //0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            // 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ],
+        ..Default::default() // base_priority_fee: todo!(),
+                             // priority_fee_bump: todo!(),
+                             // priority_fee_bump_period: todo!(),
+                             // max_priority_fee_multiplier: todo!(),
+                             // parent_function: todo!(),
     };
 
-    let desc_bytes = <AggregatorAccountData as Discriminator>::DISCRIMINATOR;
+    let desc_bytes =
+        <AggregatorAccountData as switchboard_solana::anchor_lang::Discriminator>::DISCRIMINATOR;
     let mut data = vec![0u8; 8 + size_of::<AggregatorAccountData>()];
     data[..8].copy_from_slice(&desc_bytes);
     data[8..].copy_from_slice(bytemuck::bytes_of(&aggregator_account));

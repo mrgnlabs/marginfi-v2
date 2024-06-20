@@ -50,7 +50,7 @@ async fn marginfi_account_liquidation_success_with_extension(
     )
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDCToken22);
+    let usdc_t22_bank_f = test_f.get_bank(&BankMint::USDCToken22);
     let sol_bank_f = test_f.get_bank(&BankMint::SOL);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -59,7 +59,7 @@ async fn marginfi_account_liquidation_success_with_extension(
         .create_token_account_and_mint_to(2_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_t22_bank_f, 2_000)
         .await
         .unwrap();
 
@@ -77,7 +77,7 @@ async fn marginfi_account_liquidation_success_with_extension(
 
     // Borrower borrows $999
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 999)
+        .try_bank_borrow(borrower_token_account_usdc.key, usdc_t22_bank_f, 999)
         .await?;
 
     // Synthetically bring down the borrower account health by reducing the asset weights of the SOL bank
@@ -90,12 +90,12 @@ async fn marginfi_account_liquidation_success_with_extension(
         .await?;
 
     lender_mfi_account_f
-        .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_bank_f)
+        .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_t22_bank_f)
         .await?;
 
     // Checks
     let sol_bank: Bank = sol_bank_f.load().await;
-    let usdc_bank: Bank = usdc_bank_f.load().await;
+    let usdc_bank: Bank = usdc_t22_bank_f.load().await;
 
     let depositor_ma = lender_mfi_account_f.load().await;
     let borrower_ma = borrower_mfi_account_f.load().await;
@@ -139,7 +139,7 @@ async fn marginfi_account_liquidation_success_with_extension(
     );
 
     // Check insurance fund fee
-    let insurance_fund_usdc = usdc_bank_f
+    let insurance_fund_usdc = usdc_t22_bank_f
         .get_vault_token_account(BankVaultType::Insurance)
         .await;
 

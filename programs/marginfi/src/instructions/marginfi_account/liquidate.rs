@@ -66,8 +66,8 @@ use solana_program::sysvar::Sysvar;
 /// assuming that the liquidatee liability token balance doesn't become positive (doesn't become counted as collateral),
 /// and that the liquidatee collateral token balance doesn't become negative (doesn't become counted as liability).
 ///
-pub fn lending_account_liquidate(
-    ctx: Context<LendingAccountLiquidate>,
+pub fn lending_account_liquidate<'info>(
+    ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
     asset_amount: u64,
 ) -> MarginfiResult {
     check!(

@@ -23,8 +23,8 @@ use solana_program::{clock::Clock, sysvar::Sysvar};
 /// 5. Verify that the user account is in a healthy state
 ///
 /// Will error if there is no existing asset <=> borrowing is not allowed.
-pub fn lending_account_withdraw(
-    ctx: Context<LendingAccountWithdraw>,
+pub fn lending_account_withdraw<'info>(
+    ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdraw<'info>>,
     amount: u64,
     withdraw_all: Option<bool>,
 ) -> MarginfiResult {

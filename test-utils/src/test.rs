@@ -3,6 +3,7 @@ use crate::{marginfi_group::*, native, spl::*, utils::*};
 use anchor_lang::prelude::*;
 use bincode::deserialize;
 use solana_sdk::account::AccountSharedData;
+use solana_sdk::entrypoint::ProgramResult;
 
 use super::marginfi_account::MarginfiAccountFixture;
 use crate::bank::BankFixture;
@@ -299,6 +300,23 @@ pub const USDC_MINT_DECIMALS: u8 = 6;
 pub const SOL_MINT_DECIMALS: u8 = 9;
 pub const MNDE_MINT_DECIMALS: u8 = 9;
 
+pub fn marginfi_entry<'a, 'b, 'c, 'info>(
+    program_id: &'a Pubkey,
+    accounts: &'b [AccountInfo<'info>],
+    data: &'c [u8],
+) -> ProgramResult {
+    marginfi::entry(program_id, unsafe { core::mem::transmute(accounts) }, data)
+}
+
+#[cfg(feature = "lip")]
+pub fn lip_entry<'a, 'b, 'c, 'info>(
+    program_id: &'a Pubkey,
+    accounts: &'b [AccountInfo<'info>],
+    data: &'c [u8],
+) -> ProgramResult {
+    liquidity_incentive_program::entry(program_id, unsafe { core::mem::transmute(accounts) }, data)
+}
+
 impl TestFixture {
     pub async fn new(test_settings: Option<TestSettings>) -> TestFixture {
         TestFixture::new_with_t22_extension(test_settings, vec![]).await
@@ -307,7 +325,7 @@ impl TestFixture {
         test_settings: Option<TestSettings>,
         extensions: Vec<SupportedExtension>,
     ) -> TestFixture {
-        let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
+        let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi_entry));
         program.add_program(
             "transfer_hook",
             TEST_HOOK_ID,
@@ -318,7 +336,7 @@ impl TestFixture {
         program.add_program(
             "liquidity_incentive_program",
             liquidity_incentive_program::ID,
-            processor!(liquidity_incentive_program::entry),
+            processor!(lip_entry),
         );
 
         let usdc_keypair = Keypair::new();

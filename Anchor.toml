@@ -1,5 +1,5 @@
 [toolchain]
-solana_version = "1.16.23"
+solana_version = "1.18.2"
 
 [features]
 seeds = true

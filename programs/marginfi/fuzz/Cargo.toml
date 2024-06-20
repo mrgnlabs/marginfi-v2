@@ -14,8 +14,8 @@ test = false
 doc = false
 
 [dependencies]
-solana-sdk = "1.16.23"
-solana-program = "1.16.23"
+solana-sdk = "1.18.2"
+solana-program = "1.18.2"
 spl-token = "4.0.0"
 ahash = "=0.8.8"
 anchor-lang = "0.28.0"

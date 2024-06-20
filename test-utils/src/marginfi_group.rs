@@ -119,8 +119,7 @@ impl MarginfiGroupFixture {
             .borrow_mut()
             .banks_client
             .process_transaction(tx)
-            .await
-            .unwrap();
+            .await?;
 
         Ok(bank_fixture)
     }

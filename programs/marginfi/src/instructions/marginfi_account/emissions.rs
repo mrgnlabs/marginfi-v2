@@ -14,8 +14,8 @@ use crate::{
     },
 };
 
-pub fn lending_account_withdraw_emissions(
-    ctx: Context<LendingAccountWithdrawEmissions>,
+pub fn lending_account_withdraw_emissions<'info>(
+    ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdrawEmissions<'info>>,
 ) -> MarginfiResult {
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
@@ -42,7 +42,7 @@ pub fn lending_account_withdraw_emissions(
             EMISSIONS_AUTH_SEED.as_bytes(),
             &ctx.accounts.bank.key().to_bytes(),
             &ctx.accounts.emissions_mint.key().to_bytes(),
-            &[*ctx.bumps.get("emissions_auth").unwrap()],
+            &[ctx.bumps.emissions_auth],
         ]];
 
         transfer_checked(

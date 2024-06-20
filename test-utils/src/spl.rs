@@ -2,7 +2,8 @@ use crate::{transfer_hook::TEST_HOOK_ID, ui_to_native};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     token::{spl_token, Mint, TokenAccount},
-    token_2022::{self, spl_token_2022::pod::pod_get_packed_len},
+    token_2022,
+    token_interface::spl_pod::bytemuck::pod_get_packed_len,
 };
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{

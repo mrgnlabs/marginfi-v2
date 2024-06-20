@@ -52,7 +52,7 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
     let mfi_signer_seeds: &[&[u8]] = &[
         DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
         &ctx.accounts.deposit.key().to_bytes(),
-        &[*ctx.bumps.get("mfi_pda_signer").unwrap()],
+        &[ctx.bumps.mfi_pda_signer],
     ];
 
     marginfi::cpi::marginfi_account_initialize(CpiContext::new_with_signer(
@@ -69,7 +69,7 @@ pub fn process(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
             &[
                 MARGINFI_ACCOUNT_SEED.as_bytes(),
                 &ctx.accounts.deposit.key().to_bytes(),
-                &[*ctx.bumps.get("marginfi_account").unwrap()],
+                &[ctx.bumps.marginfi_account],
             ],
         ],
     ))?;

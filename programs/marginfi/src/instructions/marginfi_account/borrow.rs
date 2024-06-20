@@ -23,7 +23,10 @@ use solana_program::{clock::Clock, sysvar::Sysvar};
 /// 5. Verify that the user account is in a healthy state
 ///
 /// Will error if there is an existing asset <=> withdrawing is not allowed.
-pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -> MarginfiResult {
+pub fn lending_account_borrow<'info>(
+    ctx: Context<'_, '_, 'info, 'info, LendingAccountBorrow<'info>>,
+    amount: u64,
+) -> MarginfiResult {
     let LendingAccountBorrow {
         marginfi_account: marginfi_account_loader,
         destination_token_account,

@@ -24,7 +24,9 @@ use std::cmp::{max, min};
 /// 3. Cover the bad debt of the bankrupt account.
 /// 4. Transfer the insured amount from the insurance fund.
 /// 5. Socialize the loss between lenders if any.
-pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>) -> MarginfiResult {
+pub fn lending_pool_handle_bankruptcy<'info>(
+    ctx: Context<'_, '_, 'info, 'info, LendingPoolHandleBankruptcy<'info>>,
+) -> MarginfiResult {
     let LendingPoolHandleBankruptcy {
         marginfi_account: marginfi_account_loader,
         insurance_vault,
