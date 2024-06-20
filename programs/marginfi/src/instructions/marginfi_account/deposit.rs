@@ -9,7 +9,10 @@ use crate::{
     },
 };
 use anchor_lang::prelude::*;
-use anchor_spl::{token_2022::Transfer, token_interface::TokenInterface};
+use anchor_spl::{
+    token_2022::{Transfer, TransferChecked},
+    token_interface::{Mint, TokenInterface},
+};
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
@@ -28,6 +31,7 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
         bank_liquidity_vault,
         token_program,
         bank: bank_loader,
+        bank_mint,
         ..
     } = ctx.accounts;
 
@@ -54,12 +58,14 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
     bank_account.deposit(I80F48::from_num(amount))?;
     bank_account.deposit_spl_transfer(
         amount,
-        Transfer {
+        TransferChecked {
             from: signer_token_account.to_account_info(),
             to: bank_liquidity_vault.to_account_info(),
             authority: signer.to_account_info(),
+            mint: bank_mint.to_account_info(),
         },
         token_program.to_account_info(),
+        bank_mint.decimals,
     )?;
 
     emit!(LendingAccountDepositEvent {
@@ -97,6 +103,11 @@ pub struct LendingAccountDeposit<'info> {
         constraint = bank.load()?.group == marginfi_group.key(),
     )]
     pub bank: AccountLoader<'info, Bank>,
+
+    #[account(
+        address = bank.load()?.mint,
+    )]
+    pub bank_mint: InterfaceAccount<'info, Mint>,
 
     /// CHECK: Token mint/authority are checked at transfer
     #[account(mut)]

@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use anchor_lang::prelude::*;
-use anchor_spl::{token_2022::Transfer, token_interface::TokenInterface};
+use anchor_spl::token_interface::{Mint, TokenInterface, TransferChecked};
 use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 
@@ -31,6 +31,7 @@ pub fn lending_account_repay(
         bank_liquidity_vault,
         token_program,
         bank: bank_loader,
+        bank_mint,
         ..
     } = ctx.accounts;
 
@@ -65,12 +66,14 @@ pub fn lending_account_repay(
 
     bank_account.deposit_spl_transfer(
         spl_deposit_amount,
-        Transfer {
+        TransferChecked {
             from: signer_token_account.to_account_info(),
             to: bank_liquidity_vault.to_account_info(),
             authority: signer.to_account_info(),
+            mint: bank_mint.to_account_info(),
         },
         token_program.to_account_info(),
+        bank_mint.decimals,
     )?;
 
     emit!(LendingAccountRepayEvent {
@@ -109,6 +112,11 @@ pub struct LendingAccountRepay<'info> {
         constraint = bank.load()?.group == marginfi_group.key(),
     )]
     pub bank: AccountLoader<'info, Bank>,
+
+    #[account(
+        address = bank.load()?.mint,
+    )]
+    pub bank_mint: InterfaceAccount<'info, Mint>,
 
     /// CHECK: Token mint/authority are checked at transfer
     #[account(mut)]

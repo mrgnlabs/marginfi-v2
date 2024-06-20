@@ -643,11 +643,12 @@ impl Bank {
         Ok(())
     }
 
-    pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
+    pub fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'b>,
-        program: AccountInfo<'c>,
+        accounts: TransferChecked<'info>,
+        program: AccountInfo<'info>,
+        decimals: u8,
     ) -> MarginfiResult {
         check!(
             accounts.to.key.eq(&self.liquidity_vault),
@@ -664,7 +665,7 @@ impl Bank {
         //
         // Security of `transfer` is equal to `transfer_checked`.
         #[allow(deprecated)]
-        transfer(CpiContext::new(program, accounts), amount)
+        transfer_checked(CpiContext::new(program, accounts), amount, decimals)
     }
 
     pub fn withdraw_spl_transfer<'b: 'c, 'c: 'b>(
