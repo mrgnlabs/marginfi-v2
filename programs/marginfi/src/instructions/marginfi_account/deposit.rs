@@ -10,7 +10,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    token_2022::{Transfer, TransferChecked},
+    token_2022::TransferChecked,
     token_interface::{Mint, TokenInterface},
 };
 use fixed::types::I80F48;
@@ -104,11 +104,6 @@ pub struct LendingAccountDeposit<'info> {
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    #[account(
-        address = bank.load()?.mint,
-    )]
-    pub bank_mint: InterfaceAccount<'info, Mint>,
-
     /// CHECK: Token mint/authority are checked at transfer
     #[account(mut)]
     pub signer_token_account: AccountInfo<'info>,
@@ -125,4 +120,9 @@ pub struct LendingAccountDeposit<'info> {
     pub bank_liquidity_vault: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
+
+    #[account(
+        address = bank.load()?.mint,
+    )]
+    pub bank_mint: InterfaceAccount<'info, Mint>,
 }

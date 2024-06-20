@@ -5,17 +5,23 @@ use anchor_spl::{
     token_2022,
     token_interface::spl_pod::bytemuck::pod_get_packed_len,
 };
+use solana_cli_output::CliAccount;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
-    instruction::Instruction, program_pack::Pack, signature::Keypair, signer::Signer,
-    system_instruction::create_account, transaction::Transaction,
+    account::{AccountSharedData, ReadableAccount},
+    instruction::Instruction,
+    program_pack::Pack,
+    signature::Keypair,
+    signer::Signer,
+    system_instruction::create_account,
+    transaction::Transaction,
 };
 use spl_token_2022::extension::{
     interest_bearing_mint::InterestBearingConfig, mint_close_authority::MintCloseAuthority,
     permanent_delegate::PermanentDelegate, transfer_hook::TransferHook, BaseStateWithExtensions,
     ExtensionType,
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fs::File, io::Read, path::PathBuf, rc::Rc, str::FromStr};
 
 #[derive(Clone)]
 pub struct MintFixture {
@@ -153,6 +159,41 @@ impl MintFixture {
             key: keypair.pubkey(),
             mint,
             token_program: token_2022::ID,
+        }
+    }
+
+    pub fn new_from_file(
+        ctx: &Rc<RefCell<ProgramTestContext>>,
+        relative_path: &str,
+    ) -> MintFixture {
+        let ctx_ref = Rc::clone(&ctx);
+
+        let (address, account_info) = {
+            let mut ctx = ctx.borrow_mut();
+
+            // load cargo workspace path from env
+            let mut path = PathBuf::from_str(env!("CARGO_MANIFEST_DIR")).unwrap();
+            path.push(relative_path);
+            let mut file = File::open(&path).unwrap();
+            let mut account_info_raw = String::new();
+            file.read_to_string(&mut account_info_raw).unwrap();
+
+            let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
+            let address = Pubkey::from_str(&account.keyed_account.pubkey).unwrap();
+            let account_info: AccountSharedData = account.keyed_account.account.decode().unwrap();
+
+            ctx.set_account(&address, &account_info);
+
+            (address, account_info)
+        };
+
+        let mint = Mint::try_deserialize(&mut &account_info.data()[..Mint::LEN]).unwrap();
+
+        MintFixture {
+            ctx: ctx_ref,
+            key: address,
+            mint,
+            token_program: account_info.owner().to_owned(),
         }
     }
 

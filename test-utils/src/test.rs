@@ -388,12 +388,8 @@ impl TestFixture {
 
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 
-        let usdc_mint_f = MintFixture::new(
-            Rc::clone(&context),
-            Some(usdc_keypair),
-            Some(USDC_MINT_DECIMALS),
-        )
-        .await;
+        let usdc_mint_f = MintFixture::new_from_file(&context, "src/fixtures/pyUSD.json");
+
         let sol_mint_f = MintFixture::new(
             Rc::clone(&context),
             Some(sol_keypair),
