@@ -2,7 +2,6 @@ use super::{bank::BankFixture, prelude::*};
 use crate::ui_to_native;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 
-use futures::FutureExt;
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankVaultType},
@@ -97,36 +96,41 @@ impl MarginfiAccountFixture {
         bank: &BankFixture,
         ui_amount: T,
     ) -> anyhow::Result<(), BanksClientError> {
-        let mut ix = self
+        let ix = self
             .make_bank_deposit_ix(funding_account, bank, ui_amount)
             .await;
 
         // If t22 with transfer hook, add remaining accounts
         // {
         //     let instruction: &mut Instruction = &mut ix;
-        let fetch_account_data_fn = |key| async move {
-            Ok(self
-                .ctx
-                .borrow_mut()
-                .banks_client
-                .get_account(key)
-                .await
-                .map(|acc| acc.map(|a| a.data))?)
-        };
+        // let fetch_account_data_fn = |key| async move {
+        //     Ok(self
+        //         .ctx
+        //         .borrow_mut()
+        //         .banks_client
+        //         .get_account(key)
+        //         .await
+        //         .map(|acc| acc.map(|a| a.data))?)
+        // };
         let payer = self.ctx.borrow_mut().payer.pubkey();
         if bank.mint.token_program == spl_token_2022::ID {
-            spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
-                &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
-                &funding_account,
-                &bank.mint.key,
-                &bank.get_vault(BankVaultType::Liquidity).0,
-                &payer,
-                ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
-                fetch_account_data_fn,
-            )
-            .await
-            .unwrap();
+            // TODO: do that only if hook exists
+            println!(
+                "[TODO] Adding extra account metas for execute for mint {:?}",
+                bank.mint.key
+            );
+            // spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
+            //     &mut ix,
+            //     &super::transfer_hook::TEST_HOOK_ID,
+            //     &funding_account,
+            //     &bank.mint.key,
+            //     &bank.get_vault(BankVaultType::Liquidity).0,
+            //     &payer,
+            //     ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+            //     fetch_account_data_fn,
+            // )
+            // .await
+            // .unwrap();
         }
 
         // if bank.mint.token_program == spl_token_2022::ID {

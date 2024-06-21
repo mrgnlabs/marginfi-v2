@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 use anchor_lang::prelude::Clock;
 use anchor_lang::{AccountDeserialize, InstructionData, ToAccountMetas};
+use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use anyhow::bail;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
@@ -25,6 +26,7 @@ use marginfi::state::{
 };
 use marginfi::{assert_eq_with_tolerance, prelude::*};
 use pretty_assertions::assert_eq;
+use test_case::test_matrix;
 
 use solana_account_decoder::UiAccountData;
 use solana_cli_output::CliAccount;
@@ -89,47 +91,79 @@ async fn marginfi_account_create_success() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_matrix(
+    [7, 1_000, 15_002],
+    [BankMint::USDC, BankMint::SOL, BankMint::PyUSD, BankMint::T22WithFee]
+)]
 #[tokio::test]
-async fn marginfi_account_deposit_success() -> anyhow::Result<()> {
-    let mut test_f = TestFixture::new(Some(TestSettings {
-        banks: vec![TestBankSetting {
-            mint: BankMint::USDC,
-            ..TestBankSetting::default()
-        }],
-        ..TestSettings::default()
-    }))
-    .await;
+async fn marginfi_account_deposit_success(amount: u64, bank_mint: BankMint) -> anyhow::Result<()> {
+    let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     let marginfi_account_f = test_f.create_marginfi_account().await;
 
     let owner = test_f.payer();
-    let token_account_f =
-        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint, &owner).await;
-    test_f.usdc_mint.mint_to(&token_account_f.key, 1_000).await;
+    let user_balance = amount as f64 * (1f64 + MAX_FEE_BASIS_POINTS as f64 / 10_000f64);
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let token_account_f = TokenAccountFixture::new(
+        test_f.context.clone(),
+        &test_f.get_bank(&bank_mint).mint,
+        &owner,
+    )
+    .await;
+
+    test_f
+        .get_bank_mut(&bank_mint)
+        .mint
+        .mint_to(&token_account_f.key, user_balance)
+        .await;
+
+    let pre_vault_balance = test_f
+        .get_bank(&bank_mint)
+        .get_vault_token_account(BankVaultType::Liquidity)
+        .await
+        .balance()
+        .await;
 
     let res = marginfi_account_f
-        .try_bank_deposit(token_account_f.key, usdc_bank_f, 1_000)
+        .try_bank_deposit(
+            token_account_f.key,
+            &test_f.get_bank(&bank_mint),
+            amount as f64,
+        )
         .await;
     assert!(res.is_ok());
 
     let marginfi_account = marginfi_account_f.load().await;
-
-    // Check balance is active
-    assert!(marginfi_account
-        .lending_account
-        .get_balance(&usdc_bank_f.key)
-        .is_some());
-
     assert_eq!(
         marginfi_account
             .lending_account
             .get_active_balances_iter()
-            .collect::<Vec<_>>()
-            .len(),
+            .count(),
         1
     );
+
+    let bank_f = test_f.get_bank(&bank_mint);
+
+    let post_vault_balance = bank_f
+        .get_vault_token_account(BankVaultType::Liquidity)
+        .await
+        .balance()
+        .await;
+
+    let maybe_balance = marginfi_account.lending_account.get_balance(&bank_f.key);
+    assert!(maybe_balance.is_some());
+
+    let balance = maybe_balance.unwrap();
+
+    let expected = I80F48::from(native!(amount, bank_f.mint.mint.decimals));
+    let actual = I80F48::from(post_vault_balance - pre_vault_balance);
+    let accounted = bank_f
+        .load()
+        .await
+        .get_asset_amount(balance.asset_shares.into())
+        .unwrap();
+    assert_eq!(expected, actual);
+    assert_eq_with_tolerance!(expected, accounted, 1);
 
     Ok(())
 }

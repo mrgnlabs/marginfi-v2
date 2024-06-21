@@ -33,7 +33,7 @@ async fn marginfi_account_liquidation_success_with_extension(
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
-                    mint: BankMint::USDCToken22,
+                    mint: BankMint::PyUSD,
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
@@ -51,7 +51,7 @@ async fn marginfi_account_liquidation_success_with_extension(
     )
     .await;
 
-    let usdc_t22_bank_f = test_f.get_bank(&BankMint::USDCToken22);
+    let usdc_t22_bank_f = test_f.get_bank(&BankMint::PyUSD);
     let sol_bank_f = test_f.get_bank(&BankMint::SOL);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;

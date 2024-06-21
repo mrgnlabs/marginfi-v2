@@ -13,7 +13,7 @@ use crate::{
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token_2022::{Transfer, TransferChecked};
+use anchor_spl::token_2022::TransferChecked;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use std::cmp::{max, min};
@@ -189,10 +189,10 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     )]
     pub insurance_vault_authority: AccountInfo<'info>,
 
+    pub token_program: Interface<'info, TokenInterface>,
+
     #[account(
         address = bank.load()?.mint,
     )]
     pub bank_mint: InterfaceAccount<'info, Mint>,
-
-    pub token_program: Interface<'info, TokenInterface>,
 }

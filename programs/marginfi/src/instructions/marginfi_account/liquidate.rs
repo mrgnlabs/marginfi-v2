@@ -12,7 +12,7 @@ use crate::{
 };
 use crate::{check, debug, prelude::*};
 use anchor_lang::prelude::*;
-use anchor_spl::token_2022::{Transfer, TransferChecked};
+use anchor_spl::token_2022::TransferChecked;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
@@ -437,8 +437,8 @@ pub struct LendingAccountLiquidate<'info> {
     )]
     pub bank_insurance_vault: AccountInfo<'info>,
 
+    pub token_program: Interface<'info, TokenInterface>,
+
     #[account(address = liab_bank.load()?.mint)]
     pub liab_mint: InterfaceAccount<'info, Mint>,
-
-    pub token_program: Interface<'info, TokenInterface>,
 }
