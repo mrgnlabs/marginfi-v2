@@ -186,6 +186,7 @@ pub enum BankMint {
     SolEquivalent8,
     SolEquivalent9,
     USDCToken22,
+    PyUSD,
 }
 
 impl Default for BankMint {
@@ -203,6 +204,7 @@ pub struct TestFixture {
     pub sol_equivalent_mint: MintFixture,
     pub mnde_mint: MintFixture,
     pub usdc_t22_mint: MintFixture,
+    pub pyusd_mint: MintFixture,
 }
 
 pub const PYTH_USDC_FEED: Pubkey = pubkey!("PythUsdcPrice111111111111111111111111111111");
@@ -329,7 +331,7 @@ impl TestFixture {
         program.add_program(
             "transfer_hook",
             TEST_HOOK_ID,
-            processor!(super::transfer_hook::process_instruction),
+            processor!(super::transfer_hook::process),
         );
 
         #[cfg(feature = "lip")]
@@ -388,7 +390,12 @@ impl TestFixture {
 
         solana_logger::setup_with_default(RUST_LOG_DEFAULT);
 
-        let usdc_mint_f = MintFixture::new_from_file(&context, "src/fixtures/pyUSD.json");
+        let usdc_mint_f = MintFixture::new(
+            Rc::clone(&context),
+            Some(usdc_keypair),
+            Some(USDC_MINT_DECIMALS),
+        )
+        .await;
 
         let sol_mint_f = MintFixture::new(
             Rc::clone(&context),
@@ -415,6 +422,7 @@ impl TestFixture {
             extensions,
         )
         .await;
+        let pyusd_mint_f = MintFixture::new_from_file(&context, "src/fixtures/pyUSD.json");
 
         let tester_group = MarginfiGroupFixture::new(
             Rc::clone(&context),
@@ -472,6 +480,7 @@ impl TestFixture {
                         *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
                     ),
                     BankMint::USDCToken22 => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
+                    BankMint::PyUSD => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
                 };
 
                 println!(
@@ -497,6 +506,7 @@ impl TestFixture {
             sol_equivalent_mint: sol_equivalent_mint_f,
             mnde_mint: mnde_mint_f,
             usdc_t22_mint: usdc_t22_mint_f,
+            pyusd_mint: pyusd_mint_f,
         }
     }
 

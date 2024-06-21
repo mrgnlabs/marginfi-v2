@@ -99,15 +99,15 @@ pub mod marginfi {
         marginfi_account::initialize_account(ctx)
     }
 
-    pub fn lending_account_deposit(
-        ctx: Context<LendingAccountDeposit>,
+    pub fn lending_account_deposit<'info>(
+        ctx: Context<'_, '_, '_, 'info, LendingAccountDeposit<'info>>,
         amount: u64,
     ) -> MarginfiResult {
         marginfi_account::lending_account_deposit(ctx, amount)
     }
 
-    pub fn lending_account_repay(
-        ctx: Context<LendingAccountRepay>,
+    pub fn lending_account_repay<'info>(
+        ctx: Context<'_, '_, '_, 'info, LendingAccountRepay<'info>>,
         amount: u64,
         repay_all: Option<bool>,
     ) -> MarginfiResult {
@@ -175,21 +175,21 @@ pub mod marginfi {
         marginfi_group::lending_pool_accrue_bank_interest(ctx)
     }
 
-    pub fn lending_pool_collect_bank_fees(
-        ctx: Context<LendingPoolCollectBankFees>,
+    pub fn lending_pool_collect_bank_fees<'info>(
+        ctx: Context<'_, '_, '_, 'info, LendingPoolCollectBankFees<'info>>,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_collect_bank_fees(ctx)
     }
 
-    pub fn lending_pool_withdraw_fees(
-        ctx: Context<LendingPoolWithdrawFees>,
+    pub fn lending_pool_withdraw_fees<'info>(
+        ctx: Context<'_, '_, '_, 'info, LendingPoolWithdrawFees<'info>>,
         amount: u64,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_withdraw_fees(ctx, amount)
     }
 
-    pub fn lending_pool_withdraw_insurance(
-        ctx: Context<LendingPoolWithdrawInsurance>,
+    pub fn lending_pool_withdraw_insurance<'info>(
+        ctx: Context<'_, '_, '_, 'info, LendingPoolWithdrawInsurance<'info>>,
         amount: u64,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_withdraw_insurance(ctx, amount)

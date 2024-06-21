@@ -12,8 +12,8 @@ use crate::{
 };
 use crate::{check, debug, prelude::*};
 use anchor_lang::prelude::*;
-use anchor_spl::token_2022::Transfer;
-use anchor_spl::token_interface::{TokenAccount, TokenInterface};
+use anchor_spl::token_2022::{Transfer, TransferChecked};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
@@ -280,20 +280,24 @@ pub fn lending_account_liquidate<'info>(
             // Insurance fund receives fee
             liquidatee_liab_bank_account.withdraw_spl_transfer(
                 insurance_fee_to_transfer,
-                Transfer {
+                TransferChecked {
                     from: ctx.accounts.bank_liquidity_vault.to_account_info(),
                     to: ctx.accounts.bank_insurance_vault.to_account_info(),
                     authority: ctx
                         .accounts
                         .bank_liquidity_vault_authority
                         .to_account_info(),
+                    mint: ctx.accounts.liab_mint.to_account_info(),
                 },
                 ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.liab_mint.decimals,
                 bank_signer!(
                     BankVaultType::Liquidity,
                     ctx.accounts.liab_bank.key(),
                     liab_bank_liquidity_authority_bump
                 ),
+                // TODO: FIX
+                &ctx.remaining_accounts[2..],
             )?;
 
             (
@@ -326,6 +330,7 @@ pub fn lending_account_liquidate<'info>(
 
     // ## Risk checks ##
 
+    // TODO: FIX
     let (liquidator_remaining_accounts, liquidatee_remaining_accounts) = ctx.remaining_accounts
         [2..]
         .split_at(liquidator_marginfi_account.get_remaining_accounts_len());
@@ -431,6 +436,9 @@ pub struct LendingAccountLiquidate<'info> {
         bump = liab_bank.load()?.insurance_vault_bump
     )]
     pub bank_insurance_vault: AccountInfo<'info>,
+
+    #[account(address = liab_bank.load()?.mint)]
+    pub liab_mint: InterfaceAccount<'info, Mint>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }

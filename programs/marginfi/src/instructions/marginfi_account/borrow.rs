@@ -10,8 +10,8 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    token_2022::Transfer,
-    token_interface::{TokenAccount, TokenInterface},
+    token_2022::{Transfer, TransferChecked},
+    token_interface::{Mint, TokenAccount, TokenInterface},
 };
 use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
@@ -34,6 +34,7 @@ pub fn lending_account_borrow<'info>(
         token_program,
         bank_liquidity_vault_authority,
         bank: bank_loader,
+        bank_mint,
         ..
     } = ctx.accounts;
 
@@ -63,17 +64,20 @@ pub fn lending_account_borrow<'info>(
         bank_account.borrow(I80F48::from_num(amount))?;
         bank_account.withdraw_spl_transfer(
             amount,
-            Transfer {
+            TransferChecked {
                 from: bank_liquidity_vault.to_account_info(),
                 to: destination_token_account.to_account_info(),
                 authority: bank_liquidity_vault_authority.to_account_info(),
+                mint: bank_mint.to_account_info(),
             },
             token_program.to_account_info(),
+            bank_mint.decimals,
             bank_signer!(
                 BankVaultType::Liquidity,
                 bank_loader.key(),
                 liquidity_vault_authority_bump
             ),
+            ctx.remaining_accounts,
         )?;
 
         emit!(LendingAccountBorrowEvent {
@@ -140,6 +144,9 @@ pub struct LendingAccountBorrow<'info> {
         bump = bank.load() ?.liquidity_vault_bump,
     )]
     pub bank_liquidity_vault: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(address = bank.load()?.mint)]
+    pub bank_mint: InterfaceAccount<'info, Mint>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }

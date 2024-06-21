@@ -10,16 +10,20 @@ use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     account::{AccountSharedData, ReadableAccount},
     instruction::Instruction,
+    native_token::LAMPORTS_PER_SOL,
     program_pack::Pack,
     signature::Keypair,
     signer::Signer,
-    system_instruction::create_account,
+    system_instruction::{self, create_account},
     transaction::Transaction,
 };
 use spl_token_2022::extension::{
     interest_bearing_mint::InterestBearingConfig, mint_close_authority::MintCloseAuthority,
     permanent_delegate::PermanentDelegate, transfer_hook::TransferHook, BaseStateWithExtensions,
     ExtensionType,
+};
+use spl_transfer_hook_interface::{
+    get_extra_account_metas_address, instruction::initialize_extra_account_meta_list,
 };
 use std::{cell::RefCell, fs::File, io::Read, path::PathBuf, rc::Rc, str::FromStr};
 
@@ -101,11 +105,6 @@ impl MintFixture {
 
             let rent = ctx.banks_client.get_rent().await.unwrap();
 
-            // let len = if extensions.is_empty() {
-            //     Mint::LEN
-            // } else {
-            //     Mint::LEN + SupportedExtension::space(extensions.iter()) + 84
-            // };
             let extension_types = SupportedExtension::types(extensions.iter());
             let len = ExtensionType::try_calculate_account_len::<spl_token_2022::state::Mint>(
                 &extension_types,
@@ -134,6 +133,24 @@ impl MintFixture {
                     .map(|e| e.instruction(&keypair.pubkey(), &ctx.payer.pubkey())),
             );
             ixs.push(init_mint_ix);
+            let extra_metas_address = get_extra_account_metas_address(
+                &keypair.pubkey(),
+                &super::transfer_hook::TEST_HOOK_ID,
+            );
+            if extensions.contains(&SupportedExtension::TransferHook) {
+                ixs.push(system_instruction::transfer(
+                    &ctx.payer.pubkey(),
+                    &extra_metas_address,
+                    10 * LAMPORTS_PER_SOL,
+                ));
+                ixs.push(initialize_extra_account_meta_list(
+                    &super::transfer_hook::TEST_HOOK_ID,
+                    &extra_metas_address,
+                    &keypair.pubkey(),
+                    &ctx.payer.pubkey(),
+                    &[],
+                ))
+            }
 
             let tx = Transaction::new_signed_with_payer(
                 &ixs,
@@ -143,6 +160,14 @@ impl MintFixture {
             );
 
             ctx.banks_client.process_transaction(tx).await.unwrap();
+
+            if extensions.contains(&SupportedExtension::TransferHook) {
+                ctx.banks_client
+                    .get_account(extra_metas_address)
+                    .await
+                    .unwrap()
+                    .unwrap();
+            }
 
             let mint_account = ctx
                 .banks_client
@@ -516,7 +541,7 @@ pub async fn balance_of(ctx: Rc<RefCell<ProgramTestContext>>, pubkey: Pubkey) ->
     token_account.amount
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SupportedExtension {
     MintCloseAuthority,
     InterestBearing,
@@ -550,8 +575,8 @@ impl SupportedExtension {
                     mint,
                     key,
                 )
+                .unwrap()
             }
-            .unwrap(),
             Self::TransferHook => {
                 spl_token_2022::extension::transfer_hook::instruction::initialize(
                     &token_2022::ID,

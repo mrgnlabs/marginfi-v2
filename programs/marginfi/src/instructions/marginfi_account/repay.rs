@@ -19,8 +19,8 @@ use solana_program::{clock::Clock, sysvar::Sysvar};
 /// 4. Transfer funds from the signer's token account to the bank's liquidity vault
 ///
 /// Will error if there is no existing liability <=> depositing is not allowed.
-pub fn lending_account_repay(
-    ctx: Context<LendingAccountRepay>,
+pub fn lending_account_repay<'info>(
+    ctx: Context<'_, '_, '_, 'info, LendingAccountRepay<'info>>,
     amount: u64,
     repay_all: Option<bool>,
 ) -> MarginfiResult {
@@ -74,6 +74,7 @@ pub fn lending_account_repay(
         },
         token_program.to_account_info(),
         bank_mint.decimals,
+        ctx.remaining_accounts,
     )?;
 
     emit!(LendingAccountRepayEvent {

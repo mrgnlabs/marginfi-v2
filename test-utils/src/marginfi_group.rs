@@ -302,6 +302,7 @@ impl MarginfiGroupFixture {
             accounts: marginfi::accounts::LendingPoolCollectBankFees {
                 marginfi_group: self.key,
                 bank: bank.key,
+                bank_mint: bank.mint.key,
                 liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
                 liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
                 insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
@@ -343,6 +344,7 @@ impl MarginfiGroupFixture {
             marginfi_group: self.key,
             signer: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
+            bank_mint: bank.mint.key,
             marginfi_account: marginfi_account.key,
             liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             insurance_vault: bank.get_vault(BankVaultType::Insurance).0,

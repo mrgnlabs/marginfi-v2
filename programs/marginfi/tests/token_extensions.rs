@@ -79,7 +79,8 @@ async fn marginfi_account_liquidation_success_with_extension(
     // Borrower borrows $999
     borrower_mfi_account_f
         .try_bank_borrow(borrower_token_account_usdc.key, usdc_t22_bank_f, 999)
-        .await?;
+        .await
+        .unwrap();
 
     // Synthetically bring down the borrower account health by reducing the asset weights of the SOL bank
     sol_bank_f

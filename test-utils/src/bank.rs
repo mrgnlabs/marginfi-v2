@@ -293,6 +293,7 @@ impl BankFixture {
                 fee_vault: bank.fee_vault,
                 fee_vault_authority,
                 dst_token_account: receiving_account.key,
+                bank_mint: self.mint.key,
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingPoolWithdrawFees { amount }.data(),
@@ -333,6 +334,7 @@ impl BankFixture {
                 insurance_vault: bank.insurance_vault,
                 insurance_vault_authority,
                 dst_token_account: receiving_account.key,
+                bank_mint: self.mint.key,
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingPoolWithdrawInsurance { amount }.data(),

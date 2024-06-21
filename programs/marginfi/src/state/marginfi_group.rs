@@ -649,6 +649,7 @@ impl Bank {
         accounts: TransferChecked<'info>,
         program: AccountInfo<'info>,
         decimals: u8,
+        remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
         check!(
             accounts.to.key.eq(&self.liquidity_vault),
@@ -660,20 +661,36 @@ impl Bank {
             amount, accounts.from.key, accounts.to.key, accounts.authority.key
         );
 
-        // `transfer_checked` and `transfer` does the same thing, the additional `_checked` logic
-        // is only to assert the expected attributes by the user (mint, decimal scaling),
-        //
-        // Security of `transfer` is equal to `transfer_checked`.
-        #[allow(deprecated)]
-        transfer_checked(CpiContext::new(program, accounts), amount, decimals)
+        // // `transfer_checked` and `transfer` does the same thing, the additional `_checked` logic
+        // // is only to assert the expected attributes by the user (mint, decimal scaling),
+        // //
+        // // Security of `transfer` is equal to `transfer_checked`.
+        // #[allow(deprecated)]
+        // transfer_checked(CpiContext::new(program, accounts), amount, decimals)
+
+        spl_token_2022::onchain::invoke_transfer_checked(
+            &program.key,
+            accounts.from,
+            accounts.mint,
+            accounts.to,
+            accounts.authority,
+            remaining_accounts,
+            amount,
+            decimals,
+            &[],
+        )?;
+
+        Ok(())
     }
 
-    pub fn withdraw_spl_transfer<'b: 'c, 'c: 'b>(
+    pub fn withdraw_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'b>,
-        program: AccountInfo<'c>,
+        accounts: TransferChecked<'info>,
+        program: AccountInfo<'info>,
+        decimals: u8,
         signer_seeds: &[&[&[u8]]],
+        remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
         debug!(
             "withdraw_spl_transfer: amount: {} from {} to {}, auth {}",
@@ -685,10 +702,23 @@ impl Bank {
         //
         // Security of `transfer` is equal to `transfer_checked`.
         #[allow(deprecated)]
-        transfer(
-            CpiContext::new_with_signer(program, accounts, signer_seeds),
+        // transfer(
+        //     CpiContext::new_with_signer(program, accounts, signer_seeds),
+        //     amount,
+        // )
+        spl_token_2022::onchain::invoke_transfer_checked(
+            &program.key,
+            accounts.from,
+            accounts.mint,
+            accounts.to,
+            accounts.authority,
+            remaining_accounts,
             amount,
-        )
+            decimals,
+            signer_seeds,
+        )?;
+
+        Ok(())
     }
 
     /// Socialize a loss `loss_amount` among depositors,

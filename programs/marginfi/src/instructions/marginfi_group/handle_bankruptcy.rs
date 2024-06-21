@@ -13,8 +13,8 @@ use crate::{
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token_2022::Transfer;
-use anchor_spl::token_interface::{TokenAccount, TokenInterface};
+use anchor_spl::token_2022::{Transfer, TransferChecked};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use std::cmp::{max, min};
 
@@ -92,17 +92,20 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         covered_by_insurance
             .checked_to_num()
             .ok_or_else(math_error!())?,
-        Transfer {
+        TransferChecked {
             from: ctx.accounts.insurance_vault.to_account_info(),
             to: ctx.accounts.liquidity_vault.to_account_info(),
             authority: ctx.accounts.insurance_vault_authority.to_account_info(),
+            mint: ctx.accounts.bank_mint.to_account_info(),
         },
         token_program.to_account_info(),
+        ctx.accounts.bank_mint.decimals,
         bank_signer!(
             BankVaultType::Insurance,
             bank_loader.key(),
             bank.insurance_vault_authority_bump
         ),
+        ctx.remaining_accounts,
     )?;
 
     // Socialize bad debt among depositors.
@@ -185,6 +188,11 @@ pub struct LendingPoolHandleBankruptcy<'info> {
         bump = bank.load()?.insurance_vault_authority_bump
     )]
     pub insurance_vault_authority: AccountInfo<'info>,
+
+    #[account(
+        address = bank.load()?.mint,
+    )]
+    pub bank_mint: InterfaceAccount<'info, Mint>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }

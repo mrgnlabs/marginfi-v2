@@ -165,7 +165,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         debug!("Got {} remaining accounts", remaining_ais.len());
 
         check!(
-            active_balances.len() * 2 == remaining_ais.len(),
+            active_balances.len() * 2 <= remaining_ais.len(),
             MarginfiError::MissingPythOrBankAccount
         );
 
@@ -1277,20 +1277,29 @@ impl<'a> BankAccountWrapper<'a> {
         accounts: TransferChecked<'info>,
         program: AccountInfo<'info>,
         decimals: u8,
+        remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
         self.bank
-            .deposit_spl_transfer(amount, accounts, program, decimals)
+            .deposit_spl_transfer(amount, accounts, program, decimals, remaining_accounts)
     }
 
     pub fn withdraw_spl_transfer<'info: 'c, 'c: 'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'info>,
+        accounts: TransferChecked<'info>,
         program: AccountInfo<'c>,
+        decimals: u8,
         signer_seeds: &[&[&[u8]]],
+        remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
-        self.bank
-            .withdraw_spl_transfer(amount, accounts, program, signer_seeds)
+        self.bank.withdraw_spl_transfer(
+            amount,
+            accounts,
+            program,
+            decimals,
+            signer_seeds,
+            remaining_accounts,
+        )
     }
 }
 
