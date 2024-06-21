@@ -33,6 +33,10 @@ async fn marginfi_account_liquidation_success_with_extension(
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
+                    mint: BankMint::USDCT22,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
                     mint: BankMint::PyUSD,
                     ..TestBankSetting::default()
                 },
@@ -51,22 +55,22 @@ async fn marginfi_account_liquidation_success_with_extension(
     )
     .await;
 
-    let usdc_t22_bank_f = test_f.get_bank(&BankMint::PyUSD);
+    let usdc_t22_bank_f = test_f.get_bank(&BankMint::USDCT22);
     let sol_bank_f = test_f.get_bank(&BankMint::SOL);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
-    let lender_token_account_usdc = test_f
+    let lender_token_account_usdc_t22 = test_f
         .usdc_t22_mint
         .create_token_account_and_mint_to(2_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_t22_bank_f, 2_000)
+        .try_bank_deposit(lender_token_account_usdc_t22.key, usdc_t22_bank_f, 2_000)
         .await
         .unwrap();
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
-    let borrower_token_account_usdc = test_f
+    let borrower_token_account_usdc_t22 = test_f
         .usdc_t22_mint
         .create_token_account_and_mint_to(0)
         .await;
@@ -78,7 +82,7 @@ async fn marginfi_account_liquidation_success_with_extension(
 
     // Borrower borrows $999
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_usdc.key, usdc_t22_bank_f, 999)
+        .try_bank_borrow(borrower_token_account_usdc_t22.key, usdc_t22_bank_f, 999)
         .await
         .unwrap();
 
@@ -93,11 +97,12 @@ async fn marginfi_account_liquidation_success_with_extension(
 
     lender_mfi_account_f
         .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_t22_bank_f)
-        .await?;
+        .await
+        .unwrap();
 
     // Checks
     let sol_bank: Bank = sol_bank_f.load().await;
-    let usdc_bank: Bank = usdc_t22_bank_f.load().await;
+    let usdc_t22_bank: Bank = usdc_t22_bank_f.load().await;
 
     let depositor_ma = lender_mfi_account_f.load().await;
     let borrower_ma = borrower_mfi_account_f.load().await;
@@ -112,7 +117,7 @@ async fn marginfi_account_liquidation_success_with_extension(
 
     // Depositors should have 1990.25 USDC
     assert_eq_noise!(
-        usdc_bank
+        usdc_t22_bank
             .get_asset_amount(depositor_ma.lending_account.balances[0].asset_shares.into())
             .unwrap(),
         I80F48::from(native!(1990.25, "USDC", f64)),
@@ -129,7 +134,7 @@ async fn marginfi_account_liquidation_success_with_extension(
 
     // Borrower should have 989.50 USDC
     assert_eq_noise!(
-        usdc_bank
+        usdc_t22_bank
             .get_liability_amount(
                 borrower_ma.lending_account.balances[1]
                     .liability_shares

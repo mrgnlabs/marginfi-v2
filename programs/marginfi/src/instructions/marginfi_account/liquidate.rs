@@ -104,7 +104,7 @@ pub fn lending_account_liquidate<'info>(
             ctx.accounts.liab_bank.key(),
         )?;
     }
-
+    let init_liquidator_remaining_len = liquidatee_marginfi_account.get_remaining_accounts_len();
     let pre_liquidation_health = {
         let liquidatee_accounts_starting_pos =
             ctx.remaining_accounts.len() - liquidatee_marginfi_account.get_remaining_accounts_len();
@@ -296,8 +296,7 @@ pub fn lending_account_liquidate<'info>(
                     ctx.accounts.liab_bank.key(),
                     liab_bank_liquidity_authority_bump
                 ),
-                // TODO: FIX
-                &ctx.remaining_accounts[2..],
+                ctx.remaining_accounts,
             )?;
 
             (
@@ -330,10 +329,14 @@ pub fn lending_account_liquidate<'info>(
 
     // ## Risk checks ##
 
-    // TODO: FIX
-    let (liquidator_remaining_accounts, liquidatee_remaining_accounts) = ctx.remaining_accounts
-        [2..]
-        .split_at(liquidator_marginfi_account.get_remaining_accounts_len());
+    let liquidator_accounts_starting_pos = ctx.remaining_accounts.len()
+        - init_liquidator_remaining_len
+        - liquidator_marginfi_account.get_remaining_accounts_len();
+    let liquidatee_accounts_starting_pos =
+        ctx.remaining_accounts.len() - init_liquidator_remaining_len;
+    let liquidatee_remaining_accounts = &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
+    let liquidator_remaining_accounts =
+        &ctx.remaining_accounts[liquidator_accounts_starting_pos..liquidatee_accounts_starting_pos];
 
     // Verify liquidatee liquidation post health
     let post_liquidation_health =
@@ -341,13 +344,15 @@ pub fn lending_account_liquidate<'info>(
             .check_post_liquidation_condition_and_get_account_health(
                 &ctx.accounts.liab_bank.key(),
                 pre_liquidation_health,
-            )?;
+            )
+            .unwrap();
 
     // Verify liquidator account health
     RiskEngine::check_account_init_health(
         &liquidator_marginfi_account,
         liquidator_remaining_accounts,
-    )?;
+    )
+    .unwrap();
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {

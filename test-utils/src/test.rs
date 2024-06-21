@@ -193,6 +193,7 @@ pub enum BankMint {
     SolEquivalent7,
     SolEquivalent8,
     SolEquivalent9,
+    USDCT22,
     T22WithFee,
     PyUSD,
 }
@@ -533,6 +534,7 @@ impl TestFixture {
                     BankMint::T22WithFee => {
                         (&t22_with_fee_mint_f, *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG)
                     }
+                    BankMint::USDCT22 => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
                     BankMint::PyUSD => (&pyusd_mint_f, *DEFAULT_PYUSD_TEST_BANK_CONFIG),
                 };
 
