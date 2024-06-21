@@ -45,34 +45,42 @@ impl TestSettings {
                     mint: BankMint::SolEquivalent,
                     ..TestBankSetting::default()
                 },
+                TestBankSetting {
+                    mint: BankMint::PyUSD,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::T22WithFee,
+                    ..TestBankSetting::default()
+                },
             ],
             group_config: Some(GroupConfig { admin: None }),
         }
     }
 
-    pub fn all_banks_with_t22_not_admin() -> Self {
-        Self {
-            banks: vec![
-                TestBankSetting {
-                    mint: BankMint::USDC,
-                    ..TestBankSetting::default()
-                },
-                TestBankSetting {
-                    mint: BankMint::SOL,
-                    ..TestBankSetting::default()
-                },
-                TestBankSetting {
-                    mint: BankMint::SolEquivalent,
-                    ..TestBankSetting::default()
-                },
-                TestBankSetting {
-                    mint: BankMint::USDCToken22,
-                    ..TestBankSetting::default()
-                },
-            ],
-            group_config: Some(GroupConfig { admin: None }),
-        }
-    }
+    // pub fn all_banks_with_t22_not_admin() -> Self {
+    //     Self {
+    //         banks: vec![
+    //             TestBankSetting {
+    //                 mint: BankMint::USDC,
+    //                 ..TestBankSetting::default()
+    //             },
+    //             TestBankSetting {
+    //                 mint: BankMint::SOL,
+    //                 ..TestBankSetting::default()
+    //             },
+    //             TestBankSetting {
+    //                 mint: BankMint::SolEquivalent,
+    //                 ..TestBankSetting::default()
+    //             },
+    //             TestBankSetting {
+    //                 mint: BankMint::USDCToken22,
+    //                 ..TestBankSetting::default()
+    //             },
+    //         ],
+    //         group_config: Some(GroupConfig { admin: None }),
+    //     }
+    // }
 
     /// All banks with the same config, but USDC and SOL are using switchboard price oracls
     pub fn all_banks_swb_payer_not_admin() -> Self {
@@ -185,7 +193,7 @@ pub enum BankMint {
     SolEquivalent7,
     SolEquivalent8,
     SolEquivalent9,
-    USDCToken22,
+    T22WithFee,
     PyUSD,
 }
 
@@ -214,6 +222,8 @@ pub const SWITCHBOARD_SOL_FEED: Pubkey = pubkey!("SwchSo1Price111111111111111111
 pub const PYTH_SOL_EQUIVALENT_FEED: Pubkey = pubkey!("PythSo1Equiva1entPrice111111111111111111111");
 pub const PYTH_MNDE_FEED: Pubkey = pubkey!("PythMndePrice111111111111111111111111111111");
 pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111111111111111");
+pub const PYTH_T22_WITH_FEE_FEED: Pubkey = pubkey!("PythT22WithFeePrice111111111111111111111111");
+pub const PYTH_PYUSD_FEED: Pubkey = pubkey!("PythPyusdPrice11111111111111111111111111111");
 
 pub fn create_oracle_key_array(pyth_oracle: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
     let mut keys = [Pubkey::default(); MAX_ORACLE_KEYS];
@@ -264,6 +274,18 @@ lazy_static! {
         oracle_keys: create_oracle_key_array(PYTH_USDC_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
+    pub static ref DEFAULT_PYUSD_TEST_BANK_CONFIG: BankConfig = BankConfig {
+        deposit_limit: native!(1_000_000_000, "PYUSD"),
+        borrow_limit: native!(1_000_000_000, "PYUSD"),
+        oracle_keys: create_oracle_key_array(PYTH_PYUSD_FEED),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    pub static ref DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG: BankConfig = BankConfig {
+        deposit_limit: native!(1_000_000_000, "T22_WITH_FEE"),
+        borrow_limit: native!(1_000_000_000, "T22_WITH_FEE"),
+        oracle_keys: create_oracle_key_array(PYTH_T22_WITH_FEE_FEED),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
     pub static ref DEFAULT_SOL_TEST_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
@@ -299,6 +321,8 @@ lazy_static! {
 }
 
 pub const USDC_MINT_DECIMALS: u8 = 6;
+pub const PYUSD_MINT_DECIMALS: u8 = 6;
+pub const T22_WITH_FEE_MINT_DECIMALS: u8 = 6;
 pub const SOL_MINT_DECIMALS: u8 = 9;
 pub const MNDE_MINT_DECIMALS: u8 = 9;
 
@@ -342,31 +366,51 @@ impl TestFixture {
         );
 
         let usdc_keypair = Keypair::new();
+        let pyusd_keypair = Keypair::new();
         let sol_keypair = Keypair::new();
         let sol_equivalent_keypair = Keypair::new();
         let mnde_keypair = Keypair::new();
         let usdc_t22_keypair = Keypair::new();
+        let t22_with_fee_keypair = Keypair::new();
 
         program.add_account(
             PYTH_USDC_FEED,
-            create_pyth_price_account(usdc_keypair.pubkey(), 1, USDC_MINT_DECIMALS.into(), None),
+            create_pyth_price_account(usdc_keypair.pubkey(), 1.0, USDC_MINT_DECIMALS.into(), None),
+        );
+        program.add_account(
+            PYTH_PYUSD_FEED,
+            create_pyth_price_account(
+                pyusd_keypair.pubkey(),
+                1.0,
+                PYUSD_MINT_DECIMALS.into(),
+                None,
+            ),
+        );
+        program.add_account(
+            PYTH_T22_WITH_FEE_FEED,
+            create_pyth_price_account(
+                t22_with_fee_keypair.pubkey(),
+                0.5,
+                T22_WITH_FEE_MINT_DECIMALS.into(),
+                None,
+            ),
         );
         program.add_account(
             PYTH_SOL_FEED,
-            create_pyth_price_account(sol_keypair.pubkey(), 10, SOL_MINT_DECIMALS.into(), None),
+            create_pyth_price_account(sol_keypair.pubkey(), 10.0, SOL_MINT_DECIMALS.into(), None),
         );
         program.add_account(
             PYTH_SOL_EQUIVALENT_FEED,
             create_pyth_price_account(
                 sol_equivalent_keypair.pubkey(),
-                10,
+                10.0,
                 SOL_MINT_DECIMALS.into(),
                 None,
             ),
         );
         program.add_account(
             PYTH_MNDE_FEED,
-            create_pyth_price_account(mnde_keypair.pubkey(), 10, MNDE_MINT_DECIMALS.into(), None),
+            create_pyth_price_account(mnde_keypair.pubkey(), 10.0, MNDE_MINT_DECIMALS.into(), None),
         );
 
         program.add_account(
@@ -423,6 +467,13 @@ impl TestFixture {
         )
         .await;
         let pyusd_mint_f = MintFixture::new_from_file(&context, "src/fixtures/pyUSD.json");
+        let t22_with_fee_mint_f = MintFixture::new_token_22(
+            Rc::clone(&context),
+            Some(t22_with_fee_keypair),
+            Some(T22_WITH_FEE_MINT_DECIMALS),
+            vec![SupportedExtension::TransferFee],
+        )
+        .await;
 
         let tester_group = MarginfiGroupFixture::new(
             Rc::clone(&context),
@@ -479,14 +530,12 @@ impl TestFixture {
                         &sol_equivalent_mint_f,
                         *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
                     ),
-                    BankMint::USDCToken22 => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
-                    BankMint::PyUSD => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
+                    BankMint::T22WithFee => {
+                        (&t22_with_fee_mint_f, *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG)
+                    }
+                    BankMint::PyUSD => (&pyusd_mint_f, *DEFAULT_PYUSD_TEST_BANK_CONFIG),
                 };
 
-                println!(
-                    "bank config {:?}; bank mint {:?} {:?} {:?}",
-                    &bank.config, bank_mint.key, bank_mint.mint, bank_mint.token_program
-                );
                 banks.insert(
                     bank.mint.clone(),
                     tester_group

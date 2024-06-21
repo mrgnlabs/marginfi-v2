@@ -49,11 +49,11 @@ where
 
 pub fn create_pyth_price_account(
     mint: Pubkey,
-    ui_price: i64,
+    ui_price: f64,
     mint_decimals: i32,
     timestamp: Option<i64>,
 ) -> Account {
-    let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
+    let native_price = (ui_price * 10_f64.powf(mint_decimals as f64)) as i64;
     Account {
         lamports: 1_000_000,
         data: bytemuck::bytes_of(&PriceAccount {
@@ -447,6 +447,21 @@ macro_rules! native {
     };
 
     ($val: expr, "USDC", f64) => {
+        (($val) * 10_u64.pow(6) as f64) as u64
+    };
+
+    ($val: expr, "PYUSD") => {
+        $val * 10_u64.pow(6)
+    };
+
+    ($val: expr, "PYUSD", f64) => {
+        (($val) * 10_u64.pow(6) as f64) as u64
+    };
+    ($val: expr, "T22_WITH_FEE") => {
+        $val * 10_u64.pow(6)
+    };
+
+    ($val: expr, "T22_WITH_FEE", f64) => {
         (($val) * 10_u64.pow(6) as f64) as u64
     };
 

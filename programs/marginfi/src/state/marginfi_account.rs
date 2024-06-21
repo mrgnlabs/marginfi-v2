@@ -11,10 +11,10 @@ use crate::{
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
-    utils::NumTraitsWithTolerance,
+    utils::{self, NumTraitsWithTolerance},
 };
 use anchor_lang::prelude::*;
-use anchor_spl::{token_2022::Transfer, token_2022::TransferChecked};
+use anchor_spl::token_2022::TransferChecked;
 use fixed::types::I80F48;
 use std::{
     cmp::{max, min},
@@ -976,7 +976,7 @@ impl<'a> BankAccountWrapper<'a> {
     }
 
     /// Repay existing liability in full - will error if there is no liability.
-    pub fn repay_all(&mut self) -> MarginfiResult<u64> {
+    pub fn repay_all(&mut self, bank_mint_ai: AccountInfo) -> MarginfiResult<u64> {
         self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
 
         let balance = &mut self.balance;
@@ -1005,10 +1005,18 @@ impl<'a> BankAccountWrapper<'a> {
 
         let spl_deposit_amount = current_liability_amount
             .checked_ceil()
+            .ok_or_else(math_error!())?
+            .checked_to_num()
             .ok_or_else(math_error!())?;
 
+        let spl_deposit_amount = utils::calculate_spl_deposit_amount(
+            bank_mint_ai,
+            spl_deposit_amount,
+            Clock::get()?.epoch,
+        )?;
+
         bank.collected_insurance_fees_outstanding = {
-            spl_deposit_amount
+            I80F48::from(spl_deposit_amount)
                 .checked_sub(current_liability_amount)
                 .ok_or_else(math_error!())?
                 .checked_add(bank.collected_insurance_fees_outstanding.into())
@@ -1016,9 +1024,7 @@ impl<'a> BankAccountWrapper<'a> {
                 .into()
         };
 
-        Ok(spl_deposit_amount
-            .checked_to_num()
-            .ok_or_else(math_error!())?)
+        Ok(spl_deposit_amount)
     }
 
     pub fn close_balance(&mut self) -> MarginfiResult<()> {

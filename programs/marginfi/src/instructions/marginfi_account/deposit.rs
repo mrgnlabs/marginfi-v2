@@ -7,6 +7,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
         marginfi_group::Bank,
     },
+    utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -59,8 +60,17 @@ pub fn lending_account_deposit<'info>(
     )?;
 
     bank_account.deposit(I80F48::from_num(amount))?;
-    bank_account.deposit_spl_transfer(
+
+    let spl_deposit_amount = utils::calculate_spl_deposit_amount(
+        bank_mint.to_account_info(),
         amount,
+        Clock::get()?.epoch,
+    )?;
+    solana_program::msg!("spl_deposit_amount: {}", spl_deposit_amount);
+    solana_program::msg!("amount: {}", amount);
+
+    bank_account.deposit_spl_transfer(
+        spl_deposit_amount,
         TransferChecked {
             from: signer_token_account.to_account_info(),
             to: bank_liquidity_vault.to_account_info(),

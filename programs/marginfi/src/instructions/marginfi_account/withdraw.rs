@@ -10,7 +10,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    token_2022::{Transfer, TransferChecked},
+    token_2022::TransferChecked,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
 use fixed::types::I80F48;
@@ -155,8 +155,8 @@ pub struct LendingAccountWithdraw<'info> {
     )]
     pub bank_liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
+    pub token_program: Interface<'info, TokenInterface>,
+
     #[account(address = bank.load()?.mint)]
     pub bank_mint: InterfaceAccount<'info, Mint>,
-
-    pub token_program: Interface<'info, TokenInterface>,
 }

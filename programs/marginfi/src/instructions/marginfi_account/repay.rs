@@ -7,6 +7,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
         marginfi_group::Bank,
     },
+    utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenInterface, TransferChecked};
@@ -57,11 +58,17 @@ pub fn lending_account_repay<'info>(
     )?;
 
     let spl_deposit_amount = if repay_all {
-        bank_account.repay_all()?
+        bank_account.repay_all(bank_mint.to_account_info())?
     } else {
+        let spl_deposit_amount = utils::calculate_spl_deposit_amount(
+            bank_mint.to_account_info(),
+            amount,
+            Clock::get()?.epoch,
+        )?;
+
         bank_account.repay(I80F48::from_num(amount))?;
 
-        amount
+        spl_deposit_amount
     };
 
     bank_account.deposit_spl_transfer(
