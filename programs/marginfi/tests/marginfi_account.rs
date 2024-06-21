@@ -314,15 +314,15 @@ async fn marginfi_account_withdraw_success() -> anyhow::Result<()> {
 }
 
 #[test_matrix(
-    [(0.001, 0.001, 0.0), (1600.0, 1000.0, 600.0), (508_094.002, 508_094.0, 0.002)],
+    [(0.001, 0.001), (1600.0, 1000.0), (508_094.002, 508_094.0)],
     [BankMint::USDC, BankMint::SOL, BankMint::PyUSD, BankMint::T22WithFee]
 )]
 #[tokio::test]
 async fn marginfi_account_withdraw_success_matrix(
-    amounts: (f64, f64, f64),
+    amounts: (f64, f64),
     bank_mint: BankMint,
 ) -> anyhow::Result<()> {
-    let (deposit_amount, withdraw_amount, withdraw_delta) = amounts;
+    let (deposit_amount, withdraw_amount) = amounts;
 
     let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
@@ -350,11 +350,21 @@ async fn marginfi_account_withdraw_success_matrix(
         .await
         .unwrap();
 
+    let marginfi_account = marginfi_account_f.load().await;
     let pre_vault_balance = bank_f
         .get_vault_token_account(BankVaultType::Liquidity)
         .await
         .balance()
         .await;
+    let balance = marginfi_account
+        .lending_account
+        .get_balance(&bank_f.key)
+        .unwrap();
+    let pre_accounted = bank_f
+        .load()
+        .await
+        .get_asset_amount(balance.asset_shares.into())
+        .unwrap();
 
     let res = marginfi_account_f
         .try_bank_withdraw(token_account_f.key, bank_f, withdraw_amount, None)
@@ -367,31 +377,24 @@ async fn marginfi_account_withdraw_success_matrix(
         .await
         .balance()
         .await;
-
-    let expected = I80F48::from(native!(withdraw_delta, bank_f.mint.mint.decimals, f64));
-    println!(
-        "pre_vault_balance: {}, post_vault_balance: {}",
-        pre_vault_balance, post_vault_balance
-    );
-    let actual = I80F48::from(pre_vault_balance - post_vault_balance);
-
     let marginfi_account = marginfi_account_f.load().await;
-
-    let maybe_balance = marginfi_account.lending_account.get_balance(&bank_f.key);
-
-    assert!(maybe_balance.is_some());
-    let balance = maybe_balance.unwrap();
-
-    let accounted = bank_f
+    let balance = marginfi_account
+        .lending_account
+        .get_balance(&bank_f.key)
+        .unwrap();
+    let post_accounted = bank_f
         .load()
         .await
         .get_asset_amount(balance.asset_shares.into())
         .unwrap();
 
-    println!(
-        "expected: {}, actual: {}, accounted: {}",
-        expected, actual, accounted
-    );
+    let expected = I80F48::from(native!(withdraw_amount, bank_f.mint.mint.decimals, f64));
+    let actual = I80F48::from(pre_vault_balance - post_vault_balance);
+
+    let marginfi_account = marginfi_account_f.load().await;
+
+    let accounted = pre_accounted - post_accounted;
+
     assert_eq!(expected, actual);
     assert_eq_with_tolerance!(expected, accounted, 1);
 
@@ -609,7 +612,6 @@ async fn marginfi_account_repay_t22_with_fee_success() -> anyhow::Result<()> {
     let collateral_bank = test_f.get_bank(&collateral_mint);
     let debt_bank = test_f.get_bank(&debt_mint);
 
-    println!("funding lender");
     // Fund lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_collateral = debt_bank
@@ -619,7 +621,7 @@ async fn marginfi_account_repay_t22_with_fee_success() -> anyhow::Result<()> {
     lender_mfi_account_f
         .try_bank_deposit(lender_token_account_collateral.key, debt_bank, 9_000)
         .await?;
-    println!("funded lender");
+
     // Fund borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_f_collateral = test_f
@@ -686,6 +688,98 @@ async fn marginfi_account_repay_t22_with_fee_success() -> anyhow::Result<()> {
     assert!(res.is_ok());
 
     let expected = I80F48::from(native!(900, debt_bank.mint.mint.decimals));
+    let actual = I80F48::from(post_vault_balance - pre_vault_balance);
+    println!(
+        "pre_accounted: {}, post_accounted: {}",
+        pre_accounted, post_accounted
+    );
+    let accounted = pre_accounted - post_accounted;
+    assert_eq!(expected, actual);
+    assert_eq_with_tolerance!(expected, accounted, 1);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn marginfi_account_repay_all_t22_with_fee_success() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let collateral_mint = BankMint::USDC;
+    let debt_mint = BankMint::T22WithFee;
+
+    let collateral_bank = test_f.get_bank(&collateral_mint);
+    let debt_bank = test_f.get_bank(&debt_mint);
+
+    // Fund lender
+    let lender_mfi_account_f = test_f.create_marginfi_account().await;
+    let lender_token_account_collateral = debt_bank
+        .mint
+        .create_token_account_and_mint_to(10_000)
+        .await;
+    lender_mfi_account_f
+        .try_bank_deposit(lender_token_account_collateral.key, debt_bank, 9_000)
+        .await?;
+
+    // Fund borrower
+    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
+    let borrower_token_account_f_collateral = test_f
+        .get_bank(&collateral_mint)
+        .mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    let borrower_token_account_f_debt = test_f
+        .get_bank(&debt_mint)
+        .mint
+        .create_token_account_and_mint_to(200) // pre-funding some tokens to give enough room for repay, given fees
+        .await;
+    borrower_mfi_account_f
+        .try_bank_deposit(
+            borrower_token_account_f_collateral.key,
+            collateral_bank,
+            1_000,
+        )
+        .await?;
+
+    // Borrow
+    borrower_mfi_account_f
+        .try_bank_borrow(borrower_token_account_f_debt.key, debt_bank, 999)
+        .await
+        .unwrap();
+
+    let pre_vault_balance = debt_bank
+        .get_vault_token_account(BankVaultType::Liquidity)
+        .await
+        .balance()
+        .await;
+    let marginfi_account = borrower_mfi_account_f.load().await;
+    let balance = marginfi_account
+        .lending_account
+        .get_balance(&debt_bank.key)
+        .unwrap();
+    let pre_accounted = debt_bank
+        .load()
+        .await
+        .get_asset_amount(balance.liability_shares.into())
+        .unwrap();
+
+    let res = borrower_mfi_account_f
+        .try_bank_repay(borrower_token_account_f_debt.key, debt_bank, 0, Some(true))
+        .await;
+
+    let post_vault_balance = debt_bank
+        .get_vault_token_account(BankVaultType::Liquidity)
+        .await
+        .balance()
+        .await;
+
+    let marginfi_account = borrower_mfi_account_f.load().await;
+    let balance = marginfi_account.lending_account.get_balance(&debt_bank.key);
+    assert!(balance.is_none());
+    let post_accounted = I80F48!(0);
+
+    assert!(res.is_ok());
+
+    let expected = I80F48::from(native!(999, debt_bank.mint.mint.decimals));
     let actual = I80F48::from(post_vault_balance - pre_vault_balance);
     println!(
         "pre_accounted: {}, post_accounted: {}",
