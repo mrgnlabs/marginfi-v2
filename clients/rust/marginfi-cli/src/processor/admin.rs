@@ -34,6 +34,7 @@ pub fn process_collect_fees(config: Config, bank_pk: Pubkey) -> Result<()> {
             liquidity_vault_authority,
             liquidity_vault: bank.liquidity_vault,
             insurance_vault: bank.insurance_vault,
+            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
@@ -90,6 +91,7 @@ pub fn process_withdraw_fees(
             fee_vault_authority,
             dst_token_account: ata,
             token_program: spl_token::id(),
+            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolWithdrawFees { amount }.data(),
@@ -146,6 +148,7 @@ pub fn process_withdraw_insurance(
             insurance_vault_authority,
             dst_token_account: ata,
             token_program: spl_token::id(),
+            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolWithdrawInsurance { amount }.data(),

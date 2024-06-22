@@ -662,7 +662,7 @@ impl Bank {
         );
 
         spl_token_2022::onchain::invoke_transfer_checked(
-            &program.key,
+            program.key,
             accounts.from,
             accounts.mint,
             accounts.to,
@@ -700,7 +700,7 @@ impl Bank {
         //     amount,
         // )
         spl_token_2022::onchain::invoke_transfer_checked(
-            &program.key,
+            program.key,
             accounts.from,
             accounts.mint,
             accounts.to,

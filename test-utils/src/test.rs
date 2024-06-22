@@ -327,11 +327,7 @@ pub const T22_WITH_FEE_MINT_DECIMALS: u8 = 6;
 pub const SOL_MINT_DECIMALS: u8 = 9;
 pub const MNDE_MINT_DECIMALS: u8 = 9;
 
-pub fn marginfi_entry<'a, 'b, 'c, 'info>(
-    program_id: &'a Pubkey,
-    accounts: &'b [AccountInfo<'info>],
-    data: &'c [u8],
-) -> ProgramResult {
+pub fn marginfi_entry(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     marginfi::entry(program_id, unsafe { core::mem::transmute(accounts) }, data)
 }
 

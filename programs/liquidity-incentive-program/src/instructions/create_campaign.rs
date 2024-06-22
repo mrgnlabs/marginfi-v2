@@ -16,7 +16,7 @@ pub fn process<'info>(
     require_gt!(max_deposits, 0);
 
     anchor_spl::token_2022::spl_token_2022::onchain::invoke_transfer_checked(
-        &ctx.accounts.token_program.key,
+        ctx.accounts.token_program.key,
         ctx.accounts.funding_account.to_account_info(),
         ctx.accounts.asset_mint.to_account_info(),
         ctx.accounts.campaign_reward_vault.to_account_info(),

@@ -80,7 +80,7 @@ impl MintFixture {
                 .unwrap()
                 .unwrap();
 
-            spl_token_2022::state::Mint::unpack(&mut mint_account.data.as_slice()).unwrap()
+            spl_token_2022::state::Mint::unpack(mint_account.data.as_slice()).unwrap()
         };
 
         MintFixture {
@@ -193,7 +193,7 @@ impl MintFixture {
         ctx: &Rc<RefCell<ProgramTestContext>>,
         relative_path: &str,
     ) -> MintFixture {
-        let ctx_ref = Rc::clone(&ctx);
+        let ctx_ref = Rc::clone(ctx);
 
         let (address, account_info) = {
             let mut ctx = ctx.borrow_mut();
@@ -211,7 +211,7 @@ impl MintFixture {
                 account.keyed_account.account.decode().unwrap();
 
             let mut mint =
-                spl_token::state::Mint::unpack(&mut &account_info.data()[..Mint::LEN]).unwrap();
+                spl_token::state::Mint::unpack(&account_info.data()[..Mint::LEN]).unwrap();
             let payer = ctx.payer.pubkey();
             mint.mint_authority.replace(payer);
 
@@ -436,13 +436,7 @@ impl TokenAccountFixture {
 
         {
             let payer = ctx.borrow().payer.pubkey();
-            let rent = ctx
-                .borrow_mut()
-                .banks_client
-                .get_rent()
-                .await
-                .unwrap()
-                .clone();
+            let rent = ctx.borrow_mut().banks_client.get_rent().await.unwrap();
             let instructions = Self::create_ixs(
                 &ctx,
                 rent,

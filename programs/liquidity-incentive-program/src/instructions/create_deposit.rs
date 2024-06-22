@@ -40,7 +40,7 @@ pub fn process<'info>(
     msg!("User depositing {} tokens", amount);
 
     anchor_spl::token_2022::spl_token_2022::onchain::invoke_transfer_checked(
-        &ctx.accounts.token_program.key,
+        ctx.accounts.token_program.key,
         ctx.accounts.funding_account.to_account_info(),
         ctx.accounts.asset_mint.to_account_info(),
         ctx.accounts.temp_token_account.to_account_info(),

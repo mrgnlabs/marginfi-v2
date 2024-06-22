@@ -317,9 +317,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         )
     }
 
-    fn try_get_price_feed<'a>(
-        &'a self,
-    ) -> std::result::Result<&'a OraclePriceFeedAdapter, PriceFeedError> {
+    fn try_get_price_feed(&self) -> std::result::Result<&OraclePriceFeedAdapter, PriceFeedError> {
         match self.price_feed.as_ref() {
             Ok(a) => Ok(a),
             Err(_) => Err(PriceFeedError::StaleOracle),
@@ -461,8 +459,8 @@ impl<'info> RiskEngine<'_, 'info> {
     }
 
     /// Returns the total assets and liabilities of the account in the form of (assets, liabilities)
-    pub fn get_account_health_components<'a>(
-        &'a self,
+    pub fn get_account_health_components(
+        &self,
         requirement_type: RiskRequirementType,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         let mut total_assets = I80F48::ZERO;
@@ -493,7 +491,7 @@ impl<'info> RiskEngine<'_, 'info> {
             .ok_or_else(math_error!())?)
     }
 
-    fn check_account_health<'a>(&'a self, requirement_type: RiskRequirementType) -> MarginfiResult {
+    fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(requirement_type)?;
 
