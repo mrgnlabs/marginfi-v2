@@ -344,15 +344,13 @@ pub fn lending_account_liquidate<'info>(
             .check_post_liquidation_condition_and_get_account_health(
                 &ctx.accounts.liab_bank.key(),
                 pre_liquidation_health,
-            )
-            .unwrap();
+            )?;
 
     // Verify liquidator account health
     RiskEngine::check_account_init_health(
         &liquidator_marginfi_account,
         liquidator_remaining_accounts,
-    )
-    .unwrap();
+    )?;
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {
