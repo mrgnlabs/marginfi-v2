@@ -179,12 +179,12 @@ pub struct LendingPoolCollectBankFees<'info> {
     )]
     pub fee_vault: AccountInfo<'info>,
 
+    pub token_program: Interface<'info, TokenInterface>,
+
     #[account(
         address = bank.load()?.mint,
     )]
     pub bank_mint: InterfaceAccount<'info, Mint>,
-
-    pub token_program: Interface<'info, TokenInterface>,
 }
 
 pub fn lending_pool_withdraw_fees<'info>(
@@ -263,12 +263,12 @@ pub struct LendingPoolWithdrawFees<'info> {
     #[account(mut)]
     pub dst_token_account: AccountInfo<'info>,
 
+    pub token_program: Interface<'info, TokenInterface>,
+
     #[account(
         address = bank.load()?.mint,
     )]
     pub bank_mint: InterfaceAccount<'info, Mint>,
-
-    pub token_program: Interface<'info, TokenInterface>,
 }
 
 pub fn lending_pool_withdraw_insurance<'info>(
@@ -347,10 +347,10 @@ pub struct LendingPoolWithdrawInsurance<'info> {
     #[account(mut)]
     pub dst_token_account: AccountInfo<'info>,
 
+    pub token_program: Interface<'info, TokenInterface>,
+
     #[account(
         address = bank.load()?.mint,
     )]
     pub bank_mint: InterfaceAccount<'info, Mint>,
-
-    pub token_program: Interface<'info, TokenInterface>,
 }
