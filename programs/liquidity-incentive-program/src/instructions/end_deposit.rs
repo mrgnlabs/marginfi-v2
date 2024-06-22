@@ -55,7 +55,7 @@ pub fn process<'info>(ctx: Context<'_, '_, '_, 'info, EndDeposit<'info>>) -> Res
             marginfi_account: ctx.accounts.marginfi_account.to_account_info(),
             signer: ctx.accounts.mfi_pda_signer.to_account_info(),
             bank: ctx.accounts.marginfi_bank.to_account_info(),
-            bank_mint: ctx.accounts.bank_mint.to_account_info(),
+            bank_mint: ctx.accounts.asset_mint.to_account_info(),
             destination_token_account: ctx.accounts.temp_token_account.to_account_info(),
             bank_liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
             bank_liquidity_vault_authority: ctx
@@ -261,10 +261,9 @@ pub struct EndDeposit<'info> {
     #[account(mut)]
     pub marginfi_bank_vault: AccountInfo<'info>,
 
-    /// CHECK: Asserted by CPI call
-    #[account()]
-    pub bank_mint: InterfaceAccount<'info, Mint>,
-
+    // /// CHECK: Asserted by CPI call
+    // #[account()]
+    // pub bank_mint: InterfaceAccount<'info, Mint>,
     /// CHECK: Asserted by CPI call
     #[account(mut)]
     pub marginfi_bank_vault_authority: AccountInfo<'info>,

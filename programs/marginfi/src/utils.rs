@@ -8,8 +8,7 @@ use anchor_spl::{
     token_2022::spl_token_2022::{
         self,
         extension::{
-            transfer_fee::{TransferFee, TransferFeeConfig},
-            BaseStateWithExtensions, StateWithExtensions,
+            transfer_fee::TransferFeeConfig, BaseStateWithExtensions, StateWithExtensions,
         },
     },
 };
