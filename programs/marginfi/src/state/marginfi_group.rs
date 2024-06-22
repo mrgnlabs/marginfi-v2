@@ -690,15 +690,6 @@ impl Bank {
             amount, accounts.from.key, accounts.to.key, accounts.authority.key
         );
 
-        // `transfer_checked` and `transfer` does the same thing, the additional `_checked` logic
-        // is only to assert the expected attributes by the user (mint, decimal scaling),
-        //
-        // Security of `transfer` is equal to `transfer_checked`.
-        #[allow(deprecated)]
-        // transfer(
-        //     CpiContext::new_with_signer(program, accounts, signer_seeds),
-        //     amount,
-        // )
         spl_token_2022::onchain::invoke_transfer_checked(
             program.key,
             accounts.from,
