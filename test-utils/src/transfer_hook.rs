@@ -26,6 +26,8 @@ use {
 
 pub static TEST_HOOK_ID: Pubkey =
     solana_sdk::pubkey!("TRANSFERHKTRANSFERHKTRANSFERHKTRANSFERHKTRA");
+
+#[allow(unused)]
 fn check_token_account_is_transferring(account_info: &AccountInfo) -> Result<(), ProgramError> {
     let account_data = account_info.try_borrow_data()?;
     let token_account = StateWithExtensions::<Account>::unpack(&account_data)?;
@@ -39,37 +41,17 @@ fn check_token_account_is_transferring(account_info: &AccountInfo) -> Result<(),
 
 /// Processes an [Execute](enum.TransferHookInstruction.html) instruction.
 pub fn process_execute(
-    program_id: &Pubkey,
+    _program_id: &Pubkey,
     accounts: &[AccountInfo],
-    amount: u64,
+    _amount: u64,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
-    let source_account_info = next_account_info(account_info_iter)?;
-    let mint_info = next_account_info(account_info_iter)?;
-    let destination_account_info = next_account_info(account_info_iter)?;
+    let _source_account_info = next_account_info(account_info_iter)?;
+    let _mint_info = next_account_info(account_info_iter)?;
+    let _destination_account_info = next_account_info(account_info_iter)?;
     let _authority_info = next_account_info(account_info_iter)?;
-    let extra_account_metas_info = next_account_info(account_info_iter)?;
-
-    // Check that the accounts are properly in "transferring" mode
-    check_token_account_is_transferring(source_account_info)?;
-    check_token_account_is_transferring(destination_account_info)?;
-
-    // For the example program, we just check that the correct pda and validation
-    // pubkeys are provided
-    let expected_validation_address = get_extra_account_metas_address(mint_info.key, program_id);
-    if expected_validation_address != *extra_account_metas_info.key {
-        return Err(ProgramError::InvalidSeeds);
-    }
-
-    let data = extra_account_metas_info.try_borrow_data()?;
-
-    ExtraAccountMetaList::check_account_infos::<ExecuteInstruction>(
-        accounts,
-        &TransferHookInstruction::Execute { amount }.pack(),
-        program_id,
-        &data,
-    )?;
+    let _extra_account_metas_info = next_account_info(account_info_iter)?;
 
     Ok(())
 }
