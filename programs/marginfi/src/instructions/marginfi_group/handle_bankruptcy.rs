@@ -1,20 +1,23 @@
-use crate::constants::{PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD};
-use crate::events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent};
-use crate::state::marginfi_account::DISABLED_FLAG;
 use crate::{
     bank_signer, check,
-    constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED},
+    constants::{
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD,
+    },
+    events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent},
     math_error,
     prelude::MarginfiError,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
         marginfi_group::{Bank, BankVaultType, MarginfiGroup},
     },
-    MarginfiResult,
+    utils, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token_2022::TransferChecked;
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use anchor_spl::{
+    token_2022::TransferChecked,
+    token_interface::{Mint, TokenAccount, TokenInterface},
+};
 use fixed::types::I80F48;
 use std::cmp::{max, min};
 
@@ -33,6 +36,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         token_program,
         bank: bank_loader,
         marginfi_group: marginfi_group_loader,
+        bank_mint,
         ..
     } = ctx.accounts;
     let bank = bank_loader.load()?;
@@ -79,10 +83,27 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     );
 
     let (covered_by_insurance, socialized_loss) = {
+        let bad_debt_spl: u64 = bad_debt
+            .checked_ceil()
+            .ok_or_else(math_error!())?
+            .checked_to_num()
+            .ok_or_else(math_error!())?;
+
+        let required_amount_to_cover_bad_debt = utils::calculate_spl_deposit_amount(
+            bank_mint.to_account_info(),
+            bad_debt_spl,
+            Clock::get()?.epoch,
+        )?;
+
+        let required_amount_to_cover_bad_debt = I80F48::from_num(required_amount_to_cover_bad_debt);
         let available_insurance_funds = I80F48::from_num(insurance_vault.amount);
 
-        let covered_by_insurance = min(bad_debt, available_insurance_funds);
-        let socialized_loss = max(bad_debt - covered_by_insurance, I80F48::ZERO);
+        let covered_by_insurance =
+            min(required_amount_to_cover_bad_debt, available_insurance_funds);
+        let socialized_loss = max(
+            required_amount_to_cover_bad_debt - covered_by_insurance,
+            I80F48::ZERO,
+        );
 
         (covered_by_insurance, socialized_loss)
     };
