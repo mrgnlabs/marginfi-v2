@@ -346,11 +346,11 @@ pub fn lip_entry<'a, 'b, 'c, 'info>(
 
 impl TestFixture {
     pub async fn new(test_settings: Option<TestSettings>) -> TestFixture {
-        TestFixture::new_with_t22_extension(test_settings, vec![]).await
+        TestFixture::new_with_t22_extension(test_settings, &[]).await
     }
     pub async fn new_with_t22_extension(
         test_settings: Option<TestSettings>,
-        extensions: Vec<SupportedExtension>,
+        extensions: &[SupportedExtension],
     ) -> TestFixture {
         let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi_entry));
         program.add_program(
@@ -472,7 +472,7 @@ impl TestFixture {
             Rc::clone(&context),
             Some(t22_with_fee_keypair),
             Some(T22_WITH_FEE_MINT_DECIMALS),
-            vec![SupportedExtension::TransferFee],
+            &[SupportedExtension::TransferFee],
         )
         .await;
 

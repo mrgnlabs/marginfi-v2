@@ -95,7 +95,7 @@ impl MintFixture {
         ctx: Rc<RefCell<ProgramTestContext>>,
         mint_keypair: Option<Keypair>,
         mint_decimals: Option<u8>,
-        extensions: Vec<SupportedExtension>,
+        extensions: &[SupportedExtension],
     ) -> MintFixture {
         let ctx_ref = Rc::clone(&ctx);
         let keypair = mint_keypair.unwrap_or_else(Keypair::new);

@@ -12,6 +12,7 @@ use solana_program_test::tokio;
 use test_case::test_case;
 
 #[test_case(vec![])]
+#[test_case(vec![SupportedExtension::TransferFee])]
 #[test_case(vec![SupportedExtension::TransferHook])]
 #[test_case(vec![SupportedExtension::PermanentDelegate])]
 #[test_case(vec![SupportedExtension::InterestBearing])]
@@ -51,7 +52,7 @@ async fn marginfi_account_liquidation_success_with_extension(
             ],
             group_config: Some(GroupConfig { admin: None }),
         }),
-        extensions,
+        &extensions,
     )
     .await;
 
@@ -61,7 +62,7 @@ async fn marginfi_account_liquidation_success_with_extension(
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc_t22 = test_f
         .usdc_t22_mint
-        .create_token_account_and_mint_to(2_000)
+        .create_token_account_and_mint_to(2_500)
         .await;
     lender_mfi_account_f
         .try_bank_deposit(lender_token_account_usdc_t22.key, usdc_t22_bank_f, 2_000)
@@ -150,9 +151,14 @@ async fn marginfi_account_liquidation_success_with_extension(
         .get_vault_token_account(BankVaultType::Insurance)
         .await;
 
+    let fee = if extensions.contains(&SupportedExtension::TransferFee) {
+        0.25 * 500.0 / 10000.0
+    } else {
+        0.0
+    };
     assert_eq_noise!(
         insurance_fund_usdc.balance().await as i64,
-        native!(0.25, "USDC", f64) as i64,
+        native!(0.25 - fee, "USDC", f64) as i64,
         1
     );
 
