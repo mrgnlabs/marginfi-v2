@@ -9,16 +9,16 @@ members = [
 exclude = ["programs/brick"]
 
 [workspace.dependencies]
-solana-cli-output = "1.18.2"
-solana-client = "1.18.2"
-solana-sdk = "1.18.2"
-solana-logger = "1.18.2"
-solana-program = "1.18.2"
-solana-program-test = "1.18.2"
-solana-account-decoder = "1.18.2"
-solana-measure = "1.18.2"
-solana-metrics = "1.18.2"
-solana-transaction-status = "1.18.2"
+solana-cli-output = "1.18.5"
+solana-client = "1.18.5"
+solana-sdk = "1.18.5"
+solana-logger = "1.18.5"
+solana-program = "1.18.5"
+solana-program-test = "1.18.5"
+solana-account-decoder = "1.18.5"
+solana-measure = "1.18.5"
+solana-metrics = "1.18.5"
+solana-transaction-status = "1.18.5"
 spl-token = "4.0.0"
 spl-associated-token-account = "2.2.0"
 
