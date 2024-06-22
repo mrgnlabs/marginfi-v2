@@ -1003,6 +1003,150 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
 }
 
 #[tokio::test]
+async fn marginfi_group_handle_bankruptcy_success_partially_insured_t22_with_fee(
+) -> anyhow::Result<()> {
+    let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let collateral_mint = BankMint::SOL;
+    let debt_mint = BankMint::T22WithFee;
+
+    let user_balance = 100_000.0 * (1f64 + MAX_FEE_BASIS_POINTS as f64 / 10_000f64);
+
+    let lender_mfi_account_f = test_f.create_marginfi_account().await;
+    let lender_collateral_token_account = test_f
+        .get_bank(&debt_mint)
+        .mint
+        .create_token_account_and_mint_to(user_balance)
+        .await;
+    lender_mfi_account_f
+        .try_bank_deposit(
+            lender_collateral_token_account.key,
+            test_f.get_bank(&debt_mint),
+            100_000,
+        )
+        .await?;
+
+    let borrower_account = test_f.create_marginfi_account().await;
+    let borrower_collateral_token_account = test_f
+        .get_bank(&collateral_mint)
+        .mint
+        .create_token_account_and_mint_to(1_001)
+        .await;
+    borrower_account
+        .try_bank_deposit(
+            borrower_collateral_token_account.key,
+            test_f.get_bank(&collateral_mint),
+            1_001,
+        )
+        .await?;
+
+    let borrow_amount = 10_000.0;
+
+    let borrower_debt_token_account = test_f
+        .get_bank(&debt_mint)
+        .mint
+        .create_token_account_and_mint_to(0)
+        .await;
+    borrower_account
+        .try_bank_borrow(
+            borrower_debt_token_account.key,
+            test_f.get_bank(&debt_mint),
+            borrow_amount,
+        )
+        .await?;
+
+    let mut borrower_mfi_account = borrower_account.load().await;
+    borrower_mfi_account.lending_account.balances[0]
+        .asset_shares
+        .value = 0_i128.to_le_bytes();
+    borrower_account.set_account(&borrower_mfi_account).await?;
+
+    let insurance_vault = test_f.get_bank(&debt_mint).load().await.insurance_vault;
+    test_f
+        .get_bank_mut(&debt_mint)
+        .mint
+        .mint_to(&insurance_vault, 5_000)
+        .await;
+
+    let debt_bank_f = test_f.get_bank(&debt_mint);
+
+    let (pre_liquidity_vault_balance, pre_insurance_vault_balance) = (
+        debt_bank_f
+            .get_vault_token_account(BankVaultType::Liquidity)
+            .await
+            .balance()
+            .await,
+        debt_bank_f
+            .get_vault_token_account(BankVaultType::Insurance)
+            .await
+            .balance()
+            .await,
+    );
+
+    test_f
+        .marginfi_group
+        .try_handle_bankruptcy(test_f.get_bank(&debt_mint), &borrower_account)
+        .await?;
+
+    let (post_liquidity_vault_balance, post_insurance_vault_balance) = (
+        debt_bank_f
+            .get_vault_token_account(BankVaultType::Liquidity)
+            .await
+            .balance()
+            .await,
+        debt_bank_f
+            .get_vault_token_account(BankVaultType::Insurance)
+            .await
+            .balance()
+            .await,
+    );
+
+    let borrower_mfi_account = borrower_account.load().await;
+    let borrower_debt_balance = borrower_mfi_account.lending_account.balances[1];
+
+    assert_eq!(
+        I80F48::from(borrower_debt_balance.liability_shares),
+        I80F48::ZERO
+    );
+
+    let lender_mfi_account = lender_mfi_account_f.load().await;
+    let debt_bank = test_f.get_bank(&debt_mint).load().await;
+
+    let lender_collateral_value = debt_bank.get_asset_amount(
+        lender_mfi_account.lending_account.balances[0]
+            .asset_shares
+            .into(),
+    )?;
+
+    // this will break if T22WithFee is configured with fee != 5%
+    assert_eq_noise!(
+        lender_collateral_value,
+        I80F48::from(native!(94_750, debt_bank.mint_decimals)),
+        I80F48::ONE
+    );
+
+    let insurance_amount = test_f
+        .get_bank(&debt_mint)
+        .get_vault_token_account(BankVaultType::Insurance)
+        .await;
+
+    assert_eq!(insurance_amount.balance().await, 0);
+
+    // this will break if T22WithFee is configured with fee != 5%
+    let expected_liquidity_vault_delta = I80F48::from(native!(
+        4_750,
+        test_f.get_bank(&debt_mint).mint.mint.decimals
+    ));
+    let actual_liquidity_vault_delta = post_liquidity_vault_balance - pre_liquidity_vault_balance;
+    let actual_insurance_vault_delta = pre_insurance_vault_balance - post_insurance_vault_balance;
+
+    assert_eq!(expected_liquidity_vault_delta, actual_liquidity_vault_delta);
+    assert!(actual_insurance_vault_delta > expected_liquidity_vault_delta);
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn marginfi_group_handle_bankruptcy_success_not_insured() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![

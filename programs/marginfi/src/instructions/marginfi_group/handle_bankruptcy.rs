@@ -82,37 +82,37 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         MarginfiError::BalanceNotBadDebt
     );
 
+    let epoch = Clock::get()?.epoch;
+
     let (covered_by_insurance, socialized_loss) = {
-        let bad_debt_spl: u64 = bad_debt
-            .checked_ceil()
-            .ok_or_else(math_error!())?
-            .checked_to_num()
-            .ok_or_else(math_error!())?;
-
-        let required_amount_to_cover_bad_debt = utils::calculate_spl_deposit_amount(
+        let available_insurance_fund: I80F48 = utils::calculate_post_fee_spl_deposit_amount(
             bank_mint.to_account_info(),
-            bad_debt_spl,
-            Clock::get()?.epoch,
-        )?;
+            insurance_vault.amount,
+            epoch,
+        )?
+        .into();
 
-        let required_amount_to_cover_bad_debt = I80F48::from_num(required_amount_to_cover_bad_debt);
-        let available_insurance_funds = I80F48::from_num(insurance_vault.amount);
-
-        let covered_by_insurance =
-            min(required_amount_to_cover_bad_debt, available_insurance_funds);
-        let socialized_loss = max(
-            required_amount_to_cover_bad_debt - covered_by_insurance,
-            I80F48::ZERO,
-        );
+        let covered_by_insurance = min(bad_debt, available_insurance_fund);
+        let socialized_loss = max(bad_debt - covered_by_insurance, I80F48::ZERO);
 
         (covered_by_insurance, socialized_loss)
     };
 
     // Cover bad debt with insurance funds.
+    let covered_by_insurance_rounded_up: u64 = covered_by_insurance
+        .checked_ceil()
+        .ok_or_else(math_error!())?
+        .checked_to_num()
+        .ok_or_else(math_error!())?;
+
+    let insurance_coverage_deposit_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
+        bank_mint.to_account_info(),
+        covered_by_insurance_rounded_up,
+        epoch,
+    )?;
+
     bank.withdraw_spl_transfer(
-        covered_by_insurance
-            .checked_to_num()
-            .ok_or_else(math_error!())?,
+        insurance_coverage_deposit_pre_fee,
         TransferChecked {
             from: ctx.accounts.insurance_vault.to_account_info(),
             to: ctx.accounts.liquidity_vault.to_account_info(),

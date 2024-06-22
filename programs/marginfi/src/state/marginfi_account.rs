@@ -1001,14 +1001,14 @@ impl<'a> BankAccountWrapper<'a> {
         balance.close()?;
         bank.change_liability_shares(-total_liability_shares, false)?;
 
-        let target_vault_deposit_amount = current_liability_amount
+        let full_balance_token_amount = current_liability_amount
             .checked_ceil()
             .ok_or_else(math_error!())?
             .checked_to_num()
             .ok_or_else(math_error!())?;
 
         bank.collected_insurance_fees_outstanding = {
-            I80F48::from(target_vault_deposit_amount)
+            I80F48::from(full_balance_token_amount)
                 .checked_sub(current_liability_amount)
                 .ok_or_else(math_error!())?
                 .checked_add(bank.collected_insurance_fees_outstanding.into())
@@ -1016,13 +1016,13 @@ impl<'a> BankAccountWrapper<'a> {
                 .into()
         };
 
-        let deposit_amount_with_fee = utils::calculate_spl_deposit_amount(
+        let deposit_amount_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
             bank_mint_ai,
-            target_vault_deposit_amount,
+            full_balance_token_amount,
             Clock::get()?.epoch,
         )?;
 
-        Ok(deposit_amount_with_fee)
+        Ok(deposit_amount_pre_fee)
     }
 
     pub fn close_balance(&mut self) -> MarginfiResult<()> {

@@ -41,13 +41,13 @@ where
     }
 }
 
-pub fn calculate_spl_deposit_amount(
+pub fn calculate_pre_fee_spl_deposit_amount(
     mint_ai: AccountInfo,
-    target_amount: u64,
+    post_fee_amount: u64,
     epoch: u64,
 ) -> MarginfiResult<u64> {
     if mint_ai.owner.eq(&Token::id()) {
-        return Ok(target_amount);
+        return Ok(post_fee_amount);
     }
 
     let mint_data = mint_ai.try_borrow_data()?;
@@ -55,17 +55,17 @@ pub fn calculate_spl_deposit_amount(
 
     let fee = if let Ok(transfer_fee_config) = mint.get_extension::<TransferFeeConfig>() {
         transfer_fee_config
-            .calculate_inverse_epoch_fee(epoch, target_amount)
+            .calculate_inverse_epoch_fee(epoch, post_fee_amount)
             .unwrap()
     } else {
         0
     };
 
-    let deposit_amount = target_amount
+    let pre_fee_amount = post_fee_amount
         .checked_add(fee)
         .ok_or(MarginfiError::MathError)?;
 
-    Ok(deposit_amount)
+    Ok(pre_fee_amount)
 }
 
 pub fn calculate_post_fee_spl_deposit_amount(

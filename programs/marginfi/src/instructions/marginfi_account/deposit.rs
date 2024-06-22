@@ -61,7 +61,7 @@ pub fn lending_account_deposit<'info>(
 
     bank_account.deposit(I80F48::from_num(amount))?;
 
-    let spl_deposit_amount = utils::calculate_spl_deposit_amount(
+    let spl_deposit_amount = utils::calculate_pre_fee_spl_deposit_amount(
         bank_mint.to_account_info(),
         amount,
         Clock::get()?.epoch,

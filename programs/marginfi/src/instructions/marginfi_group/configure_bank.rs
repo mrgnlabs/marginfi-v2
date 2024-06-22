@@ -72,7 +72,7 @@ pub fn lending_pool_setup_emissions(
     bank.emissions_rate = emissions_rate;
     bank.emissions_remaining = I80F48::from_num(total_emissions).into();
 
-    let spl_total_emissions = utils::calculate_spl_deposit_amount(
+    let initial_emissions_amount_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
         ctx.accounts.emissions_mint.to_account_info(),
         total_emissions,
         Clock::get()?.epoch,
@@ -88,7 +88,7 @@ pub fn lending_pool_setup_emissions(
                 mint: ctx.accounts.emissions_mint.to_account_info(),
             },
         ),
-        spl_total_emissions,
+        initial_emissions_amount_pre_fee,
         ctx.accounts.emissions_mint.decimals,
     )?;
 
@@ -186,7 +186,7 @@ pub fn lending_pool_update_emissions_parameters(
             I80F48::from(bank.emissions_remaining)
         );
 
-        let spl_additional_emissions = utils::calculate_spl_deposit_amount(
+        let additional_emissions_amount_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
             ctx.accounts.emissions_mint.to_account_info(),
             additional_emissions,
             Clock::get()?.epoch,
@@ -202,7 +202,7 @@ pub fn lending_pool_update_emissions_parameters(
                     mint: ctx.accounts.emissions_mint.to_account_info(),
                 },
             ),
-            spl_additional_emissions,
+            additional_emissions_amount_pre_fee,
             ctx.accounts.emissions_mint.decimals,
         )?;
     }

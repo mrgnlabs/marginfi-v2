@@ -60,7 +60,7 @@ pub fn lending_account_repay<'info>(
     let spl_deposit_amount = if repay_all {
         bank_account.repay_all(bank_mint.to_account_info())?
     } else {
-        let spl_deposit_amount = utils::calculate_spl_deposit_amount(
+        let spl_deposit_amount = utils::calculate_pre_fee_spl_deposit_amount(
             bank_mint.to_account_info(),
             amount,
             Clock::get()?.epoch,
