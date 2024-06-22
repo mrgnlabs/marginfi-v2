@@ -20,6 +20,7 @@ async fn stale_bank_should_error() -> anyhow::Result<()> {
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
 
     // Make SOLE feed stale
+    test_f.set_time(0);
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;
     test_f
         .set_pyth_oracle_timestamp(PYTH_SOL_EQUIVALENT_FEED, 0)
@@ -78,6 +79,7 @@ async fn non_stale_bank_should_error() -> anyhow::Result<()> {
     let sol_bank = test_f.get_bank(&BankMint::SOL);
 
     // Make USDC feed stale
+    test_f.set_time(0);
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 0).await;
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
     test_f
@@ -134,6 +136,7 @@ async fn isolated_stale_should_not_error() -> anyhow::Result<()> {
     let sol_bank = test_f.get_bank(&BankMint::SOL);
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
 
+    test_f.set_time(0);
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;
     test_f.advance_time(120).await;

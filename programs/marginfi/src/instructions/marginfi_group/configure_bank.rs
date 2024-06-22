@@ -1,7 +1,7 @@
 use crate::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED};
 use crate::events::{GroupEventHeader, LendingPoolBankConfigureEvent};
 use crate::prelude::MarginfiError;
-use crate::{check, math_error};
+use crate::{check, math_error, utils};
 use crate::{
     state::marginfi_group::{Bank, BankConfigOpt, MarginfiGroup},
     MarginfiResult,
@@ -72,6 +72,12 @@ pub fn lending_pool_setup_emissions(
     bank.emissions_rate = emissions_rate;
     bank.emissions_remaining = I80F48::from_num(total_emissions).into();
 
+    let spl_total_emissions = utils::calculate_spl_deposit_amount(
+        ctx.accounts.emissions_mint.to_account_info(),
+        total_emissions,
+        Clock::get()?.epoch,
+    )?;
+
     transfer_checked(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -82,7 +88,7 @@ pub fn lending_pool_setup_emissions(
                 mint: ctx.accounts.emissions_mint.to_account_info(),
             },
         ),
-        total_emissions,
+        spl_total_emissions,
         ctx.accounts.emissions_mint.decimals,
     )?;
 
@@ -169,20 +175,6 @@ pub fn lending_pool_update_emissions_parameters(
     }
 
     if let Some(additional_emissions) = additional_emissions {
-        transfer_checked(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                TransferChecked {
-                    from: ctx.accounts.emissions_funding_account.to_account_info(),
-                    to: ctx.accounts.emissions_token_account.to_account_info(),
-                    authority: ctx.accounts.admin.to_account_info(),
-                    mint: ctx.accounts.emissions_mint.to_account_info(),
-                },
-            ),
-            additional_emissions,
-            ctx.accounts.emissions_mint.decimals,
-        )?;
-
         bank.emissions_remaining = I80F48::from(bank.emissions_remaining)
             .checked_add(I80F48::from_num(additional_emissions))
             .ok_or_else(math_error!())?
@@ -193,6 +185,26 @@ pub fn lending_pool_update_emissions_parameters(
             additional_emissions,
             I80F48::from(bank.emissions_remaining)
         );
+
+        let spl_additional_emissions = utils::calculate_spl_deposit_amount(
+            ctx.accounts.emissions_mint.to_account_info(),
+            additional_emissions,
+            Clock::get()?.epoch,
+        )?;
+
+        transfer_checked(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.emissions_funding_account.to_account_info(),
+                    to: ctx.accounts.emissions_token_account.to_account_info(),
+                    authority: ctx.accounts.admin.to_account_info(),
+                    mint: ctx.accounts.emissions_mint.to_account_info(),
+                },
+            ),
+            spl_additional_emissions,
+            ctx.accounts.emissions_mint.decimals,
+        )?;
     }
 
     Ok(())

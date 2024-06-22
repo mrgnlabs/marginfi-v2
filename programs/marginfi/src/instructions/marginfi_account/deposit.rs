@@ -66,8 +66,6 @@ pub fn lending_account_deposit<'info>(
         amount,
         Clock::get()?.epoch,
     )?;
-    solana_program::msg!("spl_deposit_amount: {}", spl_deposit_amount);
-    solana_program::msg!("amount: {}", amount);
 
     bank_account.deposit_spl_transfer(
         spl_deposit_amount,

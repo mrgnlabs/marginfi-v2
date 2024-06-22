@@ -18,6 +18,7 @@ async fn bank_oracle_staleness_test() -> anyhow::Result<()> {
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
 
     // Make SOLE feed stale
+    test_f.set_time(0);
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;
     test_f
         .set_pyth_oracle_timestamp(PYTH_SOL_EQUIVALENT_FEED, 0)

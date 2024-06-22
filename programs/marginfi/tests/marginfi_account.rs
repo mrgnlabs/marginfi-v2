@@ -1980,24 +1980,10 @@ async fn emissions_test() -> anyhow::Result<()> {
     );
 
     // Advance for another half a year and claim the rest
-
     test_f.advance_time((SECONDS_PER_YEAR / 2.0) as i64).await;
-
-    {
-        let slot = test_f.get_slot().await;
-        test_f
-            .context
-            .borrow_mut()
-            .warp_to_slot(slot + 100)
-            .unwrap();
-    }
 
     mfi_account_f
         .try_withdraw_emissions(usdc_bank, &lender_token_account_usdc)
-        .await?;
-
-    mfi_account_f
-        .try_withdraw_emissions(sol_bank, &sol_emissions_ta)
         .await?;
 
     assert_eq_with_tolerance!(
@@ -2006,6 +1992,10 @@ async fn emissions_test() -> anyhow::Result<()> {
         native!(1, "USDC") as i64
     );
 
+    mfi_account_f
+        .try_withdraw_emissions(sol_bank, &sol_emissions_ta)
+        .await?;
+
     assert_eq_with_tolerance!(
         sol_emissions_ta.balance().await as i64,
         native!(2, 6) as i64,
@@ -2013,15 +2003,6 @@ async fn emissions_test() -> anyhow::Result<()> {
     );
 
     // Advance a year, and no more USDC emissions can be claimed (drained), SOL emissions can be claimed
-
-    {
-        let slot = test_f.get_slot().await;
-        test_f
-            .context
-            .borrow_mut()
-            .warp_to_slot(slot + 100)
-            .unwrap();
-    }
 
     test_f.advance_time((SECONDS_PER_YEAR / 2.0) as i64).await;
 
@@ -2106,6 +2087,87 @@ async fn emissions_test_2() -> anyhow::Result<()> {
         I80F48::from(usdc_bank_data.emissions_remaining),
         I80F48::from_num(native!(75, "USDC"))
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn emissions_setup_t22_with_fee() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let collateral_mint = BankMint::T22WithFee;
+    let bank_f = test_f.get_bank(&collateral_mint);
+
+    let funding_account = bank_f.mint.create_token_account_and_mint_to(100).await;
+
+    let emissions_vault = get_emissions_token_account_address(bank_f.key, bank_f.mint.key).0;
+
+    let pre_vault_balance = 0;
+
+    bank_f
+        .try_setup_emissions(
+            EMISSIONS_FLAG_LENDING_ACTIVE,
+            1_000_000,
+            native!(50, bank_f.mint.mint.decimals),
+            bank_f.mint.key,
+            funding_account.key,
+            bank_f.get_token_program(),
+        )
+        .await?;
+
+    let post_vault_balance = TokenAccountFixture::fetch(test_f.context.clone(), emissions_vault)
+        .await
+        .balance()
+        .await;
+
+    let bank = bank_f.load().await;
+
+    assert_eq!(bank.flags, EMISSIONS_FLAG_LENDING_ACTIVE);
+
+    assert_eq!(bank.emissions_rate, 1_000_000);
+
+    assert_eq!(
+        I80F48::from(bank.emissions_remaining),
+        I80F48::from_num(native!(50, bank_f.mint.mint.decimals))
+    );
+
+    let expected_vault_balance_delta = native!(50, bank_f.mint.mint.decimals) as u64;
+    let actual_vault_balance_delta = post_vault_balance - pre_vault_balance;
+    assert_eq!(expected_vault_balance_delta, actual_vault_balance_delta);
+
+    let pre_vault_balance = TokenAccountFixture::fetch(test_f.context.clone(), emissions_vault)
+        .await
+        .balance()
+        .await;
+
+    bank_f
+        .try_update_emissions(
+            Some(EMISSIONS_FLAG_BORROW_ACTIVE),
+            Some(500_000),
+            Some((native!(25, bank_f.mint.mint.decimals), funding_account.key)),
+            bank_f.get_token_program(),
+        )
+        .await?;
+
+    let post_vault_balance = TokenAccountFixture::fetch(test_f.context.clone(), emissions_vault)
+        .await
+        .balance()
+        .await;
+
+    let bank_data = bank_f.load().await;
+
+    assert_eq!(bank_data.flags, EMISSIONS_FLAG_BORROW_ACTIVE);
+
+    assert_eq!(bank_data.emissions_rate, 500_000);
+
+    assert_eq!(
+        I80F48::from(bank_data.emissions_remaining),
+        I80F48::from_num(native!(75, bank_f.mint.mint.decimals))
+    );
+
+    let expected_vault_balance_delta = native!(25, bank_f.mint.mint.decimals) as u64;
+    let actual_vault_balance_delta = post_vault_balance - pre_vault_balance;
+    assert_eq!(expected_vault_balance_delta, actual_vault_balance_delta);
 
     Ok(())
 }

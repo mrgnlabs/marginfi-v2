@@ -667,6 +667,10 @@ impl TestFixture {
             .unwrap();
         clock.unix_timestamp += seconds;
         self.context.borrow_mut().set_sysvar(&clock);
+        self.context
+            .borrow_mut()
+            .warp_forward_force_reward_interval_end()
+            .unwrap();
     }
 
     pub async fn get_minimum_rent_for_size(&self, size: usize) -> u64 {

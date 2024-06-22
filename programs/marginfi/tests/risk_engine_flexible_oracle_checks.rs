@@ -22,6 +22,7 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
 
     // Make SOLE feed stale
+    test_f.set_time(0);
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;
     test_f.advance_time(120).await;
@@ -104,6 +105,7 @@ async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
     let sol_bank = test_f.get_bank(&BankMint::SOL);
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
 
+    test_f.set_time(0);
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;
     test_f.advance_time(120).await;
@@ -164,6 +166,8 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
     let usdc_bank = test_f.get_bank(&BankMint::USDC);
     let sol_bank = test_f.get_bank(&BankMint::SOL);
 
+    test_f.set_time(0);
+
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_sol = test_f
@@ -185,6 +189,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
         .await?;
 
     // Make SOL oracle stale
+    test_f.set_time(0);
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 0).await;
     test_f.advance_time(120).await;
@@ -237,6 +242,8 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
         group_config: Some(GroupConfig { admin: None }),
     }))
     .await;
+
+    test_f.set_time(0);
 
     let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
     let sol_bank_f = test_f.get_bank(&BankMint::SOL);
@@ -332,6 +339,8 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
         ],
     }))
     .await;
+
+    test_f.set_time(0);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f
