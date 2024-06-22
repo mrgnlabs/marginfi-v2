@@ -328,6 +328,7 @@ pub const SOL_MINT_DECIMALS: u8 = 9;
 pub const MNDE_MINT_DECIMALS: u8 = 9;
 
 pub fn marginfi_entry(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+    #[allow(clippy::missing_transmute_annotations)]
     marginfi::entry(program_id, unsafe { core::mem::transmute(accounts) }, data)
 }
 

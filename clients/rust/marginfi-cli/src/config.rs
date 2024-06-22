@@ -93,6 +93,7 @@ impl Deref for CliSigner {
     }
 }
 
+#[allow(dead_code)]
 pub struct Config {
     pub cluster: Cluster,
     pub fee_payer: Keypair,
