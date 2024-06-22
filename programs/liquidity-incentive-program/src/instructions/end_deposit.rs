@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    token_2022::{close_account, CloseAccount, Transfer},
-    token_interface::{TokenAccount, TokenInterface},
+    token_2022::{close_account, CloseAccount},
+    token_interface::{Mint, TokenAccount, TokenInterface},
 };
 use fixed::types::I80F48;
 use marginfi::{program::Marginfi, state::marginfi_group::Bank};
@@ -31,7 +31,7 @@ use crate::{
 /// * Reloading ephemeral token account fails
 /// * Transferring additional reward to ephemeral token account fails
 /// * Reloading ephemeral token account after transfer fails
-pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
+pub fn process<'info>(ctx: Context<'_, '_, '_, 'info, EndDeposit<'info>>) -> Result<()> {
     // Solana clock isn't the most precise, but an offset of a few hours on a half year lockup is fine
     //
     // Check if the lockup period has passed
@@ -42,32 +42,32 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
         LIPError::DepositNotMature
     );
 
-    marginfi::cpi::lending_account_withdraw(
-        CpiContext::new_with_signer(
-            ctx.accounts.marginfi_program.to_account_info(),
-            marginfi::cpi::accounts::LendingAccountWithdraw {
-                marginfi_group: ctx.accounts.marginfi_group.to_account_info(),
-                marginfi_account: ctx.accounts.marginfi_account.to_account_info(),
-                signer: ctx.accounts.mfi_pda_signer.to_account_info(),
-                bank: ctx.accounts.marginfi_bank.to_account_info(),
-                bank_mint: ctx.accounts.bank_mint.to_account_info(),
-                destination_token_account: ctx.accounts.temp_token_account.to_account_info(),
-                bank_liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
-                bank_liquidity_vault_authority: ctx
-                    .accounts
-                    .marginfi_bank_vault_authority
-                    .to_account_info(),
-                token_program: ctx.accounts.token_program.to_account_info(),
-            },
-            &[&[
-                DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
-                ctx.accounts.deposit.key().as_ref(),
-                &[ctx.bumps.mfi_pda_signer],
-            ]],
-        ),
-        0,
-        Some(true),
-    )?;
+    let deposit_key = ctx.accounts.deposit.key().to_bytes();
+    let signer_seeds: &[&[&[u8]]] = &[&[
+        DEPOSIT_MFI_AUTH_SIGNER_SEED.as_bytes(),
+        deposit_key.as_ref(),
+        &[ctx.bumps.mfi_pda_signer],
+    ]];
+    let mut cpi_ctx = CpiContext::new_with_signer(
+        ctx.accounts.marginfi_program.to_account_info(),
+        marginfi::cpi::accounts::LendingAccountWithdraw {
+            marginfi_group: ctx.accounts.marginfi_group.to_account_info(),
+            marginfi_account: ctx.accounts.marginfi_account.to_account_info(),
+            signer: ctx.accounts.mfi_pda_signer.to_account_info(),
+            bank: ctx.accounts.marginfi_bank.to_account_info(),
+            bank_mint: ctx.accounts.asset_mint.to_account_info(),
+            destination_token_account: ctx.accounts.temp_token_account.to_account_info(),
+            bank_liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
+            bank_liquidity_vault_authority: ctx
+                .accounts
+                .marginfi_bank_vault_authority
+                .to_account_info(),
+            token_program: ctx.accounts.token_program.to_account_info(),
+        },
+        signer_seeds,
+    );
+    cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
+    marginfi::cpi::lending_account_withdraw(cpi_ctx, 0, Some(true))?;
 
     // Redeem the shares with marginfi
     ctx.accounts.temp_token_account.reload()?;
@@ -105,25 +105,22 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
 
     // Transfer any additional rewards to the ephemeral token account
     if additional_reward_amount > 0 {
-        #[allow(deprecated)]
-        anchor_spl::token_2022::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.campaign_reward_vault.to_account_info(),
-                    to: ctx.accounts.temp_token_account.to_account_info(),
-                    authority: ctx
-                        .accounts
-                        .campaign_reward_vault_authority
-                        .to_account_info(),
-                },
-                &[&[
-                    CAMPAIGN_AUTH_SEED.as_bytes(),
-                    ctx.accounts.campaign.key().as_ref(),
-                    &[ctx.bumps.campaign_reward_vault_authority],
-                ]],
-            ),
+        let campaign_key = ctx.accounts.campaign.key();
+        let campaign_auth_seeds: &[&[&[u8]]] = &[&[
+            CAMPAIGN_AUTH_SEED.as_bytes(),
+            campaign_key.as_ref(),
+            &[ctx.bumps.campaign_reward_vault_authority],
+        ]];
+        anchor_spl::token_2022::spl_token_2022::onchain::invoke_transfer_checked(
+            &ctx.accounts.token_program.key,
+            ctx.accounts.campaign_reward_vault.to_account_info(),
+            ctx.accounts.asset_mint.to_account_info(),
+            ctx.accounts.temp_token_account.to_account_info(),
+            ctx.accounts.signer.to_account_info(),
+            ctx.remaining_accounts,
             additional_reward_amount,
+            ctx.accounts.asset_mint.decimals,
+            campaign_auth_seeds,
         )?;
 
         ctx.accounts.temp_token_account.reload()?;
@@ -135,23 +132,21 @@ pub fn process(ctx: Context<EndDeposit>) -> Result<()> {
     );
 
     // Transfer the total:: amount to the user
-    // TODO: FIX. Need additional accounts
-    #[allow(deprecated)]
-    anchor_spl::token_2022::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.temp_token_account.to_account_info(),
-                to: ctx.accounts.destination_account.to_account_info(),
-                authority: ctx.accounts.temp_token_account_authority.to_account_info(),
-            },
-            &[&[
-                TEMP_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
-                ctx.accounts.deposit.key().as_ref(),
-                &[ctx.bumps.temp_token_account_authority],
-            ]],
-        ),
+    let temp_token_seeds: &[&[&[u8]]] = &[&[
+        TEMP_TOKEN_ACCOUNT_AUTH_SEED.as_bytes(),
+        deposit_key.as_ref(),
+        &[ctx.bumps.temp_token_account_authority],
+    ]];
+    anchor_spl::token_2022::spl_token_2022::onchain::invoke_transfer_checked(
+        &ctx.accounts.token_program.key,
+        ctx.accounts.campaign_reward_vault.to_account_info(),
+        ctx.accounts.asset_mint.to_account_info(),
+        ctx.accounts.temp_token_account.to_account_info(),
+        ctx.accounts.signer.to_account_info(),
+        ctx.remaining_accounts,
         ctx.accounts.temp_token_account.amount,
+        ctx.accounts.asset_mint.decimals,
+        temp_token_seeds,
     )?;
 
     // Close the temp token account
@@ -240,7 +235,7 @@ pub struct EndDeposit<'info> {
 
     #[account(address = marginfi_bank.load()?.mint)]
     /// CHECK: Asserted by constraint
-    pub asset_mint: AccountInfo<'info>,
+    pub asset_mint: InterfaceAccount<'info, Mint>,
 
     #[account(
         mut,
@@ -266,10 +261,9 @@ pub struct EndDeposit<'info> {
     #[account(mut)]
     pub marginfi_bank_vault: AccountInfo<'info>,
 
-    /// CHECK: Asserted by CPI call
-    #[account()]
-    pub bank_mint: AccountInfo<'info>,
-
+    // /// CHECK: Asserted by CPI call
+    // #[account()]
+    // pub bank_mint: InterfaceAccount<'info, Mint>,
     /// CHECK: Asserted by CPI call
     #[account(mut)]
     pub marginfi_bank_vault_authority: AccountInfo<'info>,
