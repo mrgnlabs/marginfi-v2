@@ -105,6 +105,8 @@ async fn campaign_mixed_yield() -> Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
 
+    test_f.set_time(0);
+
     // Setup sample bank
     let usdc_bank = test_f
         .marginfi_group
@@ -195,6 +197,8 @@ async fn campaign_mixed_yield() -> Result<()> {
 async fn campaign_max_yield() -> Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
+
+    test_f.set_time(0);
 
     // Setup sample bank
     let usdc_bank = test_f
