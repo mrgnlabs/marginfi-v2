@@ -733,6 +733,9 @@ fn handle_bankruptcy_for_an_account(
     bank_pk: Pubkey,
 ) -> Result<()> {
     println!("Handling bankruptcy for bank {}", bank_pk);
+
+    let bank = banks.get(&bank_pk).unwrap();
+
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
@@ -759,6 +762,7 @@ fn handle_bankruptcy_for_an_account(
             )
             .0,
             token_program: token::ID,
+            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
@@ -878,6 +882,9 @@ fn make_bankruptcy_ix(
     bank_pk: Pubkey,
 ) -> Result<Instruction> {
     println!("Handling bankruptcy for bank {}", bank_pk);
+
+    let bank = banks.get(&bank_pk).unwrap();
+
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
@@ -904,6 +911,7 @@ fn make_bankruptcy_ix(
             )
             .0,
             token_program: token::ID,
+            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
@@ -1862,6 +1870,7 @@ pub fn marginfi_account_deposit(
             signer_token_account: deposit_ata,
             bank_liquidity_vault: bank.liquidity_vault,
             token_program: token::ID,
+            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountDeposit { amount }.data(),
@@ -1934,6 +1943,7 @@ pub fn marginfi_account_withdraw(
                 &config.program_id,
             )
             .0,
+            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountWithdraw {
@@ -2023,6 +2033,7 @@ pub fn marginfi_account_borrow(
                 &config.program_id,
             )
             .0,
+            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountBorrow { amount }.data(),
@@ -2120,6 +2131,7 @@ pub fn marginfi_account_liquidate(
             bank_liquidity_vault: liability_bank.liquidity_vault,
             bank_insurance_vault: liability_bank.insurance_vault,
             token_program: token::ID,
+            liab_mint: liability_bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),

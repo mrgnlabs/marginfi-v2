@@ -116,7 +116,9 @@ pub fn process<'info>(ctx: Context<'_, '_, '_, 'info, EndDeposit<'info>>) -> Res
             ctx.accounts.campaign_reward_vault.to_account_info(),
             ctx.accounts.asset_mint.to_account_info(),
             ctx.accounts.temp_token_account.to_account_info(),
-            ctx.accounts.signer.to_account_info(),
+            ctx.accounts
+                .campaign_reward_vault_authority
+                .to_account_info(),
             ctx.remaining_accounts,
             additional_reward_amount,
             ctx.accounts.asset_mint.decimals,
@@ -139,10 +141,10 @@ pub fn process<'info>(ctx: Context<'_, '_, '_, 'info, EndDeposit<'info>>) -> Res
     ]];
     anchor_spl::token_2022::spl_token_2022::onchain::invoke_transfer_checked(
         &ctx.accounts.token_program.key,
-        ctx.accounts.campaign_reward_vault.to_account_info(),
-        ctx.accounts.asset_mint.to_account_info(),
         ctx.accounts.temp_token_account.to_account_info(),
-        ctx.accounts.signer.to_account_info(),
+        ctx.accounts.asset_mint.to_account_info(),
+        ctx.accounts.destination_account.to_account_info(),
+        ctx.accounts.temp_token_account_authority.to_account_info(),
         ctx.remaining_accounts,
         ctx.accounts.temp_token_account.amount,
         ctx.accounts.asset_mint.decimals,

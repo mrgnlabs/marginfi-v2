@@ -1,5 +1,3 @@
-use solana_sdk::signature::Signature;
-
 use {
     anchor_client::{Client, Cluster, Program},
     clap::Parser,
@@ -52,14 +50,6 @@ pub enum CliSigner {
     Keypair(Keypair),
 }
 
-impl CliSigner {
-    pub fn pubkey(&self) -> Pubkey {
-        match self {
-            CliSigner::Keypair(keypair) => keypair.pubkey(),
-        }
-    }
-}
-
 pub fn clone_keypair(keypair: &Keypair) -> Keypair {
     Keypair::from_bytes(&keypair.to_bytes()).unwrap()
 }
@@ -72,26 +62,26 @@ impl Clone for CliSigner {
     }
 }
 
-impl Signer for CliSigner {
-    fn try_pubkey(&self) -> Result<Pubkey, solana_sdk::signature::SignerError> {
-        Ok(self.pubkey())
-    }
+// impl Signer for CliSigner {
+//     fn try_pubkey(&self) -> Result<Pubkey, solana_sdk::signature::SignerError> {
+//         Ok(self.pubkey())
+//     }
 
-    fn try_sign_message(
-        &self,
-        message: &[u8],
-    ) -> Result<Signature, solana_sdk::signature::SignerError> {
-        match self {
-            CliSigner::Keypair(keypair) => Ok(keypair.try_sign_message(message)?),
-        }
-    }
+//     fn try_sign_message(
+//         &self,
+//         message: &[u8],
+//     ) -> Result<Signature, solana_sdk::signature::SignerError> {
+//         match self {
+//             CliSigner::Keypair(keypair) => Ok(keypair.try_sign_message(message)?),
+//         }
+//     }
 
-    fn is_interactive(&self) -> bool {
-        match self {
-            CliSigner::Keypair(_) => true,
-        }
-    }
-}
+//     fn is_interactive(&self) -> bool {
+//         match self {
+//             CliSigner::Keypair(_) => true,
+//         }
+//     }
+// }
 
 impl Deref for CliSigner {
     type Target = Keypair;

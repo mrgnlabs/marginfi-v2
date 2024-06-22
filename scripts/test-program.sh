@@ -20,6 +20,12 @@ else
     nocapture="--nocapture"
 fi
 
-cmd="RUST_LOG=solana_runtime::message_processor::stable_log=$loglevel cargo test --package $program_lib_name --features=test,test-bpf -- $nocapture"
+if [ "$program_lib_name" == "all" ]; then
+    package_filter=""
+else 
+    package_filter="--package $program_lib_name"
+fi
+
+cmd="RUST_LOG=solana_runtime::message_processor::stable_log=$loglevel cargo nextest run --no-fail-fast $package_filter --features=test,test-bpf -- $nocapture"
 echo "Running: $cmd"
 eval "$cmd"

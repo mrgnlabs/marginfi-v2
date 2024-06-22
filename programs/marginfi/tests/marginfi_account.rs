@@ -391,8 +391,6 @@ async fn marginfi_account_withdraw_success_matrix(
     let expected = I80F48::from(native!(withdraw_amount, bank_f.mint.mint.decimals, f64));
     let actual = I80F48::from(pre_vault_balance - post_vault_balance);
 
-    let marginfi_account = marginfi_account_f.load().await;
-
     let accounted = pre_accounted - post_accounted;
 
     assert_eq!(expected, actual);
