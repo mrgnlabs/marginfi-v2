@@ -20,4 +20,4 @@ test = []
 overflow-checks = true
 
 [dependencies]
-anchor-lang = "0.26.0"
+anchor-lang = "0.30.0"
