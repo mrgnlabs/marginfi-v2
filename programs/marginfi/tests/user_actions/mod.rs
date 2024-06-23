@@ -1,3 +1,8 @@
+mod borrow;
+mod create_account;
+mod deposit;
+mod withdraw;
+
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr};
 
 use anchor_lang::{prelude::Clock, AccountDeserialize, InstructionData, ToAccountMetas};
@@ -26,66 +31,12 @@ use marginfi::{
 use pretty_assertions::assert_eq;
 use solana_account_decoder::UiAccountData;
 use solana_cli_output::CliAccount;
-use solana_program::{instruction::Instruction, pubkey, pubkey::Pubkey, system_program};
+use solana_program::{instruction::Instruction, pubkey, pubkey::Pubkey};
 use solana_program_test::*;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, signature::Keypair, signer::Signer,
     timing::SECONDS_PER_YEAR, transaction::Transaction,
 };
-
-// Feature baseline
-
-#[tokio::test]
-async fn marginfi_account_create_success() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(None).await;
-
-    // Create & initialize marginfi account
-    let marginfi_account_key = Keypair::new();
-    let accounts = marginfi::accounts::MarginfiAccountInitialize {
-        marginfi_group: test_f.marginfi_group.key,
-        marginfi_account: marginfi_account_key.pubkey(),
-        authority: test_f.payer(),
-        fee_payer: test_f.payer(),
-        system_program: system_program::id(),
-    };
-    let init_marginfi_account_ix = Instruction {
-        program_id: marginfi::id(),
-        accounts: accounts.to_account_metas(Some(true)),
-        data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
-    };
-
-    let tx = Transaction::new_signed_with_payer(
-        &[init_marginfi_account_ix],
-        Some(&test_f.payer()),
-        &[&test_f.payer_keypair(), &marginfi_account_key],
-        test_f.get_latest_blockhash().await,
-    );
-
-    let res = test_f
-        .context
-        .borrow_mut()
-        .banks_client
-        .process_transaction(tx)
-        .await;
-
-    assert!(res.is_ok());
-
-    // Fetch & deserialize marginfi account
-    let marginfi_account: MarginfiAccount = test_f
-        .load_and_deserialize(&marginfi_account_key.pubkey())
-        .await;
-
-    // Check basic properties
-    assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
-    assert_eq!(marginfi_account.authority, test_f.payer());
-    assert!(marginfi_account
-        .lending_account
-        .balances
-        .iter()
-        .all(|bank| !bank.active));
-
-    Ok(())
-}
 
 #[tokio::test]
 async fn marginfi_account_repay_success() -> anyhow::Result<()> {
@@ -441,153 +392,6 @@ async fn marginfi_account_repay_all_success() -> anyhow::Result<()> {
             .len(),
         1
     );
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn marginfi_account_borrow_success() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
-
-    // Fund SOL lender
-    let lender_mfi_account_f = test_f.create_marginfi_account().await;
-    let lender_token_account_sol = test_f
-        .sol_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
-        .await?;
-
-    // Fund SOL borrower
-    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-    let borrower_token_account_f_usdc = test_f
-        .usdc_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
-    borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
-        .await?;
-
-    // Borrow SOL
-    let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 99)
-        .await;
-
-    assert!(res.is_ok());
-
-    // Check token balances are correct
-    assert_eq!(
-        borrower_token_account_f_usdc.balance().await,
-        native!(0, "USDC")
-    );
-
-    assert_eq!(
-        borrower_token_account_f_sol.balance().await,
-        native!(99, "SOL")
-    );
-
-    // TODO: check health is sane
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn marginfi_account_borrow_success_swb() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_swb_payer_not_admin())).await;
-
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
-
-    // Fund SOL lender
-    let lender_mfi_account_f = test_f.create_marginfi_account().await;
-    let lender_token_account_sol = test_f
-        .sol_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
-        .await?;
-
-    // Fund SOL borrower
-    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-    let borrower_token_account_f_usdc = test_f
-        .usdc_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
-    borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
-        .await?;
-
-    // Borrow SOL
-    let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 99)
-        .await;
-
-    assert!(res.is_ok());
-
-    // Check token balances are correct
-    assert_eq!(
-        borrower_token_account_f_usdc.balance().await,
-        native!(0, "USDC")
-    );
-
-    assert_eq!(
-        borrower_token_account_f_sol.balance().await,
-        native!(99, "SOL")
-    );
-
-    // TODO: check health is sane
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn marginfi_account_borrow_failure_not_enough_collateral() -> anyhow::Result<()> {
-    // Setup test executor with non-admin payer
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
-
-    // Fund SOL lender
-    let lender_mfi_account_f = test_f.create_marginfi_account().await;
-    let lender_token_account_f_sol = test_f
-        .sol_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
-        .await?;
-
-    // Fund SOL borrower
-    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
-    let borrower_token_account_f_usdc = test_f
-        .usdc_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
-        .await?;
-
-    // Borrow SOL
-    let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 101)
-        .await;
-
-    assert_custom_error!(res.unwrap_err(), MarginfiError::RiskEngineInitRejected);
-
-    let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 100)
-        .await;
-
-    assert!(res.is_ok());
 
     Ok(())
 }
