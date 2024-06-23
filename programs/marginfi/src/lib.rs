@@ -100,14 +100,14 @@ pub mod marginfi {
     }
 
     pub fn lending_account_deposit<'info>(
-        ctx: Context<'_, '_, '_, 'info, LendingAccountDeposit<'info>>,
+        ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
         amount: u64,
     ) -> MarginfiResult {
         marginfi_account::lending_account_deposit(ctx, amount)
     }
 
     pub fn lending_account_repay<'info>(
-        ctx: Context<'_, '_, '_, 'info, LendingAccountRepay<'info>>,
+        ctx: Context<'_, '_, 'info, 'info, LendingAccountRepay<'info>>,
         amount: u64,
         repay_all: Option<bool>,
     ) -> MarginfiResult {

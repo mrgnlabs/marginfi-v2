@@ -70,19 +70,23 @@ impl MarginfiAccountFixture {
         let marginfi_account = self.load().await;
         let ctx = self.ctx.borrow_mut();
 
+        let mut accounts = marginfi::accounts::LendingAccountDeposit {
+            marginfi_group: marginfi_account.group,
+            marginfi_account: self.key,
+            signer: ctx.payer.pubkey(),
+            bank: bank.key,
+            signer_token_account: funding_account,
+            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            token_program: bank.get_token_program(),
+        }
+        .to_account_metas(Some(true));
+        if bank.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
+        }
+
         Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingAccountDeposit {
-                marginfi_group: marginfi_account.group,
-                marginfi_account: self.key,
-                signer: ctx.payer.pubkey(),
-                bank: bank.key,
-                bank_mint: bank.mint.key,
-                signer_token_account: funding_account,
-                bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
-                token_program: bank.get_token_program(),
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingAccountDeposit {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
             }
@@ -327,19 +331,24 @@ impl MarginfiAccountFixture {
         let marginfi_account = self.load().await;
         let ctx = self.ctx.borrow_mut();
 
+        let mut accounts = marginfi::accounts::LendingAccountRepay {
+            marginfi_group: marginfi_account.group,
+            marginfi_account: self.key,
+            signer: ctx.payer.pubkey(),
+            bank: bank.key,
+            bank_mint: bank.mint.key,
+            signer_token_account: funding_account,
+            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            token_program: bank.get_token_program(),
+        }
+        .to_account_metas(Some(true));
+        if bank.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
+        }
+
         Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingAccountRepay {
-                marginfi_group: marginfi_account.group,
-                marginfi_account: self.key,
-                signer: ctx.payer.pubkey(),
-                bank: bank.key,
-                bank_mint: bank.mint.key,
-                signer_token_account: funding_account,
-                bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
-                token_program: bank.get_token_program(),
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingAccountRepay {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
                 repay_all,

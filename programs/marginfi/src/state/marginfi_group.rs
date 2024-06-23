@@ -646,32 +646,50 @@ impl Bank {
     pub fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: TransferChecked<'info>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
         program: AccountInfo<'info>,
-        decimals: u8,
         remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
         check!(
-            accounts.to.key.eq(&self.liquidity_vault),
+            to.key.eq(&self.liquidity_vault),
             MarginfiError::InvalidTransfer
         );
 
         debug!(
             "deposit_spl_transfer: amount: {} from {} to {}, auth {}",
-            amount, accounts.from.key, accounts.to.key, accounts.authority.key
+            amount, from.key, to.key, authority.key
         );
 
-        spl_token_2022::onchain::invoke_transfer_checked(
-            program.key,
-            accounts.from,
-            accounts.mint,
-            accounts.to,
-            accounts.authority,
-            remaining_accounts,
-            amount,
-            decimals,
-            &[],
-        )?;
+        if let Some(mint) = maybe_mint {
+            spl_token_2022::onchain::invoke_transfer_checked(
+                program.key,
+                from,
+                mint.to_account_info(),
+                to,
+                authority,
+                remaining_accounts,
+                amount,
+                mint.decimals,
+                &[],
+            )?;
+        } else {
+            #[allow(deprecated)]
+            transfer(
+                CpiContext::new_with_signer(
+                    program,
+                    Transfer {
+                        from,
+                        to,
+                        authority,
+                    },
+                    &[],
+                ),
+                amount,
+            )?;
+        }
 
         Ok(())
     }

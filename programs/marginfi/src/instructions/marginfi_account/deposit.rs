@@ -10,10 +10,7 @@ use crate::{
     utils,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    token_2022::TransferChecked,
-    token_interface::{Mint, TokenInterface},
-};
+use anchor_spl::token_interface::TokenInterface;
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
@@ -25,7 +22,7 @@ use solana_program::sysvar::Sysvar;
 ///
 /// Will error if there is an existing liability <=> repaying is not allowed.
 pub fn lending_account_deposit<'info>(
-    ctx: Context<'_, '_, '_, 'info, LendingAccountDeposit<'info>>,
+    mut ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
     amount: u64,
 ) -> MarginfiResult {
     let LendingAccountDeposit {
@@ -35,9 +32,11 @@ pub fn lending_account_deposit<'info>(
         bank_liquidity_vault,
         token_program,
         bank: bank_loader,
-        bank_mint,
         ..
     } = ctx.accounts;
+    let clock = Clock::get()?;
+    let maybe_bank_mint =
+        utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &*bank_loader.load()?);
 
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
@@ -48,7 +47,7 @@ pub fn lending_account_deposit<'info>(
     );
 
     bank.accrue_interest(
-        Clock::get()?.unix_timestamp,
+        clock.unix_timestamp,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -61,22 +60,21 @@ pub fn lending_account_deposit<'info>(
 
     bank_account.deposit(I80F48::from_num(amount))?;
 
-    let spl_deposit_amount = utils::calculate_pre_fee_spl_deposit_amount(
-        bank_mint.to_account_info(),
-        amount,
-        Clock::get()?.epoch,
-    )?;
+    let amount_pre_fee = maybe_bank_mint
+        .as_ref()
+        .map(|mint| {
+            utils::calculate_pre_fee_spl_deposit_amount(mint.to_account_info(), amount, clock.epoch)
+        })
+        .transpose()?
+        .unwrap_or(amount);
 
     bank_account.deposit_spl_transfer(
-        spl_deposit_amount,
-        TransferChecked {
-            from: signer_token_account.to_account_info(),
-            to: bank_liquidity_vault.to_account_info(),
-            authority: signer.to_account_info(),
-            mint: bank_mint.to_account_info(),
-        },
+        amount_pre_fee,
+        signer_token_account.to_account_info(),
+        bank_liquidity_vault.to_account_info(),
+        signer.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
-        bank_mint.decimals,
         ctx.remaining_accounts,
     )?;
 
@@ -132,9 +130,4 @@ pub struct LendingAccountDeposit<'info> {
     pub bank_liquidity_vault: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
-
-    #[account(
-        address = bank.load()?.mint,
-    )]
-    pub bank_mint: InterfaceAccount<'info, Mint>,
 }

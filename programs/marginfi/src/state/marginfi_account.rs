@@ -14,7 +14,7 @@ use crate::{
     utils::{self, NumTraitsWithTolerance},
 };
 use anchor_lang::prelude::*;
-use anchor_spl::{token_2022::TransferChecked, token_interface::Mint};
+use anchor_spl::token_interface::Mint;
 use fixed::types::I80F48;
 use std::{
     cmp::{max, min},
@@ -1279,13 +1279,22 @@ impl<'a> BankAccountWrapper<'a> {
     pub fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: TransferChecked<'info>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
         program: AccountInfo<'info>,
-        decimals: u8,
         remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
-        self.bank
-            .deposit_spl_transfer(amount, accounts, program, decimals, remaining_accounts)
+        self.bank.deposit_spl_transfer(
+            amount,
+            from,
+            to,
+            authority,
+            maybe_mint,
+            program,
+            remaining_accounts,
+        )
     }
 
     pub fn withdraw_spl_transfer<'info>(

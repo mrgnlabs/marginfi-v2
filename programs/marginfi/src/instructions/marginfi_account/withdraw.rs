@@ -65,7 +65,7 @@ pub fn lending_account_withdraw<'info>(
             &mut marginfi_account.lending_account,
         )?;
 
-        let spl_withdraw_amount = if withdraw_all {
+        let amount_pre_fee = if withdraw_all {
             bank_account.withdraw_all()?
         } else {
             amount = maybe_bank_mint
@@ -86,7 +86,7 @@ pub fn lending_account_withdraw<'info>(
         };
 
         bank_account.withdraw_spl_transfer(
-            spl_withdraw_amount,
+            amount_pre_fee,
             bank_liquidity_vault.to_account_info(),
             destination_token_account.to_account_info(),
             bank_liquidity_vault_authority.to_account_info(),
@@ -109,7 +109,7 @@ pub fn lending_account_withdraw<'info>(
             },
             bank: bank_loader.key(),
             mint: bank.mint,
-            amount: spl_withdraw_amount,
+            amount: amount_pre_fee,
             close_balance: withdraw_all,
         });
     }

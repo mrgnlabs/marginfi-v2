@@ -63,7 +63,7 @@ pub fn lending_account_borrow<'info>(
         )?;
 
         // User needs to borrow amount + fee to receive amount
-        let amount_with_fee = maybe_bank_mint
+        let amount_pre_fee = maybe_bank_mint
             .as_ref()
             .map(|mint| {
                 utils::calculate_pre_fee_spl_deposit_amount(
@@ -75,9 +75,9 @@ pub fn lending_account_borrow<'info>(
             .transpose()?
             .unwrap_or(amount);
 
-        bank_account.borrow(I80F48::from_num(amount_with_fee))?;
+        bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
         bank_account.withdraw_spl_transfer(
-            amount_with_fee,
+            amount_pre_fee,
             bank_liquidity_vault.to_account_info(),
             destination_token_account.to_account_info(),
             bank_liquidity_vault_authority.to_account_info(),
@@ -100,7 +100,7 @@ pub fn lending_account_borrow<'info>(
             },
             bank: bank_loader.key(),
             mint: bank.mint,
-            amount,
+            amount: amount_pre_fee,
         });
     }
 

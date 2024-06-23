@@ -23,7 +23,7 @@ spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
 
 anchor-client = { workspace = true }
-anchor-spl = { workspace = true }
+anchor-spl = { workspace = true, features = ["token_2022"] }
 
 pyth-sdk-solana = { workspace = true }
 switchboard-solana = { workspace = true }

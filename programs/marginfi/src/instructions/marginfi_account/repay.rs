@@ -10,7 +10,7 @@ use crate::{
     utils,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::{Mint, TokenInterface, TransferChecked};
+use anchor_spl::token_interface::{Mint, TokenInterface};
 use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 
@@ -21,7 +21,7 @@ use solana_program::{clock::Clock, sysvar::Sysvar};
 ///
 /// Will error if there is no existing liability <=> depositing is not allowed.
 pub fn lending_account_repay<'info>(
-    ctx: Context<'_, '_, '_, 'info, LendingAccountRepay<'info>>,
+    mut ctx: Context<'_, '_, 'info, 'info, LendingAccountRepay<'info>>,
     amount: u64,
     repay_all: Option<bool>,
 ) -> MarginfiResult {
@@ -35,6 +35,9 @@ pub fn lending_account_repay<'info>(
         bank_mint,
         ..
     } = ctx.accounts;
+    let clock = Clock::get()?;
+    let maybe_bank_mint =
+        utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &*bank_loader.load()?);
 
     let repay_all = repay_all.unwrap_or(false);
     let mut bank = bank_loader.load_mut()?;
@@ -46,7 +49,7 @@ pub fn lending_account_repay<'info>(
     );
 
     bank.accrue_interest(
-        Clock::get()?.unix_timestamp,
+        clock.unix_timestamp,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -57,30 +60,27 @@ pub fn lending_account_repay<'info>(
         &mut marginfi_account.lending_account,
     )?;
 
-    let spl_deposit_amount = if repay_all {
+    let amount_pre_fee = if repay_all {
         bank_account.repay_all(bank_mint.to_account_info())?
     } else {
-        let spl_deposit_amount = utils::calculate_pre_fee_spl_deposit_amount(
+        let amount_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
             bank_mint.to_account_info(),
             amount,
-            Clock::get()?.epoch,
+            clock.epoch,
         )?;
 
         bank_account.repay(I80F48::from_num(amount))?;
 
-        spl_deposit_amount
+        amount_pre_fee
     };
 
     bank_account.deposit_spl_transfer(
-        spl_deposit_amount,
-        TransferChecked {
-            from: signer_token_account.to_account_info(),
-            to: bank_liquidity_vault.to_account_info(),
-            authority: signer.to_account_info(),
-            mint: bank_mint.to_account_info(),
-        },
+        amount_pre_fee,
+        signer_token_account.to_account_info(),
+        bank_liquidity_vault.to_account_info(),
+        signer.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
-        bank_mint.decimals,
         ctx.remaining_accounts,
     )?;
 
@@ -93,7 +93,7 @@ pub fn lending_account_repay<'info>(
         },
         bank: bank_loader.key(),
         mint: bank.mint,
-        amount: spl_deposit_amount,
+        amount,
         close_balance: repay_all,
     });
 

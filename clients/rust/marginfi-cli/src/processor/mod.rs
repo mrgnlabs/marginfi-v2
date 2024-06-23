@@ -57,6 +57,7 @@ use {
     },
 };
 
+use anchor_spl::token_2022;
 #[cfg(feature = "dev")]
 use marginfi::state::price::{OraclePriceFeedAdapter, PriceAdapter};
 use marginfi::{constants::ZERO_AMOUNT_THRESHOLD, utils::NumTraitsWithTolerance};
@@ -762,12 +763,17 @@ fn handle_bankruptcy_for_an_account(
             )
             .0,
             token_program: token::ID,
-            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    if bank_mint_account.owner == token_2022::ID {
+        handle_bankruptcy_ix
+            .accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     handle_bankruptcy_ix
         .accounts
         .extend(load_observation_account_metas(
@@ -911,12 +917,17 @@ fn make_bankruptcy_ix(
             )
             .0,
             token_program: token::ID,
-            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    if bank_mint_account.owner == token_2022::ID {
+        handle_bankruptcy_ix
+            .accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     handle_bankruptcy_ix
         .accounts
         .extend(load_observation_account_metas(
@@ -1860,7 +1871,7 @@ pub fn marginfi_account_deposit(
     let deposit_ata =
         anchor_spl::associated_token::get_associated_token_address(&signer.pubkey(), &bank.mint);
 
-    let ix = Instruction {
+    let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountDeposit {
             marginfi_group: profile.marginfi_group.unwrap(),
@@ -1870,11 +1881,15 @@ pub fn marginfi_account_deposit(
             signer_token_account: deposit_ata,
             bank_liquidity_vault: bank.liquidity_vault,
             token_program: token::ID,
-            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountDeposit { amount }.data(),
     };
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    if bank_mint_account.owner == token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
     let tx = Transaction::new_signed_with_payer(
@@ -1943,7 +1958,6 @@ pub fn marginfi_account_withdraw(
                 &config.program_id,
             )
             .0,
-            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountWithdraw {
@@ -1953,6 +1967,11 @@ pub fn marginfi_account_withdraw(
         .data(),
     };
 
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    if bank_mint_account.owner == token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     ix.accounts.extend(load_observation_account_metas(
         &marginfi_account,
         &banks,
@@ -2033,12 +2052,16 @@ pub fn marginfi_account_borrow(
                 &config.program_id,
             )
             .0,
-            bank_mint: bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountBorrow { amount }.data(),
     };
 
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    if bank_mint_account.owner == token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     ix.accounts.extend(load_observation_account_metas(
         &marginfi_account,
         &banks,
@@ -2131,12 +2154,16 @@ pub fn marginfi_account_liquidate(
             bank_liquidity_vault: liability_bank.liquidity_vault,
             bank_insurance_vault: liability_bank.insurance_vault,
             token_program: token::ID,
-            liab_mint: liability_bank.mint,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
 
+    let liability_mint_account = rpc_client.get_account(&liability_bank.mint)?;
+    if liability_mint_account.owner == token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(liability_bank.mint, false));
+    }
     ix.accounts.push(AccountMeta {
         pubkey: asset_bank.config.oracle_keys[0],
         is_signer: false,
