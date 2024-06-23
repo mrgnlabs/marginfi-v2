@@ -839,18 +839,23 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured_t22_with_fee() -
     );
 
     let debt_bank_mint_state = test_f.get_bank(&debt_mint).mint.load_state().await;
-    let expected_liquidity_vault_delta = borrow_amount
-        + debt_bank_mint_state
-            .get_extension::<TransferFeeConfig>()
-            .map(|tf| {
-                tf.calculate_inverse_epoch_fee(0, borrow_amount)
-                    .unwrap_or(0)
-            })
-            .unwrap_or(0);
-    let expected_liquidity_vault_delta = I80F48::from(native!(
-        expected_liquidity_vault_delta,
+    let expected_liquidity_vault_delta = native!(
+        borrow_amount,
         test_f.get_bank(&debt_mint).mint.mint.decimals
-    ));
+    ) + debt_bank_mint_state
+        .get_extension::<TransferFeeConfig>()
+        .map(|tf| {
+            tf.calculate_inverse_epoch_fee(
+                0,
+                native!(
+                    borrow_amount,
+                    test_f.get_bank(&debt_mint).mint.mint.decimals
+                ),
+            )
+            .unwrap_or(0)
+        })
+        .unwrap_or(0);
+    let expected_liquidity_vault_delta = I80F48::from(expected_liquidity_vault_delta);
     let actual_liquidity_vault_delta = post_liquidity_vault_balance - pre_liquidity_vault_balance;
     let actual_insurance_vault_delta = pre_insurance_vault_balance - post_insurance_vault_balance;
 
