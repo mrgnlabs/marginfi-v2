@@ -839,6 +839,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured_t22_with_fee() -
     );
 
     let debt_bank_mint_state = test_f.get_bank(&debt_mint).mint.load_state().await;
+    // borrow + fee(borrow)
     let expected_liquidity_vault_delta = native!(
         borrow_amount,
         test_f.get_bank(&debt_mint).mint.mint.decimals
