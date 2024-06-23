@@ -176,20 +176,20 @@ pub mod marginfi {
     }
 
     pub fn lending_pool_collect_bank_fees<'info>(
-        ctx: Context<'_, '_, '_, 'info, LendingPoolCollectBankFees<'info>>,
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolCollectBankFees<'info>>,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_collect_bank_fees(ctx)
     }
 
     pub fn lending_pool_withdraw_fees<'info>(
-        ctx: Context<'_, '_, '_, 'info, LendingPoolWithdrawFees<'info>>,
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolWithdrawFees<'info>>,
         amount: u64,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_withdraw_fees(ctx, amount)
     }
 
     pub fn lending_pool_withdraw_insurance<'info>(
-        ctx: Context<'_, '_, '_, 'info, LendingPoolWithdrawInsurance<'info>>,
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolWithdrawInsurance<'info>>,
         amount: u64,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_withdraw_insurance(ctx, amount)

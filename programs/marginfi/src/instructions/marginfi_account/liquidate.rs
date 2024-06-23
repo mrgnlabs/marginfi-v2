@@ -10,10 +10,9 @@ use crate::{
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
 };
-use crate::{check, debug, prelude::*};
+use crate::{check, debug, prelude::*, utils};
 use anchor_lang::prelude::*;
-use anchor_spl::token_2022::TransferChecked;
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
@@ -67,7 +66,7 @@ use solana_program::sysvar::Sysvar;
 /// and that the liquidatee collateral token balance doesn't become negative (doesn't become counted as liability).
 ///
 pub fn lending_account_liquidate<'info>(
-    ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
+    mut ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
     asset_amount: u64,
 ) -> MarginfiResult {
     check!(
@@ -92,6 +91,10 @@ pub fn lending_account_liquidate<'info>(
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account_loader.load_mut()?;
     let current_timestamp = Clock::get()?.unix_timestamp;
 
+    let maybe_liab_bank_mint = utils::maybe_get_bank_mint(
+        &mut ctx.remaining_accounts,
+        &*ctx.accounts.liab_bank.load()?,
+    );
     {
         ctx.accounts.asset_bank.load_mut()?.accrue_interest(
             current_timestamp,
@@ -280,17 +283,13 @@ pub fn lending_account_liquidate<'info>(
             // Insurance fund receives fee
             liquidatee_liab_bank_account.withdraw_spl_transfer(
                 insurance_fee_to_transfer,
-                TransferChecked {
-                    from: ctx.accounts.bank_liquidity_vault.to_account_info(),
-                    to: ctx.accounts.bank_insurance_vault.to_account_info(),
-                    authority: ctx
-                        .accounts
-                        .bank_liquidity_vault_authority
-                        .to_account_info(),
-                    mint: ctx.accounts.liab_mint.to_account_info(),
-                },
+                ctx.accounts.bank_liquidity_vault.to_account_info(),
+                ctx.accounts.bank_insurance_vault.to_account_info(),
+                ctx.accounts
+                    .bank_liquidity_vault_authority
+                    .to_account_info(),
+                maybe_liab_bank_mint.as_ref(),
                 ctx.accounts.token_program.to_account_info(),
-                ctx.accounts.liab_mint.decimals,
                 bank_signer!(
                     BankVaultType::Liquidity,
                     ctx.accounts.liab_bank.key(),
@@ -441,7 +440,4 @@ pub struct LendingAccountLiquidate<'info> {
     pub bank_insurance_vault: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
-
-    #[account(address = liab_bank.load()?.mint)]
-    pub liab_mint: InterfaceAccount<'info, Mint>,
 }

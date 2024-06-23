@@ -679,28 +679,50 @@ impl Bank {
     pub fn withdraw_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: TransferChecked<'info>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
         program: AccountInfo<'info>,
-        decimals: u8,
         signer_seeds: &[&[&[u8]]],
         remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
         debug!(
             "withdraw_spl_transfer: amount: {} from {} to {}, auth {}",
-            amount, accounts.from.key, accounts.to.key, accounts.authority.key
+            amount, from.key, to.key, authority.key
         );
 
-        spl_token_2022::onchain::invoke_transfer_checked(
-            program.key,
-            accounts.from,
-            accounts.mint,
-            accounts.to,
-            accounts.authority,
-            remaining_accounts,
-            amount,
-            decimals,
-            signer_seeds,
-        )?;
+        if let Some(mint) = maybe_mint {
+            spl_token_2022::onchain::invoke_transfer_checked(
+                program.key,
+                from,
+                mint.to_account_info(),
+                to,
+                authority,
+                remaining_accounts,
+                amount,
+                mint.decimals,
+                signer_seeds,
+            )?;
+        } else {
+            // `transfer_checked` and `transfer` does the same thing, the additional `_checked` logic
+            // is only to assert the expected attributes by the user (mint, decimal scaling),
+            //
+            // Security of `transfer` is equal to `transfer_checked`.
+            #[allow(deprecated)]
+            transfer(
+                CpiContext::new_with_signer(
+                    program,
+                    Transfer {
+                        from,
+                        to,
+                        authority,
+                    },
+                    signer_seeds,
+                ),
+                amount,
+            )?;
+        }
 
         Ok(())
     }

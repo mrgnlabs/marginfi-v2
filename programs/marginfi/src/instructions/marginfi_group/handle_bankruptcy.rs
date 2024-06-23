@@ -15,10 +15,7 @@ use crate::{
     utils, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    token_2022::TransferChecked,
-    token_interface::{Mint, TokenAccount, TokenInterface},
-};
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use std::cmp::{max, min};
 
@@ -29,7 +26,7 @@ use std::cmp::{max, min};
 /// 4. Transfer the insured amount from the insurance fund.
 /// 5. Socialize the loss between lenders if any.
 pub fn lending_pool_handle_bankruptcy<'info>(
-    ctx: Context<'_, '_, 'info, 'info, LendingPoolHandleBankruptcy<'info>>,
+    mut ctx: Context<'_, '_, 'info, 'info, LendingPoolHandleBankruptcy<'info>>,
 ) -> MarginfiResult {
     let LendingPoolHandleBankruptcy {
         marginfi_account: marginfi_account_loader,
@@ -37,10 +34,12 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         token_program,
         bank: bank_loader,
         marginfi_group: marginfi_group_loader,
-        bank_mint,
         ..
     } = ctx.accounts;
     let bank = bank_loader.load()?;
+    let maybe_bank_mint = utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &bank);
+
+    let clock = Clock::get()?;
 
     if !bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG) {
         check!(
@@ -58,7 +57,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     let mut bank = bank_loader.load_mut()?;
 
     bank.accrue_interest(
-        Clock::get()?.unix_timestamp,
+        clock.unix_timestamp,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -83,15 +82,19 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         MarginfiError::BalanceNotBadDebt
     );
 
-    let epoch = Clock::get()?.epoch;
-
     let (covered_by_insurance, socialized_loss) = {
-        let available_insurance_fund: I80F48 = utils::calculate_post_fee_spl_deposit_amount(
-            bank_mint.to_account_info(),
-            insurance_vault.amount,
-            epoch,
-        )?
-        .into();
+        let available_insurance_fund: I80F48 = maybe_bank_mint
+            .as_ref()
+            .map(|mint| {
+                utils::calculate_post_fee_spl_deposit_amount(
+                    mint.to_account_info(),
+                    insurance_vault.amount,
+                    clock.epoch,
+                )
+            })
+            .transpose()?
+            .unwrap_or(insurance_vault.amount)
+            .into();
 
         let covered_by_insurance = min(bad_debt, available_insurance_fund);
         let socialized_loss = max(bad_debt - covered_by_insurance, I80F48::ZERO);
@@ -110,22 +113,26 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         covered_by_insurance_rounded_up, socialized_loss
     );
 
-    let insurance_coverage_deposit_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
-        bank_mint.to_account_info(),
-        covered_by_insurance_rounded_up,
-        epoch,
-    )?;
+    let insurance_coverage_deposit_pre_fee = maybe_bank_mint
+        .as_ref()
+        .map(|mint| {
+            utils::calculate_pre_fee_spl_deposit_amount(
+                mint.to_account_info(),
+                covered_by_insurance_rounded_up,
+                clock.epoch,
+            )
+        })
+        .transpose()?
+        .unwrap_or(covered_by_insurance_rounded_up)
+        .into();
 
     bank.withdraw_spl_transfer(
         insurance_coverage_deposit_pre_fee,
-        TransferChecked {
-            from: ctx.accounts.insurance_vault.to_account_info(),
-            to: ctx.accounts.liquidity_vault.to_account_info(),
-            authority: ctx.accounts.insurance_vault_authority.to_account_info(),
-            mint: ctx.accounts.bank_mint.to_account_info(),
-        },
+        ctx.accounts.insurance_vault.to_account_info(),
+        ctx.accounts.liquidity_vault.to_account_info(),
+        ctx.accounts.insurance_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
-        ctx.accounts.bank_mint.decimals,
         bank_signer!(
             BankVaultType::Insurance,
             bank_loader.key(),
@@ -216,9 +223,4 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     pub insurance_vault_authority: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
-
-    #[account(
-        address = bank.load()?.mint,
-    )]
-    pub bank_mint: InterfaceAccount<'info, Mint>,
 }

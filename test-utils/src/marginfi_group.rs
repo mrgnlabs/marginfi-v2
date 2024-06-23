@@ -297,19 +297,23 @@ impl MarginfiGroupFixture {
     pub async fn try_collect_fees(&self, bank: &BankFixture) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
 
+        let mut accounts = marginfi::accounts::LendingPoolCollectBankFees {
+            marginfi_group: self.key,
+            bank: bank.key,
+            liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
+            liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
+            fee_vault: bank.get_vault(BankVaultType::Fee).0,
+            token_program: bank.get_token_program(),
+        }
+        .to_account_metas(Some(true));
+        if bank.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
+        }
+
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolCollectBankFees {
-                marginfi_group: self.key,
-                bank: bank.key,
-                bank_mint: bank.mint.key,
-                liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
-                liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
-                insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
-                fee_vault: bank.get_vault(BankVaultType::Fee).0,
-                token_program: bank.get_token_program(),
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
         };
 
@@ -344,7 +348,6 @@ impl MarginfiGroupFixture {
             marginfi_group: self.key,
             signer: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
-            bank_mint: bank.mint.key,
             marginfi_account: marginfi_account.key,
             liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
@@ -352,6 +355,9 @@ impl MarginfiGroupFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
+        if bank.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
+        }
 
         accounts.append(
             &mut marginfi_account

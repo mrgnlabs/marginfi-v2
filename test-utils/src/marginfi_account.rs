@@ -152,22 +152,24 @@ impl MarginfiAccountFixture {
     ) -> Instruction {
         let marginfi_account = self.load().await;
 
+        let mut accounts = marginfi::accounts::LendingAccountWithdraw {
+            marginfi_group: marginfi_account.group,
+            marginfi_account: self.key,
+            signer: self.ctx.borrow().payer.pubkey(),
+            bank: bank.key,
+            destination_token_account: destination_account,
+            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            bank_liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
+            token_program: bank.get_token_program(),
+        }
+        .to_account_metas(Some(true));
+        if bank.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
+        }
+
         let mut ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingAccountWithdraw {
-                marginfi_group: marginfi_account.group,
-                marginfi_account: self.key,
-                signer: self.ctx.borrow().payer.pubkey(),
-                bank: bank.key,
-                bank_mint: bank.mint.key,
-                destination_token_account: destination_account,
-                bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
-                bank_liquidity_vault_authority: bank
-                    .get_vault_authority(BankVaultType::Liquidity)
-                    .0,
-                token_program: bank.get_token_program(),
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingAccountWithdraw {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
                 withdraw_all,
@@ -219,22 +221,25 @@ impl MarginfiAccountFixture {
         ui_amount: T,
     ) -> Instruction {
         let marginfi_account = self.load().await;
+
+        let mut accounts = marginfi::accounts::LendingAccountBorrow {
+            marginfi_group: marginfi_account.group,
+            marginfi_account: self.key,
+            signer: self.ctx.borrow().payer.pubkey(),
+            bank: bank.key,
+            destination_token_account: destination_account,
+            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            bank_liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
+            token_program: bank.get_token_program(),
+        }
+        .to_account_metas(Some(true));
+        if bank.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
+        }
+
         let mut ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingAccountBorrow {
-                marginfi_group: marginfi_account.group,
-                marginfi_account: self.key,
-                signer: self.ctx.borrow().payer.pubkey(),
-                bank: bank.key,
-                bank_mint: bank.mint.key,
-                destination_token_account: destination_account,
-                bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
-                bank_liquidity_vault_authority: bank
-                    .get_vault_authority(BankVaultType::Liquidity)
-                    .0,
-                token_program: bank.get_token_program(),
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingAccountBorrow {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
             }
@@ -414,7 +419,6 @@ impl MarginfiAccountFixture {
             asset_bank: asset_bank_fixture.key,
             liab_bank: liab_bank_fixture.key,
             liquidator_marginfi_account: self.key,
-            liab_mint: liab_bank_fixture.mint.key,
             signer: self.ctx.borrow().payer.pubkey(),
             liquidatee_marginfi_account: liquidatee.key,
             bank_liquidity_vault_authority: liab_bank_fixture
@@ -425,6 +429,10 @@ impl MarginfiAccountFixture {
             token_program: liab_bank_fixture.get_token_program(),
         }
         .to_account_metas(Some(true));
+
+        if liab_bank_fixture.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(liab_bank_fixture.mint.key, false));
+        }
 
         accounts.extend(vec![
             AccountMeta::new_readonly(asset_bank.config.oracle_keys[0], false),

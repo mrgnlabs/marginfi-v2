@@ -283,19 +283,23 @@ impl BankFixture {
             &marginfi::id(),
         );
 
+        let mut accounts = marginfi::accounts::LendingPoolWithdrawFees {
+            marginfi_group: bank.group,
+            token_program: receiving_account.token_program,
+            bank: self.key,
+            admin: signer_pk,
+            fee_vault: bank.fee_vault,
+            fee_vault_authority,
+            dst_token_account: receiving_account.key,
+        }
+        .to_account_metas(Some(true));
+        if self.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(self.mint.key, false));
+        }
+
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolWithdrawFees {
-                marginfi_group: bank.group,
-                token_program: receiving_account.token_program,
-                bank: self.key,
-                admin: signer_pk,
-                fee_vault: bank.fee_vault,
-                fee_vault_authority,
-                dst_token_account: receiving_account.key,
-                bank_mint: self.mint.key,
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingPoolWithdrawFees { amount }.data(),
         };
 
@@ -324,19 +328,23 @@ impl BankFixture {
             &marginfi::id(),
         );
 
+        let mut accounts = marginfi::accounts::LendingPoolWithdrawInsurance {
+            marginfi_group: bank.group,
+            token_program: receiving_account.token_program,
+            bank: self.key,
+            admin: signer_pk,
+            insurance_vault: bank.insurance_vault,
+            insurance_vault_authority,
+            dst_token_account: receiving_account.key,
+        }
+        .to_account_metas(Some(true));
+        if self.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(self.mint.key, false));
+        }
+
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolWithdrawInsurance {
-                marginfi_group: bank.group,
-                token_program: receiving_account.token_program,
-                bank: self.key,
-                admin: signer_pk,
-                insurance_vault: bank.insurance_vault,
-                insurance_vault_authority,
-                dst_token_account: receiving_account.key,
-                bank_mint: self.mint.key,
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingPoolWithdrawInsurance { amount }.data(),
         };
 

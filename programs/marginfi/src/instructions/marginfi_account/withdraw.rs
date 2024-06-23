@@ -10,10 +10,7 @@ use crate::{
     utils,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    token_2022::TransferChecked,
-    token_interface::{Mint, TokenAccount, TokenInterface},
-};
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 
@@ -25,7 +22,7 @@ use solana_program::{clock::Clock, sysvar::Sysvar};
 ///
 /// Will error if there is no existing asset <=> borrowing is not allowed.
 pub fn lending_account_withdraw<'info>(
-    ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdraw<'info>>,
+    mut ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdraw<'info>>,
     mut amount: u64,
     withdraw_all: Option<bool>,
 ) -> MarginfiResult {
@@ -36,7 +33,6 @@ pub fn lending_account_withdraw<'info>(
         token_program,
         bank_liquidity_vault_authority,
         bank: bank_loader,
-        bank_mint,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
@@ -49,6 +45,9 @@ pub fn lending_account_withdraw<'info>(
         MarginfiError::AccountDisabled
     );
 
+    let maybe_bank_mint =
+        utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &*bank_loader.load()?);
+
     bank_loader.load_mut()?.accrue_interest(
         clock.unix_timestamp,
         #[cfg(not(feature = "client"))]
@@ -57,6 +56,7 @@ pub fn lending_account_withdraw<'info>(
 
     {
         let mut bank = bank_loader.load_mut()?;
+
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
 
         let mut bank_account = BankAccountWrapper::find(
@@ -68,11 +68,17 @@ pub fn lending_account_withdraw<'info>(
         let spl_withdraw_amount = if withdraw_all {
             bank_account.withdraw_all()?
         } else {
-            amount = utils::calculate_pre_fee_spl_deposit_amount(
-                bank_mint.to_account_info(),
-                amount,
-                clock.epoch,
-            )?;
+            amount = maybe_bank_mint
+                .as_ref()
+                .map(|mint| {
+                    utils::calculate_pre_fee_spl_deposit_amount(
+                        mint.to_account_info(),
+                        amount,
+                        clock.epoch,
+                    )
+                })
+                .transpose()?
+                .unwrap_or(amount);
 
             bank_account.withdraw(I80F48::from_num(amount))?;
 
@@ -81,14 +87,11 @@ pub fn lending_account_withdraw<'info>(
 
         bank_account.withdraw_spl_transfer(
             spl_withdraw_amount,
-            TransferChecked {
-                from: bank_liquidity_vault.to_account_info(),
-                to: destination_token_account.to_account_info(),
-                authority: bank_liquidity_vault_authority.to_account_info(),
-                mint: bank_mint.to_account_info(),
-            },
+            bank_liquidity_vault.to_account_info(),
+            destination_token_account.to_account_info(),
+            bank_liquidity_vault_authority.to_account_info(),
+            maybe_bank_mint.as_ref(),
             token_program.to_account_info(),
-            bank_mint.decimals,
             bank_signer!(
                 BankVaultType::Liquidity,
                 bank_loader.key(),
@@ -164,7 +167,4 @@ pub struct LendingAccountWithdraw<'info> {
     pub bank_liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
-
-    #[account(address = bank.load()?.mint)]
-    pub bank_mint: InterfaceAccount<'info, Mint>,
 }

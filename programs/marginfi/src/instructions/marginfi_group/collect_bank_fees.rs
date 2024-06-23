@@ -1,5 +1,6 @@
 use crate::constants::{FEE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_AUTHORITY_SEED};
 use crate::events::{GroupEventHeader, LendingPoolBankCollectFeesEvent};
+use crate::utils;
 use crate::{
     bank_signer,
     constants::{
@@ -10,13 +11,12 @@ use crate::{
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token_2022::TransferChecked;
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use std::cmp::min;
 
 pub fn lending_pool_collect_bank_fees<'info>(
-    ctx: Context<'_, '_, '_, 'info, LendingPoolCollectBankFees<'info>>,
+    mut ctx: Context<'_, '_, 'info, 'info, LendingPoolCollectBankFees<'info>>,
 ) -> MarginfiResult {
     let LendingPoolCollectBankFees {
         liquidity_vault_authority,
@@ -24,11 +24,11 @@ pub fn lending_pool_collect_bank_fees<'info>(
         fee_vault,
         token_program,
         liquidity_vault,
-        bank_mint,
         ..
     } = ctx.accounts;
 
     let mut bank = ctx.accounts.bank.load_mut()?;
+    let maybe_bank_mint = utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &bank);
 
     let mut available_liquidity = I80F48::from_num(liquidity_vault.amount);
 
@@ -74,14 +74,11 @@ pub fn lending_pool_collect_bank_fees<'info>(
         group_fee_transfer_amount
             .checked_to_num()
             .ok_or_else(math_error!())?,
-        TransferChecked {
-            from: liquidity_vault.to_account_info(),
-            to: fee_vault.to_account_info(),
-            authority: liquidity_vault_authority.to_account_info(),
-            mint: bank_mint.to_account_info(),
-        },
+        liquidity_vault.to_account_info(),
+        fee_vault.to_account_info(),
+        liquidity_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
-        bank_mint.decimals,
         bank_signer!(
             BankVaultType::Liquidity,
             ctx.accounts.bank.key(),
@@ -94,14 +91,11 @@ pub fn lending_pool_collect_bank_fees<'info>(
         insurance_fee_transfer_amount
             .checked_to_num()
             .ok_or_else(math_error!())?,
-        TransferChecked {
-            from: liquidity_vault.to_account_info(),
-            to: insurance_vault.to_account_info(),
-            authority: liquidity_vault_authority.to_account_info(),
-            mint: bank_mint.to_account_info(),
-        },
+        liquidity_vault.to_account_info(),
+        insurance_vault.to_account_info(),
+        liquidity_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
-        bank_mint.decimals,
         bank_signer!(
             BankVaultType::Liquidity,
             ctx.accounts.bank.key(),
@@ -180,15 +174,10 @@ pub struct LendingPoolCollectBankFees<'info> {
     pub fee_vault: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
-
-    #[account(
-        address = bank.load()?.mint,
-    )]
-    pub bank_mint: InterfaceAccount<'info, Mint>,
 }
 
 pub fn lending_pool_withdraw_fees<'info>(
-    ctx: Context<'_, '_, '_, 'info, LendingPoolWithdrawFees<'info>>,
+    mut ctx: Context<'_, '_, 'info, 'info, LendingPoolWithdrawFees<'info>>,
     amount: u64,
 ) -> MarginfiResult {
     let LendingPoolWithdrawFees {
@@ -197,22 +186,19 @@ pub fn lending_pool_withdraw_fees<'info>(
         fee_vault_authority,
         dst_token_account,
         token_program,
-        bank_mint,
         ..
     } = ctx.accounts;
 
     let bank = bank_loader.load()?;
+    let maybe_bank_mint = utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &bank);
 
     bank.withdraw_spl_transfer(
         amount,
-        TransferChecked {
-            from: fee_vault.to_account_info(),
-            to: dst_token_account.to_account_info(),
-            authority: fee_vault_authority.to_account_info(),
-            mint: bank_mint.to_account_info(),
-        },
+        fee_vault.to_account_info(),
+        dst_token_account.to_account_info(),
+        fee_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
-        bank_mint.decimals,
         bank_signer!(
             BankVaultType::Fee,
             bank_loader.key(),
@@ -264,15 +250,10 @@ pub struct LendingPoolWithdrawFees<'info> {
     pub dst_token_account: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
-
-    #[account(
-        address = bank.load()?.mint,
-    )]
-    pub bank_mint: InterfaceAccount<'info, Mint>,
 }
 
 pub fn lending_pool_withdraw_insurance<'info>(
-    ctx: Context<'_, '_, '_, 'info, LendingPoolWithdrawInsurance<'info>>,
+    mut ctx: Context<'_, '_, 'info, 'info, LendingPoolWithdrawInsurance<'info>>,
     amount: u64,
 ) -> MarginfiResult {
     let LendingPoolWithdrawInsurance {
@@ -281,22 +262,19 @@ pub fn lending_pool_withdraw_insurance<'info>(
         insurance_vault_authority,
         dst_token_account,
         token_program,
-        bank_mint,
         ..
     } = ctx.accounts;
 
     let bank = bank_loader.load()?;
+    let maybe_bank_mint = utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &bank);
 
     bank.withdraw_spl_transfer(
         amount,
-        TransferChecked {
-            from: insurance_vault.to_account_info(),
-            to: dst_token_account.to_account_info(),
-            authority: insurance_vault_authority.to_account_info(),
-            mint: bank_mint.to_account_info(),
-        },
+        insurance_vault.to_account_info(),
+        dst_token_account.to_account_info(),
+        insurance_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
-        bank_mint.decimals,
         bank_signer!(
             BankVaultType::Insurance,
             bank_loader.key(),
@@ -348,9 +326,4 @@ pub struct LendingPoolWithdrawInsurance<'info> {
     pub dst_token_account: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
-
-    #[account(
-        address = bank.load()?.mint,
-    )]
-    pub bank_mint: InterfaceAccount<'info, Mint>,
 }

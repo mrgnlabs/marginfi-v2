@@ -1,8 +1,12 @@
 use crate::{
-    bank_authority_seed, bank_seed, state::marginfi_group::BankVaultType, MarginfiError,
-    MarginfiResult,
+    bank_authority_seed, bank_seed,
+    state::marginfi_group::{Bank, BankVaultType},
+    MarginfiError, MarginfiResult,
 };
-use anchor_lang::{prelude::Pubkey, Id};
+use anchor_lang::{
+    prelude::{InterfaceAccount, Pubkey},
+    Id,
+};
 use anchor_spl::{
     token::Token,
     token_2022::spl_token_2022::{
@@ -11,6 +15,7 @@ use anchor_spl::{
             transfer_fee::TransferFeeConfig, BaseStateWithExtensions, StateWithExtensions,
         },
     },
+    token_interface::Mint,
 };
 use fixed::types::I80F48;
 use switchboard_solana::AccountInfo;
@@ -113,4 +118,23 @@ pub fn nonzero_fee(mint_ai: AccountInfo, epoch: u64) -> MarginfiResult<bool> {
     }
 
     Ok(false)
+}
+
+/// Checks if first account is a mint account. If so, updates remaining_account -> &remaining_account[1..]
+pub fn maybe_get_bank_mint<'info>(
+    remaining_accounts: &mut &'info [AccountInfo<'info>],
+    bank: &Bank,
+) -> Option<InterfaceAccount<'info, Mint>> {
+    let (maybe_mint, remaining) = remaining_accounts.split_first()?;
+
+    if bank.mint != *maybe_mint.key {
+        return None;
+    }
+
+    if let Ok(mint) = InterfaceAccount::try_from(maybe_mint) {
+        *remaining_accounts = remaining;
+        return Some(mint);
+    }
+
+    None
 }
