@@ -2,7 +2,18 @@ use crate::{transfer_hook::TEST_HOOK_ID, ui_to_native};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     token::{spl_token, Mint, TokenAccount},
-    token_2022,
+    token_2022::{
+        self,
+        spl_token_2022::{
+            self,
+            extension::{
+                interest_bearing_mint::InterestBearingConfig,
+                mint_close_authority::MintCloseAuthority, permanent_delegate::PermanentDelegate,
+                transfer_fee::TransferFee, transfer_hook::TransferHook, BaseState,
+                BaseStateWithExtensions, ExtensionType, StateWithExtensionsOwned,
+            },
+        },
+    },
     token_interface::spl_pod::bytemuck::pod_get_packed_len,
 };
 use solana_cli_output::CliAccount;
@@ -11,16 +22,11 @@ use solana_sdk::{
     account::{AccountSharedData, ReadableAccount, WritableAccount},
     instruction::Instruction,
     native_token::LAMPORTS_PER_SOL,
-    program_pack::Pack,
+    program_pack::{Pack, Sealed},
     signature::Keypair,
     signer::Signer,
     system_instruction::{self, create_account},
     transaction::Transaction,
-};
-use spl_token_2022::extension::{
-    interest_bearing_mint::InterestBearingConfig, mint_close_authority::MintCloseAuthority,
-    permanent_delegate::PermanentDelegate, transfer_fee::TransferFee, transfer_hook::TransferHook,
-    BaseState, BaseStateWithExtensions, ExtensionType, StateWithExtensionsOwned,
 };
 use spl_transfer_hook_interface::{
     get_extra_account_metas_address, instruction::initialize_extra_account_meta_list,
@@ -555,7 +561,7 @@ pub async fn get_and_deserialize<T: AccountDeserialize>(
 
     T::try_deserialize(&mut account.data.as_slice()).unwrap()
 }
-pub async fn get_and_deserialize_t22<T: BaseState>(
+pub async fn get_and_deserialize_t22<T: BaseState + Pack + Sealed>(
     ctx: Rc<RefCell<ProgramTestContext>>,
     pubkey: Pubkey,
 ) -> T {

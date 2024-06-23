@@ -1,17 +1,18 @@
+use anchor_spl::token_2022::spl_token_2022::extension::{
+    transfer_fee::TransferFeeConfig, BaseStateWithExtensions,
+};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use fixtures::spl::SupportedExtension;
-use fixtures::test::{
-    BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG,
+use fixtures::{
+    assert_eq_noise, native,
+    spl::SupportedExtension,
+    test::{BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG},
+    ui_to_native,
 };
-use fixtures::{assert_eq_noise, native, ui_to_native};
 use marginfi::state::marginfi_group::{
     Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig,
 };
 use solana_program_test::tokio;
-use switchboard_solana::anchor_spl::token_2022::spl_token_2022::extension::{
-    transfer_fee::TransferFeeConfig, BaseStateWithExtensions as _,
-};
 use test_case::test_case;
 
 #[test_case(vec![])]

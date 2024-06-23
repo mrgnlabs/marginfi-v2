@@ -1,7 +1,10 @@
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr};
 
 use anchor_lang::{prelude::Clock, AccountDeserialize, InstructionData, ToAccountMetas};
-use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
+use anchor_spl::token_2022::spl_token_2022::extension::{
+    transfer_fee::{TransferFeeConfig, MAX_FEE_BASIS_POINTS},
+    BaseStateWithExtensions,
+};
 use anyhow::bail;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use fixed::types::I80F48;
@@ -20,9 +23,6 @@ use solana_cli_output::CliAccount;
 use solana_program::{instruction::Instruction, pubkey, system_program};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
-use switchboard_solana::anchor_spl::token_2022::spl_token_2022::extension::{
-    transfer_fee::TransferFeeConfig, BaseStateWithExtensions,
-};
 
 #[tokio::test]
 async fn marginfi_group_create_success() -> anyhow::Result<()> {
@@ -1428,10 +1428,12 @@ async fn marginfi_group_bank_reduce_only_withdraw_success() -> anyhow::Result<()
         .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 100_000)
         .await?;
 
-    test_f
-        .set_bank_operational_state(usdc_bank_f, BankOperationalState::ReduceOnly)
-        .await
-        .unwrap();
+    usdc_bank_f
+        .update_config(BankConfigOpt {
+            operational_state: Some(BankOperationalState::ReduceOnly),
+            ..Default::default()
+        })
+        .await?;
 
     let res = lender_mfi_account_f
         .try_bank_withdraw(lender_token_account_usdc.key, usdc_bank_f, 0, Some(true))
@@ -1485,10 +1487,12 @@ async fn marginfi_group_bank_reduce_only_deposit_success() -> anyhow::Result<()>
         .try_bank_borrow(lender_2_token_account_sol.key, sol_bank_f, 1)
         .await?;
 
-    test_f
-        .set_bank_operational_state(usdc_bank_f, BankOperationalState::ReduceOnly)
-        .await
-        .unwrap();
+    usdc_bank_f
+        .update_config(BankConfigOpt {
+            operational_state: Some(BankOperationalState::ReduceOnly),
+            ..Default::default()
+        })
+        .await?;
 
     let res = lender_2_mfi_account
         .try_bank_repay(lender_2_token_account_sol.key, sol_bank_f, 1, None)
@@ -1537,10 +1541,12 @@ async fn marginfi_group_bank_reduce_only_borrow_failure() -> anyhow::Result<()> 
         .try_bank_deposit(borrower_token_account_usdc.key, usdc_bank_f, 100_000)
         .await?;
 
-    test_f
-        .set_bank_operational_state(sol_bank_f, BankOperationalState::ReduceOnly)
-        .await
-        .unwrap();
+    sol_bank_f
+        .update_config(BankConfigOpt {
+            operational_state: Some(BankOperationalState::ReduceOnly),
+            ..Default::default()
+        })
+        .await?;
 
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
     let res = borrower_mfi_account
@@ -1566,10 +1572,12 @@ async fn marginfi_group_bank_reduce_only_deposit_failure() -> anyhow::Result<()>
 
     let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
 
-    test_f
-        .set_bank_operational_state(usdc_bank_f, BankOperationalState::ReduceOnly)
-        .await
-        .unwrap();
+    usdc_bank_f
+        .update_config(BankConfigOpt {
+            operational_state: Some(BankOperationalState::ReduceOnly),
+            ..Default::default()
+        })
+        .await?;
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f

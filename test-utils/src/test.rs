@@ -1,27 +1,28 @@
-use crate::transfer_hook::TEST_HOOK_ID;
-use crate::{marginfi_group::*, native, spl::*, utils::*};
+use super::marginfi_account::MarginfiAccountFixture;
+use crate::{
+    bank::BankFixture, marginfi_group::*, native, spl::*, transfer_hook::TEST_HOOK_ID, utils::*,
+};
+
 use anchor_lang::prelude::*;
 use bincode::deserialize;
-use solana_sdk::account::AccountSharedData;
-use solana_sdk::entrypoint::ProgramResult;
+use solana_sdk::{account::AccountSharedData, entrypoint::ProgramResult};
 
-use super::marginfi_account::MarginfiAccountFixture;
-use crate::bank::BankFixture;
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
-use marginfi::state::marginfi_group::{BankConfigOpt, BankOperationalState};
 use marginfi::{
     constants::MAX_ORACLE_KEYS,
     state::{
-        marginfi_group::{BankConfig, GroupConfig, InterestRateConfig, RiskTier},
+        marginfi_group::{
+            BankConfig, BankOperationalState, GroupConfig, InterestRateConfig, RiskTier,
+        },
         price::OracleSetup,
     },
 };
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
 use solana_sdk::{account::Account, pubkey, signature::Keypair, signer::Signer};
-use std::collections::HashMap;
-use std::{cell::RefCell, rc::Rc};
+
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Default, Debug, Clone)]
 pub struct TestSettings {
@@ -31,29 +32,31 @@ pub struct TestSettings {
 
 impl TestSettings {
     pub fn all_banks_payer_not_admin() -> Self {
+        let banks = vec![
+            TestBankSetting {
+                mint: BankMint::USDC,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
+                mint: BankMint::SOL,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
+                mint: BankMint::SolEquivalent,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
+                mint: BankMint::PyUSD,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
+                mint: BankMint::T22WithFee,
+                ..TestBankSetting::default()
+            },
+        ];
+
         Self {
-            banks: vec![
-                TestBankSetting {
-                    mint: BankMint::USDC,
-                    ..TestBankSetting::default()
-                },
-                TestBankSetting {
-                    mint: BankMint::SOL,
-                    ..TestBankSetting::default()
-                },
-                TestBankSetting {
-                    mint: BankMint::SolEquivalent,
-                    ..TestBankSetting::default()
-                },
-                TestBankSetting {
-                    mint: BankMint::PyUSD,
-                    ..TestBankSetting::default()
-                },
-                TestBankSetting {
-                    mint: BankMint::T22WithFee,
-                    ..TestBankSetting::default()
-                },
-            ],
+            banks,
             group_config: Some(GroupConfig { admin: None }),
         }
     }
@@ -559,22 +562,6 @@ impl TestFixture {
 
     pub async fn create_marginfi_account(&self) -> MarginfiAccountFixture {
         MarginfiAccountFixture::new(Rc::clone(&self.context), &self.marginfi_group.key).await
-    }
-
-    pub async fn set_bank_operational_state(
-        &self,
-        bank_fixture: &BankFixture,
-        state: BankOperationalState,
-    ) -> anyhow::Result<(), BanksClientError> {
-        self.marginfi_group
-            .try_lending_pool_configure_bank(
-                bank_fixture,
-                BankConfigOpt {
-                    operational_state: Some(state),
-                    ..BankConfigOpt::default()
-                },
-            )
-            .await
     }
 
     pub async fn try_load(

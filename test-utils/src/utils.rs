@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
@@ -567,6 +568,10 @@ pub fn get_emissions_token_account_address(
         ],
         &marginfi::id(),
     )
+}
+
+pub fn get_max_deposit_amount_pre_fee(amount: f64) -> f64 {
+    amount * (1f64 + MAX_FEE_BASIS_POINTS as f64 / 10_000f64)
 }
 
 #[cfg(feature = "lip")]
