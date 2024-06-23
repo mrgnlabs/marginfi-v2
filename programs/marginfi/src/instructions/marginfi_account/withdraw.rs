@@ -23,7 +23,7 @@ use solana_program::{clock::Clock, sysvar::Sysvar};
 /// Will error if there is no existing asset <=> borrowing is not allowed.
 pub fn lending_account_withdraw<'info>(
     mut ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdraw<'info>>,
-    mut amount: u64,
+    amount: u64,
     withdraw_all: Option<bool>,
 ) -> MarginfiResult {
     let LendingAccountWithdraw {
@@ -68,7 +68,7 @@ pub fn lending_account_withdraw<'info>(
         let amount_pre_fee = if withdraw_all {
             bank_account.withdraw_all()?
         } else {
-            amount = maybe_bank_mint
+            let amount_pre_fee = maybe_bank_mint
                 .as_ref()
                 .map(|mint| {
                     utils::calculate_pre_fee_spl_deposit_amount(
@@ -80,9 +80,9 @@ pub fn lending_account_withdraw<'info>(
                 .transpose()?
                 .unwrap_or(amount);
 
-            bank_account.withdraw(I80F48::from_num(amount))?;
+            bank_account.withdraw(I80F48::from_num(amount_pre_fee))?;
 
-            amount
+            amount_pre_fee
         };
 
         bank_account.withdraw_spl_transfer(

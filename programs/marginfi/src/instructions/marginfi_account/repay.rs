@@ -10,7 +10,7 @@ use crate::{
     utils,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::{Mint, TokenInterface};
+use anchor_spl::token_interface::TokenInterface;
 use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 
@@ -32,7 +32,6 @@ pub fn lending_account_repay<'info>(
         bank_liquidity_vault,
         token_program,
         bank: bank_loader,
-        bank_mint,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
@@ -61,13 +60,19 @@ pub fn lending_account_repay<'info>(
     )?;
 
     let amount_pre_fee = if repay_all {
-        bank_account.repay_all(bank_mint.to_account_info())?
+        bank_account.repay_all(&maybe_bank_mint)?
     } else {
-        let amount_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
-            bank_mint.to_account_info(),
-            amount,
-            clock.epoch,
-        )?;
+        let amount_pre_fee = maybe_bank_mint
+            .as_ref()
+            .map(|mint| {
+                utils::calculate_pre_fee_spl_deposit_amount(
+                    mint.to_account_info(),
+                    amount,
+                    clock.epoch,
+                )
+            })
+            .transpose()?
+            .unwrap_or(amount);
 
         bank_account.repay(I80F48::from_num(amount))?;
 
@@ -137,9 +142,4 @@ pub struct LendingAccountRepay<'info> {
     pub bank_liquidity_vault: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
-
-    #[account(
-        address = bank.load()?.mint,
-    )]
-    pub bank_mint: InterfaceAccount<'info, Mint>,
 }

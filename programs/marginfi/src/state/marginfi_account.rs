@@ -974,7 +974,10 @@ impl<'a> BankAccountWrapper<'a> {
     }
 
     /// Repay existing liability in full - will error if there is no liability.
-    pub fn repay_all(&mut self, bank_mint_ai: AccountInfo) -> MarginfiResult<u64> {
+    pub fn repay_all(
+        &mut self,
+        maybe_bank_mint: &Option<InterfaceAccount<Mint>>,
+    ) -> MarginfiResult<u64> {
         self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
 
         let balance = &mut self.balance;
@@ -1016,11 +1019,18 @@ impl<'a> BankAccountWrapper<'a> {
                 .into()
         };
 
-        let deposit_amount_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
-            bank_mint_ai,
-            full_balance_token_amount,
-            Clock::get()?.epoch,
-        )?;
+        let deposit_amount_pre_fee = maybe_bank_mint
+            .as_ref()
+            .map(|mint| {
+                utils::calculate_pre_fee_spl_deposit_amount(
+                    mint.to_account_info(),
+                    full_balance_token_amount,
+                    Clock::get()?.epoch,
+                )
+            })
+            .transpose()?
+            .unwrap_or(full_balance_token_amount);
+
         debug!("deposit_amount_pre_fee = {}", deposit_amount_pre_fee);
 
         Ok(deposit_amount_pre_fee)

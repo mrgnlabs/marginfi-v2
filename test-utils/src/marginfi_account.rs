@@ -336,7 +336,6 @@ impl MarginfiAccountFixture {
             marginfi_account: self.key,
             signer: ctx.payer.pubkey(),
             bank: bank.key,
-            bank_mint: bank.mint.key,
             signer_token_account: funding_account,
             bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             token_program: bank.get_token_program(),
