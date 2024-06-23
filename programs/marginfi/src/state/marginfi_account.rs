@@ -1021,6 +1021,7 @@ impl<'a> BankAccountWrapper<'a> {
             full_balance_token_amount,
             Clock::get()?.epoch,
         )?;
+        debug!("deposit_amount_pre_fee = {}", deposit_amount_pre_fee);
 
         Ok(deposit_amount_pre_fee)
     }

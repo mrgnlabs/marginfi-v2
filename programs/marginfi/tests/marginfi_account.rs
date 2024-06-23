@@ -26,6 +26,8 @@ use marginfi::state::{
 };
 use marginfi::{assert_eq_with_tolerance, prelude::*};
 use pretty_assertions::assert_eq;
+use switchboard_solana::anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::TransferFeeConfig;
+use switchboard_solana::anchor_spl::token_2022::spl_token_2022::extension::BaseStateWithExtensions;
 use test_case::test_matrix;
 
 use solana_account_decoder::UiAccountData;
@@ -777,7 +779,15 @@ async fn marginfi_account_repay_all_t22_with_fee_success() -> anyhow::Result<()>
 
     assert!(res.is_ok());
 
-    let expected = I80F48::from(native!(999, debt_bank.mint.mint.decimals));
+    let fee = debt_bank
+        .mint
+        .load_state()
+        .await
+        .get_extension::<TransferFeeConfig>()
+        .unwrap()
+        .calculate_inverse_epoch_fee(0, native!(999, debt_bank.mint.mint.decimals))
+        .unwrap();
+    let expected = I80F48::from(native!(999, debt_bank.mint.mint.decimals) + fee);
     let actual = I80F48::from(post_vault_balance - pre_vault_balance);
     println!(
         "pre_accounted: {}, post_accounted: {}",

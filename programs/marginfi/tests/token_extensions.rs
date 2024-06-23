@@ -4,11 +4,14 @@ use fixtures::spl::SupportedExtension;
 use fixtures::test::{
     BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG,
 };
-use fixtures::{assert_eq_noise, native};
+use fixtures::{assert_eq_noise, native, ui_to_native};
 use marginfi::state::marginfi_group::{
     Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig,
 };
 use solana_program_test::tokio;
+use switchboard_solana::anchor_spl::token_2022::spl_token_2022::extension::{
+    transfer_fee::TransferFeeConfig, BaseStateWithExtensions as _,
+};
 use test_case::test_case;
 
 #[test_case(vec![])]
@@ -82,10 +85,25 @@ async fn marginfi_account_liquidation_success_with_extension(
         .await?;
 
     // Borrower borrows $999
+    // u32 is fine for this test.. not in production. Needed for Into<f64>
+    let usdc_t22_mint_state = usdc_t22_bank_f.mint.load_state().await;
+    let transfer_fee_offset: u32 = usdc_t22_mint_state
+        .get_extension::<TransferFeeConfig>()
+        .map(|config| {
+            config
+                .calculate_inverse_epoch_fee(0, native!(900, "USDC"))
+                .unwrap_or(0) as u32
+        })
+        .unwrap_or(0);
+
     borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_usdc_t22.key, usdc_t22_bank_f, 999)
+        .try_bank_borrow(borrower_token_account_usdc_t22.key, usdc_t22_bank_f, 900)
         .await
         .unwrap();
+    assert_eq!(
+        borrower_token_account_usdc_t22.balance().await,
+        native!(900, "USDC")
+    );
 
     // Synthetically bring down the borrower account health by reducing the asset weights of the SOL bank
     sol_bank_f
@@ -133,7 +151,7 @@ async fn marginfi_account_liquidation_success_with_extension(
         I80F48::from(native!(99, "SOL"))
     );
 
-    // Borrower should have 989.50 USDC
+    // Borrower should have 890.50 USDC
     assert_eq_noise!(
         usdc_t22_bank
             .get_liability_amount(
@@ -142,7 +160,11 @@ async fn marginfi_account_liquidation_success_with_extension(
                     .into()
             )
             .unwrap(),
-        I80F48::from(native!(989.50, "USDC", f64)),
+        I80F48::from(native!(
+            890.50 + transfer_fee_offset as f64 / 1e6,
+            "USDC",
+            f64
+        )),
         native!(0.00001, "USDC", f64)
     );
 
@@ -151,14 +173,17 @@ async fn marginfi_account_liquidation_success_with_extension(
         .get_vault_token_account(BankVaultType::Insurance)
         .await;
 
-    let fee = if extensions.contains(&SupportedExtension::TransferFee) {
-        0.25 * 500.0 / 10000.0
-    } else {
-        0.0
-    };
+    let fee = usdc_t22_mint_state
+        .get_extension::<TransferFeeConfig>()
+        .map(|config| {
+            config
+                .calculate_epoch_fee(0, ui_to_native!(0.25, 6))
+                .unwrap_or(0) as u32
+        })
+        .unwrap_or(0);
     assert_eq_noise!(
         insurance_fund_usdc.balance().await as i64,
-        native!(0.25 - fee, "USDC", f64) as i64,
+        native!(0.25 - fee as f64 / 1e6, "USDC", f64) as i64,
         1
     );
 

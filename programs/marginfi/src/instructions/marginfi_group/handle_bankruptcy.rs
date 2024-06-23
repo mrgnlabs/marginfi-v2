@@ -4,6 +4,7 @@ use crate::{
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD,
     },
+    debug,
     events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent},
     math_error,
     prelude::MarginfiError,
@@ -104,6 +105,10 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         .ok_or_else(math_error!())?
         .checked_to_num()
         .ok_or_else(math_error!())?;
+    debug!(
+        "covered_by_insurance_rounded_up: {}; socialized loss {}",
+        covered_by_insurance_rounded_up, socialized_loss
+    );
 
     let insurance_coverage_deposit_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
         bank_mint.to_account_info(),

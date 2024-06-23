@@ -20,6 +20,9 @@ use solana_cli_output::CliAccount;
 use solana_program::{instruction::Instruction, pubkey, system_program};
 use solana_program_test::*;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+use switchboard_solana::anchor_spl::token_2022::spl_token_2022::extension::{
+    transfer_fee::TransferFeeConfig, BaseStateWithExtensions,
+};
 
 #[tokio::test]
 async fn marginfi_group_create_success() -> anyhow::Result<()> {
@@ -749,6 +752,10 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured_t22_with_fee() -
             borrow_amount as f64,
         )
         .await?;
+    assert_eq!(
+        borrower_debt_account.balance().await,
+        native!(borrow_amount, "USDC")
+    );
 
     let mut borrower_mfi_account = borrower_mfi_account_f.load().await;
     borrower_mfi_account.lending_account.balances[0]
@@ -831,8 +838,17 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured_t22_with_fee() -
         I80F48::ONE
     );
 
+    let debt_bank_mint_state = test_f.get_bank(&debt_mint).mint.load_state().await;
+    let expected_liquidity_vault_delta = borrow_amount
+        + debt_bank_mint_state
+            .get_extension::<TransferFeeConfig>()
+            .map(|tf| {
+                tf.calculate_inverse_epoch_fee(0, borrow_amount)
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0);
     let expected_liquidity_vault_delta = I80F48::from(native!(
-        borrow_amount,
+        expected_liquidity_vault_delta,
         test_f.get_bank(&debt_mint).mint.mint.decimals
     ));
     let actual_liquidity_vault_delta = post_liquidity_vault_balance - pre_liquidity_vault_balance;

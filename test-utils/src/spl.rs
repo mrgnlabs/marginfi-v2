@@ -318,6 +318,19 @@ impl MintFixture {
 
         token_account_f
     }
+
+    pub async fn load_state(&self) -> StateWithExtensionsOwned<spl_token_2022::state::Mint> {
+        let mint_account = self
+            .ctx
+            .borrow_mut()
+            .banks_client
+            .get_account(self.key)
+            .await
+            .unwrap()
+            .unwrap();
+
+        StateWithExtensionsOwned::unpack(mint_account.data).unwrap()
+    }
 }
 
 pub struct TokenAccountFixture {

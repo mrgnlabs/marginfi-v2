@@ -7,6 +7,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
         marginfi_group::{Bank, BankVaultType},
     },
+    utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -37,6 +38,7 @@ pub fn lending_account_borrow<'info>(
         bank_mint,
         ..
     } = ctx.accounts;
+    let clock = Clock::get()?;
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
@@ -46,7 +48,7 @@ pub fn lending_account_borrow<'info>(
     );
 
     bank_loader.load_mut()?.accrue_interest(
-        Clock::get()?.unix_timestamp,
+        clock.unix_timestamp,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -61,9 +63,16 @@ pub fn lending_account_borrow<'info>(
             &mut marginfi_account.lending_account,
         )?;
 
-        bank_account.borrow(I80F48::from_num(amount))?;
-        bank_account.withdraw_spl_transfer(
+        // User needs to borrow amount + fee to receive amount
+        let amount_with_fee = utils::calculate_pre_fee_spl_deposit_amount(
+            bank_mint.to_account_info(),
             amount,
+            clock.epoch,
+        )?;
+
+        bank_account.borrow(I80F48::from_num(amount_with_fee))?;
+        bank_account.withdraw_spl_transfer(
+            amount_with_fee,
             TransferChecked {
                 from: bank_liquidity_vault.to_account_info(),
                 to: destination_token_account.to_account_info(),
