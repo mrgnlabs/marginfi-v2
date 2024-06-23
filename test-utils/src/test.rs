@@ -34,11 +34,19 @@ impl TestSettings {
     pub fn all_banks_payer_not_admin() -> Self {
         let banks = vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 ..TestBankSetting::default()
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::UsdcSwb,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
+                mint: BankMint::Sol,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
+                mint: BankMint::SolSwb,
                 ..TestBankSetting::default()
             },
             TestBankSetting {
@@ -61,40 +69,16 @@ impl TestSettings {
         }
     }
 
-    // pub fn all_banks_with_t22_not_admin() -> Self {
-    //     Self {
-    //         banks: vec![
-    //             TestBankSetting {
-    //                 mint: BankMint::USDC,
-    //                 ..TestBankSetting::default()
-    //             },
-    //             TestBankSetting {
-    //                 mint: BankMint::SOL,
-    //                 ..TestBankSetting::default()
-    //             },
-    //             TestBankSetting {
-    //                 mint: BankMint::SolEquivalent,
-    //                 ..TestBankSetting::default()
-    //             },
-    //             TestBankSetting {
-    //                 mint: BankMint::USDCToken22,
-    //                 ..TestBankSetting::default()
-    //             },
-    //         ],
-    //         group_config: Some(GroupConfig { admin: None }),
-    //     }
-    // }
-
     /// All banks with the same config, but USDC and SOL are using switchboard price oracls
     pub fn all_banks_swb_payer_not_admin() -> Self {
         Self {
             banks: vec![
                 TestBankSetting {
-                    mint: BankMint::USDC,
+                    mint: BankMint::Usdc,
                     config: Some(*DEFAULT_USDC_TEST_SW_BANK_CONFIG),
                 },
                 TestBankSetting {
-                    mint: BankMint::SOL,
+                    mint: BankMint::Sol,
                     config: Some(*DEFAULT_SOL_TEST_SW_BANK_CONFIG),
                 },
             ],
@@ -106,11 +90,11 @@ impl TestSettings {
         Self {
             banks: vec![
                 TestBankSetting {
-                    mint: BankMint::USDC,
+                    mint: BankMint::Usdc,
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
-                    mint: BankMint::SOL,
+                    mint: BankMint::Sol,
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
@@ -131,11 +115,11 @@ impl TestSettings {
         Self {
             banks: vec![
                 TestBankSetting {
-                    mint: BankMint::USDC,
+                    mint: BankMint::Usdc,
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
-                    mint: BankMint::SOL,
+                    mint: BankMint::Sol,
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
@@ -184,8 +168,10 @@ pub struct TestBankSetting {
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum BankMint {
-    USDC,
-    SOL,
+    Usdc,
+    UsdcSwb,
+    Sol,
+    SolSwb,
     SolEquivalent,
     SolEquivalent1,
     SolEquivalent2,
@@ -196,14 +182,14 @@ pub enum BankMint {
     SolEquivalent7,
     SolEquivalent8,
     SolEquivalent9,
-    USDCT22,
+    UsdcT22,
     T22WithFee,
     PyUSD,
 }
 
 impl Default for BankMint {
     fn default() -> Self {
-        Self::USDC
+        Self::Usdc
     }
 }
 
@@ -488,8 +474,10 @@ impl TestFixture {
         if let Some(test_settings) = test_settings.clone() {
             for bank in test_settings.banks.iter() {
                 let (bank_mint, default_config) = match bank.mint {
-                    BankMint::USDC => (&usdc_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
-                    BankMint::SOL => (&sol_mint_f, *DEFAULT_SOL_TEST_BANK_CONFIG),
+                    BankMint::Usdc => (&usdc_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
+                    BankMint::UsdcSwb => (&usdc_mint_f, *DEFAULT_USDC_TEST_SW_BANK_CONFIG),
+                    BankMint::Sol => (&sol_mint_f, *DEFAULT_SOL_TEST_BANK_CONFIG),
+                    BankMint::SolSwb => (&sol_mint_f, *DEFAULT_SOL_TEST_SW_BANK_CONFIG),
                     BankMint::SolEquivalent => (
                         &sol_equivalent_mint_f,
                         *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
@@ -533,7 +521,7 @@ impl TestFixture {
                     BankMint::T22WithFee => {
                         (&t22_with_fee_mint_f, *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG)
                     }
-                    BankMint::USDCT22 => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
+                    BankMint::UsdcT22 => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
                     BankMint::PyUSD => (&pyusd_mint_f, *DEFAULT_PYUSD_TEST_BANK_CONFIG),
                 };
 

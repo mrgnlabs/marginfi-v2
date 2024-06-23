@@ -17,8 +17,8 @@ use solana_program_test::tokio;
 async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
 
     // Make SOLE feed stale
@@ -101,8 +101,8 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
 async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
 
     test_f.set_time(0);
@@ -163,8 +163,8 @@ async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
 async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     test_f.set_time(0);
 
@@ -223,7 +223,7 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 ..Default::default()
             },
             TestBankSetting {
@@ -231,7 +231,7 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
                 ..Default::default()
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     asset_weight_maint: I80F48!(1).into(),
@@ -245,8 +245,8 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
 
     test_f.set_time(0);
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
     let sole_bank_f = test_f.get_bank(&BankMint::SolEquivalent);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -326,11 +326,11 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
         group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: None,
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -350,7 +350,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
     lender_mfi_account_f
         .try_bank_deposit(
             lender_token_account_usdc.key,
-            test_f.get_bank(&BankMint::USDC),
+            test_f.get_bank(&BankMint::Usdc),
             100_000,
         )
         .await?;
@@ -364,7 +364,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
     borrower_account
         .try_bank_deposit(
             borrower_deposit_account.key,
-            test_f.get_bank(&BankMint::SOL),
+            test_f.get_bank(&BankMint::Sol),
             1_001,
         )
         .await?;
@@ -374,7 +374,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
     borrower_account
         .try_bank_borrow(
             borrower_borrow_account.key,
-            test_f.get_bank(&BankMint::USDC),
+            test_f.get_bank(&BankMint::Usdc),
             10_000,
         )
         .await?;
@@ -387,10 +387,10 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
 
     {
         let (insurance_vault, _) = test_f
-            .get_bank(&BankMint::USDC)
+            .get_bank(&BankMint::Usdc)
             .get_vault(BankVaultType::Insurance);
         test_f
-            .get_bank_mut(&BankMint::USDC)
+            .get_bank_mut(&BankMint::Usdc)
             .mint
             .mint_to(&insurance_vault, 10_000)
             .await;
@@ -401,7 +401,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_handle_bankruptcy_with_nonce(test_f.get_bank(&BankMint::USDC), &borrower_account, 1)
+        .try_handle_bankruptcy_with_nonce(test_f.get_bank(&BankMint::Usdc), &borrower_account, 1)
         .await;
 
     assert!(res.is_err());
@@ -412,7 +412,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_handle_bankruptcy_with_nonce(test_f.get_bank(&BankMint::USDC), &borrower_account, 2)
+        .try_handle_bankruptcy_with_nonce(test_f.get_bank(&BankMint::Usdc), &borrower_account, 2)
         .await;
 
     assert!(res.is_ok());

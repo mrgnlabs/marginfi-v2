@@ -12,12 +12,13 @@ use pretty_assertions::assert_eq;
 use solana_program_test::*;
 use test_case::test_case;
 
-#[test_case(100., 9., BankMint::USDC, BankMint::SOL)]
-#[test_case(123456.0, 12345.6, BankMint::USDC, BankMint::SOL)]
-#[test_case(1.0, 5.0, BankMint::SOL, BankMint::USDC)]
-#[test_case(128932.0, 9834.0, BankMint::PyUSD, BankMint::SOL)]
+#[test_case(100., 9., BankMint::Usdc, BankMint::Sol)]
+#[test_case(123456.0, 12345.599999999, BankMint::Usdc, BankMint::Sol)]
+#[test_case(123456.0, 10000., BankMint::UsdcSwb, BankMint::Sol)]
+#[test_case(1.0, 5.0, BankMint::Sol, BankMint::Usdc)]
+#[test_case(128932.0, 9834.0, BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
-#[test_case(36., 1.7, BankMint::T22WithFee, BankMint::SOL)]
+#[test_case(36., 1.7, BankMint::T22WithFee, BankMint::Sol)]
 #[tokio::test]
 async fn marginfi_account_borrow_success(
     deposit_amount: f64,
@@ -27,7 +28,8 @@ async fn marginfi_account_borrow_success(
 ) -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    // Fund SOL liquidity provider
+    // Fund LP
+
     let lp_wallet_balance = get_max_deposit_amount_pre_fee(2. * borrow_amount);
     let lp_mfi_account_f = test_f.create_marginfi_account().await;
     let lp_collateral_token_account = test_f
@@ -43,7 +45,8 @@ async fn marginfi_account_borrow_success(
         )
         .await?;
 
-    // Fund SOL user
+    // Fund user
+
     let user_mfi_account_f = test_f.create_marginfi_account().await;
     let user_wallet_balance = get_max_deposit_amount_pre_fee(deposit_amount);
     let user_collateral_token_account_f = test_f
@@ -67,7 +70,7 @@ async fn marginfi_account_borrow_success(
 
     let debt_bank_f = test_f.get_bank(&debt_mint);
 
-    // Borrow SOL
+    // Borrow
 
     let pre_vault_balance = debt_bank_f
         .get_vault_token_account(BankVaultType::Liquidity)
@@ -99,7 +102,6 @@ async fn marginfi_account_borrow_success(
 
     // Check state
 
-    // let deposit_amount_native = ui_to_native!(deposit_amount, collateral_bank.mint.mint.decimals);
     let borrow_amount_native = ui_to_native!(borrow_amount, debt_bank_f.mint.mint.decimals);
     let borrow_fee = debt_bank_f
         .mint
@@ -134,63 +136,12 @@ async fn marginfi_account_borrow_success(
 }
 
 #[tokio::test]
-async fn marginfi_account_borrow_success_swb() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_swb_payer_not_admin())).await;
-
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
-
-    // Fund SOL lender
-    let lender_mfi_account_f = test_f.create_marginfi_account().await;
-    let lender_token_account_sol = test_f
-        .sol_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
-        .await?;
-
-    // Fund SOL borrower
-    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-    let borrower_token_account_f_usdc = test_f
-        .usdc_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
-    borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
-        .await?;
-
-    // Borrow SOL
-    let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 99)
-        .await;
-
-    assert!(res.is_ok());
-
-    // Check token balances are correct
-    assert_eq!(
-        borrower_token_account_f_usdc.balance().await,
-        native!(0, "USDC")
-    );
-
-    assert_eq!(
-        borrower_token_account_f_sol.balance().await,
-        native!(99, "SOL")
-    );
-
-    // TODO: check health is sane
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn marginfi_account_borrow_failure_not_enough_collateral() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -233,8 +184,8 @@ async fn marginfi_account_borrow_failure_not_enough_collateral() -> anyhow::Resu
 async fn marginfi_account_borrow_failure_borrow_limit() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     usdc_bank
         .update_config(BankConfigOpt {

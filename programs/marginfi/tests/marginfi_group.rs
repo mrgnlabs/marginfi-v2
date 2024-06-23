@@ -241,7 +241,7 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
         group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: Some(BankConfig {
                     interest_rate_config: InterestRateConfig {
                         optimal_utilization_rate: I80F48!(0.9).into(),
@@ -252,7 +252,7 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
                 }),
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -262,8 +262,8 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
@@ -322,7 +322,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: Some(BankConfig {
                     deposit_limit: native!(1_000_000_000, "USDC"),
                     interest_rate_config: InterestRateConfig {
@@ -336,7 +336,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
                 }),
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     deposit_limit: native!(200_000_000, "SOL"),
@@ -348,8 +348,8 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f
@@ -419,11 +419,11 @@ async fn marginfi_group_handle_bankruptcy_failure_not_bankrupt() -> anyhow::Resu
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: None,
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -434,8 +434,8 @@ async fn marginfi_group_handle_bankruptcy_failure_not_bankrupt() -> anyhow::Resu
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f
@@ -475,11 +475,11 @@ async fn marginfi_group_handle_bankruptcy_success_no_debt() -> anyhow::Result<()
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: None,
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -490,8 +490,8 @@ async fn marginfi_group_handle_bankruptcy_success_no_debt() -> anyhow::Result<()
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f
@@ -540,11 +540,11 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
         group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: None,
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -562,7 +562,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     lender_mfi_account_f
         .try_bank_deposit(
             lender_token_account_usdc.key,
-            test_f.get_bank(&BankMint::USDC),
+            test_f.get_bank(&BankMint::Usdc),
             100_000,
         )
         .await?;
@@ -576,7 +576,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     borrower_account
         .try_bank_deposit(
             borrower_deposit_account.key,
-            test_f.get_bank(&BankMint::SOL),
+            test_f.get_bank(&BankMint::Sol),
             1_001,
         )
         .await?;
@@ -586,7 +586,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     borrower_account
         .try_bank_borrow(
             borrower_borrow_account.key,
-            test_f.get_bank(&BankMint::USDC),
+            test_f.get_bank(&BankMint::Usdc),
             10_000,
         )
         .await?;
@@ -599,10 +599,10 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
 
     {
         let (insurance_vault, _) = test_f
-            .get_bank(&BankMint::USDC)
+            .get_bank(&BankMint::Usdc)
             .get_vault(BankVaultType::Insurance);
         test_f
-            .get_bank_mut(&BankMint::USDC)
+            .get_bank_mut(&BankMint::Usdc)
             .mint
             .mint_to(&insurance_vault, 10_000)
             .await;
@@ -610,7 +610,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
 
     test_f
         .marginfi_group
-        .try_handle_bankruptcy(test_f.get_bank(&BankMint::USDC), &borrower_account)
+        .try_handle_bankruptcy(test_f.get_bank(&BankMint::Usdc), &borrower_account)
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
@@ -622,7 +622,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     );
 
     let lender_mfi_account = lender_mfi_account_f.load().await;
-    let usdc_bank = test_f.get_bank(&BankMint::USDC).load().await;
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc).load().await;
 
     let lender_usdc_value = usdc_bank.get_asset_amount(
         lender_mfi_account.lending_account.balances[0]
@@ -637,7 +637,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     );
 
     let insurance_amount = test_f
-        .get_bank(&BankMint::USDC)
+        .get_bank(&BankMint::Usdc)
         .get_vault_token_account(BankVaultType::Insurance)
         .await;
 
@@ -649,7 +649,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     let res = borrower_account
         .try_bank_deposit(
             borrower_deposit_account.key,
-            test_f.get_bank(&BankMint::SOL),
+            test_f.get_bank(&BankMint::Sol),
             1,
         )
         .await;
@@ -661,7 +661,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     let res = borrower_account
         .try_bank_withdraw(
             borrower_deposit_account.key,
-            test_f.get_bank(&BankMint::SOL),
+            test_f.get_bank(&BankMint::Sol),
             1,
             None,
         )
@@ -674,7 +674,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     let res = borrower_account
         .try_bank_borrow(
             borrower_borrow_account.key,
-            test_f.get_bank(&BankMint::USDC),
+            test_f.get_bank(&BankMint::Usdc),
             1,
         )
         .await;
@@ -686,7 +686,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
     let res = borrower_account
         .try_bank_repay(
             borrower_borrow_account.key,
-            test_f.get_bank(&BankMint::USDC),
+            test_f.get_bank(&BankMint::Usdc),
             1,
             None,
         )
@@ -703,7 +703,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured_t22_with_fee() -
 {
     let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let collateral_mint = BankMint::SOL;
+    let collateral_mint = BankMint::Sol;
     let debt_mint = BankMint::T22WithFee;
 
     let user_balance = 100_000.0 * (1f64 + MAX_FEE_BASIS_POINTS as f64 / 10_000f64);
@@ -919,11 +919,11 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
     let mut test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: None,
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -942,7 +942,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
     lender_mfi_account_f
         .try_bank_deposit(
             lender_token_account_usdc.key,
-            test_f.get_bank(&BankMint::USDC),
+            test_f.get_bank(&BankMint::Usdc),
             100_000,
         )
         .await?;
@@ -955,7 +955,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
     borrower_account
         .try_bank_deposit(
             borrower_token_account_sol.key,
-            test_f.get_bank(&BankMint::SOL),
+            test_f.get_bank(&BankMint::Sol),
             1_001,
         )
         .await?;
@@ -963,7 +963,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
     borrower_account
         .try_bank_borrow(
             borrower_token_account_usdc.key,
-            test_f.get_bank(&BankMint::USDC),
+            test_f.get_bank(&BankMint::Usdc),
             10_000,
         )
         .await?;
@@ -978,7 +978,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
         .usdc_mint
         .mint_to(
             &test_f
-                .get_bank(&BankMint::USDC)
+                .get_bank(&BankMint::Usdc)
                 .load()
                 .await
                 .insurance_vault,
@@ -988,7 +988,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
 
     test_f
         .marginfi_group
-        .try_handle_bankruptcy(test_f.get_bank(&BankMint::USDC), &borrower_account)
+        .try_handle_bankruptcy(test_f.get_bank(&BankMint::Usdc), &borrower_account)
         .await?;
 
     let borrower_mfi_account = borrower_account.load().await;
@@ -1000,7 +1000,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
     );
 
     let lender_mfi_account = lender_mfi_account_f.load().await;
-    let usdc_bank = test_f.get_bank(&BankMint::USDC).load().await;
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc).load().await;
 
     let lender_usdc_value = usdc_bank.get_asset_amount(
         lender_mfi_account.lending_account.balances[0]
@@ -1015,7 +1015,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
     );
 
     let insurance_amount = test_f
-        .get_bank(&BankMint::USDC)
+        .get_bank(&BankMint::Usdc)
         .get_vault_token_account(BankVaultType::Insurance)
         .await;
 
@@ -1029,7 +1029,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured_t22_with_fee
 ) -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let collateral_mint = BankMint::SOL;
+    let collateral_mint = BankMint::Sol;
     let debt_mint = BankMint::T22WithFee;
 
     let pre_lender_collateral_amount = 100_000.0;
@@ -1186,11 +1186,11 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured() -> anyhow::Resul
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: None,
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -1201,8 +1201,8 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured() -> anyhow::Resul
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f
@@ -1269,11 +1269,11 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: None,
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -1284,8 +1284,8 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_1_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_1_token_account = test_f
@@ -1371,14 +1371,14 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
 async fn marginfi_group_bank_paused_should_error() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![TestBankSetting {
-            mint: BankMint::USDC,
+            mint: BankMint::Usdc,
             config: None,
         }],
         group_config: Some(GroupConfig { admin: None }),
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     test_f
         .marginfi_group
@@ -1410,14 +1410,14 @@ async fn marginfi_group_bank_paused_should_error() -> anyhow::Result<()> {
 async fn marginfi_group_bank_reduce_only_withdraw_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![TestBankSetting {
-            mint: BankMint::USDC,
+            mint: BankMint::Usdc,
             config: None,
         }],
         group_config: Some(GroupConfig { admin: None }),
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f
@@ -1449,11 +1449,11 @@ async fn marginfi_group_bank_reduce_only_deposit_success() -> anyhow::Result<()>
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: None,
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -1464,8 +1464,8 @@ async fn marginfi_group_bank_reduce_only_deposit_success() -> anyhow::Result<()>
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_1_mfi_account = test_f.create_marginfi_account().await;
     let lender_1_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
@@ -1508,11 +1508,11 @@ async fn marginfi_group_bank_reduce_only_borrow_failure() -> anyhow::Result<()> 
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: None,
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -1523,8 +1523,8 @@ async fn marginfi_group_bank_reduce_only_borrow_failure() -> anyhow::Result<()> 
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account = test_f.create_marginfi_account().await;
     let lender_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
@@ -1563,14 +1563,14 @@ async fn marginfi_group_bank_reduce_only_borrow_failure() -> anyhow::Result<()> 
 async fn marginfi_group_bank_reduce_only_deposit_failure() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![TestBankSetting {
-            mint: BankMint::USDC,
+            mint: BankMint::Usdc,
             config: None,
         }],
         group_config: Some(GroupConfig { admin: None }),
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     usdc_bank_f
         .update_config(BankConfigOpt {
@@ -1599,8 +1599,8 @@ async fn marginfi_group_bank_reduce_only_deposit_failure() -> anyhow::Result<()>
 async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     usdc_bank
         .update_config(BankConfigOpt {

@@ -42,8 +42,8 @@ use solana_sdk::{
 async fn marginfi_account_repay_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -96,7 +96,7 @@ async fn marginfi_account_repay_success() -> anyhow::Result<()> {
 async fn marginfi_account_repay_t22_with_fee_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let collateral_mint = BankMint::USDC;
+    let collateral_mint = BankMint::Usdc;
     let debt_mint = BankMint::T22WithFee;
 
     let collateral_bank = test_f.get_bank(&collateral_mint);
@@ -194,7 +194,7 @@ async fn marginfi_account_repay_t22_with_fee_success() -> anyhow::Result<()> {
 async fn marginfi_account_repay_all_t22_with_fee_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let collateral_mint = BankMint::USDC;
+    let collateral_mint = BankMint::Usdc;
     let debt_mint = BankMint::T22WithFee;
 
     let collateral_bank = test_f.get_bank(&collateral_mint);
@@ -296,8 +296,8 @@ async fn marginfi_account_repay_all_t22_with_fee_success() -> anyhow::Result<()>
 async fn marginfi_account_repay_failure_repaying_too_much() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -341,8 +341,8 @@ async fn marginfi_account_repay_failure_repaying_too_much() -> anyhow::Result<()
 async fn marginfi_account_repay_all_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -401,11 +401,11 @@ async fn marginfi_account_liquidation_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 ..TestBankSetting::default()
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     asset_weight_maint: I80F48!(1).into(),
@@ -417,8 +417,8 @@ async fn marginfi_account_liquidation_success() -> anyhow::Result<()> {
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f
@@ -519,8 +519,8 @@ async fn marginfi_account_liquidation_success() -> anyhow::Result<()> {
 async fn marginfi_account_liquidation_success_many_balances() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::many_banks_10())).await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
     let sol_eq_bank_f = test_f.get_bank(&BankMint::SolEquivalent);
     let sol_eq1_bank_f = test_f.get_bank(&BankMint::SolEquivalent1);
     let sol_eq2_bank_f = test_f.get_bank(&BankMint::SolEquivalent2);
@@ -659,11 +659,11 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 ..TestBankSetting::default()
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     asset_weight_maint: I80F48!(1).into(),
@@ -675,8 +675,8 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f
@@ -778,14 +778,14 @@ async fn marginfi_account_liquidation_failure_liquidatee_not_unhealthy() -> anyh
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: Some(BankConfig {
                     asset_weight_maint: I80F48!(1).into(),
                     ..*DEFAULT_USDC_TEST_BANK_CONFIG
                 }),
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     asset_weight_maint: I80F48!(1).into(),
@@ -797,8 +797,8 @@ async fn marginfi_account_liquidation_failure_liquidatee_not_unhealthy() -> anyh
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
@@ -833,8 +833,8 @@ async fn marginfi_account_liquidation_failure_liquidatee_not_unhealthy() -> anyh
 async fn marginfi_account_liquidation_failure_liquidation_too_severe() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
@@ -880,7 +880,7 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: Some(BankConfig {
                     liability_weight_init: I80F48!(1.2).into(),
                     liability_weight_maint: I80F48!(1.1).into(),
@@ -888,7 +888,7 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
                 }),
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: None,
             },
             TestBankSetting {
@@ -900,8 +900,8 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
     }))
     .await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
     let sol_eq_bank_f = test_f.get_bank(&BankMint::SolEquivalent);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -954,8 +954,8 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
 async fn marginfi_account_liquidation_failure_bank_not_liquidatable() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
     let sol_eq_bank_f = test_f.get_bank(&BankMint::SolEquivalent);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -1009,8 +1009,8 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     // Create lender user accounts and deposit SOL asset
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -1090,8 +1090,8 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
 async fn marginfi_account_correct_balance_selection_after_closing_position() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_sol = test_f
@@ -1143,9 +1143,9 @@ async fn marginfi_account_correct_balance_selection_after_closing_position() -> 
 async fn isolated_borrows() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_one_isolated())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -1220,8 +1220,8 @@ async fn isolated_borrows() -> anyhow::Result<()> {
 async fn emissions_test() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_one_isolated())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Setup emissions (Deposit for USDC, Borrow for SOL)
 
@@ -1397,7 +1397,7 @@ async fn emissions_test() -> anyhow::Result<()> {
 async fn emissions_test_2() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_one_isolated())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
 
     let funding_account = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
 
@@ -1576,7 +1576,7 @@ async fn flashloan_success_1op() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -1625,7 +1625,7 @@ async fn flashloan_success_3op() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -1680,7 +1680,7 @@ async fn flashloan_success_3op() -> anyhow::Result<()> {
 async fn flashloan_fail_account_health() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -1724,7 +1724,7 @@ async fn flashloan_ok_missing_flag() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -1769,7 +1769,7 @@ async fn flashloan_fail_missing_fe_ix() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -1833,7 +1833,7 @@ async fn flashloan_fail_missing_invalid_sysvar_ixs() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -1912,7 +1912,7 @@ async fn flashloan_fail_invalid_end_fl_order() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -1972,7 +1972,7 @@ async fn flashloan_fail_invalid_end_fl_different_m_account() -> anyhow::Result<(
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -2032,7 +2032,7 @@ async fn flashloan_fail_already_in_flashloan() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
@@ -2092,9 +2092,9 @@ async fn flashloan_fail_already_in_flashloan() -> anyhow::Result<()> {
 async fn lending_account_close_balance() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;

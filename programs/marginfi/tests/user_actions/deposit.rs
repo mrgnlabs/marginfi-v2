@@ -8,11 +8,11 @@ use test_case::test_case;
 
 use solana_program_test::*;
 
-#[test_case(0.0, BankMint::USDC)]
-#[test_case(0.05, BankMint::USDC)]
-#[test_case(1_000.0, BankMint::USDC)]
-#[test_case(0.05, BankMint::SOL)]
-#[test_case(15_002.0, BankMint::SOL)]
+#[test_case(0.0, BankMint::Usdc)]
+#[test_case(0.05, BankMint::UsdcSwb)]
+#[test_case(1_000.0, BankMint::Usdc)]
+#[test_case(0.05, BankMint::Sol)]
+#[test_case(15_002.0, BankMint::SolSwb)]
 #[test_case(0.05, BankMint::PyUSD)]
 #[test_case(15_002.0, BankMint::PyUSD)]
 #[test_case(0.0, BankMint::T22WithFee)]
@@ -83,8 +83,10 @@ async fn marginfi_account_deposit_success(
     Ok(())
 }
 
-#[test_case(1_000., 456., 2345., BankMint::USDC)]
-#[test_case(1_000., 456., 2345., BankMint::SOL)]
+#[test_case(1_000., 456., 2345., BankMint::Usdc)]
+#[test_case(1_000., 456., 2345., BankMint::UsdcSwb)]
+#[test_case(1_000., 456., 2345., BankMint::Sol)]
+#[test_case(1_000., 456., 2345., BankMint::SolSwb)]
 #[test_case(1_000., 456., 2345., BankMint::PyUSD)]
 #[test_case(1_000., 456., 2345., BankMint::T22WithFee)]
 #[test_case(1_000., 999.999999, 1000., BankMint::T22WithFee)]

@@ -15,8 +15,8 @@ use solana_program_test::tokio;
 async fn stale_bank_should_error() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
 
     // Make SOLE feed stale
@@ -74,9 +74,9 @@ async fn stale_bank_should_error() -> anyhow::Result<()> {
 async fn non_stale_bank_should_error() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     // Make USDC feed stale
     test_f.set_time(0);
@@ -132,8 +132,8 @@ async fn non_stale_bank_should_error() -> anyhow::Result<()> {
 async fn isolated_stale_should_not_error() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_one_isolated())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
     let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
 
     test_f.set_time(0);

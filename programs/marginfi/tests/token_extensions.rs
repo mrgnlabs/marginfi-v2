@@ -34,11 +34,11 @@ async fn marginfi_account_liquidation_success_with_extension(
         Some(TestSettings {
             banks: vec![
                 TestBankSetting {
-                    mint: BankMint::USDC,
+                    mint: BankMint::Usdc,
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
-                    mint: BankMint::USDCT22,
+                    mint: BankMint::UsdcT22,
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
@@ -46,7 +46,7 @@ async fn marginfi_account_liquidation_success_with_extension(
                     ..TestBankSetting::default()
                 },
                 TestBankSetting {
-                    mint: BankMint::SOL,
+                    mint: BankMint::Sol,
                     config: Some(BankConfig {
                         asset_weight_init: I80F48!(1).into(),
                         asset_weight_maint: I80F48!(1).into(),
@@ -60,8 +60,8 @@ async fn marginfi_account_liquidation_success_with_extension(
     )
     .await;
 
-    let usdc_t22_bank_f = test_f.get_bank(&BankMint::USDCT22);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_t22_bank_f = test_f.get_bank(&BankMint::UsdcT22);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc_t22 = test_f
