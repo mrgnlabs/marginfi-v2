@@ -7,6 +7,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
         marginfi_group::{Bank, BankVaultType},
     },
+    utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -25,7 +26,7 @@ use solana_program::{clock::Clock, sysvar::Sysvar};
 /// Will error if there is no existing asset <=> borrowing is not allowed.
 pub fn lending_account_withdraw<'info>(
     ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdraw<'info>>,
-    amount: u64,
+    mut amount: u64,
     withdraw_all: Option<bool>,
 ) -> MarginfiResult {
     let LendingAccountWithdraw {
@@ -38,6 +39,7 @@ pub fn lending_account_withdraw<'info>(
         bank_mint,
         ..
     } = ctx.accounts;
+    let clock = Clock::get()?;
 
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
@@ -48,7 +50,7 @@ pub fn lending_account_withdraw<'info>(
     );
 
     bank_loader.load_mut()?.accrue_interest(
-        Clock::get()?.unix_timestamp,
+        clock.unix_timestamp,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -66,6 +68,12 @@ pub fn lending_account_withdraw<'info>(
         let spl_withdraw_amount = if withdraw_all {
             bank_account.withdraw_all()?
         } else {
+            amount = utils::calculate_pre_fee_spl_deposit_amount(
+                bank_mint.to_account_info(),
+                amount,
+                clock.epoch,
+            )?;
+
             bank_account.withdraw(I80F48::from_num(amount))?;
 
             amount

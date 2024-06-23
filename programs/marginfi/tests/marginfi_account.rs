@@ -11,8 +11,8 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use fixtures::prelude::*;
 use fixtures::{assert_custom_error, assert_eq_noise, native};
+use fixtures::{prelude::*, ui_to_native};
 use marginfi::constants::{
     EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, MIN_EMISSIONS_START_TIME,
 };
@@ -368,8 +368,42 @@ async fn marginfi_account_withdraw_success_matrix(
         .get_asset_amount(balance.asset_shares.into())
         .unwrap();
 
+    let deposit_amount_native = ui_to_native!(deposit_amount, bank_f.mint.mint.decimals);
+    let withdraw_amount_native = ui_to_native!(withdraw_amount, bank_f.mint.mint.decimals);
+    let withdraw_fee_to_use;
+    let (withdraw_fee, withdraw_fee_if_excessive) = bank_f
+        .mint
+        .load_state()
+        .await
+        .get_extension::<TransferFeeConfig>()
+        .map(|tf| {
+            (
+                // withdraw <= available case
+                tf.calculate_inverse_epoch_fee(0, withdraw_amount_native)
+                    .unwrap_or(0),
+                // withdraw all case, if withdraw > available
+                tf.calculate_epoch_fee(0, deposit_amount_native)
+                    .unwrap_or(0),
+            )
+        })
+        .unwrap_or((0, 0));
+
+    // If exceeds available, clamp to available.
+    // If it does not, use specified withdraw amount
+    let adjusted_withdraw_amount = if withdraw_amount_native + withdraw_fee > deposit_amount_native
+    {
+        // Clamp to deposit amount minus fee if excessive
+        withdraw_fee_to_use = withdraw_fee_if_excessive;
+        deposit_amount
+            - withdraw_fee_if_excessive as f64 / 10_f64.powi(bank_f.mint.mint.decimals as i32)
+    } else {
+        // Use specified withdraw amount
+        withdraw_fee_to_use = withdraw_fee;
+        withdraw_amount
+    };
+
     let res = marginfi_account_f
-        .try_bank_withdraw(token_account_f.key, bank_f, withdraw_amount, None)
+        .try_bank_withdraw(token_account_f.key, bank_f, adjusted_withdraw_amount, None)
         .await;
 
     assert!(res.is_ok());
@@ -390,7 +424,9 @@ async fn marginfi_account_withdraw_success_matrix(
         .get_asset_amount(balance.asset_shares.into())
         .unwrap();
 
-    let expected = I80F48::from(native!(withdraw_amount, bank_f.mint.mint.decimals, f64));
+    let expected = I80F48::from(
+        ui_to_native!(adjusted_withdraw_amount, bank_f.mint.mint.decimals) + withdraw_fee_to_use,
+    );
     let actual = I80F48::from(pre_vault_balance - post_vault_balance);
 
     let accounted = pre_accounted - post_accounted;
