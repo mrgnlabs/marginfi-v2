@@ -6,7 +6,7 @@ use anchor_lang::{
 use bumpalo::Bump;
 use marginfi::{constants::PYTH_ID, state::marginfi_group::BankVaultType};
 use pyth_sdk_solana::state::{
-    AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
+    AccountType, SolanaPriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
 };
 use safe_transmute::{transmute_to_bytes, transmute_to_bytes_mut};
 use solana_program::{
@@ -26,6 +26,7 @@ impl AccountsState {
     }
 
     fn random_pubkey<'bump>(&'bump self) -> &Pubkey {
+        #[allow(deprecated)]
         self.bump
             .alloc(Pubkey::new(transmute_to_bytes(&rand::random::<[u64; 4]>())))
     }
@@ -112,12 +113,12 @@ impl AccountsState {
         )
     }
 
-    pub fn new_owned_account<'bump>(
-        &'bump self,
+    pub fn new_owned_account(
+        &self,
         unpadded_len: usize,
         owner_pubkey: Pubkey,
         rent: Rent,
-    ) -> AccountInfo<'bump> {
+    ) -> AccountInfo {
         let data_len = unpadded_len + 12;
         self.new_dex_owned_account_with_lamports(
             unpadded_len,
@@ -184,7 +185,7 @@ impl AccountsState {
         mint: Pubkey,
         mint_decimals: i32,
     ) -> AccountInfo {
-        let price_account = PriceAccount {
+        let price_account = SolanaPriceAccount {
             prod: mint,
             agg: PriceInfo {
                 conf: 0,
@@ -259,10 +260,10 @@ impl AccountsState {
         )
     }
 
-    pub fn new_vault_authority<'bump>(
-        &'bump self,
+    pub fn new_vault_authority<'a: 'bump, 'bump>(
+        &'a self,
         vault_type: BankVaultType,
-        bank: &'bump Pubkey,
+        bank: &'a Pubkey,
     ) -> (AccountInfo<'bump>, u8) {
         let (vault_address, seed_bump) = get_vault_authority(bank, vault_type);
 

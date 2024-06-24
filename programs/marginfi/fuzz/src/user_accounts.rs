@@ -26,7 +26,10 @@ impl<'info> UserAccount<'info> {
         }
     }
 
-    pub fn get_liquidation_banks(&self, banks: &[BankAccounts]) -> Option<(BankIdx, BankIdx)> {
+    pub fn get_liquidation_banks(
+        &'info self,
+        banks: &[BankAccounts],
+    ) -> Option<(BankIdx, BankIdx)> {
         let marginfi_account_al =
             AccountLoader::<MarginfiAccount>::try_from(&self.margin_account).ok()?;
         let marginfi_account = marginfi_account_al.load().ok()?;
@@ -68,7 +71,7 @@ impl<'info> UserAccount<'info> {
     }
 
     pub fn get_remaining_accounts(
-        &self,
+        &'info self,
         bank_map: &HashMap<Pubkey, &BankAccounts<'info>>,
         include_banks: Vec<Pubkey>,
         exclude_banks: Vec<Pubkey>,

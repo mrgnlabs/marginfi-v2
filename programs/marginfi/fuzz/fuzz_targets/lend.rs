@@ -134,7 +134,7 @@ fn setup_logging() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn verify_end_state(mga: &MarginfiFuzzContext) -> anyhow::Result<()> {
+fn verify_end_state<'a>(mga: &'a MarginfiFuzzContext<'a>) -> anyhow::Result<()> {
     mga.banks.iter().try_for_each(|bank| {
         let bank_loader = AccountLoader::<Bank>::try_from(&bank.bank)?;
         let mut bank_data = bank_loader.load_mut()?;

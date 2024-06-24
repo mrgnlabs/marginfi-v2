@@ -10,6 +10,7 @@ use bank_accounts::{get_bank_map, BankAccounts};
 use fixed_macro::types::I80F48;
 
 use marginfi::{
+    instructions::LendingPoolAddBankBumps,
     prelude::MarginfiGroup,
     state::{
         marginfi_account::MarginfiAccount,
@@ -29,6 +30,10 @@ use std::{
 };
 use stubs::test_syscall_stubs;
 use user_accounts::UserAccount;
+use utils::{
+    account_info_lifetime_shortener as ails, account_info_ref_lifetime_shortener as airls,
+    account_info_slice_lifetime_shortener as aisls,
+};
 
 pub mod account_state;
 pub mod arbitrary_helpers;
@@ -36,6 +41,7 @@ pub mod bank_accounts;
 pub mod metrics;
 pub mod stubs;
 pub mod user_accounts;
+pub mod utils;
 
 type SplAccount = spl_token::state::Account;
 
@@ -52,9 +58,9 @@ pub struct MarginfiFuzzContext<'info> {
     pub state: &'info AccountsState,
 }
 
-impl<'bump> MarginfiFuzzContext<'bump> {
+impl<'state> MarginfiFuzzContext<'state> {
     pub fn setup(
-        state: &'bump AccountsState,
+        state: &'state AccountsState,
         bank_configs: &[BankAndOracleConfig],
         n_users: u8,
     ) -> Self {
@@ -82,31 +88,24 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             metrics: Arc::new(RwLock::new(Metrics::default())),
             state,
         };
+        marginfi_state.advance_time(0);
 
-        let banks = bank_configs
+        bank_configs
             .iter()
-            .map(|config| marginfi_state.setup_bank(state, Rent::free(), config))
-            .collect();
-
-        marginfi_state.banks = banks;
+            .for_each(|config| marginfi_state.setup_bank(state, Rent::free(), config));
 
         let token_vec = marginfi_state.banks.iter().map(|b| *b.mint.key).collect();
 
-        marginfi_state.marginfi_accounts = (0..n_users)
-            .into_iter()
-            .map(|_| {
-                marginfi_state
-                    .create_marginfi_account(state, Rent::free(), &token_vec)
-                    .unwrap()
-            })
-            .collect::<Vec<_>>();
+        (0..n_users).into_iter().for_each(|_| {
+            marginfi_state
+                .create_marginfi_account(state, Rent::free(), &token_vec)
+                .unwrap()
+        });
 
         // Create an extra account for seeding the banks
-        let funding_account = marginfi_state
+        marginfi_state
             .create_marginfi_account(state, Rent::free(), &token_vec)
             .unwrap();
-
-        marginfi_state.marginfi_accounts.push(funding_account);
 
         // Seed the banks
         for bank_idx in 0..marginfi_state.banks.len() {
@@ -123,12 +122,10 @@ impl<'bump> MarginfiFuzzContext<'bump> {
                 .unwrap();
         }
 
-        marginfi_state.advance_time(0);
-
         marginfi_state
     }
 
-    fn get_bank_map(&'bump self) -> HashMap<Pubkey, &'bump BankAccounts<'bump>> {
+    fn get_bank_map<'a>(&'a self) -> HashMap<Pubkey, &'a BankAccounts<'state>> {
         get_bank_map(&self.banks)
     }
 
@@ -155,12 +152,12 @@ impl<'bump> MarginfiFuzzContext<'bump> {
         ));
     }
 
-    pub fn setup_bank(
-        &self,
-        state: &'bump AccountsState,
+    pub fn setup_bank<'a>(
+        &'a mut self,
+        state: &'state AccountsState,
         rent: Rent,
         initial_bank_config: &BankAndOracleConfig,
-    ) -> BankAccounts<'bump> {
+    ) {
         let bank = state.new_owned_account(size_of::<Bank>(), marginfi::id(), rent);
 
         let mint = state.new_token_mint(rent, initial_bank_config.mint_decimals);
@@ -198,91 +195,91 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             initial_bank_config.mint_decimals as i32,
         );
 
-        let mut seed_bump_map = BTreeMap::new();
+        let add_bank_bumps = LendingPoolAddBankBumps {
+            liquidity_vault_authority: liquidity_vault_authority_bump,
+            liquidity_vault: liquidity_vault_bump,
+            insurance_vault_authority: insurance_vault_authority_bump,
+            insurance_vault: insurance_vault_bump,
+            fee_vault_authority: fee_vault_authority_bump,
+            fee_vault: fee_vault_bump,
+        };
 
-        seed_bump_map.insert("liquidity_vault".to_owned(), liquidity_vault_bump);
-        seed_bump_map.insert(
-            "liquidity_vault_authority".to_owned(),
-            liquidity_vault_authority_bump,
-        );
-        seed_bump_map.insert("insurance_vault".to_owned(), insurance_vault_bump);
-        seed_bump_map.insert(
-            "insurance_vault_authority".to_owned(),
-            insurance_vault_authority_bump,
-        );
-        seed_bump_map.insert("fee_vault".to_owned(), fee_vault_bump);
-        seed_bump_map.insert("fee_vault_authority".to_owned(), fee_vault_authority_bump);
-
-        test_syscall_stubs(Some(
-            *self.last_sysvar_current_timestamp.read().unwrap() as i64
-        ));
-
-        marginfi::instructions::marginfi_group::lending_pool_add_bank(
-            Context::new(
-                &marginfi::id(),
-                &mut marginfi::instructions::LendingPoolAddBank {
-                    marginfi_group: AccountLoader::try_from(&self.marginfi_group).unwrap(),
-                    admin: Signer::try_from(&self.owner).unwrap(),
-                    fee_payer: Signer::try_from(&self.owner).unwrap(),
-                    bank_mint: Box::new(InterfaceAccount::try_from(&mint).unwrap()),
-                    bank: AccountLoader::try_from_unchecked(&marginfi::ID, &bank).unwrap(),
-                    liquidity_vault_authority: liquidity_vault_authority.clone(),
-                    liquidity_vault: Box::new(
-                        InterfaceAccount::try_from(&liquidity_vault).unwrap(),
-                    ),
-                    insurance_vault_authority: insurance_vault_authority.clone(),
-                    insurance_vault: Box::new(
-                        InterfaceAccount::try_from(&insurance_vault).unwrap(),
-                    ),
-                    fee_vault_authority: fee_vault_authority.clone(),
-                    fee_vault: Box::new(InterfaceAccount::try_from(&fee_vault).unwrap()),
-                    rent: Sysvar::from_account_info(&self.rent_sysvar).unwrap(),
-                    token_program: Interface::try_from(&self.token_program).unwrap(),
-                    system_program: Program::try_from(&self.system_program).unwrap(),
-                },
-                &[oracle.clone()],
-                seed_bump_map,
-            ),
-            BankConfig {
-                asset_weight_init: initial_bank_config.asset_weight_init,
-                asset_weight_maint: initial_bank_config.asset_weight_maint,
-                liability_weight_init: initial_bank_config.liability_weight_init,
-                liability_weight_maint: initial_bank_config.liability_weight_maint,
-                deposit_limit: initial_bank_config.deposit_limit,
-                borrow_limit: initial_bank_config.borrow_limit,
-                interest_rate_config: InterestRateConfig {
-                    optimal_utilization_rate: I80F48!(0.5).into(),
-                    plateau_interest_rate: I80F48!(0.5).into(),
-                    max_interest_rate: I80F48!(4).into(),
-                    insurance_fee_fixed_apr: I80F48!(0.01).into(),
-                    insurance_ir_fee: I80F48!(0.05).into(),
-                    protocol_fixed_fee_apr: I80F48!(0.01).into(),
-                    protocol_ir_fee: I80F48!(0.1).into(),
+        {
+            marginfi::instructions::marginfi_group::lending_pool_add_bank(
+                Context::new(
+                    &marginfi::ID,
+                    &mut marginfi::instructions::LendingPoolAddBank {
+                        marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))
+                            .unwrap(),
+                        admin: Signer::try_from(airls(&self.owner)).unwrap(),
+                        fee_payer: Signer::try_from(airls(&self.owner)).unwrap(),
+                        bank_mint: Box::new(InterfaceAccount::try_from(airls(&mint)).unwrap()),
+                        bank: AccountLoader::try_from_unchecked(&marginfi::ID, airls(&bank))
+                            .unwrap(),
+                        liquidity_vault_authority: unsafe {
+                            core::mem::transmute(liquidity_vault_authority.clone())
+                        },
+                        liquidity_vault: Box::new(
+                            InterfaceAccount::try_from(airls(&liquidity_vault)).unwrap(),
+                        ),
+                        insurance_vault_authority: unsafe {
+                            core::mem::transmute(insurance_vault_authority.clone())
+                        },
+                        insurance_vault: Box::new(
+                            InterfaceAccount::try_from(airls(&insurance_vault)).unwrap(),
+                        ),
+                        fee_vault_authority: unsafe {
+                            core::mem::transmute(fee_vault_authority.clone())
+                        },
+                        fee_vault: Box::new(InterfaceAccount::try_from(airls(&fee_vault)).unwrap()),
+                        rent: Sysvar::from_account_info(airls(&self.rent_sysvar)).unwrap(),
+                        token_program: Interface::try_from(airls(&self.token_program)).unwrap(),
+                        system_program: Program::try_from(airls(&self.system_program)).unwrap(),
+                    },
+                    &[unsafe { core::mem::transmute(oracle.clone()) }],
+                    add_bank_bumps,
+                ),
+                BankConfig {
+                    asset_weight_init: initial_bank_config.asset_weight_init,
+                    asset_weight_maint: initial_bank_config.asset_weight_maint,
+                    liability_weight_init: initial_bank_config.liability_weight_init,
+                    liability_weight_maint: initial_bank_config.liability_weight_maint,
+                    deposit_limit: initial_bank_config.deposit_limit,
+                    borrow_limit: initial_bank_config.borrow_limit,
+                    interest_rate_config: InterestRateConfig {
+                        optimal_utilization_rate: I80F48!(0.5).into(),
+                        plateau_interest_rate: I80F48!(0.5).into(),
+                        max_interest_rate: I80F48!(4).into(),
+                        insurance_fee_fixed_apr: I80F48!(0.01).into(),
+                        insurance_ir_fee: I80F48!(0.05).into(),
+                        protocol_fixed_fee_apr: I80F48!(0.01).into(),
+                        protocol_ir_fee: I80F48!(0.1).into(),
+                        ..Default::default()
+                    },
+                    oracle_setup: marginfi::state::price::OracleSetup::PythEma,
+                    oracle_keys: [
+                        oracle.key(),
+                        Pubkey::default(),
+                        Pubkey::default(),
+                        Pubkey::default(),
+                        Pubkey::default(),
+                    ],
+                    operational_state:
+                        marginfi::state::marginfi_group::BankOperationalState::Operational,
+                    risk_tier: if !initial_bank_config.risk_tier_isolated {
+                        marginfi::state::marginfi_group::RiskTier::Collateral
+                    } else {
+                        marginfi::state::marginfi_group::RiskTier::Isolated
+                    },
                     ..Default::default()
                 },
-                oracle_setup: marginfi::state::price::OracleSetup::PythEma,
-                oracle_keys: [
-                    oracle.key(),
-                    Pubkey::default(),
-                    Pubkey::default(),
-                    Pubkey::default(),
-                    Pubkey::default(),
-                ],
-                operational_state:
-                    marginfi::state::marginfi_group::BankOperationalState::Operational,
-                risk_tier: if !initial_bank_config.risk_tier_isolated {
-                    marginfi::state::marginfi_group::RiskTier::Collateral
-                } else {
-                    marginfi::state::marginfi_group::RiskTier::Isolated
-                },
-                ..Default::default()
-            },
-        )
-        .unwrap();
+            )
+            .unwrap();
+        }
 
         set_discriminator::<Bank>(bank.clone());
 
-        BankAccounts {
+        self.banks.push(BankAccounts {
             bank,
             oracle,
             liquidity_vault,
@@ -293,32 +290,33 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             insurance_vault_authority,
             fee_vault_authority,
             mint_decimals: initial_bank_config.mint_decimals,
-        }
+        });
     }
 
-    fn create_marginfi_account(
-        &self,
-        state: &'bump AccountsState,
+    fn create_marginfi_account<'a>(
+        &'a mut self,
+        state: &'state AccountsState,
         rent: Rent,
         token_mints: &Vec<Pubkey>,
-    ) -> anyhow::Result<UserAccount<'bump>> {
+        // ) -> anyhow::Result<UserAccount<'a>> {
+    ) -> anyhow::Result<()> {
         let marginfi_account =
             state.new_owned_account(size_of::<MarginfiAccount>(), marginfi::id(), rent);
 
         marginfi::instructions::marginfi_account::initialize_account(Context::new(
             &marginfi::id(),
             &mut marginfi::instructions::marginfi_account::MarginfiAccountInitialize {
-                marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
+                marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                 marginfi_account: AccountLoader::try_from_unchecked(
                     &marginfi::ID,
-                    &marginfi_account,
+                    airls(&marginfi_account),
                 )?,
-                authority: Signer::try_from(&self.owner)?,
-                fee_payer: Signer::try_from(&self.owner)?,
-                system_program: Program::try_from(&self.system_program)?,
+                authority: Signer::try_from(airls(&self.owner))?,
+                fee_payer: Signer::try_from(airls(&self.owner))?,
+                system_program: Program::try_from(airls(&self.system_program))?,
             },
             &[],
-            BTreeMap::new(),
+            Default::default(),
         ))?;
 
         let token_accounts = token_mints
@@ -330,7 +328,10 @@ impl<'bump> MarginfiFuzzContext<'bump> {
 
         set_discriminator::<MarginfiAccount>(marginfi_account.clone());
 
-        Ok(UserAccount::new(marginfi_account, token_accounts))
+        self.marginfi_accounts
+            .push(UserAccount::new(marginfi_account, token_accounts));
+
+        Ok(())
     }
 
     pub fn process_action_deposit(
@@ -354,17 +355,20 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountDeposit {
-                    marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
-                    marginfi_account: AccountLoader::try_from(&marginfi_account.margin_account)?,
-                    signer: Signer::try_from(&self.owner)?,
-                    bank: AccountLoader::try_from(&bank.bank)?,
-                    signer_token_account: marginfi_account.token_accounts[bank_idx.0 as usize]
-                        .clone(),
-                    bank_liquidity_vault: bank.liquidity_vault.clone(),
-                    token_program: Interface::try_from(&self.token_program)?,
+                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    marginfi_account: AccountLoader::try_from(airls(
+                        &marginfi_account.margin_account,
+                    ))?,
+                    signer: Signer::try_from(airls(&self.owner))?,
+                    bank: AccountLoader::try_from(airls(&bank.bank))?,
+                    signer_token_account: ails(
+                        marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
+                    ),
+                    bank_liquidity_vault: ails(bank.liquidity_vault.clone()),
+                    token_program: Interface::try_from(airls(&self.token_program))?,
                 },
                 &[],
-                BTreeMap::new(),
+                Default::default(),
             ),
             asset_amount.0,
         );
@@ -402,17 +406,20 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountRepay {
-                    marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
-                    marginfi_account: AccountLoader::try_from(&marginfi_account.margin_account)?,
-                    signer: Signer::try_from(&self.owner)?,
-                    bank: AccountLoader::try_from(&bank.bank)?,
-                    signer_token_account: marginfi_account.token_accounts[bank_idx.0 as usize]
-                        .clone(),
-                    bank_liquidity_vault: bank.liquidity_vault.clone(),
-                    token_program: Interface::try_from(&self.token_program)?,
+                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    marginfi_account: AccountLoader::try_from(airls(
+                        &marginfi_account.margin_account,
+                    ))?,
+                    signer: Signer::try_from(airls(&self.owner))?,
+                    bank: AccountLoader::try_from(airls(&bank.bank))?,
+                    signer_token_account: ails(
+                        marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
+                    ),
+                    bank_liquidity_vault: ails(bank.liquidity_vault.clone()),
+                    token_program: Interface::try_from(airls(&self.token_program))?,
                 },
                 &[],
-                BTreeMap::new(),
+                Default::default(),
             ),
             asset_amount.0,
             Some(repay_all),
@@ -431,7 +438,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
     }
 
     pub fn process_action_withdraw(
-        &'bump self,
+        &'state self,
         account_idx: &AccountIdx,
         bank_idx: &BankIdx,
         asset_amount: &AssetAmount,
@@ -459,27 +466,27 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             vec![]
         };
 
+        let remaining_accounts =
+            marginfi_account.get_remaining_accounts(&self.get_bank_map(), vec![], remove_all_bank);
         let res = marginfi::instructions::marginfi_account::lending_account_withdraw(
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountWithdraw {
-                    marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
-                    marginfi_account: AccountLoader::try_from(&marginfi_account.margin_account)?,
-                    signer: Signer::try_from(&self.owner)?,
-                    bank: AccountLoader::try_from(&bank.bank)?,
-                    token_program: Interface::try_from(&self.token_program)?,
-                    destination_token_account: InterfaceAccount::try_from(
-                        &marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
-                    )?,
-                    bank_liquidity_vault_authority: bank.liquidity_vault_authority.clone(),
-                    bank_liquidity_vault: InterfaceAccount::try_from(&bank.liquidity_vault)?,
+                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    marginfi_account: AccountLoader::try_from(airls(
+                        &marginfi_account.margin_account,
+                    ))?,
+                    signer: Signer::try_from(airls(&self.owner))?,
+                    bank: AccountLoader::try_from(airls(&bank.bank))?,
+                    token_program: Interface::try_from(airls(&self.token_program))?,
+                    destination_token_account: InterfaceAccount::try_from(airls(
+                        &marginfi_account.token_accounts[bank_idx.0 as usize],
+                    ))?,
+                    bank_liquidity_vault_authority: ails(bank.liquidity_vault_authority.clone()),
+                    bank_liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
                 },
-                &marginfi_account.get_remaining_accounts(
-                    &self.get_bank_map(),
-                    vec![],
-                    remove_all_bank,
-                ),
-                BTreeMap::new(),
+                aisls(&remaining_accounts),
+                Default::default(),
             ),
             asset_amount.0,
             withdraw_all,
@@ -498,7 +505,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
     }
 
     pub fn process_action_borrow(
-        &'bump self,
+        &'state self,
         account_idx: &AccountIdx,
         bank_idx: &BankIdx,
         asset_amount: &AssetAmount,
@@ -514,27 +521,30 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             bank.liquidity_vault.clone(),
         ]);
 
+        let remaining_accounts = marginfi_account.get_remaining_accounts(
+            &self.get_bank_map(),
+            vec![bank.bank.key()],
+            vec![],
+        );
         let res = marginfi::instructions::marginfi_account::lending_account_borrow(
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountBorrow {
-                    marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
-                    marginfi_account: AccountLoader::try_from(&marginfi_account.margin_account)?,
-                    signer: Signer::try_from(&self.owner)?,
-                    bank: AccountLoader::try_from(&bank.bank)?,
-                    token_program: Interface::try_from(&self.token_program)?,
-                    destination_token_account: InterfaceAccount::try_from(
-                        &marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
-                    )?,
-                    bank_liquidity_vault_authority: bank.liquidity_vault_authority.clone(),
-                    bank_liquidity_vault: InterfaceAccount::try_from(&bank.liquidity_vault)?,
+                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    marginfi_account: AccountLoader::try_from(airls(
+                        &marginfi_account.margin_account,
+                    ))?,
+                    signer: Signer::try_from(airls(&self.owner))?,
+                    bank: AccountLoader::try_from(airls(&bank.bank))?,
+                    token_program: Interface::try_from(airls(&self.token_program))?,
+                    destination_token_account: InterfaceAccount::try_from(airls(
+                        &marginfi_account.token_accounts[bank_idx.0 as usize],
+                    ))?,
+                    bank_liquidity_vault_authority: ails(bank.liquidity_vault_authority.clone()),
+                    bank_liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
                 },
-                &marginfi_account.get_remaining_accounts(
-                    &self.get_bank_map(),
-                    vec![bank.bank.key()],
-                    vec![],
-                ),
-                BTreeMap::new(),
+                aisls(&remaining_accounts),
+                Default::default(),
             ),
             asset_amount.0,
         );
@@ -555,7 +565,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
     }
 
     pub fn process_liquidate_account(
-        &'bump self,
+        &'state self,
         liquidator_idx: &AccountIdx,
         liquidatee_idx: &AccountIdx,
         asset_amount: &AssetAmount,
@@ -606,25 +616,27 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             Context::new(
                 &marginfi::id(),
                 &mut marginfi::instructions::LendingAccountLiquidate {
-                    marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
-                    asset_bank: AccountLoader::try_from(&asset_bank.bank.clone())?,
-                    liab_bank: AccountLoader::try_from(&liab_bank.bank.clone())?,
-                    liquidator_marginfi_account: AccountLoader::try_from(
-                        &liquidator_account.margin_account.clone(),
-                    )?,
-                    signer: Signer::try_from(&self.owner)?,
-                    liquidatee_marginfi_account: AccountLoader::try_from(
-                        &liquidatee_account.margin_account.clone(),
-                    )?,
-                    bank_liquidity_vault_authority: liab_bank.liquidity_vault_authority.clone(),
-                    bank_liquidity_vault: Box::new(InterfaceAccount::try_from(
-                        &liab_bank.liquidity_vault.clone(),
-                    )?),
-                    bank_insurance_vault: liab_bank.insurance_vault.clone(),
-                    token_program: Interface::try_from(&self.token_program)?,
+                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    asset_bank: AccountLoader::try_from(airls(&asset_bank.bank))?,
+                    liab_bank: AccountLoader::try_from(airls(&liab_bank.bank))?,
+                    liquidator_marginfi_account: AccountLoader::try_from(airls(
+                        &liquidator_account.margin_account,
+                    ))?,
+                    signer: Signer::try_from(airls(&self.owner))?,
+                    liquidatee_marginfi_account: AccountLoader::try_from(airls(
+                        &liquidatee_account.margin_account,
+                    ))?,
+                    bank_liquidity_vault_authority: ails(
+                        liab_bank.liquidity_vault_authority.clone(),
+                    ),
+                    bank_liquidity_vault: Box::new(InterfaceAccount::try_from(airls(
+                        &liab_bank.liquidity_vault,
+                    ))?),
+                    bank_insurance_vault: ails(liab_bank.insurance_vault.clone()),
+                    token_program: Interface::try_from(airls(&self.token_program))?,
                 },
-                &remaining_accounts,
-                BTreeMap::new(),
+                aisls(&remaining_accounts),
+                Default::default(),
             ),
             asset_amount.0,
         );
@@ -647,7 +659,7 @@ impl<'bump> MarginfiFuzzContext<'bump> {
     }
 
     pub fn process_handle_bankruptcy(
-        &'bump self,
+        &'state self,
         account_idx: &AccountIdx,
         bank_idx: &BankIdx,
     ) -> anyhow::Result<()> {
@@ -663,24 +675,24 @@ impl<'bump> MarginfiFuzzContext<'bump> {
             bank.insurance_vault.clone(),
         ]);
 
+        let remaining_accounts =
+            marginfi_account.get_remaining_accounts(&self.get_bank_map(), vec![], vec![]);
         let res = marginfi::instructions::lending_pool_handle_bankruptcy(Context::new(
             &marginfi::ID,
             &mut marginfi::instructions::LendingPoolHandleBankruptcy {
-                marginfi_group: AccountLoader::try_from(&self.marginfi_group.clone())?,
-                signer: Signer::try_from(&self.owner)?,
-                bank: AccountLoader::try_from(&bank.bank.clone())?,
-                marginfi_account: AccountLoader::try_from(
-                    &marginfi_account.margin_account.clone(),
-                )?,
-                liquidity_vault: bank.liquidity_vault.clone(),
-                insurance_vault: Box::new(InterfaceAccount::try_from(
-                    &bank.insurance_vault.clone(),
-                )?),
-                insurance_vault_authority: bank.insurance_vault_authority.clone(),
-                token_program: Interface::try_from(&self.token_program)?,
+                marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                signer: Signer::try_from(airls(&self.owner))?,
+                bank: AccountLoader::try_from(airls(&bank.bank))?,
+                marginfi_account: AccountLoader::try_from(airls(&marginfi_account.margin_account))?,
+                liquidity_vault: ails(bank.liquidity_vault.clone()),
+                insurance_vault: Box::new(InterfaceAccount::try_from(airls(
+                    &bank.insurance_vault,
+                ))?),
+                insurance_vault_authority: ails(bank.insurance_vault_authority.clone()),
+                token_program: Interface::try_from(airls(&self.token_program))?,
             },
-            &marginfi_account.get_remaining_accounts(&self.get_bank_map(), vec![], vec![]),
-            BTreeMap::new(),
+            aisls(&remaining_accounts),
+            Default::default(),
         ));
 
         if res.is_err() {
@@ -721,11 +733,11 @@ pub fn set_discriminator<T: Discriminator>(ai: AccountInfo) {
     data[..8].copy_from_slice(&T::DISCRIMINATOR);
 }
 
-fn initialize_marginfi_group<'bump>(
-    state: &'bump AccountsState,
-    admin: AccountInfo<'bump>,
-    system_program: AccountInfo<'bump>,
-) -> AccountInfo<'bump> {
+fn initialize_marginfi_group<'a>(
+    state: &'a AccountsState,
+    admin: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
+) -> AccountInfo<'a> {
     let program_id = marginfi::id();
     let marginfi_group =
         state.new_owned_account(size_of::<MarginfiGroup>(), program_id, Rent::free());
@@ -734,13 +746,13 @@ fn initialize_marginfi_group<'bump>(
         &marginfi::id(),
         &mut marginfi::instructions::MarginfiGroupInitialize {
             // Unchecked because we are initializing the account.
-            marginfi_group: AccountLoader::try_from_unchecked(&program_id, &marginfi_group)
+            marginfi_group: AccountLoader::try_from_unchecked(&program_id, airls(&marginfi_group))
                 .unwrap(),
-            admin: Signer::try_from(&admin).unwrap(),
-            system_program: Program::try_from(&system_program).unwrap(),
+            admin: Signer::try_from(airls(&admin)).unwrap(),
+            system_program: Program::try_from(airls(&system_program)).unwrap(),
         },
         &[],
-        BTreeMap::new(),
+        Default::default(),
     ))
     .unwrap();
 
@@ -753,7 +765,7 @@ fn initialize_marginfi_group<'bump>(
 mod tests {
     use fixed::types::I80F48;
     use marginfi::state::marginfi_account::RiskEngine;
-    use pyth_sdk_solana::state::PriceAccount;
+    use pyth_sdk_solana::state::SolanaPriceAccount;
 
     use super::*;
     #[test]
@@ -856,9 +868,9 @@ mod tests {
             let margin_account = &a.marginfi_accounts[0];
             let bank_map = a.get_bank_map();
             let remaining_accounts =
-                &margin_account.get_remaining_accounts(&bank_map, vec![], vec![]);
+                margin_account.get_remaining_accounts(&bank_map, vec![], vec![]);
 
-            let re = RiskEngine::new(&marginfi_account, remaining_accounts).unwrap();
+            let re = RiskEngine::new(&marginfi_account, aisls(&remaining_accounts)).unwrap();
 
             let health = re
                 .get_account_health(
@@ -916,9 +928,9 @@ mod tests {
             let margin_account = &a.marginfi_accounts[0];
             let bank_map = a.get_bank_map();
             let remaining_accounts =
-                &margin_account.get_remaining_accounts(&bank_map, vec![], vec![]);
+                margin_account.get_remaining_accounts(&bank_map, vec![], vec![]);
 
-            let re = RiskEngine::new(&marginfi_account, remaining_accounts).unwrap();
+            let re = RiskEngine::new(&marginfi_account, aisls(&remaining_accounts)).unwrap();
 
             let health = re
                 .get_account_health(
@@ -961,7 +973,7 @@ mod tests {
 
         let price = {
             let data = a.banks[0].oracle.try_borrow_data().unwrap();
-            let data = bytemuck::from_bytes::<PriceAccount>(&data);
+            let data = bytemuck::from_bytes::<SolanaPriceAccount>(&data);
 
             data.ema_price.val
         };
@@ -971,7 +983,7 @@ mod tests {
 
         let new_price = {
             let data = a.banks[0].oracle.try_borrow_data().unwrap();
-            let data = bytemuck::from_bytes::<PriceAccount>(&data);
+            let data = bytemuck::from_bytes::<SolanaPriceAccount>(&data);
             data.ema_price.val
         };
 
