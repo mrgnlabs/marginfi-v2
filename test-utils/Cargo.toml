@@ -7,8 +7,6 @@ edition = "2021"
 [features]
 lip = ["liquidity-incentive-program"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 solana-cli-output = { workspace = true }
 solana-program = { workspace = true }

@@ -75,10 +75,7 @@ async fn marginfi_account_liquidation_success_with_extension(
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
-    let borrower_token_account_usdc_t22 = test_f
-        .usdc_t22_mint
-        .create_token_account_and_mint_to(0)
-        .await;
+    let borrower_token_account_usdc_t22 = test_f.usdc_t22_mint.create_empty_token_account().await;
 
     // Borrower deposits 100 SOL worth of $1000
     borrower_mfi_account_f

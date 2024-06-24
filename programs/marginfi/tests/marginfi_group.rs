@@ -279,7 +279,7 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 999)
         .await?;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 90)
         .await?;
@@ -368,7 +368,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 10_000_000)
         .await?;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 90_000_000)
         .await?;
@@ -454,7 +454,7 @@ async fn marginfi_group_handle_bankruptcy_failure_not_bankrupt() -> anyhow::Resu
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 1_001)
         .await?;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 10_000)
         .await?;
@@ -510,7 +510,7 @@ async fn marginfi_group_handle_bankruptcy_success_no_debt() -> anyhow::Result<()
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 1_001)
         .await?;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 10_000)
         .await?;
@@ -581,7 +581,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
         )
         .await?;
 
-    let borrower_borrow_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_borrow_account = test_f.usdc_mint.create_empty_token_account().await;
 
     borrower_account
         .try_bank_borrow(
@@ -740,7 +740,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured_t22_with_fee() -
     let borrower_debt_account = test_f
         .get_bank_mut(&debt_mint)
         .mint
-        .create_token_account_and_mint_to(0)
+        .create_empty_token_account()
         .await;
 
     let borrow_amount = 10_000;
@@ -959,7 +959,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
             1_001,
         )
         .await?;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_account
         .try_bank_borrow(
             borrower_token_account_usdc.key,
@@ -1069,7 +1069,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured_t22_with_fee
     let borrower_debt_token_account = test_f
         .get_bank(&debt_mint)
         .mint
-        .create_token_account_and_mint_to(0)
+        .create_empty_token_account()
         .await;
     borrower_account
         .try_bank_borrow(
@@ -1221,7 +1221,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured() -> anyhow::Resul
     borrower_account
         .try_bank_deposit(borrower_deposit_account.key, sol_bank_f, 1_001)
         .await?;
-    let borrower_borrow_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_borrow_account = test_f.usdc_mint.create_empty_token_account().await;
     borrower_account
         .try_bank_borrow(borrower_borrow_account.key, usdc_bank_f, 10_000)
         .await?;
@@ -1322,7 +1322,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 1_001)
         .await?;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 10_000)
         .await?;
@@ -1482,7 +1482,7 @@ async fn marginfi_group_bank_reduce_only_deposit_success() -> anyhow::Result<()>
         .try_bank_deposit(lender_2_token_account_usdc.key, usdc_bank_f, 100_000)
         .await?;
 
-    let lender_2_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let lender_2_token_account_sol = test_f.sol_mint.create_empty_token_account().await;
     lender_2_mfi_account
         .try_bank_borrow(lender_2_token_account_sol.key, sol_bank_f, 1)
         .await?;
@@ -1548,7 +1548,7 @@ async fn marginfi_group_bank_reduce_only_borrow_failure() -> anyhow::Result<()> 
         })
         .await?;
 
-    let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_sol = test_f.sol_mint.create_empty_token_account().await;
     let res = borrower_mfi_account
         .try_bank_borrow(borrower_token_account_sol.key, sol_bank_f, 1)
         .await;
@@ -1632,7 +1632,7 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
         .await?;
 
     // Borrowing 10 SOL should fail bc of init limit
-    let depositor_sol_account = sol_bank.mint.create_token_account_and_mint_to(0).await;
+    let depositor_sol_account = sol_bank.mint.create_empty_token_account().await;
     let res = usdc_depositor
         .try_bank_borrow(depositor_sol_account.key, sol_bank, 9.9)
         .await;

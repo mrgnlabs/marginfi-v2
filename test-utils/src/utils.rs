@@ -574,6 +574,14 @@ pub fn get_max_deposit_amount_pre_fee(amount: f64) -> f64 {
     amount * (1f64 + MAX_FEE_BASIS_POINTS as f64 / 10_000f64)
 }
 
+pub fn get_sufficient_collateral_for_outflow(
+    target_outflow: f64,
+    collateral_mint_price: f64,
+    outflow_mint_price: f64,
+) -> f64 {
+    target_outflow * outflow_mint_price / collateral_mint_price
+}
+
 #[cfg(feature = "lip")]
 pub mod lip {
     use super::*;

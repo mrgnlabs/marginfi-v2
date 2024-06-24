@@ -11,9 +11,13 @@ use anchor_lang::{
 use fixed::types::I80F48;
 use marginfi::{
     bank_authority_seed,
-    state::marginfi_group::{Bank, BankConfigOpt, BankVaultType},
+    state::{
+        marginfi_group::{Bank, BankConfigOpt, BankVaultType},
+        price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter},
+    },
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
+use solana_program::account_info::IntoAccountInfo;
 use solana_program::instruction::Instruction;
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
@@ -52,6 +56,27 @@ impl BankFixture {
 
     pub fn get_vault_authority(&self, vault_type: BankVaultType) -> (Pubkey, u8) {
         find_bank_vault_authority_pda(&self.key, vault_type)
+    }
+
+    pub async fn get_price(&self) -> f64 {
+        let bank = self.load().await;
+        let oracle_key = bank.config.oracle_keys[0];
+        let mut oracle_account = self
+            .ctx
+            .borrow_mut()
+            .banks_client
+            .get_account(oracle_key)
+            .await
+            .unwrap()
+            .unwrap();
+        let ai = (&oracle_key, &mut oracle_account).into_account_info();
+        let oracle_adapter =
+            OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[ai], 0).unwrap();
+
+        oracle_adapter
+            .get_price_of_type(OraclePriceType::RealTime, None)
+            .unwrap()
+            .to_num()
     }
 
     pub async fn load(&self) -> Bank {

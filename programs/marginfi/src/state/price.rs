@@ -14,7 +14,7 @@ use crate::{
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL, PYTH_ID, STD_DEV_MULTIPLE,
     },
-    debug, math_error,
+    math_error,
     prelude::*,
 };
 
@@ -80,7 +80,6 @@ impl OraclePriceFeedAdapter {
         current_timestamp: i64,
         max_age: u64,
     ) -> MarginfiResult<Self> {
-        debug!("Max age: {}", max_age);
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
             OracleSetup::PythEma => {
@@ -151,11 +150,6 @@ pub struct PythEmaPriceFeed {
 impl PythEmaPriceFeed {
     pub fn load_checked(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
         let price_feed = load_pyth_price_feed(ai)?;
-
-        debug!(
-            "Oracle age: {}s",
-            price_feed.get_price_unchecked().publish_time - current_time
-        );
 
         let ema_price = price_feed
             .get_ema_price_no_older_than(current_time, max_age)

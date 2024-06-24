@@ -61,7 +61,7 @@ async fn marginfi_account_repay_success() -> anyhow::Result<()> {
         .usdc_mint
         .create_token_account_and_mint_to(1_000)
         .await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
         .await?;
@@ -122,7 +122,7 @@ async fn marginfi_account_repay_t22_with_fee_success() -> anyhow::Result<()> {
     let borrower_token_account_f_debt = test_f
         .get_bank(&debt_mint)
         .mint
-        .create_token_account_and_mint_to(0)
+        .create_empty_token_account()
         .await;
     borrower_mfi_account_f
         .try_bank_deposit(
@@ -315,7 +315,7 @@ async fn marginfi_account_repay_failure_repaying_too_much() -> anyhow::Result<()
         .usdc_mint
         .create_token_account_and_mint_to(1_000)
         .await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
         .await?;
@@ -360,7 +360,7 @@ async fn marginfi_account_repay_all_success() -> anyhow::Result<()> {
         .usdc_mint
         .create_token_account_and_mint_to(1_000)
         .await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
         .await?;
@@ -431,7 +431,7 @@ async fn marginfi_account_liquidation_success() -> anyhow::Result<()> {
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
 
     // Borrower deposits 100 SOL worth of $1000
     borrower_mfi_account_f
@@ -541,7 +541,7 @@ async fn marginfi_account_liquidation_success_many_balances() -> anyhow::Result<
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     let borrower_token_account_sol_eq = test_f
         .sol_equivalent_mint
         .create_token_account_and_mint_to(5000)
@@ -689,7 +689,7 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
 
     // Borrower deposits 100 SOL worth of $1000
     borrower_mfi_account_f
@@ -808,7 +808,7 @@ async fn marginfi_account_liquidation_failure_liquidatee_not_unhealthy() -> anyh
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100)
@@ -844,7 +844,7 @@ async fn marginfi_account_liquidation_failure_liquidation_too_severe() -> anyhow
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(10).await;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 10)
         .await?;
@@ -916,7 +916,7 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
         .sol_equivalent_mint
         .create_token_account_and_mint_to(100)
         .await;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 10)
         .await?;
@@ -970,7 +970,7 @@ async fn marginfi_account_liquidation_failure_bank_not_liquidatable() -> anyhow:
         .sol_equivalent_mint
         .create_token_account_and_mint_to(100)
         .await;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 10)
         .await?;
@@ -1173,7 +1173,7 @@ async fn isolated_borrows() -> anyhow::Result<()> {
         .await;
     let borrower_token_account_f_sol = test_f
         .sol_equivalent_mint
-        .create_token_account_and_mint_to(0)
+        .create_empty_token_account()
         .await;
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
@@ -1187,7 +1187,7 @@ async fn isolated_borrows() -> anyhow::Result<()> {
     assert!(res.is_ok());
 
     // Repay isolated SOL EQ borrow and borrow SOL successfully,
-    let borrower_sol_account = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_sol_account = test_f.sol_mint.create_empty_token_account().await;
     let res = borrower_mfi_account_f
         .try_bank_borrow(borrower_sol_account.key, sol_bank, 10)
         .await;
@@ -1301,7 +1301,7 @@ async fn emissions_test() -> anyhow::Result<()> {
         .try_bank_deposit(lender_token_account_usdc.key, usdc_bank, 50)
         .await?;
 
-    let sol_account = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let sol_account = test_f.sol_mint.create_empty_token_account().await;
 
     mfi_account_f
         .try_bank_borrow(sol_account.key, sol_bank, 2)
@@ -1310,13 +1310,13 @@ async fn emissions_test() -> anyhow::Result<()> {
     // Advance for half a year and claim half emissions
     test_f.advance_time((SECONDS_PER_YEAR / 2.0) as i64).await;
 
-    let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let lender_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
 
     mfi_account_f
         .try_withdraw_emissions(usdc_bank, &lender_token_account_usdc)
         .await?;
 
-    let sol_emissions_ta = sol_emissions_mint.create_token_account_and_mint_to(0).await;
+    let sol_emissions_ta = sol_emissions_mint.create_empty_token_account().await;
 
     mfi_account_f
         .try_withdraw_emissions(sol_bank, &sol_emissions_ta)
@@ -1382,7 +1382,7 @@ async fn emissions_test() -> anyhow::Result<()> {
     );
 
     // SOL lendeing account can't claim emissions, bc SOL is borrow only emissions
-    let sol_lender_emissions = sol_emissions_mint.create_token_account_and_mint_to(0).await;
+    let sol_lender_emissions = sol_emissions_mint.create_empty_token_account().await;
 
     sol_lender_account
         .try_withdraw_emissions(sol_bank, &sol_lender_emissions)
@@ -1595,7 +1595,7 @@ async fn flashloan_success_1op() -> anyhow::Result<()> {
         .try_set_flag(FLASHLOAN_ENABLED_FLAG)
         .await?;
 
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
 
     let borrow_ix = borrower_mfi_account_f
@@ -1644,7 +1644,7 @@ async fn flashloan_success_3op() -> anyhow::Result<()> {
         .try_set_flag(FLASHLOAN_ENABLED_FLAG)
         .await?;
 
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     // Create borrow and repay instructions
     let mut ixs = Vec::new();
@@ -1699,7 +1699,7 @@ async fn flashloan_fail_account_health() -> anyhow::Result<()> {
         .try_set_flag(FLASHLOAN_ENABLED_FLAG)
         .await?;
 
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
 
     let borrow_ix = borrower_mfi_account_f
@@ -1739,7 +1739,7 @@ async fn flashloan_ok_missing_flag() -> anyhow::Result<()> {
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
 
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
 
     let borrow_ix = borrower_mfi_account_f
@@ -1788,7 +1788,7 @@ async fn flashloan_fail_missing_fe_ix() -> anyhow::Result<()> {
         .try_set_flag(FLASHLOAN_ENABLED_FLAG)
         .await?;
 
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
 
     let borrow_ix = borrower_mfi_account_f
@@ -1852,7 +1852,7 @@ async fn flashloan_fail_missing_invalid_sysvar_ixs() -> anyhow::Result<()> {
         .try_set_flag(FLASHLOAN_ENABLED_FLAG)
         .await?;
 
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
 
     let borrow_ix = borrower_mfi_account_f
@@ -1931,7 +1931,7 @@ async fn flashloan_fail_invalid_end_fl_order() -> anyhow::Result<()> {
         .try_set_flag(FLASHLOAN_ENABLED_FLAG)
         .await?;
 
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
 
     let borrow_ix = borrower_mfi_account_f
@@ -1991,7 +1991,7 @@ async fn flashloan_fail_invalid_end_fl_different_m_account() -> anyhow::Result<(
         .try_set_flag(FLASHLOAN_ENABLED_FLAG)
         .await?;
 
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
 
     let borrow_ix = borrower_mfi_account_f
@@ -2051,7 +2051,7 @@ async fn flashloan_fail_already_in_flashloan() -> anyhow::Result<()> {
         .try_set_flag(FLASHLOAN_ENABLED_FLAG)
         .await?;
 
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
 
     let borrow_ix = borrower_mfi_account_f

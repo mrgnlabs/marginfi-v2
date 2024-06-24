@@ -686,4 +686,29 @@ impl TestFixture {
         )
         .unwrap()
     }
+
+    pub async fn get_sufficient_collateral_for_outflow(
+        &self,
+        outflow_amount: f64,
+        outflow_mint: &BankMint,
+        collateral_mint: &BankMint,
+    ) -> f64 {
+        let outflow_bank = self.get_bank(outflow_mint);
+        let collateral_bank = self.get_bank(collateral_mint);
+
+        let outflow_mint_price = outflow_bank.get_price().await;
+        let collateral_mint_price = collateral_bank.get_price().await;
+
+        let collateral_amount = get_sufficient_collateral_for_outflow(
+            outflow_amount,
+            outflow_mint_price,
+            collateral_mint_price,
+        );
+
+        let decimal_scaling = 10.0_f64.powi(collateral_bank.mint.mint.decimals as i32);
+        let collateral_amount =
+            ((collateral_amount * decimal_scaling).round() + 1.) / decimal_scaling;
+
+        collateral_amount
+    }
 }

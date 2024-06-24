@@ -14,7 +14,7 @@ async fn marginfi_group_withdraw_fees_and_insurance() -> anyhow::Result<()> {
     test_f.usdc_mint.mint_to(&bank.insurance_vault, 1000).await;
 
     // Create a receiving account and try to withdraw 1000 USDC from the insurance vault
-    let receiving_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let receiving_account = test_f.usdc_mint.create_empty_token_account().await;
     bank_f
         .try_withdraw_insurance(&receiving_account, 1000)
         .await?;
@@ -24,7 +24,7 @@ async fn marginfi_group_withdraw_fees_and_insurance() -> anyhow::Result<()> {
     test_f.usdc_mint.mint_to(&bank.fee_vault, 750).await;
 
     // Create a receiving account and try to withdraw 750 USDC from the fee vault
-    let receiving_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let receiving_account = test_f.usdc_mint.create_empty_token_account().await;
     bank_f.try_withdraw_fees(&receiving_account, 750).await?;
     assert_eq!(receiving_account.balance().await, 750); // Verifies that the receiving account balance is 750 USDC
 
@@ -40,7 +40,7 @@ async fn marginfi_group_withdraw_fees_and_insurance() -> anyhow::Result<()> {
     test_f.usdc_mint.mint_to(&bank.insurance_vault, 1000).await;
 
     // Create a receiving account and try to withdraw 1000 USDC from the insurance vault
-    let receiving_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let receiving_account = test_f.usdc_mint.create_empty_token_account().await;
     let res = bank_f
         .try_withdraw_insurance(&receiving_account, 1000)
         .await;
@@ -50,7 +50,7 @@ async fn marginfi_group_withdraw_fees_and_insurance() -> anyhow::Result<()> {
     test_f.usdc_mint.mint_to(&bank.fee_vault, 750).await;
 
     // Create a receiving account and try to withdraw 750 USDC from the fee vault
-    let receiving_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let receiving_account = test_f.usdc_mint.create_empty_token_account().await;
     let res = bank_f.try_withdraw_fees(&receiving_account, 750).await;
     assert!(res.is_err()); // Unable to withdraw 750 USDC from the fee vault, because the signer is not the admin
 

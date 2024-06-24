@@ -47,7 +47,7 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
         .sol_equivalent_mint
         .create_token_account_and_mint_to(1_000)
         .await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
@@ -130,7 +130,7 @@ async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
         .sol_equivalent_mint
         .create_token_account_and_mint_to(1_000)
         .await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
@@ -182,7 +182,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_f_usdc =
         test_f.usdc_mint.create_token_account_and_mint_to(500).await;
-    let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
         .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
@@ -267,7 +267,7 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
-    let borrower_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
 
     // Borrower deposits 100 SOL worth $1000
     borrower_mfi_account_f
@@ -369,7 +369,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
         )
         .await?;
 
-    let borrower_borrow_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_borrow_account = test_f.usdc_mint.create_empty_token_account().await;
 
     borrower_account
         .try_bank_borrow(

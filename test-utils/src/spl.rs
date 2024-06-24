@@ -293,6 +293,10 @@ impl MintFixture {
         .unwrap()
     }
 
+    pub async fn create_empty_token_account(&self) -> TokenAccountFixture {
+        self.create_token_account_and_mint_to(0.0).await
+    }
+
     pub async fn create_token_account_and_mint_to<T: Into<f64>>(
         &self,
         ui_amount: T,

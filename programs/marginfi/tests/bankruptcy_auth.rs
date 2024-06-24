@@ -57,7 +57,7 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
         )
         .await?;
 
-    let borrower_borrow_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_borrow_account = test_f.usdc_mint.create_empty_token_account().await;
 
     borrower_account
         .try_bank_borrow(
@@ -151,7 +151,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
         )
         .await?;
 
-    let borrower_borrow_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_borrow_account = test_f.usdc_mint.create_empty_token_account().await;
 
     borrower_account
         .try_bank_borrow(

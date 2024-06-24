@@ -16,7 +16,7 @@ use anchor_spl::{
     token_interface::Mint,
 };
 use fixed::types::I80F48;
-use switchboard_solana::AccountInfo;
+use solana_program::account_info::AccountInfo;
 
 pub fn find_bank_vault_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
     Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), &crate::id())
