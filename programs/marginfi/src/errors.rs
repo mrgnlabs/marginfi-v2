@@ -93,6 +93,8 @@ pub enum MarginfiError {
     IllegalAccountAuthorityTransfer,
     #[msg("Unauthorized")] // 6045
     Unauthorized,
+    #[msg("Token22 Banks require mint account as first remaining account")] // 6045
+    T22MintRequired,
 }
 
 impl From<MarginfiError> for ProgramError {

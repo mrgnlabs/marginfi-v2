@@ -3,10 +3,7 @@ use crate::{
     state::marginfi_group::{Bank, BankVaultType},
     MarginfiError, MarginfiResult,
 };
-use anchor_lang::{
-    prelude::{InterfaceAccount, Pubkey},
-    Id,
-};
+use anchor_lang::{prelude::*, Id};
 use anchor_spl::{
     token::Token,
     token_2022::spl_token_2022::{
@@ -122,22 +119,38 @@ pub fn nonzero_fee(mint_ai: AccountInfo, epoch: u64) -> MarginfiResult<bool> {
 }
 
 /// Checks if first account is a mint account. If so, updates remaining_account -> &remaining_account[1..]
+///
+/// Ok(None) if Tokenkeg
 pub fn maybe_get_bank_mint<'info>(
     remaining_accounts: &mut &'info [AccountInfo<'info>],
     bank: &Bank,
-) -> Option<InterfaceAccount<'info, Mint>> {
-    let (maybe_mint, remaining) = remaining_accounts.split_first()?;
+    token_program: &Pubkey,
+) -> MarginfiResult<Option<InterfaceAccount<'info, Mint>>> {
+    match *token_program {
+        anchor_spl::token::ID => {
+            return Ok(None);
+        }
 
-    if bank.mint != *maybe_mint.key {
-        return None;
+        anchor_spl::token_2022::ID => {
+            let (maybe_mint, remaining) = remaining_accounts
+                .split_first()
+                .ok_or(MarginfiError::T22MintRequired)?;
+            *remaining_accounts = remaining;
+
+            if bank.mint != *maybe_mint.key {
+                return err!(MarginfiError::T22MintRequired);
+            }
+
+            InterfaceAccount::try_from(maybe_mint)
+                .map(Option::Some)
+                .map_err(|e| {
+                    msg!("failed to parse mint account: {:?}", e);
+                    MarginfiError::T22MintRequired.into()
+                })
+        }
+
+        _ => panic!("unsupported token program"),
     }
-
-    if let Ok(mint) = InterfaceAccount::try_from(maybe_mint) {
-        *remaining_accounts = remaining;
-        return Some(mint);
-    }
-
-    None
 }
 
 const ONE_IN_BASIS_POINTS: u128 = 10_000;

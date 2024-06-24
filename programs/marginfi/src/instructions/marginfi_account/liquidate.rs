@@ -94,7 +94,8 @@ pub fn lending_account_liquidate<'info>(
     let maybe_liab_bank_mint = utils::maybe_get_bank_mint(
         &mut ctx.remaining_accounts,
         &*ctx.accounts.liab_bank.load()?,
-    );
+        ctx.accounts.token_program.key,
+    )?;
     {
         ctx.accounts.asset_bank.load_mut()?.accrue_interest(
             current_timestamp,

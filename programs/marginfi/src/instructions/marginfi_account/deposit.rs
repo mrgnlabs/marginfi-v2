@@ -35,8 +35,11 @@ pub fn lending_account_deposit<'info>(
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
-    let maybe_bank_mint =
-        utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &*bank_loader.load()?);
+    let maybe_bank_mint = utils::maybe_get_bank_mint(
+        &mut ctx.remaining_accounts,
+        &*bank_loader.load()?,
+        token_program.key,
+    )?;
 
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
