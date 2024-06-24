@@ -33,7 +33,7 @@ assert_matches = "1.5.0"
 bincode = "1.3.3"
 futures = "0.3.25"
 pretty_assertions = "1.2.1"
-spl-token-2022 = "0.9.0"
+spl-token-2022 = { workspace = true }
 spl-transfer-hook-interface = "0.6.3"
 spl-discriminator = "0.2.2"
 serde = { version = "1.0.197", features = ["derive"] }

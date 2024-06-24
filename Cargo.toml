@@ -20,6 +20,7 @@ solana-measure = "1.18.5"
 solana-metrics = "1.18.5"
 solana-transaction-status = "1.18.5"
 spl-token = "4.0.0"
+spl-token-2022 = { git = "https://github.com/solana-labs/solana-program-library" , rev = "20e6792179fc7f1251579c1c33a4a0feec48e15e" }
 spl-associated-token-account = "2.2.0"
 
 anchor-lang = "0.30.1"

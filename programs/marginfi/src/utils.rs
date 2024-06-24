@@ -12,7 +12,8 @@ use anchor_spl::{
     token_2022::spl_token_2022::{
         self,
         extension::{
-            transfer_fee::TransferFeeConfig, BaseStateWithExtensions, StateWithExtensions,
+            transfer_fee::{TransferFee, TransferFeeConfig},
+            BaseStateWithExtensions, StateWithExtensions,
         },
     },
     token_interface::Mint,
@@ -59,9 +60,9 @@ pub fn calculate_pre_fee_spl_deposit_amount(
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
 
     let fee = if let Ok(transfer_fee_config) = mint.get_extension::<TransferFeeConfig>() {
-        transfer_fee_config
-            .calculate_inverse_epoch_fee(epoch, post_fee_amount)
-            .unwrap()
+        let epoch_fee = transfer_fee_config.get_epoch_fee(epoch);
+        let pre_fee_amount = calculate_pre_fee_amount(epoch_fee, post_fee_amount).unwrap();
+        epoch_fee.calculate_fee(pre_fee_amount).unwrap()
     } else {
         0
     };
@@ -137,4 +138,40 @@ pub fn maybe_get_bank_mint<'info>(
     }
 
     None
+}
+
+const ONE_IN_BASIS_POINTS: u128 = 10_000;
+/// backported fix from
+/// https://github.com/solana-labs/solana-program-library/commit/20e6792179fc7f1251579c1c33a4a0feec48e15e
+pub fn calculate_pre_fee_amount(transfer_fee: &TransferFee, post_fee_amount: u64) -> Option<u64> {
+    let maximum_fee = u64::from(transfer_fee.maximum_fee);
+    let transfer_fee_basis_points = u16::from(transfer_fee.transfer_fee_basis_points) as u128;
+    match (transfer_fee_basis_points, post_fee_amount) {
+        // no fee, same amount
+        (0, _) => Some(post_fee_amount),
+        // 0 zero out, 0 in
+        (_, 0) => Some(0),
+        // 100%, cap at max fee
+        (ONE_IN_BASIS_POINTS, _) => maximum_fee.checked_add(post_fee_amount),
+        _ => {
+            let numerator = (post_fee_amount as u128).checked_mul(ONE_IN_BASIS_POINTS)?;
+            let denominator = ONE_IN_BASIS_POINTS.checked_sub(transfer_fee_basis_points)?;
+            let raw_pre_fee_amount = ceil_div(numerator, denominator)?;
+
+            if raw_pre_fee_amount.checked_sub(post_fee_amount as u128)? >= maximum_fee as u128 {
+                post_fee_amount.checked_add(maximum_fee)
+            } else {
+                // should return `None` if `pre_fee_amount` overflows
+                u64::try_from(raw_pre_fee_amount).ok()
+            }
+        }
+    }
+}
+
+// Private function from spl-program-library
+fn ceil_div(numerator: u128, denominator: u128) -> Option<u128> {
+    numerator
+        .checked_add(denominator)?
+        .checked_sub(1)?
+        .checked_div(denominator)
 }
