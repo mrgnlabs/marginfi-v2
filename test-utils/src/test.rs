@@ -61,6 +61,10 @@ impl TestSettings {
                 mint: BankMint::T22WithFee,
                 ..TestBankSetting::default()
             },
+            TestBankSetting {
+                mint: BankMint::SolEqIsolated,
+                ..TestBankSetting::default()
+            },
         ];
 
         Self {
@@ -80,31 +84,6 @@ impl TestSettings {
                 TestBankSetting {
                     mint: BankMint::Sol,
                     config: Some(*DEFAULT_SOL_TEST_SW_BANK_CONFIG),
-                },
-            ],
-            group_config: Some(GroupConfig { admin: None }),
-        }
-    }
-
-    pub fn all_banks_one_isolated() -> Self {
-        Self {
-            banks: vec![
-                TestBankSetting {
-                    mint: BankMint::Usdc,
-                    ..TestBankSetting::default()
-                },
-                TestBankSetting {
-                    mint: BankMint::Sol,
-                    ..TestBankSetting::default()
-                },
-                TestBankSetting {
-                    mint: BankMint::SolEquivalent,
-                    config: Some(BankConfig {
-                        risk_tier: RiskTier::Isolated,
-                        asset_weight_maint: I80F48!(0).into(),
-                        asset_weight_init: I80F48!(0).into(),
-                        ..*DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG
-                    }),
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
@@ -185,6 +164,7 @@ pub enum BankMint {
     UsdcT22,
     T22WithFee,
     PyUSD,
+    SolEqIsolated,
 }
 
 impl Default for BankMint {
@@ -268,6 +248,15 @@ lazy_static! {
         deposit_limit: native!(1_000_000_000, "PYUSD"),
         borrow_limit: native!(1_000_000_000, "PYUSD"),
         oracle_keys: create_oracle_key_array(PYTH_PYUSD_FEED),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    pub static ref DEFAULT_SOL_EQ_ISO_TEST_BANK_CONFIG: BankConfig = BankConfig {
+        deposit_limit: native!(1_000_000, "SOL_EQ_ISO"),
+        borrow_limit: native!(1_000_000, "SOL_EQ_ISO"),
+        oracle_keys: create_oracle_key_array(PYTH_SOL_EQUIVALENT_FEED),
+        risk_tier: RiskTier::Isolated,
+        asset_weight_maint: I80F48!(0).into(),
+        asset_weight_init: I80F48!(0).into(),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG: BankConfig = BankConfig {
@@ -523,6 +512,9 @@ impl TestFixture {
                     }
                     BankMint::UsdcT22 => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
                     BankMint::PyUSD => (&pyusd_mint_f, *DEFAULT_PYUSD_TEST_BANK_CONFIG),
+                    BankMint::SolEqIsolated => {
+                        (&sol_equivalent_mint_f, *DEFAULT_SOL_EQ_ISO_TEST_BANK_CONFIG)
+                    }
                 };
 
                 banks.insert(

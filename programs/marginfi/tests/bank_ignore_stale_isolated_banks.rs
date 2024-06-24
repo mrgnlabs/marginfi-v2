@@ -130,11 +130,11 @@ async fn non_stale_bank_should_error() -> anyhow::Result<()> {
 #[tokio::test]
 /// Borrowing with deposits to a non isolated stale bank should error
 async fn isolated_stale_should_not_error() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_one_isolated())).await;
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     let usdc_bank = test_f.get_bank(&BankMint::Usdc);
     let sol_bank = test_f.get_bank(&BankMint::Sol);
-    let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
+    let sol_eq_iso_bank = test_f.get_bank(&BankMint::SolEqIsolated);
 
     test_f.set_time(0);
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
@@ -168,7 +168,7 @@ async fn isolated_stale_should_not_error() -> anyhow::Result<()> {
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_iso_bank, 1_000)
         .await?;
 
     // Borrow SOL

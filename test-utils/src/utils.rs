@@ -490,6 +490,14 @@ macro_rules! native {
         (($val) * 10_u64.pow(9) as f64) as u64
     };
 
+    ($val: expr, "SOL_EQ_ISO") => {
+        $val * 10_u64.pow(9)
+    };
+
+    ($val: expr, "SOL_EQ_ISO", f64) => {
+        (($val) * 10_u64.pow(9) as f64) as u64
+    };
+
     ($val: expr, $decimals: expr) => {
         $val * 10_u64.pow($decimals as u32)
     };

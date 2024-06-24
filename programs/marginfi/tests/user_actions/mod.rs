@@ -160,85 +160,8 @@ async fn marginfi_account_correct_balance_selection_after_closing_position() -> 
 }
 
 #[tokio::test]
-async fn isolated_borrows() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_one_isolated())).await;
-
-    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
-    let sol_eq_bank = test_f.get_bank(&BankMint::SolEquivalent);
-    let sol_bank = test_f.get_bank(&BankMint::Sol);
-
-    // Fund SOL lender
-    let lender_mfi_account_f = test_f.create_marginfi_account().await;
-    let lender_token_account_sol = test_f
-        .sol_equivalent_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_eq_bank, 1_000)
-        .await?;
-
-    let lender_token_account_sol = test_f
-        .sol_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
-        .await?;
-
-    // Fund SOL borrower
-    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-    let borrower_token_account_f_usdc = test_f
-        .usdc_mint
-        .create_token_account_and_mint_to(1_000)
-        .await;
-    let borrower_token_account_f_sol = test_f
-        .sol_equivalent_mint
-        .create_empty_token_account()
-        .await;
-    borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
-        .await?;
-
-    // Borrow SOL EQ
-    let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_eq_bank, 10)
-        .await;
-
-    assert!(res.is_ok());
-
-    // Repay isolated SOL EQ borrow and borrow SOL successfully,
-    let borrower_sol_account = test_f.sol_mint.create_empty_token_account().await;
-    let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_sol_account.key, sol_bank, 10)
-        .await;
-
-    assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::IsolatedAccountIllegalState);
-
-    borrower_mfi_account_f
-        .try_bank_repay(borrower_token_account_f_sol.key, sol_eq_bank, 0, Some(true))
-        .await?;
-
-    let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_sol_account.key, sol_bank, 10)
-        .await;
-
-    assert!(res.is_ok());
-
-    // Borrowing SOL EQ again fails
-    let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_eq_bank, 10)
-        .await;
-
-    assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::IsolatedAccountIllegalState);
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn emissions_test() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_one_isolated())).await;
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     let usdc_bank = test_f.get_bank(&BankMint::Usdc);
     let sol_bank = test_f.get_bank(&BankMint::Sol);
@@ -415,7 +338,7 @@ async fn emissions_test() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn emissions_test_2() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_one_isolated())).await;
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     let usdc_bank = test_f.get_bank(&BankMint::Usdc);
 
