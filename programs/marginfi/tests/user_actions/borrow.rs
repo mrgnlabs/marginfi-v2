@@ -26,11 +26,11 @@ async fn marginfi_account_borrow_success(
     collateral_mint: BankMint,
     debt_mint: BankMint,
 ) -> anyhow::Result<()> {
-    let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-
     // -------------------------------------------------------------------------
     // Setup
     // -------------------------------------------------------------------------
+
+    let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     // LP
 
@@ -126,14 +126,14 @@ async fn marginfi_account_borrow_success(
         .count();
     assert_eq!(2, active_balance_count);
 
-    let expected_liquidity_vault_delta = borrow_amount_pre_fee;
-    let actual_liquidity_vault_delta = pre_vault_balance - post_vault_balance;
-    let accounted_liquidity_vault_delta = post_user_debt_accounted - pre_user_debt_accounted;
+    let expected_liquidity_vault_delta = -(borrow_amount_pre_fee as i64);
+    let actual_liquidity_vault_delta = post_vault_balance as i64 - pre_vault_balance as i64;
+    let accounted_user_balance_delta = post_user_debt_accounted - pre_user_debt_accounted;
 
     assert_eq!(expected_liquidity_vault_delta, actual_liquidity_vault_delta);
     assert_eq_with_tolerance!(
         I80F48::from(expected_liquidity_vault_delta),
-        accounted_liquidity_vault_delta,
+        -accounted_user_balance_delta,
         1
     );
 
@@ -155,11 +155,11 @@ async fn marginfi_account_borrow_failure_not_enough_collateral(
     collateral_mint: BankMint,
     debt_mint: BankMint,
 ) -> anyhow::Result<()> {
-    let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-
     // -------------------------------------------------------------------------
     // Setup
     // -------------------------------------------------------------------------
+
+    let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     // LP
 
@@ -244,11 +244,11 @@ async fn marginfi_account_borrow_failure_borrow_limit(
     collateral_mint: BankMint,
     debt_mint: BankMint,
 ) -> anyhow::Result<()> {
-    let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-
     // -------------------------------------------------------------------------
     // Setup
     // -------------------------------------------------------------------------
+
+    let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     // LP
 

@@ -11,7 +11,6 @@ use solana_sdk::{
 async fn marginfi_account_create_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
 
-    // Create & initialize marginfi account
     let marginfi_account_key = Keypair::new();
     let accounts = marginfi::accounts::MarginfiAccountInitialize {
         marginfi_group: test_f.marginfi_group.key,
@@ -42,12 +41,10 @@ async fn marginfi_account_create_success() -> anyhow::Result<()> {
 
     assert!(res.is_ok());
 
-    // Fetch & deserialize marginfi account
     let marginfi_account: MarginfiAccount = test_f
         .load_and_deserialize(&marginfi_account_key.pubkey())
         .await;
 
-    // Check basic properties
     assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
     assert_eq!(marginfi_account.authority, test_f.payer());
     assert!(marginfi_account

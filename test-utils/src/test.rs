@@ -709,6 +709,8 @@ impl TestFixture {
         let collateral_amount =
             ((collateral_amount * decimal_scaling).round() + 1.) / decimal_scaling;
 
+        let collateral_amount = get_max_deposit_amount_pre_fee(collateral_amount);
+
         collateral_amount
     }
 }
