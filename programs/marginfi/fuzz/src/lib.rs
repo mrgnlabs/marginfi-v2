@@ -22,7 +22,7 @@ use metrics::{MetricAction, Metrics};
 use solana_program::system_program;
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     mem::size_of,
     ops::AddAssign,
     sync::{Arc, RwLock},
