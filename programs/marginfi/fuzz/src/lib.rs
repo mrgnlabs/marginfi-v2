@@ -158,9 +158,14 @@ impl<'state> MarginfiFuzzContext<'state> {
         rent: Rent,
         initial_bank_config: &BankAndOracleConfig,
     ) {
+        log!("Setting up bank with config {:#?}", initial_bank_config);
         let bank = state.new_owned_account(size_of::<Bank>(), marginfi::id(), rent);
 
-        let mint = state.new_token_mint(rent, initial_bank_config.mint_decimals);
+        let mint = state.new_token_mint(
+            rent,
+            initial_bank_config.mint_decimals,
+            initial_bank_config.token_type,
+        );
         let (liquidity_vault_authority, liquidity_vault_authority_bump) =
             state.new_vault_authority(BankVaultType::Liquidity, bank.key);
         let (liquidity_vault, liquidity_vault_bump) = state.new_vault_account(

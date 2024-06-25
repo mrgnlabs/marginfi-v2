@@ -1,4 +1,4 @@
-use crate::SplAccount;
+use crate::{arbitrary_helpers::TokenType, SplAccount};
 use anchor_lang::{
     prelude::{AccountInfo, Pubkey, Rent, SolanaSysvar},
     Discriminator,
@@ -6,7 +6,7 @@ use anchor_lang::{
 use bumpalo::Bump;
 use marginfi::{constants::PYTH_ID, state::marginfi_group::BankVaultType};
 use pyth_sdk_solana::state::{
-    AccountType, SolanaPriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
+    AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
 };
 use safe_transmute::{transmute_to_bytes, transmute_to_bytes_mut};
 use solana_program::{
@@ -14,6 +14,10 @@ use solana_program::{
 };
 use solana_sdk::{signature::Keypair, signer::Signer};
 use spl_token::state::Mint;
+use spl_token_2022::extension::{
+    transfer_fee::{TransferFee, TransferFeeConfig},
+    BaseStateWithExtensionsMut, ExtensionType, StateWithExtensionsMut,
+};
 use std::mem::size_of;
 
 pub struct AccountsState {
@@ -52,22 +56,99 @@ impl AccountsState {
         )
     }
 
-    pub fn new_token_mint<'bump>(&'bump self, rent: Rent, decimals: u8) -> AccountInfo<'bump> {
-        let data = self.bump.alloc_slice_fill_copy(Mint::LEN, 0u8);
-        let mut mint = Mint::default();
-        mint.is_initialized = true;
-        mint.decimals = decimals;
-        Mint::pack(mint, data).unwrap();
-        AccountInfo::new(
-            self.random_pubkey(),
-            false,
-            true,
-            self.bump.alloc(rent.minimum_balance(data.len())),
-            data,
-            &spl_token::ID,
-            false,
-            Epoch::default(),
-        )
+    pub fn new_token_mint<'bump>(
+        &'bump self,
+        rent: Rent,
+        decimals: u8,
+        token_type: TokenType,
+    ) -> AccountInfo<'bump> {
+        match token_type {
+            TokenType::Tokenkeg => {
+                let data = self.bump.alloc_slice_fill_copy(Mint::LEN, 0u8);
+                let mut mint = Mint::default();
+                mint.is_initialized = true;
+                mint.decimals = decimals;
+                Mint::pack(mint, data).unwrap();
+                AccountInfo::new(
+                    self.random_pubkey(),
+                    false,
+                    true,
+                    self.bump.alloc(rent.minimum_balance(data.len())),
+                    data,
+                    &spl_token::ID,
+                    false,
+                    Epoch::default(),
+                )
+            }
+            TokenType::Token22 => {
+                let data = self.bump.alloc_slice_fill_copy(Mint::LEN, 0u8);
+                let mut mint = Mint::default();
+                mint.is_initialized = true;
+                mint.decimals = decimals;
+                Mint::pack(mint, data).unwrap();
+                AccountInfo::new(
+                    self.random_pubkey(),
+                    false,
+                    true,
+                    self.bump.alloc(rent.minimum_balance(data.len())),
+                    data,
+                    &spl_token_2022::ID,
+                    false,
+                    Epoch::default(),
+                )
+            }
+            TokenType::Token22WithFee {
+                transfer_fee_basis_points,
+                maximum_fee,
+            } => {
+                // Calculate mint size for t22 mint with transfer fee
+                let data_len = ExtensionType::try_calculate_account_len::<
+                    spl_token_2022::state::Mint,
+                >(&[ExtensionType::TransferFeeConfig])
+                .unwrap();
+
+                let mut data = self.bump.alloc_slice_fill_copy(data_len, 0u8);
+                let mut mint_state =
+                    StateWithExtensionsMut::<spl_token_2022::state::Mint>::unpack_uninitialized(
+                        &mut data,
+                    )
+                    .unwrap();
+                let transfer_fee_config = mint_state
+                    .init_extension::<TransferFeeConfig>(false)
+                    .unwrap();
+                *transfer_fee_config = TransferFeeConfig {
+                    transfer_fee_config_authority: Default::default(),
+                    withdraw_withheld_authority: Default::default(),
+                    withheld_amount: 0.into(),
+                    older_transfer_fee: TransferFee {
+                        epoch: 0.into(),
+                        maximum_fee: maximum_fee.into(),
+                        transfer_fee_basis_points: transfer_fee_basis_points.into(),
+                    },
+                    newer_transfer_fee: TransferFee {
+                        epoch: 0.into(),
+                        maximum_fee: maximum_fee.into(),
+                        transfer_fee_basis_points: transfer_fee_basis_points.into(),
+                    },
+                };
+
+                let mut mint = Mint::default();
+                mint.decimals = decimals;
+                mint.is_initialized = true;
+                Mint::pack(mint, data).unwrap();
+
+                AccountInfo::new(
+                    self.random_pubkey(),
+                    false,
+                    true,
+                    self.bump.alloc(rent.minimum_balance(data.len())),
+                    data,
+                    &spl_token_2022::ID,
+                    false,
+                    Epoch::default(),
+                )
+            }
+        }
     }
 
     pub fn new_token_account<'bump, 'a, 'b>(
