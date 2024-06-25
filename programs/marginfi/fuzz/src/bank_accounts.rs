@@ -18,6 +18,7 @@ pub struct BankAccounts<'info> {
     pub fee_vault: AccountInfo<'info>,
     pub fee_vault_authority: AccountInfo<'info>,
     pub mint: AccountInfo<'info>,
+    pub token_program: AccountInfo<'info>,
     pub mint_decimals: u8,
 }
 
@@ -31,22 +32,24 @@ impl<'bump> BankAccounts<'bump> {
         Ok(())
     }
 
-    pub fn update_oracle(&self, price_change: i64) -> Result<(), ProgramError> {
+    pub fn update_oracle(&self, updated_price: i64) -> Result<(), ProgramError> {
         let mut data = self.oracle.try_borrow_mut_data()?;
         let data = bytemuck::from_bytes_mut::<SolanaPriceAccount>(&mut data);
 
-        data.agg.price = max(data.agg.price + price_change, 0);
-        data.ema_price.val = max(data.ema_price.val + price_change, 0);
-        data.ema_price.numer = max(data.ema_price.numer + price_change, 0);
+        data.agg.price = max(updated_price, 0);
+        data.ema_price.val = max(updated_price, 0);
+        data.ema_price.numer = max(updated_price, 0);
 
         Ok(())
     }
 
     pub fn log_oracle_price(&self) -> Result<(), ProgramError> {
-        let data = self.oracle.try_borrow_data()?;
-        let data = bytemuck::from_bytes::<SolanaPriceAccount>(&data);
-
-        log!("Oracle price: {}", data.ema_price.val);
+        log!(
+            "Oracle price: {}",
+            bytemuck::from_bytes::<SolanaPriceAccount>(&self.oracle.try_borrow_data()?)
+                .ema_price
+                .val
+        );
 
         Ok(())
     }

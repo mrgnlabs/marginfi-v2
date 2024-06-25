@@ -23,6 +23,7 @@ debug = []
 
 [dependencies]
 solana-program = { workspace = true }
+solana-program-test = { workspace = true }
 
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }

@@ -113,6 +113,8 @@ impl AccountsState {
                         &mut data,
                     )
                     .unwrap();
+                mint_state.init_account_type().unwrap();
+
                 let transfer_fee_config = mint_state
                     .init_extension::<TransferFeeConfig>(false)
                     .unwrap();
@@ -132,10 +134,12 @@ impl AccountsState {
                     },
                 };
 
-                let mut mint = Mint::default();
+                let mut mint = spl_token_2022::state::Mint::default();
                 mint.decimals = decimals;
                 mint.is_initialized = true;
-                Mint::pack(mint, data).unwrap();
+
+                mint_state.base = mint;
+                mint_state.pack_base();
 
                 AccountInfo::new(
                     self.random_pubkey(),

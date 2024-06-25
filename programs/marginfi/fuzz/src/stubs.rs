@@ -22,14 +22,14 @@ pub struct TestSyscallStubs {
 }
 
 impl program_stubs::SyscallStubs for TestSyscallStubs {
-    fn sol_log(&self, message: &str) {
+    fn sol_log(&self, _message: &str) {
         if *VERBOSE == 0 {
             return;
         }
         log!("Program Log: {}", message);
     }
 
-    fn sol_log_data(&self, fields: &[&[u8]]) {
+    fn sol_log_data(&self, _fields: &[&[u8]]) {
         if *VERBOSE == 0 {
             return;
         }

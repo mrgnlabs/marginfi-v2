@@ -8,15 +8,21 @@ pub struct PriceChange(pub i64);
 
 impl<'a> Arbitrary<'a> for PriceChange {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        Ok(Self(u.int_in_range(-10..=10)? * 1_000_000))
+        if u.is_empty() {
+            panic!("Byte exhaustion detected, stopping early");
+        }
+        Ok(Self(u.int_in_range(0..=1_000_000_000_000)?))
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AccountIdx(pub u8);
-pub const N_USERS: usize = 4;
+pub const N_USERS: usize = 2;
 impl<'a> Arbitrary<'a> for AccountIdx {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
+        if u.is_empty() {
+            panic!("Byte exhaustion detected, stopping early");
+        }
         let i: u8 = u.int_in_range(0..=N_USERS as u8 - 1)?;
         Ok(AccountIdx(i))
     }
@@ -35,6 +41,9 @@ pub struct BankIdx(pub u8);
 pub const N_BANKS: usize = 16;
 impl<'a> Arbitrary<'a> for BankIdx {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
+        if u.is_empty() {
+            panic!("Byte exhaustion detected, stopping early");
+        }
         Ok(BankIdx(u.int_in_range(0..=N_BANKS - 1)? as u8))
     }
 
@@ -53,6 +62,9 @@ pub struct AssetAmount(pub u64);
 pub const ASSET_UNIT: u64 = 1_000_000_000;
 impl<'a> Arbitrary<'a> for AssetAmount {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
+        if u.is_empty() {
+            panic!("Byte exhaustion detected, stopping early");
+        }
         Ok(AssetAmount(u.int_in_range(1..=10)? * ASSET_UNIT))
     }
 
@@ -65,7 +77,7 @@ impl<'a> Arbitrary<'a> for AssetAmount {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct BankAndOracleConfig {
     pub oracle_native_price: u64,
     pub mint_decimals: u8,
@@ -136,10 +148,9 @@ impl BankAndOracleConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, EnumDiscriminants, Default)]
+#[derive(Debug, Clone, Copy, EnumDiscriminants)]
 #[strum_discriminants(derive(VariantArray))]
 pub enum TokenType {
-    #[default]
     Tokenkeg,
     Token22,
     Token22WithFee {

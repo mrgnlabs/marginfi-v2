@@ -51,17 +51,27 @@ enum Action {
 #[derive(Debug)]
 pub struct ActionSequence(Vec<Action>);
 
+impl ActionSequence {
+    pub const N_ACTIONS: usize = 300;
+}
+
 impl<'a> Arbitrary<'a> for ActionSequence {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let n_actions = 100;
-        let mut actions = Vec::with_capacity(n_actions);
+        let mut actions = Vec::with_capacity(Self::N_ACTIONS);
 
-        for _ in 0..n_actions {
+        for _ in 0..Self::N_ACTIONS {
+            if u.is_empty() {
+                panic!("Byte exhaustion detected, stopping early");
+            }
             let action = Action::arbitrary(u)?;
             actions.push(action);
         }
 
         Ok(ActionSequence(actions))
+    }
+
+    fn size_hint(_: usize) -> (usize, Option<usize>) {
+        (Self::N_ACTIONS * 10, Some(Self::N_ACTIONS * 10))
     }
 }
 
@@ -86,6 +96,7 @@ fn process_actions(ctx: FuzzerContext) -> Result<()> {
     context.metrics = METRICS.clone();
 
     for action in ctx.action_sequence.0.iter() {
+        println!("Processing action {:?}", action);
         process_action(action, &context)?;
     }
 

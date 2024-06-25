@@ -1,15 +1,24 @@
+use std::{
+    collections::HashMap,
+    mem::size_of,
+    ops::AddAssign,
+    sync::{Arc, RwLock},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use account_state::{AccountInfoCache, AccountsState};
 use anchor_lang::{
     accounts::{interface::Interface, interface_account::InterfaceAccount},
     prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer, Sysvar},
     Discriminator, Key,
 };
-use arbitrary_helpers::{AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange};
+use arbitrary_helpers::{
+    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
+};
 use bank_accounts::{get_bank_map, BankAccounts};
-
 use fixed_macro::types::I80F48;
-
 use marginfi::{
+    errors::MarginfiError,
     instructions::LendingPoolAddBankBumps,
     prelude::MarginfiGroup,
     state::{
@@ -18,16 +27,7 @@ use marginfi::{
     },
 };
 use metrics::{MetricAction, Metrics};
-
 use solana_program::system_program;
-
-use std::{
-    collections::HashMap,
-    mem::size_of,
-    ops::AddAssign,
-    sync::{Arc, RwLock},
-    time::{SystemTime, UNIX_EPOCH},
-};
 use stubs::test_syscall_stubs;
 use user_accounts::UserAccount;
 use utils::{
@@ -52,7 +52,6 @@ pub struct MarginfiFuzzContext<'info> {
     pub owner: AccountInfo<'info>,
     pub system_program: AccountInfo<'info>,
     pub rent_sysvar: AccountInfo<'info>,
-    pub token_program: AccountInfo<'info>,
     pub last_sysvar_current_timestamp: RwLock<u64>,
     pub metrics: Arc<RwLock<Metrics>>,
     pub state: &'info AccountsState,
@@ -65,7 +64,6 @@ impl<'state> MarginfiFuzzContext<'state> {
         n_users: u8,
     ) -> Self {
         let system_program = state.new_program(system_program::id());
-        let token_program = state.new_program(spl_token::id());
         let admin = state.new_sol_account(1_000_000);
         let rent_sysvar = state.new_rent_sysvar_account(Rent::free());
         let marginfi_group =
@@ -77,7 +75,6 @@ impl<'state> MarginfiFuzzContext<'state> {
             owner: admin,
             system_program,
             rent_sysvar,
-            token_program,
             marginfi_accounts: vec![],
             last_sysvar_current_timestamp: RwLock::new(
                 SystemTime::now()
@@ -209,6 +206,13 @@ impl<'state> MarginfiFuzzContext<'state> {
             fee_vault: fee_vault_bump,
         };
 
+        let token_program = match initial_bank_config.token_type {
+            TokenType::Tokenkeg => state.new_program(spl_token::id()),
+            TokenType::Token22 | TokenType::Token22WithFee { .. } => {
+                state.new_program(spl_token_2022::id())
+            }
+        };
+
         {
             marginfi::instructions::marginfi_group::lending_pool_add_bank(
                 Context::new(
@@ -238,7 +242,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                         },
                         fee_vault: Box::new(InterfaceAccount::try_from(airls(&fee_vault)).unwrap()),
                         rent: Sysvar::from_account_info(airls(&self.rent_sysvar)).unwrap(),
-                        token_program: Interface::try_from(airls(&self.token_program)).unwrap(),
+                        token_program: Interface::try_from(airls(&token_program)).unwrap(),
                         system_program: Program::try_from(airls(&self.system_program)).unwrap(),
                     },
                     &[unsafe { core::mem::transmute(oracle.clone()) }],
@@ -295,6 +299,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             insurance_vault_authority,
             fee_vault_authority,
             mint_decimals: initial_bank_config.mint_decimals,
+            token_program,
         });
     }
 
@@ -356,6 +361,16 @@ impl<'state> MarginfiFuzzContext<'state> {
             bank.liquidity_vault.clone(),
         ]);
 
+        let mut remaining_accounts: Vec<AccountInfo> = vec![];
+        if bank.token_program.key() == spl_token_2022::ID {
+            println!(
+                "Adding mint to remaining accounts, size: {}",
+                bank.mint.data.borrow().len()
+            );
+            println!("Mint: {:?}", bank.mint);
+            remaining_accounts.push(ails(bank.mint.clone()));
+        }
+
         let res = marginfi::instructions::marginfi_account::lending_account_deposit(
             Context::new(
                 &marginfi::ID,
@@ -370,22 +385,38 @@ impl<'state> MarginfiFuzzContext<'state> {
                         marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
                     ),
                     bank_liquidity_vault: ails(bank.liquidity_vault.clone()),
-                    token_program: Interface::try_from(airls(&self.token_program))?,
+                    token_program: Interface::try_from(airls(&bank.token_program))?,
                 },
-                &[],
+                &remaining_accounts,
                 Default::default(),
             ),
             asset_amount.0,
         );
 
-        if res.is_err() {
+        let success = if res.is_err() {
+            let error = res.unwrap_err();
+            println!("Error: {:?}", error);
+            assert!(
+                vec![
+                    MarginfiError::NoLiabilityFound.into(),
+                    MarginfiError::OperationRepayOnly.into()
+                ]
+                .contains(&error),
+                "Unexpected deposit error: {:?}",
+                error
+            );
+
             cache.revert();
-        }
+
+            false
+        } else {
+            true
+        };
 
         self.metrics
             .write()
             .unwrap()
-            .update_metric(MetricAction::Deposit, res.is_ok());
+            .update_metric(MetricAction::Deposit, success);
 
         Ok(())
     }
@@ -407,6 +438,11 @@ impl<'state> MarginfiFuzzContext<'state> {
             bank.liquidity_vault.clone(),
         ]);
 
+        let mut remaining_accounts = vec![];
+        if bank.token_program.key() == spl_token_2022::ID {
+            remaining_accounts.push(ails(bank.mint.clone()));
+        }
+
         let res = marginfi::instructions::marginfi_account::lending_account_repay(
             Context::new(
                 &marginfi::ID,
@@ -421,23 +457,39 @@ impl<'state> MarginfiFuzzContext<'state> {
                         marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
                     ),
                     bank_liquidity_vault: ails(bank.liquidity_vault.clone()),
-                    token_program: Interface::try_from(airls(&self.token_program))?,
+                    token_program: Interface::try_from(airls(&bank.token_program))?,
                 },
-                &[],
+                &remaining_accounts,
                 Default::default(),
             ),
             asset_amount.0,
             Some(repay_all),
         );
 
-        if res.is_err() {
+        let success = if res.is_err() {
+            let error = res.unwrap_err();
+
+            assert!(
+                vec![
+                    MarginfiError::NoLiabilityFound.into(),
+                    MarginfiError::OperationRepayOnly.into()
+                ]
+                .contains(&error),
+                "Unexpected repay error: {:?}",
+                error
+            );
+
             cache.revert();
-        }
+
+            false
+        } else {
+            true
+        };
 
         self.metrics
             .write()
             .unwrap()
-            .update_metric(MetricAction::Repay, res.is_ok());
+            .update_metric(MetricAction::Repay, success);
 
         Ok(())
     }
@@ -471,8 +523,15 @@ impl<'state> MarginfiFuzzContext<'state> {
             vec![]
         };
 
-        let remaining_accounts =
-            marginfi_account.get_remaining_accounts(&self.get_bank_map(), vec![], remove_all_bank);
+        let mut remaining_accounts = vec![];
+        if bank.token_program.key() == spl_token_2022::ID {
+            remaining_accounts.push(ails(bank.mint.clone()));
+        }
+        remaining_accounts.extend(marginfi_account.get_remaining_accounts(
+            &self.get_bank_map(),
+            vec![],
+            remove_all_bank,
+        ));
         let res = marginfi::instructions::marginfi_account::lending_account_withdraw(
             Context::new(
                 &marginfi::ID,
@@ -483,7 +542,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     ))?,
                     signer: Signer::try_from(airls(&self.owner))?,
                     bank: AccountLoader::try_from(airls(&bank.bank))?,
-                    token_program: Interface::try_from(airls(&self.token_program))?,
+                    token_program: Interface::try_from(airls(&bank.token_program))?,
                     destination_token_account: InterfaceAccount::try_from(airls(
                         &marginfi_account.token_accounts[bank_idx.0 as usize],
                     ))?,
@@ -497,14 +556,26 @@ impl<'state> MarginfiFuzzContext<'state> {
             withdraw_all,
         );
 
-        if res.is_err() {
+        let success = if res.is_err() {
+            let error = res.unwrap_err();
+
+            assert!(
+                vec![MarginfiError::OperationWithdrawOnly.into(),].contains(&error),
+                "Unexpected withdraw error: {:?}",
+                error
+            );
+
             cache.revert();
-        }
+
+            false
+        } else {
+            true
+        };
 
         self.metrics
             .write()
             .unwrap()
-            .update_metric(MetricAction::Withdraw, res.is_ok());
+            .update_metric(MetricAction::Withdraw, success);
 
         Ok(())
     }
@@ -526,11 +597,15 @@ impl<'state> MarginfiFuzzContext<'state> {
             bank.liquidity_vault.clone(),
         ]);
 
-        let remaining_accounts = marginfi_account.get_remaining_accounts(
+        let mut remaining_accounts = vec![];
+        if bank.token_program.key() == spl_token_2022::ID {
+            remaining_accounts.push(ails(bank.mint.clone()));
+        }
+        remaining_accounts.extend(marginfi_account.get_remaining_accounts(
             &self.get_bank_map(),
             vec![bank.bank.key()],
             vec![],
-        );
+        ));
         let res = marginfi::instructions::marginfi_account::lending_account_borrow(
             Context::new(
                 &marginfi::ID,
@@ -541,7 +616,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     ))?,
                     signer: Signer::try_from(airls(&self.owner))?,
                     bank: AccountLoader::try_from(airls(&bank.bank))?,
-                    token_program: Interface::try_from(airls(&self.token_program))?,
+                    token_program: Interface::try_from(airls(&bank.token_program))?,
                     destination_token_account: InterfaceAccount::try_from(airls(
                         &marginfi_account.token_accounts[bank_idx.0 as usize],
                     ))?,
@@ -554,17 +629,30 @@ impl<'state> MarginfiFuzzContext<'state> {
             asset_amount.0,
         );
 
-        let is_ok = res.is_ok();
+        let success = if res.is_err() {
+            let error = res.unwrap_err();
 
-        if !is_ok {
-            log!("{}", res.unwrap_err());
+            assert!(
+                vec![
+                    MarginfiError::RiskEngineInitRejected.into(),
+                    MarginfiError::IllegalUtilizationRatio.into()
+                ]
+                .contains(&error),
+                "Unexpected borrow error: {:?}",
+                error
+            );
+
             cache.revert();
-        }
+
+            false
+        } else {
+            true
+        };
 
         self.metrics
             .write()
             .unwrap()
-            .update_metric(MetricAction::Borrow, is_ok);
+            .update_metric(MetricAction::Borrow, success);
 
         Ok(())
     }
@@ -604,7 +692,11 @@ impl<'state> MarginfiFuzzContext<'state> {
             liab_bank.insurance_vault.clone(),
         ]);
 
-        let mut remaining_accounts = vec![asset_bank.oracle.clone(), liab_bank.oracle.clone()];
+        let mut remaining_accounts = vec![];
+        if liab_bank.token_program.key() == spl_token_2022::ID {
+            remaining_accounts.push(ails(liab_bank.mint.clone()));
+        }
+        remaining_accounts.extend(vec![asset_bank.oracle.clone(), liab_bank.oracle.clone()]);
 
         let mut liquidator_remaining_accounts = liquidator_account.get_remaining_accounts(
             &self.get_bank_map(),
@@ -638,7 +730,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                         &liab_bank.liquidity_vault,
                     ))?),
                     bank_insurance_vault: ails(liab_bank.insurance_vault.clone()),
-                    token_program: Interface::try_from(airls(&self.token_program))?,
+                    token_program: Interface::try_from(airls(&liab_bank.token_program))?,
                 },
                 aisls(&remaining_accounts),
                 Default::default(),
@@ -680,8 +772,15 @@ impl<'state> MarginfiFuzzContext<'state> {
             bank.insurance_vault.clone(),
         ]);
 
-        let remaining_accounts =
-            marginfi_account.get_remaining_accounts(&self.get_bank_map(), vec![], vec![]);
+        let mut remaining_accounts = vec![];
+        if bank.token_program.key() == spl_token_2022::ID {
+            remaining_accounts.push(ails(bank.mint.clone()));
+        }
+        remaining_accounts.extend(marginfi_account.get_remaining_accounts(
+            &self.get_bank_map(),
+            vec![],
+            vec![],
+        ));
         let res = marginfi::instructions::lending_pool_handle_bankruptcy(Context::new(
             &marginfi::ID,
             &mut marginfi::instructions::LendingPoolHandleBankruptcy {
@@ -694,7 +793,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     &bank.insurance_vault,
                 ))?),
                 insurance_vault_authority: ails(bank.insurance_vault_authority.clone()),
-                token_program: Interface::try_from(airls(&self.token_program))?,
+                token_program: Interface::try_from(airls(&bank.token_program))?,
             },
             aisls(&remaining_accounts),
             Default::default(),

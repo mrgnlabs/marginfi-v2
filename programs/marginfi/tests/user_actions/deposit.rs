@@ -1,12 +1,17 @@
+use anchor_lang::{InstructionData, ToAccountMetas};
+use anchor_spl::token::spl_token;
 use fixed::types::I80F48;
 use fixtures::prelude::*;
 use fixtures::{assert_custom_error, native};
 use marginfi::state::marginfi_group::{BankConfigOpt, BankVaultType};
 use marginfi::{assert_eq_with_tolerance, prelude::*};
 use pretty_assertions::assert_eq;
-use test_case::test_case;
-
+use solana_program::instruction::InstructionError::InvalidAccountData;
 use solana_program_test::*;
+use solana_sdk::message::AddressLoaderError;
+use solana_sdk::transaction::{Transaction, TransactionError};
+use solana_sdk::{instruction::Instruction, signer::Signer};
+use test_case::test_case;
 
 #[test_case(0.0, BankMint::Usdc)]
 #[test_case(0.05, BankMint::UsdcSwb)]
@@ -146,6 +151,70 @@ async fn marginfi_account_deposit_failure_capacity_exceeded(
         .try_bank_deposit(user_token_account.key, bank_f, deposit_amount_ok)
         .await;
     assert!(res.is_ok());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn marginfi_account_deposit_failure_wrong_token_program() -> anyhow::Result<()> {
+    // -------------------------------------------------------------------------
+    // Setup
+    // -------------------------------------------------------------------------
+
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    // User
+
+    let deposit_amount = 1_000.;
+    let bank_mint = BankMint::T22WithFee;
+
+    let user_mfi_account_f = test_f.create_marginfi_account().await;
+    let user_wallet_balance = get_max_deposit_amount_pre_fee(deposit_amount);
+    let bank_f = test_f.get_bank(&bank_mint);
+    let user_token_account = bank_f
+        .mint
+        .create_token_account_and_mint_to(user_wallet_balance)
+        .await;
+
+    // -------------------------------------------------------------------------
+    // Test
+    // -------------------------------------------------------------------------
+
+    let marginfi_account = user_mfi_account_f.load().await;
+
+    let accounts = marginfi::accounts::LendingAccountDeposit {
+        marginfi_group: marginfi_account.group,
+        marginfi_account: user_mfi_account_f.key,
+        signer: test_f.context.borrow().payer.pubkey(),
+        bank: bank_f.key,
+        signer_token_account: user_token_account.key,
+        bank_liquidity_vault: bank_f.get_vault(BankVaultType::Liquidity).0,
+        token_program: spl_token::ID,
+    }
+    .to_account_metas(Some(true));
+
+    let deposit_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts,
+        data: marginfi::instruction::LendingAccountDeposit {
+            amount: native!(deposit_amount, bank_f.mint.mint.decimals, f64),
+        }
+        .data(),
+    };
+
+    let tx = {
+        let ctx = test_f.context.borrow();
+        Transaction::new_signed_with_payer(
+            &[deposit_ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        )
+    };
+
+    let mut ctx = test_f.context.borrow_mut();
+    let res = ctx.banks_client.process_transaction(tx).await;
+    assert!(res.is_err());
 
     Ok(())
 }

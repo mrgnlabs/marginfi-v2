@@ -14,8 +14,9 @@ test = false
 doc = false
 
 [dependencies]
-solana-sdk = "1.18.2"
-solana-program = "1.18.2"
+solana-sdk = "1.18.5"
+solana-program = "1.18.5"
+solana-program-test = "1.18.5"
 spl-token = "4.0.0"
 ahash = "=0.8.8"
 anchor-lang = "0.30.0"
@@ -39,6 +40,8 @@ base64 = "0.22.1"
 itertools = "0.12.1"
 strum = { version = "0.26.3", features = ["derive"], default-features = false }
 spl-token-2022 = "3.0.2"
+
+quinn-proto = { version = "0.10.6", features = ["arbitrary"] }
 
 [features]
 capture_log = ["log", "log4rs"]
