@@ -9,6 +9,7 @@ lazy_static! {
 macro_rules! log {
     ($($arg:tt)*) => {
         #[cfg(feature = "capture_log")] {
+            use base64::Engine;
             let mut ct = $crate::metrics::LOG_COUNTER.load(std::sync::atomic::Ordering::Acquire);
 
             let header = format!("{} -", ct);

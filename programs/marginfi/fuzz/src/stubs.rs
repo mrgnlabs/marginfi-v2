@@ -4,6 +4,9 @@ use solana_program::{entrypoint::ProgramResult, instruction::Instruction, progra
 
 use crate::log;
 
+#[cfg(feature = "capture_log")]
+use itertools::Itertools;
+
 lazy_static! {
     static ref VERBOSE: u32 = std::env::var("FUZZ_VERBOSE")
         .map(|s| s.parse())
