@@ -14,6 +14,7 @@ no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
 default = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 test-bpf = ["test", "debug"]
 test = []
 client = []
@@ -23,7 +24,6 @@ debug = []
 
 [dependencies]
 solana-program = { workspace = true }
-solana-program-test = { workspace = true }
 
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }

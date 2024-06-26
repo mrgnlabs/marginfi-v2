@@ -6,10 +6,8 @@ use fixtures::{assert_custom_error, native};
 use marginfi::state::marginfi_group::{BankConfigOpt, BankVaultType};
 use marginfi::{assert_eq_with_tolerance, prelude::*};
 use pretty_assertions::assert_eq;
-use solana_program::instruction::InstructionError::InvalidAccountData;
 use solana_program_test::*;
-use solana_sdk::message::AddressLoaderError;
-use solana_sdk::transaction::{Transaction, TransactionError};
+use solana_sdk::transaction::Transaction;
 use solana_sdk::{instruction::Instruction, signer::Signer};
 use test_case::test_case;
 

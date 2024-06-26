@@ -2,6 +2,7 @@ use super::{
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
+use crate::borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
@@ -78,7 +79,6 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     Ok(price_feed)
 }
 
-#[zero_copy]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -133,7 +133,7 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, Debug)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -940,7 +940,6 @@ pub enum RiskTier {
     Isolated,
 }
 
-#[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -1037,7 +1036,7 @@ assert_struct_align!(BankConfig, 8);
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(AnchorDeserialize, AnchorSerialize, Debug)]
+#[derive(Debug)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub asset_weight_init: WrappedI80F48,
@@ -1194,7 +1193,7 @@ impl BankConfig {
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Default, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, BorshDeserialize, BorshSerialize)]
 pub struct WrappedI80F48 {
     pub value: [u8; 16],
 }
