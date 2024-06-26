@@ -14,7 +14,7 @@ fi
 
 if [ "$loglevel" == "--sane" ]; then
     loglevel=warn
-    nocapture=""
+    nocapture="--test-threads=1"
 else
     loglevel=debug
     nocapture="--nocapture"
@@ -26,6 +26,6 @@ else
     package_filter="--package $program_lib_name"
 fi
 
-cmd="RUST_LOG=solana_runtime::message_processor::stable_log=$loglevel cargo nextest run --no-fail-fast $package_filter --features=test,test-bpf -- --test-threads=1 --no-capture"
+cmd="RUST_LOG=solana_runtime::message_processor::stable_log=$loglevel cargo nextest run --no-fail-fast $package_filter --features=test,test-bpf $nocapture"
 echo "Running: $cmd"
 eval "$cmd"
