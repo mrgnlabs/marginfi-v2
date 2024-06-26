@@ -26,7 +26,7 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
         if *VERBOSE == 0 {
             return;
         }
-        log!("Program Log: {}", message);
+        log!("Program Log: {}", _message);
     }
 
     fn sol_log_data(&self, _fields: &[&[u8]]) {
@@ -35,7 +35,7 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
         }
         log!(
             "data: {}",
-            fields
+            _fields
                 .iter()
                 .map(|field| base64::engine::general_purpose::STANDARD.encode(field))
                 .join(" ")
