@@ -26,6 +26,6 @@ else
     package_filter="--package $program_lib_name"
 fi
 
-cmd="RUST_LOG=solana_runtime::message_processor::stable_log=$loglevel cargo nextest run --no-fail-fast $package_filter --features=test,test-bpf -- $nocapture"
+cmd="RUST_LOG=solana_runtime::message_processor::stable_log=$loglevel cargo nextest run --no-fail-fast $package_filter --features=test,test-bpf -- --test-threads=1 --no-capture"
 echo "Running: $cmd"
 eval "$cmd"
