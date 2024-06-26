@@ -124,8 +124,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
             )
         })
         .transpose()?
-        .unwrap_or(covered_by_insurance_rounded_up)
-        .into();
+        .unwrap_or(covered_by_insurance_rounded_up);
 
     bank.withdraw_spl_transfer(
         insurance_coverage_deposit_pre_fee,

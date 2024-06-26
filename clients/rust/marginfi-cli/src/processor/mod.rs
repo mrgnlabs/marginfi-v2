@@ -888,6 +888,7 @@ fn make_bankruptcy_ix(
     bank_pk: Pubkey,
 ) -> Result<Instruction> {
     println!("Handling bankruptcy for bank {}", bank_pk);
+    let rpc_client = config.mfi_program.rpc();
 
     let bank = banks.get(&bank_pk).unwrap();
 

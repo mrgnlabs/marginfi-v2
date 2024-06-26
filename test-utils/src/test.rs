@@ -306,6 +306,7 @@ pub const SOL_MINT_DECIMALS: u8 = 9;
 pub const MNDE_MINT_DECIMALS: u8 = 9;
 
 pub fn marginfi_entry(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+    #[allow(clippy::missing_transmute_annotations)]
     marginfi::entry(program_id, unsafe { core::mem::transmute(accounts) }, data)
 }
 
@@ -701,8 +702,6 @@ impl TestFixture {
         let collateral_amount =
             ((collateral_amount * decimal_scaling).round() + 1.) / decimal_scaling;
 
-        let collateral_amount = get_max_deposit_amount_pre_fee(collateral_amount);
-
-        collateral_amount
+        get_max_deposit_amount_pre_fee(collateral_amount)
     }
 }

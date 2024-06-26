@@ -126,10 +126,7 @@ pub fn maybe_get_bank_mint<'info>(
     token_program: &Pubkey,
 ) -> MarginfiResult<Option<InterfaceAccount<'info, Mint>>> {
     match *token_program {
-        anchor_spl::token::ID => {
-            return Ok(None);
-        }
-
+        anchor_spl::token::ID => Ok(None),
         anchor_spl::token_2022::ID => {
             let (maybe_mint, remaining) = remaining_accounts
                 .split_first()

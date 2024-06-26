@@ -48,7 +48,7 @@ jobs:
 
       - run: cargo fmt -- --check
 
-      - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A unused-imports -A clippy::result_large_err -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::bind_instead_of_map -A clippy::to-string-trait-impl
+      - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::too_many_arguments
 
   test-unit:
     name: Rust Unit Tests
