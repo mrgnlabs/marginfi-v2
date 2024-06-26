@@ -86,10 +86,7 @@ jobs:
 
       - uses: ./.github/actions/build-workspace/
 
-      - run: ./scripts/test-program.sh marginfi
-        shell: bash
-
-      - run: ./scripts/test-program.sh liquidity-incentive-program
+      - run: ./scripts/test-program.sh all --sane
         shell: bash
 
   fuzz:
