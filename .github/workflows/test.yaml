@@ -74,7 +74,7 @@ jobs:
 
       - run: cargo test --lib
 
-  test-programs:
+  build-workspace:
     name: Build and Test Anchor Programs
     runs-on: ubuntu-latest
 
@@ -85,6 +85,16 @@ jobs:
       - uses: ./.github/actions/setup-anchor-cli/
 
       - uses: ./.github/actions/build-workspace/
+
+  test-programs:
+    name: Build and Test Anchor Programs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: ./.github/actions/setup-common/
+      - uses: ./.github/actions/setup-anchor-cli/
 
       - run: ./scripts/test-program.sh all --sane
         shell: bash
