@@ -43,8 +43,6 @@ pub mod stubs;
 pub mod user_accounts;
 pub mod utils;
 
-type SplAccount = spl_token::state::Account;
-
 pub struct MarginfiFuzzContext<'info> {
     pub marginfi_group: AccountInfo<'info>,
     pub banks: Vec<BankAccounts<'info>>,
@@ -91,7 +89,11 @@ impl<'state> MarginfiFuzzContext<'state> {
             .iter()
             .for_each(|config| marginfi_state.setup_bank(state, Rent::free(), config));
 
-        let token_vec = marginfi_state.banks.iter().map(|b| *b.mint.key).collect();
+        let token_vec = marginfi_state
+            .banks
+            .iter()
+            .map(|b| b.mint.clone())
+            .collect();
 
         (0..n_users).into_iter().for_each(|_| {
             marginfi_state
@@ -167,7 +169,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             state.new_vault_authority(BankVaultType::Liquidity, bank.key);
         let (liquidity_vault, liquidity_vault_bump) = state.new_vault_account(
             BankVaultType::Liquidity,
-            mint.key,
+            mint.clone(),
             liquidity_vault_authority.key,
             bank.key,
         );
@@ -176,7 +178,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             state.new_vault_authority(BankVaultType::Insurance, bank.key);
         let (insurance_vault, insurance_vault_bump) = state.new_vault_account(
             BankVaultType::Insurance,
-            mint.key,
+            mint.clone(),
             insurance_vault_authority.key,
             bank.key,
         );
@@ -185,7 +187,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             state.new_vault_authority(BankVaultType::Fee, bank.key);
         let (fee_vault, fee_vault_bump) = state.new_vault_account(
             BankVaultType::Fee,
-            mint.key,
+            mint.clone(),
             fee_vault_authority.key,
             bank.key,
         );
@@ -225,27 +227,21 @@ impl<'state> MarginfiFuzzContext<'state> {
                         bank_mint: Box::new(InterfaceAccount::try_from(airls(&mint)).unwrap()),
                         bank: AccountLoader::try_from_unchecked(&marginfi::ID, airls(&bank))
                             .unwrap(),
-                        liquidity_vault_authority: unsafe {
-                            core::mem::transmute(liquidity_vault_authority.clone())
-                        },
+                        liquidity_vault_authority: ails(liquidity_vault_authority.clone()),
                         liquidity_vault: Box::new(
                             InterfaceAccount::try_from(airls(&liquidity_vault)).unwrap(),
                         ),
-                        insurance_vault_authority: unsafe {
-                            core::mem::transmute(insurance_vault_authority.clone())
-                        },
+                        insurance_vault_authority: ails(insurance_vault_authority.clone()),
                         insurance_vault: Box::new(
                             InterfaceAccount::try_from(airls(&insurance_vault)).unwrap(),
                         ),
-                        fee_vault_authority: unsafe {
-                            core::mem::transmute(fee_vault_authority.clone())
-                        },
+                        fee_vault_authority: ails(fee_vault_authority.clone()),
                         fee_vault: Box::new(InterfaceAccount::try_from(airls(&fee_vault)).unwrap()),
                         rent: Sysvar::from_account_info(airls(&self.rent_sysvar)).unwrap(),
                         token_program: Interface::try_from(airls(&token_program)).unwrap(),
                         system_program: Program::try_from(airls(&self.system_program)).unwrap(),
                     },
-                    &[unsafe { core::mem::transmute(oracle.clone()) }],
+                    &[ails(oracle.clone())],
                     add_bank_bumps,
                 ),
                 BankConfig {
@@ -307,8 +303,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         &'a mut self,
         state: &'state AccountsState,
         rent: Rent,
-        token_mints: &Vec<Pubkey>,
-        // ) -> anyhow::Result<UserAccount<'a>> {
+        token_mints: &Vec<AccountInfo<'state>>,
     ) -> anyhow::Result<()> {
         let marginfi_account =
             state.new_owned_account(size_of::<MarginfiAccount>(), marginfi::id(), rent);
@@ -332,7 +327,12 @@ impl<'state> MarginfiFuzzContext<'state> {
         let token_accounts = token_mints
             .iter()
             .map(|token| {
-                state.new_token_account(token, self.owner.key, 100_000_000_000_000_000, rent)
+                state.new_token_account(
+                    token.clone(),
+                    self.owner.key,
+                    100_000_000_000_000_000,
+                    rent,
+                )
             })
             .collect();
 
@@ -397,7 +397,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             let error = res.unwrap_err();
             println!("Error: {:?}", error);
             assert!(
-                vec![
+                [
                     MarginfiError::NoLiabilityFound.into(),
                     MarginfiError::OperationRepayOnly.into()
                 ]

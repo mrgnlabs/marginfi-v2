@@ -66,11 +66,19 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
             }
         }
 
-        spl_token::processor::Processor::process(
-            &instruction.program_id,
-            &new_account_infos,
-            &instruction.data,
-        )
+        if instruction.program_id == spl_token::ID {
+            spl_token::processor::Processor::process(
+                &instruction.program_id,
+                &new_account_infos,
+                &instruction.data,
+            )
+        } else {
+            spl_token_2022::processor::Processor::process(
+                &instruction.program_id,
+                &new_account_infos,
+                &instruction.data,
+            )
+        }
     }
 
     fn sol_get_clock_sysvar(&self, var_addr: *mut u8) -> u64 {
