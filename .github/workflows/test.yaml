@@ -35,16 +35,16 @@ jobs:
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
 
-      - uses: actions/cache@v2
-        name: Cache Cargo registry + index
-        id: cache-cargo-build
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+      # - uses: actions/cache@v2
+      #   name: Cache Cargo registry + index
+      #   id: cache-cargo-build
+      #   with:
+      #     path: |
+      #       ~/.cargo/bin/
+      #       ~/.cargo/registry/index/
+      #       ~/.cargo/registry/cache/
+      #       ~/.cargo/git/db/
+      #     key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - run: cargo fmt -- --check
 
@@ -61,24 +61,22 @@ jobs:
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
 
-      - uses: actions/cache@v2
-        name: Cache Cargo registry + index
-        id: cache-cargo-build
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+      # - uses: actions/cache@v2
+      #   name: Cache Cargo registry + index
+      #   id: cache-cargo-build
+      #   with:
+      #     path: |
+      #       ~/.cargo/bin/
+      #       ~/.cargo/registry/index/
+      #       ~/.cargo/registry/cache/
+      #       ~/.cargo/git/db/
+      #     key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - run: cargo test --lib
 
   test-programs:
     name: Build and Test Anchor Programs
     runs-on: ubuntu-latest
-    env:
-      RUSTUP_TOOLCHAIN: stable
 
     steps:
       - uses: actions/checkout@v2
@@ -97,14 +95,11 @@ jobs:
   fuzz:
     name: Fuzz The marginfi Program
     runs-on: ubuntu-latest
-    env:
-      RUST_TOOLCHAIN: 1.77.1
-      RUSTUP_TOOLCHAIN: nightly-2024-03-26
 
     steps:
       - uses: actions/checkout@v3
-      - name: cache dependencies
-        uses: Swatinem/rust-cache@v2
+      # - name: cache dependencies
+      #   uses: Swatinem/rust-cache@v2
       - name: Install full rust toolchain
         uses: actions-rs/toolchain@v1
         with:
