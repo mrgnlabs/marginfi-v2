@@ -5,8 +5,10 @@ runs:
   steps:
     - run: sudo apt-get update
       shell: bash
+
     - run: sudo apt-get install -y pkg-config build-essential libudev-dev
       shell: bash
+
     - uses: actions-rs/toolchain@v1
       name: Install minimal rust toolchain with clippy and rustfmt
       with:
@@ -15,3 +17,6 @@ runs:
         target: x86_64-unknown-linux-gnu
         components: rustfmt, clippy
         default: true
+
+    - run: (cargo install cargo-nextest || true)
+      shell: bash
