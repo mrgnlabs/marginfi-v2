@@ -17,7 +17,7 @@ use crate::{
     check,
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL,
-        MIN_PYTH_PULL_VERIFICATION_LEVEL, PYTH_ID, STD_DEV_MULTIPLE,
+        MIN_PYTH_PUSH_VERIFICATION_LEVEL, PYTH_ID, STD_DEV_MULTIPLE,
     },
     debug, math_error,
     prelude::*,
@@ -64,7 +64,7 @@ pub trait PriceAdapter {
 pub enum OraclePriceFeedAdapter {
     PythEma(PythEmaPriceFeed),
     SwitchboardV2(SwitchboardV2PriceFeed),
-    PythPull(PythPullOraclePriceFeed),
+    PythPush(PythPushOraclePriceFeed),
 }
 
 impl OraclePriceFeedAdapter {
@@ -125,8 +125,8 @@ impl OraclePriceFeedAdapter {
                     MarginfiError::InvalidOracleAccount
                 );
 
-                Ok(OraclePriceFeedAdapter::PythPull(
-                    PythPullOraclePriceFeed::load_checked(
+                Ok(OraclePriceFeedAdapter::PythPush(
+                    PythPushOraclePriceFeed::load_checked(
                         account_info,
                         &price_feed_id,
                         clock,
@@ -168,7 +168,7 @@ impl OraclePriceFeedAdapter {
             OracleSetup::PythPullOracle => {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
 
-                PythPullOraclePriceFeed::check_ai_and_feed_id(
+                PythPushOraclePriceFeed::check_ai_and_feed_id(
                     &oracle_ais[0],
                     bank_config.get_pyth_pull_oracle_feed_id().unwrap(),
                 )?;
@@ -395,13 +395,13 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
     }
 }
 
-#[derive(Clone)]
-pub struct PythPullOraclePriceFeed {
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
+pub struct PythPushOraclePriceFeed {
     ema_price: Box<pyth_solana_receiver_sdk::price_update::Price>,
     price: Box<pyth_solana_receiver_sdk::price_update::Price>,
 }
 
-impl PythPullOraclePriceFeed {
+impl PythPushOraclePriceFeed {
     /// Pyth pull oracles are update using crosschain messages from pythnet
     /// There can be multiple pyth push oracles for a given feed_id. Marginfi allows using any
     /// pyth push oracle with a sufficient verification level and price age.
@@ -422,7 +422,7 @@ impl PythPullOraclePriceFeed {
                 clock,
                 max_age,
                 feed_id,
-                MIN_PYTH_PULL_VERIFICATION_LEVEL,
+                MIN_PYTH_PUSH_VERIFICATION_LEVEL,
             )
             .map_err(|e| {
                 debug!("Pyth pull oracle error: {:?}", e);
@@ -456,6 +456,45 @@ impl PythPullOraclePriceFeed {
             price: Box::new(price),
             ema_price: Box::new(ema_price),
         })
+    }
+
+    #[cfg(feature = "client")]
+    pub fn load_unchecked(ai: &AccountInfo) -> MarginfiResult<Self> {
+        let price_feed_data = ai.try_borrow_data()?;
+        let price_feed_account = PriceUpdateV2::try_deserialize(&mut &price_feed_data[..])?;
+
+        let price =
+            price_feed_account.get_price_unchecked(&price_feed_account.price_message.feed_id)?;
+
+        let ema_price = {
+            let price_update::PriceFeedMessage {
+                exponent,
+                publish_time,
+                ema_price,
+                ema_conf,
+                ..
+            } = price_feed_account.price_message;
+
+            pyth_solana_receiver_sdk::price_update::Price {
+                price: ema_price,
+                conf: ema_conf,
+                exponent,
+                publish_time,
+            }
+        };
+
+        Ok(Self {
+            price: Box::new(price),
+            ema_price: Box::new(ema_price),
+        })
+    }
+
+    #[cfg(feature = "client")]
+    pub fn peek_feed_id(ai: &AccountInfo) -> MarginfiResult<FeedId> {
+        let price_feed_data = ai.try_borrow_data()?;
+        let price_feed_account = PriceUpdateV2::try_deserialize(&mut &price_feed_data[..])?;
+
+        Ok(price_feed_account.price_message.feed_id)
     }
 
     pub fn check_ai_and_feed_id(ai: &AccountInfo, feed_id: &FeedId) -> MarginfiResult {
@@ -511,9 +550,20 @@ impl PythPullOraclePriceFeed {
     fn get_unweighted_price(&self) -> MarginfiResult<I80F48> {
         pyth_price_components_to_i80f48(I80F48::from_num(self.price.price), self.price.exponent)
     }
+
+    /// Find PDA address of a pyth push oracle give a shard_id and feed_id
+    ///
+    /// Pyth sponsored feed id
+    /// `constants::PYTH_PUSH_PYTH_SPONSORED_SHARD_ID = 0`
+    ///
+    /// Marginfi sponsored feed id
+    /// `constants::PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID = 3301`
+    pub fn find_oracle_address(shard_id: u16, feed_id: &FeedId) -> (Pubkey, u8) {
+        Pubkey::find_program_address(&[&shard_id.to_le_bytes(), feed_id], &PYTH_PUSH_ORACLE_ID)
+    }
 }
 
-impl PriceAdapter for PythPullOraclePriceFeed {
+impl PriceAdapter for PythPushOraclePriceFeed {
     fn get_price_of_type(
         &self,
         price_type: OraclePriceType,
@@ -796,7 +846,7 @@ mod tests {
             price: Box::new(price),
         };
 
-        let pyth_pull = PythPullOraclePriceFeed {
+        let pyth_pull = PythPushOraclePriceFeed {
             ema_price: Box::new(ema_pull_price),
             price: Box::new(pull_price),
         };
@@ -870,7 +920,7 @@ mod tests {
             price: Box::new(price),
         };
 
-        let pyth_pull = PythPullOraclePriceFeed {
+        let pyth_pull = PythPushOraclePriceFeed {
             ema_price: Box::new(ema_pull_price),
             price: Box::new(pull_price),
         };

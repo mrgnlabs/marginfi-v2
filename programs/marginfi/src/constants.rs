@@ -127,4 +127,6 @@ pub const EXP_10: [i128; MAX_EXP_10] = [
 /// Value where total_asset_value_init_limit is considered inactive
 pub const TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE: u64 = 0;
 
-pub const MIN_PYTH_PULL_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
+pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
+pub const PYTH_PUSH_PYTH_SPONSORED_SHARD_ID: u16 = 0;
+pub const PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
