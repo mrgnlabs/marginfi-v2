@@ -170,7 +170,7 @@ impl OraclePriceFeedAdapter {
 
                 PythPushOraclePriceFeed::check_ai_and_feed_id(
                     &oracle_ais[0],
-                    bank_config.get_pyth_pull_oracle_feed_id().unwrap(),
+                    bank_config.get_pyth_push_oracle_feed_id().unwrap(),
                 )?;
 
                 Ok(())
@@ -402,11 +402,11 @@ pub struct PythPushOraclePriceFeed {
 }
 
 impl PythPushOraclePriceFeed {
-    /// Pyth pull oracles are update using crosschain messages from pythnet
+    /// Pyth push oracles are update using crosschain messages from pythnet
     /// There can be multiple pyth push oracles for a given feed_id. Marginfi allows using any
     /// pyth push oracle with a sufficient verification level and price age.
     ///
-    /// Meaning that when loading the pyth pull oracle, we don't verify the account address
+    /// Meaning that when loading the pyth push oracle, we don't verify the account address
     /// directly, but rather we verify the feed_id in the oracle data.
     pub fn load_checked(
         ai: &AccountInfo,
@@ -425,7 +425,7 @@ impl PythPushOraclePriceFeed {
                 MIN_PYTH_PUSH_VERIFICATION_LEVEL,
             )
             .map_err(|e| {
-                debug!("Pyth pull oracle error: {:?}", e);
+                debug!("Pyth push oracle error: {:?}", e);
 
                 match e {
                     pyth_solana_receiver_sdk::error::GetPriceError::PriceTooOld => {
@@ -810,12 +810,12 @@ mod tests {
     }
 
     #[test]
-    fn pyth_and_pyth_pull_cmp() {
+    fn pyth_and_pyth_push_cmp() {
         fn get_prices(
             price: i64,
             conf: u64,
         ) -> (Price, pyth_solana_receiver_sdk::price_update::Price) {
-            let pull_price = pyth_solana_receiver_sdk::price_update::Price {
+            let push_price = pyth_solana_receiver_sdk::price_update::Price {
                 price,
                 conf,
                 exponent: -6,
@@ -828,17 +828,17 @@ mod tests {
                 publish_time: 0,
             };
 
-            assert_eq!(price.price, pull_price.price);
-            assert_eq!(price.conf, pull_price.conf);
-            assert_eq!(price.expo, pull_price.exponent);
-            assert_eq!(price.publish_time, pull_price.publish_time);
+            assert_eq!(price.price, push_price.price);
+            assert_eq!(price.conf, push_price.conf);
+            assert_eq!(price.expo, push_price.exponent);
+            assert_eq!(price.publish_time, push_price.publish_time);
 
-            (price, pull_price)
+            (price, push_price)
         }
 
-        let (price, pull_price) = get_prices(100i64 * EXP_10[6] as i64, 10u64 * EXP_10[6] as u64);
+        let (price, push_price) = get_prices(100i64 * EXP_10[6] as i64, 10u64 * EXP_10[6] as u64);
 
-        let (ema_price, ema_pull_price) =
+        let (ema_price, ema_push_price) =
             get_prices(99i64 * EXP_10[6] as i64, 4u64 * EXP_10[6] as u64);
 
         let pyth_ema = PythEmaPriceFeed {
@@ -846,35 +846,35 @@ mod tests {
             price: Box::new(price),
         };
 
-        let pyth_pull = PythPushOraclePriceFeed {
-            ema_price: Box::new(ema_pull_price),
-            price: Box::new(pull_price),
+        let pyth_push = PythPushOraclePriceFeed {
+            ema_price: Box::new(ema_push_price),
+            price: Box::new(push_price),
         };
 
         assert_eq!(
             pyth_ema.get_ema_price().unwrap(),
-            pyth_pull.get_ema_price().unwrap()
+            pyth_push.get_ema_price().unwrap()
         );
         assert_eq!(
             pyth_ema.get_unweighted_price().unwrap(),
-            pyth_pull.get_unweighted_price().unwrap()
+            pyth_push.get_unweighted_price().unwrap()
         );
 
         assert_eq!(
             pyth_ema.get_confidence_interval(true).unwrap(),
-            pyth_pull.get_confidence_interval(true).unwrap()
+            pyth_push.get_confidence_interval(true).unwrap()
         );
 
         assert_eq!(
             pyth_ema.get_confidence_interval(false).unwrap(),
-            pyth_pull.get_confidence_interval(false).unwrap()
+            pyth_push.get_confidence_interval(false).unwrap()
         );
 
         assert_eq!(
             pyth_ema
                 .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
                 .unwrap(),
-            pyth_pull
+            pyth_push
                 .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
                 .unwrap()
         );
@@ -884,7 +884,7 @@ mod tests {
             pyth_ema
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
                 .unwrap(),
-            pyth_pull
+            pyth_push
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
                 .unwrap()
         );
@@ -894,7 +894,7 @@ mod tests {
             pyth_ema
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
                 .unwrap(),
-            pyth_pull
+            pyth_push
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
                 .unwrap()
         );
@@ -904,15 +904,15 @@ mod tests {
             pyth_ema
                 .get_price_of_type(OraclePriceType::RealTime, None)
                 .unwrap(),
-            pyth_pull
+            pyth_push
                 .get_price_of_type(OraclePriceType::RealTime, None)
                 .unwrap()
         );
 
         // new pricees with very wide confidence
-        let (price, pull_price) = get_prices(100i64 * EXP_10[6] as i64, 100u64 * EXP_10[6] as u64);
+        let (price, push_price) = get_prices(100i64 * EXP_10[6] as i64, 100u64 * EXP_10[6] as u64);
 
-        let (ema_price, ema_pull_price) =
+        let (ema_price, ema_push_price) =
             get_prices(99i64 * EXP_10[6] as i64, 88u64 * EXP_10[6] as u64);
 
         let pyth_ema = PythEmaPriceFeed {
@@ -920,36 +920,36 @@ mod tests {
             price: Box::new(price),
         };
 
-        let pyth_pull = PythPushOraclePriceFeed {
-            ema_price: Box::new(ema_pull_price),
-            price: Box::new(pull_price),
+        let pyth_push = PythPushOraclePriceFeed {
+            ema_price: Box::new(ema_push_price),
+            price: Box::new(push_price),
         };
 
         // Test high bias EMA
         assert_eq!(
             pyth_ema.get_ema_price().unwrap(),
-            pyth_pull.get_ema_price().unwrap()
+            pyth_push.get_ema_price().unwrap()
         );
         assert_eq!(
             pyth_ema.get_unweighted_price().unwrap(),
-            pyth_pull.get_unweighted_price().unwrap()
+            pyth_push.get_unweighted_price().unwrap()
         );
 
         assert_eq!(
             pyth_ema.get_confidence_interval(true).unwrap(),
-            pyth_pull.get_confidence_interval(true).unwrap()
+            pyth_push.get_confidence_interval(true).unwrap()
         );
 
         assert_eq!(
             pyth_ema.get_confidence_interval(false).unwrap(),
-            pyth_pull.get_confidence_interval(false).unwrap()
+            pyth_push.get_confidence_interval(false).unwrap()
         );
 
         assert_eq!(
             pyth_ema
                 .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
                 .unwrap(),
-            pyth_pull
+            pyth_push
                 .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
                 .unwrap()
         );
@@ -959,7 +959,7 @@ mod tests {
             pyth_ema
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
                 .unwrap(),
-            pyth_pull
+            pyth_push
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
                 .unwrap()
         );
@@ -969,7 +969,7 @@ mod tests {
             pyth_ema
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
                 .unwrap(),
-            pyth_pull
+            pyth_push
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
                 .unwrap()
         );
@@ -979,7 +979,7 @@ mod tests {
             pyth_ema
                 .get_price_of_type(OraclePriceType::RealTime, None)
                 .unwrap(),
-            pyth_pull
+            pyth_push
                 .get_price_of_type(OraclePriceType::RealTime, None)
                 .unwrap()
         );

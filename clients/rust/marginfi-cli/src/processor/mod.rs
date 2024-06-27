@@ -2139,7 +2139,7 @@ pub fn marginfi_account_liquidate(
                     marginfi::state::price::OracleSetup::PythPushOracle => {
                         PythPushOraclePriceFeed::find_oracle_address(
                             PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
-                            bank.get_pyth_pull_oracle_feed_id().unwrap(),
+                            bank.get_pyth_push_oracle_feed_id().unwrap(),
                         )
                         .0
                     }
