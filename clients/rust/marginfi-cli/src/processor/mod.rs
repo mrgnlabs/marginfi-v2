@@ -59,7 +59,11 @@ use {
 
 #[cfg(feature = "dev")]
 use marginfi::state::price::{OraclePriceFeedAdapter, PriceAdapter};
-use marginfi::{constants::ZERO_AMOUNT_THRESHOLD, utils::NumTraitsWithTolerance};
+use marginfi::{
+    constants::{PYTH_PUSH_PYTH_SPONSORED_SHARD_ID, ZERO_AMOUNT_THRESHOLD},
+    state::price::PythPushOraclePriceFeed,
+    utils::NumTraitsWithTolerance,
+};
 use solana_client::rpc_client::RpcClient;
 
 #[cfg(feature = "admin")]
@@ -1056,7 +1060,7 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
     let opfa = OraclePriceFeedAdapter::try_from_bank_config_with_max_age(
         &bank.config,
         &[price_oracle_ai],
-        0,
+        &Clock::default(),
         u64::MAX,
     )
     .unwrap();
@@ -2124,6 +2128,29 @@ pub fn marginfi_account_liquidate(
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
+
+    let oracle_accounts = vec![asset_bank.config, liability_bank.config]
+        .into_iter()
+        .map(|bank| {
+            let oracle_key = {
+                let oracle_key_or_price_feed_id =
+                    bank.oracle_keys.get(0).expect("Oracle key not found");
+                match bank.oracle_setup {
+                    marginfi::state::price::OracleSetup::PythPushOracle => {
+                        PythPushOraclePriceFeed::find_oracle_address(
+                            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
+                            bank.get_pyth_pull_oracle_feed_id().unwrap(),
+                        )
+                        .0
+                    }
+                    _ => *oracle_key_or_price_feed_id,
+                }
+            };
+
+            AccountMeta::new_readonly(oracle_key, false)
+        });
+
+    ix.accounts.extend(oracle_accounts);
 
     ix.accounts.push(AccountMeta {
         pubkey: asset_bank.config.oracle_keys[0],

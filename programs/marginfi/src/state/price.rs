@@ -32,7 +32,7 @@ pub enum OracleSetup {
     None,
     PythEma,
     SwitchboardV2,
-    PythPullOracle,
+    PythPushOracle,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -114,7 +114,7 @@ impl OraclePriceFeedAdapter {
                     SwitchboardV2PriceFeed::load_checked(&ais[0], clock.unix_timestamp, max_age)?,
                 ))
             }
-            OracleSetup::PythPullOracle => {
+            OracleSetup::PythPushOracle => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
 
                 let price_feed_id = bank_config.oracle_keys[0].to_bytes();
@@ -165,7 +165,7 @@ impl OraclePriceFeedAdapter {
 
                 Ok(())
             }
-            OracleSetup::PythPullOracle => {
+            OracleSetup::PythPushOracle => {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
 
                 PythPushOraclePriceFeed::check_ai_and_feed_id(

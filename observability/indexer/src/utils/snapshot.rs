@@ -231,7 +231,7 @@ impl Snapshot {
                             .insert(oracle_address, AccountRoutingType::PriceFeedSwitchboard);
                         accounts_to_fetch.push(oracle_address);
                     }
-                    OracleSetup::PythPullOracle => {
+                    OracleSetup::PythPushOracle => {
                         let feed_id = bank.config.oracle_keys[0].to_bytes();
                         let (pyth_sponsored_oracle_address, _) =
                             PythPushOraclePriceFeed::find_oracle_address(

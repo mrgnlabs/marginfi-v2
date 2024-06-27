@@ -1119,13 +1119,13 @@ impl BankConfig {
     pub fn get_oracle_max_age(&self) -> u64 {
         match (self.oracle_max_age, self.oracle_setup) {
             (0, OracleSetup::SwitchboardV2) => MAX_SWB_ORACLE_AGE,
-            (0, OracleSetup::PythEma | OracleSetup::PythPullOracle) => MAX_PYTH_ORACLE_AGE,
+            (0, OracleSetup::PythEma | OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
             (n, _) => n as u64,
         }
     }
 
     pub fn get_pyth_pull_oracle_feed_id<'a>(&'a self) -> Option<&'a FeedId> {
-        if matches!(self.oracle_setup, OracleSetup::PythPullOracle) {
+        if matches!(self.oracle_setup, OracleSetup::PythPushOracle) {
             let bytes: &[u8; 32] = self.oracle_keys[0].as_ref().try_into().unwrap();
             Some(bytes)
         } else {

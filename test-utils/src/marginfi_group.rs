@@ -100,7 +100,7 @@ impl MarginfiGroupFixture {
         let oracle_key = {
             let oracle_key_or_feed_id = bank_config.oracle_keys[0];
             match bank_config.oracle_setup {
-                marginfi::state::price::OracleSetup::PythPullOracle => {
+                marginfi::state::price::OracleSetup::PythPushOracle => {
                     get_oracle_id_from_feed_id(oracle_key_or_feed_id).unwrap()
                 }
                 _ => oracle_key_or_feed_id,

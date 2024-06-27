@@ -4,7 +4,7 @@ use fixtures::{
     assert_custom_error, assert_eq_noise, native,
     test::{
         BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG,
-        DEFAULT_SOL_TEST_PYTH_PULL_FULLV_BANK_CONFIG,
+        DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG,
     },
 };
 use marginfi::{
@@ -133,7 +133,7 @@ async fn pyth_pull_fullv_liquidate() -> anyhow::Result<()> {
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     asset_weight_maint: I80F48!(1).into(),
-                    ..*DEFAULT_SOL_TEST_PYTH_PULL_FULLV_BANK_CONFIG
+                    ..*DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG
                 }),
             },
         ],
