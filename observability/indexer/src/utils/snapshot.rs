@@ -41,7 +41,7 @@ pub enum AccountRoutingType {
     Bank(Pubkey, BankUpdateRoutingType),
     PriceFeedPyth,
     PriceFeedSwitchboard,
-    PriceFeedPythPullOracle,
+    PriceFeedPythPushOracle,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -246,11 +246,11 @@ impl Snapshot {
 
                         self.routing_lookup.insert(
                             pyth_sponsored_oracle_address,
-                            AccountRoutingType::PriceFeedPythPullOracle,
+                            AccountRoutingType::PriceFeedPythPushOracle,
                         );
                         self.routing_lookup.insert(
                             mfi_sponsored_oracle_address,
-                            AccountRoutingType::PriceFeedPythPullOracle,
+                            AccountRoutingType::PriceFeedPythPushOracle,
                         );
                     }
                 }
@@ -352,7 +352,7 @@ impl Snapshot {
                 self.price_feeds
                     .insert(*account_pubkey, OracleData::Switchboard(pf));
             }
-            AccountRoutingType::PriceFeedPythPullOracle => {
+            AccountRoutingType::PriceFeedPythPushOracle => {
                 let mut account = account.clone();
                 let ai = (account_pubkey, &mut account).into_account_info();
                 let pf = PythPushOraclePriceFeed::load_unchecked(&ai).unwrap();

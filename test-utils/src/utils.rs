@@ -49,7 +49,7 @@ where
     }
 }
 
-pub fn create_pyth_pull_oracle_account(
+pub fn create_pyth_push_oracle_account(
     mint: Pubkey,
     ui_price: i64,
     mint_decimals: i32,
