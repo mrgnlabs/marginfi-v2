@@ -5,7 +5,10 @@ use anchor_lang::prelude::*;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, Price, PriceFeed};
-use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
+use pyth_solana_receiver_sdk::{
+    price_update::{self, FeedId, PriceUpdateV2},
+    PYTH_PUSH_ORACLE_ID,
+};
 use switchboard_v2::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
@@ -115,9 +118,20 @@ impl OraclePriceFeedAdapter {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
 
                 let price_feed_id = bank_config.oracle_keys[0].to_bytes();
+                let account_info = &ais[0];
+
+                check!(
+                    account_info.owner == &PYTH_PUSH_ORACLE_ID,
+                    MarginfiError::InvalidOracleAccount
+                );
 
                 Ok(OraclePriceFeedAdapter::PythPull(
-                    PythPullOraclePriceFeed::load_checked(&ais[0], &price_feed_id, clock, max_age)?,
+                    PythPullOraclePriceFeed::load_checked(
+                        account_info,
+                        &price_feed_id,
+                        clock,
+                        max_age,
+                    )?,
                 ))
             }
         }
