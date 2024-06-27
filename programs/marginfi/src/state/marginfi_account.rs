@@ -169,7 +169,7 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
             MarginfiError::MissingPythOrBankAccount
         );
 
-        let current_timestamp = Clock::get()?.unix_timestamp;
+        let clock = Clock::get()?;
 
         active_balances
             .iter()
@@ -193,7 +193,7 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
                     Box::new(OraclePriceFeedAdapter::try_from_bank_config(
                         &bank.config,
                         oracle_ais,
-                        current_timestamp,
+                        &clock,
                     ))
                 };
 

@@ -1755,6 +1755,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
+name = "fast-math"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2465292146cdfc2011350fe3b1c616ac83cf0faeedb33463ba1c332ed8948d66"
+dependencies = [
+ "ieee754",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2438,6 +2447,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ieee754"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9007da9cacbd3e6343da136e98b0d2df013f553d35bdec8b518f07bea768e19c"
+
+[[package]]
 name = "im"
 version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2771,7 +2786,9 @@ dependencies = [
  "futures",
  "lazy_static",
  "pretty_assertions",
+ "pyth-push-oracle",
  "pyth-sdk-solana",
+ "pyth-solana-receiver-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -3859,6 +3876,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pyth-push-oracle"
+version = "0.1.0"
+source = "git+https://github.com/pyth-network/pyth-crosschain.git#35ee573a155d4124a4906451adb4d4f913929e60"
+dependencies = [
+ "anchor-lang",
+ "byteorder",
+ "pyth-solana-receiver-sdk 0.3.0 (git+https://github.com/pyth-network/pyth-crosschain.git)",
+ "pythnet-sdk 2.1.0 (git+https://github.com/pyth-network/pyth-crosschain.git)",
+ "solana-program",
+]
+
+[[package]]
 name = "pyth-sdk"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3885,6 +3914,72 @@ dependencies = [
  "num-traits",
  "pyth-sdk",
  "serde",
+ "solana-program",
+ "thiserror",
+]
+
+[[package]]
+name = "pyth-solana-receiver-sdk"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91e6559643f0b377b6f293269251f6a804ae7332c37f7310371f50c833453cd0"
+dependencies = [
+ "anchor-lang",
+ "hex",
+ "pythnet-sdk 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-program",
+]
+
+[[package]]
+name = "pyth-solana-receiver-sdk"
+version = "0.3.0"
+source = "git+https://github.com/pyth-network/pyth-crosschain.git#35ee573a155d4124a4906451adb4d4f913929e60"
+dependencies = [
+ "anchor-lang",
+ "hex",
+ "pythnet-sdk 2.1.0 (git+https://github.com/pyth-network/pyth-crosschain.git)",
+ "solana-program",
+]
+
+[[package]]
+name = "pythnet-sdk"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bbbc0456f9f27c9ad16b6c3bf1b2a7fea61eebf900f4d024a0468b9a84fe0c1"
+dependencies = [
+ "anchor-lang",
+ "bincode",
+ "borsh 0.10.3",
+ "bytemuck",
+ "byteorder",
+ "fast-math",
+ "hex",
+ "proc-macro2 1.0.79",
+ "rustc_version",
+ "serde",
+ "sha3 0.10.8",
+ "slow_primes",
+ "solana-program",
+ "thiserror",
+]
+
+[[package]]
+name = "pythnet-sdk"
+version = "2.1.0"
+source = "git+https://github.com/pyth-network/pyth-crosschain.git#35ee573a155d4124a4906451adb4d4f913929e60"
+dependencies = [
+ "anchor-lang",
+ "bincode",
+ "borsh 0.10.3",
+ "bytemuck",
+ "byteorder",
+ "fast-math",
+ "hex",
+ "proc-macro2 1.0.79",
+ "rustc_version",
+ "serde",
+ "sha3 0.10.8",
+ "slow_primes",
  "solana-program",
  "thiserror",
 ]
@@ -4781,6 +4876,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "slow_primes"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58267dd2fbaa6dceecba9e3e106d2d90a2b02497c0e8b01b8759beccf5113938"
+dependencies = [
+ "num",
 ]
 
 [[package]]

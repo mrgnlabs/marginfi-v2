@@ -39,6 +39,8 @@ lazy_static = "1.4.0"
 static_assertions = "1.1.0"
 type-layout = "0.2.0"
 solana-security-txt = "1.1.1"
+pyth-push-oracle = { git = "https://github.com/pyth-network/pyth-crosschain.git", version = "0.1.0" }
+pyth-solana-receiver-sdk = "0.3.0"
 
 [dev-dependencies]
 solana-account-decoder = { workspace = true }

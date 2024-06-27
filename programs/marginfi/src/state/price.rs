@@ -5,6 +5,7 @@ use anchor_lang::prelude::*;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{load_price_feed_from_account_info, Price, PriceFeed};
+use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use switchboard_v2::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
@@ -12,7 +13,8 @@ use switchboard_v2::{
 use crate::{
     check,
     constants::{
-        CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL, PYTH_ID, STD_DEV_MULTIPLE,
+        CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL,
+        MIN_PYTH_PULL_VERIFICATION_LEVEL, PYTH_ID, STD_DEV_MULTIPLE,
     },
     debug, math_error,
     prelude::*,
@@ -27,6 +29,7 @@ pub enum OracleSetup {
     None,
     PythEma,
     SwitchboardV2,
+    PythPullOracle,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -58,18 +61,19 @@ pub trait PriceAdapter {
 pub enum OraclePriceFeedAdapter {
     PythEma(PythEmaPriceFeed),
     SwitchboardV2(SwitchboardV2PriceFeed),
+    PythPull(PythPullOraclePriceFeed),
 }
 
 impl OraclePriceFeedAdapter {
     pub fn try_from_bank_config(
         bank_config: &BankConfig,
         ais: &[AccountInfo],
-        current_timestamp: i64,
+        clock: &Clock,
     ) -> MarginfiResult<Self> {
         Self::try_from_bank_config_with_max_age(
             bank_config,
             ais,
-            current_timestamp,
+            clock,
             bank_config.get_oracle_max_age(),
         )
     }
@@ -77,7 +81,7 @@ impl OraclePriceFeedAdapter {
     pub fn try_from_bank_config_with_max_age(
         bank_config: &BankConfig,
         ais: &[AccountInfo],
-        current_timestamp: i64,
+        clock: &Clock,
         max_age: u64,
     ) -> MarginfiResult<Self> {
         debug!("Max age: {}", max_age);
@@ -93,7 +97,7 @@ impl OraclePriceFeedAdapter {
                 let account_info = &ais[0];
 
                 Ok(OraclePriceFeedAdapter::PythEma(
-                    PythEmaPriceFeed::load_checked(account_info, current_timestamp, max_age)?,
+                    PythEmaPriceFeed::load_checked(account_info, clock.unix_timestamp, max_age)?,
                 ))
             }
             OracleSetup::SwitchboardV2 => {
@@ -104,7 +108,16 @@ impl OraclePriceFeedAdapter {
                 );
 
                 Ok(OraclePriceFeedAdapter::SwitchboardV2(
-                    SwitchboardV2PriceFeed::load_checked(&ais[0], current_timestamp, max_age)?,
+                    SwitchboardV2PriceFeed::load_checked(&ais[0], clock.unix_timestamp, max_age)?,
+                ))
+            }
+            OracleSetup::PythPullOracle => {
+                check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
+
+                let price_feed_id = bank_config.oracle_keys[0].to_bytes();
+
+                Ok(OraclePriceFeedAdapter::PythPull(
+                    PythPullOraclePriceFeed::load_checked(&ais[0], &price_feed_id, clock, max_age)?,
                 ))
             }
         }
@@ -135,6 +148,16 @@ impl OraclePriceFeedAdapter {
                 );
 
                 SwitchboardV2PriceFeed::check_ais(&oracle_ais[0])?;
+
+                Ok(())
+            }
+            OracleSetup::PythPullOracle => {
+                check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
+
+                PythPullOraclePriceFeed::check_ai_and_feed_id(
+                    &oracle_ais[0],
+                    bank_config.get_pyth_pull_oracle_feed_id().unwrap(),
+                )?;
 
                 Ok(())
             }
@@ -299,13 +322,13 @@ impl SwitchboardV2PriceFeed {
             .get_result()
             .map_err(|_| MarginfiError::InvalidPrice)?;
 
-        Ok(swithcboard_decimal_to_i80f48(sw_decimal)
+        Ok(switchboard_decimal_to_i80f48(sw_decimal)
             .ok_or(MarginfiError::InvalidSwitchboardDecimalConversion)?)
     }
 
     fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
         let std_div = self.aggregator_account.latest_confirmed_round_std_deviation;
-        let std_div = swithcboard_decimal_to_i80f48(std_div)
+        let std_div = switchboard_decimal_to_i80f48(std_div)
             .ok_or(MarginfiError::InvalidSwitchboardDecimalConversion)?;
 
         let conf_interval = std_div
@@ -358,11 +381,155 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
     }
 }
 
+#[derive(Clone)]
+pub struct PythPullOraclePriceFeed {
+    ema_price: Box<pyth_solana_receiver_sdk::price_update::Price>,
+    price: Box<pyth_solana_receiver_sdk::price_update::Price>,
+}
+
+impl PythPullOraclePriceFeed {
+    /// Pyth pull oracles are update using crosschain messages from pythnet
+    /// There can be multiple pyth push oracles for a given feed_id. Marginfi allows using any
+    /// pyth push oracle with a sufficient verification level and price age.
+    ///
+    /// Meaning that when loading the pyth pull oracle, we don't verify the account address
+    /// directly, but rather we verify the feed_id in the oracle data.
+    pub fn load_checked(
+        ai: &AccountInfo,
+        feed_id: &FeedId,
+        clock: &Clock,
+        max_age: u64,
+    ) -> MarginfiResult<Self> {
+        let price_feed_data = ai.try_borrow_data()?;
+        let price_feed_account = PriceUpdateV2::try_deserialize(&mut &price_feed_data[..])?;
+
+        let price = price_feed_account
+            .get_price_no_older_than_with_custom_verification_level(
+                clock,
+                max_age,
+                feed_id,
+                MIN_PYTH_PULL_VERIFICATION_LEVEL,
+            )
+            .map_err(|e| match e {
+                pyth_solana_receiver_sdk::error::GetPriceError::PriceTooOld => {
+                    MarginfiError::StaleOracle
+                }
+                _ => MarginfiError::InvalidOracleAccount,
+            })?;
+
+        let ema_price = {
+            let price_update::PriceFeedMessage {
+                exponent,
+                publish_time,
+                ema_price,
+                ema_conf,
+                ..
+            } = price_feed_account.price_message;
+
+            pyth_solana_receiver_sdk::price_update::Price {
+                price: ema_price,
+                conf: ema_conf,
+                exponent,
+                publish_time,
+            }
+        };
+
+        Ok(Self {
+            price: Box::new(price),
+            ema_price: Box::new(ema_price),
+        })
+    }
+
+    pub fn check_ai_and_feed_id(ai: &AccountInfo, feed_id: &FeedId) -> MarginfiResult {
+        let price_feed_data = ai.try_borrow_data()?;
+        let price_feed_account = PriceUpdateV2::try_deserialize(&mut &price_feed_data[..])?;
+
+        assert_eq!(&price_feed_account.price_message.feed_id, feed_id);
+
+        Ok(())
+    }
+
+    fn get_confidence_interval(&self, use_ema: bool) -> MarginfiResult<I80F48> {
+        let price = if use_ema {
+            &self.ema_price
+        } else {
+            &self.price
+        };
+
+        let conf_interval =
+            pyth_price_components_to_i80f48(I80F48::from_num(price.conf), price.exponent)?
+                .checked_mul(CONF_INTERVAL_MULTIPLE)
+                .ok_or_else(math_error!())?;
+
+        // Cap confidence interval to 5% of price
+        let price = pyth_price_components_to_i80f48(I80F48::from_num(price.price), price.exponent)?;
+
+        let max_conf_interval = price
+            .checked_mul(MAX_CONF_INTERVAL)
+            .ok_or_else(math_error!())?;
+
+        assert!(
+            max_conf_interval >= I80F48::ZERO,
+            "Negative max confidence interval"
+        );
+
+        assert!(
+            conf_interval >= I80F48::ZERO,
+            "Negative confidence interval"
+        );
+
+        Ok(min(conf_interval, max_conf_interval))
+    }
+
+    #[inline(always)]
+    fn get_ema_price(&self) -> MarginfiResult<I80F48> {
+        pyth_price_components_to_i80f48(
+            I80F48::from_num(self.ema_price.price),
+            self.ema_price.exponent,
+        )
+    }
+
+    #[inline(always)]
+    fn get_unweighted_price(&self) -> MarginfiResult<I80F48> {
+        pyth_price_components_to_i80f48(I80F48::from_num(self.price.price), self.price.exponent)
+    }
+}
+
+impl PriceAdapter for PythPullOraclePriceFeed {
+    fn get_price_of_type(
+        &self,
+        price_type: OraclePriceType,
+        bias: Option<PriceBias>,
+    ) -> MarginfiResult<I80F48> {
+        let price = match price_type {
+            OraclePriceType::TimeWeighted => self.get_ema_price()?,
+            OraclePriceType::RealTime => self.get_unweighted_price()?,
+        };
+
+        match bias {
+            None => Ok(price),
+            Some(price_bias) => {
+                let confidence_interval = self
+                    .get_confidence_interval(matches!(price_type, OraclePriceType::TimeWeighted))?;
+
+                match price_bias {
+                    PriceBias::Low => Ok(price
+                        .checked_sub(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                    PriceBias::High => Ok(price
+                        .checked_add(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                }
+            }
+        }
+    }
+}
+
 /// A slimmed down version of the AggregatorAccountData struct copied from the switchboard-v2/src/aggregator.rs
 #[cfg_attr(feature = "client", derive(Clone, Debug))]
 struct LiteAggregatorAccountData {
     /// Use sliding windoe or round based resolution
-    /// NOTE: This changes result propogation in latest_round_result
+    /// NOTE: This changes result propagation in latest_round_result
     pub resolution_mode: AggregatorResolutionMode,
     /// Latest confirmed update request result that has been accepted as valid.
     pub latest_confirmed_round_result: SwitchboardDecimal,
@@ -395,7 +562,7 @@ impl LiteAggregatorAccountData {
     ///
     /// let feed_result = AggregatorAccountData::new(feed_account_info)?.get_result()?;
     /// let decimal: f64 = feed_result.try_into()?;
-    /// ```
+
     pub fn get_result(&self) -> anchor_lang::Result<SwitchboardDecimal> {
         if self.resolution_mode == AggregatorResolutionMode::ModeSlidingResolution {
             return Ok(self.latest_confirmed_round_result);
@@ -437,7 +604,7 @@ fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
 }
 
 #[inline(always)]
-fn swithcboard_decimal_to_i80f48(decimal: SwitchboardDecimal) -> Option<I80F48> {
+fn switchboard_decimal_to_i80f48(decimal: SwitchboardDecimal) -> Option<I80F48> {
     let decimal = fit_scale_switchboard_decimal(decimal, MAX_SCALE)?;
 
     I80F48::from_num(decimal.mantissa).checked_div(EXP_10_I80F48[decimal.scale as usize])
@@ -476,7 +643,7 @@ mod tests {
             mantissa: 1000000000000000000,
             scale: 18,
         };
-        let i80f48 = swithcboard_decimal_to_i80f48(decimal).unwrap();
+        let i80f48 = switchboard_decimal_to_i80f48(decimal).unwrap();
         assert_eq!(i80f48, I80F48::from_num(1));
     }
 
@@ -493,7 +660,7 @@ mod tests {
             println!("control check: {:?}", decimal);
         }
 
-        let i80f48 = swithcboard_decimal_to_i80f48(dec).unwrap();
+        let i80f48 = switchboard_decimal_to_i80f48(dec).unwrap();
 
         assert_eq!(i80f48, I80F48::from_num(0.00139429375));
     }
