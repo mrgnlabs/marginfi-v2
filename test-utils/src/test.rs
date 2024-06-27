@@ -20,7 +20,6 @@ use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
 use solana_sdk::{account::Account, pubkey, signature::Keypair, signer::Signer};
 use std::collections::HashMap;
-use std::ops::{Neg, Not};
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Default, Debug, Clone)]
