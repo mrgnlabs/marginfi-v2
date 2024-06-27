@@ -55,19 +55,14 @@ pub fn calculate_pre_fee_spl_deposit_amount(
     let mint_data = mint_ai.try_borrow_data()?;
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
 
-    let fee = if let Ok(transfer_fee_config) = mint.get_extension::<TransferFeeConfig>() {
-        let epoch_fee = transfer_fee_config.get_epoch_fee(epoch);
-        let pre_fee_amount = calculate_pre_fee_amount(epoch_fee, post_fee_amount).unwrap();
-        epoch_fee.calculate_fee(pre_fee_amount).unwrap()
-    } else {
-        0
-    };
-
-    let pre_fee_amount = post_fee_amount
-        .checked_add(fee)
-        .ok_or(MarginfiError::MathError)?;
-
-    Ok(pre_fee_amount)
+    match mint.get_extension::<TransferFeeConfig>() {
+        Ok(transfer_fee_config) => {
+            let epoch_fee = transfer_fee_config.get_epoch_fee(epoch);
+            let pre_fee_amount = calculate_pre_fee_amount(epoch_fee, post_fee_amount).unwrap();
+            Ok(pre_fee_amount)
+        }
+        Err(_) => Ok(post_fee_amount),
+    }
 }
 
 pub fn calculate_post_fee_spl_deposit_amount(
