@@ -66,7 +66,7 @@ impl TestSettings {
         }
     }
 
-    pub fn all_banks_pyth_pull_fullv_payer_not_admin() -> Self {
+    pub fn all_banks_pyth_push_fullv_payer_not_admin() -> Self {
         Self {
             banks: vec![
                 TestBankSetting {
@@ -82,7 +82,7 @@ impl TestSettings {
         }
     }
 
-    pub fn all_banks_pyth_pull_partv_payer_not_admin() -> Self {
+    pub fn all_banks_pyth_push_partv_payer_not_admin() -> Self {
         Self {
             banks: vec![
                 TestBankSetting {

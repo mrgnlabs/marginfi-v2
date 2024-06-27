@@ -3,7 +3,7 @@ use fixed_macro::types::I80F48;
 use fixtures::{
     assert_custom_error, assert_eq_noise, native,
     test::{
-        BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG,
+        BankMint, TestBankSetting, TestFixture, TestSettings,
         DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG,
     },
 };
@@ -14,9 +14,9 @@ use marginfi::{
 use solana_program_test::tokio;
 
 #[tokio::test]
-async fn pyth_pull_fullv_borrow() -> anyhow::Result<()> {
+async fn pyth_push_fullv_borrow() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(
-        TestSettings::all_banks_pyth_pull_fullv_payer_not_admin(),
+        TestSettings::all_banks_pyth_push_fullv_payer_not_admin(),
     ))
     .await;
 
@@ -72,9 +72,9 @@ async fn pyth_pull_fullv_borrow() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn pyth_pull_partv_borrow() -> anyhow::Result<()> {
+async fn pyth_push_partv_borrow() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(
-        TestSettings::all_banks_pyth_pull_partv_payer_not_admin(),
+        TestSettings::all_banks_pyth_push_partv_payer_not_admin(),
     ))
     .await;
 
@@ -121,7 +121,7 @@ async fn pyth_pull_partv_borrow() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn pyth_pull_fullv_liquidate() -> anyhow::Result<()> {
+async fn pyth_push_fullv_liquidate() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
