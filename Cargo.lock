@@ -2786,9 +2786,8 @@ dependencies = [
  "futures",
  "lazy_static",
  "pretty_assertions",
- "pyth-push-oracle",
  "pyth-sdk-solana",
- "pyth-solana-receiver-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pyth-solana-receiver-sdk",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -3876,18 +3875,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pyth-push-oracle"
-version = "0.1.0"
-source = "git+https://github.com/pyth-network/pyth-crosschain.git#35ee573a155d4124a4906451adb4d4f913929e60"
-dependencies = [
- "anchor-lang",
- "byteorder",
- "pyth-solana-receiver-sdk 0.3.0 (git+https://github.com/pyth-network/pyth-crosschain.git)",
- "pythnet-sdk 2.1.0 (git+https://github.com/pyth-network/pyth-crosschain.git)",
- "solana-program",
-]
-
-[[package]]
 name = "pyth-sdk"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3926,18 +3913,7 @@ checksum = "91e6559643f0b377b6f293269251f6a804ae7332c37f7310371f50c833453cd0"
 dependencies = [
  "anchor-lang",
  "hex",
- "pythnet-sdk 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "solana-program",
-]
-
-[[package]]
-name = "pyth-solana-receiver-sdk"
-version = "0.3.0"
-source = "git+https://github.com/pyth-network/pyth-crosschain.git#35ee573a155d4124a4906451adb4d4f913929e60"
-dependencies = [
- "anchor-lang",
- "hex",
- "pythnet-sdk 2.1.0 (git+https://github.com/pyth-network/pyth-crosschain.git)",
+ "pythnet-sdk",
  "solana-program",
 ]
 
@@ -3946,27 +3922,6 @@ name = "pythnet-sdk"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bbbc0456f9f27c9ad16b6c3bf1b2a7fea61eebf900f4d024a0468b9a84fe0c1"
-dependencies = [
- "anchor-lang",
- "bincode",
- "borsh 0.10.3",
- "bytemuck",
- "byteorder",
- "fast-math",
- "hex",
- "proc-macro2 1.0.79",
- "rustc_version",
- "serde",
- "sha3 0.10.8",
- "slow_primes",
- "solana-program",
- "thiserror",
-]
-
-[[package]]
-name = "pythnet-sdk"
-version = "2.1.0"
-source = "git+https://github.com/pyth-network/pyth-crosschain.git#35ee573a155d4124a4906451adb4d4f913929e60"
 dependencies = [
  "anchor-lang",
  "bincode",
@@ -6494,7 +6449,7 @@ dependencies = [
  "marginfi",
  "pretty_assertions",
  "pyth-sdk-solana",
- "pyth-solana-receiver-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pyth-solana-receiver-sdk",
  "solana-logger",
  "solana-program",
  "solana-program-test",
