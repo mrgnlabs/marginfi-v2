@@ -1,6 +1,5 @@
 use anchor_lang::{prelude::*, Discriminator};
 use marginfi::constants::PYTH_ID;
-use pyth_push_oracle::pyth_push_oracle;
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
 };

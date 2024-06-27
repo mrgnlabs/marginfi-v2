@@ -638,6 +638,7 @@ fn fit_scale_switchboard_decimal(
 #[cfg(test)]
 mod tests {
     use fixed_macro::types::I80F48;
+    use pretty_assertions::assert_eq;
     use rust_decimal::Decimal;
 
     use super::*;
@@ -742,5 +743,181 @@ mod tests {
         // The confidence interval should be the calculated value (1.96%)
 
         assert_eq!(low_conf_interval, I80F48!(1.96));
+    }
+
+    #[test]
+    fn pyth_and_pyth_pull_cmp() {
+        fn get_prices(
+            price: i64,
+            conf: u64,
+        ) -> (Price, pyth_solana_receiver_sdk::price_update::Price) {
+            let pull_price = pyth_solana_receiver_sdk::price_update::Price {
+                price,
+                conf,
+                exponent: -6,
+                publish_time: 0,
+            };
+            let price = Price {
+                price,
+                conf,
+                expo: -6,
+                publish_time: 0,
+            };
+
+            assert_eq!(price.price, pull_price.price);
+            assert_eq!(price.conf, pull_price.conf);
+            assert_eq!(price.expo, pull_price.exponent);
+            assert_eq!(price.publish_time, pull_price.publish_time);
+
+            (price, pull_price)
+        }
+
+        let (price, pull_price) = get_prices(100i64 * EXP_10[6] as i64, 10u64 * EXP_10[6] as u64);
+
+        let (ema_price, ema_pull_price) =
+            get_prices(99i64 * EXP_10[6] as i64, 4u64 * EXP_10[6] as u64);
+
+        let pyth_ema = PythEmaPriceFeed {
+            ema_price: Box::new(ema_price),
+            price: Box::new(price),
+        };
+
+        let pyth_pull = PythPullOraclePriceFeed {
+            ema_price: Box::new(ema_pull_price),
+            price: Box::new(pull_price),
+        };
+
+        assert_eq!(
+            pyth_ema.get_ema_price().unwrap(),
+            pyth_pull.get_ema_price().unwrap()
+        );
+        assert_eq!(
+            pyth_ema.get_unweighted_price().unwrap(),
+            pyth_pull.get_unweighted_price().unwrap()
+        );
+
+        assert_eq!(
+            pyth_ema.get_confidence_interval(true).unwrap(),
+            pyth_pull.get_confidence_interval(true).unwrap()
+        );
+
+        assert_eq!(
+            pyth_ema.get_confidence_interval(false).unwrap(),
+            pyth_pull.get_confidence_interval(false).unwrap()
+        );
+
+        assert_eq!(
+            pyth_ema
+                .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
+                .unwrap(),
+            pyth_pull
+                .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
+                .unwrap()
+        );
+
+        // Test high bias EMA
+        assert_eq!(
+            pyth_ema
+                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
+                .unwrap(),
+            pyth_pull
+                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
+                .unwrap()
+        );
+
+        // Test low bias EMA
+        assert_eq!(
+            pyth_ema
+                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
+                .unwrap(),
+            pyth_pull
+                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
+                .unwrap()
+        );
+
+        // Test no bias real time
+        assert_eq!(
+            pyth_ema
+                .get_price_of_type(OraclePriceType::RealTime, None)
+                .unwrap(),
+            pyth_pull
+                .get_price_of_type(OraclePriceType::RealTime, None)
+                .unwrap()
+        );
+
+        // new pricees with very wide confidence
+        let (price, pull_price) = get_prices(100i64 * EXP_10[6] as i64, 100u64 * EXP_10[6] as u64);
+
+        let (ema_price, ema_pull_price) =
+            get_prices(99i64 * EXP_10[6] as i64, 88u64 * EXP_10[6] as u64);
+
+        let pyth_ema = PythEmaPriceFeed {
+            ema_price: Box::new(ema_price),
+            price: Box::new(price),
+        };
+
+        let pyth_pull = PythPullOraclePriceFeed {
+            ema_price: Box::new(ema_pull_price),
+            price: Box::new(pull_price),
+        };
+
+        // Test high bias EMA
+        assert_eq!(
+            pyth_ema.get_ema_price().unwrap(),
+            pyth_pull.get_ema_price().unwrap()
+        );
+        assert_eq!(
+            pyth_ema.get_unweighted_price().unwrap(),
+            pyth_pull.get_unweighted_price().unwrap()
+        );
+
+        assert_eq!(
+            pyth_ema.get_confidence_interval(true).unwrap(),
+            pyth_pull.get_confidence_interval(true).unwrap()
+        );
+
+        assert_eq!(
+            pyth_ema.get_confidence_interval(false).unwrap(),
+            pyth_pull.get_confidence_interval(false).unwrap()
+        );
+
+        assert_eq!(
+            pyth_ema
+                .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
+                .unwrap(),
+            pyth_pull
+                .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
+                .unwrap()
+        );
+
+        // Test high bias EMA
+        assert_eq!(
+            pyth_ema
+                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
+                .unwrap(),
+            pyth_pull
+                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
+                .unwrap()
+        );
+
+        // Test low bias EMA
+        assert_eq!(
+            pyth_ema
+                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
+                .unwrap(),
+            pyth_pull
+                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
+                .unwrap()
+        );
+
+        // Test no bias real time
+        assert_eq!(
+            pyth_ema
+                .get_price_of_type(OraclePriceType::RealTime, None)
+                .unwrap(),
+            pyth_pull
+                .get_price_of_type(OraclePriceType::RealTime, None)
+                .unwrap()
+        );
     }
 }

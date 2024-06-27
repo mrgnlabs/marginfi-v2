@@ -367,10 +367,24 @@ impl MarginfiAccountFixture {
         }
         .to_account_metas(Some(true));
 
-        accounts.extend(vec![
-            AccountMeta::new_readonly(asset_bank.config.oracle_keys[0], false),
-            AccountMeta::new_readonly(liab_bank.config.oracle_keys[0], false),
-        ]);
+        let oracle_accounts = vec![asset_bank.config, liab_bank.config]
+            .iter()
+            .map(|config| {
+                AccountMeta::new_readonly(
+                    {
+                        match config.oracle_setup {
+                            OracleSetup::PythPullOracle => {
+                                get_oracle_id_from_feed_id(config.oracle_keys[0]).unwrap()
+                            }
+                            _ => config.oracle_keys[0],
+                        }
+                    },
+                    false,
+                )
+            })
+            .collect::<Vec<AccountMeta>>();
+
+        accounts.extend(oracle_accounts);
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
