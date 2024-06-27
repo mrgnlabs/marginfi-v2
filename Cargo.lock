@@ -6494,6 +6494,7 @@ dependencies = [
  "marginfi",
  "pretty_assertions",
  "pyth-sdk-solana",
+ "pyth-solana-receiver-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "solana-logger",
  "solana-program",
  "solana-program-test",

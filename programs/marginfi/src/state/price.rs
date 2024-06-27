@@ -410,11 +410,15 @@ impl PythPullOraclePriceFeed {
                 feed_id,
                 MIN_PYTH_PULL_VERIFICATION_LEVEL,
             )
-            .map_err(|e| match e {
-                pyth_solana_receiver_sdk::error::GetPriceError::PriceTooOld => {
-                    MarginfiError::StaleOracle
+            .map_err(|e| {
+                debug!("Pyth pull oracle error: {:?}", e);
+
+                match e {
+                    pyth_solana_receiver_sdk::error::GetPriceError::PriceTooOld => {
+                        MarginfiError::StaleOracle
+                    }
+                    _ => MarginfiError::InvalidOracleAccount,
                 }
-                _ => MarginfiError::InvalidOracleAccount,
             })?;
 
         let ema_price = {

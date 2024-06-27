@@ -315,7 +315,10 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
     fn try_get_price_feed(&self) -> std::result::Result<&OraclePriceFeedAdapter, PriceFeedError> {
         match self.price_feed.as_ref() {
             Ok(a) => Ok(a),
-            Err(_) => Err(PriceFeedError::StaleOracle),
+            Err(e) => {
+                debug!("Price feed error: {:?}", e);
+                Err(PriceFeedError::StaleOracle)
+            }
         }
     }
 
@@ -464,6 +467,11 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         for a in &self.bank_accounts_with_price {
             let (assets, liabilities) =
                 a.calc_weighted_assets_and_liabilities_values(requirement_type.to_weight_type())?;
+
+            debug!(
+                "Balance {}, assets: {}, liabilities: {}",
+                a.balance.bank_pk, assets, liabilities
+            );
 
             total_assets = total_assets.checked_add(assets).ok_or_else(math_error!())?;
             total_liabilities = total_liabilities
@@ -816,7 +824,7 @@ impl<'a> BankAccountWrapper<'a> {
             .balances
             .iter_mut()
             .find(|balance| balance.active && balance.bank_pk.eq(bank_pk))
-            .ok_or_else(|| error!(MarginfiError::BankAccoutNotFound))?;
+            .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
 
         Ok(Self { balance, bank })
     }
@@ -838,7 +846,7 @@ impl<'a> BankAccountWrapper<'a> {
                 let balance = lending_account
                     .balances
                     .get_mut(balance_index)
-                    .ok_or_else(|| error!(MarginfiError::BankAccoutNotFound))?;
+                    .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
 
                 Ok(Self { balance, bank })
             }

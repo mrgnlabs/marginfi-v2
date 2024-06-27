@@ -44,7 +44,7 @@ pub enum MarginfiError {
     #[msg("Bank is ReduceOnly mode")] // 6019
     BankReduceOnly,
     #[msg("Bank is missing")] // 6020
-    BankAccoutNotFound,
+    BankAccountNotFound,
     #[msg("Operation is deposit-only")] // 6021
     OperationDepositOnly,
     #[msg("Operation is withdraw-only")] // 6022
@@ -65,13 +65,13 @@ pub enum MarginfiError {
     BankLiabilityCapacityExceeded,
     #[msg("Invalid Price")] // 6030
     InvalidPrice,
-    #[msg("Account can have only one liablity when account is under isolated risk")] // 6031
+    #[msg("Account can have only one liability when account is under isolated risk")] // 6031
     IsolatedAccountIllegalState, // 6032
     #[msg("Emissions already setup")]
     EmissionsAlreadySetup,
     #[msg("Oracle is not set")] // 6033
     OracleNotSetup,
-    #[msg("Invalid swithcboard decimal conversion")] // 6034
+    #[msg("Invalid switchboard decimal conversion")] // 6034
     InvalidSwitchboardDecimalConversion,
     #[msg("Cannot close balance because of outstanding emissions")] // 6035
     CannotCloseOutstandingEmissions,

@@ -1,8 +1,11 @@
 use anchor_lang::{prelude::*, Discriminator};
 use marginfi::constants::PYTH_ID;
+use pyth_push_oracle::pyth_push_oracle;
 use pyth_sdk_solana::state::{
     AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
 };
+use pyth_solana_receiver_sdk::price_update::{FeedId, PriceUpdateV2, VerificationLevel};
+use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use solana_program::{instruction::Instruction, pubkey};
 use solana_program_test::*;
 use solana_sdk::{account::Account, signature::Keypair};
@@ -47,7 +50,7 @@ where
     }
 }
 
-pub fn create_pyth_price_account(
+pub fn create_pyth_pull_oracle_account(
     mint: Pubkey,
     ui_price: i64,
     mint_decimals: i32,
@@ -85,6 +88,44 @@ pub fn create_pyth_price_account(
         })
         .to_vec(),
         owner: PYTH_ID,
+        executable: false,
+        rent_epoch: 361,
+    }
+}
+
+pub fn create_pyth_push_oracle_account(
+    feed_id: FeedId,
+    ui_price: i64,
+    mint_decimals: i32,
+    timestamp: Option<i64>,
+    verification_level: VerificationLevel,
+) -> Account {
+    let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
+
+    let price_update = PriceUpdateV2 {
+        write_authority: Pubkey::default(),
+        verification_level,
+        price_message: pyth_solana_receiver_sdk::price_update::PriceFeedMessage {
+            feed_id,
+            price: native_price,
+            conf: 0,
+            exponent: -mint_decimals,
+            publish_time: timestamp.unwrap_or_default(),
+            prev_publish_time: timestamp.unwrap_or_default(),
+            ema_price: native_price,
+            ema_conf: 0,
+        },
+        posted_slot: 1,
+    };
+
+    let mut data = vec![];
+
+    price_update.try_serialize(&mut data).unwrap();
+
+    Account {
+        lamports: 1_000_000,
+        data,
+        owner: PYTH_PUSH_ORACLE_ID,
         executable: false,
         rent_epoch: 361,
     }
