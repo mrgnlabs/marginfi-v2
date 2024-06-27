@@ -315,6 +315,7 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
     fn try_get_price_feed(&self) -> std::result::Result<&OraclePriceFeedAdapter, PriceFeedError> {
         match self.price_feed.as_ref() {
             Ok(a) => Ok(a),
+            #[allow(unused_variables)]
             Err(e) => {
                 debug!("Price feed error: {:?}", e);
                 Err(PriceFeedError::StaleOracle)

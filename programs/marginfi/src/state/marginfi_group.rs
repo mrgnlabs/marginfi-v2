@@ -1125,9 +1125,8 @@ impl BankConfig {
     }
 
     pub fn get_pyth_pull_oracle_feed_id<'a>(&'a self) -> Option<&'a FeedId> {
-        if self.oracle_setup == OracleSetup::PythPullOracle {
+        if matches!(self.oracle_setup, OracleSetup::PythPullOracle) {
             let bytes: &[u8; 32] = self.oracle_keys[0].as_ref().try_into().unwrap();
-
             Some(bytes)
         } else {
             None
