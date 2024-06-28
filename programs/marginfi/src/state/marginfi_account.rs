@@ -11,7 +11,7 @@ use crate::{
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
-    utils::{self, NumTraitsWithTolerance},
+    utils::NumTraitsWithTolerance,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
@@ -974,10 +974,7 @@ impl<'a> BankAccountWrapper<'a> {
     }
 
     /// Repay existing liability in full - will error if there is no liability.
-    pub fn repay_all(
-        &mut self,
-        maybe_bank_mint: &Option<InterfaceAccount<Mint>>,
-    ) -> MarginfiResult<u64> {
+    pub fn repay_all(&mut self) -> MarginfiResult<u64> {
         self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
 
         let balance = &mut self.balance;
@@ -1004,14 +1001,12 @@ impl<'a> BankAccountWrapper<'a> {
         balance.close()?;
         bank.change_liability_shares(-total_liability_shares, false)?;
 
-        let full_balance_token_amount = current_liability_amount
+        let spl_deposit_amount = current_liability_amount
             .checked_ceil()
-            .ok_or_else(math_error!())?
-            .checked_to_num()
             .ok_or_else(math_error!())?;
 
         bank.collected_insurance_fees_outstanding = {
-            I80F48::from(full_balance_token_amount)
+            spl_deposit_amount
                 .checked_sub(current_liability_amount)
                 .ok_or_else(math_error!())?
                 .checked_add(bank.collected_insurance_fees_outstanding.into())
@@ -1019,21 +1014,9 @@ impl<'a> BankAccountWrapper<'a> {
                 .into()
         };
 
-        let deposit_amount_pre_fee = maybe_bank_mint
-            .as_ref()
-            .map(|mint| {
-                utils::calculate_pre_fee_spl_deposit_amount(
-                    mint.to_account_info(),
-                    full_balance_token_amount,
-                    Clock::get()?.epoch,
-                )
-            })
-            .transpose()?
-            .unwrap_or(full_balance_token_amount);
-
-        debug!("deposit_amount_pre_fee = {}", deposit_amount_pre_fee);
-
-        Ok(deposit_amount_pre_fee)
+        Ok(spl_deposit_amount
+            .checked_to_num()
+            .ok_or_else(math_error!())?)
     }
 
     pub fn close_balance(&mut self) -> MarginfiResult<()> {

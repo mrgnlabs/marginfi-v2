@@ -62,7 +62,7 @@ pub fn lending_account_repay<'info>(
         &mut marginfi_account.lending_account,
     )?;
 
-    let deposit_amount_post_fee = if repay_all {
+    let repay_amount_post_fee = if repay_all {
         bank_account.repay_all()?
     } else {
         bank_account.repay(I80F48::from_num(amount))?;
@@ -70,20 +70,20 @@ pub fn lending_account_repay<'info>(
         amount
     };
 
-    let amount_pre_fee = maybe_bank_mint
+    let repay_amount_pre_fee = maybe_bank_mint
         .as_ref()
         .map(|mint| {
             utils::calculate_pre_fee_spl_deposit_amount(
                 mint.to_account_info(),
-                deposit_amount_post_fee,
+                repay_amount_post_fee,
                 clock.epoch,
             )
         })
         .transpose()?
-        .unwrap_or(deposit_amount_post_fee);
+        .unwrap_or(repay_amount_post_fee);
 
     bank_account.deposit_spl_transfer(
-        amount_pre_fee,
+        repay_amount_pre_fee,
         signer_token_account.to_account_info(),
         bank_liquidity_vault.to_account_info(),
         signer.to_account_info(),
@@ -101,7 +101,7 @@ pub fn lending_account_repay<'info>(
         },
         bank: bank_loader.key(),
         mint: bank.mint,
-        amount: deposit_amount_post_fee,
+        amount: repay_amount_post_fee,
         close_balance: repay_all,
     });
 
