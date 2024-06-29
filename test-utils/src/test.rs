@@ -191,7 +191,8 @@ pub const PYTH_SOL_FEED: Pubkey = pubkey!("PythSo1Price1111111111111111111111111
 pub const SWITCHBOARD_SOL_FEED: Pubkey = pubkey!("SwchSo1Price1111111111111111111111111111111");
 pub const PYTH_SOL_EQUIVALENT_FEED: Pubkey = pubkey!("PythSo1Equiva1entPrice111111111111111111111");
 pub const PYTH_MNDE_FEED: Pubkey = pubkey!("PythMndePrice111111111111111111111111111111");
-pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111111111111111");
+pub const INEXISTENT_PYTH_USDC_FEED: Pubkey =
+    pubkey!("FakePythUsdcPrice11111111111111111111111111");
 pub const PYTH_T22_WITH_FEE_FEED: Pubkey = pubkey!("PythT22WithFeePrice111111111111111111111111");
 pub const PYTH_PYUSD_FEED: Pubkey = pubkey!("PythPyusdPrice11111111111111111111111111111");
 

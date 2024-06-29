@@ -188,7 +188,7 @@ async fn marginfi_account_borrow_failure_not_enough_collateral(
         .mint
         .create_empty_token_account()
         .await;
-    let borrower_token_account_f_usdc = test_f
+    let borrower_collateral_token_account_f = test_f
         .get_bank_mut(&collateral_mint)
         .mint
         .create_token_account_and_mint_to(user_wallet_balance)
@@ -196,7 +196,7 @@ async fn marginfi_account_borrow_failure_not_enough_collateral(
     let collateral_bank = test_f.get_bank(&collateral_mint);
     borrower_mfi_account_f
         .try_bank_deposit(
-            borrower_token_account_f_usdc.key,
+            borrower_collateral_token_account_f.key,
             collateral_bank,
             deposit_amount,
         )

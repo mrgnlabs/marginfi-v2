@@ -1122,7 +1122,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
     use marginfi::state::price::OracleSetup;
     use pyth_sdk_solana::state::load_price_account;
     use solana_sdk::{account::ReadableAccount, pubkey};
-    use switchboard_v2::AggregatorAccountData;
+    use switchboard_solana::AggregatorAccountData;
 
     let banks = config
         .mfi_program
@@ -2365,8 +2365,8 @@ pub fn process_inspect_switchboard_feed(config: &Config, aggregator_pk: &Pubkey)
         .expect("Aggregator account not found");
 
     let aggregator_account =
-        switchboard_v2::AggregatorAccountData::new_from_bytes(&aggregator_account_data)
+        switchboard_solana::AggregatorAccountData::new_from_bytes(&aggregator_account_data)
             .expect("Invalid aggregator account data");
 
-    println!("Aggregator account: {:#?}", aggregator_account);
+    todo!("print")
 }
