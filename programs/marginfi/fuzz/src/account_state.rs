@@ -198,9 +198,9 @@ impl AccountsState {
             StateWithExtensionsMut::<spl_token_2022::state::Account>::unpack_uninitialized(data)
                 .unwrap();
 
-        if required_extensions.contains(&ExtensionType::TransferFeeConfig) {
+        if required_extensions.contains(&ExtensionType::TransferFeeAmount) {
             token_account_state
-                .init_account_extension_from_type(ExtensionType::TransferFeeConfig)
+                .init_account_extension_from_type(ExtensionType::TransferFeeAmount)
                 .unwrap();
         }
 
