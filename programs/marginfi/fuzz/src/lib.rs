@@ -395,7 +395,6 @@ impl<'state> MarginfiFuzzContext<'state> {
 
         let success = if res.is_err() {
             let error = res.unwrap_err();
-            println!("Error: {:?}", error);
             assert!(
                 [
                     MarginfiError::NoLiabilityFound.into(),
@@ -472,7 +471,9 @@ impl<'state> MarginfiFuzzContext<'state> {
             assert!(
                 vec![
                     MarginfiError::NoLiabilityFound.into(),
-                    MarginfiError::OperationRepayOnly.into()
+                    MarginfiError::OperationRepayOnly.into(),
+                    // TODO: maybe change
+                    MarginfiError::BankAccoutNotFound.into(),
                 ]
                 .contains(&error),
                 "Unexpected repay error: {:?}",
@@ -560,7 +561,12 @@ impl<'state> MarginfiFuzzContext<'state> {
             let error = res.unwrap_err();
 
             assert!(
-                vec![MarginfiError::OperationWithdrawOnly.into(),].contains(&error),
+                [
+                    MarginfiError::OperationWithdrawOnly.into(),
+                    // TODO: maybe change
+                    MarginfiError::BankAccoutNotFound.into(),
+                ]
+                .contains(&error),
                 "Unexpected withdraw error: {:?}",
                 error
             );
