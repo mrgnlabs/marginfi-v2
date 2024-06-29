@@ -6,7 +6,7 @@ The `MarginAccount` class has several attributes, including `account_id`, `balan
 
 The `MarginAccount` class also has several methods, including `deposit`, `withdraw`, `open_position`, and `close_position`. The `deposit` method is used to add funds to the account, while `withdraw` is used to remove funds. The `open_position` method is used to open a new position in the account, while `close_position` is used to close an existing position.
 
-Overall, the `MarginAccount` class is an important component of the marginfi-v2 project, as it provides a way to manage margin accounts for financial trading. Here is an example of how the `MarginAccount` class might be used in the larger project:
+Overall, the `MarginAccount` class is an important component of the marginfi-v2 project, as it provides a way to manage margin accounts for financial trading. Here is an example of how the `MarginAccount` class might be used in a larger project:
 
 ```
 # Create a new margin account
