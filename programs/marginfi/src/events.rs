@@ -117,7 +117,7 @@ pub struct LendingAccountWithdrawEvent {
     pub close_balance: bool,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct LiquidationBalances {
     pub liquidatee_asset_balance: f64,
     pub liquidatee_liability_balance: f64,

@@ -1,0 +1,58 @@
+[package]
+name = "event_indexer"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "index-events"
+path = "bin/index_events.rs"
+
+[[bin]]
+name = "backfill-events"
+path = "bin/backfill_events.rs"
+
+[[bin]]
+name = "inspect-tx"
+path = "bin/inspect_tx.rs"
+
+[features]
+default = ["mainnet-beta"]
+mainnet-beta = ["marginfi/mainnet-beta"]
+dry-run = []
+
+[dependencies]
+anchor-lang = { workspace = true }
+backoff = { workspace = true }
+base64 = "0.22.0"
+bytemuck = { workspace = true }
+chrono = { workspace = true }
+concurrent-queue = "2.4.0"
+crossbeam = { workspace = true }
+csv = "1.3.0"
+diesel = { workspace = true, features = ["postgres", "chrono", "numeric"] }
+dotenv = { workspace = true }
+enum_dispatch = { workspace = true }
+envconfig = { workspace = true }
+fixed = "1.12.0"
+futures = { workspace = true }
+marginfi = { workspace = true }
+regex = "1.10.4"
+rpc_utils = { path = "../rpc_utils" }
+rust_decimal = { workspace = true, features = ["db-diesel2-postgres"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+solana-account-decoder = { workspace = true }
+solana-client = { workspace = true }
+solana-measure = { workspace = true }
+solana-sdk = { workspace = true }
+solana-transaction-status = { workspace = true }
+solana-rpc-client-api = { workspace = true }
+spl-token = { workspace = true }
+static_assertions = "1.1.0"
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-stackdriver = { workspace = true }
+tracing-subscriber = { workspace = true }
+yellowstone-grpc-client = { workspace = true }
+yellowstone-grpc-proto = { workspace = true }
