@@ -630,6 +630,7 @@ impl LiteAggregatorAccountData {
     ///
     /// let feed_result = AggregatorAccountData::new(feed_account_info)?.get_result()?;
     /// let decimal: f64 = feed_result.try_into()?;
+    /// ```
 
     pub fn get_result(&self) -> anchor_lang::Result<SwitchboardDecimal> {
         if self.resolution_mode == AggregatorResolutionMode::ModeSlidingResolution {
