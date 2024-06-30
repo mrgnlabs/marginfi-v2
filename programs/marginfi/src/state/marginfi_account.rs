@@ -104,13 +104,13 @@ impl MarginfiAccount {
 
     pub fn can_be_closed(&self) -> bool {
         let is_disabled = self.get_flag(DISABLED_FLAG);
-        let has_empty_balances = self
+        let only_has_empty_balances = self
             .lending_account
             .balances
             .iter()
             .all(|balance| balance.get_side().is_none());
 
-        !is_disabled && has_empty_balances
+        !is_disabled && only_has_empty_balances
     }
 }
 

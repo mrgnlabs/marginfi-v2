@@ -94,7 +94,7 @@ pub enum MarginfiError {
     #[msg("Unauthorized")] // 6045
     Unauthorized,
     #[msg("Invalid account authority")] // 6046
-    IllegalAction
+    IllegalAction,
 }
 
 impl From<MarginfiError> for ProgramError {

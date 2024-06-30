@@ -674,7 +674,7 @@ impl MarginfiAccountFixture {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::MarginfiAccountClose {
                 marginfi_account: self.key,
-                admin: ctx.payer.pubkey(),
+                authority: ctx.payer.pubkey(),
                 fee_payer: ctx.payer.pubkey(),
             }
             .to_account_metas(Some(true)),
