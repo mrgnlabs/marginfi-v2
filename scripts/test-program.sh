@@ -5,17 +5,21 @@ ROOT=$(git rev-parse --show-toplevel)
 cd $ROOT
 
 program_lib_name=$1
+loglevel=$2
 
 if [ -z "$program_lib_name" ]; then
     echo "Usage: $0 <program_lib_name>"
     exit 1
 fi
 
-program_dir=${program_lib_name//_/-}  # Substitute dashes with underscores
+if [ "$loglevel" == "--sane" ]; then
+    loglevel=warn
+    nocapture=""
+else
+    loglevel=debug
+    nocapture="-- --nocapture"
+fi
 
-cd $ROOT/programs/$program_dir
-
-# cmd="RUST_LOG=error cargo test-sbf --features=test -- --test-threads=1"
-cmd="RUST_LOG=error cargo test-sbf --features=test"
+cmd="RUST_LOG=solana_runtime::message_processor::stable_log=$loglevel cargo test --package $program_lib_name --features=test,test-bpf $nocapture"
 echo "Running: $cmd"
 eval "$cmd"

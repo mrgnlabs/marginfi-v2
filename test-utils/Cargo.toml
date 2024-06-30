@@ -35,6 +35,7 @@ pretty_assertions = "1.2.1"
 
 [dependencies.marginfi]
 path = "../programs/marginfi"
+features = ["test-bpf"]
 
 [dependencies.liquidity-incentive-program]
 path = "../programs/liquidity-incentive-program"

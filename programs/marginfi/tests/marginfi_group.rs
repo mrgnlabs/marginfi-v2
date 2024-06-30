@@ -1253,7 +1253,7 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::BadAccountHealth);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::RiskEngineInitRejected);
 
     sol_depositor
         .try_bank_withdraw(usdc_token_account.key, usdc_bank, 1900, Some(true))

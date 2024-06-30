@@ -189,6 +189,7 @@ pub fn calc_emissions_rate(ui_rate: f64, emissions_mint_decimals: u8) -> u64 {
     (ui_rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64
 }
 
+#[cfg(feature = "admin")]
 pub fn ui_to_native(ui_amount: f64, decimals: u8) -> u64 {
     (ui_amount * (10u64.pow(decimals as u32) as f64)) as u64
 }
