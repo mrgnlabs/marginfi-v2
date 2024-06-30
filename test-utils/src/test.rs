@@ -350,7 +350,7 @@ impl TestFixture {
 
         program.add_account(
             PYTH_USDC_FEED,
-            create_pyth_push_oracle_account(
+            create_pyth_pull_oracle_account(
                 usdc_keypair.pubkey(),
                 1,
                 USDC_MINT_DECIMALS.into(),
@@ -359,7 +359,7 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_SOL_FEED,
-            create_pyth_push_oracle_account(
+            create_pyth_pull_oracle_account(
                 sol_keypair.pubkey(),
                 10,
                 SOL_MINT_DECIMALS.into(),
@@ -368,7 +368,7 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_SOL_EQUIVALENT_FEED,
-            create_pyth_push_oracle_account(
+            create_pyth_pull_oracle_account(
                 sol_equivalent_keypair.pubkey(),
                 10,
                 SOL_MINT_DECIMALS.into(),
@@ -377,7 +377,7 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_MNDE_FEED,
-            create_pyth_push_oracle_account(
+            create_pyth_pull_oracle_account(
                 mnde_keypair.pubkey(),
                 10,
                 MNDE_MINT_DECIMALS.into(),
