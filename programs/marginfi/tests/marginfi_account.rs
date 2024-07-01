@@ -678,7 +678,7 @@ async fn marginfi_account_borrow_failure_not_enough_collateral() -> anyhow::Resu
         .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 101)
         .await;
 
-    assert_custom_error!(res.unwrap_err(), MarginfiError::BadAccountHealth);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::RiskEngineInitRejected);
 
     let res = borrower_mfi_account_f
         .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 100)
@@ -1932,7 +1932,7 @@ async fn flashloan_fail_account_health() -> anyhow::Result<()> {
 
     assert_custom_error!(
         flash_loan_result.unwrap_err(),
-        MarginfiError::BadAccountHealth
+        MarginfiError::RiskEngineInitRejected
     );
 
     Ok(())
