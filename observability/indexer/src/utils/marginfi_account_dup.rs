@@ -25,8 +25,7 @@ impl BankAccountWithPriceFeed2 {
             .balances
             .into_iter()
             .filter(|balance| balance.active)
-            .enumerate()
-            .map(|(_, balance)| {
+            .map(|balance| {
                 let bank = banks.get(&balance.bank_pk).cloned().unwrap();
                 let price_feed = price_feeds
                     .get(&bank.config.oracle_keys[0])
