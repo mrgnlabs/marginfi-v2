@@ -1,3 +1,4 @@
+use fixed_macro::types::I80F48;
 use fixtures::test::{BankMint, TestFixture, TestSettings};
 use marginfi::state::marginfi_group::GroupConfig;
 use solana_program_test::tokio;
@@ -16,8 +17,9 @@ async fn marginfi_group_withdraw_fees_and_insurance() -> anyhow::Result<()> {
     // Create a receiving account and try to withdraw 1000 USDC from the insurance vault
     let receiving_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
     bank_f
-        .try_withdraw_insurance(&receiving_account, 1000)
-        .await?;
+        .try_admin_withdraw_insurance(&receiving_account, I80F48!(1000))
+        .await
+        .unwrap();
     assert_eq!(receiving_account.balance().await, 1000); // Verifies that the receiving account balance is 1000 USDC
 
     // Mint 750 USDC to the fee vault
@@ -42,7 +44,7 @@ async fn marginfi_group_withdraw_fees_and_insurance() -> anyhow::Result<()> {
     // Create a receiving account and try to withdraw 1000 USDC from the insurance vault
     let receiving_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
     let res = bank_f
-        .try_withdraw_insurance(&receiving_account, 1000)
+        .try_admin_withdraw_insurance(&receiving_account, I80F48!(1000))
         .await;
     assert!(res.is_err()); // Unable to withdraw 1000 USDC from the insurance vault, because the signer is not the admin
 

@@ -1,12 +1,15 @@
 use super::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
-use crate::prelude::MintFixture;
 use crate::utils::*;
+use crate::{lif::LiquidInsuranceFundFixture, prelude::MintFixture};
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 use anchor_spl::token;
 use anyhow::Result;
 use marginfi::{
     prelude::MarginfiGroup,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    state::{
+        liquid_insurance_fund::LiquidInsuranceFund,
+        marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    },
 };
 use solana_program::sysvar;
 use solana_program_test::*;
@@ -387,5 +390,51 @@ impl MarginfiGroupFixture {
             &self.key,
         )
         .await
+    }
+
+    pub async fn try_create_liquid_insurance_fund(
+        &self,
+        bank_fixture: &BankFixture,
+        min_withdraw_period: u64,
+    ) -> Result<LiquidInsuranceFundFixture, BanksClientError> {
+        let accounts = marginfi::accounts::CreateLiquidInsuranceFund {
+            marginfi_group: self.key,
+            signer: self.ctx.borrow().payer.pubkey(),
+            bank: bank_fixture.key,
+            rent: sysvar::rent::id(),
+            token_program: token::ID,
+            system_program: system_program::id(),
+            liquid_insurance_fund: LiquidInsuranceFund::address(&bank_fixture.key),
+            lif_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
+            lif_authority: bank_fixture.get_vault_authority(BankVaultType::Insurance).0,
+        }
+        .to_account_metas(None);
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::CreateLiquidInsuranceFund {
+                min_withdraw_period: min_withdraw_period.try_into().unwrap(),
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey().clone()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(LiquidInsuranceFundFixture::new(
+            self.ctx.clone(),
+            LiquidInsuranceFund::address(&bank_fixture.key),
+        ))
     }
 }

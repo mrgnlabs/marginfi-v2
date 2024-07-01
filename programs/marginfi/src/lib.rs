@@ -10,6 +10,7 @@ pub mod utils;
 use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
+use state::marginfi_group::WrappedI80F48;
 use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
 cfg_if::cfg_if! {
@@ -24,6 +25,7 @@ cfg_if::cfg_if! {
 
 #[program]
 pub mod marginfi {
+
     use super::*;
 
     pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
@@ -189,10 +191,17 @@ pub mod marginfi {
     }
 
     pub fn lending_pool_withdraw_insurance(
-        ctx: Context<LendingPoolWithdrawInsurance>,
+        ctx: Context<LendingPoolAdminDepositWithdrawInsurance>,
+        amount: WrappedI80F48,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_withdraw_insurance(ctx, amount.into())
+    }
+
+    pub fn lending_pool_deposit_insurance(
+        ctx: Context<LendingPoolAdminDepositWithdrawInsurance>,
         amount: u64,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_withdraw_insurance(ctx, amount)
+        marginfi_group::lending_pool_deposit_insurance(ctx, amount)
     }
 
     pub fn set_account_flag(ctx: Context<SetAccountFlag>, flag: u64) -> MarginfiResult {
@@ -207,6 +216,42 @@ pub mod marginfi {
         ctx: Context<MarginfiAccountSetAccountAuthority>,
     ) -> MarginfiResult {
         marginfi_account::set_account_transfer_authority(ctx)
+    }
+
+    pub fn create_liquid_insurance_fund(
+        ctx: Context<CreateLiquidInsuranceFund>,
+        min_withdraw_period: i64,
+    ) -> MarginfiResult {
+        liquid_insurance_fund::create_liquid_insurance_fund(ctx, min_withdraw_period)
+    }
+
+    pub fn create_liquid_insurance_fund_account(
+        ctx: Context<CreateLiquidInsuranceFundAccount>,
+    ) -> MarginfiResult {
+        liquid_insurance_fund::create_liquid_insurance_fund_account(ctx)
+    }
+
+    pub fn deposit_into_liquid_insurance_fund(
+        ctx: Context<DepositIntoLiquidInsuranceFund>,
+        amount: u64,
+    ) -> MarginfiResult {
+        liquid_insurance_fund::deposit_into_liquid_insurance_fund(ctx, amount)
+    }
+
+    pub fn create_withdraw_request_from_liquid_token_fund(
+        ctx: Context<WithdrawRequestLiquidInsuranceFund>,
+        amount: Option<WrappedI80F48>,
+    ) -> MarginfiResult {
+        liquid_insurance_fund::create_withdraw_request_from_liquid_token_fund(
+            ctx,
+            amount.map(Into::into),
+        )
+    }
+
+    pub fn settle_withdraw_claim_in_liquid_insurance_fund(
+        ctx: Context<SettleWithdrawClaimInLiquidInsuranceFund>,
+    ) -> MarginfiResult {
+        liquid_insurance_fund::settle_withdraw_claim_in_liquid_insurance_fund(ctx)
     }
 }
 
