@@ -3,29 +3,32 @@ use crate::{
     state::Campaign,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, Token, TokenAccount, Transfer};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use marginfi::state::marginfi_group::Bank;
 use std::mem::size_of;
 
-pub fn process(
-    ctx: Context<CreateCampaign>,
+pub fn process<'info>(
+    ctx: Context<'_, '_, '_, 'info, CreateCampaign<'info>>,
     lockup_period: u64,
     max_deposits: u64,
     max_rewards: u64,
 ) -> Result<()> {
     require_gt!(max_deposits, 0);
 
-    transfer(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.funding_account.to_account_info(),
-                to: ctx.accounts.campaign_reward_vault.to_account_info(),
-                authority: ctx.accounts.admin.to_account_info(),
-            },
-        ),
+    anchor_spl::token_2022::spl_token_2022::onchain::invoke_transfer_checked(
+        ctx.accounts.token_program.key,
+        ctx.accounts.funding_account.to_account_info(),
+        ctx.accounts.asset_mint.to_account_info(),
+        ctx.accounts.campaign_reward_vault.to_account_info(),
+        ctx.accounts.admin.to_account_info(),
+        ctx.remaining_accounts,
         max_rewards,
+        ctx.accounts.asset_mint.decimals,
+        &[], // seeds
     )?;
+
+    // Get new balance. This will account for any fees
+    ctx.accounts.campaign_reward_vault.reload()?;
 
     ctx.accounts.campaign.set_inner(Campaign {
         admin: ctx.accounts.admin.key(),
@@ -33,7 +36,7 @@ pub fn process(
         active: true,
         max_deposits,
         remaining_capacity: max_deposits,
-        max_rewards,
+        max_rewards: ctx.accounts.campaign_reward_vault.amount,
         marginfi_bank_pk: ctx.accounts.marginfi_bank.key(),
         _padding: [0; 16],
     });
@@ -60,7 +63,7 @@ pub struct CreateCampaign<'info> {
         ],
         bump,
     )]
-    pub campaign_reward_vault: Box<Account<'info, TokenAccount>>,
+    pub campaign_reward_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         seeds = [
             CAMPAIGN_AUTH_SEED.as_bytes(),
@@ -75,7 +78,7 @@ pub struct CreateCampaign<'info> {
     )]
     /// CHECK: Must match the mint of the marginfi bank,
     /// asserted by comparing the mint of the marginfi bank
-    pub asset_mint: AccountInfo<'info>,
+    pub asset_mint: InterfaceAccount<'info, Mint>,
     pub marginfi_bank: AccountLoader<'info, Bank>,
     #[account(mut)]
     pub admin: Signer<'info>,
@@ -83,6 +86,6 @@ pub struct CreateCampaign<'info> {
     #[account(mut)]
     pub funding_account: AccountInfo<'info>,
     pub rent: Sysvar<'info, Rent>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }

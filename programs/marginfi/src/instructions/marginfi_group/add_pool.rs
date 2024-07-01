@@ -8,7 +8,7 @@ use crate::{
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount};
+use anchor_spl::token_interface::*;
 
 /// Add a bank to the lending pool
 ///
@@ -30,12 +30,12 @@ pub fn lending_pool_add_bank(
 
     let mut bank = bank_loader.load_init()?;
 
-    let liquidity_vault_bump = *ctx.bumps.get("liquidity_vault").unwrap();
-    let liquidity_vault_authority_bump = *ctx.bumps.get("liquidity_vault_authority").unwrap();
-    let insurance_vault_bump = *ctx.bumps.get("insurance_vault").unwrap();
-    let insurance_vault_authority_bump = *ctx.bumps.get("insurance_vault_authority").unwrap();
-    let fee_vault_bump = *ctx.bumps.get("fee_vault").unwrap();
-    let fee_vault_authority_bump = *ctx.bumps.get("fee_vault_authority").unwrap();
+    let liquidity_vault_bump = ctx.bumps.liquidity_vault;
+    let liquidity_vault_authority_bump = ctx.bumps.liquidity_vault_authority;
+    let insurance_vault_bump = ctx.bumps.insurance_vault;
+    let insurance_vault_authority_bump = ctx.bumps.insurance_vault_authority;
+    let fee_vault_bump = ctx.bumps.fee_vault;
+    let fee_vault_authority_bump = ctx.bumps.fee_vault_authority;
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
@@ -83,7 +83,7 @@ pub struct LendingPoolAddBank<'info> {
     #[account(mut)]
     pub fee_payer: Signer<'info>,
 
-    pub bank_mint: Box<Account<'info, Mint>>,
+    pub bank_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         init,
@@ -113,7 +113,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump,
     )]
-    pub liquidity_vault: Box<Account<'info, TokenAccount>>,
+    pub liquidity_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -136,7 +136,7 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump,
     )]
-    pub insurance_vault: Box<Account<'info, TokenAccount>>,
+    pub insurance_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -159,10 +159,10 @@ pub struct LendingPoolAddBank<'info> {
         ],
         bump,
     )]
-    pub fee_vault: Box<Account<'info, TokenAccount>>,
+    pub fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub rent: Sysvar<'info, Rent>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
 
@@ -186,12 +186,12 @@ pub fn lending_pool_add_bank_with_seed(
 
     let mut bank = bank_loader.load_init()?;
 
-    let liquidity_vault_bump = *ctx.bumps.get("liquidity_vault").unwrap();
-    let liquidity_vault_authority_bump = *ctx.bumps.get("liquidity_vault_authority").unwrap();
-    let insurance_vault_bump = *ctx.bumps.get("insurance_vault").unwrap();
-    let insurance_vault_authority_bump = *ctx.bumps.get("insurance_vault_authority").unwrap();
-    let fee_vault_bump = *ctx.bumps.get("fee_vault").unwrap();
-    let fee_vault_authority_bump = *ctx.bumps.get("fee_vault_authority").unwrap();
+    let liquidity_vault_bump = ctx.bumps.liquidity_vault;
+    let liquidity_vault_authority_bump = ctx.bumps.liquidity_vault_authority;
+    let insurance_vault_bump = ctx.bumps.insurance_vault;
+    let insurance_vault_authority_bump = ctx.bumps.insurance_vault_authority;
+    let fee_vault_bump = ctx.bumps.fee_vault;
+    let fee_vault_authority_bump = ctx.bumps.fee_vault_authority;
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
@@ -243,7 +243,7 @@ pub struct LendingPoolAddBankWithSeed<'info> {
     #[account(mut)]
     pub fee_payer: Signer<'info>,
 
-    pub bank_mint: Box<Account<'info, Mint>>,
+    pub bank_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         init,
@@ -279,7 +279,7 @@ pub struct LendingPoolAddBankWithSeed<'info> {
         ],
         bump,
     )]
-    pub liquidity_vault: Box<Account<'info, TokenAccount>>,
+    pub liquidity_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -302,7 +302,7 @@ pub struct LendingPoolAddBankWithSeed<'info> {
         ],
         bump,
     )]
-    pub insurance_vault: Box<Account<'info, TokenAccount>>,
+    pub insurance_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -325,9 +325,9 @@ pub struct LendingPoolAddBankWithSeed<'info> {
         ],
         bump,
     )]
-    pub fee_vault: Box<Account<'info, TokenAccount>>,
+    pub fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub rent: Sysvar<'info, Rent>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }

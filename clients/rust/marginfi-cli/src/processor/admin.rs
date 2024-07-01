@@ -24,7 +24,7 @@ pub fn process_collect_fees(config: Config, bank_pk: Pubkey) -> Result<()> {
         &marginfi::id(),
     );
 
-    let ix = Instruction {
+    let mut ix = Instruction {
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingPoolCollectBankFees {
             marginfi_group: bank.group,
@@ -38,6 +38,8 @@ pub fn process_collect_fees(config: Config, bank_pk: Pubkey) -> Result<()> {
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
     };
+    ix.accounts
+        .push(AccountMeta::new_readonly(bank.mint, false));
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
     let signing_keypairs = config.get_signers(false);
@@ -80,7 +82,7 @@ pub fn process_withdraw_fees(
             &spl_token::id(),
         );
 
-    let ix = Instruction {
+    let mut ix = Instruction {
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingPoolWithdrawFees {
             marginfi_group: bank.group,
@@ -94,6 +96,8 @@ pub fn process_withdraw_fees(
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolWithdrawFees { amount }.data(),
     };
+    ix.accounts
+        .push(AccountMeta::new_readonly(bank.mint, false));
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
     let signing_keypairs = config.get_signers(false);
@@ -136,7 +140,7 @@ pub fn process_withdraw_insurance(
             &spl_token::id(),
         );
 
-    let ix = Instruction {
+    let mut ix = Instruction {
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingPoolWithdrawInsurance {
             marginfi_group: bank.group,
@@ -150,6 +154,8 @@ pub fn process_withdraw_insurance(
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolWithdrawInsurance { amount }.data(),
     };
+    ix.accounts
+        .push(AccountMeta::new_readonly(bank.mint, false));
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
     let signing_keypairs = config.get_signers(false);

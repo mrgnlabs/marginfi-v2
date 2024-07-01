@@ -9,6 +9,7 @@ lazy_static! {
 macro_rules! log {
     ($($arg:tt)*) => {
         #[cfg(feature = "capture_log")] {
+            use base64::Engine;
             let mut ct = $crate::metrics::LOG_COUNTER.load(std::sync::atomic::Ordering::Acquire);
 
             let header = format!("{} -", ct);
@@ -78,7 +79,7 @@ impl Metrics {
     pub fn get_print_string(&self) -> String {
         format!("Deposit\t{}\t{}\tWithd\t{}\t{}\tBorrow\t{}\t{}\tRepay\t{}\t{}\tLiq\t{}\t{}\tBank\t{}\t{}\tUpdate\t{}",
             self.deposit_s,
-            self.deposit_e,
+            self.deposit_e,    
             self.withdraw_s,
             self.withdraw_e,
             self.borrow_s,

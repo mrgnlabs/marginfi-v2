@@ -59,6 +59,8 @@ pub enum Command {
     PatchIdl { idl_path: String },
     #[cfg(feature = "dev")]
     InspectSize {},
+    #[cfg(feature = "dev")]
+    MakeTestI80F48,
     Account {
         #[clap(subcommand)]
         subcmd: AccountCommand,
@@ -443,6 +445,8 @@ pub fn entry(opts: Opts) -> Result<()> {
 
             Ok(())
         }
+        #[cfg(feature = "dev")]
+        Command::MakeTestI80F48 => Ok(process_make_test_i80f48()),
     }
 }
 
@@ -798,7 +802,7 @@ fn patch_marginfi_idl(target_dir: String) -> Result<()> {
         }
     }
 
-    patch_type_layout!(idl, "Bank", Bank, "accounts");
+    patch_type_layout!(idl, "Bank", Bank, "types");
     patch_type_layout!(idl, "Balance", Balance, "types");
     patch_type_layout!(idl, "BankConfig", BankConfig, "types");
     patch_type_layout!(idl, "BankConfigCompact", BankConfig, "types");
@@ -806,35 +810,6 @@ fn patch_marginfi_idl(target_dir: String) -> Result<()> {
     let file = std::fs::File::create(&idl_path)?;
     let writer = std::io::BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &idl)?;
-
-    // Patch types
-
-    let types_path = format!("{}/types/marginfi.ts", target_dir);
-    let mut ts_file = std::fs::File::create(types_path)?;
-
-    if let Some(accounts) = idl.get_mut("accounts").and_then(|a| a.as_array_mut()) {
-        for account in accounts.iter_mut() {
-            if let Some(name) = account.get_mut("name").and_then(|n| n.as_str()) {
-                let mut chars = name.chars();
-                if let Some(first_char) = chars.next() {
-                    let name_with_lowercase_first_letter =
-                        first_char.to_lowercase().collect::<String>() + chars.as_str();
-                    account["name"] = serde_json::Value::String(name_with_lowercase_first_letter);
-                }
-            }
-        }
-    }
-
-    write!(
-        ts_file,
-        "export type Marginfi = {};\n",
-        serde_json::to_string_pretty(&idl)?
-    )?;
-    write!(
-        ts_file,
-        "export const IDL: Marginfi = {};\n",
-        serde_json::to_string_pretty(&idl)?
-    )?;
 
     Ok(())
 }
@@ -937,4 +912,47 @@ fn get_consent<T: std::fmt::Debug>(cmd: T, profile: &Profile) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(feature = "dev")]
+pub fn process_make_test_i80f48() {
+    use fixed::types::I80F48;
+    use rand::Rng;
+
+    let mut rng = rand::thread_rng();
+
+    let i80f48s: Vec<I80F48> = (0..30i128)
+        .map(|_| {
+            let i = rng.gen_range(-1_000_000_000_000i128..1_000_000_000_000i128);
+            I80F48::from_num(i) / I80F48::from_num(1_000_000)
+        })
+        .collect();
+
+    println!("const testCases = [");
+    for i80f48 in i80f48s {
+        println!(
+            "  {{ number: {:?}, innerValue: {:?} }},",
+            i80f48,
+            marginfi::state::marginfi_group::WrappedI80F48::from(i80f48).value
+        );
+    }
+
+    let explicit = vec![
+        0.,
+        1.,
+        -1.,
+        0.328934,
+        423947246342.487,
+        1783921462347640.,
+        0.00000000000232,
+    ];
+    for f in explicit {
+        let i80f48 = I80F48::from_num(f);
+        println!(
+            "  {{ number: {:?}, innerValue: {:?} }},",
+            i80f48,
+            marginfi::state::marginfi_group::WrappedI80F48::from(i80f48).value
+        );
+    }
+    println!("];");
 }

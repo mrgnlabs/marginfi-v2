@@ -120,8 +120,8 @@ pub fn check_flashloan_can_start(
     Ok(())
 }
 
-pub fn lending_account_end_flashloan(
-    ctx: Context<LendingAccountEndFlashloan>,
+pub fn lending_account_end_flashloan<'info>(
+    ctx: Context<'_, '_, 'info, 'info, LendingAccountEndFlashloan<'info>>,
 ) -> MarginfiResult<()> {
     check!(
         get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,

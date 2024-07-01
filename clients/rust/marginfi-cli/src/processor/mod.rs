@@ -57,6 +57,7 @@ use {
     },
 };
 
+use anchor_spl::token_2022;
 #[cfg(feature = "dev")]
 use marginfi::state::price::{OraclePriceFeedAdapter, PriceAdapter};
 use marginfi::{constants::ZERO_AMOUNT_THRESHOLD, utils::NumTraitsWithTolerance};
@@ -733,6 +734,9 @@ fn handle_bankruptcy_for_an_account(
     bank_pk: Pubkey,
 ) -> Result<()> {
     println!("Handling bankruptcy for bank {}", bank_pk);
+
+    let bank = banks.get(&bank_pk).unwrap();
+
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
@@ -764,6 +768,12 @@ fn handle_bankruptcy_for_an_account(
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    if bank_mint_account.owner == token_2022::ID {
+        handle_bankruptcy_ix
+            .accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     handle_bankruptcy_ix
         .accounts
         .extend(load_observation_account_metas(
@@ -878,6 +888,10 @@ fn make_bankruptcy_ix(
     bank_pk: Pubkey,
 ) -> Result<Instruction> {
     println!("Handling bankruptcy for bank {}", bank_pk);
+    let rpc_client = config.mfi_program.rpc();
+
+    let bank = banks.get(&bank_pk).unwrap();
+
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
@@ -909,6 +923,12 @@ fn make_bankruptcy_ix(
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    if bank_mint_account.owner == token_2022::ID {
+        handle_bankruptcy_ix
+            .accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     handle_bankruptcy_ix
         .accounts
         .extend(load_observation_account_metas(
@@ -1102,7 +1122,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
     use marginfi::state::price::OracleSetup;
     use pyth_sdk_solana::state::load_price_account;
     use solana_sdk::{account::ReadableAccount, pubkey};
-    use switchboard_v2::AggregatorAccountData;
+    use switchboard_solana::AggregatorAccountData;
 
     let banks = config
         .mfi_program
@@ -1852,7 +1872,7 @@ pub fn marginfi_account_deposit(
     let deposit_ata =
         anchor_spl::associated_token::get_associated_token_address(&signer.pubkey(), &bank.mint);
 
-    let ix = Instruction {
+    let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountDeposit {
             marginfi_group: profile.marginfi_group.unwrap(),
@@ -1866,6 +1886,11 @@ pub fn marginfi_account_deposit(
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountDeposit { amount }.data(),
     };
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    if bank_mint_account.owner == token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
     let tx = Transaction::new_signed_with_payer(
@@ -1943,6 +1968,11 @@ pub fn marginfi_account_withdraw(
         .data(),
     };
 
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    if bank_mint_account.owner == token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     ix.accounts.extend(load_observation_account_metas(
         &marginfi_account,
         &banks,
@@ -2028,6 +2058,11 @@ pub fn marginfi_account_borrow(
         data: marginfi::instruction::LendingAccountBorrow { amount }.data(),
     };
 
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    if bank_mint_account.owner == token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     ix.accounts.extend(load_observation_account_metas(
         &marginfi_account,
         &banks,
@@ -2125,6 +2160,11 @@ pub fn marginfi_account_liquidate(
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
 
+    let liability_mint_account = rpc_client.get_account(&liability_bank.mint)?;
+    if liability_mint_account.owner == token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(liability_bank.mint, false));
+    }
     ix.accounts.push(AccountMeta {
         pubkey: asset_bank.config.oracle_keys[0],
         is_signer: false,
@@ -2325,8 +2365,8 @@ pub fn process_inspect_switchboard_feed(config: &Config, aggregator_pk: &Pubkey)
         .expect("Aggregator account not found");
 
     let aggregator_account =
-        switchboard_v2::AggregatorAccountData::new_from_bytes(&aggregator_account_data)
+        switchboard_solana::AggregatorAccountData::new_from_bytes(&aggregator_account_data)
             .expect("Invalid aggregator account data");
 
-    println!("Aggregator account: {:#?}", aggregator_account);
+    todo!("print")
 }

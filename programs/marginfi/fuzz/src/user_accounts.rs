@@ -26,7 +26,10 @@ impl<'info> UserAccount<'info> {
         }
     }
 
-    pub fn get_liquidation_banks(&self, banks: &[BankAccounts]) -> Option<(BankIdx, BankIdx)> {
+    pub fn get_liquidation_banks(
+        &'info self,
+        banks: &[BankAccounts],
+    ) -> Option<(BankIdx, BankIdx)> {
         let marginfi_account_al =
             AccountLoader::<MarginfiAccount>::try_from(&self.margin_account).ok()?;
         let marginfi_account = marginfi_account_al.load().ok()?;
@@ -68,7 +71,7 @@ impl<'info> UserAccount<'info> {
     }
 
     pub fn get_remaining_accounts(
-        &self,
+        &'info self,
         bank_map: &HashMap<Pubkey, &BankAccounts<'info>>,
         include_banks: Vec<Pubkey>,
         exclude_banks: Vec<Pubkey>,
@@ -85,13 +88,12 @@ impl<'info> UserAccount<'info> {
             .iter()
             .filter(|a| a.active && !exclude_banks.contains(&a.bank_pk))
             .flat_map(|balance| {
-                let _bank_accounts = bank_map.get(&balance.bank_pk).unwrap();
-
                 let bank_accounts = bank_map.get(&balance.bank_pk).unwrap();
+                assert_eq!(balance.bank_pk, bank_accounts.bank.key());
 
                 already_included_banks.insert(bank_accounts.bank.key());
 
-                vec![bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
+                [bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
             })
             .collect::<Vec<_>>();
 
@@ -104,7 +106,8 @@ impl<'info> UserAccount<'info> {
             .iter()
             .flat_map(|key| {
                 let bank_accounts = bank_map.get(key).unwrap();
-                vec![bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
+
+                [bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
             })
             .collect::<Vec<AccountInfo>>();
 

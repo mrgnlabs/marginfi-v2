@@ -50,7 +50,7 @@ impl LipCampaignFixture {
                 marginfi_account: get_marginfi_account_address(deposit_key.pubkey()).0,
                 marginfi_bank_vault: bank.liquidity_vault,
                 marginfi_program: marginfi::id(),
-                token_program: anchor_spl::token::ID,
+                token_program: self.bank_f.get_token_program(),
                 rent: anchor_lang::solana_program::sysvar::rent::id(),
                 system_program: solana_program::system_program::id(),
             }
@@ -108,7 +108,7 @@ impl LipCampaignFixture {
                     .get_vault_authority(marginfi::state::marginfi_group::BankVaultType::Liquidity)
                     .0,
                 marginfi_program: marginfi::id(),
-                token_program: anchor_spl::token::ID,
+                token_program: self.bank_f.get_token_program(),
                 system_program: solana_program::system_program::id(),
             }
             .to_account_metas(Some(true)),
