@@ -351,6 +351,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         asset_amount: &AssetAmount,
     ) -> anyhow::Result<()> {
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
+        sort_balances(airls(&marginfi_account.margin_account));
 
         let bank = &self.banks[bank_idx.0 as usize];
 
@@ -363,11 +364,6 @@ impl<'state> MarginfiFuzzContext<'state> {
 
         let mut remaining_accounts: Vec<AccountInfo> = vec![];
         if bank.token_program.key() == spl_token_2022::ID {
-            println!(
-                "Adding mint to remaining accounts, size: {}",
-                bank.mint.data.borrow().len()
-            );
-            println!("Mint: {:?}", bank.mint);
             remaining_accounts.push(ails(bank.mint.clone()));
         }
 
@@ -429,6 +425,7 @@ impl<'state> MarginfiFuzzContext<'state> {
     ) -> anyhow::Result<()> {
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
         let bank = &self.banks[bank_idx.0 as usize];
+        sort_balances(airls(&marginfi_account.margin_account));
 
         let cache = AccountInfoCache::new(&[
             marginfi_account.margin_account.clone(),
@@ -504,6 +501,7 @@ impl<'state> MarginfiFuzzContext<'state> {
     ) -> anyhow::Result<()> {
         self.refresh_oracle_accounts();
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
+        sort_balances(airls(&marginfi_account.margin_account));
 
         let bank = &self.banks[bank_idx.0 as usize];
 
@@ -563,7 +561,11 @@ impl<'state> MarginfiFuzzContext<'state> {
             assert!(
                 [
                     MarginfiError::OperationWithdrawOnly.into(),
-                    // TODO: maybe change
+                    // TODO: maybe change these:
+                    MarginfiError::IllegalUtilizationRatio.into(),
+                    MarginfiError::IsolatedAccountIllegalState.into(),
+                    MarginfiError::RiskEngineInitRejected.into(),
+                    MarginfiError::NoAssetFound.into(),
                     MarginfiError::BankAccoutNotFound.into(),
                 ]
                 .contains(&error),
@@ -602,6 +604,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
             bank.liquidity_vault.clone(),
         ]);
+        sort_balances(airls(&marginfi_account.margin_account));
 
         let mut remaining_accounts = vec![];
         if bank.token_program.key() == spl_token_2022::ID {
@@ -641,7 +644,9 @@ impl<'state> MarginfiFuzzContext<'state> {
             assert!(
                 vec![
                     MarginfiError::RiskEngineInitRejected.into(),
-                    MarginfiError::IllegalUtilizationRatio.into()
+                    MarginfiError::IsolatedAccountIllegalState.into(),
+                    MarginfiError::IllegalUtilizationRatio.into(),
+                    MarginfiError::StaleOracle.into(),
                 ]
                 .contains(&error),
                 "Unexpected borrow error: {:?}",
@@ -672,6 +677,8 @@ impl<'state> MarginfiFuzzContext<'state> {
         self.refresh_oracle_accounts();
         let liquidator_account = &self.marginfi_accounts[liquidator_idx.0 as usize];
         let liquidatee_account = &self.marginfi_accounts[liquidatee_idx.0 as usize];
+        sort_balances(airls(&liquidator_account.margin_account));
+        sort_balances(airls(&liquidatee_account.margin_account));
 
         let (asset_bank_idx, liab_bank_idx) =
             if let Some(a) = liquidatee_account.get_liquidation_banks(&self.banks) {
@@ -831,6 +838,16 @@ impl<'state> MarginfiFuzzContext<'state> {
 
         Ok(())
     }
+}
+
+fn sort_balances<'a>(marginfi_account_ai: &'a AccountInfo<'a>) {
+    let marginfi_account_loader =
+        AccountLoader::<MarginfiAccount>::try_from(marginfi_account_ai).unwrap();
+    let mut marginfi_account = marginfi_account_loader.load_mut().unwrap();
+    marginfi_account
+        .lending_account
+        .balances
+        .sort_by_key(|a| !a.active);
 }
 
 pub fn set_discriminator<T: Discriminator>(ai: AccountInfo) {

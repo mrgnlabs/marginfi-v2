@@ -2712,7 +2712,6 @@ dependencies = [
  "lazy_static",
  "pyth-sdk-solana 0.9.0",
  "solana-program",
- "solana-program-test",
  "solana-security-txt",
  "spl-tlv-account-resolution 0.6.3",
  "spl-transfer-hook-interface 0.6.3",

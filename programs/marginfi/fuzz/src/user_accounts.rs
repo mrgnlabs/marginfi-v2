@@ -88,13 +88,12 @@ impl<'info> UserAccount<'info> {
             .iter()
             .filter(|a| a.active && !exclude_banks.contains(&a.bank_pk))
             .flat_map(|balance| {
-                let _bank_accounts = bank_map.get(&balance.bank_pk).unwrap();
-
                 let bank_accounts = bank_map.get(&balance.bank_pk).unwrap();
+                assert_eq!(balance.bank_pk, bank_accounts.bank.key());
 
                 already_included_banks.insert(bank_accounts.bank.key());
 
-                vec![bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
+                [bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
             })
             .collect::<Vec<_>>();
 
@@ -107,7 +106,8 @@ impl<'info> UserAccount<'info> {
             .iter()
             .flat_map(|key| {
                 let bank_accounts = bank_map.get(key).unwrap();
-                vec![bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
+
+                [bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
             })
             .collect::<Vec<AccountInfo>>();
 
