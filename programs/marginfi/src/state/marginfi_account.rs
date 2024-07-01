@@ -101,6 +101,17 @@ impl MarginfiAccount {
         );
         Ok(())
     }
+
+    pub fn can_be_closed(&self) -> bool {
+        let is_disabled = self.get_flag(DISABLED_FLAG);
+        let only_has_empty_balances = self
+            .lending_account
+            .balances
+            .iter()
+            .all(|balance| balance.get_side().is_none());
+
+        !is_disabled && only_has_empty_balances
+    }
 }
 
 #[derive(Debug)]
@@ -778,10 +789,10 @@ impl Balance {
             asset_shares < EMPTY_BALANCE_THRESHOLD || liability_shares < EMPTY_BALANCE_THRESHOLD
         );
 
-        if I80F48::from(self.asset_shares) >= EMPTY_BALANCE_THRESHOLD {
-            Some(BalanceSide::Assets)
-        } else if I80F48::from(self.liability_shares) >= EMPTY_BALANCE_THRESHOLD {
+        if I80F48::from(self.liability_shares) >= EMPTY_BALANCE_THRESHOLD {
             Some(BalanceSide::Liabilities)
+        } else if I80F48::from(self.asset_shares) >= EMPTY_BALANCE_THRESHOLD {
+            Some(BalanceSide::Assets)
         } else {
             None
         }

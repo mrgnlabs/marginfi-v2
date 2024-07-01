@@ -678,4 +678,28 @@ impl MarginfiAccountFixture {
 
         ctx.banks_client.process_transaction(tx).await
     }
+
+    pub async fn try_close_account(&self, nonce: u64) -> std::result::Result<(), BanksClientError> {
+        let mut ctx: std::cell::RefMut<ProgramTestContext> = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::MarginfiAccountClose {
+                marginfi_account: self.key,
+                authority: ctx.payer.pubkey(),
+                fee_payer: ctx.payer.pubkey(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::MarginfiAccountClose {}.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ComputeBudgetInstruction::set_compute_unit_price(nonce), ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
 }
