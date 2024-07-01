@@ -95,8 +95,7 @@ fn process_actions(ctx: FuzzerContext) -> Result<()> {
 
     context.metrics = METRICS.clone();
 
-    for (i, action) in ctx.action_sequence.0.iter().enumerate() {
-        // println!("Processing action {}: {:?}", i, action);
+    for action in ctx.action_sequence.0.iter() {
         process_action(action, &context)?;
     }
 
