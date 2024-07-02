@@ -52,7 +52,7 @@ enum Action {
 pub struct ActionSequence(Vec<Action>);
 
 impl ActionSequence {
-    pub const N_ACTIONS: usize = 300;
+    pub const N_ACTIONS: usize = 400;
 }
 
 impl<'a> Arbitrary<'a> for ActionSequence {

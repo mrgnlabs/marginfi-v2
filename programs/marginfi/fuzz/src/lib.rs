@@ -391,12 +391,11 @@ impl<'state> MarginfiFuzzContext<'state> {
 
         let success = if res.is_err() {
             let error = res.unwrap_err();
+
+            self.metrics.write().unwrap().update_error(&error);
+
             assert!(
-                [
-                    MarginfiError::NoLiabilityFound.into(),
-                    MarginfiError::OperationRepayOnly.into()
-                ]
-                .contains(&error),
+                [MarginfiError::AccountDisabled.into(),].contains(&error),
                 "Unexpected deposit error: {:?}",
                 error
             );
@@ -465,12 +464,15 @@ impl<'state> MarginfiFuzzContext<'state> {
         let success = if res.is_err() {
             let error = res.unwrap_err();
 
+            self.metrics.write().unwrap().update_error(&error);
+
             assert!(
                 vec![
                     MarginfiError::NoLiabilityFound.into(),
                     MarginfiError::OperationRepayOnly.into(),
                     // TODO: maybe change
                     MarginfiError::BankAccoutNotFound.into(),
+                    MarginfiError::AccountDisabled.into(),
                 ]
                 .contains(&error),
                 "Unexpected repay error: {:?}",
@@ -558,15 +560,16 @@ impl<'state> MarginfiFuzzContext<'state> {
         let success = if res.is_err() {
             let error = res.unwrap_err();
 
+            self.metrics.write().unwrap().update_error(&error);
+
             assert!(
                 [
                     MarginfiError::OperationWithdrawOnly.into(),
-                    // TODO: maybe change these:
                     MarginfiError::IllegalUtilizationRatio.into(),
-                    MarginfiError::IsolatedAccountIllegalState.into(),
                     MarginfiError::RiskEngineInitRejected.into(),
                     MarginfiError::NoAssetFound.into(),
                     MarginfiError::BankAccoutNotFound.into(),
+                    MarginfiError::AccountDisabled.into(),
                 ]
                 .contains(&error),
                 "Unexpected withdraw error: {:?}",
@@ -641,12 +644,14 @@ impl<'state> MarginfiFuzzContext<'state> {
         let success = if res.is_err() {
             let error = res.unwrap_err();
 
+            self.metrics.write().unwrap().update_error(&error);
+
             assert!(
                 vec![
                     MarginfiError::RiskEngineInitRejected.into(),
                     MarginfiError::IsolatedAccountIllegalState.into(),
                     MarginfiError::IllegalUtilizationRatio.into(),
-                    MarginfiError::StaleOracle.into(),
+                    MarginfiError::AccountDisabled.into(),
                 ]
                 .contains(&error),
                 "Unexpected borrow error: {:?}",
@@ -680,9 +685,27 @@ impl<'state> MarginfiFuzzContext<'state> {
         sort_balances(airls(&liquidator_account.margin_account));
         sort_balances(airls(&liquidatee_account.margin_account));
 
+        if liquidator_account.margin_account.key() == liquidatee_account.margin_account.key() {
+            self.metrics
+                .write()
+                .unwrap()
+                .update_metric(MetricAction::Liquidate, false);
+
+            return Ok(());
+        }
+
         let (asset_bank_idx, liab_bank_idx) =
             if let Some(a) = liquidatee_account.get_liquidation_banks(&self.banks) {
-                a
+                if a.0 == a.1 {
+                    self.metrics
+                        .write()
+                        .unwrap()
+                        .update_metric(MetricAction::Liquidate, false);
+
+                    return Ok(());
+                } else {
+                    a
+                }
             } else {
                 self.metrics
                     .write()
@@ -713,7 +736,7 @@ impl<'state> MarginfiFuzzContext<'state> {
 
         let mut liquidator_remaining_accounts = liquidator_account.get_remaining_accounts(
             &self.get_bank_map(),
-            vec![asset_bank.bank.key(), liab_bank.bank.key()],
+            vec![liab_bank.bank.key(), asset_bank.bank.key()],
             vec![],
         );
         let mut liquidatee_remaining_accounts =
@@ -751,19 +774,38 @@ impl<'state> MarginfiFuzzContext<'state> {
             asset_amount.0,
         );
 
-        let is_ok = res.is_ok();
+        let success = if res.is_err() {
+            let error = res.unwrap_err();
+
+            self.metrics.write().unwrap().update_error(&error);
+
+            assert!(
+                vec![
+                    MarginfiError::RiskEngineInitRejected.into(),
+                    MarginfiError::IsolatedAccountIllegalState.into(),
+                    MarginfiError::IllegalUtilizationRatio.into(),
+                    MarginfiError::IllegalLiquidation.into(),
+                    MarginfiError::AccountDisabled.into(),
+                    MarginfiError::MathError.into(), // TODO: would be best to avoid this one
+                ]
+                .contains(&error),
+                "Unexpected liquidate error: {:?}",
+                error
+            );
+
+            account_cache.revert();
+
+            false
+        } else {
+            self.process_handle_bankruptcy(liquidatee_idx, &liab_bank_idx)?;
+
+            true
+        };
 
         self.metrics
             .write()
             .unwrap()
-            .update_metric(MetricAction::Liquidate, is_ok);
-
-        if !is_ok {
-            account_cache.revert();
-            log!("Error Liquidate {:?}", res.unwrap_err());
-        } else {
-            self.process_handle_bankruptcy(liquidatee_idx, &liab_bank_idx)?;
-        }
+            .update_metric(MetricAction::Liquidate, success);
 
         Ok(())
     }
@@ -812,14 +854,32 @@ impl<'state> MarginfiFuzzContext<'state> {
             Default::default(),
         ));
 
-        if res.is_err() {
+        let success = if res.is_err() {
+            let error = res.unwrap_err();
+
+            self.metrics.write().unwrap().update_error(&error);
+
+            assert!(
+                vec![
+                    MarginfiError::AccountDisabled.into(),
+                    MarginfiError::AccountNotBankrupt.into(),
+                ]
+                .contains(&error),
+                "Unexpected handle bankruptcy error: {:?}",
+                error
+            );
+
             cache.revert();
-        }
+
+            false
+        } else {
+            true
+        };
 
         self.metrics
             .write()
             .unwrap()
-            .update_metric(MetricAction::Bankruptcy, res.is_ok());
+            .update_metric(MetricAction::Bankruptcy, success);
 
         Ok(())
     }
