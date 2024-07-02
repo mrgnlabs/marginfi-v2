@@ -1184,14 +1184,8 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             })
             .collect::<Vec<_>>();
 
-        let swb_keys = swb_feeds
-            .iter()
-            .map(|(_, _, key)| *key)
-            .collect::<Vec<_>>();
-        let swb_mints = swb_feeds
-            .iter()
-            .map(|(_, key, _)| *key)
-            .collect::<Vec<_>>();
+        let swb_keys = swb_feeds.iter().map(|(_, _, key)| *key).collect::<Vec<_>>();
+        let swb_mints = swb_feeds.iter().map(|(_, key, _)| *key).collect::<Vec<_>>();
         let swb_max_age = swb_feeds
             .iter()
             .map(|(max_age, _, _)| *max_age)
@@ -1205,8 +1199,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(swb_max_age)
             .map(|((maybe_account, mint), max_age)| {
                 let account = maybe_account.unwrap();
-                let pa = *AggregatorAccountData::new_from_bytes(account.data())
-                    .unwrap();
+                let pa = *AggregatorAccountData::new_from_bytes(account.data()).unwrap();
 
                 (mint, pa, max_age)
             })
