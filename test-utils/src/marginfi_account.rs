@@ -5,6 +5,7 @@ use anchor_spl::token;
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankVaultType},
+    price::OracleSetup,
 };
 use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
@@ -366,10 +367,24 @@ impl MarginfiAccountFixture {
         }
         .to_account_metas(Some(true));
 
-        accounts.extend(vec![
-            AccountMeta::new_readonly(asset_bank.config.oracle_keys[0], false),
-            AccountMeta::new_readonly(liab_bank.config.oracle_keys[0], false),
-        ]);
+        let oracle_accounts = vec![asset_bank.config, liab_bank.config]
+            .iter()
+            .map(|config| {
+                AccountMeta::new_readonly(
+                    {
+                        match config.oracle_setup {
+                            OracleSetup::PythPushOracle => {
+                                get_oracle_id_from_feed_id(config.oracle_keys[0]).unwrap()
+                            }
+                            _ => config.oracle_keys[0],
+                        }
+                    },
+                    false,
+                )
+            })
+            .collect::<Vec<AccountMeta>>();
+
+        accounts.extend(oracle_accounts);
 
         let mut ix = Instruction {
             program_id: marginfi::id(),
@@ -600,6 +615,16 @@ impl MarginfiAccountFixture {
             .iter()
             .zip(bank_pks.iter())
             .flat_map(|(bank, bank_pk)| {
+                let oracle_key = {
+                    let oracle_key = bank.config.oracle_keys[0];
+                    match bank.config.oracle_setup {
+                        OracleSetup::PythPushOracle => {
+                            get_oracle_id_from_feed_id(oracle_key).unwrap()
+                        }
+                        _ => oracle_key,
+                    }
+                };
+
                 vec![
                     AccountMeta {
                         pubkey: *bank_pk,
@@ -607,7 +632,7 @@ impl MarginfiAccountFixture {
                         is_writable: false,
                     },
                     AccountMeta {
-                        pubkey: bank.config.oracle_keys[0],
+                        pubkey: oracle_key,
                         is_signer: false,
                         is_writable: false,
                     },

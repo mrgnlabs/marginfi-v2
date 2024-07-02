@@ -2,6 +2,8 @@ use anchor_client::anchor_lang::AccountDeserialize;
 use anchor_client::anchor_lang::Discriminator;
 use fixed::types::I80F48;
 use itertools::Itertools;
+use marginfi::constants::PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID;
+use marginfi::constants::PYTH_PUSH_PYTH_SPONSORED_SHARD_ID;
 use marginfi::{
     prelude::MarginfiGroup,
     state::{marginfi_account::MarginfiAccount, marginfi_group::Bank, price::*},
@@ -39,6 +41,7 @@ pub enum AccountRoutingType {
     Bank(Pubkey, BankUpdateRoutingType),
     PriceFeedPyth,
     PriceFeedSwitchboard,
+    PriceFeedPythPushOracle,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,6 +56,7 @@ pub enum BankUpdateRoutingType {
 pub enum OracleData {
     Pyth(PythEmaPriceFeed),
     Switchboard(SwitchboardV2PriceFeed),
+    PythPush(PythPushOraclePriceFeed),
 }
 
 impl OracleData {
@@ -66,6 +70,9 @@ impl OracleData {
                 .get_price_of_type(oracle_price_type, bias)
                 .unwrap(),
             OracleData::Switchboard(price_feed) => price_feed
+                .get_price_of_type(oracle_price_type, bias)
+                .unwrap(),
+            OracleData::PythPush(price_feed) => price_feed
                 .get_price_of_type(oracle_price_type, bias)
                 .unwrap(),
         }
@@ -224,6 +231,28 @@ impl Snapshot {
                             .insert(oracle_address, AccountRoutingType::PriceFeedSwitchboard);
                         accounts_to_fetch.push(oracle_address);
                     }
+                    OracleSetup::PythPushOracle => {
+                        let feed_id = bank.config.oracle_keys[0].to_bytes();
+                        let (pyth_sponsored_oracle_address, _) =
+                            PythPushOraclePriceFeed::find_oracle_address(
+                                PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
+                                &feed_id,
+                            );
+                        let (mfi_sponsored_oracle_address, _) =
+                            PythPushOraclePriceFeed::find_oracle_address(
+                                PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID,
+                                &feed_id,
+                            );
+
+                        self.routing_lookup.insert(
+                            pyth_sponsored_oracle_address,
+                            AccountRoutingType::PriceFeedPythPushOracle,
+                        );
+                        self.routing_lookup.insert(
+                            mfi_sponsored_oracle_address,
+                            AccountRoutingType::PriceFeedPythPushOracle,
+                        );
+                    }
                 }
 
                 self.banks.insert(
@@ -322,6 +351,16 @@ impl Snapshot {
                 let pf = SwitchboardV2PriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
                 self.price_feeds
                     .insert(*account_pubkey, OracleData::Switchboard(pf));
+            }
+            AccountRoutingType::PriceFeedPythPushOracle => {
+                let mut account = account.clone();
+                let ai = (account_pubkey, &mut account).into_account_info();
+                let pf = PythPushOraclePriceFeed::load_unchecked(&ai).unwrap();
+                let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai).unwrap();
+                let feed_id_pk = Pubkey::new_from_array(feed_id);
+
+                self.price_feeds
+                    .insert(feed_id_pk, OracleData::PythPush(pf));
             }
         }
     }

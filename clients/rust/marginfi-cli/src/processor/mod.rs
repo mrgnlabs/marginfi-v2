@@ -59,7 +59,11 @@ use {
 
 #[cfg(feature = "dev")]
 use marginfi::state::price::{OraclePriceFeedAdapter, PriceAdapter};
-use marginfi::{constants::ZERO_AMOUNT_THRESHOLD, utils::NumTraitsWithTolerance};
+use marginfi::{
+    constants::{PYTH_PUSH_PYTH_SPONSORED_SHARD_ID, ZERO_AMOUNT_THRESHOLD},
+    state::price::PythPushOraclePriceFeed,
+    utils::NumTraitsWithTolerance,
+};
 use solana_client::rpc_client::RpcClient;
 
 #[cfg(feature = "admin")]
@@ -1056,7 +1060,7 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
     let opfa = OraclePriceFeedAdapter::try_from_bank_config_with_max_age(
         &bank.config,
         &[price_oracle_ai],
-        0,
+        &Clock::default(),
         u64::MAX,
     )
     .unwrap();
@@ -1120,7 +1124,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
                 b.config.oracle_setup,
                 b.config.oracle_max_age,
                 b.mint,
-                b.config.oracle_keys.clone().get(0).unwrap().clone(),
+                *b.config.oracle_keys.clone().first().unwrap(),
             )
         })
         .partition(|(setup, _, _, _)| match setup {
@@ -1142,28 +1146,28 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
     let mut pyth_max_ages: HashMap<Pubkey, (u16, f64)> = HashMap::from_iter(
         pyth_feeds
             .iter()
-            .map(|(max_age, mint, _)| (max_age.clone(), mint.clone()))
+            .map(|(max_age, mint, _)| (*max_age, *mint))
             .map(|(max_age, mint)| (mint, (max_age, 0f64))),
     );
     let mut swb_max_ages: HashMap<Pubkey, (u16, f64)> = HashMap::from_iter(
         swb_feeds
             .iter()
-            .map(|(max_age, mint, _)| (max_age.clone(), mint.clone()))
+            .map(|(max_age, mint, _)| (*max_age, *mint))
             .map(|(max_age, mint)| (mint, (max_age, 0f64))),
     );
 
     loop {
         let pyth_keys = pyth_feeds
             .iter()
-            .map(|(_, _, key)| key.clone())
+            .map(|(_, _, key)| *key)
             .collect::<Vec<_>>();
         let pyth_mints = pyth_feeds
             .iter()
-            .map(|(_, key, _)| key.clone())
+            .map(|(_, key, _)| *key)
             .collect::<Vec<_>>();
         let pyth_max_age = pyth_feeds
             .iter()
-            .map(|(max_age, _, _)| max_age.clone())
+            .map(|(max_age, _, _)| *max_age)
             .collect::<Vec<_>>();
         let pyth_feed_accounts = config
             .mfi_program
@@ -1174,23 +1178,17 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(pyth_max_age)
             .map(|((maybe_account, mint), max_age)| {
                 let account = maybe_account.unwrap();
-                let pa = load_price_account(account.data()).unwrap().clone();
+                let pa = *load_price_account(account.data()).unwrap();
 
                 (mint, pa, max_age)
             })
             .collect::<Vec<_>>();
 
-        let swb_keys = swb_feeds
-            .iter()
-            .map(|(_, _, key)| key.clone())
-            .collect::<Vec<_>>();
-        let swb_mints = swb_feeds
-            .iter()
-            .map(|(_, key, _)| key.clone())
-            .collect::<Vec<_>>();
+        let swb_keys = swb_feeds.iter().map(|(_, _, key)| *key).collect::<Vec<_>>();
+        let swb_mints = swb_feeds.iter().map(|(_, key, _)| *key).collect::<Vec<_>>();
         let swb_max_age = swb_feeds
             .iter()
-            .map(|(max_age, _, _)| max_age.clone())
+            .map(|(max_age, _, _)| *max_age)
             .collect::<Vec<_>>();
         let swb_feed_accounts = config
             .mfi_program
@@ -1201,9 +1199,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(swb_max_age)
             .map(|((maybe_account, mint), max_age)| {
                 let account = maybe_account.unwrap();
-                let pa = AggregatorAccountData::new_from_bytes(account.data())
-                    .unwrap()
-                    .clone();
+                let pa = *AggregatorAccountData::new_from_bytes(account.data()).unwrap();
 
                 (mint, pa, max_age)
             })
@@ -1216,7 +1212,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 
         let mut pyth_ages = pyth_feed_accounts
             .iter()
-            .map(|(mint, pa, _)| ((now - pa.get_publish_time()) as f64 / 60f64, mint.clone()))
+            .map(|(mint, pa, _)| ((now - pa.get_publish_time()) as f64 / 60f64, *mint))
             .collect::<Vec<_>>();
         pyth_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
 
@@ -1225,7 +1221,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .map(|(mint, pa, _)| {
                 (
                     (now - pa.latest_confirmed_round.round_open_timestamp) as f64 / 60f64,
-                    mint.clone(),
+                    *mint,
                 )
             })
             .collect::<Vec<_>>();
@@ -2124,6 +2120,29 @@ pub fn marginfi_account_liquidate(
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
+
+    let oracle_accounts = vec![asset_bank.config, liability_bank.config]
+        .into_iter()
+        .map(|bank| {
+            let oracle_key = {
+                let oracle_key_or_price_feed_id =
+                    bank.oracle_keys.first().expect("Oracle key not found");
+                match bank.oracle_setup {
+                    marginfi::state::price::OracleSetup::PythPushOracle => {
+                        PythPushOraclePriceFeed::find_oracle_address(
+                            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
+                            bank.get_pyth_push_oracle_feed_id().unwrap(),
+                        )
+                        .0
+                    }
+                    _ => *oracle_key_or_price_feed_id,
+                }
+            };
+
+            AccountMeta::new_readonly(oracle_key, false)
+        });
+
+    ix.accounts.extend(oracle_accounts);
 
     ix.accounts.push(AccountMeta {
         pubkey: asset_bank.config.oracle_keys[0],

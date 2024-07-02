@@ -1,6 +1,7 @@
 use crate::{marginfi_group::*, native, spl::*, utils::*};
 use anchor_lang::prelude::*;
 use bincode::deserialize;
+use pyth_solana_receiver_sdk::price_update::VerificationLevel;
 use solana_sdk::account::AccountSharedData;
 
 use super::marginfi_account::MarginfiAccountFixture;
@@ -59,6 +60,38 @@ impl TestSettings {
                 TestBankSetting {
                     mint: BankMint::SOL,
                     config: Some(*DEFAULT_SOL_TEST_SW_BANK_CONFIG),
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
+
+    pub fn all_banks_pyth_push_fullv_payer_not_admin() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    config: Some(*DEFAULT_USDC_TEST_BANK_CONFIG),
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    config: Some(*DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG),
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
+
+    pub fn all_banks_pyth_push_partv_payer_not_admin() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    config: Some(*DEFAULT_USDC_TEST_BANK_CONFIG),
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    config: Some(*DEFAULT_SOL_TEST_PYTH_PUSH_PARTV_BANK_CONFIG),
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
@@ -184,6 +217,18 @@ pub const SWITCHBOARD_SOL_FEED: Pubkey = pubkey!("SwchSo1Price111111111111111111
 pub const PYTH_SOL_EQUIVALENT_FEED: Pubkey = pubkey!("PythSo1Equiva1entPrice111111111111111111111");
 pub const PYTH_MNDE_FEED: Pubkey = pubkey!("PythMndePrice111111111111111111111111111111");
 pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111111111111111");
+pub const PYTH_PUSH_SOL_FULLV_FEED: Pubkey = pubkey!("PythPushFu11So1Price11111111111111111111111");
+pub const PYTH_PUSH_SOL_PARTV_FEED: Pubkey = pubkey!("PythPushHa1fSo1Price11111111111111111111111");
+pub const PYTH_PUSH_FULLV_FEED_ID: [u8; 32] = [17; 32];
+pub const PYTH_PUSH_PARTV_FEED_ID: [u8; 32] = [18; 32];
+
+pub fn get_oracle_id_from_feed_id(feed_id: Pubkey) -> Option<Pubkey> {
+    match feed_id.to_bytes() {
+        PYTH_PUSH_FULLV_FEED_ID => Some(PYTH_PUSH_SOL_FULLV_FEED),
+        PYTH_PUSH_PARTV_FEED_ID => Some(PYTH_PUSH_SOL_PARTV_FEED),
+        _ => None,
+    }
+}
 
 pub fn create_oracle_key_array(pyth_oracle: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
     let mut keys = [Pubkey::default(); MAX_ORACLE_KEYS];
@@ -266,6 +311,21 @@ lazy_static! {
         oracle_keys: create_oracle_key_array(SWITCHBOARD_SOL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
+    pub static ref DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::PythPushOracle,
+        deposit_limit: native!(1_000_000, "SOL"),
+        borrow_limit: native!(1_000_000, "SOL"),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_FULLV_FEED_ID.into()),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    /// This banks orale always has an insufficient verification level.
+    pub static ref DEFAULT_SOL_TEST_PYTH_PUSH_PARTV_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::PythPushOracle,
+        deposit_limit: native!(1_000_000, "SOL"),
+        borrow_limit: native!(1_000_000, "SOL"),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_PARTV_FEED_ID.into()),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
 }
 
 pub const USDC_MINT_DECIMALS: u8 = 6;
@@ -290,15 +350,25 @@ impl TestFixture {
 
         program.add_account(
             PYTH_USDC_FEED,
-            create_pyth_price_account(usdc_keypair.pubkey(), 1, USDC_MINT_DECIMALS.into(), None),
+            create_pyth_pull_oracle_account(
+                usdc_keypair.pubkey(),
+                1,
+                USDC_MINT_DECIMALS.into(),
+                None,
+            ),
         );
         program.add_account(
             PYTH_SOL_FEED,
-            create_pyth_price_account(sol_keypair.pubkey(), 10, SOL_MINT_DECIMALS.into(), None),
+            create_pyth_pull_oracle_account(
+                sol_keypair.pubkey(),
+                10,
+                SOL_MINT_DECIMALS.into(),
+                None,
+            ),
         );
         program.add_account(
             PYTH_SOL_EQUIVALENT_FEED,
-            create_pyth_price_account(
+            create_pyth_pull_oracle_account(
                 sol_equivalent_keypair.pubkey(),
                 10,
                 SOL_MINT_DECIMALS.into(),
@@ -307,7 +377,12 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_MNDE_FEED,
-            create_pyth_price_account(mnde_keypair.pubkey(), 10, MNDE_MINT_DECIMALS.into(), None),
+            create_pyth_pull_oracle_account(
+                mnde_keypair.pubkey(),
+                10,
+                MNDE_MINT_DECIMALS.into(),
+                None,
+            ),
         );
 
         program.add_account(
@@ -318,6 +393,28 @@ impl TestFixture {
         program.add_account(
             SWITCHBOARD_SOL_FEED,
             create_switchboard_price_feed(10, SOL_MINT_DECIMALS.into()),
+        );
+
+        program.add_account(
+            PYTH_PUSH_SOL_FULLV_FEED,
+            create_pyth_push_oracle_account(
+                PYTH_PUSH_FULLV_FEED_ID,
+                10,
+                SOL_MINT_DECIMALS.into(),
+                None,
+                VerificationLevel::Full,
+            ),
+        );
+
+        program.add_account(
+            PYTH_PUSH_SOL_PARTV_FEED,
+            create_pyth_push_oracle_account(
+                PYTH_PUSH_PARTV_FEED_ID,
+                10,
+                SOL_MINT_DECIMALS.into(),
+                None,
+                VerificationLevel::Partial { num_signatures: 5 },
+            ),
         );
 
         let context = Rc::new(RefCell::new(program.start_with_context().await));

@@ -783,7 +783,7 @@ fn patch_marginfi_idl(target_dir: String) -> Result<()> {
     let mut idl: serde_json::Value = serde_json::from_reader(reader)?;
 
     let idl_original_path = idl_path.replace(".json", "_original.json");
-    let file = std::fs::File::create(&idl_original_path)?;
+    let file = std::fs::File::create(idl_original_path)?;
     let writer = std::io::BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &idl)?;
 
@@ -825,14 +825,14 @@ fn patch_marginfi_idl(target_dir: String) -> Result<()> {
         }
     }
 
-    write!(
+    writeln!(
         ts_file,
-        "export type Marginfi = {};\n",
+        "export type Marginfi = {};",
         serde_json::to_string_pretty(&idl)?
     )?;
-    write!(
+    writeln!(
         ts_file,
-        "export const IDL: Marginfi = {};\n",
+        "export const IDL: Marginfi = {};",
         serde_json::to_string_pretty(&idl)?
     )?;
 

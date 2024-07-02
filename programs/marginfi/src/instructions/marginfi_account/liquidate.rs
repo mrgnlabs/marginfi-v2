@@ -89,7 +89,8 @@ pub fn lending_account_liquidate(
 
     let mut liquidator_marginfi_account = liquidator_marginfi_account_loader.load_mut()?;
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account_loader.load_mut()?;
-    let current_timestamp = Clock::get()?.unix_timestamp;
+    let clock = Clock::get()?;
+    let current_timestamp = clock.unix_timestamp;
 
     {
         ctx.accounts.asset_bank.load_mut()?.accrue_interest(
@@ -125,7 +126,7 @@ pub fn lending_account_liquidate(
             let asset_pf = OraclePriceFeedAdapter::try_from_bank_config(
                 &asset_bank.config,
                 oracle_ais,
-                current_timestamp,
+                &clock,
             )?;
             asset_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?
         };
@@ -136,7 +137,7 @@ pub fn lending_account_liquidate(
             let liab_pf = OraclePriceFeedAdapter::try_from_bank_config(
                 &liab_bank.config,
                 oracle_ais,
-                current_timestamp,
+                &clock,
             )?;
             liab_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?
         };

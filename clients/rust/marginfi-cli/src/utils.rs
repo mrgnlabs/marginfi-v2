@@ -1,8 +1,8 @@
 use crate::config::TxMode;
-use marginfi::bank_seed;
-use marginfi::constants::EMISSIONS_TOKEN_ACCOUNT_SEED;
 #[cfg(feature = "admin")]
 use marginfi::constants::{EMISSIONS_AUTH_SEED, MAX_ORACLE_KEYS};
+use marginfi::constants::{EMISSIONS_TOKEN_ACCOUNT_SEED, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID};
+use marginfi::{bank_seed, state::price::PythPushOraclePriceFeed};
 use {
     anyhow::{bail, Result},
     fixed::types::I80F48,
@@ -167,6 +167,20 @@ pub fn load_observation_account_metas(
         .iter()
         .zip(bank_pks.iter())
         .flat_map(|(bank, bank_pk)| {
+            let oracle_key = {
+                let oracle_or_feed_id = bank.config.oracle_keys[0];
+                match bank.config.oracle_setup {
+                    marginfi::state::price::OracleSetup::PythPushOracle => {
+                        PythPushOraclePriceFeed::find_oracle_address(
+                            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
+                            &oracle_or_feed_id.to_bytes(),
+                        )
+                        .0
+                    }
+                    _ => oracle_or_feed_id,
+                }
+            };
+
             vec![
                 AccountMeta {
                     pubkey: *bank_pk,
@@ -174,7 +188,7 @@ pub fn load_observation_account_metas(
                     is_writable: false,
                 },
                 AccountMeta {
-                    pubkey: bank.config.oracle_keys[0],
+                    pubkey: oracle_key,
                     is_signer: false,
                     is_writable: false,
                 },
