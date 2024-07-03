@@ -95,14 +95,18 @@ impl Deref for CliSigner {
 
 #[allow(dead_code)]
 pub struct Config {
+    #[allow(dead_code)]
     pub cluster: Cluster,
     pub fee_payer: Keypair,
     pub multisig: Option<Pubkey>,
     pub program_id: Pubkey,
+    #[allow(dead_code)]
     pub commitment: CommitmentConfig,
     pub dry_run: bool,
+    #[allow(dead_code)]
     pub client: Client<CliSigner>,
     pub mfi_program: Program<CliSigner>,
+    #[allow(dead_code)]
     pub lip_program: Program<CliSigner>,
 }
 

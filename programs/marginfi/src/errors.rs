@@ -93,7 +93,9 @@ pub enum MarginfiError {
     IllegalAccountAuthorityTransfer,
     #[msg("Unauthorized")] // 6045
     Unauthorized,
-    #[msg("Token22 Banks require mint account as first remaining account")] // 6045
+    #[msg("Invalid account authority")] // 6046
+    IllegalAction,
+    #[msg("Token22 Banks require mint account as first remaining account")] // 6047
     T22MintRequired,
 }
 
