@@ -1573,7 +1573,7 @@ mod tests {
             borrowing_rate_apr: borrow_apr,
             group_fee_apr: group_fees_apr,
             insurance_fee_apr: insurance_apr,
-            protocol_fee_apr,
+            protocol_fee_apr: _,
         } = config
             .create_interest_rate_calculator(&GroupBankConfig {
                 protocol_fees: false,

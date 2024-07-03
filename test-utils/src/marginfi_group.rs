@@ -12,7 +12,7 @@ use marginfi::{
 use solana_program::sysvar;
 use solana_program_test::*;
 use solana_sdk::{
-    account::AccountSharedData, instruction::Instruction, signature::Keypair, signer::Signer,
+    instruction::Instruction, signature::Keypair, signer::Signer,
     transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
