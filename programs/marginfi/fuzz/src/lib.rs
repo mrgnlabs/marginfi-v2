@@ -1158,13 +1158,6 @@ mod tests {
 
         let a = MarginfiFuzzContext::setup(&account_state, &[BankAndOracleConfig::dummy(); 2], 3);
 
-        let price = {
-            let data = a.banks[0].oracle.try_borrow_data().unwrap();
-            let data = bytemuck::from_bytes::<SolanaPriceAccount>(&data);
-
-            data.ema_price.val
-        };
-
         a.process_update_oracle(&BankIdx(0), &PriceChange(1100))
             .unwrap();
 
@@ -1174,6 +1167,38 @@ mod tests {
             data.ema_price.val
         };
 
-        assert_eq!(price, new_price - 1100);
+        assert_eq!(new_price, 1100);
+    }
+
+    #[test]
+    fn pyth_timestamp_update() {
+        let account_state = AccountsState::new();
+
+        let a = MarginfiFuzzContext::setup(&account_state, &[BankAndOracleConfig::dummy(); 2], 3);
+
+        let initial_timestamp = {
+            let data = a.banks[0].oracle.try_borrow_data().unwrap();
+            let data = bytemuck::from_bytes::<SolanaPriceAccount>(&data);
+            data.timestamp
+        };
+        assert_eq!(initial_timestamp, 0);
+
+        a.banks[0].refresh_oracle(123_456).unwrap();
+
+        let updated_timestamp_via_0_10 = {
+            let pf =
+                pyth_sdk_solana::load_price_feed_from_account_info(&a.banks[0].oracle).unwrap();
+
+            pf.get_ema_price_unchecked().publish_time
+        };
+        assert_eq!(updated_timestamp_via_0_10, 123_456);
+
+        let updated_timestamp_via_0_9 = {
+            let pf =
+                pyth_sdk_solana_0_9::load_price_feed_from_account_info(&a.banks[0].oracle).unwrap();
+
+            pf.get_ema_price_unchecked().publish_time
+        };
+        assert_eq!(updated_timestamp_via_0_9, 123_456);
     }
 }

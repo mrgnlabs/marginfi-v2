@@ -1063,9 +1063,9 @@ dependencies = [
 
 [[package]]
 name = "bytemuck"
-version = "1.15.0"
+version = "1.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d6d68c57235a3a081186990eca2867354726650f42f7516ca50c28d6281fd15"
+checksum = "b236fc92302c97ed75b38da1f4917b5cdda4984745740f153a5d3059e48d725e"
 dependencies = [
  "bytemuck_derive",
 ]
@@ -2710,7 +2710,7 @@ dependencies = [
  "fixed",
  "fixed-macro",
  "lazy_static",
- "pyth-sdk-solana",
+ "pyth-sdk-solana 0.10.1",
  "solana-program",
  "solana-security-txt",
  "spl-tlv-account-resolution 0.6.3",
@@ -2741,7 +2741,8 @@ dependencies = [
  "log4rs",
  "marginfi",
  "once_cell",
- "pyth-sdk-solana",
+ "pyth-sdk-solana 0.10.1",
+ "pyth-sdk-solana 0.9.0",
  "quinn-proto",
  "rand 0.8.5",
  "safe-transmute",
@@ -3441,6 +3442,23 @@ dependencies = [
  "hex",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "pyth-sdk-solana"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "875de47128e93a881ede3ad97aa5a4dc32397995277ff5e599eed8bba8d43334"
+dependencies = [
+ "borsh 0.10.3",
+ "borsh-derive 0.10.3",
+ "bytemuck",
+ "num-derive 0.3.3",
+ "num-traits",
+ "pyth-sdk",
+ "serde",
+ "solana-program",
+ "thiserror",
 ]
 
 [[package]]

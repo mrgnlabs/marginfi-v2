@@ -22,6 +22,7 @@ ahash = "=0.8.8"
 anchor-lang = "0.30.0"
 
 pyth-sdk-solana = "0.10.1"
+pyth_sdk_solana_0_9 = { package = "pyth-sdk-solana", version = "0.9.0" }
 
 anyhow = "1.0.68"
 arbitrary = { version = "1.2.2", features = ["derive"] }
