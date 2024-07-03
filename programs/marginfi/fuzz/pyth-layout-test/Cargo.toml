@@ -1,0 +1,14 @@
+[package]
+name = "pyth-layout-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bytemuck = "1.16.1"
+pyth-sdk-solana = "=0.9.0"
+solana-program.workspace = true
+
+
+[dependencies.marginfi]
+path = "../.."
+features = ["no-entrypoint", "debug", "client"]

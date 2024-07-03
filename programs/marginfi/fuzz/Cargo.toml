@@ -50,9 +50,5 @@ capture_log = ["log", "log4rs"]
 path = ".."
 features = ["no-entrypoint", "debug", "client"]
 
-# Prevent this from interfering with workspaces
-[workspace]
-members = ["."]
-
 [profile.release]
 debug = 1

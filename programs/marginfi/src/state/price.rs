@@ -9,6 +9,8 @@ use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
 
+pub use pyth_sdk_solana;
+
 use crate::{
     check,
     constants::{
