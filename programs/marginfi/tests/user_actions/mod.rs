@@ -1,4 +1,5 @@
 mod borrow;
+mod close_account;
 mod close_balance;
 mod create_account;
 mod deposit;
