@@ -7,7 +7,7 @@ use futures::future::join_all;
 use lazy_static::lazy_static;
 use marginfi::{
     constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, SECONDS_PER_YEAR},
-    state::marginfi_group::{Bank, ComputedInterestRates},
+    state::marginfi_group::{Bank, ComputedInterestRates, GroupBankConfig, MarginfiGroup},
 };
 use reqwest::header::CONTENT_TYPE;
 use s3::{creds::Credentials, Bucket, Region};
@@ -59,13 +59,20 @@ async fn main() -> Result<()> {
     let rpc = program.rpc();
 
     let banks = program.accounts::<Bank>(vec![])?;
+    let groups = program.accounts::<MarginfiGroup>(vec![])?;
+    let groups_map = groups
+        .iter()
+        .map(|(pk, group)| (*pk, group.get_group_bank_config()))
+        .collect::<HashMap<_, _>>();
 
     println!("Found {} banks", banks.len());
 
     let snapshot = join_all(
         banks
             .iter()
-            .map(|(bank_pk, bank)| DefiLammaPoolInfo::from_bank(bank, bank_pk, &rpc))
+            .map(|(bank_pk, bank)| {
+                DefiLammaPoolInfo::from_bank(bank, bank_pk, &rpc, groups_map.get(bank_pk).unwrap())
+            })
             .collect::<Vec<_>>(),
     )
     .await
@@ -122,7 +129,12 @@ struct DefiLammaPoolInfo {
 }
 
 impl DefiLammaPoolInfo {
-    pub async fn from_bank(bank: &Bank, bank_pk: &Pubkey, rpc_client: &RpcClient) -> Result<Self> {
+    pub async fn from_bank(
+        bank: &Bank,
+        bank_pk: &Pubkey,
+        rpc_client: &RpcClient,
+        bank_group_config: &GroupBankConfig,
+    ) -> Result<Self> {
         let ltv = I80F48::ONE / I80F48::from(bank.config.liability_weight_init);
         let reward_tokens = if bank.emissions_mint != Pubkey::default() {
             vec![bank.emissions_mint.to_string()]
@@ -151,17 +163,18 @@ impl DefiLammaPoolInfo {
             I80F48::ZERO
         };
 
+        let ir_calc = bank
+            .config
+            .interest_rate_config
+            .create_interest_rate_calculator(bank_group_config);
+
         let ComputedInterestRates {
             lending_rate_apr,
             borrowing_rate_apr,
             ..
-        } = bank
-            .config
-            .interest_rate_config
-            .calc_interest_rate(ur)
-            .ok_or_else(|| {
-                anyhow::anyhow!("Failed to calculate interest rate for bank {}", bank_pk)
-            })?;
+        } = ir_calc.calc_interest_rate(ur).ok_or_else(|| {
+            anyhow::anyhow!("Failed to calculate interest rate for bank {}", bank_pk)
+        })?;
 
         let (apr_reward, apr_reward_borrow) = if bank.emissions_mint.ne(&Pubkey::default()) {
             let emissions_token_price = fetch_price_from_birdeye(&bank.emissions_mint).await?;

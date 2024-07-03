@@ -145,6 +145,7 @@ async fn marginfi_account_deposit_failure_capacity_exceeded() -> anyhow::Result<
             }),
         }],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -707,6 +708,7 @@ async fn marginfi_account_liquidation_success() -> anyhow::Result<()> {
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -965,6 +967,7 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -1087,6 +1090,7 @@ async fn marginfi_account_liquidation_failure_liquidatee_not_unhealthy() -> anyh
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -1190,6 +1194,7 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -1348,8 +1353,6 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
     let borrower_mfi_account = borrower_mfi_account_f.load().await;
     let lender_mfi_account = lender_mfi_account_f.load().await;
 
-    let collected_fees = 13.04523;
-
     // Verify that interest accrued matches on both sides
     assert_eq_noise!(
         sol_bank
@@ -1359,7 +1362,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
                     .into()
             )
             .unwrap(),
-        I80F48::from(native!(collected_fees, "SOL", f64)),
+        I80F48::from(native!(11.761, "SOL", f64)),
         native!(0.0002, "SOL", f64)
     );
 
@@ -1371,7 +1374,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
                     .into()
             )
             .unwrap(),
-        I80F48::from(native!(1000.0 + collected_fees, "SOL", f64)),
+        I80F48::from(native!(1011.761, "SOL", f64)),
         native!(0.0002, "SOL", f64)
     );
     // TODO: check health is sane
@@ -2392,7 +2395,7 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
         .try_bank_repay(
             borrower_token_account_f_sol_eq.key,
             sol_eq_bank,
-            0.0101,
+            0.01,
             Some(false),
         )
         .await;

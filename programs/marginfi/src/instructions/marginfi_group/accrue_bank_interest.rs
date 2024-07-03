@@ -12,6 +12,7 @@ pub fn lending_pool_accrue_bank_interest(
 
     bank.accrue_interest(
         clock.unix_timestamp,
+        &ctx.accounts.marginfi_group.load()?.get_group_bank_config(),
         #[cfg(not(feature = "client"))]
         ctx.accounts.bank.key(),
     )?;

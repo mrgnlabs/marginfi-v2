@@ -25,6 +25,7 @@ use std::{cell::RefCell, rc::Rc};
 pub struct TestSettings {
     pub group_config: Option<GroupConfig>,
     pub banks: Vec<TestBankSetting>,
+    pub protocol_fees: bool,
 }
 
 impl TestSettings {
@@ -45,6 +46,7 @@ impl TestSettings {
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
+            protocol_fees: false,
         }
     }
 
@@ -62,6 +64,7 @@ impl TestSettings {
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
+            protocol_fees: false,
         }
     }
 
@@ -87,6 +90,7 @@ impl TestSettings {
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
+            protocol_fees: false,
         }
     }
 
@@ -135,6 +139,7 @@ impl TestSettings {
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
+            protocol_fees: false,
         }
     }
 }
@@ -195,10 +200,10 @@ pub fn create_oracle_key_array(pyth_oracle: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS]
 lazy_static! {
     pub static ref DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG: InterestRateConfig =
         InterestRateConfig {
-            insurance_fee_fixed_apr: I80F48!(0).into(),
-            insurance_ir_fee: I80F48!(0).into(),
-            group_ir_fee: I80F48!(0).into(),
-            group_fixed_fee_apr: I80F48!(0).into(),
+            insurance_fixed_fee: I80F48!(0).into(),
+            insurance_rate_fee: I80F48!(0).into(),
+            group_rate_fee: I80F48!(0).into(),
+            group_fixed_fee: I80F48!(0).into(),
 
             optimal_utilization_rate: I80F48!(0.5).into(),
             plateau_interest_rate: I80F48!(0.6).into(),
@@ -216,10 +221,10 @@ lazy_static! {
         risk_tier: RiskTier::Collateral,
 
         interest_rate_config: InterestRateConfig {
-            insurance_fee_fixed_apr: I80F48!(0).into(),
-            insurance_ir_fee: I80F48!(0).into(),
-            group_ir_fee: I80F48!(0).into(),
-            group_fixed_fee_apr: I80F48!(0).into(),
+            insurance_fixed_fee: I80F48!(0).into(),
+            insurance_rate_fee: I80F48!(0).into(),
+            group_rate_fee: I80F48!(0).into(),
+            group_fixed_fee: I80F48!(0).into(),
 
             optimal_utilization_rate: I80F48!(0.5).into(),
             plateau_interest_rate: I80F48!(0.6).into(),
@@ -364,6 +369,10 @@ impl TestFixture {
                 .unwrap_or(GroupConfig { admin: None }),
         )
         .await;
+
+        tester_group
+            .set_protocol_fees_flag(test_settings.clone().unwrap_or_default().protocol_fees)
+            .await;
 
         let mut banks = HashMap::new();
         if let Some(test_settings) = test_settings.clone() {

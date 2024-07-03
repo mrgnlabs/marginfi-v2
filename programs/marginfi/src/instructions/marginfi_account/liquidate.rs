@@ -84,6 +84,7 @@ pub fn lending_account_liquidate(
     let LendingAccountLiquidate {
         liquidator_marginfi_account: liquidator_marginfi_account_loader,
         liquidatee_marginfi_account: liquidatee_marginfi_account_loader,
+        marginfi_group: marginfi_group_loader,
         ..
     } = ctx.accounts;
 
@@ -91,14 +92,18 @@ pub fn lending_account_liquidate(
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account_loader.load_mut()?;
     let current_timestamp = Clock::get()?.unix_timestamp;
 
+    let group_bank_config = marginfi_group_loader.load()?.get_group_bank_config();
+
     {
         ctx.accounts.asset_bank.load_mut()?.accrue_interest(
             current_timestamp,
+            &group_bank_config,
             #[cfg(not(feature = "client"))]
             ctx.accounts.asset_bank.key(),
         )?;
         ctx.accounts.liab_bank.load_mut()?.accrue_interest(
             current_timestamp,
+            &group_bank_config,
             #[cfg(not(feature = "client"))]
             ctx.accounts.liab_bank.key(),
         )?;

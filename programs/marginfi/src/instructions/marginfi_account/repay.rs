@@ -31,6 +31,7 @@ pub fn lending_account_repay(
         bank_liquidity_vault,
         token_program,
         bank: bank_loader,
+        marginfi_group: marginfi_group_loader,
         ..
     } = ctx.accounts;
 
@@ -45,6 +46,7 @@ pub fn lending_account_repay(
 
     bank.accrue_interest(
         Clock::get()?.unix_timestamp,
+        &marginfi_group_loader.load()?.get_group_bank_config(),
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;

@@ -28,6 +28,7 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
         token_program,
         bank_liquidity_vault_authority,
         bank: bank_loader,
+        marginfi_group: marginfi_group_loader,
         ..
     } = ctx.accounts;
 
@@ -40,6 +41,7 @@ pub fn lending_account_borrow(ctx: Context<LendingAccountBorrow>, amount: u64) -
 
     bank_loader.load_mut()?.accrue_interest(
         Clock::get()?.unix_timestamp,
+        &marginfi_group_loader.load()?.get_group_bank_config(),
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;

@@ -51,6 +51,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
 
     bank.accrue_interest(
         Clock::get()?.unix_timestamp,
+        &ctx.accounts.marginfi_group.load()?.get_group_bank_config(),
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;

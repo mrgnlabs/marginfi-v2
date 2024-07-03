@@ -190,10 +190,10 @@ Last Update: {:?}h ago ({})
         bank.config.interest_rate_config.optimal_utilization_rate,
         bank.config.interest_rate_config.plateau_interest_rate,
         bank.config.interest_rate_config.max_interest_rate,
-        bank.config.interest_rate_config.insurance_ir_fee,
-        bank.config.interest_rate_config.insurance_fee_fixed_apr,
-        bank.config.interest_rate_config.group_ir_fee,
-        bank.config.interest_rate_config.group_fixed_fee_apr,
+        bank.config.interest_rate_config.insurance_rate_fee,
+        bank.config.interest_rate_config.insurance_fixed_fee,
+        bank.config.interest_rate_config.group_rate_fee,
+        bank.config.interest_rate_config.group_fixed_fee,
         bank.config.oracle_setup,
         bank.config.oracle_keys,
         bank.config.get_oracle_max_age(),
@@ -328,6 +328,8 @@ pub fn group_add_bank(
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
 ) -> Result<()> {
+    use marginfi::state::marginfi_group::InterestRateConfig;
+
     let rpc_client = config.mfi_program.rpc();
 
     if profile.marginfi_group.is_none() {
@@ -342,10 +344,10 @@ pub fn group_add_bank(
     let optimal_utilization_rate: WrappedI80F48 = I80F48::from_num(optimal_utilization_rate).into();
     let plateau_interest_rate: WrappedI80F48 = I80F48::from_num(plateau_interest_rate).into();
     let max_interest_rate: WrappedI80F48 = I80F48::from_num(max_interest_rate).into();
-    let insurance_fee_fixed_apr: WrappedI80F48 = I80F48::from_num(insurance_fee_fixed_apr).into();
-    let insurance_ir_fee: WrappedI80F48 = I80F48::from_num(insurance_ir_fee).into();
-    let group_fixed_fee_apr: WrappedI80F48 = I80F48::from_num(group_fixed_fee_apr).into();
-    let group_ir_fee: WrappedI80F48 = I80F48::from_num(group_ir_fee).into();
+    let insurance_fixed_fee: WrappedI80F48 = I80F48::from_num(insurance_fee_fixed_apr).into();
+    let insurance_rate_fee: WrappedI80F48 = I80F48::from_num(insurance_ir_fee).into();
+    let group_fixed_fee: WrappedI80F48 = I80F48::from_num(group_fixed_fee_apr).into();
+    let group_rate_fee: WrappedI80F48 = I80F48::from_num(group_ir_fee).into();
 
     let mint_account = rpc_client.get_account(&bank_mint)?;
     let mint = spl_token::state::Mint::unpack(&mint_account.data)?;
@@ -357,11 +359,11 @@ pub fn group_add_bank(
         optimal_utilization_rate,
         plateau_interest_rate,
         max_interest_rate,
-        insurance_fee_fixed_apr,
-        insurance_ir_fee,
-        group_fixed_fee_apr: group_fixed_fee_apr,
-        group_ir_fee: group_ir_fee,
-        ..InterestRateConfig::default()
+        insurance_fixed_fee,
+        insurance_rate_fee,
+        group_fixed_fee,
+        group_rate_fee,
+        ..Default::default()
     };
 
     // Create signing keypairs -- if the PDA is used, no explicit fee payer.
@@ -965,7 +967,11 @@ pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
     if let Some(address) = bank_pk {
-        let bank: Bank = config.mfi_program.account(address)?;
+        let mut bank: Bank = config.mfi_program.account(address)?;
+        let group: MarginfiGroup = config.mfi_program.account(bank.group)?;
+
+        bank.accrue_interest(Clock::get()?.unix_timestamp, &group.get_group_bank_config())?;
+
         print_bank(&address, &bank);
 
         let liquidity_vault_balance =
@@ -1020,14 +1026,7 @@ fn load_all_banks(config: &Config, marginfi_group: Option<Pubkey>) -> Result<Vec
         None => vec![],
     };
 
-    let mut clock = config.mfi_program.rpc().get_account(&sysvar::clock::ID)?;
-    let clock = Clock::from_account_info(&(&sysvar::clock::ID, &mut clock).into_account_info())?;
-
-    let mut banks_with_addresses = config.mfi_program.accounts::<Bank>(filters)?;
-
-    banks_with_addresses.iter_mut().for_each(|(_, bank)| {
-        bank.accrue_interest(clock.unix_timestamp).unwrap();
-    });
+    let banks_with_addresses = config.mfi_program.accounts::<Bank>(filters)?;
 
     Ok(banks_with_addresses)
 }

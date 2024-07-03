@@ -137,22 +137,22 @@ async fn marginfi_group_config_check() -> anyhow::Result<()> {
     );
 
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.insurance_fee_fixed_apr),
+        I80F48::from(bank.config.interest_rate_config.insurance_fixed_fee),
         I80F48::from_num(0.13)
     );
 
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.insurance_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.insurance_rate_fee),
         I80F48::from_num(0.11)
     );
 
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.group_fixed_fee_apr),
+        I80F48::from(bank.config.interest_rate_config.group_fixed_fee),
         I80F48::from_num(0.51)
     );
 
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.group_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.group_rate_fee),
         I80F48::from_num(0.011)
     );
 
@@ -255,6 +255,7 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
                 }),
             },
         ],
+        ..Default::default()
     }))
     .await;
 
@@ -324,8 +325,8 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
                     interest_rate_config: InterestRateConfig {
                         optimal_utilization_rate: I80F48!(0.9).into(),
                         plateau_interest_rate: I80F48!(1).into(),
-                        group_fixed_fee_apr: I80F48!(0.01).into(),
-                        insurance_fee_fixed_apr: I80F48!(0.01).into(),
+                        group_fixed_fee: I80F48!(0.01).into(),
+                        insurance_fixed_fee: I80F48!(0.01).into(),
                         ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
                     },
                     ..*DEFAULT_USDC_TEST_BANK_CONFIG
@@ -341,6 +342,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -427,6 +429,7 @@ async fn marginfi_group_handle_bankruptcy_failure_not_bankrupt() -> anyhow::Resu
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -483,6 +486,7 @@ async fn marginfi_group_handle_bankruptcy_success_no_debt() -> anyhow::Result<()
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -547,6 +551,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured() -> anyhow::Res
                 }),
             },
         ],
+        ..Default::default()
     }))
     .await;
 
@@ -711,6 +716,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured() -> anyhow:
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -821,6 +827,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured() -> anyhow::Resul
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -904,6 +911,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -998,6 +1006,7 @@ async fn marginfi_group_bank_paused_should_error() -> anyhow::Result<()> {
             config: None,
         }],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -1037,6 +1046,7 @@ async fn marginfi_group_bank_reduce_only_withdraw_success() -> anyhow::Result<()
             config: None,
         }],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -1082,6 +1092,7 @@ async fn marginfi_group_bank_reduce_only_deposit_success() -> anyhow::Result<()>
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -1139,6 +1150,7 @@ async fn marginfi_group_bank_reduce_only_borrow_failure() -> anyhow::Result<()> 
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -1184,6 +1196,7 @@ async fn marginfi_group_bank_reduce_only_deposit_failure() -> anyhow::Result<()>
             config: None,
         }],
         group_config: Some(GroupConfig { admin: None }),
+        ..Default::default()
     }))
     .await;
 
@@ -1371,19 +1384,19 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("3").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.insurance_fee_fixed_apr),
+        I80F48::from(bank.config.interest_rate_config.insurance_fixed_fee),
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.insurance_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.insurance_rate_fee),
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.group_fixed_fee_apr),
+        I80F48::from(bank.config.interest_rate_config.group_fixed_fee),
         I80F48::from_str("0.01").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.group_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.group_rate_fee),
         I80F48::from_str("0.05").unwrap()
     );
 
@@ -1463,19 +1476,19 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("3").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.insurance_fee_fixed_apr),
+        I80F48::from(bank.config.interest_rate_config.insurance_fixed_fee),
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.insurance_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.insurance_rate_fee),
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.group_fixed_fee_apr),
+        I80F48::from(bank.config.interest_rate_config.group_fixed_fee),
         I80F48::from_str("0.01").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.group_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.group_rate_fee),
         I80F48::from_str("0.05").unwrap()
     );
 
@@ -1555,19 +1568,19 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("4").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.insurance_fee_fixed_apr),
+        I80F48::from(bank.config.interest_rate_config.insurance_fixed_fee),
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.insurance_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.insurance_rate_fee),
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.group_fixed_fee_apr),
+        I80F48::from(bank.config.interest_rate_config.group_fixed_fee),
         I80F48::from_str("0.01").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.config.interest_rate_config.group_ir_fee),
+        I80F48::from(bank.config.interest_rate_config.group_rate_fee),
         I80F48::from_str("0.05").unwrap()
     );
 

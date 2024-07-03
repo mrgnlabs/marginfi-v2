@@ -135,5 +135,5 @@ cfg_if::cfg_if! {
     }
 }
 
-pub const PROTOCOL_FEE_IR: I80F48 = I80F48!(0.025);
+pub const PROTOCOL_FEE_RATE: I80F48 = I80F48!(0.025);
 pub const PROTOCOL_FEE_FIXED: I80F48 = I80F48!(0.01);

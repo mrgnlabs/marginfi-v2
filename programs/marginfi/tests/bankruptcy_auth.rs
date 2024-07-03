@@ -27,6 +27,7 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
                 }),
             },
         ],
+        ..Default::default()
     }))
     .await;
 
@@ -121,6 +122,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
                 }),
             },
         ],
+        ..Default::default()
     }))
     .await;
 

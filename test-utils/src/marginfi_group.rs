@@ -4,6 +4,7 @@ use crate::utils::*;
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 use anchor_spl::token;
 use anyhow::Result;
+use bytemuck::bytes_of;
 use marginfi::{
     prelude::MarginfiGroup,
     state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
@@ -11,7 +12,8 @@ use marginfi::{
 use solana_program::sysvar;
 use solana_program_test::*;
 use solana_sdk::{
-    instruction::Instruction, signature::Keypair, signer::Signer, transaction::Transaction,
+    account::AccountSharedData, instruction::Instruction, signature::Keypair, signer::Signer,
+    transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
 
@@ -375,5 +377,24 @@ impl MarginfiGroupFixture {
             &self.key,
         )
         .await
+    }
+
+    pub async fn set_protocol_fees_flag(&self, enabled: bool) {
+        let mut group = self.load().await;
+        let mut ctx = self.ctx.borrow_mut();
+        let mut account = ctx
+            .banks_client
+            .get_account(self.key)
+            .await
+            .unwrap()
+            .unwrap();
+
+        group.protocol_fees = if enabled { 1 } else { 0 };
+
+        let data = bytes_of(&group);
+
+        account.data[8..].copy_from_slice(&data);
+
+        ctx.set_account(&self.key, &account.into())
     }
 }

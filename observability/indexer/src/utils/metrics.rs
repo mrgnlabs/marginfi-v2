@@ -319,16 +319,29 @@ impl LendingPoolBankMetrics {
         } else {
             I80F48::ZERO
         };
+        let group = snapshot
+            .marginfi_groups
+            .get(&bank_accounts.bank.group)
+            .ok_or_else(|| {
+                anyhow!(
+                    "Group {} not found for bank {}",
+                    bank_accounts.bank.group,
+                    bank_pk
+                )
+            })?;
+        let ir_calc = bank_accounts
+            .bank
+            .config
+            .interest_rate_config
+            .create_interest_rate_calculator(&group.get_group_bank_config());
+
         let ComputedInterestRates {
             lending_rate_apr,
             borrowing_rate_apr,
             group_fee_apr,
             insurance_fee_apr,
             protocol_fee_apr: _,
-        }: marginfi::state::marginfi_group::ComputedInterestRates = bank_accounts
-            .bank
-            .config
-            .interest_rate_config
+        }: marginfi::state::marginfi_group::ComputedInterestRates = ir_calc
             .calc_interest_rate(utilization_rate)
             .ok_or_else(|| anyhow!("Bad math during IR calcs"))?;
 
