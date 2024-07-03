@@ -1201,4 +1201,93 @@ mod tests {
         };
         assert_eq!(updated_timestamp_via_0_9, 123_456);
     }
+
+    #[test]
+    fn pyth_timestamp_update2() {
+        use pyth_sdk_solana::state::{
+            AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
+        };
+        use pyth_sdk_solana_0_9::state::PriceAccount;
+        use solana_program::{account_info::AccountInfo, pubkey};
+        use solana_sdk::clock::Epoch;
+
+        pub const PYTH_ID: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");
+
+        let initial_price = 0;
+
+        let mut price_account = SolanaPriceAccount {
+            prod: Pubkey::default(),
+            agg: PriceInfo {
+                conf: 0,
+                price: initial_price,
+                status: PriceStatus::Trading,
+                ..Default::default()
+            },
+            expo: -6,
+            prev_price: initial_price,
+            magic: MAGIC,
+            ver: VERSION_2,
+            atype: AccountType::Price as u32,
+            timestamp: 0,
+            ema_price: Rational {
+                val: initial_price,
+                numer: initial_price,
+                denom: 1,
+            },
+            ..Default::default()
+        };
+
+        let address = Pubkey::default();
+        let mut data = bytemuck::bytes_of_mut(&mut price_account);
+        let mut lamports = 1_000_000;
+
+        let oracle_ai = AccountInfo::new(
+            &address,
+            false,
+            true,
+            &mut lamports,
+            &mut data,
+            &PYTH_ID,
+            false,
+            Epoch::default(),
+        );
+
+        let initial_timestamp = {
+            let data = oracle_ai.try_borrow_data().unwrap();
+            let data = bytemuck::from_bytes::<SolanaPriceAccount>(&data);
+            data.timestamp
+        };
+        assert_eq!(initial_timestamp, 0);
+
+        println!(
+            "{} vs {}",
+            std::mem::align_of::<SolanaPriceAccount>(),
+            std::mem::align_of::<PriceAccount>()
+        );
+        println!(
+            "{} vs {}",
+            std::mem::size_of::<SolanaPriceAccount>(),
+            std::mem::size_of::<PriceAccount>()
+        );
+
+        {
+            let mut data = oracle_ai.try_borrow_mut_data().unwrap();
+            let data = bytemuck::from_bytes_mut::<SolanaPriceAccount>(&mut data);
+            data.timestamp = 123_456;
+        }
+
+        let updated_timestamp_via_0_10 = {
+            let pf = pyth_sdk_solana::load_price_feed_from_account_info(&oracle_ai).unwrap();
+
+            pf.get_ema_price_unchecked().publish_time
+        };
+        assert_eq!(updated_timestamp_via_0_10, 123_456);
+
+        let updated_timestamp_via_0_9 = {
+            let pf = pyth_sdk_solana_0_9::load_price_feed_from_account_info(&oracle_ai).unwrap();
+
+            pf.get_ema_price_unchecked().publish_time
+        };
+        assert_eq!(updated_timestamp_via_0_9, 123_456);
+    }
 }
