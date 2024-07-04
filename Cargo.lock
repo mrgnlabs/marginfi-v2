@@ -6643,7 +6643,18 @@ dependencies = [
  "spl-transfer-hook-interface 0.6.3",
  "static_assertions",
  "switchboard-solana",
+ "test_transfer_hook",
  "type-layout",
+]
+
+[[package]]
+name = "test_transfer_hook"
+version = "0.1.0"
+dependencies = [
+ "solana-program",
+ "spl-tlv-account-resolution 0.6.3",
+ "spl-token-2022 3.0.2",
+ "spl-transfer-hook-interface 0.6.3",
 ]
 
 [[package]]
