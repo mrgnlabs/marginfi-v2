@@ -137,6 +137,22 @@ impl TestSettings {
             group_config: Some(GroupConfig { admin: None }),
         }
     }
+
+    pub fn real_oracle_data() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::USDC,
+                    config: Some(*DEFAULT_USDC_TEST_REAL_BANK_CONFIG),
+                },
+                TestBankSetting {
+                    mint: BankMint::SOL,
+                    config: Some(*DEFAULT_SOL_TEST_REAL_BANK_CONFIG),
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -184,6 +200,8 @@ pub const SWITCHBOARD_SOL_FEED: Pubkey = pubkey!("SwchSo1Price111111111111111111
 pub const PYTH_SOL_EQUIVALENT_FEED: Pubkey = pubkey!("PythSo1Equiva1entPrice111111111111111111111");
 pub const PYTH_MNDE_FEED: Pubkey = pubkey!("PythMndePrice111111111111111111111111111111");
 pub const FAKE_PYTH_USDC_FEED: Pubkey = pubkey!("FakePythUsdcPrice11111111111111111111111111");
+pub const PYTH_SOL_REAL_FEED: Pubkey = pubkey!("PythSo1Rea1Price111111111111111111111111111");
+pub const PYTH_USDC_REAL_FEED: Pubkey = pubkey!("PythUsdcRea1Price11111111111111111111111111");
 
 pub fn create_oracle_key_array(pyth_oracle: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
     let mut keys = [Pubkey::default(); MAX_ORACLE_KEYS];
@@ -266,6 +284,21 @@ lazy_static! {
         oracle_keys: create_oracle_key_array(SWITCHBOARD_SOL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
+    pub static ref DEFAULT_SOL_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::PythEma,
+        deposit_limit: native!(1_000_000, "SOL"),
+        borrow_limit: native!(1_000_000, "SOL"),
+        oracle_keys: create_oracle_key_array(PYTH_SOL_REAL_FEED),
+        oracle_max_age: 100,
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    pub static ref DEFAULT_USDC_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::PythEma,
+        deposit_limit: native!(1_000_000_000, "USDC"),
+        borrow_limit: native!(1_000_000_000, "USDC"),
+        oracle_keys: create_oracle_key_array(PYTH_USDC_REAL_FEED),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
 }
 
 pub const USDC_MINT_DECIMALS: u8 = 6;
@@ -275,6 +308,8 @@ pub const MNDE_MINT_DECIMALS: u8 = 9;
 impl TestFixture {
     pub async fn new(test_settings: Option<TestSettings>) -> TestFixture {
         let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi::entry));
+
+        program.prefer_bpf(true);
 
         #[cfg(feature = "lip")]
         program.add_program(
@@ -318,6 +353,20 @@ impl TestFixture {
         program.add_account(
             SWITCHBOARD_SOL_FEED,
             create_switchboard_price_feed(10, SOL_MINT_DECIMALS.into()),
+        );
+
+        program.add_account(
+            PYTH_SOL_REAL_FEED,
+            create_pyth_price_account_from_file(
+                include_bytes!("../data/H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG.bin").to_vec(),
+            ),
+        );
+
+        program.add_account(
+            PYTH_USDC_REAL_FEED,
+            create_pyth_price_account_from_file(
+                include_bytes!("../data/Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD.bin").to_vec(),
+            ),
         );
 
         let context = Rc::new(RefCell::new(program.start_with_context().await));
