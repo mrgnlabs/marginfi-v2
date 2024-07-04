@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
-    AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
+    AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
 };
 use solana_program::{instruction::Instruction, pubkey};
 use solana_program_test::*;
@@ -57,7 +57,7 @@ pub fn create_pyth_price_account(
     let native_price = (ui_price * 10_f64.powf(mint_decimals as f64)) as i64;
     Account {
         lamports: 1_000_000,
-        data: bytemuck::bytes_of(&SolanaPriceAccount {
+        data: bytemuck::bytes_of(&PriceAccount {
             prod: mint,
             agg: PriceInfo {
                 conf: 0,

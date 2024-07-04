@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
-use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
+use pyth_sdk_solana::{load_price_feed_from_account_info, Price, PriceFeed};
 use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
@@ -427,8 +427,8 @@ fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResu
 /// Load and validate a pyth price feed account.
 fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
-    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
-        .map_err(|_| MarginfiError::InvalidOracleAccount)?;
+    let price_feed =
+        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
 }
 

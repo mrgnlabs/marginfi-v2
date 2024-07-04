@@ -5,7 +5,6 @@ use crate::{
 
 use anchor_lang::prelude::*;
 use bincode::deserialize;
-use pyth_sdk_solana::state::SolanaPriceAccount;
 use solana_sdk::{account::AccountSharedData, entrypoint::ProgramResult};
 
 use fixed_macro::types::I80F48;
@@ -609,8 +608,7 @@ impl TestFixture {
             .unwrap();
 
         let data = account.data.as_mut_slice();
-        let mut data: SolanaPriceAccount =
-            *pyth_sdk_solana::state::load_price_account(data).unwrap();
+        let mut data = *pyth_sdk_solana::state::load_price_account(data).unwrap();
 
         data.timestamp = timestamp;
         data.prev_timestamp = timestamp;

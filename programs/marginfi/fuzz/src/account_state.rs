@@ -6,7 +6,7 @@ use anchor_lang::{
 use bumpalo::Bump;
 use marginfi::{constants::PYTH_ID, state::marginfi_group::BankVaultType};
 use pyth_sdk_solana::state::{
-    AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
+    AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
 };
 use safe_transmute::{transmute_to_bytes, transmute_to_bytes_mut};
 use solana_program::{
@@ -299,7 +299,7 @@ impl AccountsState {
         mint: Pubkey,
         mint_decimals: i32,
     ) -> AccountInfo {
-        let price_account = SolanaPriceAccount {
+        let price_account = PriceAccount {
             prod: mint,
             agg: PriceInfo {
                 conf: 0,

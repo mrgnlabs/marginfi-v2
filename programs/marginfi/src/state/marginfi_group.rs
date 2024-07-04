@@ -23,7 +23,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 use fixed::types::I80F48;
-use pyth_sdk_solana::{state::SolanaPriceAccount, PriceFeed};
+use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
 #[cfg(feature = "client")]
 use std::fmt::Display;
 use std::{
@@ -74,8 +74,8 @@ pub struct GroupConfig {
 /// Load and validate a pyth price feed account.
 pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
-    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
-        .map_err(|_| MarginfiError::InvalidOracleAccount)?;
+    let price_feed =
+        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
 }
 
