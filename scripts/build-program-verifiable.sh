@@ -9,22 +9,24 @@ if [ "$?" != "0" ]; then
 fi
 
 program_lib_name=$1
-cluster=$2
+deployment=$2
 
-if [ -z "$program_lib_name" ] || [ -z "$cluster" ]; then
-    echo "Usage: $0 <program_lib_name> <cluster>"
+if [ -z "$program_lib_name" ] || [ -z "$deployment" ]; then
+    echo "Usage: $0 <program_lib_name> <deployment>"
     exit 1
 fi
 
-if [ "$cluster" = "mainnet" ]; then
-    cluster_feature="mainnet-beta"
-elif [ "$cluster" = "devnet" ]; then
-    cluster_feature=" devnet"
+if [ "$deployment" = "mainnet" ]; then
+    features="--features mainnet-beta"
+elif [ "$deployment" = "devnet" ]; then
+    features="--features devnet"
+elif [ "$deployment" = "staging" ]; then
+    features="--features staging"
 else
-    echo "Error: Unknown cluster: $cluster"
+    echo "Error: Unknown deployment: $deployment"
     exit 1
 fi
 
-cmd="sudo $verify_bin build --library-name $program_lib_name -- --features $cluster_feature"
+cmd="sudo $verify_bin build --library-name $program_lib_name -- $features"
 echo "Running: $cmd"
 eval "$cmd"
