@@ -47,6 +47,16 @@ where
     }
 }
 
+pub fn create_pyth_price_account_from_file(data: Vec<u8>) -> Account {
+    Account {
+        lamports: 1_000_000,
+        data,
+        owner: PYTH_ID,
+        executable: false,
+        rent_epoch: 361,
+    }
+}
+
 pub fn create_pyth_price_account(
     mint: Pubkey,
     ui_price: i64,
