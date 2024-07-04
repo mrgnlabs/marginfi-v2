@@ -29,10 +29,16 @@ set +e
 exist_result=$(solana account $program_address_or_keypair 2>&1)
 set -e
 
+if [ "$exist_result" = *"Error: AccountNotFound:"* ]; then
+    is_upgrade=0
+else
+    is_upgrade=1
+fi
+
 if [ -f "$program_address_or_keypair" ]; then
     program_id=$(solana-keygen pubkey $program_address_or_keypair)
 else
-    if [[ "$exist_result" == *"Error: AccountNotFound:"* ]]; then
+    if [ "$is_upgrade" = "0" ]; then
       echo "You need to provide a private key path for a first deploy."
       exit 1
     else
@@ -44,7 +50,7 @@ echo "==========================================================================
 echo "Deployer: $deployer_pk"
 echo "Balance: $deployer_balance"
 printf "Deploying to: $program_id"
-if [[ "$exist_result" == *"Error: AccountNotFound:"* ]]; then
+if [ "$is_upgrade" = "0" ]; then
   echo " (first deployment)"
 else
   echo " (already deployed)"
@@ -55,7 +61,11 @@ if ! ask_confirmation; then
     exit 0
 fi
 
-echo "Deploying..."
+if [ "$is_upgrade" = "0" ]; then
+  echo "Deploying..."
+else
+  echo "Upgrading..."
+fi
 
 solana program deploy \
  --use-rpc \

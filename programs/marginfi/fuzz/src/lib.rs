@@ -158,10 +158,10 @@ impl<'state> MarginfiFuzzContext<'state> {
         initial_bank_config: &BankAndOracleConfig,
     ) {
         log!("Setting up bank with config {:#?}", initial_bank_config);
-        let bank = state.new_owned_account(size_of::<Bank>(), marginfi::id(), rent);
+        let bank = state.new_owned_account(size_of::<Bank>(), marginfi::id(), rent.clone());
 
         let mint = state.new_token_mint(
-            rent,
+            rent.clone(),
             initial_bank_config.mint_decimals,
             initial_bank_config.token_type,
         );
@@ -193,7 +193,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         );
 
         let oracle = state.new_oracle_account(
-            rent,
+            rent.clone(),
             initial_bank_config.oracle_native_price as i64,
             *mint.key,
             initial_bank_config.mint_decimals as i32,
@@ -306,7 +306,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         token_mints: &Vec<AccountInfo<'state>>,
     ) -> anyhow::Result<()> {
         let marginfi_account =
-            state.new_owned_account(size_of::<MarginfiAccount>(), marginfi::id(), rent);
+            state.new_owned_account(size_of::<MarginfiAccount>(), marginfi::id(), rent.clone());
 
         marginfi::instructions::marginfi_account::initialize_account(Context::new(
             &marginfi::id(),
@@ -331,7 +331,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     token.clone(),
                     self.owner.key,
                     100_000_000_000_000_000,
-                    rent,
+                    rent.clone(),
                 )
             })
             .collect();
