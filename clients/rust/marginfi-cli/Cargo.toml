@@ -22,7 +22,7 @@ solana-sdk = { workspace = true }
 solana-account-decoder = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
-solana-address-lookup-table-program = "=1.18.11"
+solana-address-lookup-table-program = { workspace = true }
 
 anchor-client = { workspace = true }
 anchor-spl = { workspace = true, features = ["token_2022"] }

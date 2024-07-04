@@ -25,6 +25,8 @@ staging = []
 
 [dependencies]
 solana-program = { workspace = true }
+spl-transfer-hook-interface = { workspace = true }
+spl-tlv-account-resolution = { workspace = true }
 
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }
@@ -42,8 +44,6 @@ static_assertions = "1.1.0"
 type-layout = "0.2.0"
 solana-security-txt = "1.1.1"
 test-case = "3.3.1"
-spl-transfer-hook-interface = "0.6.3"
-spl-tlv-account-resolution = "0.6.3"
 
 [dev-dependencies]
 solana-account-decoder = { workspace = true }

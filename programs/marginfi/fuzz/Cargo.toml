@@ -14,14 +14,17 @@ test = false
 doc = false
 
 [dependencies]
-solana-sdk = "=1.18.11"
-solana-program = "=1.18.11"
-solana-program-test = "=1.18.11"
+solana-sdk = "=1.18.5"
+solana-program = "=1.18.5"
+solana-program-test = "=1.18.5"
 spl-token = "4.0.0"
-ahash = "=0.8.8"
+spl-token-2022 = "3.0.2"
+
 anchor-lang = "0.30.1"
 
 pyth-sdk-solana = "0.9.0"
+
+ahash = "=0.8.8"
 
 anyhow = "1.0.68"
 arbitrary = { version = "1.2.2", features = ["derive"] }
@@ -39,7 +42,6 @@ once_cell = "1.17.1"
 base64 = "0.22.1"
 itertools = "0.12.1"
 strum = { version = "0.26.3", features = ["derive"], default-features = false }
-spl-token-2022 = "3.0.2"
 
 quinn-proto = { version = "0.10.6", features = ["arbitrary"] }
 
