@@ -2667,6 +2667,7 @@ name = "llama-snapshot-tool"
 version = "0.1.0"
 dependencies = [
  "anchor-client",
+ "anchor-spl 0.30.1",
  "anyhow",
  "bytemuck",
  "clap 3.2.25",
@@ -2684,7 +2685,6 @@ dependencies = [
  "solana-account-decoder",
  "solana-client",
  "solana-sdk",
- "spl-token 1.0.8",
  "tokio",
 ]
 

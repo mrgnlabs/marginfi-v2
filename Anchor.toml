@@ -1,6 +1,6 @@
 [toolchain]
 anchor_version = "0.30.1"
-solana_version = "1.18.1"
+solana_version = "1.17.33"
 
 [features]
 resolution = true
@@ -18,7 +18,7 @@ marginfi = "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = ["https://devnet.rpcpool.com/", "wss://devnet.rpcpool.com/"]
+cluster = "https://devnet.rpcpool.com/"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
