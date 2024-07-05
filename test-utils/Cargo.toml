@@ -45,6 +45,10 @@ serde_json = "1.0.115"
 path = "../programs/marginfi"
 features = ["test-bpf"]
 
+[dependencies.transfer_hook]
+path = "../programs/test_transfer_hook"
+package = "test_transfer_hook"
+
 [dependencies.liquidity-incentive-program]
 path = "../programs/liquidity-incentive-program"
 optional = true
