@@ -348,10 +348,9 @@ pub fn group_add_bank(
     let insurance_ir_fee: WrappedI80F48 = I80F48::from_num(insurance_ir_fee).into();
     let protocol_fixed_fee_apr: WrappedI80F48 = I80F48::from_num(protocol_fixed_fee_apr).into();
     let protocol_ir_fee: WrappedI80F48 = I80F48::from_num(protocol_ir_fee).into();
-
     let mint_account = rpc_client.get_account(&bank_mint)?;
-    let mint = spl_token::state::Mint::unpack(&mint_account.data)?;
-
+    let token_program = mint_account.owner;
+    let mint = spl_token::state::Mint::unpack(&mint_account.data[..spl_token::state::Mint::LEN])?;
     let deposit_limit = deposit_limit_ui * 10_u64.pow(mint.decimals as u32);
     let borrow_limit = borrow_limit_ui * 10_u64.pow(mint.decimals as u32);
 
@@ -382,6 +381,7 @@ pub fn group_add_bank(
             profile,
             &rpc_client,
             bank_mint,
+            token_program,
             oracle_key,
             asset_weight_init,
             asset_weight_maint,
@@ -399,6 +399,7 @@ pub fn group_add_bank(
             &config,
             profile,
             bank_mint,
+            token_program,
             &bank_keypair,
             oracle_key,
             asset_weight_init,
@@ -414,8 +415,11 @@ pub fn group_add_bank(
         )?
     };
 
+    let mut ixs = vec![ComputeBudgetInstruction::set_compute_unit_price(1)];
+    ixs.extend(add_bank_ixs);
+
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let message = Message::new(&add_bank_ixs, None);
+    let message = Message::new(&ixs, None);
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
@@ -434,6 +438,7 @@ fn create_bank_ix_with_seed(
     profile: Profile,
     rpc_client: &RpcClient,
     bank_mint: Pubkey,
+    token_program: Pubkey,
     oracle_key: Pubkey,
     asset_weight_init: WrappedI80F48,
     asset_weight_maint: WrappedI80F48,
@@ -511,7 +516,7 @@ fn create_bank_ix_with_seed(
             )
             .0,
             rent: sysvar::rent::id(),
-            token_program: token::ID,
+            token_program,
             system_program: system_program::id(),
             fee_payer: config.authority(),
         })
@@ -548,6 +553,7 @@ fn create_bank_ix(
     config: &Config,
     profile: Profile,
     bank_mint: Pubkey,
+    token_program: Pubkey,
     bank_keypair: &Keypair,
     oracle_key: Pubkey,
     asset_weight_init: WrappedI80F48,
@@ -605,7 +611,7 @@ fn create_bank_ix(
             )
             .0,
             rent: sysvar::rent::id(),
-            token_program: token::ID,
+            token_program,
             system_program: system_program::id(),
             fee_payer: config.explicit_fee_payer(),
         })
