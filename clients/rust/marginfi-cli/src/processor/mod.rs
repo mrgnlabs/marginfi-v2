@@ -743,6 +743,8 @@ fn handle_bankruptcy_for_an_account(
 
     let bank = banks.get(&bank_pk).unwrap();
 
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    let token_program = bank_mint_account.owner;
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
@@ -768,14 +770,13 @@ fn handle_bankruptcy_for_an_account(
                 &config.program_id,
             )
             .0,
-            token_program: token::ID,
+            token_program,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
-    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
-    if bank_mint_account.owner == token_2022::ID {
+    if token_program == token_2022::ID {
         handle_bankruptcy_ix
             .accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
@@ -898,6 +899,8 @@ fn make_bankruptcy_ix(
 
     let bank = banks.get(&bank_pk).unwrap();
 
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    let token_program = bank_mint_account.owner;
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
@@ -923,14 +926,13 @@ fn make_bankruptcy_ix(
                 &config.program_id,
             )
             .0,
-            token_program: token::ID,
+            token_program,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
-    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
-    if bank_mint_account.owner == token_2022::ID {
+    if token_program == token_2022::ID {
         handle_bankruptcy_ix
             .accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
@@ -1875,8 +1877,14 @@ pub fn marginfi_account_deposit(
         bail!("Bank does not belong to group")
     }
 
-    let deposit_ata =
-        anchor_spl::associated_token::get_associated_token_address(&signer.pubkey(), &bank.mint);
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    let token_program = bank_mint_account.owner;
+
+    let deposit_ata = anchor_spl::associated_token::get_associated_token_address_with_program_id(
+        &signer.pubkey(),
+        &bank.mint,
+        &token_program,
+    );
 
     let mut ix = Instruction {
         program_id: config.program_id,
@@ -1887,13 +1895,12 @@ pub fn marginfi_account_deposit(
             bank: bank_pk,
             signer_token_account: deposit_ata,
             bank_liquidity_vault: bank.liquidity_vault,
-            token_program: token::ID,
+            token_program,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountDeposit { amount }.data(),
     };
-    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
-    if bank_mint_account.owner == token_2022::ID {
+    if token_program == token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -1946,8 +1953,14 @@ pub fn marginfi_account_withdraw(
         bail!("Bank does not belong to group")
     }
 
-    let withdraw_ata =
-        anchor_spl::associated_token::get_associated_token_address(&signer.pubkey(), &bank.mint);
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    let token_program = bank_mint_account.owner;
+
+    let withdraw_ata = anchor_spl::associated_token::get_associated_token_address_with_program_id(
+        &signer.pubkey(),
+        &bank.mint,
+        &token_program,
+    );
 
     let mut ix = Instruction {
         program_id: config.program_id,
@@ -1957,7 +1970,7 @@ pub fn marginfi_account_withdraw(
             signer: signer.pubkey(),
             bank: bank_pk,
             bank_liquidity_vault: bank.liquidity_vault,
-            token_program: token::ID,
+            token_program,
             destination_token_account: withdraw_ata,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
                 &bank_pk,
@@ -1974,8 +1987,7 @@ pub fn marginfi_account_withdraw(
         .data(),
     };
 
-    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
-    if bank_mint_account.owner == token_2022::ID {
+    if token_program == token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -2040,8 +2052,14 @@ pub fn marginfi_account_borrow(
         bail!("Bank does not belong to group")
     }
 
-    let withdraw_ata =
-        anchor_spl::associated_token::get_associated_token_address(&signer.pubkey(), &bank.mint);
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    let token_program = bank_mint_account.owner;
+
+    let borrow_ata = anchor_spl::associated_token::get_associated_token_address_with_program_id(
+        &signer.pubkey(),
+        &bank.mint,
+        &token_program,
+    );
 
     let mut ix = Instruction {
         program_id: config.program_id,
@@ -2051,8 +2069,8 @@ pub fn marginfi_account_borrow(
             signer: signer.pubkey(),
             bank: bank_pk,
             bank_liquidity_vault: bank.liquidity_vault,
-            token_program: token::ID,
-            destination_token_account: withdraw_ata,
+            token_program,
+            destination_token_account: borrow_ata,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
                 &bank_pk,
                 BankVaultType::Liquidity,
@@ -2064,8 +2082,7 @@ pub fn marginfi_account_borrow(
         data: marginfi::instruction::LendingAccountBorrow { amount }.data(),
     };
 
-    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
-    if bank_mint_account.owner == token_2022::ID {
+    if token_program == token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
