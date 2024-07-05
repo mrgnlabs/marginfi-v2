@@ -21,7 +21,7 @@ use {
         anchor_lang::{InstructionData, ToAccountMetas},
         Cluster,
     },
-    anchor_spl::token::{self, spl_token},
+    anchor_spl::token,
     anyhow::{anyhow, bail, Result},
     fixed::types::I80F48,
     log::info,
@@ -462,7 +462,7 @@ fn create_bank_ix_with_seed(
         println!("Seed option enabled -- generating a PDA account");
         let (pda, _) = Pubkey::find_program_address(
             [group_key.as_ref(), bank_mint.as_ref(), &i.to_le_bytes()].as_slice(),
-            &marginfi::id(),
+            &config.program_id,
         );
         if rpc_client
             .get_account_with_commitment(&pda, CommitmentConfig::default())?
@@ -965,7 +965,7 @@ pub fn process_set_user_flag(
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::SetAccountFlag { flag }.data(),
-        program_id: marginfi::id(),
+        program_id: config.program_id,
     };
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
@@ -1021,9 +1021,12 @@ pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
             insurance_vault_balance.amount
         );
         if bank.emissions_mint != Pubkey::default() {
-            let emissions_token_account =
-                find_bank_emssions_token_account_pda(address, bank.emissions_mint, marginfi::id())
-                    .0;
+            let emissions_token_account = find_bank_emssions_token_account_pda(
+                address,
+                bank.emissions_mint,
+                config.program_id,
+            )
+            .0;
             let emissions_vault_balance =
                 rpc_client.get_token_account_balance(&emissions_token_account)?;
             println!(
@@ -1314,7 +1317,6 @@ pub fn bank_setup_emissions(
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
-    let funding_account_ata = get_associated_token_address(&config.authority(), &mint);
     let mut flags = 0;
 
     if deposits {
@@ -1325,12 +1327,21 @@ pub fn bank_setup_emissions(
         flags |= EMISSIONS_FLAG_BORROW_ACTIVE;
     }
 
-    let emissions_mint_decimals = config.mfi_program.rpc().get_account(&mint).unwrap();
+    let emissions_mint_account = config.mfi_program.rpc().get_account(&mint).unwrap();
+    let token_program = emissions_mint_account.owner;
 
-    let emissions_mint_decimals =
-        spl_token::state::Mint::unpack_from_slice(&emissions_mint_decimals.data)
-            .unwrap()
-            .decimals;
+    let funding_account_ata =
+        anchor_spl::associated_token::get_associated_token_address_with_program_id(
+            &config.authority(),
+            &mint,
+            &token_program,
+        );
+
+    let emissions_mint = spl_token::state::Mint::unpack_from_slice(
+        &emissions_mint_account.data[..spl_token::state::Mint::LEN],
+    )
+    .unwrap();
+    let emissions_mint_decimals = emissions_mint.decimals;
 
     let total_emissions = (total * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
     let rate = crate::utils::calc_emissions_rate(rate, emissions_mint_decimals);
@@ -1354,21 +1365,21 @@ pub fn bank_setup_emissions(
     }
 
     let ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolSetupEmissions {
             marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
             admin: config.authority(),
             bank,
             emissions_mint: mint,
-            emissions_auth: find_bank_emssions_auth_pda(bank, mint, marginfi::id()).0,
+            emissions_auth: find_bank_emssions_auth_pda(bank, mint, config.program_id).0,
             emissions_token_account: find_bank_emssions_token_account_pda(
                 bank,
                 mint,
-                marginfi::id(),
+                config.program_id,
             )
             .0,
             emissions_funding_account: funding_account_ata,
-            token_program: spl_token::id(),
+            token_program,
             system_program: system_program::id(),
         }
         .to_account_metas(Some(true)),
@@ -1471,7 +1482,7 @@ pub fn bank_update_emissions(
     }
 
     let ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
             marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
             admin: config.authority(),
@@ -1480,7 +1491,7 @@ pub fn bank_update_emissions(
             emissions_token_account: find_bank_emssions_token_account_pda(
                 bank_pk,
                 emission_mint,
-                marginfi::id(),
+                config.program_id,
             )
             .0,
             emissions_funding_account: funding_account_ata,
@@ -2002,7 +2013,7 @@ pub fn marginfi_account_withdraw(
         &signer.pubkey(),
         &signer.pubkey(),
         &bank.mint,
-        &spl_token::ID,
+        &token_program,
     );
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
@@ -2097,7 +2108,7 @@ pub fn marginfi_account_borrow(
         &signer.pubkey(),
         &signer.pubkey(),
         &bank.mint,
-        &spl_token::ID,
+        &token_program,
     );
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
