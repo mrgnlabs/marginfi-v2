@@ -101,11 +101,10 @@ pub fn nonzero_fee(mint_ai: AccountInfo, epoch: u64) -> MarginfiResult<bool> {
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
 
     if let Ok(transfer_fee_config) = mint.get_extension::<TransferFeeConfig>() {
-        return Ok(u16::from_le_bytes(
+        return Ok(u16::from(
             transfer_fee_config
                 .get_epoch_fee(epoch)
-                .transfer_fee_basis_points
-                .0,
+                .transfer_fee_basis_points,
         ) != 0);
     }
 

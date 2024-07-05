@@ -10,26 +10,27 @@ members = [
 exclude = ["programs/brick"]
 
 [workspace.dependencies]
-solana-cli-output = "=1.18.5"
-solana-client = "=1.18.5"
-solana-sdk = "=1.18.5"
-solana-logger = "=1.18.5"
-solana-program = "=1.18.5"
-solana-program-test = "=1.18.5"
-solana-account-decoder = "=1.18.5"
-solana-measure = "=1.18.5"
-solana-metrics = "=1.18.5"
-solana-transaction-status = "=1.18.5"
-solana-address-lookup-table-program = "=1.18.5"
-spl-token = "4.0.0"
+solana-cli-output = "=1.17.33"
+solana-client = "=1.17.33"
+solana-sdk = "=1.17.33"
+solana-logger = "=1.17.33"
+solana-program = "=1.17.33"
+solana-program-test = "=1.17.33"
+solana-account-decoder = "=1.17.33"
+solana-measure = "=1.17.33"
+solana-metrics = "=1.17.33"
+solana-transaction-status = "=1.17.33"
+solana-address-lookup-table-program = "=1.17.33"
+spl-token = "1.0.0"
+spl-token-2022 = "1"
 spl-associated-token-account = "2.2.0"
-spl-transfer-hook-interface = "0.6.3"
-spl-tlv-account-resolution = "0.6.3"
-spl-discriminator = "0.2.2"
+spl-transfer-hook-interface = "0.5"
+spl-tlv-account-resolution = "0.5"
+spl-discriminator = "0.1"
 
-anchor-lang = "0.30.1"
-anchor-spl = { version = "0.30.1", features = ["token_2022"] }
-anchor-client = "0.30.1"
+anchor-lang = { git = "https://github.com/mrgnlabs/anchor2.git", rev = "ba99f58b28453304d905cc81f7a9040fa9b2f0d7" }
+anchor-spl = { git = "https://github.com/mrgnlabs/anchor2.git", features = ["token_2022"], rev = "ba99f58b28453304d905cc81f7a9040fa9b2f0d7" }
+anchor-client = { git = "https://github.com/mrgnlabs/anchor2.git", rev = "ba99f58b28453304d905cc81f7a9040fa9b2f0d7" }
 
 switchboard-solana = "0.29.0"
 pyth-sdk-solana = "0.9.0"
