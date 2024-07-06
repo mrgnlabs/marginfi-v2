@@ -1,5 +1,8 @@
-use anchor_client::anchor_lang::prelude::*;
-use anchor_client::anchor_lang::InstructionData;
+use crate::{
+    config::Config,
+    utils::{process_transaction, ui_to_native},
+};
+use anchor_client::anchor_lang::{prelude::*, InstructionData};
 use anchor_spl::associated_token;
 use anyhow::Result;
 use marginfi::{
@@ -8,11 +11,6 @@ use marginfi::{
 };
 use solana_sdk::{
     instruction::Instruction, message::Message, pubkey::Pubkey, transaction::Transaction,
-};
-
-use crate::{
-    config::Config,
-    utils::{process_transaction, ui_to_native},
 };
 
 pub fn process_collect_fees(config: Config, bank_pk: Pubkey) -> Result<()> {

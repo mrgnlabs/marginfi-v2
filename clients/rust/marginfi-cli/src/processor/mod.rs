@@ -1,10 +1,5 @@
-#[cfg(feature = "admin")]
-pub mod emissions;
-
-#[cfg(feature = "admin")]
 pub mod admin;
-
-#[cfg(feature = "admin")]
+pub mod emissions;
 pub mod group;
 
 use {
@@ -12,6 +7,7 @@ use {
         config::Config,
         profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
         utils::{
+            calc_emissions_rate, create_oracle_key_array, find_bank_emssions_auth_pda,
             find_bank_emssions_token_account_pda, find_bank_vault_authority_pda,
             find_bank_vault_pda, load_observation_account_metas, process_transaction,
             EXP_10_I80F48,
@@ -26,13 +22,24 @@ use {
     fixed::types::I80F48,
     log::info,
     marginfi::{
-        prelude::MarginfiGroup,
+        constants::{
+            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, ZERO_AMOUNT_THRESHOLD,
+        },
+        prelude::*,
         state::{
             marginfi_account::{BankAccountWrapper, MarginfiAccount},
-            marginfi_group::{Bank, BankVaultType},
+            marginfi_group::{
+                Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
+                InterestRateConfig, WrappedI80F48,
+            },
+            price::{OraclePriceFeedAdapter, PriceAdapter},
         },
+        utils::NumTraitsWithTolerance,
     },
-    solana_client::rpc_filter::{Memcmp, RpcFilterType},
+    solana_client::{
+        rpc_client::RpcClient,
+        rpc_filter::{Memcmp, RpcFilterType},
+    },
     solana_sdk::{
         account_info::IntoAccountInfo,
         clock::Clock,
@@ -40,6 +47,7 @@ use {
         compute_budget::ComputeBudgetInstruction,
         instruction::{AccountMeta, Instruction},
         message::Message,
+        program_pack::Pack,
         pubkey::Pubkey,
         signature::Keypair,
         signer::Signer,
@@ -47,35 +55,16 @@ use {
         sysvar::{self, Sysvar},
         transaction::Transaction,
     },
-    spl_associated_token_account::instruction::create_associated_token_account_idempotent,
+    spl_associated_token_account::{
+        get_associated_token_address, instruction::create_associated_token_account_idempotent,
+    },
     std::{
         collections::HashMap,
-        fs,
+        fs, io,
         mem::size_of,
         ops::{Neg, Not},
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
-};
-
-use anchor_spl::token_2022;
-#[cfg(feature = "dev")]
-use marginfi::state::price::{OraclePriceFeedAdapter, PriceAdapter};
-use marginfi::{constants::ZERO_AMOUNT_THRESHOLD, utils::NumTraitsWithTolerance};
-use solana_client::rpc_client::RpcClient;
-
-#[cfg(feature = "admin")]
-use {
-    crate::utils::{calc_emissions_rate, create_oracle_key_array, find_bank_emssions_auth_pda},
-    marginfi::{
-        constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE},
-        prelude::GroupConfig,
-        state::marginfi_group::{
-            BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, WrappedI80F48,
-        },
-    },
-    solana_sdk::program_pack::Pack,
-    spl_associated_token_account::get_associated_token_address,
-    std::io,
 };
 
 #[cfg(feature = "lip")]
@@ -216,7 +205,6 @@ Last Update: {:?}h ago ({})
     )
 }
 
-#[cfg(feature = "admin")]
 pub fn group_create(
     config: Config,
     profile: Profile,
@@ -268,7 +256,6 @@ pub fn group_create(
     Ok(())
 }
 
-#[cfg(feature = "admin")]
 pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
@@ -306,7 +293,7 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "admin")]
+
 pub fn group_add_bank(
     config: Config,
     profile: Profile,
@@ -434,7 +421,7 @@ pub fn group_add_bank(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "admin")]
+
 fn create_bank_ix_with_seed(
     config: &Config,
     profile: Profile,
@@ -550,7 +537,7 @@ fn create_bank_ix_with_seed(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "admin")]
+
 fn create_bank_ix(
     config: &Config,
     profile: Profile,
@@ -644,7 +631,7 @@ fn create_bank_ix(
 }
 
 #[allow(clippy::too_many_arguments, dead_code)]
-#[cfg(feature = "admin")]
+
 pub fn group_handle_bankruptcy(
     config: &Config,
     profile: Profile,
@@ -778,7 +765,7 @@ fn handle_bankruptcy_for_an_account(
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
-    if token_program == token_2022::ID {
+    if token_program == spl_token_2022::ID {
         handle_bankruptcy_ix
             .accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
@@ -808,10 +795,8 @@ fn handle_bankruptcy_for_an_account(
     Ok(())
 }
 
-#[cfg(feature = "admin")]
 const BANKRUPTCY_CHUNKS: usize = 4;
 
-#[cfg(feature = "admin")]
 pub fn handle_bankruptcy_for_accounts(
     config: &Config,
     profile: &Profile,
@@ -887,7 +872,7 @@ pub fn handle_bankruptcy_for_accounts(
 
     Ok(())
 }
-#[cfg(feature = "admin")]
+
 fn make_bankruptcy_ix(
     config: &Config,
     profile: &Profile,
@@ -934,7 +919,7 @@ fn make_bankruptcy_ix(
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
-    if token_program == token_2022::ID {
+    if token_program == spl_token_2022::ID {
         handle_bankruptcy_ix
             .accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
@@ -1074,7 +1059,6 @@ pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()
     Ok(())
 }
 
-#[cfg(feature = "dev")]
 pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> {
     use marginfi::state::price::{OraclePriceType, PriceBias};
 
@@ -1130,7 +1114,6 @@ Prince:
     Ok(())
 }
 
-#[cfg(feature = "dev")]
 pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
     use marginfi::state::price::OracleSetup;
     use pyth_sdk_solana::state::load_price_account;
@@ -1306,7 +1289,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "admin")]
+
 pub fn bank_setup_emissions(
     config: &Config,
     profile: &Profile,
@@ -1409,7 +1392,7 @@ pub fn bank_setup_emissions(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "admin")]
+
 pub fn bank_update_emissions(
     config: &Config,
     profile: &Profile,
@@ -1524,7 +1507,6 @@ pub fn bank_update_emissions(
     Ok(())
 }
 
-#[cfg(feature = "admin")]
 pub fn bank_configure(
     config: Config,
     profile: Profile,
@@ -1914,7 +1896,7 @@ pub fn marginfi_account_deposit(
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountDeposit { amount }.data(),
     };
-    if token_program == token_2022::ID {
+    if token_program == spl_token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -2001,7 +1983,7 @@ pub fn marginfi_account_withdraw(
         .data(),
     };
 
-    if token_program == token_2022::ID {
+    if token_program == spl_token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -2096,7 +2078,7 @@ pub fn marginfi_account_borrow(
         data: marginfi::instruction::LendingAccountBorrow { amount }.data(),
     };
 
-    if token_program == token_2022::ID {
+    if token_program == spl_token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -2200,7 +2182,7 @@ pub fn marginfi_account_liquidate(
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
 
-    if token_program == token_2022::ID {
+    if token_program == spl_token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(liability_bank.mint, false));
     }
@@ -2395,7 +2377,7 @@ fn timestamp_to_string(timestamp: i64) -> String {
 }
 
 // // Switchboard tests
-// #[cfg(feature = "dev")]
+//
 // pub fn process_inspect_switchboard_feed(config: &Config, aggregator_pk: &Pubkey) {
 //     let aggregator_account_data = config
 //         .mfi_program

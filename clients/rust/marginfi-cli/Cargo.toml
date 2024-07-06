@@ -12,8 +12,6 @@ devnet = ["marginfi/devnet"]
 mainnet-beta = ["marginfi/mainnet-beta"]
 staging = ["marginfi/staging"]
 default = ["mainnet-beta"]
-admin = []
-dev = []
 lip = []
 
 [dependencies]
