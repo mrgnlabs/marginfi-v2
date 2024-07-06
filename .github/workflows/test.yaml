@@ -14,8 +14,8 @@ defaults:
     working-directory: .
 
 env:
-  RUST_TOOLCHAIN: 1.79.0
-  SOLANA_CLI_VERSION: 1.18.11
+  RUST_TOOLCHAIN: 1.73.0
+  SOLANA_CLI_VERSION: 1.17.33
   ANCHOR_CLI_VERSION: 0.30.1
   ANCHOR_SHA: 852fcc77beb6302474a11e0f8e6f1e688021be36
   CARGO_TERM_COLOR: always
@@ -48,7 +48,7 @@ jobs:
 
       - run: cargo fmt -- --check
 
-      - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::too_many_arguments
+      - run: cargo clippy --features=test,test-bpf -- -D warnings -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::too_many_arguments
 
   test-unit:
     name: Rust Unit Tests
