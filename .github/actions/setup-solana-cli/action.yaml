@@ -16,7 +16,7 @@ runs:
       # if: steps.cache-solana.outputs.cache-hit != 'true'
     - run: echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
       shell: bash
-    - run: cargo install solana-keygen --locked
+    - run: cargo install solana-keygen --version ${{ env.SOLANA_CLI_VERSION }} --locked
       # if: steps.cache-solana-verify.outputs.cache-hit != 'true'
       shell: bash
     - run: solana-keygen new -s --no-bip39-passphrase --force
