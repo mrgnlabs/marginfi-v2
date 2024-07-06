@@ -429,7 +429,7 @@ pub fn entry(opts: Opts) -> Result<()> {
 
         Command::MakeTestI80F48 => {
             process_make_test_i80f48();
-            
+
             Ok(())
         }
     }
