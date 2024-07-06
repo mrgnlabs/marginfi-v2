@@ -70,8 +70,8 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: LipCommand,
     },
-    #[cfg(feature = "dev")]
-    InspectSwitchboardFeed { switchboard_feed: Pubkey },
+    // #[cfg(feature = "dev")]
+    // InspectSwitchboardFeed { switchboard_feed: Pubkey },
     #[cfg(feature = "dev")]
     ShowOracleAges {
         #[clap(long, action)]
@@ -425,15 +425,15 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
         #[cfg(feature = "lip")]
         Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
-        #[cfg(feature = "dev")]
-        Command::InspectSwitchboardFeed { switchboard_feed } => {
-            let profile = load_profile()?;
-            let config = profile.get_config(Some(&opts.cfg_override))?;
+        // #[cfg(feature = "dev")]
+        // Command::InspectSwitchboardFeed { switchboard_feed } => {
+        //     let profile = load_profile()?;
+        //     let config = profile.get_config(Some(&opts.cfg_override))?;
 
-            processor::process_inspect_switchboard_feed(&config, &switchboard_feed);
+        //     processor::process_inspect_switchboard_feed(&config, &switchboard_feed);
 
-            Ok(())
-        }
+        //     Ok(())
+        // }
         #[cfg(feature = "dev")]
         Command::InspectSize {} => inspect_size(),
         #[cfg(feature = "dev")]
@@ -778,7 +778,6 @@ fn inspect_size() -> Result<()> {
 #[cfg(feature = "dev")]
 fn patch_marginfi_idl(target_dir: String) -> Result<()> {
     use crate::patch_type_layout;
-    use std::io::Write;
 
     let idl_path = format!("{}/idl/marginfi.json", target_dir);
 

@@ -21,7 +21,7 @@ use {
         anchor_lang::{InstructionData, ToAccountMetas},
         Cluster,
     },
-    anchor_spl::token,
+    anchor_spl::token_2022::spl_token_2022,
     anyhow::{anyhow, bail, Result},
     fixed::types::I80F48,
     log::info,
@@ -350,7 +350,9 @@ pub fn group_add_bank(
     let protocol_ir_fee: WrappedI80F48 = I80F48::from_num(protocol_ir_fee).into();
     let mint_account = rpc_client.get_account(&bank_mint)?;
     let token_program = mint_account.owner;
-    let mint = spl_token::state::Mint::unpack(&mint_account.data[..spl_token::state::Mint::LEN])?;
+    let mint = spl_token_2022::state::Mint::unpack(
+        &mint_account.data[..spl_token_2022::state::Mint::LEN],
+    )?;
     let deposit_limit = deposit_limit_ui * 10_u64.pow(mint.decimals as u32);
     let borrow_limit = borrow_limit_ui * 10_u64.pow(mint.decimals as u32);
 
@@ -1337,8 +1339,8 @@ pub fn bank_setup_emissions(
             &token_program,
         );
 
-    let emissions_mint = spl_token::state::Mint::unpack_from_slice(
-        &emissions_mint_account.data[..spl_token::state::Mint::LEN],
+    let emissions_mint = spl_token_2022::state::Mint::unpack(
+        &emissions_mint_account.data[..spl_token_2022::state::Mint::LEN],
     )
     .unwrap();
     let emissions_mint_decimals = emissions_mint.decimals;
@@ -1436,10 +1438,11 @@ pub fn bank_update_emissions(
         .get_account(&emission_mint)
         .unwrap();
 
-    let emissions_mint_decimals =
-        spl_token::state::Mint::unpack_from_slice(&emissions_mint_decimals.data)
-            .unwrap()
-            .decimals;
+    let emissions_mint_decimals = spl_token_2022::state::Mint::unpack(
+        &emissions_mint_decimals.data[..spl_token_2022::state::Mint::LEN],
+    )
+    .unwrap()
+    .decimals;
 
     let emissions_rate = rate.map(|rate| calc_emissions_rate(rate, emissions_mint_decimals));
     let additional_emissions = additional_emissions
@@ -2171,6 +2174,9 @@ pub fn marginfi_account_liquidate(
         bail!("Liability bank does not belong to group")
     }
 
+    let liability_mint_account = rpc_client.get_account(&liability_bank.mint)?;
+    let token_program = liability_mint_account.owner;
+
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountLiquidate {
@@ -2188,14 +2194,13 @@ pub fn marginfi_account_liquidate(
             .0,
             bank_liquidity_vault: liability_bank.liquidity_vault,
             bank_insurance_vault: liability_bank.insurance_vault,
-            token_program: token::ID,
+            token_program,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
 
-    let liability_mint_account = rpc_client.get_account(&liability_bank.mint)?;
-    if liability_mint_account.owner == token_2022::ID {
+    if token_program == token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(liability_bank.mint, false));
     }
@@ -2389,18 +2394,18 @@ fn timestamp_to_string(timestamp: i64) -> String {
     .to_string()
 }
 
-// Switchboard tests
-#[cfg(feature = "dev")]
-pub fn process_inspect_switchboard_feed(config: &Config, aggregator_pk: &Pubkey) {
-    let aggregator_account_data = config
-        .mfi_program
-        .rpc()
-        .get_account_data(aggregator_pk)
-        .expect("Aggregator account not found");
+// // Switchboard tests
+// #[cfg(feature = "dev")]
+// pub fn process_inspect_switchboard_feed(config: &Config, aggregator_pk: &Pubkey) {
+//     let aggregator_account_data = config
+//         .mfi_program
+//         .rpc()
+//         .get_account_data(aggregator_pk)
+//         .expect("Aggregator account not found");
 
-    let aggregator_account =
-        switchboard_solana::AggregatorAccountData::new_from_bytes(&aggregator_account_data)
-            .expect("Invalid aggregator account data");
+//     let aggregator_account =
+//         switchboard_solana::AggregatorAccountData::new_from_bytes(&aggregator_account_data)
+//             .expect("Invalid aggregator account data");
 
-    todo!("print")
-}
+//     todo!("print")
+// }
