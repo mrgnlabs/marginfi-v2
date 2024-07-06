@@ -3,22 +3,24 @@ use anchor_lang::{
     prelude::{AccountInfo, Pubkey, Rent, SolanaSysvar},
     Discriminator,
 };
+use anchor_spl::token_2022::spl_token_2022::{
+    self,
+    extension::{
+        transfer_fee::{TransferFee, TransferFeeConfig},
+        BaseStateWithExtensions, ExtensionType, StateWithExtensions, StateWithExtensionsMut,
+    },
+    state::Mint,
+};
 use bumpalo::Bump;
 use marginfi::{constants::PYTH_ID, state::marginfi_group::BankVaultType};
 use pyth_sdk_solana::state::{
-    AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
+    AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
 };
 use safe_transmute::{transmute_to_bytes, transmute_to_bytes_mut};
 use solana_program::{
     bpf_loader, program_pack::Pack, stake_history::Epoch, system_program, sysvar,
 };
 use solana_sdk::{signature::Keypair, signer::Signer};
-use spl_token::state::Mint;
-use spl_token_2022::extension::{
-    transfer_fee::{TransferFee, TransferFeeConfig},
-    BaseStateWithExtensions, BaseStateWithExtensionsMut, ExtensionType, StateWithExtensions,
-    StateWithExtensionsMut,
-};
 use std::mem::size_of;
 
 pub struct AccountsState {
@@ -299,7 +301,7 @@ impl AccountsState {
         mint: Pubkey,
         mint_decimals: i32,
     ) -> AccountInfo {
-        let price_account = PriceAccount {
+        let price_account = SolanaPriceAccount {
             prod: mint,
             agg: PriceInfo {
                 conf: 0,

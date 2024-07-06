@@ -75,7 +75,7 @@ jobs:
       - run: cargo test --lib
 
   build-workspace:
-    name: Build and Test Anchor Programs
+    name: Build Anchor Programs
     runs-on: ubuntu-latest
 
     steps:
@@ -87,7 +87,7 @@ jobs:
       - uses: ./.github/actions/build-workspace/
 
   test-programs:
-    name: Build and Test Anchor Programs
+    name: Test Anchor Programs
     runs-on: ubuntu-latest
 
     steps:
@@ -111,7 +111,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2024-03-26
+          toolchain: nightly-2023-10-05
           components: rust-src
           override: true
       - name: Run fuzz tests in fuzz dir

@@ -32,15 +32,17 @@ use {
                 Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
                 InterestRateConfig, WrappedI80F48,
             },
-            price::{OraclePriceFeedAdapter, PriceAdapter},
+            price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter},
         },
         utils::NumTraitsWithTolerance,
     },
+    pyth_sdk_solana::state::{load_price_account, SolanaPriceAccount},
     solana_client::{
         rpc_client::RpcClient,
         rpc_filter::{Memcmp, RpcFilterType},
     },
     solana_sdk::{
+        account::ReadableAccount,
         account_info::IntoAccountInfo,
         clock::Clock,
         commitment_config::CommitmentLevel,
@@ -48,6 +50,7 @@ use {
         instruction::{AccountMeta, Instruction},
         message::Message,
         program_pack::Pack,
+        pubkey,
         pubkey::Pubkey,
         signature::Keypair,
         signer::Signer,
@@ -65,6 +68,7 @@ use {
         ops::{Neg, Not},
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
+    switchboard_solana::AggregatorAccountData,
 };
 
 #[cfg(feature = "lip")]
@@ -1115,11 +1119,6 @@ Prince:
 }
 
 pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
-    use marginfi::state::price::OracleSetup;
-    use pyth_sdk_solana::state::load_price_account;
-    use solana_sdk::{account::ReadableAccount, pubkey};
-    use switchboard_solana::AggregatorAccountData;
-
     let banks = config
         .mfi_program
         .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
@@ -1190,7 +1189,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(pyth_max_age)
             .map(|((maybe_account, mint), max_age)| {
                 let account = maybe_account.unwrap();
-                let pa = load_price_account(account.data()).unwrap().clone();
+                let pa: SolanaPriceAccount = *load_price_account(account.data()).unwrap();
 
                 (mint, pa, max_age)
             })

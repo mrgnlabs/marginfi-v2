@@ -3,7 +3,7 @@ use crate::log;
 use anchor_lang::prelude::{AccountInfo, ProgramError, Pubkey};
 use anchor_lang::Key;
 
-use pyth_sdk_solana::state::PriceAccount;
+use pyth_sdk_solana::state::SolanaPriceAccount;
 
 use std::cmp::max;
 use std::collections::HashMap;
@@ -25,7 +25,7 @@ pub struct BankAccounts<'info> {
 impl<'bump> BankAccounts<'bump> {
     pub fn refresh_oracle(&self, timestamp: i64) -> Result<(), ProgramError> {
         let mut data = self.oracle.try_borrow_mut_data()?;
-        let data = bytemuck::from_bytes_mut::<PriceAccount>(&mut data);
+        let data = bytemuck::from_bytes_mut::<SolanaPriceAccount>(&mut data);
 
         data.timestamp = timestamp;
 
@@ -34,7 +34,7 @@ impl<'bump> BankAccounts<'bump> {
 
     pub fn update_oracle(&self, updated_price: i64) -> Result<(), ProgramError> {
         let mut data = self.oracle.try_borrow_mut_data()?;
-        let data = bytemuck::from_bytes_mut::<PriceAccount>(&mut data);
+        let data = bytemuck::from_bytes_mut::<SolanaPriceAccount>(&mut data);
 
         data.agg.price = max(updated_price, 0);
         data.ema_price.val = max(updated_price, 0);
@@ -46,7 +46,7 @@ impl<'bump> BankAccounts<'bump> {
     pub fn log_oracle_price(&self) -> Result<(), ProgramError> {
         log!(
             "Oracle price: {}",
-            bytemuck::from_bytes::<PriceAccount>(&self.oracle.try_borrow_data()?)
+            bytemuck::from_bytes::<SolanaPriceAccount>(&self.oracle.try_borrow_data()?)
                 .ema_price
                 .val
         );

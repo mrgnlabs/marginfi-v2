@@ -12,6 +12,7 @@ use anchor_lang::{
     prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer, Sysvar},
     Discriminator, Key,
 };
+use anchor_spl::token_2022::spl_token_2022;
 use arbitrary_helpers::{
     AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
 };

@@ -1,4 +1,5 @@
 use anchor_lang::prelude::{AccountInfo, Clock, Pubkey};
+use anchor_spl::token_2022::spl_token_2022;
 use lazy_static::lazy_static;
 use solana_program::{entrypoint::ProgramResult, instruction::Instruction, program_stubs};
 
