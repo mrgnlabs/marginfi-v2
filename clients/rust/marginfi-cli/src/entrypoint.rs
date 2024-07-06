@@ -427,7 +427,11 @@ pub fn entry(opts: Opts) -> Result<()> {
             Ok(())
         }
 
-        Command::MakeTestI80F48 => Ok(process_make_test_i80f48()),
+        Command::MakeTestI80F48 => {
+            process_make_test_i80f48();
+            
+            Ok(())
+        }
     }
 }
 
@@ -756,7 +760,7 @@ fn patch_marginfi_idl(target_dir: String) -> Result<()> {
     let mut idl: serde_json::Value = serde_json::from_reader(reader)?;
 
     let idl_original_path = idl_path.replace(".json", "_original.json");
-    let file = std::fs::File::create(&idl_original_path)?;
+    let file = std::fs::File::create(idl_original_path)?;
     let writer = std::io::BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &idl)?;
 

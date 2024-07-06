@@ -1135,7 +1135,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
                 b.config.oracle_setup,
                 b.config.oracle_max_age,
                 b.mint,
-                b.config.oracle_keys.clone().get(0).unwrap().clone(),
+                *b.config.oracle_keys.clone().first().unwrap(),
             )
         })
         .partition(|(setup, _, _, _)| match setup {
@@ -1157,28 +1157,28 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
     let mut pyth_max_ages: HashMap<Pubkey, (u16, f64)> = HashMap::from_iter(
         pyth_feeds
             .iter()
-            .map(|(max_age, mint, _)| (max_age.clone(), mint.clone()))
+            .map(|(max_age, mint, _)| (*max_age, *mint))
             .map(|(max_age, mint)| (mint, (max_age, 0f64))),
     );
     let mut swb_max_ages: HashMap<Pubkey, (u16, f64)> = HashMap::from_iter(
         swb_feeds
             .iter()
-            .map(|(max_age, mint, _)| (max_age.clone(), mint.clone()))
+            .map(|(max_age, mint, _)| (*max_age, *mint))
             .map(|(max_age, mint)| (mint, (max_age, 0f64))),
     );
 
     loop {
         let pyth_keys = pyth_feeds
             .iter()
-            .map(|(_, _, key)| key.clone())
+            .map(|(_, _, key)| *key)
             .collect::<Vec<_>>();
         let pyth_mints = pyth_feeds
             .iter()
-            .map(|(_, key, _)| key.clone())
+            .map(|(_, key, _)| *key)
             .collect::<Vec<_>>();
         let pyth_max_age = pyth_feeds
             .iter()
-            .map(|(max_age, _, _)| max_age.clone())
+            .map(|(max_age, _, _)| *max_age)
             .collect::<Vec<_>>();
         let pyth_feed_accounts = config
             .mfi_program
@@ -1197,15 +1197,15 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 
         let swb_keys = swb_feeds
             .iter()
-            .map(|(_, _, key)| key.clone())
+            .map(|(_, _, key)| *key)
             .collect::<Vec<_>>();
         let swb_mints = swb_feeds
             .iter()
-            .map(|(_, key, _)| key.clone())
+            .map(|(_, key, _)| *key)
             .collect::<Vec<_>>();
         let swb_max_age = swb_feeds
             .iter()
-            .map(|(max_age, _, _)| max_age.clone())
+            .map(|(max_age, _, _)| *max_age)
             .collect::<Vec<_>>();
         let swb_feed_accounts = config
             .mfi_program
@@ -1216,9 +1216,8 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(swb_max_age)
             .map(|((maybe_account, mint), max_age)| {
                 let account = maybe_account.unwrap();
-                let pa = AggregatorAccountData::new_from_bytes(account.data())
-                    .unwrap()
-                    .clone();
+                let pa = *AggregatorAccountData::new_from_bytes(account.data())
+                    .unwrap();
 
                 (mint, pa, max_age)
             })
@@ -1231,7 +1230,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 
         let mut pyth_ages = pyth_feed_accounts
             .iter()
-            .map(|(mint, pa, _)| ((now - pa.get_publish_time()) as f64 / 60f64, mint.clone()))
+            .map(|(mint, pa, _)| ((now - pa.get_publish_time()) as f64 / 60f64, *mint))
             .collect::<Vec<_>>();
         pyth_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
 
@@ -1240,7 +1239,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .map(|(mint, pa, _)| {
                 (
                     (now - pa.latest_confirmed_round.round_open_timestamp) as f64 / 60f64,
-                    mint.clone(),
+                    *mint,
                 )
             })
             .collect::<Vec<_>>();

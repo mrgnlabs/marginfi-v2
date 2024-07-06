@@ -19,7 +19,6 @@ macro_rules! home_path {
             }
         }
 
-        #[allow(clippy::to_string_trait_impl)]
         impl ToString for $my_struct {
             fn to_string(&self) -> String {
                 self.0.clone()
