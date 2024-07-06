@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 idl-build = []
+no-entrypoint = []
 
 [lib]
 crate-type = ["cdylib", "lib"]

@@ -48,6 +48,7 @@ features = ["test-bpf"]
 [dependencies.transfer_hook]
 path = "../programs/test_transfer_hook"
 package = "test_transfer_hook"
+features = ["no-entrypoint"]
 
 [dependencies.liquidity-incentive-program]
 path = "../programs/liquidity-incentive-program"

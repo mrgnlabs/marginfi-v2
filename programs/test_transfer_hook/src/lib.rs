@@ -2,7 +2,6 @@
 use {
     solana_program::{
         account_info::{next_account_info, AccountInfo},
-        entrypoint,
         entrypoint::ProgramResult,
         msg,
         program::invoke_signed,
@@ -28,7 +27,8 @@ use {
 
 pub static TEST_HOOK_ID: Pubkey = pubkey!("TRANSFERHKTRANSFERHKTRANSFERHKTRANSFERHKTRA");
 
-entrypoint!(process);
+#[cfg(not(feature = "no-entrypoint"))]
+solana_program::entrypoint!(process);
 
 #[allow(unused)]
 fn check_token_account_is_transferring(account_info: &AccountInfo) -> Result<(), ProgramError> {

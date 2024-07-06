@@ -361,21 +361,15 @@ impl TestFixture {
         test_settings: Option<TestSettings>,
         extensions: &[SupportedExtension],
     ) -> TestFixture {
-        let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi_entry));
-
+        let mut program = ProgramTest::default();
         program.prefer_bpf(true);
-
-        program.add_program(
-            "test_transfer_hook",
-            TEST_HOOK_ID,
-            processor!(super::transfer_hook::process),
-        );
-
+        program.add_program("marginfi", marginfi::ID, None);
+        program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
         #[cfg(feature = "lip")]
         program.add_program(
             "liquidity_incentive_program",
             liquidity_incentive_program::ID,
-            processor!(lip_entry),
+            None,
         );
 
         let usdc_keypair = Keypair::new();
