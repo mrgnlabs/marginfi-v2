@@ -75,7 +75,7 @@ jobs:
       - run: cargo test --lib
 
   build-and-test-workspace:
-    name: Build Anchor Programs
+    name: Build And Test Anchor Programs
     runs-on: ubuntu-latest
 
     steps:
