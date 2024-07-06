@@ -363,13 +363,13 @@ impl TestFixture {
     ) -> TestFixture {
         let mut program = ProgramTest::new("marginfi", marginfi::ID, processor!(marginfi_entry));
 
+        program.prefer_bpf(true);
+
         program.add_program(
             "test_transfer_hook",
             TEST_HOOK_ID,
             processor!(super::transfer_hook::process),
         );
-
-        program.prefer_bpf(false);
 
         #[cfg(feature = "lip")]
         program.add_program(

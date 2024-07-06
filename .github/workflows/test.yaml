@@ -74,7 +74,7 @@ jobs:
 
       - run: cargo test --lib
 
-  build-workspace:
+  build-and-test-workspace:
     name: Build Anchor Programs
     runs-on: ubuntu-latest
 
@@ -86,17 +86,7 @@ jobs:
 
       - uses: ./.github/actions/build-workspace/
 
-  test-programs:
-    name: Test Anchor Programs
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - uses: ./.github/actions/setup-common/
-      - uses: ./.github/actions/setup-anchor-cli/
-
-      - run: ./scripts/test-program.sh all --sane
+      - run: SBF_OUT_DIR=$(pwd)/target/deploy ./scripts/test-program.sh all --sane
         shell: bash
 
   fuzz:
