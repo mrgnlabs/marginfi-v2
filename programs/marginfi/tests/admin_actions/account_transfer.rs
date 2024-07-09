@@ -18,6 +18,10 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
         .try_transfer_account_authority(new_authority, None)
         .await;
 
+    // Check transfer authority is unchanged
+    let account = marginfi_account.load().await;
+    assert_eq!(account.authority, test_f.payer());
+
     // Assert the response is an error due to the lack of the correct flag
     assert!(res.is_err());
     assert_custom_error!(
@@ -31,12 +35,20 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
         .await
         .unwrap();
 
+    // Check transfer authority flag
+    let account = marginfi_account.load().await;
+    assert!(account.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
+
     let new_authority_2 = Keypair::new().pubkey();
     let res = marginfi_account
         .try_transfer_account_authority(new_authority_2, None)
         .await;
 
     assert!(res.is_ok());
+
+    // Check transfer authority
+    let account = marginfi_account.load().await;
+    assert_eq!(account.authority, new_authority_2);
 
     Ok(())
 }

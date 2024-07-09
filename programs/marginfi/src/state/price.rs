@@ -21,6 +21,7 @@ use crate::{
 };
 
 use super::marginfi_group::BankConfig;
+use anchor_lang::prelude::borsh;
 
 #[repr(u8)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]

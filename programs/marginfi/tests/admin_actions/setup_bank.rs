@@ -1,11 +1,13 @@
 use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
     prelude::MarginfiError,
-    state::marginfi_group::{Bank, BankConfig, BankConfigOpt},
+    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
+use solana_sdk::pubkey::Pubkey;
 use test_case::test_case;
 
 #[tokio::test]
@@ -39,12 +41,70 @@ async fn add_bank_success() -> anyhow::Result<()> {
             .marginfi_group
             .try_lending_pool_add_bank(&mint_f, bank_config)
             .await;
-        assert!(res.is_ok());
 
-        // Check bank is active
-        let bank = res.unwrap();
-        let bank = test_f.try_load(&bank.key).await?;
-        assert!(bank.is_some());
+        // Check bank
+        let bank_f = res.unwrap();
+        let Bank {
+            mint,
+            mint_decimals,
+            group,
+            asset_share_value,
+            liability_share_value,
+            liquidity_vault,
+            liquidity_vault_bump,
+            liquidity_vault_authority_bump,
+            insurance_vault,
+            insurance_vault_bump,
+            insurance_vault_authority_bump,
+            collected_insurance_fees_outstanding,
+            fee_vault,
+            fee_vault_bump,
+            fee_vault_authority_bump,
+            collected_group_fees_outstanding,
+            total_liability_shares,
+            total_asset_shares,
+            last_update,
+            config,
+            flags,
+            emissions_rate,
+            emissions_remaining,
+            emissions_mint,
+            _padding_0,
+            _padding_1,
+        } = bank_f.load().await;
+        #[rustfmt::skip] 
+        let _ = {
+            assert_eq!(mint, bank_f.mint.key);
+            assert_eq!(mint_decimals, bank_f.mint.load_state().await.base.decimals);
+            assert_eq!(group, test_f.marginfi_group.key);
+            assert_eq!(asset_share_value, I80F48!(1.0).into());
+            assert_eq!(liability_share_value, I80F48!(1.0).into());
+            assert_eq!(liquidity_vault, bank_f.get_vault(BankVaultType::Liquidity).0);
+            assert_eq!(liquidity_vault_bump, bank_f.get_vault(BankVaultType::Liquidity).1);
+            assert_eq!(liquidity_vault_authority_bump, bank_f.get_vault_authority(BankVaultType::Liquidity).1);
+            assert_eq!(insurance_vault, bank_f.get_vault(BankVaultType::Insurance).0);
+            assert_eq!(insurance_vault_bump, bank_f.get_vault(BankVaultType::Insurance).1);
+            assert_eq!(insurance_vault_authority_bump, bank_f.get_vault_authority(BankVaultType::Insurance).1);
+            assert_eq!(fee_vault, bank_f.get_vault(BankVaultType::Fee).0);
+            assert_eq!(fee_vault_bump, bank_f.get_vault(BankVaultType::Fee).1);
+            assert_eq!(fee_vault_authority_bump, bank_f.get_vault_authority(BankVaultType::Fee).1);
+            assert_eq!(collected_insurance_fees_outstanding, I80F48!(0.0).into());
+            assert_eq!(collected_group_fees_outstanding, I80F48!(0.0).into());
+            assert_eq!(total_liability_shares, I80F48!(0.0).into());
+            assert_eq!(total_asset_shares, I80F48!(0.0).into());
+            assert_eq!(config, bank_config);
+            assert_eq!(flags, 0);
+            assert_eq!(emissions_rate, 0);
+            assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
+            assert_eq!(emissions_remaining, I80F48!(0.0).into());
+
+            assert_eq!(_padding_0, <[[u64; 2]; 28] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
+            
+
+            // this is the only loosely checked field
+            assert!(last_update >= 0 && last_update <= 5);
+        };
     }
 
     Ok(())
@@ -85,10 +145,69 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             .await;
         assert!(res.is_ok());
 
-        // Check bank is active
-        let bank = res.unwrap();
-        let bank = test_f.try_load(&bank.key).await?;
-        assert!(bank.is_some());
+        // Check bank
+        let bank_f = res.unwrap();
+        let Bank {
+            mint,
+            mint_decimals,
+            group,
+            asset_share_value,
+            liability_share_value,
+            liquidity_vault,
+            liquidity_vault_bump,
+            liquidity_vault_authority_bump,
+            insurance_vault,
+            insurance_vault_bump,
+            insurance_vault_authority_bump,
+            collected_insurance_fees_outstanding,
+            fee_vault,
+            fee_vault_bump,
+            fee_vault_authority_bump,
+            collected_group_fees_outstanding,
+            total_liability_shares,
+            total_asset_shares,
+            last_update,
+            config,
+            flags,
+            emissions_rate,
+            emissions_remaining,
+            emissions_mint,
+            _padding_0,
+            _padding_1,
+        } = bank_f.load().await;
+        #[rustfmt::skip] 
+        let _ = {
+            assert_eq!(mint, bank_f.mint.key);
+            assert_eq!(mint_decimals, bank_f.mint.load_state().await.base.decimals);
+            assert_eq!(group, test_f.marginfi_group.key);
+            assert_eq!(asset_share_value, I80F48!(1.0).into());
+            assert_eq!(liability_share_value, I80F48!(1.0).into());
+            assert_eq!(liquidity_vault, bank_f.get_vault(BankVaultType::Liquidity).0);
+            assert_eq!(liquidity_vault_bump, bank_f.get_vault(BankVaultType::Liquidity).1);
+            assert_eq!(liquidity_vault_authority_bump, bank_f.get_vault_authority(BankVaultType::Liquidity).1);
+            assert_eq!(insurance_vault, bank_f.get_vault(BankVaultType::Insurance).0);
+            assert_eq!(insurance_vault_bump, bank_f.get_vault(BankVaultType::Insurance).1);
+            assert_eq!(insurance_vault_authority_bump, bank_f.get_vault_authority(BankVaultType::Insurance).1);
+            assert_eq!(fee_vault, bank_f.get_vault(BankVaultType::Fee).0);
+            assert_eq!(fee_vault_bump, bank_f.get_vault(BankVaultType::Fee).1);
+            assert_eq!(fee_vault_authority_bump, bank_f.get_vault_authority(BankVaultType::Fee).1);
+            assert_eq!(collected_insurance_fees_outstanding, I80F48!(0.0).into());
+            assert_eq!(collected_group_fees_outstanding, I80F48!(0.0).into());
+            assert_eq!(total_liability_shares, I80F48!(0.0).into());
+            assert_eq!(total_asset_shares, I80F48!(0.0).into());
+            assert_eq!(config, bank_config);
+            assert_eq!(flags, 0);
+            assert_eq!(emissions_rate, 0);
+            assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
+            assert_eq!(emissions_remaining, I80F48!(0.0).into());
+
+            assert_eq!(_padding_0, <[[u64; 2]; 28] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
+            
+
+            // this is the only loosely checked field
+            assert!(last_update >= 0 && last_update <= 5);
+        };
     }
 
     Ok(())

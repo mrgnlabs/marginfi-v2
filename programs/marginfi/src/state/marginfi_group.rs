@@ -20,6 +20,7 @@ use crate::{
     state::marginfi_account::calc_value,
     MarginfiResult,
 };
+use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 use fixed::types::I80F48;
@@ -1252,7 +1253,7 @@ pub struct BankConfigOpt {
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize)]
+#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize, Debug)]
 pub struct OracleConfig {
     pub setup: OracleSetup,
     pub keys: [Pubkey; MAX_ORACLE_KEYS],
