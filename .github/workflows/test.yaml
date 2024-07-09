@@ -92,6 +92,7 @@ jobs:
   fuzz:
     name: Fuzz The marginfi Program
     runs-on: ubuntu-latest
+    working-directory: ./programs/marginfi/fuzz
 
     steps:
       - uses: actions/checkout@v3
@@ -106,7 +107,6 @@ jobs:
           override: true
       - name: Run fuzz tests in fuzz dir
         run: |
-          cd programs/marginfi
           cargo install cargo-fuzz --locked
           cargo fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
       - name: Pass after fuzzing
