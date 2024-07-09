@@ -110,6 +110,6 @@ jobs:
       - name: Run fuzz tests in fuzz dir
         run: |
           cargo install cargo-fuzz --locked
-          cargo fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
+          cargo +nightly fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
