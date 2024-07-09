@@ -5,7 +5,10 @@ use fixtures::{
 };
 use marginfi::{
     errors::MarginfiError,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    state::{
+        marginfi_account::DISABLED_FLAG,
+        marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    },
 };
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
@@ -199,6 +202,14 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
         .await;
 
     assert!(res.is_ok());
+
+    // Check borrower account is disabled and shares are
+    let borrower_marginfi_account = borrower_account.load().await;
+    assert!(borrower_marginfi_account.get_flag(DISABLED_FLAG));
+    assert_eq!(
+        borrower_marginfi_account.lending_account.balances[1].liability_shares,
+        I80F48!(0.0).into()
+    );
 
     Ok(())
 }
