@@ -72,7 +72,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             _padding_0,
             _padding_1,
         } = bank_f.load().await;
-        #[rustfmt::skip] 
+        #[rustfmt::skip]
         let _ = {
             assert_eq!(mint, bank_f.mint.key);
             assert_eq!(mint_decimals, bank_f.mint.load_state().await.base.decimals);
@@ -100,7 +100,6 @@ async fn add_bank_success() -> anyhow::Result<()> {
 
             assert_eq!(_padding_0, <[[u64; 2]; 28] as Default>::default());
             assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
-            
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -175,7 +174,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             _padding_0,
             _padding_1,
         } = bank_f.load().await;
-        #[rustfmt::skip] 
+        #[rustfmt::skip]
         let _ = {
             assert_eq!(mint, bank_f.mint.key);
             assert_eq!(mint_decimals, bank_f.mint.load_state().await.base.decimals);
@@ -203,7 +202,6 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
 
             assert_eq!(_padding_0, <[[u64; 2]; 28] as Default>::default());
             assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
-            
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);

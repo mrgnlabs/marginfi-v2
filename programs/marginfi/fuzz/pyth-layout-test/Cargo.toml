@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 bytemuck = "1.16.1"
-pyth-sdk-solana = "=0.10.1"
+pyth-sdk-solana.workspace = true
 solana-program.workspace = true
 
 

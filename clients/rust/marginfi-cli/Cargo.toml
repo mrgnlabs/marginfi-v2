@@ -27,6 +27,7 @@ anchor-spl = { workspace = true, features = ["token_2022"] }
 
 pyth-sdk-solana = { workspace = true }
 switchboard-solana = { workspace = true }
+borsh = "0.10.3"
 
 marginfi = { path = "../../../programs/marginfi", version = "0.1.0", features = [
     "client",

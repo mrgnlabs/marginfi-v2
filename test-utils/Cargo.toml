@@ -13,9 +13,6 @@ solana-program = { workspace = true }
 solana-logger = { workspace = true }
 solana-program-test = { workspace = true }
 solana-sdk = { workspace = true }
-# spl-token-2022 = { git = "https://github.com/solana-labs/solana-program-library", rev = "20e6792179fc7f1251579c1c33a4a0feec48e15e", features = [
-#   "no-entrypoint",
-# ] }
 spl-token-2022 = { workspace = true }
 spl-transfer-hook-interface = { workspace = true }
 spl-tlv-account-resolution = { workspace = true }

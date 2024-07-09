@@ -15,9 +15,9 @@ defaults:
 
 env:
   RUST_TOOLCHAIN: 1.75.0
-  SOLANA_CLI_VERSION: 1.17.33
+  SOLANA_CLI_VERSION: 1.18.17
   ANCHOR_CLI_VERSION: 0.30.1
-  ANCHOR_SHA: 852fcc77beb6302474a11e0f8e6f1e688021be36
+  ANCHOR_SHA: fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d
   CARGO_TERM_COLOR: always
 
 concurrency:
@@ -86,7 +86,7 @@ jobs:
 
       - uses: ./.github/actions/build-workspace/
 
-      - run: SBF_OUT_DIR=$(pwd)/target/deploy ./scripts/test-program.sh all --sane
+      - run: ./scripts/test-program.sh all --sane
         shell: bash
 
   fuzz:
@@ -101,12 +101,11 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2023-10-05
+          toolchain: nightly-2024-01-05
           components: rust-src
           override: true
       - name: Run fuzz tests in fuzz dir
         run: |
-          cd programs/marginfi
           cargo install cargo-fuzz --locked
           cargo fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
       - name: Pass after fuzzing

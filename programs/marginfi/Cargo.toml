@@ -33,9 +33,9 @@ anchor-spl = { workspace = true }
 
 pyth-sdk-solana = { workspace = true }
 switchboard-solana = { workspace = true }
+borsh = "0.10.3"
 
 bytemuck = "1.9.1"
-borsh = "0.10.3"
 cfg-if = "1.0.0"
 enum_dispatch = "0.3.11"
 fixed = "1.12.0"
