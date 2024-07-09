@@ -92,13 +92,13 @@ jobs:
   fuzz:
     name: Fuzz The marginfi Program
     runs-on: ubuntu-latest
-    working-directory: ./programs/marginfi/fuzz
 
     steps:
       - uses: actions/checkout@v3
       # - name: cache dependencies
       #   uses: Swatinem/rust-cache@v2
       - name: Install full rust toolchain
+        working-directory: programs/marginfi/fuzz
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -106,6 +106,7 @@ jobs:
           components: rust-src
           override: true
       - name: Run fuzz tests in fuzz dir
+        working-directory: programs/marginfi/fuzz
         run: |
           cargo install cargo-fuzz --locked
           cargo fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
