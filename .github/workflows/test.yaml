@@ -109,6 +109,7 @@ jobs:
           components: rust-src
       - name: Run fuzz tests in fuzz dir
         run: |
+          python ./generate_corpus.py
           cargo install cargo-fuzz --locked
           cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
       - name: Pass after fuzzing
