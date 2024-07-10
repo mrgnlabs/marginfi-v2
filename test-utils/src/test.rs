@@ -362,6 +362,10 @@ impl TestFixture {
         extensions: &[SupportedExtension],
     ) -> TestFixture {
         let mut program = ProgramTest::default();
+
+        let mem_map_not_copy_feature_gate = pubkey!("EenyoWx9UMXYKpR8mW5Jmfmy2fRjzUtM7NduYMY8bx33");
+        program.deactivate_feature(mem_map_not_copy_feature_gate);
+
         program.prefer_bpf(true);
         program.add_program("marginfi", marginfi::ID, None);
         program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
