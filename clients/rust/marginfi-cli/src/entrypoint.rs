@@ -407,15 +407,7 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
         #[cfg(feature = "lip")]
         Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
-        //
-        // Command::InspectSwitchboardFeed { switchboard_feed } => {
-        //     let profile = load_profile()?;
-        //     let config = profile.get_config(Some(&opts.cfg_override))?;
 
-        //     processor::process_inspect_switchboard_feed(&config, &switchboard_feed);
-
-        //     Ok(())
-        // }
         Command::InspectSize {} => inspect_size(),
 
         Command::ShowOracleAges { only_stale } => {
