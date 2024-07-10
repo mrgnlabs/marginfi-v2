@@ -1,13 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
-  "programs/marginfi/fuzz/pyth-layout-test",
-  "programs/*",
-  "clients/rust/*",
-  "tools/*",
-  #"observability/indexer"
-]
-exclude = ["programs/brick"]
+members = ["programs/*", "clients/rust/*", "tools/*"]
 
 [workspace.dependencies]
 solana-cli-output = "=1.18.17"

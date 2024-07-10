@@ -21,6 +21,5 @@ test = []
 overflow-checks = true
 
 [dependencies]
-solana-program = "=1.18.17"
-anchor-lang = { git = "https://github.com/mrgnlabs/anchor.git", rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
-borsh = "0.10.3"
+solana-program.workspace = true
+anchor-lang.workspace = true

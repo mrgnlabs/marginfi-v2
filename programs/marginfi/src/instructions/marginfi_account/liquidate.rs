@@ -65,6 +65,16 @@ use solana_program::sysvar::Sysvar;
 /// assuming that the liquidatee liability token balance doesn't become positive (doesn't become counted as collateral),
 /// and that the liquidatee collateral token balance doesn't become negative (doesn't become counted as liability).
 ///
+///
+/// Expected remaining account schema
+/// [
+///    liab_mint_ai (if token2022 mint),
+///    asset_oracle_ai,
+///    liab_oracle_ai,
+///    liquidator_observation_ais...,
+///    liquidatee_observation_ais...,
+///  ]
+
 pub fn lending_account_liquidate<'info>(
     mut ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
     asset_amount: u64,
@@ -108,10 +118,10 @@ pub fn lending_account_liquidate<'info>(
             ctx.accounts.liab_bank.key(),
         )?;
     }
-    let init_liquidator_remaining_len = liquidatee_marginfi_account.get_remaining_accounts_len();
+    let init_liquidatee_remaining_len = liquidatee_marginfi_account.get_remaining_accounts_len();
     let pre_liquidation_health = {
         let liquidatee_accounts_starting_pos =
-            ctx.remaining_accounts.len() - liquidatee_marginfi_account.get_remaining_accounts_len();
+            ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
         let liquidatee_remaining_accounts =
             &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
 
@@ -329,11 +339,11 @@ pub fn lending_account_liquidate<'info>(
 
     // ## Risk checks ##
 
-    let liquidator_accounts_starting_pos = ctx.remaining_accounts.len()
-        - init_liquidator_remaining_len
-        - liquidator_marginfi_account.get_remaining_accounts_len();
     let liquidatee_accounts_starting_pos =
-        ctx.remaining_accounts.len() - init_liquidator_remaining_len;
+        ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
+    let liquidator_accounts_starting_pos =
+        liquidatee_accounts_starting_pos - liquidator_marginfi_account.get_remaining_accounts_len();
+
     let liquidatee_remaining_accounts = &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
     let liquidator_remaining_accounts =
         &ctx.remaining_accounts[liquidator_accounts_starting_pos..liquidatee_accounts_starting_pos];

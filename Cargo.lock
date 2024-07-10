@@ -1048,6 +1048,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "brick"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang 0.30.1",
+ "solana-program",
+]
+
+[[package]]
 name = "brotli"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3715,16 +3723,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "pyth-layout-test"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "marginfi",
- "pyth-sdk-solana",
- "solana-program",
 ]
 
 [[package]]
