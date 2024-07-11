@@ -2,6 +2,7 @@ use super::{
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
+use crate::borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
@@ -19,10 +20,11 @@ use crate::{
     state::marginfi_account::calc_value,
     MarginfiResult,
 };
+use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, Transfer};
+use anchor_spl::token_interface::*;
 use fixed::types::I80F48;
-use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
+use pyth_sdk_solana::{state::SolanaPriceAccount, PriceFeed};
 #[cfg(feature = "client")]
 use std::fmt::Display;
 use std::{
@@ -73,12 +75,11 @@ pub struct GroupConfig {
 /// Load and validate a pyth price feed account.
 pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
-    let price_feed =
-        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
+    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
+        .map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
 }
 
-#[zero_copy]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -133,7 +134,7 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, Debug)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -377,8 +378,7 @@ impl Bank {
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
-            _padding_0: [[0; 2]; 28],
-            _padding_1: [[0; 2]; 32],
+            ..Default::default()
         }
     }
 
@@ -644,41 +644,106 @@ impl Bank {
         Ok(())
     }
 
-    pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
+    pub fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'b>,
-        program: AccountInfo<'c>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
+        program: AccountInfo<'info>,
+        remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
         check!(
-            accounts.to.key.eq(&self.liquidity_vault),
+            to.key.eq(&self.liquidity_vault),
             MarginfiError::InvalidTransfer
         );
 
         debug!(
             "deposit_spl_transfer: amount: {} from {} to {}, auth {}",
-            amount, accounts.from.key, accounts.to.key, accounts.authority.key
+            amount, from.key, to.key, authority.key
         );
 
-        transfer(CpiContext::new(program, accounts), amount)
+        if let Some(mint) = maybe_mint {
+            spl_token_2022::onchain::invoke_transfer_checked(
+                program.key,
+                from,
+                mint.to_account_info(),
+                to,
+                authority,
+                remaining_accounts,
+                amount,
+                mint.decimals,
+                &[],
+            )?;
+        } else {
+            #[allow(deprecated)]
+            transfer(
+                CpiContext::new_with_signer(
+                    program,
+                    Transfer {
+                        from,
+                        to,
+                        authority,
+                    },
+                    &[],
+                ),
+                amount,
+            )?;
+        }
+
+        Ok(())
     }
 
-    pub fn withdraw_spl_transfer<'b: 'c, 'c: 'b>(
+    pub fn withdraw_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'b>,
-        program: AccountInfo<'c>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
+        program: AccountInfo<'info>,
         signer_seeds: &[&[&[u8]]],
+        remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
         debug!(
             "withdraw_spl_transfer: amount: {} from {} to {}, auth {}",
-            amount, accounts.from.key, accounts.to.key, accounts.authority.key
+            amount, from.key, to.key, authority.key
         );
 
-        transfer(
-            CpiContext::new_with_signer(program, accounts, signer_seeds),
-            amount,
-        )
+        if let Some(mint) = maybe_mint {
+            spl_token_2022::onchain::invoke_transfer_checked(
+                program.key,
+                from,
+                mint.to_account_info(),
+                to,
+                authority,
+                remaining_accounts,
+                amount,
+                mint.decimals,
+                signer_seeds,
+            )?;
+        } else {
+            // `transfer_checked` and `transfer` does the same thing, the additional `_checked` logic
+            // is only to assert the expected attributes by the user (mint, decimal scaling),
+            //
+            // Security of `transfer` is equal to `transfer_checked`.
+            #[allow(deprecated)]
+            transfer(
+                CpiContext::new_with_signer(
+                    program,
+                    Transfer {
+                        from,
+                        to,
+                        authority,
+                    },
+                    signer_seeds,
+                ),
+                amount,
+            )?;
+        }
+
+        Ok(())
     }
 
     /// Socialize a loss `loss_amount` among depositors,
@@ -876,7 +941,6 @@ pub enum RiskTier {
     Isolated,
 }
 
-#[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -973,7 +1037,7 @@ assert_struct_align!(BankConfig, 8);
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(AnchorDeserialize, AnchorSerialize, Debug)]
+#[derive(Debug)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub asset_weight_init: WrappedI80F48,
@@ -1130,7 +1194,7 @@ impl BankConfig {
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Default, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, BorshDeserialize, BorshSerialize)]
 pub struct WrappedI80F48 {
     pub value: [u8; 16],
 }
@@ -1189,7 +1253,7 @@ pub struct BankConfigOpt {
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize)]
+#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize, Debug)]
 pub struct OracleConfig {
     pub setup: OracleSetup,
     pub keys: [Pubkey; MAX_ORACLE_KEYS],

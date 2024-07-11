@@ -1,16 +1,17 @@
-use anchor_lang::{prelude::*, Discriminator};
+use anchor_lang::prelude::*;
+use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
-    AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
+    AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
 };
 use solana_program::{instruction::Instruction, pubkey};
 use solana_program_test::*;
 use solana_sdk::{account::Account, signature::Keypair};
 use std::mem::size_of;
 use std::{cell::RefCell, rc::Rc};
-use switchboard_v2::SWITCHBOARD_PROGRAM_ID;
-use switchboard_v2::{
+use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, AggregatorRound, SwitchboardDecimal,
+    SWITCHBOARD_PROGRAM_ID,
 };
 
 pub const MS_PER_SLOT: u64 = 400;
@@ -59,14 +60,14 @@ pub fn create_pyth_price_account_from_file(data: Vec<u8>) -> Account {
 
 pub fn create_pyth_price_account(
     mint: Pubkey,
-    ui_price: i64,
+    ui_price: f64,
     mint_decimals: i32,
     timestamp: Option<i64>,
 ) -> Account {
-    let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
+    let native_price = (ui_price * 10_f64.powf(mint_decimals as f64)) as i64;
     Account {
         lamports: 1_000_000,
-        data: bytemuck::bytes_of(&PriceAccount {
+        data: bytemuck::bytes_of(&SolanaPriceAccount {
             prod: mint,
             agg: PriceInfo {
                 conf: 0,
@@ -102,7 +103,7 @@ pub fn create_pyth_price_account(
 
 pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Account {
     let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
-    let aggregator_account = switchboard_v2::AggregatorAccountData {
+    let aggregator_account = switchboard_solana::AggregatorAccountData {
         name: [0; 32],
         metadata: [0; 128],
         _reserved1: [0; 32],
@@ -321,7 +322,7 @@ pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Accou
             ],
         },
         job_pubkeys_data: [Pubkey::default(); 16],
-        job_hashes: [switchboard_v2::Hash::default(); 16],
+        job_hashes: [switchboard_solana::Hash::default(); 16],
         job_pubkeys_size: 5,
         jobs_checksum: [
             119, 207, 222, 177, 160, 127, 254, 198, 132, 153, 111, 54, 202, 89, 87, 81, 75, 152,
@@ -342,12 +343,20 @@ pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Accou
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0,
+            0,
+            //0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            // 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ],
+        ..Default::default() // base_priority_fee: todo!(),
+                             // priority_fee_bump: todo!(),
+                             // priority_fee_bump_period: todo!(),
+                             // max_priority_fee_multiplier: todo!(),
+                             // parent_function: todo!(),
     };
 
-    let desc_bytes = <AggregatorAccountData as Discriminator>::DISCRIMINATOR;
+    let desc_bytes =
+        <AggregatorAccountData as switchboard_solana::anchor_lang::Discriminator>::DISCRIMINATOR;
     let mut data = vec![0u8; 8 + size_of::<AggregatorAccountData>()];
     data[..8].copy_from_slice(&desc_bytes);
     data[8..].copy_from_slice(bytemuck::bytes_of(&aggregator_account));
@@ -452,6 +461,21 @@ macro_rules! native {
         (($val) * 10_u64.pow(6) as f64) as u64
     };
 
+    ($val: expr, "PYUSD") => {
+        $val * 10_u64.pow(6)
+    };
+
+    ($val: expr, "PYUSD", f64) => {
+        (($val) * 10_u64.pow(6) as f64) as u64
+    };
+    ($val: expr, "T22_WITH_FEE") => {
+        $val * 10_u64.pow(6)
+    };
+
+    ($val: expr, "T22_WITH_FEE", f64) => {
+        (($val) * 10_u64.pow(6) as f64) as u64
+    };
+
     ($val: expr, "SOL") => {
         $val * 10_u64.pow(9)
     };
@@ -473,6 +497,14 @@ macro_rules! native {
     };
 
     ($val: expr, "MNDE", f64) => {
+        (($val) * 10_u64.pow(9) as f64) as u64
+    };
+
+    ($val: expr, "SOL_EQ_ISO") => {
+        $val * 10_u64.pow(9)
+    };
+
+    ($val: expr, "SOL_EQ_ISO", f64) => {
         (($val) * 10_u64.pow(9) as f64) as u64
     };
 
@@ -554,6 +586,18 @@ pub fn get_emissions_token_account_address(
         ],
         &marginfi::id(),
     )
+}
+
+pub fn get_max_deposit_amount_pre_fee(amount: f64) -> f64 {
+    amount * (1f64 + MAX_FEE_BASIS_POINTS as f64 / 10_000f64)
+}
+
+pub fn get_sufficient_collateral_for_outflow(
+    target_outflow: f64,
+    collateral_mint_price: f64,
+    outflow_mint_price: f64,
+) -> f64 {
+    target_outflow * outflow_mint_price / collateral_mint_price
 }
 
 #[cfg(feature = "lip")]

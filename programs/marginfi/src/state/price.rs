@@ -4,21 +4,24 @@ use anchor_lang::prelude::*;
 
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
-use pyth_sdk_solana::{load_price_feed_from_account_info, Price, PriceFeed};
-use switchboard_v2::{
+use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
+use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
+
+pub use pyth_sdk_solana;
 
 use crate::{
     check,
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL, PYTH_ID, STD_DEV_MULTIPLE,
     },
-    debug, math_error,
+    math_error,
     prelude::*,
 };
 
 use super::marginfi_group::BankConfig;
+use anchor_lang::prelude::borsh;
 
 #[repr(u8)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
@@ -80,7 +83,6 @@ impl OraclePriceFeedAdapter {
         current_timestamp: i64,
         max_age: u64,
     ) -> MarginfiResult<Self> {
-        debug!("Max age: {}", max_age);
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
             OracleSetup::PythEma => {
@@ -151,11 +153,6 @@ pub struct PythEmaPriceFeed {
 impl PythEmaPriceFeed {
     pub fn load_checked(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
         let price_feed = load_pyth_price_feed(ai)?;
-
-        debug!(
-            "Oracle age: {}s",
-            price_feed.get_price_unchecked().publish_time - current_time
-        );
 
         let ema_price = price_feed
             .get_ema_price_no_older_than(current_time, max_age)
@@ -431,8 +428,8 @@ fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResu
 /// Load and validate a pyth price feed account.
 fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
-    let price_feed =
-        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
+    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
+        .map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
 }
 

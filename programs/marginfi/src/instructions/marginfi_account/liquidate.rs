@@ -10,9 +10,9 @@ use crate::{
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
 };
-use crate::{check, debug, prelude::*};
+use crate::{check, debug, prelude::*, utils};
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Transfer};
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
@@ -65,8 +65,18 @@ use solana_program::sysvar::Sysvar;
 /// assuming that the liquidatee liability token balance doesn't become positive (doesn't become counted as collateral),
 /// and that the liquidatee collateral token balance doesn't become negative (doesn't become counted as liability).
 ///
-pub fn lending_account_liquidate(
-    ctx: Context<LendingAccountLiquidate>,
+///
+/// Expected remaining account schema
+/// [
+///    liab_mint_ai (if token2022 mint),
+///    asset_oracle_ai,
+///    liab_oracle_ai,
+///    liquidator_observation_ais...,
+///    liquidatee_observation_ais...,
+///  ]
+
+pub fn lending_account_liquidate<'info>(
+    mut ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
     asset_amount: u64,
 ) -> MarginfiResult {
     check!(
@@ -91,6 +101,11 @@ pub fn lending_account_liquidate(
     let mut liquidatee_marginfi_account = liquidatee_marginfi_account_loader.load_mut()?;
     let current_timestamp = Clock::get()?.unix_timestamp;
 
+    let maybe_liab_bank_mint = utils::maybe_take_bank_mint(
+        &mut ctx.remaining_accounts,
+        &*ctx.accounts.liab_bank.load()?,
+        ctx.accounts.token_program.key,
+    )?;
     {
         ctx.accounts.asset_bank.load_mut()?.accrue_interest(
             current_timestamp,
@@ -103,10 +118,10 @@ pub fn lending_account_liquidate(
             ctx.accounts.liab_bank.key(),
         )?;
     }
-
+    let init_liquidatee_remaining_len = liquidatee_marginfi_account.get_remaining_accounts_len();
     let pre_liquidation_health = {
         let liquidatee_accounts_starting_pos =
-            ctx.remaining_accounts.len() - liquidatee_marginfi_account.get_remaining_accounts_len();
+            ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
         let liquidatee_remaining_accounts =
             &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
 
@@ -279,20 +294,19 @@ pub fn lending_account_liquidate(
             // Insurance fund receives fee
             liquidatee_liab_bank_account.withdraw_spl_transfer(
                 insurance_fee_to_transfer,
-                Transfer {
-                    from: ctx.accounts.bank_liquidity_vault.to_account_info(),
-                    to: ctx.accounts.bank_insurance_vault.to_account_info(),
-                    authority: ctx
-                        .accounts
-                        .bank_liquidity_vault_authority
-                        .to_account_info(),
-                },
+                ctx.accounts.bank_liquidity_vault.to_account_info(),
+                ctx.accounts.bank_insurance_vault.to_account_info(),
+                ctx.accounts
+                    .bank_liquidity_vault_authority
+                    .to_account_info(),
+                maybe_liab_bank_mint.as_ref(),
                 ctx.accounts.token_program.to_account_info(),
                 bank_signer!(
                     BankVaultType::Liquidity,
                     ctx.accounts.liab_bank.key(),
                     liab_bank_liquidity_authority_bump
                 ),
+                ctx.remaining_accounts,
             )?;
 
             (
@@ -325,9 +339,14 @@ pub fn lending_account_liquidate(
 
     // ## Risk checks ##
 
-    let (liquidator_remaining_accounts, liquidatee_remaining_accounts) = ctx.remaining_accounts
-        [2..]
-        .split_at(liquidator_marginfi_account.get_remaining_accounts_len());
+    let liquidatee_accounts_starting_pos =
+        ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
+    let liquidator_accounts_starting_pos =
+        liquidatee_accounts_starting_pos - liquidator_marginfi_account.get_remaining_accounts_len();
+
+    let liquidatee_remaining_accounts = &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
+    let liquidator_remaining_accounts =
+        &ctx.remaining_accounts[liquidator_accounts_starting_pos..liquidatee_accounts_starting_pos];
 
     // Verify liquidatee liquidation post health
     let post_liquidation_health =
@@ -418,7 +437,7 @@ pub struct LendingAccountLiquidate<'info> {
         ],
         bump = liab_bank.load()?.liquidity_vault_bump
     )]
-    pub bank_liquidity_vault: Box<Account<'info, TokenAccount>>,
+    pub bank_liquidity_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Seed constraint
     #[account(
@@ -431,5 +450,5 @@ pub struct LendingAccountLiquidate<'info> {
     )]
     pub bank_insurance_vault: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }

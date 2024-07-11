@@ -1,10 +1,5 @@
-#[cfg(feature = "admin")]
-pub mod emissions;
-
-#[cfg(feature = "admin")]
 pub mod admin;
-
-#[cfg(feature = "admin")]
+pub mod emissions;
 pub mod group;
 
 use {
@@ -12,6 +7,7 @@ use {
         config::Config,
         profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
         utils::{
+            calc_emissions_rate, create_oracle_key_array, find_bank_emssions_auth_pda,
             find_bank_emssions_token_account_pda, find_bank_vault_authority_pda,
             find_bank_vault_pda, load_observation_account_metas, process_transaction,
             EXP_10_I80F48,
@@ -21,25 +17,40 @@ use {
         anchor_lang::{InstructionData, ToAccountMetas},
         Cluster,
     },
-    anchor_spl::token::{self, spl_token},
+    anchor_spl::token_2022::spl_token_2022,
     anyhow::{anyhow, bail, Result},
     fixed::types::I80F48,
     log::info,
     marginfi::{
-        prelude::MarginfiGroup,
+        constants::{
+            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, ZERO_AMOUNT_THRESHOLD,
+        },
+        prelude::*,
         state::{
             marginfi_account::{BankAccountWrapper, MarginfiAccount},
-            marginfi_group::{Bank, BankVaultType},
+            marginfi_group::{
+                Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
+                InterestRateConfig, WrappedI80F48,
+            },
+            price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter},
         },
+        utils::NumTraitsWithTolerance,
     },
-    solana_client::rpc_filter::{Memcmp, RpcFilterType},
+    pyth_sdk_solana::state::{load_price_account, SolanaPriceAccount},
+    solana_client::{
+        rpc_client::RpcClient,
+        rpc_filter::{Memcmp, RpcFilterType},
+    },
     solana_sdk::{
+        account::ReadableAccount,
         account_info::IntoAccountInfo,
         clock::Clock,
         commitment_config::CommitmentLevel,
         compute_budget::ComputeBudgetInstruction,
         instruction::{AccountMeta, Instruction},
         message::Message,
+        program_pack::Pack,
+        pubkey,
         pubkey::Pubkey,
         signature::Keypair,
         signer::Signer,
@@ -47,34 +58,17 @@ use {
         sysvar::{self, Sysvar},
         transaction::Transaction,
     },
-    spl_associated_token_account::instruction::create_associated_token_account_idempotent,
+    spl_associated_token_account::{
+        get_associated_token_address, instruction::create_associated_token_account_idempotent,
+    },
     std::{
         collections::HashMap,
-        fs,
+        fs, io,
         mem::size_of,
         ops::{Neg, Not},
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
-};
-
-#[cfg(feature = "dev")]
-use marginfi::state::price::{OraclePriceFeedAdapter, PriceAdapter};
-use marginfi::{constants::ZERO_AMOUNT_THRESHOLD, utils::NumTraitsWithTolerance};
-use solana_client::rpc_client::RpcClient;
-
-#[cfg(feature = "admin")]
-use {
-    crate::utils::{calc_emissions_rate, create_oracle_key_array, find_bank_emssions_auth_pda},
-    marginfi::{
-        constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE},
-        prelude::GroupConfig,
-        state::marginfi_group::{
-            BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig, WrappedI80F48,
-        },
-    },
-    solana_sdk::program_pack::Pack,
-    spl_associated_token_account::get_associated_token_address,
-    std::io,
+    switchboard_solana::AggregatorAccountData,
 };
 
 #[cfg(feature = "lip")]
@@ -215,7 +209,6 @@ Last Update: {:?}h ago ({})
     )
 }
 
-#[cfg(feature = "admin")]
 pub fn group_create(
     config: Config,
     profile: Profile,
@@ -267,7 +260,6 @@ pub fn group_create(
     Ok(())
 }
 
-#[cfg(feature = "admin")]
 pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
@@ -305,7 +297,7 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "admin")]
+
 pub fn group_add_bank(
     config: Config,
     profile: Profile,
@@ -347,10 +339,11 @@ pub fn group_add_bank(
     let insurance_ir_fee: WrappedI80F48 = I80F48::from_num(insurance_ir_fee).into();
     let protocol_fixed_fee_apr: WrappedI80F48 = I80F48::from_num(protocol_fixed_fee_apr).into();
     let protocol_ir_fee: WrappedI80F48 = I80F48::from_num(protocol_ir_fee).into();
-
     let mint_account = rpc_client.get_account(&bank_mint)?;
-    let mint = spl_token::state::Mint::unpack(&mint_account.data)?;
-
+    let token_program = mint_account.owner;
+    let mint = spl_token_2022::state::Mint::unpack(
+        &mint_account.data[..spl_token_2022::state::Mint::LEN],
+    )?;
     let deposit_limit = deposit_limit_ui * 10_u64.pow(mint.decimals as u32);
     let borrow_limit = borrow_limit_ui * 10_u64.pow(mint.decimals as u32);
 
@@ -381,6 +374,7 @@ pub fn group_add_bank(
             profile,
             &rpc_client,
             bank_mint,
+            token_program,
             oracle_key,
             asset_weight_init,
             asset_weight_maint,
@@ -398,6 +392,7 @@ pub fn group_add_bank(
             &config,
             profile,
             bank_mint,
+            token_program,
             &bank_keypair,
             oracle_key,
             asset_weight_init,
@@ -413,8 +408,11 @@ pub fn group_add_bank(
         )?
     };
 
+    let mut ixs = vec![ComputeBudgetInstruction::set_compute_unit_price(1)];
+    ixs.extend(add_bank_ixs);
+
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-    let message = Message::new(&add_bank_ixs, None);
+    let message = Message::new(&ixs, None);
     let mut transaction = Transaction::new_unsigned(message);
     transaction.partial_sign(&signing_keypairs, recent_blockhash);
 
@@ -427,12 +425,13 @@ pub fn group_add_bank(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "admin")]
+
 fn create_bank_ix_with_seed(
     config: &Config,
     profile: Profile,
     rpc_client: &RpcClient,
     bank_mint: Pubkey,
+    token_program: Pubkey,
     oracle_key: Pubkey,
     asset_weight_init: WrappedI80F48,
     asset_weight_maint: WrappedI80F48,
@@ -456,7 +455,7 @@ fn create_bank_ix_with_seed(
         println!("Seed option enabled -- generating a PDA account");
         let (pda, _) = Pubkey::find_program_address(
             [group_key.as_ref(), bank_mint.as_ref(), &i.to_le_bytes()].as_slice(),
-            &marginfi::id(),
+            &config.program_id,
         );
         if rpc_client
             .get_account_with_commitment(&pda, CommitmentConfig::default())?
@@ -510,7 +509,7 @@ fn create_bank_ix_with_seed(
             )
             .0,
             rent: sysvar::rent::id(),
-            token_program: token::ID,
+            token_program,
             system_program: system_program::id(),
             fee_payer: config.authority(),
         })
@@ -542,11 +541,12 @@ fn create_bank_ix_with_seed(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "admin")]
+
 fn create_bank_ix(
     config: &Config,
     profile: Profile,
     bank_mint: Pubkey,
+    token_program: Pubkey,
     bank_keypair: &Keypair,
     oracle_key: Pubkey,
     asset_weight_init: WrappedI80F48,
@@ -604,7 +604,7 @@ fn create_bank_ix(
             )
             .0,
             rent: sysvar::rent::id(),
-            token_program: token::ID,
+            token_program,
             system_program: system_program::id(),
             fee_payer: config.explicit_fee_payer(),
         })
@@ -635,7 +635,7 @@ fn create_bank_ix(
 }
 
 #[allow(clippy::too_many_arguments, dead_code)]
-#[cfg(feature = "admin")]
+
 pub fn group_handle_bankruptcy(
     config: &Config,
     profile: Profile,
@@ -733,6 +733,11 @@ fn handle_bankruptcy_for_an_account(
     bank_pk: Pubkey,
 ) -> Result<()> {
     println!("Handling bankruptcy for bank {}", bank_pk);
+
+    let bank = banks.get(&bank_pk).unwrap();
+
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    let token_program = bank_mint_account.owner;
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
@@ -758,12 +763,17 @@ fn handle_bankruptcy_for_an_account(
                 &config.program_id,
             )
             .0,
-            token_program: token::ID,
+            token_program,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
+    if token_program == spl_token_2022::ID {
+        handle_bankruptcy_ix
+            .accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     handle_bankruptcy_ix
         .accounts
         .extend(load_observation_account_metas(
@@ -789,10 +799,8 @@ fn handle_bankruptcy_for_an_account(
     Ok(())
 }
 
-#[cfg(feature = "admin")]
 const BANKRUPTCY_CHUNKS: usize = 4;
 
-#[cfg(feature = "admin")]
 pub fn handle_bankruptcy_for_accounts(
     config: &Config,
     profile: &Profile,
@@ -868,7 +876,7 @@ pub fn handle_bankruptcy_for_accounts(
 
     Ok(())
 }
-#[cfg(feature = "admin")]
+
 fn make_bankruptcy_ix(
     config: &Config,
     profile: &Profile,
@@ -878,6 +886,12 @@ fn make_bankruptcy_ix(
     bank_pk: Pubkey,
 ) -> Result<Instruction> {
     println!("Handling bankruptcy for bank {}", bank_pk);
+    let rpc_client = config.mfi_program.rpc();
+
+    let bank = banks.get(&bank_pk).unwrap();
+
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    let token_program = bank_mint_account.owner;
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
@@ -903,12 +917,17 @@ fn make_bankruptcy_ix(
                 &config.program_id,
             )
             .0,
-            token_program: token::ID,
+            token_program,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
+    if token_program == spl_token_2022::ID {
+        handle_bankruptcy_ix
+            .accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     handle_bankruptcy_ix
         .accounts
         .extend(load_observation_account_metas(
@@ -937,7 +956,7 @@ pub fn process_set_user_flag(
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::SetAccountFlag { flag }.data(),
-        program_id: marginfi::id(),
+        program_id: config.program_id,
     };
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
@@ -993,9 +1012,12 @@ pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
             insurance_vault_balance.amount
         );
         if bank.emissions_mint != Pubkey::default() {
-            let emissions_token_account =
-                find_bank_emssions_token_account_pda(address, bank.emissions_mint, marginfi::id())
-                    .0;
+            let emissions_token_account = find_bank_emssions_token_account_pda(
+                address,
+                bank.emissions_mint,
+                config.program_id,
+            )
+            .0;
             let emissions_vault_balance =
                 rpc_client.get_token_account_balance(&emissions_token_account)?;
             println!(
@@ -1041,7 +1063,6 @@ pub fn bank_get_all(config: Config, marginfi_group: Option<Pubkey>) -> Result<()
     Ok(())
 }
 
-#[cfg(feature = "dev")]
 pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> {
     use marginfi::state::price::{OraclePriceType, PriceBias};
 
@@ -1097,13 +1118,7 @@ Prince:
     Ok(())
 }
 
-#[cfg(feature = "dev")]
 pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
-    use marginfi::state::price::OracleSetup;
-    use pyth_sdk_solana::state::load_price_account;
-    use solana_sdk::{account::ReadableAccount, pubkey};
-    use switchboard_v2::AggregatorAccountData;
-
     let banks = config
         .mfi_program
         .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
@@ -1120,7 +1135,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
                 b.config.oracle_setup,
                 b.config.oracle_max_age,
                 b.mint,
-                b.config.oracle_keys.clone().get(0).unwrap().clone(),
+                *b.config.oracle_keys.clone().first().unwrap(),
             )
         })
         .partition(|(setup, _, _, _)| match setup {
@@ -1142,28 +1157,28 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
     let mut pyth_max_ages: HashMap<Pubkey, (u16, f64)> = HashMap::from_iter(
         pyth_feeds
             .iter()
-            .map(|(max_age, mint, _)| (max_age.clone(), mint.clone()))
+            .map(|(max_age, mint, _)| (*max_age, *mint))
             .map(|(max_age, mint)| (mint, (max_age, 0f64))),
     );
     let mut swb_max_ages: HashMap<Pubkey, (u16, f64)> = HashMap::from_iter(
         swb_feeds
             .iter()
-            .map(|(max_age, mint, _)| (max_age.clone(), mint.clone()))
+            .map(|(max_age, mint, _)| (*max_age, *mint))
             .map(|(max_age, mint)| (mint, (max_age, 0f64))),
     );
 
     loop {
         let pyth_keys = pyth_feeds
             .iter()
-            .map(|(_, _, key)| key.clone())
+            .map(|(_, _, key)| *key)
             .collect::<Vec<_>>();
         let pyth_mints = pyth_feeds
             .iter()
-            .map(|(_, key, _)| key.clone())
+            .map(|(_, key, _)| *key)
             .collect::<Vec<_>>();
         let pyth_max_age = pyth_feeds
             .iter()
-            .map(|(max_age, _, _)| max_age.clone())
+            .map(|(max_age, _, _)| *max_age)
             .collect::<Vec<_>>();
         let pyth_feed_accounts = config
             .mfi_program
@@ -1174,23 +1189,17 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(pyth_max_age)
             .map(|((maybe_account, mint), max_age)| {
                 let account = maybe_account.unwrap();
-                let pa = load_price_account(account.data()).unwrap().clone();
+                let pa: SolanaPriceAccount = *load_price_account(account.data()).unwrap();
 
                 (mint, pa, max_age)
             })
             .collect::<Vec<_>>();
 
-        let swb_keys = swb_feeds
-            .iter()
-            .map(|(_, _, key)| key.clone())
-            .collect::<Vec<_>>();
-        let swb_mints = swb_feeds
-            .iter()
-            .map(|(_, key, _)| key.clone())
-            .collect::<Vec<_>>();
+        let swb_keys = swb_feeds.iter().map(|(_, _, key)| *key).collect::<Vec<_>>();
+        let swb_mints = swb_feeds.iter().map(|(_, key, _)| *key).collect::<Vec<_>>();
         let swb_max_age = swb_feeds
             .iter()
-            .map(|(max_age, _, _)| max_age.clone())
+            .map(|(max_age, _, _)| *max_age)
             .collect::<Vec<_>>();
         let swb_feed_accounts = config
             .mfi_program
@@ -1201,9 +1210,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(swb_max_age)
             .map(|((maybe_account, mint), max_age)| {
                 let account = maybe_account.unwrap();
-                let pa = AggregatorAccountData::new_from_bytes(account.data())
-                    .unwrap()
-                    .clone();
+                let pa = *AggregatorAccountData::new_from_bytes(account.data()).unwrap();
 
                 (mint, pa, max_age)
             })
@@ -1216,7 +1223,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 
         let mut pyth_ages = pyth_feed_accounts
             .iter()
-            .map(|(mint, pa, _)| ((now - pa.get_publish_time()) as f64 / 60f64, mint.clone()))
+            .map(|(mint, pa, _)| ((now - pa.get_publish_time()) as f64 / 60f64, *mint))
             .collect::<Vec<_>>();
         pyth_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
 
@@ -1225,7 +1232,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .map(|(mint, pa, _)| {
                 (
                     (now - pa.latest_confirmed_round.round_open_timestamp) as f64 / 60f64,
-                    mint.clone(),
+                    *mint,
                 )
             })
             .collect::<Vec<_>>();
@@ -1273,7 +1280,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "admin")]
+
 pub fn bank_setup_emissions(
     config: &Config,
     profile: &Profile,
@@ -1286,7 +1293,6 @@ pub fn bank_setup_emissions(
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
-    let funding_account_ata = get_associated_token_address(&config.authority(), &mint);
     let mut flags = 0;
 
     if deposits {
@@ -1297,12 +1303,21 @@ pub fn bank_setup_emissions(
         flags |= EMISSIONS_FLAG_BORROW_ACTIVE;
     }
 
-    let emissions_mint_decimals = config.mfi_program.rpc().get_account(&mint).unwrap();
+    let emissions_mint_account = config.mfi_program.rpc().get_account(&mint).unwrap();
+    let token_program = emissions_mint_account.owner;
 
-    let emissions_mint_decimals =
-        spl_token::state::Mint::unpack_from_slice(&emissions_mint_decimals.data)
-            .unwrap()
-            .decimals;
+    let funding_account_ata =
+        anchor_spl::associated_token::get_associated_token_address_with_program_id(
+            &config.authority(),
+            &mint,
+            &token_program,
+        );
+
+    let emissions_mint = spl_token_2022::state::Mint::unpack(
+        &emissions_mint_account.data[..spl_token_2022::state::Mint::LEN],
+    )
+    .unwrap();
+    let emissions_mint_decimals = emissions_mint.decimals;
 
     let total_emissions = (total * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64;
     let rate = crate::utils::calc_emissions_rate(rate, emissions_mint_decimals);
@@ -1326,21 +1341,21 @@ pub fn bank_setup_emissions(
     }
 
     let ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolSetupEmissions {
             marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
             admin: config.authority(),
             bank,
             emissions_mint: mint,
-            emissions_auth: find_bank_emssions_auth_pda(bank, mint, marginfi::id()).0,
+            emissions_auth: find_bank_emssions_auth_pda(bank, mint, config.program_id).0,
             emissions_token_account: find_bank_emssions_token_account_pda(
                 bank,
                 mint,
-                marginfi::id(),
+                config.program_id,
             )
             .0,
             emissions_funding_account: funding_account_ata,
-            token_program: spl_token::id(),
+            token_program,
             system_program: system_program::id(),
         }
         .to_account_metas(Some(true)),
@@ -1368,7 +1383,7 @@ pub fn bank_setup_emissions(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "admin")]
+
 pub fn bank_update_emissions(
     config: &Config,
     profile: &Profile,
@@ -1397,10 +1412,11 @@ pub fn bank_update_emissions(
         .get_account(&emission_mint)
         .unwrap();
 
-    let emissions_mint_decimals =
-        spl_token::state::Mint::unpack_from_slice(&emissions_mint_decimals.data)
-            .unwrap()
-            .decimals;
+    let emissions_mint_decimals = spl_token_2022::state::Mint::unpack(
+        &emissions_mint_decimals.data[..spl_token_2022::state::Mint::LEN],
+    )
+    .unwrap()
+    .decimals;
 
     let emissions_rate = rate.map(|rate| calc_emissions_rate(rate, emissions_mint_decimals));
     let additional_emissions = additional_emissions
@@ -1443,7 +1459,7 @@ pub fn bank_update_emissions(
     }
 
     let ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
             marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
             admin: config.authority(),
@@ -1452,7 +1468,7 @@ pub fn bank_update_emissions(
             emissions_token_account: find_bank_emssions_token_account_pda(
                 bank_pk,
                 emission_mint,
-                marginfi::id(),
+                config.program_id,
             )
             .0,
             emissions_funding_account: funding_account_ata,
@@ -1482,7 +1498,6 @@ pub fn bank_update_emissions(
     Ok(())
 }
 
-#[cfg(feature = "admin")]
 pub fn bank_configure(
     config: Config,
     profile: Profile,
@@ -1849,10 +1864,16 @@ pub fn marginfi_account_deposit(
         bail!("Bank does not belong to group")
     }
 
-    let deposit_ata =
-        anchor_spl::associated_token::get_associated_token_address(&signer.pubkey(), &bank.mint);
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    let token_program = bank_mint_account.owner;
 
-    let ix = Instruction {
+    let deposit_ata = anchor_spl::associated_token::get_associated_token_address_with_program_id(
+        &signer.pubkey(),
+        &bank.mint,
+        &token_program,
+    );
+
+    let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountDeposit {
             marginfi_group: profile.marginfi_group.unwrap(),
@@ -1861,11 +1882,15 @@ pub fn marginfi_account_deposit(
             bank: bank_pk,
             signer_token_account: deposit_ata,
             bank_liquidity_vault: bank.liquidity_vault,
-            token_program: token::ID,
+            token_program,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountDeposit { amount }.data(),
     };
+    if token_program == spl_token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
     let tx = Transaction::new_signed_with_payer(
@@ -1915,8 +1940,14 @@ pub fn marginfi_account_withdraw(
         bail!("Bank does not belong to group")
     }
 
-    let withdraw_ata =
-        anchor_spl::associated_token::get_associated_token_address(&signer.pubkey(), &bank.mint);
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    let token_program = bank_mint_account.owner;
+
+    let withdraw_ata = anchor_spl::associated_token::get_associated_token_address_with_program_id(
+        &signer.pubkey(),
+        &bank.mint,
+        &token_program,
+    );
 
     let mut ix = Instruction {
         program_id: config.program_id,
@@ -1926,7 +1957,7 @@ pub fn marginfi_account_withdraw(
             signer: signer.pubkey(),
             bank: bank_pk,
             bank_liquidity_vault: bank.liquidity_vault,
-            token_program: token::ID,
+            token_program,
             destination_token_account: withdraw_ata,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
                 &bank_pk,
@@ -1943,6 +1974,10 @@ pub fn marginfi_account_withdraw(
         .data(),
     };
 
+    if token_program == spl_token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     ix.accounts.extend(load_observation_account_metas(
         &marginfi_account,
         &banks,
@@ -1954,7 +1989,7 @@ pub fn marginfi_account_withdraw(
         &signer.pubkey(),
         &signer.pubkey(),
         &bank.mint,
-        &spl_token::ID,
+        &token_program,
     );
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
@@ -2004,8 +2039,14 @@ pub fn marginfi_account_borrow(
         bail!("Bank does not belong to group")
     }
 
-    let withdraw_ata =
-        anchor_spl::associated_token::get_associated_token_address(&signer.pubkey(), &bank.mint);
+    let bank_mint_account = rpc_client.get_account(&bank.mint)?;
+    let token_program = bank_mint_account.owner;
+
+    let borrow_ata = anchor_spl::associated_token::get_associated_token_address_with_program_id(
+        &signer.pubkey(),
+        &bank.mint,
+        &token_program,
+    );
 
     let mut ix = Instruction {
         program_id: config.program_id,
@@ -2015,8 +2056,8 @@ pub fn marginfi_account_borrow(
             signer: signer.pubkey(),
             bank: bank_pk,
             bank_liquidity_vault: bank.liquidity_vault,
-            token_program: token::ID,
-            destination_token_account: withdraw_ata,
+            token_program,
+            destination_token_account: borrow_ata,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
                 &bank_pk,
                 BankVaultType::Liquidity,
@@ -2028,6 +2069,10 @@ pub fn marginfi_account_borrow(
         data: marginfi::instruction::LendingAccountBorrow { amount }.data(),
     };
 
+    if token_program == spl_token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(bank.mint, false));
+    }
     ix.accounts.extend(load_observation_account_metas(
         &marginfi_account,
         &banks,
@@ -2039,7 +2084,7 @@ pub fn marginfi_account_borrow(
         &signer.pubkey(),
         &signer.pubkey(),
         &bank.mint,
-        &spl_token::ID,
+        &token_program,
     );
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
@@ -2102,6 +2147,9 @@ pub fn marginfi_account_liquidate(
         bail!("Liability bank does not belong to group")
     }
 
+    let liability_mint_account = rpc_client.get_account(&liability_bank.mint)?;
+    let token_program = liability_mint_account.owner;
+
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountLiquidate {
@@ -2119,12 +2167,16 @@ pub fn marginfi_account_liquidate(
             .0,
             bank_liquidity_vault: liability_bank.liquidity_vault,
             bank_insurance_vault: liability_bank.insurance_vault,
-            token_program: token::ID,
+            token_program,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
 
+    if token_program == spl_token_2022::ID {
+        ix.accounts
+            .push(AccountMeta::new_readonly(liability_bank.mint, false));
+    }
     ix.accounts.push(AccountMeta {
         pubkey: asset_bank.config.oracle_keys[0],
         is_signer: false,
@@ -2313,20 +2365,4 @@ fn timestamp_to_string(timestamp: i64) -> String {
     )
     .format("%Y-%m-%d %H:%M:%S")
     .to_string()
-}
-
-// Switchboard tests
-#[cfg(feature = "dev")]
-pub fn process_inspect_switchboard_feed(config: &Config, aggregator_pk: &Pubkey) {
-    let aggregator_account_data = config
-        .mfi_program
-        .rpc()
-        .get_account_data(aggregator_pk)
-        .expect("Aggregator account not found");
-
-    let aggregator_account =
-        switchboard_v2::AggregatorAccountData::new_from_bytes(&aggregator_account_data)
-            .expect("Invalid aggregator account data");
-
-    println!("Aggregator account: {:#?}", aggregator_account);
 }

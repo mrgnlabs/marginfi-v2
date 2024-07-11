@@ -6,26 +6,20 @@ use crate::{
 use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
-#[cfg(feature = "admin")]
 use fixed::types::I80F48;
-#[cfg(any(feature = "admin", feature = "dev"))]
-use marginfi::state::marginfi_group::{BankConfigOpt, InterestRateConfigOpt};
-use marginfi::state::{
-    marginfi_account::FLASHLOAN_ENABLED_FLAG,
-    marginfi_group::{BankOperationalState, RiskTier},
-    price::OracleSetup,
-};
-#[cfg(feature = "dev")]
 use marginfi::{
-    prelude::{GroupConfig, MarginfiGroup},
+    prelude::*,
     state::{
-        marginfi_account::{Balance, LendingAccount, MarginfiAccount},
-        marginfi_group::{Bank, BankConfig, InterestRateConfig, OracleConfig, WrappedI80F48},
+        marginfi_account::{Balance, LendingAccount, MarginfiAccount, FLASHLOAN_ENABLED_FLAG},
+        marginfi_group::{
+            Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
+            InterestRateConfigOpt, OracleConfig, RiskTier, WrappedI80F48,
+        },
+        price::OracleSetup,
     },
 };
+use rand::Rng;
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
-
-#[cfg(feature = "dev")]
 use type_layout::TypeLayout;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -53,12 +47,16 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: ProfileCommand,
     },
-    #[cfg(feature = "dev")]
+
     InspectPadding {},
-    #[cfg(feature = "dev")]
-    PatchIdl { idl_path: String },
-    #[cfg(feature = "dev")]
+
+    PatchIdl {
+        idl_path: String,
+    },
+
     InspectSize {},
+
+    MakeTestI80F48,
     Account {
         #[clap(subcommand)]
         subcmd: AccountCommand,
@@ -68,9 +66,8 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: LipCommand,
     },
-    #[cfg(feature = "dev")]
-    InspectSwitchboardFeed { switchboard_feed: Pubkey },
-    #[cfg(feature = "dev")]
+    //
+    // InspectSwitchboardFeed { switchboard_feed: Pubkey },
     ShowOracleAges {
         #[clap(long, action)]
         only_stale: bool,
@@ -83,17 +80,14 @@ pub enum GroupCommand {
         marginfi_group: Option<Pubkey>,
     },
     GetAll {},
-    #[cfg(feature = "admin")]
     Create {
         admin: Option<Pubkey>,
         #[clap(short = 'f', long = "override")]
         override_existing_profile_group: bool,
     },
-    #[cfg(feature = "admin")]
     Update {
         admin: Option<Pubkey>,
     },
-    #[cfg(feature = "admin")]
     AddBank {
         #[clap(long)]
         mint: Pubkey,
@@ -139,11 +133,9 @@ pub enum GroupCommand {
         )]
         oracle_max_age: u16,
     },
-    #[cfg(feature = "admin")]
     HandleBankruptcy {
         accounts: Vec<Pubkey>,
     },
-    #[cfg(feature = "admin")]
     UpdateLookupTable {
         #[clap(short = 't', long)]
         existing_token_lookup_tables: Vec<Pubkey>,
@@ -205,7 +197,6 @@ pub enum BankCommand {
     GetAll {
         marginfi_group: Option<Pubkey>,
     },
-    #[cfg(feature = "admin")]
     Update {
         bank_pk: Pubkey,
         #[clap(long)]
@@ -257,11 +248,9 @@ pub enum BankCommand {
         )]
         permissionless_bad_debt_settlement: Option<bool>,
     },
-    #[cfg(feature = "dev")]
     InspectPriceOracle {
         bank_pk: Pubkey,
     },
-    #[cfg(feature = "admin")]
     SetupEmissions {
         bank: Pubkey,
         #[clap(long)]
@@ -275,7 +264,6 @@ pub enum BankCommand {
         #[clap(long)]
         total_amount_ui: f64,
     },
-    #[cfg(feature = "admin")]
     UpdateEmissions {
         bank: Pubkey,
         #[clap(long)]
@@ -289,22 +277,18 @@ pub enum BankCommand {
         #[clap(long)]
         additional_amount_ui: Option<f64>,
     },
-    #[cfg(feature = "admin")]
     SettleAllEmissions {
         bank: Pubkey,
     },
-    #[cfg(feature = "admin")]
     CollectFees {
         bank: Pubkey,
     },
-    #[cfg(feature = "admin")]
     WithdrawFees {
         bank: Pubkey,
         amount: f64,
         #[clap(help = "Destination address, defaults to the profile authority")]
         destination_address: Option<Pubkey>,
     },
-    #[cfg(feature = "admin")]
     WithdrawInsurance {
         bank: Pubkey,
         amount: f64,
@@ -416,30 +400,27 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Group { subcmd } => group(subcmd, &opts.cfg_override),
         Command::Bank { subcmd } => bank(subcmd, &opts.cfg_override),
         Command::Profile { subcmd } => profile(subcmd),
-        #[cfg(feature = "dev")]
+
         Command::InspectPadding {} => inspect_padding(),
-        #[cfg(feature = "dev")]
+
         Command::PatchIdl { idl_path } => patch_marginfi_idl(idl_path),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
         #[cfg(feature = "lip")]
         Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
-        #[cfg(feature = "dev")]
-        Command::InspectSwitchboardFeed { switchboard_feed } => {
-            let profile = load_profile()?;
-            let config = profile.get_config(Some(&opts.cfg_override))?;
 
-            processor::process_inspect_switchboard_feed(&config, &switchboard_feed);
-
-            Ok(())
-        }
-        #[cfg(feature = "dev")]
         Command::InspectSize {} => inspect_size(),
-        #[cfg(feature = "dev")]
+
         Command::ShowOracleAges { only_stale } => {
             let profile = load_profile()?;
             let config = profile.get_config(Some(&opts.cfg_override))?;
 
             processor::show_oracle_ages(config, only_stale)?;
+
+            Ok(())
+        }
+
+        Command::MakeTestI80F48 => {
+            process_make_test_i80f48();
 
             Ok(())
         }
@@ -504,7 +485,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         match subcmd {
             GroupCommand::Get { marginfi_group: _ } => (),
             GroupCommand::GetAll {} => (),
-            #[cfg(feature = "admin")]
+
             _ => get_consent(&subcmd, &profile)?,
         }
     }
@@ -514,14 +495,14 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             processor::group_get(config, marginfi_group.or(profile.marginfi_group))
         }
         GroupCommand::GetAll {} => processor::group_get_all(config),
-        #[cfg(feature = "admin")]
+
         GroupCommand::Create {
             admin,
             override_existing_profile_group,
         } => processor::group_create(config, profile, admin, override_existing_profile_group),
-        #[cfg(feature = "admin")]
+
         GroupCommand::Update { admin } => processor::group_configure(config, profile, admin),
-        #[cfg(feature = "admin")]
+
         GroupCommand::AddBank {
             mint: bank_mint,
             seed,
@@ -565,11 +546,11 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             risk_tier,
             oracle_max_age,
         ),
-        #[cfg(feature = "admin")]
+
         GroupCommand::HandleBankruptcy { accounts } => {
             processor::handle_bankruptcy_for_accounts(&config, &profile, accounts)
         }
-        #[cfg(feature = "admin")]
+
         GroupCommand::UpdateLookupTable {
             existing_token_lookup_tables,
         } => processor::group::process_update_lookup_tables(
@@ -587,7 +568,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     if !global_options.skip_confirmation {
         match subcmd {
             BankCommand::Get { .. } | BankCommand::GetAll { .. } => (),
-            #[cfg(feature = "dev")]
+
             BankCommand::InspectPriceOracle { .. } => (),
             #[allow(unreachable_patterns)]
             _ => get_consent(&subcmd, &profile)?,
@@ -597,7 +578,6 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     match subcmd {
         BankCommand::Get { bank } => processor::bank_get(config, bank),
         BankCommand::GetAll { marginfi_group } => processor::bank_get_all(config, marginfi_group),
-        #[cfg(feature = "admin")]
         BankCommand::Update {
             asset_weight_init,
             asset_weight_maint,
@@ -671,11 +651,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                 },
             )
         }
-        #[cfg(feature = "dev")]
         BankCommand::InspectPriceOracle { bank_pk } => {
             processor::bank_inspect_price_oracle(config, bank_pk)
         }
-        #[cfg(feature = "admin")]
         BankCommand::SetupEmissions {
             bank,
             deposits,
@@ -686,7 +664,6 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         } => processor::bank_setup_emissions(
             &config, &profile, bank, deposits, borrows, mint, rate, total_ui,
         ),
-        #[cfg(feature = "admin")]
         BankCommand::UpdateEmissions {
             bank,
             deposits,
@@ -704,19 +681,15 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             rate,
             additional_amount_ui,
         ),
-        #[cfg(feature = "admin")]
         BankCommand::SettleAllEmissions { bank } => {
             processor::emissions::claim_all_emissions_for_bank(&config, &profile, bank)
         }
-        #[cfg(feature = "admin")]
         BankCommand::CollectFees { bank } => processor::admin::process_collect_fees(config, bank),
-        #[cfg(feature = "admin")]
         BankCommand::WithdrawFees {
             bank,
             amount,
             destination_address,
         } => processor::admin::process_withdraw_fees(config, bank, amount, destination_address),
-        #[cfg(feature = "admin")]
         BankCommand::WithdrawInsurance {
             bank,
             amount,
@@ -727,7 +700,6 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     }
 }
 
-#[cfg(feature = "dev")]
 fn inspect_padding() -> Result<()> {
     println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
     println!("GroupConfig: {}", GroupConfig::type_layout());
@@ -748,7 +720,6 @@ fn inspect_padding() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "dev")]
 fn inspect_size() -> Result<()> {
     use std::mem::size_of;
 
@@ -771,10 +742,8 @@ fn inspect_size() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "dev")]
 fn patch_marginfi_idl(target_dir: String) -> Result<()> {
     use crate::patch_type_layout;
-    use std::io::Write;
 
     let idl_path = format!("{}/idl/marginfi.json", target_dir);
 
@@ -783,7 +752,7 @@ fn patch_marginfi_idl(target_dir: String) -> Result<()> {
     let mut idl: serde_json::Value = serde_json::from_reader(reader)?;
 
     let idl_original_path = idl_path.replace(".json", "_original.json");
-    let file = std::fs::File::create(&idl_original_path)?;
+    let file = std::fs::File::create(idl_original_path)?;
     let writer = std::io::BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &idl)?;
 
@@ -798,7 +767,7 @@ fn patch_marginfi_idl(target_dir: String) -> Result<()> {
         }
     }
 
-    patch_type_layout!(idl, "Bank", Bank, "accounts");
+    patch_type_layout!(idl, "Bank", Bank, "types");
     patch_type_layout!(idl, "Balance", Balance, "types");
     patch_type_layout!(idl, "BankConfig", BankConfig, "types");
     patch_type_layout!(idl, "BankConfigCompact", BankConfig, "types");
@@ -806,35 +775,6 @@ fn patch_marginfi_idl(target_dir: String) -> Result<()> {
     let file = std::fs::File::create(&idl_path)?;
     let writer = std::io::BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &idl)?;
-
-    // Patch types
-
-    let types_path = format!("{}/types/marginfi.ts", target_dir);
-    let mut ts_file = std::fs::File::create(types_path)?;
-
-    if let Some(accounts) = idl.get_mut("accounts").and_then(|a| a.as_array_mut()) {
-        for account in accounts.iter_mut() {
-            if let Some(name) = account.get_mut("name").and_then(|n| n.as_str()) {
-                let mut chars = name.chars();
-                if let Some(first_char) = chars.next() {
-                    let name_with_lowercase_first_letter =
-                        first_char.to_lowercase().collect::<String>() + chars.as_str();
-                    account["name"] = serde_json::Value::String(name_with_lowercase_first_letter);
-                }
-            }
-        }
-    }
-
-    write!(
-        ts_file,
-        "export type Marginfi = {};\n",
-        serde_json::to_string_pretty(&idl)?
-    )?;
-    write!(
-        ts_file,
-        "export const IDL: Marginfi = {};\n",
-        serde_json::to_string_pretty(&idl)?
-    )?;
 
     Ok(())
 }
@@ -937,4 +877,43 @@ fn get_consent<T: std::fmt::Debug>(cmd: T, profile: &Profile) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub fn process_make_test_i80f48() {
+    let mut rng = rand::thread_rng();
+
+    let i80f48s: Vec<I80F48> = (0..30i128)
+        .map(|_| {
+            let i = rng.gen_range(-1_000_000_000_000i128..1_000_000_000_000i128);
+            I80F48::from_num(i) / I80F48::from_num(1_000_000)
+        })
+        .collect();
+
+    println!("const testCases = [");
+    for i80f48 in i80f48s {
+        println!(
+            "  {{ number: {:?}, innerValue: {:?} }},",
+            i80f48,
+            marginfi::state::marginfi_group::WrappedI80F48::from(i80f48).value
+        );
+    }
+
+    let explicit = vec![
+        0.,
+        1.,
+        -1.,
+        0.328934,
+        423947246342.487,
+        1783921462347640.,
+        0.00000000000232,
+    ];
+    for f in explicit {
+        let i80f48 = I80F48::from_num(f);
+        println!(
+            "  {{ number: {:?}, innerValue: {:?} }},",
+            i80f48,
+            marginfi::state::marginfi_group::WrappedI80F48::from(i80f48).value
+        );
+    }
+    println!("];");
 }

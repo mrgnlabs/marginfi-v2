@@ -9,8 +9,8 @@ use solana_program_test::tokio;
 async fn real_oracle_marginfi_account_borrow_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::real_oracle_data())).await;
 
-    let usdc_bank = test_f.get_bank(&BankMint::USDC);
-    let sol_bank = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     test_f.set_time(1720094628);
 

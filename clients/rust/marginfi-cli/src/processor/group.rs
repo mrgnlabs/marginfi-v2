@@ -1,5 +1,4 @@
-use std::mem::size_of;
-
+use crate::{config::Config, profile::Profile, utils};
 use anyhow::Result;
 use log::{debug, info, warn};
 use marginfi::state::marginfi_group::Bank;
@@ -11,8 +10,7 @@ use solana_client::rpc_filter::{Memcmp, RpcFilterType};
 use solana_sdk::{
     account::Account, pubkey::Pubkey, signer::Signer, system_program, transaction::Transaction,
 };
-
-use crate::{config::Config, profile::Profile, utils};
+use std::mem::size_of;
 
 const CHUNK_SIZE: usize = 22;
 const KEY_BATCH_SIZE: usize = 20;
