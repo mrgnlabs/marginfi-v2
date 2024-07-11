@@ -114,7 +114,7 @@ pub fn nonzero_fee(mint_ai: AccountInfo, epoch: u64) -> MarginfiResult<bool> {
 /// Checks if first account is a mint account. If so, updates remaining_account -> &remaining_account[1..]
 ///
 /// Ok(None) if Tokenkeg
-pub fn maybe_get_bank_mint<'info>(
+pub fn maybe_take_bank_mint<'info>(
     remaining_accounts: &mut &'info [AccountInfo<'info>],
     bank: &Bank,
     token_program: &Pubkey,

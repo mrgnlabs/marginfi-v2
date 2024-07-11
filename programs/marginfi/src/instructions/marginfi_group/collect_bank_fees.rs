@@ -29,7 +29,7 @@ pub fn lending_pool_collect_bank_fees<'info>(
 
     let mut bank = ctx.accounts.bank.load_mut()?;
     let maybe_bank_mint =
-        utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
     let mut available_liquidity = I80F48::from_num(liquidity_vault.amount);
 
@@ -192,7 +192,7 @@ pub fn lending_pool_withdraw_fees<'info>(
 
     let bank = bank_loader.load()?;
     let maybe_bank_mint =
-        utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
     bank.withdraw_spl_transfer(
         amount,
@@ -269,7 +269,7 @@ pub fn lending_pool_withdraw_insurance<'info>(
 
     let bank = bank_loader.load()?;
     let maybe_bank_mint =
-        utils::maybe_get_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
     bank.withdraw_spl_transfer(
         amount,

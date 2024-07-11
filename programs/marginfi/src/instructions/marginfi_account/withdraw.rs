@@ -45,7 +45,7 @@ pub fn lending_account_withdraw<'info>(
         MarginfiError::AccountDisabled
     );
 
-    let maybe_bank_mint = utils::maybe_get_bank_mint(
+    let maybe_bank_mint = utils::maybe_take_bank_mint(
         &mut ctx.remaining_accounts,
         &*bank_loader.load()?,
         token_program.key,
