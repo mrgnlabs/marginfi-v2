@@ -364,7 +364,7 @@ pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Accou
     Account {
         lamports: 10000,
         data,
-        owner: SWITCHBOARD_PROGRAM_ID,
+        owner: *SWITCHBOARD_PROGRAM_ID,
         executable: false,
         rent_epoch: 0,
     }
