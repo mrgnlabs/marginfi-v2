@@ -522,7 +522,10 @@ impl PythPushOraclePriceFeed {
     pub fn check_ai_and_feed_id(ai: &AccountInfo, feed_id: &FeedId) -> MarginfiResult {
         let price_feed_account = load_price_update_v2_checked(ai)?;
 
-        assert_eq!(&price_feed_account.price_message.feed_id, feed_id);
+        check!(
+            &price_feed_account.price_message.feed_id.eq(feed_id),
+            MarginfiError::InvalidOracleAccount
+        );
 
         Ok(())
     }
