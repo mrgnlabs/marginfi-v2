@@ -7,10 +7,10 @@ use {
         config::Config,
         profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
         utils::{
-            calc_emissions_rate, create_oracle_key_array, find_bank_emssions_auth_pda,
-            find_bank_emssions_token_account_pda, find_bank_vault_authority_pda,
-            find_bank_vault_pda, load_observation_account_metas, process_transaction,
-            EXP_10_I80F48,
+            bank_to_oracle_key, calc_emissions_rate, create_oracle_key_array,
+            find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
+            find_bank_vault_authority_pda, find_bank_vault_pda, load_observation_account_metas,
+            process_transaction, EXP_10_I80F48,
         },
     },
     anchor_client::{
@@ -33,7 +33,7 @@ use {
                 Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
                 InterestRateConfig, WrappedI80F48,
             },
-            price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter, PythPushOraclePriceFeed},
+            price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter},
         },
         utils::NumTraitsWithTolerance,
     },
@@ -2170,22 +2170,8 @@ pub fn marginfi_account_liquidate(
 
     let oracle_accounts = vec![asset_bank.config, liability_bank.config]
         .into_iter()
-        .map(|bank| {
-            let oracle_key = {
-                let oracle_key_or_price_feed_id =
-                    bank.oracle_keys.first().expect("Oracle key not found");
-                match bank.oracle_setup {
-                    marginfi::state::price::OracleSetup::PythPushOracle => {
-                        PythPushOraclePriceFeed::find_oracle_address(
-                            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
-                            bank.get_pyth_push_oracle_feed_id().unwrap(),
-                        )
-                        .0
-                    }
-                    _ => *oracle_key_or_price_feed_id,
-                }
-            };
-
+        .map(|bank_config| {
+            let oracle_key = bank_to_oracle_key(&bank_config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
             AccountMeta::new_readonly(oracle_key, false)
         });
 
@@ -2193,22 +2179,8 @@ pub fn marginfi_account_liquidate(
 
     let oracle_accounts = vec![asset_bank.config, liability_bank.config]
         .into_iter()
-        .map(|bank| {
-            let oracle_key = {
-                let oracle_key_or_price_feed_id =
-                    bank.oracle_keys.first().expect("Oracle key not found");
-                match bank.oracle_setup {
-                    marginfi::state::price::OracleSetup::PythPushOracle => {
-                        PythPushOraclePriceFeed::find_oracle_address(
-                            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
-                            bank.get_pyth_push_oracle_feed_id().unwrap(),
-                        )
-                        .0
-                    }
-                    _ => *oracle_key_or_price_feed_id,
-                }
-            };
-
+        .map(|bank_config| {
+            let oracle_key = bank_to_oracle_key(&bank_config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
             AccountMeta::new_readonly(oracle_key, false)
         });
 

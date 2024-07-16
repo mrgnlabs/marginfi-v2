@@ -12,7 +12,7 @@ use {
         },
         state::{
             marginfi_account::MarginfiAccount,
-            marginfi_group::{Bank, BankVaultType},
+            marginfi_group::{Bank, BankConfig, BankVaultType},
             price::PythPushOraclePriceFeed,
         },
     },
@@ -62,6 +62,21 @@ pub fn process_transaction(
                 bail!(err);
             }
         },
+    }
+}
+
+pub fn bank_to_oracle_key(bank_config: &BankConfig, shard_id: u16) -> Pubkey {
+    let oracle_key_or_price_feed_id = bank_config.oracle_keys.first().unwrap();
+
+    match bank_config.oracle_setup {
+        marginfi::state::price::OracleSetup::PythPushOracle => {
+            PythPushOraclePriceFeed::find_oracle_address(
+                shard_id,
+                bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+            )
+            .0
+        }
+        _ => *oracle_key_or_price_feed_id,
     }
 }
 
@@ -166,19 +181,7 @@ pub fn load_observation_account_metas(
         .iter()
         .zip(bank_pks.iter())
         .flat_map(|(bank, bank_pk)| {
-            let oracle_key = {
-                let oracle_or_feed_id = bank.config.oracle_keys[0];
-                match bank.config.oracle_setup {
-                    marginfi::state::price::OracleSetup::PythPushOracle => {
-                        PythPushOraclePriceFeed::find_oracle_address(
-                            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
-                            &oracle_or_feed_id.to_bytes(),
-                        )
-                        .0
-                    }
-                    _ => oracle_or_feed_id,
-                }
-            };
+            let oracle_key = bank_to_oracle_key(&bank.config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
 
             vec![
                 AccountMeta {
