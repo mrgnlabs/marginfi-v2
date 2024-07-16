@@ -391,7 +391,7 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
     }
 }
 
-fn load_price_update_v2(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
+fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
     check!(
         ai.owner.eq(&PYTH_PUSH_ORACLE_ID),
         MarginfiError::InvalidOracleAccount
@@ -429,7 +429,7 @@ impl PythPushOraclePriceFeed {
         clock: &Clock,
         max_age: u64,
     ) -> MarginfiResult<Self> {
-        let price_feed_account = load_price_update_v2(ai)?;
+        let price_feed_account = load_price_update_v2_checked(ai)?;
 
         let price = price_feed_account
             .get_price_no_older_than_with_custom_verification_level(
@@ -474,7 +474,7 @@ impl PythPushOraclePriceFeed {
 
     #[cfg(feature = "client")]
     pub fn load_unchecked(ai: &AccountInfo) -> MarginfiResult<Self> {
-        let price_feed_account = load_price_update_v2(ai)?;
+        let price_feed_account = load_price_update_v2_checked(ai)?;
 
         let price = price_feed_account
             .get_price_unchecked(&price_feed_account.price_message.feed_id)
@@ -514,13 +514,13 @@ impl PythPushOraclePriceFeed {
 
     #[cfg(feature = "client")]
     pub fn peek_feed_id(ai: &AccountInfo) -> MarginfiResult<FeedId> {
-        let price_feed_account = load_price_update_v2(ai)?;
+        let price_feed_account = load_price_update_v2_checked(ai)?;
 
         Ok(price_feed_account.price_message.feed_id)
     }
 
     pub fn check_ai_and_feed_id(ai: &AccountInfo, feed_id: &FeedId) -> MarginfiResult {
-        let price_feed_account = load_price_update_v2(ai)?;
+        let price_feed_account = load_price_update_v2_checked(ai)?;
 
         assert_eq!(&price_feed_account.price_message.feed_id, feed_id);
 
