@@ -1,19 +1,27 @@
-use crate::SplAccount;
+use crate::arbitrary_helpers::TokenType;
 use anchor_lang::{
     prelude::{AccountInfo, Pubkey, Rent, SolanaSysvar},
     Discriminator,
 };
+use anchor_spl::token_2022::spl_token_2022::{
+    self,
+    extension::{
+        transfer_fee::{TransferFee, TransferFeeConfig},
+        BaseStateWithExtensions, BaseStateWithExtensionsMut, ExtensionType, StateWithExtensions,
+        StateWithExtensionsMut,
+    },
+    state::Mint,
+};
 use bumpalo::Bump;
 use marginfi::{constants::PYTH_ID, state::marginfi_group::BankVaultType};
 use pyth_sdk_solana::state::{
-    AccountType, PriceAccount, PriceInfo, PriceStatus, Rational, MAGIC, VERSION_2,
+    AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
 };
 use safe_transmute::{transmute_to_bytes, transmute_to_bytes_mut};
 use solana_program::{
     bpf_loader, program_pack::Pack, stake_history::Epoch, system_program, sysvar,
 };
 use solana_sdk::{signature::Keypair, signer::Signer};
-use spl_token::state::Mint;
 use std::mem::size_of;
 
 pub struct AccountsState {
@@ -26,6 +34,7 @@ impl AccountsState {
     }
 
     fn random_pubkey<'bump>(&'bump self) -> &Pubkey {
+        #[allow(deprecated)]
         self.bump
             .alloc(Pubkey::new(transmute_to_bytes(&rand::random::<[u64; 4]>())))
     }
@@ -51,73 +60,182 @@ impl AccountsState {
         )
     }
 
-    pub fn new_token_mint<'bump>(&'bump self, rent: Rent, decimals: u8) -> AccountInfo<'bump> {
-        let data = self.bump.alloc_slice_fill_copy(Mint::LEN, 0u8);
-        let mut mint = Mint::default();
-        mint.is_initialized = true;
-        mint.decimals = decimals;
-        Mint::pack(mint, data).unwrap();
-        AccountInfo::new(
-            self.random_pubkey(),
-            false,
-            true,
-            self.bump.alloc(rent.minimum_balance(data.len())),
-            data,
-            &spl_token::ID,
-            false,
-            Epoch::default(),
-        )
+    pub fn new_token_mint<'bump>(
+        &'bump self,
+        rent: Rent,
+        decimals: u8,
+        token_type: TokenType,
+    ) -> AccountInfo<'bump> {
+        match token_type {
+            TokenType::Tokenkeg => {
+                let data = self.bump.alloc_slice_fill_copy(Mint::LEN, 0u8);
+                let mut mint = Mint::default();
+                mint.is_initialized = true;
+                mint.decimals = decimals;
+                Mint::pack(mint, data).unwrap();
+                AccountInfo::new(
+                    self.random_pubkey(),
+                    false,
+                    true,
+                    self.bump.alloc(rent.minimum_balance(data.len())),
+                    data,
+                    &spl_token::ID,
+                    false,
+                    Epoch::default(),
+                )
+            }
+            TokenType::Token22 => {
+                let data = self.bump.alloc_slice_fill_copy(Mint::LEN, 0u8);
+                let mut mint = Mint::default();
+                mint.is_initialized = true;
+                mint.decimals = decimals;
+                Mint::pack(mint, data).unwrap();
+                AccountInfo::new(
+                    self.random_pubkey(),
+                    false,
+                    true,
+                    self.bump.alloc(rent.minimum_balance(data.len())),
+                    data,
+                    &spl_token_2022::ID,
+                    false,
+                    Epoch::default(),
+                )
+            }
+            TokenType::Token22WithFee {
+                transfer_fee_basis_points,
+                maximum_fee,
+            } => {
+                // Calculate mint size for t22 mint with transfer fee
+                let data_len = ExtensionType::try_calculate_account_len::<
+                    spl_token_2022::state::Mint,
+                >(&[ExtensionType::TransferFeeConfig])
+                .unwrap();
+
+                let mut data = self.bump.alloc_slice_fill_copy(data_len, 0u8);
+                let mut mint_state =
+                    StateWithExtensionsMut::<spl_token_2022::state::Mint>::unpack_uninitialized(
+                        &mut data,
+                    )
+                    .unwrap();
+                mint_state.init_account_type().unwrap();
+
+                let transfer_fee_config = mint_state
+                    .init_extension::<TransferFeeConfig>(false)
+                    .unwrap();
+                *transfer_fee_config = TransferFeeConfig {
+                    transfer_fee_config_authority: Default::default(),
+                    withdraw_withheld_authority: Default::default(),
+                    withheld_amount: 0.into(),
+                    older_transfer_fee: TransferFee {
+                        epoch: 0.into(),
+                        maximum_fee: maximum_fee.into(),
+                        transfer_fee_basis_points: transfer_fee_basis_points.into(),
+                    },
+                    newer_transfer_fee: TransferFee {
+                        epoch: 0.into(),
+                        maximum_fee: maximum_fee.into(),
+                        transfer_fee_basis_points: transfer_fee_basis_points.into(),
+                    },
+                };
+
+                let mut mint = spl_token_2022::state::Mint::default();
+                mint.decimals = decimals;
+                mint.is_initialized = true;
+
+                mint_state.base = mint;
+                mint_state.pack_base();
+
+                AccountInfo::new(
+                    self.random_pubkey(),
+                    false,
+                    true,
+                    self.bump.alloc(rent.minimum_balance(data.len())),
+                    data,
+                    &spl_token_2022::ID,
+                    false,
+                    Epoch::default(),
+                )
+            }
+        }
     }
 
-    pub fn new_token_account<'bump, 'a, 'b>(
-        &'bump self,
-        mint_pubkey: &'a Pubkey,
-        owner_pubkey: &'b Pubkey,
+    pub fn new_token_account<'a>(
+        &'a self,
+        mint_ai: AccountInfo<'a>,
+        owner_pubkey: &'a Pubkey,
         balance: u64,
         rent: Rent,
-    ) -> AccountInfo<'bump> {
+    ) -> AccountInfo<'a> {
         self.new_token_account_with_pubkey(
             Keypair::new().pubkey(),
-            mint_pubkey,
+            mint_ai,
             owner_pubkey,
             balance,
             rent,
         )
     }
 
-    pub fn new_token_account_with_pubkey<'bump, 'a, 'b>(
-        &'bump self,
+    pub fn new_token_account_with_pubkey<'a>(
+        &'a self,
         account_pubkey: Pubkey,
-        mint_pubkey: &'a Pubkey,
-        owner_pubkey: &'b Pubkey,
+        mint_ai: AccountInfo<'a>,
+        owner_pubkey: &'a Pubkey,
         balance: u64,
         rent: Rent,
-    ) -> AccountInfo<'bump> {
-        let data = self.bump.alloc_slice_fill_copy(SplAccount::LEN, 0u8);
-        let mut account = SplAccount::default();
-        account.state = spl_token::state::AccountState::Initialized;
-        account.mint = *mint_pubkey;
-        account.owner = *owner_pubkey;
-        account.amount = balance;
-        SplAccount::pack(account, data).unwrap();
+    ) -> AccountInfo<'a> {
+        // Load mint
+        let mint_data = mint_ai.try_borrow_data().unwrap();
+        let mint_state =
+            StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data).unwrap();
+        let mint_extensions = mint_state.get_extension_types().unwrap();
+        let required_extensions =
+            ExtensionType::get_required_init_account_extensions(&mint_extensions);
+        let space = ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(
+            &required_extensions,
+        )
+        .unwrap();
+
+        let data = self.bump.alloc_slice_fill_copy(space, 0u8);
+
+        let mut token_account_state =
+            StateWithExtensionsMut::<spl_token_2022::state::Account>::unpack_uninitialized(data)
+                .unwrap();
+
+        if required_extensions.contains(&ExtensionType::TransferFeeAmount) {
+            token_account_state
+                .init_account_extension_from_type(ExtensionType::TransferFeeAmount)
+                .unwrap();
+        }
+
+        token_account_state.base = spl_token_2022::state::Account::default();
+        token_account_state.base.state = spl_token_2022::state::AccountState::Initialized;
+        token_account_state.base.mint = *mint_ai.key;
+        token_account_state.base.owner = *owner_pubkey;
+        token_account_state.base.amount = balance;
+
+        token_account_state.pack_base();
+        token_account_state.init_account_type().unwrap();
+        drop(token_account_state);
+        assert!(StateWithExtensionsMut::<spl_token_2022::state::Account>::unpack(data).is_ok());
+
         AccountInfo::new(
             self.bump.alloc(account_pubkey),
             false,
             true,
             self.bump.alloc(rent.minimum_balance(data.len())),
             data,
-            &spl_token::ID,
+            mint_ai.owner,
             false,
             Epoch::default(),
         )
     }
 
-    pub fn new_owned_account<'bump>(
-        &'bump self,
+    pub fn new_owned_account(
+        &self,
         unpadded_len: usize,
         owner_pubkey: Pubkey,
         rent: Rent,
-    ) -> AccountInfo<'bump> {
+    ) -> AccountInfo {
         let data_len = unpadded_len + 12;
         self.new_dex_owned_account_with_lamports(
             unpadded_len,
@@ -184,7 +302,7 @@ impl AccountsState {
         mint: Pubkey,
         mint_decimals: i32,
     ) -> AccountInfo {
-        let price_account = PriceAccount {
+        let price_account = SolanaPriceAccount {
             prod: mint,
             agg: PriceInfo {
                 conf: 0,
@@ -244,26 +362,26 @@ impl AccountsState {
         account_info
     }
 
-    pub fn new_vault_account<'bump>(
-        &'bump self,
+    pub fn new_vault_account<'a>(
+        &'a self,
         vault_type: BankVaultType,
-        mint_pubkey: &'bump Pubkey,
-        owner: &'bump Pubkey,
-        bank: &'bump Pubkey,
-    ) -> (AccountInfo<'bump>, u8) {
+        mint_ai: AccountInfo<'a>,
+        owner: &'a Pubkey,
+        bank: &'a Pubkey,
+    ) -> (AccountInfo<'a>, u8) {
         let (vault_address, seed_bump) = get_vault_address(bank, vault_type);
 
         (
-            self.new_token_account_with_pubkey(vault_address, mint_pubkey, owner, 0, Rent::free()),
+            self.new_token_account_with_pubkey(vault_address, mint_ai, owner, 0, Rent::free()),
             seed_bump,
         )
     }
 
-    pub fn new_vault_authority<'bump>(
-        &'bump self,
+    pub fn new_vault_authority<'a>(
+        &'a self,
         vault_type: BankVaultType,
-        bank: &'bump Pubkey,
-    ) -> (AccountInfo<'bump>, u8) {
+        bank: &'a Pubkey,
+    ) -> (AccountInfo<'a>, u8) {
         let (vault_address, seed_bump) = get_vault_authority(bank, vault_type);
 
         (

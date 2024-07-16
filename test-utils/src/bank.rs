@@ -7,13 +7,17 @@ use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
     InstructionData, ToAccountMetas,
 };
-use anchor_spl::token;
+
 use fixed::types::I80F48;
 use marginfi::{
     bank_authority_seed,
-    state::marginfi_group::{Bank, BankConfigOpt, BankVaultType},
+    state::{
+        marginfi_group::{Bank, BankConfigOpt, BankVaultType},
+        price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter},
+    },
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
+use solana_program::account_info::IntoAccountInfo;
 use solana_program::instruction::Instruction;
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
@@ -42,12 +46,41 @@ impl BankFixture {
         }
     }
 
+    pub fn get_token_program(&self) -> Pubkey {
+        self.mint.token_program
+    }
+
     pub fn get_vault(&self, vault_type: BankVaultType) -> (Pubkey, u8) {
         find_bank_vault_pda(&self.key, vault_type)
     }
 
     pub fn get_vault_authority(&self, vault_type: BankVaultType) -> (Pubkey, u8) {
         find_bank_vault_authority_pda(&self.key, vault_type)
+    }
+
+    pub async fn get_price(&self) -> f64 {
+        let bank = self.load().await;
+        let oracle_key = bank.config.oracle_keys[0];
+        let mut oracle_account = self
+            .ctx
+            .borrow_mut()
+            .banks_client
+            .get_account(oracle_key)
+            .await
+            .unwrap()
+            .unwrap();
+        let ai = (&oracle_key, &mut oracle_account).into_account_info();
+        let clock = solana_program::sysvar::clock::Clock {
+            unix_timestamp: 0,
+            ..Default::default()
+        };
+        let oracle_adapter =
+            OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[ai], &clock).unwrap();
+
+        oracle_adapter
+            .get_price_of_type(OraclePriceType::RealTime, None)
+            .unwrap()
+            .to_num()
     }
 
     pub async fn load(&self) -> Bank {
@@ -122,7 +155,7 @@ impl BankFixture {
                 admin: self.ctx.borrow().payer.pubkey(),
                 funding_account: reward_funding_account,
                 rent: solana_program::sysvar::rent::id(),
-                token_program: anchor_spl::token::ID,
+                token_program: self.get_token_program(),
                 system_program: solana_program::system_program::id(),
             }
             .to_account_metas(Some(true)),
@@ -165,6 +198,7 @@ impl BankFixture {
         total_emissions: u64,
         emissions_mint: Pubkey,
         funding_account: Pubkey,
+        token_program: Pubkey,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
             program_id: marginfi::id(),
@@ -180,7 +214,7 @@ impl BankFixture {
                     emissions_mint,
                 )
                 .0,
-                token_program: anchor_spl::token::ID,
+                token_program,
                 system_program: solana_program::system_program::id(),
             }
             .to_account_metas(Some(true)),
@@ -217,6 +251,7 @@ impl BankFixture {
         emissions_flags: Option<u64>,
         emissions_rate: Option<u64>,
         additional_emissions: Option<(u64, Pubkey)>,
+        token_program: Pubkey,
     ) -> Result<(), BanksClientError> {
         let bank = self.load().await;
 
@@ -233,7 +268,7 @@ impl BankFixture {
                     bank.emissions_mint,
                 )
                 .0,
-                token_program: anchor_spl::token::ID,
+                token_program,
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::LendingPoolUpdateEmissionsParameters {
@@ -277,18 +312,23 @@ impl BankFixture {
             &marginfi::id(),
         );
 
+        let mut accounts = marginfi::accounts::LendingPoolWithdrawFees {
+            marginfi_group: bank.group,
+            token_program: receiving_account.token_program,
+            bank: self.key,
+            admin: signer_pk,
+            fee_vault: bank.fee_vault,
+            fee_vault_authority,
+            dst_token_account: receiving_account.key,
+        }
+        .to_account_metas(Some(true));
+        if self.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(self.mint.key, false));
+        }
+
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolWithdrawFees {
-                marginfi_group: bank.group,
-                token_program: token::ID,
-                bank: self.key,
-                admin: signer_pk,
-                fee_vault: bank.fee_vault,
-                fee_vault_authority,
-                dst_token_account: receiving_account.key,
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingPoolWithdrawFees { amount }.data(),
         };
 
@@ -317,18 +357,23 @@ impl BankFixture {
             &marginfi::id(),
         );
 
+        let mut accounts = marginfi::accounts::LendingPoolWithdrawInsurance {
+            marginfi_group: bank.group,
+            token_program: receiving_account.token_program,
+            bank: self.key,
+            admin: signer_pk,
+            insurance_vault: bank.insurance_vault,
+            insurance_vault_authority,
+            dst_token_account: receiving_account.key,
+        }
+        .to_account_metas(Some(true));
+        if self.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(self.mint.key, false));
+        }
+
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolWithdrawInsurance {
-                marginfi_group: bank.group,
-                token_program: token::ID,
-                bank: self.key,
-                admin: signer_pk,
-                insurance_vault: bank.insurance_vault,
-                insurance_vault_authority,
-                dst_token_account: receiving_account.key,
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingPoolWithdrawInsurance { amount }.data(),
         };
 

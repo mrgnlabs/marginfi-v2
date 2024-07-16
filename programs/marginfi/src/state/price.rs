@@ -4,14 +4,16 @@ use anchor_lang::prelude::*;
 
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
-use pyth_sdk_solana::{load_price_feed_from_account_info, Price, PriceFeed};
+use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::{
     price_update::{self, FeedId, PriceUpdateV2},
     PYTH_PUSH_ORACLE_ID,
 };
-use switchboard_v2::{
+use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
+
+pub use pyth_sdk_solana;
 
 use crate::{
     check,
@@ -24,6 +26,7 @@ use crate::{
 };
 
 use super::marginfi_group::BankConfig;
+use anchor_lang::prelude::borsh;
 
 #[repr(u8)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
@@ -87,7 +90,6 @@ impl OraclePriceFeedAdapter {
         clock: &Clock,
         max_age: u64,
     ) -> MarginfiResult<Self> {
-        debug!("Max age: {}", max_age);
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
             OracleSetup::PythEma => {
@@ -188,11 +190,6 @@ pub struct PythEmaPriceFeed {
 impl PythEmaPriceFeed {
     pub fn load_checked(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
         let price_feed = load_pyth_price_feed(ai)?;
-
-        debug!(
-            "Oracle age: {}s",
-            price_feed.get_price_unchecked().publish_time - current_time
-        );
 
         let ema_price = price_feed
             .get_ema_price_no_older_than(current_time, max_age)
@@ -415,7 +412,7 @@ impl PythPushOraclePriceFeed {
         max_age: u64,
     ) -> MarginfiResult<Self> {
         let price_feed_data = ai.try_borrow_data()?;
-        let price_feed_account = PriceUpdateV2::try_deserialize(&mut &price_feed_data[..])?;
+        let price_feed_account = PriceUpdateV2::deserialize(&mut &price_feed_data[..])?;
 
         let price = price_feed_account
             .get_price_no_older_than_with_custom_verification_level(
@@ -461,10 +458,20 @@ impl PythPushOraclePriceFeed {
     #[cfg(feature = "client")]
     pub fn load_unchecked(ai: &AccountInfo) -> MarginfiResult<Self> {
         let price_feed_data = ai.try_borrow_data()?;
-        let price_feed_account = PriceUpdateV2::try_deserialize(&mut &price_feed_data[..])?;
+        let price_feed_account = PriceUpdateV2::deserialize(&mut &price_feed_data[..])?;
 
-        let price =
-            price_feed_account.get_price_unchecked(&price_feed_account.price_message.feed_id)?;
+        let price = price_feed_account
+            .get_price_unchecked(&price_feed_account.price_message.feed_id)
+            .map_err(|e| {
+                println!("Pyth push oracle error: {:?}", e);
+
+                match e {
+                    pyth_solana_receiver_sdk::error::GetPriceError::PriceTooOld => {
+                        MarginfiError::StaleOracle
+                    }
+                    _ => MarginfiError::InvalidOracleAccount,
+                }
+            })?;
 
         let ema_price = {
             let price_update::PriceFeedMessage {
@@ -492,14 +499,14 @@ impl PythPushOraclePriceFeed {
     #[cfg(feature = "client")]
     pub fn peek_feed_id(ai: &AccountInfo) -> MarginfiResult<FeedId> {
         let price_feed_data = ai.try_borrow_data()?;
-        let price_feed_account = PriceUpdateV2::try_deserialize(&mut &price_feed_data[..])?;
+        let price_feed_account = PriceUpdateV2::deserialize(&mut &price_feed_data[..])?;
 
         Ok(price_feed_account.price_message.feed_id)
     }
 
     pub fn check_ai_and_feed_id(ai: &AccountInfo, feed_id: &FeedId) -> MarginfiResult {
         let price_feed_data = ai.try_borrow_data()?;
-        let price_feed_account = PriceUpdateV2::try_deserialize(&mut &price_feed_data[..])?;
+        let price_feed_account = PriceUpdateV2::deserialize(&mut &price_feed_data[..])?;
 
         assert_eq!(&price_feed_account.price_message.feed_id, feed_id);
 
@@ -667,8 +674,8 @@ fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResu
 /// Load and validate a pyth price feed account.
 fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
-    let price_feed =
-        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
+    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
+        .map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
 }
 

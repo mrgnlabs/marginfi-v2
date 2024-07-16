@@ -1,19 +1,21 @@
-use crate::constants::{PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD};
-use crate::events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent};
-use crate::state::marginfi_account::DISABLED_FLAG;
 use crate::{
     bank_signer, check,
-    constants::{INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED},
+    constants::{
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD,
+    },
+    debug,
+    events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent},
     math_error,
     prelude::MarginfiError,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
         marginfi_group::{Bank, BankVaultType, MarginfiGroup},
     },
-    MarginfiResult,
+    utils, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Transfer};
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use std::cmp::{max, min};
 
@@ -23,7 +25,9 @@ use std::cmp::{max, min};
 /// 3. Cover the bad debt of the bankrupt account.
 /// 4. Transfer the insured amount from the insurance fund.
 /// 5. Socialize the loss between lenders if any.
-pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>) -> MarginfiResult {
+pub fn lending_pool_handle_bankruptcy<'info>(
+    mut ctx: Context<'_, '_, 'info, 'info, LendingPoolHandleBankruptcy<'info>>,
+) -> MarginfiResult {
     let LendingPoolHandleBankruptcy {
         marginfi_account: marginfi_account_loader,
         insurance_vault,
@@ -33,6 +37,10 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
         ..
     } = ctx.accounts;
     let bank = bank_loader.load()?;
+    let maybe_bank_mint =
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+
+    let clock = Clock::get()?;
 
     if !bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG) {
         check!(
@@ -50,7 +58,7 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
     let mut bank = bank_loader.load_mut()?;
 
     bank.accrue_interest(
-        Clock::get()?.unix_timestamp,
+        clock.unix_timestamp,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -76,30 +84,61 @@ pub fn lending_pool_handle_bankruptcy(ctx: Context<LendingPoolHandleBankruptcy>)
     );
 
     let (covered_by_insurance, socialized_loss) = {
-        let available_insurance_funds = I80F48::from_num(insurance_vault.amount);
+        let available_insurance_fund: I80F48 = maybe_bank_mint
+            .as_ref()
+            .map(|mint| {
+                utils::calculate_post_fee_spl_deposit_amount(
+                    mint.to_account_info(),
+                    insurance_vault.amount,
+                    clock.epoch,
+                )
+            })
+            .transpose()?
+            .unwrap_or(insurance_vault.amount)
+            .into();
 
-        let covered_by_insurance = min(bad_debt, available_insurance_funds);
+        let covered_by_insurance = min(bad_debt, available_insurance_fund);
         let socialized_loss = max(bad_debt - covered_by_insurance, I80F48::ZERO);
 
         (covered_by_insurance, socialized_loss)
     };
 
     // Cover bad debt with insurance funds.
+    let covered_by_insurance_rounded_up: u64 = covered_by_insurance
+        .checked_ceil()
+        .ok_or_else(math_error!())?
+        .checked_to_num()
+        .ok_or_else(math_error!())?;
+    debug!(
+        "covered_by_insurance_rounded_up: {}; socialized loss {}",
+        covered_by_insurance_rounded_up, socialized_loss
+    );
+
+    let insurance_coverage_deposit_pre_fee = maybe_bank_mint
+        .as_ref()
+        .map(|mint| {
+            utils::calculate_pre_fee_spl_deposit_amount(
+                mint.to_account_info(),
+                covered_by_insurance_rounded_up,
+                clock.epoch,
+            )
+        })
+        .transpose()?
+        .unwrap_or(covered_by_insurance_rounded_up);
+
     bank.withdraw_spl_transfer(
-        covered_by_insurance
-            .checked_to_num()
-            .ok_or_else(math_error!())?,
-        Transfer {
-            from: ctx.accounts.insurance_vault.to_account_info(),
-            to: ctx.accounts.liquidity_vault.to_account_info(),
-            authority: ctx.accounts.insurance_vault_authority.to_account_info(),
-        },
+        insurance_coverage_deposit_pre_fee,
+        ctx.accounts.insurance_vault.to_account_info(),
+        ctx.accounts.liquidity_vault.to_account_info(),
+        ctx.accounts.insurance_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
         bank_signer!(
             BankVaultType::Insurance,
             bank_loader.key(),
             bank.insurance_vault_authority_bump
         ),
+        ctx.remaining_accounts,
     )?;
 
     // Socialize bad debt among depositors.
@@ -171,7 +210,7 @@ pub struct LendingPoolHandleBankruptcy<'info> {
         ],
         bump = bank.load()?.insurance_vault_bump
     )]
-    pub insurance_vault: Box<Account<'info, TokenAccount>>,
+    pub insurance_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Seed constraint
     #[account(
@@ -183,5 +222,5 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     )]
     pub insurance_vault_authority: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }

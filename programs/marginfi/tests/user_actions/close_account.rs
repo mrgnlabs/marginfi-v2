@@ -1,7 +1,7 @@
 use fixtures::{
     assert_custom_error,
     spl::TokenAccountFixture,
-    test::{BankMint, TestBankSetting, TestFixture, TestSettings},
+    test::{BankMint, TestFixture, TestSettings},
 };
 use marginfi::errors::MarginfiError;
 use solana_program_test::tokio;
@@ -15,10 +15,10 @@ async fn close_marginfi_account() -> anyhow::Result<()> {
 
     let owner = test_f.payer();
     let token_account_f =
-        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint.key, &owner).await;
+        TokenAccountFixture::new(test_f.context.clone(), &test_f.usdc_mint, &owner).await;
     test_f.usdc_mint.mint_to(&token_account_f.key, 1_000).await;
 
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     marginfi_account_f
         .try_bank_deposit(token_account_f.key, usdc_bank_f, 1_000)
@@ -29,7 +29,7 @@ async fn close_marginfi_account() -> anyhow::Result<()> {
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalAction);
 
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
     let sol_account = test_f.sol_mint.create_token_account_and_mint_to(100).await;
     let depositor = test_f.create_marginfi_account().await;
     depositor

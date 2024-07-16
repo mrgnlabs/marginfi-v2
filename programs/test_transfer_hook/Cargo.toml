@@ -1,0 +1,17 @@
+[package]
+name = "test_transfer_hook"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+idl-build = []
+no-entrypoint = []
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+solana-program = { workspace = true }
+spl-token-2022 = { workspace = true, features = ["no-entrypoint"] }
+spl-transfer-hook-interface = { workspace = true }
+spl-tlv-account-resolution = { workspace = true }

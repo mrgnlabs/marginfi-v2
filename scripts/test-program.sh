@@ -14,12 +14,18 @@ fi
 
 if [ "$loglevel" == "--sane" ]; then
     loglevel=warn
-    nocapture=""
+    nocapture="--test-threads=1"
 else
     loglevel=debug
-    nocapture="-- --nocapture"
+    nocapture="--nocapture"
 fi
 
-cmd="RUST_LOG=solana_runtime::message_processor::stable_log=$loglevel cargo test --package $program_lib_name --features=test,test-bpf $nocapture"
+if [ "$program_lib_name" == "all" ]; then
+    package_filter=""
+else 
+    package_filter="--package $program_lib_name"
+fi
+
+cmd="SBF_OUT_DIR=$ROOT/target/deploy RUST_LOG=solana_runtime::message_processor::stable_log=$loglevel cargo nextest run --no-fail-fast $package_filter --features=test,test-bpf $nocapture"
 echo "Running: $cmd"
 eval "$cmd"

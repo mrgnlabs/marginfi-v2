@@ -14,10 +14,10 @@ defaults:
     working-directory: .
 
 env:
-  RUST_TOOLCHAIN: 1.66.1
-  SOLANA_CLI_VERSION: 1.16.20
-  ANCHOR_CLI_VERSION: 0.29.0
-  ANCHOR_SHA: fc9fd6d24b9be84abb2f40e47ed3faf7b11864ae
+  RUST_TOOLCHAIN: 1.75.0
+  SOLANA_CLI_VERSION: 1.18.11
+  ANCHOR_CLI_VERSION: 0.30.1
+  ANCHOR_SHA: e6d7dafe12da661a36ad1b4f3b5970e8986e5321
   CARGO_TERM_COLOR: always
 
 concurrency:
@@ -28,8 +28,6 @@ jobs:
   lint:
     name: Rust Lint
     runs-on: ubuntu-latest
-    env:
-      RUSTUP_TOOLCHAIN: stable
 
     steps:
       - uses: actions/checkout@v3
@@ -37,20 +35,20 @@ jobs:
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
 
-      - uses: actions/cache@v2
-        name: Cache Cargo registry + index
-        id: cache-cargo-build
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+      # - uses: actions/cache@v2
+      #   name: Cache Cargo registry + index
+      #   id: cache-cargo-build
+      #   with:
+      #     path: |
+      #       ~/.cargo/bin/
+      #       ~/.cargo/registry/index/
+      #       ~/.cargo/registry/cache/
+      #       ~/.cargo/git/db/
+      #     key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - run: cargo fmt -- --check
 
-      - run: cargo clippy --features=test,test-bpf,admin -- -D warnings -A unused-imports -A clippy::result_large_err -A clippy::await_holding_refcell_ref -A clippy::comparison_chain -A clippy::bind_instead_of_map -A clippy::to-string-trait-impl
+      - run: ./scripts/lint.sh
 
   test-unit:
     name: Rust Unit Tests
@@ -63,24 +61,22 @@ jobs:
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
 
-      - uses: actions/cache@v2
-        name: Cache Cargo registry + index
-        id: cache-cargo-build
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+      # - uses: actions/cache@v2
+      #   name: Cache Cargo registry + index
+      #   id: cache-cargo-build
+      #   with:
+      #     path: |
+      #       ~/.cargo/bin/
+      #       ~/.cargo/registry/index/
+      #       ~/.cargo/registry/cache/
+      #       ~/.cargo/git/db/
+      #     key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - run: cargo test --lib
 
-  test-programs:
-    name: Build and Test Anchor Programs
+  build-and-test-workspace:
+    name: Build And Test Anchor Programs
     runs-on: ubuntu-latest
-    env:
-      RUSTUP_TOOLCHAIN: stable
 
     steps:
       - uses: actions/checkout@v2
@@ -90,34 +86,31 @@ jobs:
 
       - uses: ./.github/actions/build-workspace/
 
-      - run: ./scripts/test-program.sh marginfi
-        shell: bash
-
-      - run: ./scripts/test-program.sh liquidity-incentive-program
+      - run: ./scripts/test-program.sh all --sane
         shell: bash
 
   fuzz:
     name: Fuzz The marginfi Program
     runs-on: ubuntu-latest
-    env:
-      RUST_TOOLCHAIN: 1.77.1
-      RUSTUP_TOOLCHAIN: nightly-2024-03-26
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./programs/marginfi/fuzz
 
     steps:
       - uses: actions/checkout@v3
-      - name: cache dependencies
-        uses: Swatinem/rust-cache@v2
+      # - name: cache dependencies
+      #   uses: Swatinem/rust-cache@v2
       - name: Install full rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2024-03-26
+          toolchain: nightly-2024-06-05
           components: rust-src
-          override: true
       - name: Run fuzz tests in fuzz dir
         run: |
-          cd programs/marginfi
+          python ./generate_corpus.py
           cargo install cargo-fuzz --locked
-          cargo fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
+          cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"

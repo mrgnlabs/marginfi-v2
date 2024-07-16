@@ -1,28 +1,35 @@
 [workspace]
 resolver = "2"
-members = ["programs/*", "clients/rust/*", "tools/*", "observability/indexer"]
-exclude = ["programs/brick"]
+members = ["programs/*", "clients/rust/*", "tools/*"]
 
 [workspace.dependencies]
-solana-cli-output = "1.16.23"
-solana-client = "1.16.23"
-solana-sdk = "1.16.23"
-solana-logger = "1.16.23"
-solana-program = "1.16.23"
-solana-program-test = "1.16.23"
-solana-account-decoder = "1.16.23"
-solana-measure = "1.16.23"
-solana-metrics = "1.16.23"
-solana-transaction-status = "1.16.23"
+solana-cli-output = "=1.18.17"
+solana-client = "=1.18.17"
+solana-sdk = "=1.18.17"
+solana-logger = "=1.18.17"
+solana-program = "=1.18.17"
+solana-program-test = "=1.18.17"
+solana-account-decoder = "=1.18.17"
+solana-measure = "=1.18.17"
+solana-metrics = "=1.18.17"
+solana-transaction-status = "=1.18.17"
+solana-address-lookup-table-program = "=1.18.17"
 spl-token = "4.0.0"
 spl-associated-token-account = "2.2.0"
+spl-transfer-hook-interface = "0.6.3"
+spl-tlv-account-resolution = "0.6.3"
+spl-discriminator = "0.2.2"
+spl-token-2022 = "3.0.2"
 
-anchor-lang = "0.28.0"
-anchor-spl = "0.28.0"
-anchor-client = "0.28.0"
+anchor-lang = { git = "https://github.com/mrgnlabs/anchor.git", rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
+anchor-spl = { git = "https://github.com/mrgnlabs/anchor.git", features = [
+  "token_2022",
+], rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
+anchor-client = { git = "https://github.com/mrgnlabs/anchor.git", rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
 
-switchboard-v2 = "0.4.0"
-pyth-sdk-solana = "0.8.0"
+pyth-sdk-solana = "=0.10.1"
+switchboard-solana = "0.29.0"
+borsh = "0.10.3"
 
 [profile.release]
 overflow-checks = true

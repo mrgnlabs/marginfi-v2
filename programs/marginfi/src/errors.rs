@@ -95,6 +95,8 @@ pub enum MarginfiError {
     Unauthorized,
     #[msg("Invalid account authority")] // 6046
     IllegalAction,
+    #[msg("Token22 Banks require mint account as first remaining account")] // 6047
+    T22MintRequired,
 }
 
 impl From<MarginfiError> for ProgramError {

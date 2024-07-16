@@ -67,7 +67,7 @@ async fn campaign_no_yield() -> Result<()> {
     assert_eq!(campaign.max_deposits, native!(1000, "USDC"));
     assert_eq!(campaign.remaining_capacity, 0);
 
-    let destination_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let destination_account = test_f.usdc_mint.create_empty_token_account().await;
     let res = campaign_f
         .try_end_deposit(deposit_key, destination_account.key)
         .await;
@@ -76,7 +76,7 @@ async fn campaign_no_yield() -> Result<()> {
 
     test_f.advance_time(time!(1, "s")).await;
 
-    let destination_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let destination_account = test_f.usdc_mint.create_empty_token_account().await;
     let res = campaign_f
         .try_end_deposit(deposit_key, destination_account.key)
         .await;
@@ -104,6 +104,8 @@ async fn campaign_no_yield() -> Result<()> {
 async fn campaign_mixed_yield() -> Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
+
+    test_f.set_time(0);
 
     // Setup sample bank
     let usdc_bank = test_f
@@ -166,7 +168,7 @@ async fn campaign_mixed_yield() -> Result<()> {
         .try_bank_repay(usdc_borrowing_account.key, &usdc_bank, 500, Some(true))
         .await?;
 
-    let destination_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let destination_account = test_f.usdc_mint.create_empty_token_account().await;
     campaign_f
         .try_end_deposit(deposit_key, destination_account.key)
         .await?;
@@ -195,6 +197,8 @@ async fn campaign_mixed_yield() -> Result<()> {
 async fn campaign_max_yield() -> Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
+
+    test_f.set_time(0);
 
     // Setup sample bank
     let usdc_bank = test_f
@@ -257,7 +261,7 @@ async fn campaign_max_yield() -> Result<()> {
         .try_bank_repay(usdc_borrowing_account.key, &usdc_bank, 500, Some(true))
         .await?;
 
-    let destination_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let destination_account = test_f.usdc_mint.create_empty_token_account().await;
     campaign_f
         .try_end_deposit(deposit_key, destination_account.key)
         .await?;
@@ -319,7 +323,7 @@ async fn campaign_neg_yield() -> Result<()> {
         .set_asset_share_value(I80F48::from(usdc_bank.load().await.asset_share_value) / 2)
         .await;
 
-    let destination_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let destination_account = test_f.usdc_mint.create_empty_token_account().await;
     campaign_f
         .try_end_deposit(deposit_key, destination_account.key)
         .await?;

@@ -1,18 +1,19 @@
-use crate::config::TxMode;
-#[cfg(feature = "admin")]
-use marginfi::constants::{EMISSIONS_AUTH_SEED, MAX_ORACLE_KEYS};
-use marginfi::constants::{EMISSIONS_TOKEN_ACCOUNT_SEED, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID};
-use marginfi::{bank_seed, state::price::PythPushOraclePriceFeed};
 use {
+    crate::config::TxMode,
     anyhow::{bail, Result},
     fixed::types::I80F48,
     fixed_macro::types::I80F48,
     log::error,
     marginfi::{
-        bank_authority_seed,
+        bank_authority_seed, bank_seed,
+        constants::{
+            EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS,
+            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
+        },
         state::{
             marginfi_account::MarginfiAccount,
             marginfi_group::{Bank, BankVaultType},
+            price::PythPushOraclePriceFeed,
         },
     },
     solana_client::rpc_client::RpcClient,
@@ -80,7 +81,6 @@ pub fn find_bank_vault_authority_pda(
     Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
 }
 
-#[cfg(feature = "admin")]
 pub fn find_bank_emssions_auth_pda(
     bank: Pubkey,
     emissions_mint: Pubkey,
@@ -111,7 +111,6 @@ pub fn find_bank_emssions_token_account_pda(
     )
 }
 
-#[cfg(feature = "admin")]
 pub fn create_oracle_key_array(oracle_key: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
     let mut oracle_keys = [Pubkey::default(); MAX_ORACLE_KEYS];
     oracle_keys[0] = oracle_key;
@@ -198,12 +197,10 @@ pub fn load_observation_account_metas(
     account_metas
 }
 
-#[cfg(feature = "admin")]
 pub fn calc_emissions_rate(ui_rate: f64, emissions_mint_decimals: u8) -> u64 {
     (ui_rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64
 }
 
-#[cfg(feature = "admin")]
 pub fn ui_to_native(ui_amount: f64, decimals: u8) -> u64 {
     (ui_amount * (10u64.pow(decimals as u32) as f64)) as u64
 }
