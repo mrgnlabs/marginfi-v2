@@ -392,6 +392,11 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
 }
 
 fn load_price_update_v2(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
+    check!(
+        ai.owner.eq(&PYTH_PUSH_ORACLE_ID),
+        MarginfiError::InvalidOracleAccount
+    );
+
     let price_feed_data = ai.try_borrow_data()?;
     let discriminator = &price_feed_data[0..8];
 
