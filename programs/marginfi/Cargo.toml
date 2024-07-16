@@ -29,6 +29,7 @@ spl-transfer-hook-interface = { workspace = true }
 spl-tlv-account-resolution = { workspace = true }
 
 anchor-lang = { workspace = true }
+anchor-lang-29 = { workspace = true }
 anchor-spl = { workspace = true }
 
 pyth-sdk-solana = { workspace = true }

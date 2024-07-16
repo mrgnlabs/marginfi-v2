@@ -2877,6 +2877,7 @@ dependencies = [
 name = "marginfi"
 version = "0.1.0"
 dependencies = [
+ "anchor-lang 0.29.0",
  "anchor-lang 0.30.1",
  "anchor-spl 0.30.1",
  "anyhow",
@@ -2934,6 +2935,7 @@ dependencies = [
  "log",
  "marginfi",
  "pyth-sdk-solana",
+ "pyth-solana-receiver-sdk",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -6792,6 +6794,7 @@ dependencies = [
 name = "test-utilities"
 version = "0.1.0"
 dependencies = [
+ "anchor-lang 0.29.0",
  "anchor-lang 0.30.1",
  "anchor-spl 0.30.1",
  "anyhow",

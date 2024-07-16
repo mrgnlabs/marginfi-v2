@@ -1,7 +1,6 @@
 use std::cmp::min;
 
 use anchor_lang::prelude::*;
-
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
@@ -33,7 +32,7 @@ use anchor_lang::prelude::borsh;
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
 pub enum OracleSetup {
     None,
-    PythEma,
+    PythPull,
     SwitchboardV2,
     PythPushOracle,
 }
@@ -92,7 +91,7 @@ impl OraclePriceFeedAdapter {
     ) -> MarginfiResult<Self> {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
-            OracleSetup::PythEma => {
+            OracleSetup::PythPull => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
                 check!(
                     ais[0].key == &bank_config.oracle_keys[0],
@@ -145,7 +144,7 @@ impl OraclePriceFeedAdapter {
     ) -> MarginfiResult {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
-            OracleSetup::PythEma => {
+            OracleSetup::PythPull => {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
                 check!(
                     oracle_ais[0].key == &bank_config.oracle_keys[0],
@@ -392,6 +391,20 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
     }
 }
 
+fn load_price_update_v2(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
+    let price_feed_data = ai.try_borrow_data()?;
+    let discriminator = &price_feed_data[0..8];
+
+    check!(
+        discriminator == <PriceUpdateV2 as anchor_lang_29::Discriminator>::DISCRIMINATOR,
+        MarginfiError::InvalidOracleAccount
+    );
+
+    Ok(PriceUpdateV2::deserialize(
+        &mut &price_feed_data.as_ref()[8..],
+    )?)
+}
+
 #[cfg_attr(feature = "client", derive(Clone, Debug))]
 pub struct PythPushOraclePriceFeed {
     ema_price: Box<pyth_solana_receiver_sdk::price_update::Price>,
@@ -411,8 +424,7 @@ impl PythPushOraclePriceFeed {
         clock: &Clock,
         max_age: u64,
     ) -> MarginfiResult<Self> {
-        let price_feed_data = ai.try_borrow_data()?;
-        let price_feed_account = PriceUpdateV2::deserialize(&mut &price_feed_data[..])?;
+        let price_feed_account = load_price_update_v2(ai)?;
 
         let price = price_feed_account
             .get_price_no_older_than_with_custom_verification_level(
@@ -457,8 +469,7 @@ impl PythPushOraclePriceFeed {
 
     #[cfg(feature = "client")]
     pub fn load_unchecked(ai: &AccountInfo) -> MarginfiResult<Self> {
-        let price_feed_data = ai.try_borrow_data()?;
-        let price_feed_account = PriceUpdateV2::deserialize(&mut &price_feed_data[..])?;
+        let price_feed_account = load_price_update_v2(ai)?;
 
         let price = price_feed_account
             .get_price_unchecked(&price_feed_account.price_message.feed_id)
@@ -498,15 +509,13 @@ impl PythPushOraclePriceFeed {
 
     #[cfg(feature = "client")]
     pub fn peek_feed_id(ai: &AccountInfo) -> MarginfiResult<FeedId> {
-        let price_feed_data = ai.try_borrow_data()?;
-        let price_feed_account = PriceUpdateV2::deserialize(&mut &price_feed_data[..])?;
+        let price_feed_account = load_price_update_v2(ai)?;
 
         Ok(price_feed_account.price_message.feed_id)
     }
 
     pub fn check_ai_and_feed_id(ai: &AccountInfo, feed_id: &FeedId) -> MarginfiResult {
-        let price_feed_data = ai.try_borrow_data()?;
-        let price_feed_account = PriceUpdateV2::deserialize(&mut &price_feed_data[..])?;
+        let price_feed_account = load_price_update_v2(ai)?;
 
         assert_eq!(&price_feed_account.price_message.feed_id, feed_id);
 

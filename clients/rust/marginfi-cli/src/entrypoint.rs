@@ -72,6 +72,9 @@ pub enum Command {
         #[clap(long, action)]
         only_stale: bool,
     },
+    InspectPythPushFeed {
+        pyth_feed: Pubkey,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -166,7 +169,7 @@ pub enum OracleTypeArg {
 impl From<OracleTypeArg> for OracleSetup {
     fn from(value: OracleTypeArg) -> Self {
         match value {
-            OracleTypeArg::PythEma => OracleSetup::PythEma,
+            OracleTypeArg::PythEma => OracleSetup::PythPull,
             OracleTypeArg::Switchboard => OracleSetup::SwitchboardV2,
         }
     }
@@ -421,6 +424,14 @@ pub fn entry(opts: Opts) -> Result<()> {
 
         Command::MakeTestI80F48 => {
             process_make_test_i80f48();
+
+            Ok(())
+        }
+        Command::InspectPythPushFeed { pyth_feed } => {
+            let profile = load_profile()?;
+            let config = profile.get_config(Some(&opts.cfg_override))?;
+
+            processor::inspect_pyth_push_feed(&config, pyth_feed)?;
 
             Ok(())
         }

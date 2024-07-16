@@ -139,22 +139,6 @@ impl TestSettings {
             group_config: Some(GroupConfig { admin: None }),
         }
     }
-
-    pub fn real_oracle_data() -> Self {
-        Self {
-            banks: vec![
-                TestBankSetting {
-                    mint: BankMint::Usdc,
-                    config: Some(*DEFAULT_USDC_TEST_REAL_BANK_CONFIG),
-                },
-                TestBankSetting {
-                    mint: BankMint::Sol,
-                    config: Some(*DEFAULT_SOL_TEST_REAL_BANK_CONFIG),
-                },
-            ],
-            group_config: Some(GroupConfig { admin: None }),
-        }
-    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -214,20 +198,26 @@ pub const PYTH_PUSH_SOL_FULLV_FEED: Pubkey = pubkey!("PythPushFu11So1Price111111
 pub const PYTH_PUSH_SOL_PARTV_FEED: Pubkey = pubkey!("PythPushHa1fSo1Price11111111111111111111111");
 pub const PYTH_PUSH_FULLV_FEED_ID: [u8; 32] = [17; 32];
 pub const PYTH_PUSH_PARTV_FEED_ID: [u8; 32] = [18; 32];
-
-pub fn get_oracle_id_from_feed_id(feed_id: Pubkey) -> Option<Pubkey> {
-    match feed_id.to_bytes() {
-        PYTH_PUSH_FULLV_FEED_ID => Some(PYTH_PUSH_SOL_FULLV_FEED),
-        PYTH_PUSH_PARTV_FEED_ID => Some(PYTH_PUSH_SOL_PARTV_FEED),
-        _ => None,
-    }
-}
+pub const PYTH_PUSH_REAL_SOL_FEED_ID: [u8; 32] = [
+    239, 13, 139, 111, 218, 44, 235, 164, 29, 161, 93, 64, 149, 209, 218, 57, 42, 13, 47, 142, 208,
+    198, 199, 188, 15, 76, 250, 200, 194, 128, 181, 109,
+];
 pub const INEXISTENT_PYTH_USDC_FEED: Pubkey =
     pubkey!("FakePythUsdcPrice11111111111111111111111111");
 pub const PYTH_T22_WITH_FEE_FEED: Pubkey = pubkey!("PythT22WithFeePrice111111111111111111111111");
 pub const PYTH_PYUSD_FEED: Pubkey = pubkey!("PythPyusdPrice11111111111111111111111111111");
 pub const PYTH_SOL_REAL_FEED: Pubkey = pubkey!("PythSo1Rea1Price111111111111111111111111111");
 pub const PYTH_USDC_REAL_FEED: Pubkey = pubkey!("PythUsdcRea1Price11111111111111111111111111");
+pub const PYTH_PUSH_SOL_REAL_FEED: Pubkey = pubkey!("PythPushSo1Rea1Price11111111111111111111111");
+
+pub fn get_oracle_id_from_feed_id(feed_id: Pubkey) -> Option<Pubkey> {
+    match feed_id.to_bytes() {
+        PYTH_PUSH_FULLV_FEED_ID => Some(PYTH_PUSH_SOL_FULLV_FEED),
+        PYTH_PUSH_PARTV_FEED_ID => Some(PYTH_PUSH_SOL_PARTV_FEED),
+        PYTH_PUSH_REAL_SOL_FEED_ID => Some(PYTH_PUSH_SOL_REAL_FEED),
+        _ => None,
+    }
+}
 
 pub fn create_oracle_key_array(pyth_oracle: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
     let mut keys = [Pubkey::default(); MAX_ORACLE_KEYS];
@@ -250,7 +240,7 @@ lazy_static! {
             ..Default::default()
         };
     pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythEma,
+        oracle_setup: OracleSetup::PythPull,
         asset_weight_maint: I80F48!(1).into(),
         asset_weight_init: I80F48!(1).into(),
         liability_weight_init: I80F48!(1).into(),
@@ -347,7 +337,7 @@ lazy_static! {
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythEma,
+        oracle_setup: OracleSetup::PythPull,
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_REAL_FEED),
@@ -355,10 +345,18 @@ lazy_static! {
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_USDC_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythEma,
+        oracle_setup: OracleSetup::PythPull,
         deposit_limit: native!(1_000_000_000, "USDC"),
         borrow_limit: native!(1_000_000_000, "USDC"),
         oracle_keys: create_oracle_key_array(PYTH_USDC_REAL_FEED),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    pub static ref DEFAULT_PYTH_PUSH_SOL_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::PythPushOracle,
+        deposit_limit: native!(1_000_000, "SOL"),
+        borrow_limit: native!(1_000_000, "SOL"),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_REAL_SOL_FEED_ID.into()),
+        oracle_max_age: 100,
         ..*DEFAULT_TEST_BANK_CONFIG
     };
 }
@@ -499,14 +497,20 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_SOL_REAL_FEED,
-            create_pyth_price_account_from_file(
+            create_pyth_pull_price_account_from_bytes(
                 include_bytes!("../data/H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG.bin").to_vec(),
             ),
         );
         program.add_account(
             PYTH_USDC_REAL_FEED,
-            create_pyth_price_account_from_file(
+            create_pyth_pull_price_account_from_bytes(
                 include_bytes!("../data/Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD.bin").to_vec(),
+            ),
+        );
+        program.add_account(
+            PYTH_PUSH_SOL_REAL_FEED,
+            create_pyth_push_oracle_account_from_bytes(
+                include_bytes!("../data/7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE.bin").to_vec(),
             ),
         );
 

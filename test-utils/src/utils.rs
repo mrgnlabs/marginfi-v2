@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang_29::Discriminator;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
@@ -52,7 +53,7 @@ where
     }
 }
 
-pub fn create_pyth_price_account_from_file(data: Vec<u8>) -> Account {
+pub fn create_pyth_pull_price_account_from_bytes(data: Vec<u8>) -> Account {
     Account {
         lamports: 1_000_000,
         data,
@@ -69,37 +70,43 @@ pub fn create_pyth_pull_oracle_account(
     timestamp: Option<i64>,
 ) -> Account {
     let native_price = (ui_price * 10_f64.powf(mint_decimals as f64)) as i64;
+    let data = bytemuck::bytes_of(&SolanaPriceAccount {
+        prod: mint,
+        agg: PriceInfo {
+            conf: 0,
+            price: native_price,
+            status: PriceStatus::Trading,
+            ..Default::default()
+        },
+        expo: -mint_decimals,
+        prev_price: native_price,
+        magic: MAGIC,
+        ver: VERSION_2,
+        atype: AccountType::Price as u32,
+        timestamp: 0,
+        ema_price: Rational {
+            val: native_price,
+            numer: native_price,
+            denom: 1,
+        },
+        prev_timestamp: timestamp.unwrap_or(0),
+        ema_conf: Rational {
+            val: 0,
+            numer: 0,
+            denom: 1,
+        },
+        ..Default::default()
+    })
+    .to_vec();
+
+    create_pyth_pull_price_account_from_bytes(data)
+}
+
+pub fn create_pyth_push_oracle_account_from_bytes(data: Vec<u8>) -> Account {
     Account {
         lamports: 1_000_000,
-        data: bytemuck::bytes_of(&SolanaPriceAccount {
-            prod: mint,
-            agg: PriceInfo {
-                conf: 0,
-                price: native_price,
-                status: PriceStatus::Trading,
-                ..Default::default()
-            },
-            expo: -mint_decimals,
-            prev_price: native_price,
-            magic: MAGIC,
-            ver: VERSION_2,
-            atype: AccountType::Price as u32,
-            timestamp: 0,
-            ema_price: Rational {
-                val: native_price,
-                numer: native_price,
-                denom: 1,
-            },
-            prev_timestamp: timestamp.unwrap_or(0),
-            ema_conf: Rational {
-                val: 0,
-                numer: 0,
-                denom: 1,
-            },
-            ..Default::default()
-        })
-        .to_vec(),
-        owner: PYTH_ID,
+        data,
+        owner: PYTH_PUSH_ORACLE_ID,
         executable: false,
         rent_epoch: 361,
     }
@@ -131,16 +138,15 @@ pub fn create_pyth_push_oracle_account(
     };
 
     let mut data = vec![];
+    let mut account_data = vec![];
 
-    price_update.serialize(&mut data).unwrap();
+    data.extend_from_slice(&PriceUpdateV2::DISCRIMINATOR);
 
-    Account {
-        lamports: 1_000_000,
-        data,
-        owner: PYTH_PUSH_ORACLE_ID,
-        executable: false,
-        rent_epoch: 361,
-    }
+    price_update.serialize(&mut account_data).unwrap();
+
+    data.extend_from_slice(&account_data);
+
+    create_pyth_push_oracle_account_from_bytes(data)
 }
 
 pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Account {

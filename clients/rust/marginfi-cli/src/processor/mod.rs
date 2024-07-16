@@ -19,6 +19,7 @@ use {
     },
     anchor_spl::token_2022::spl_token_2022,
     anyhow::{anyhow, bail, Result},
+    borsh::BorshDeserialize,
     fixed::types::I80F48,
     log::info,
     marginfi::{
@@ -33,11 +34,12 @@ use {
                 Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
                 InterestRateConfig, WrappedI80F48,
             },
-            price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter},
+            price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter, PythPushOraclePriceFeed},
         },
         utils::NumTraitsWithTolerance,
     },
     pyth_sdk_solana::state::{load_price_account, SolanaPriceAccount},
+    pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{
         rpc_client::RpcClient,
         rpc_filter::{Memcmp, RpcFilterType},
@@ -51,7 +53,6 @@ use {
         instruction::{AccountMeta, Instruction},
         message::Message,
         program_pack::Pack,
-        pubkey,
         pubkey::Pubkey,
         signature::Keypair,
         signer::Signer,
@@ -1118,7 +1119,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
         .mfi_program
         .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
             8 + size_of::<Pubkey>() + size_of::<u8>(),
-            pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+            solana_sdk::pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
                 .to_bytes()
                 .to_vec(),
         ))])?;
@@ -1134,7 +1135,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             )
         })
         .partition(|(setup, _, _, _)| match setup {
-            OracleSetup::PythEma => true,
+            OracleSetup::PythPull => true,
             OracleSetup::SwitchboardV2 => false,
             _ => panic!("Unknown oracle setup"),
         });
@@ -2378,4 +2379,24 @@ fn timestamp_to_string(timestamp: i64) -> String {
     )
     .format("%Y-%m-%d %H:%M:%S")
     .to_string()
+}
+
+pub fn inspect_pyth_push_feed(config: &Config, address: Pubkey) -> anyhow::Result<()> {
+    let mut account = config.mfi_program.rpc().get_account(&address)?;
+    let ai = (&address, &mut account).into_account_info();
+
+    let mut data = &ai.try_borrow_data()?[8..];
+    let price_update = PriceUpdateV2::deserialize(&mut data)?;
+
+    println!("Pyth Push Feed: {}", address);
+    let feed = PythPushOraclePriceFeed::load_unchecked(&ai)?;
+
+    println!(
+        "Price: {}",
+        feed.get_price_of_type(marginfi::state::price::OraclePriceType::RealTime, None)?
+    );
+
+    println!("Feed id: {:?}", price_update.price_message.feed_id);
+
+    Ok(())
 }
