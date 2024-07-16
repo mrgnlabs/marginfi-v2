@@ -575,7 +575,7 @@ impl PythPushOraclePriceFeed {
         pyth_price_components_to_i80f48(I80F48::from_num(self.price.price), self.price.exponent)
     }
 
-    /// Find PDA address of a pyth push oracle give a shard_id and feed_id
+    /// Find PDA address of a pyth push oracle given a shard_id and feed_id
     ///
     /// Pyth sponsored feed id
     /// `constants::PYTH_PUSH_PYTH_SPONSORED_SHARD_ID = 0`

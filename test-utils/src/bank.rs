@@ -19,6 +19,7 @@ use marginfi::{
 };
 use solana_program::account_info::IntoAccountInfo;
 use solana_program::instruction::Instruction;
+use solana_program::sysvar::clock::Clock;
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
 #[cfg(feature = "lip")]
@@ -70,12 +71,9 @@ impl BankFixture {
             .unwrap()
             .unwrap();
         let ai = (&oracle_key, &mut oracle_account).into_account_info();
-        let clock = solana_program::sysvar::clock::Clock {
-            unix_timestamp: 0,
-            ..Default::default()
-        };
         let oracle_adapter =
-            OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[ai], &clock).unwrap();
+            OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[ai], &Clock::default())
+                .unwrap();
 
         oracle_adapter
             .get_price_of_type(OraclePriceType::RealTime, None)
