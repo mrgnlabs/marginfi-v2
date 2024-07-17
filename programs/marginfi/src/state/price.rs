@@ -32,7 +32,7 @@ use anchor_lang::prelude::borsh;
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
 pub enum OracleSetup {
     None,
-    PythPull,
+    PythLegacy,
     SwitchboardV2,
     PythPushOracle,
 }
@@ -64,9 +64,9 @@ pub trait PriceAdapter {
 #[enum_dispatch(PriceAdapter)]
 #[cfg_attr(feature = "client", derive(Clone))]
 pub enum OraclePriceFeedAdapter {
-    PythEma(PythEmaPriceFeed),
+    PythLegacy(PythLegacyPriceFeed),
     SwitchboardV2(SwitchboardV2PriceFeed),
-    PythPush(PythPushOraclePriceFeed),
+    PythPushOracle(PythPushOraclePriceFeed),
 }
 
 impl OraclePriceFeedAdapter {
@@ -91,7 +91,7 @@ impl OraclePriceFeedAdapter {
     ) -> MarginfiResult<Self> {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
-            OracleSetup::PythPull => {
+            OracleSetup::PythLegacy => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
                 check!(
                     ais[0].key == &bank_config.oracle_keys[0],
@@ -100,8 +100,8 @@ impl OraclePriceFeedAdapter {
 
                 let account_info = &ais[0];
 
-                Ok(OraclePriceFeedAdapter::PythEma(
-                    PythEmaPriceFeed::load_checked(account_info, clock.unix_timestamp, max_age)?,
+                Ok(OraclePriceFeedAdapter::PythLegacy(
+                    PythLegacyPriceFeed::load_checked(account_info, clock.unix_timestamp, max_age)?,
                 ))
             }
             OracleSetup::SwitchboardV2 => {
@@ -126,7 +126,7 @@ impl OraclePriceFeedAdapter {
                     MarginfiError::InvalidOracleAccount
                 );
 
-                Ok(OraclePriceFeedAdapter::PythPush(
+                Ok(OraclePriceFeedAdapter::PythPushOracle(
                     PythPushOraclePriceFeed::load_checked(
                         account_info,
                         &price_feed_id,
@@ -144,14 +144,14 @@ impl OraclePriceFeedAdapter {
     ) -> MarginfiResult {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
-            OracleSetup::PythPull => {
+            OracleSetup::PythLegacy => {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
                 check!(
                     oracle_ais[0].key == &bank_config.oracle_keys[0],
                     MarginfiError::InvalidOracleAccount
                 );
 
-                PythEmaPriceFeed::check_ais(&oracle_ais[0])?;
+                PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
 
                 Ok(())
             }
@@ -181,12 +181,12 @@ impl OraclePriceFeedAdapter {
 }
 
 #[cfg_attr(feature = "client", derive(Clone, Debug))]
-pub struct PythEmaPriceFeed {
+pub struct PythLegacyPriceFeed {
     ema_price: Box<Price>,
     price: Box<Price>,
 }
 
-impl PythEmaPriceFeed {
+impl PythLegacyPriceFeed {
     pub fn load_checked(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
         let price_feed = load_pyth_price_feed(ai)?;
 
@@ -252,7 +252,7 @@ impl PythEmaPriceFeed {
     }
 }
 
-impl PriceAdapter for PythEmaPriceFeed {
+impl PriceAdapter for PythLegacyPriceFeed {
     fn get_price_of_type(
         &self,
         price_type: OraclePriceType,
@@ -778,7 +778,7 @@ mod tests {
         });
 
         // Initialize PythEmaPriceFeed with high confidence price as EMA
-        let pyth_adapter = PythEmaPriceFeed {
+        let pyth_adapter = PythLegacyPriceFeed {
             ema_price: high_confidence_price,
             price: low_confidence_price,
         };
@@ -866,7 +866,7 @@ mod tests {
         let (ema_price, ema_push_price) =
             get_prices(99i64 * EXP_10[6] as i64, 4u64 * EXP_10[6] as u64);
 
-        let pyth_ema = PythEmaPriceFeed {
+        let pyth_ema = PythLegacyPriceFeed {
             ema_price: Box::new(ema_price),
             price: Box::new(price),
         };
@@ -940,7 +940,7 @@ mod tests {
         let (ema_price, ema_push_price) =
             get_prices(99i64 * EXP_10[6] as i64, 88u64 * EXP_10[6] as u64);
 
-        let pyth_ema = PythEmaPriceFeed {
+        let pyth_ema = PythLegacyPriceFeed {
             ema_price: Box::new(ema_price),
             price: Box::new(price),
         };

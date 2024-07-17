@@ -169,7 +169,7 @@ pub enum OracleTypeArg {
 impl From<OracleTypeArg> for OracleSetup {
     fn from(value: OracleTypeArg) -> Self {
         match value {
-            OracleTypeArg::PythEma => OracleSetup::PythPull,
+            OracleTypeArg::PythEma => OracleSetup::PythLegacy,
             OracleTypeArg::Switchboard => OracleSetup::SwitchboardV2,
         }
     }

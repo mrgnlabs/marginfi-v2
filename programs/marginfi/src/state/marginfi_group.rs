@@ -1183,7 +1183,7 @@ impl BankConfig {
     pub fn get_oracle_max_age(&self) -> u64 {
         match (self.oracle_max_age, self.oracle_setup) {
             (0, OracleSetup::SwitchboardV2) => MAX_SWB_ORACLE_AGE,
-            (0, OracleSetup::PythPull | OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
+            (0, OracleSetup::PythLegacy | OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
             (n, _) => n as u64,
         }
     }

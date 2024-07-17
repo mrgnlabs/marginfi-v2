@@ -262,7 +262,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                         protocol_ir_fee: I80F48!(0.1).into(),
                         ..Default::default()
                     },
-                    oracle_setup: marginfi::state::price::OracleSetup::PythPull,
+                    oracle_setup: marginfi::state::price::OracleSetup::PythLegacy,
                     oracle_keys: [
                         oracle.key(),
                         Pubkey::default(),

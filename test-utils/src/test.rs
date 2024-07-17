@@ -240,7 +240,7 @@ lazy_static! {
             ..Default::default()
         };
     pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythPull,
+        oracle_setup: OracleSetup::PythLegacy,
         asset_weight_maint: I80F48!(1).into(),
         asset_weight_init: I80F48!(1).into(),
         liability_weight_init: I80F48!(1).into(),
@@ -337,7 +337,7 @@ lazy_static! {
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythPull,
+        oracle_setup: OracleSetup::PythLegacy,
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_REAL_FEED),
@@ -345,7 +345,7 @@ lazy_static! {
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_USDC_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythPull,
+        oracle_setup: OracleSetup::PythLegacy,
         deposit_limit: native!(1_000_000_000, "USDC"),
         borrow_limit: native!(1_000_000_000, "USDC"),
         oracle_keys: create_oracle_key_array(PYTH_USDC_REAL_FEED),
@@ -413,7 +413,7 @@ impl TestFixture {
 
         program.add_account(
             PYTH_USDC_FEED,
-            create_pyth_pull_oracle_account(
+            create_pyth_legacy_oracle_account(
                 usdc_keypair.pubkey(),
                 1.0,
                 USDC_MINT_DECIMALS.into(),
@@ -422,7 +422,7 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_PYUSD_FEED,
-            create_pyth_pull_oracle_account(
+            create_pyth_legacy_oracle_account(
                 pyusd_keypair.pubkey(),
                 1.0,
                 PYUSD_MINT_DECIMALS.into(),
@@ -431,7 +431,7 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_T22_WITH_FEE_FEED,
-            create_pyth_pull_oracle_account(
+            create_pyth_legacy_oracle_account(
                 t22_with_fee_keypair.pubkey(),
                 0.5,
                 T22_WITH_FEE_MINT_DECIMALS.into(),
@@ -440,7 +440,7 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_SOL_FEED,
-            create_pyth_pull_oracle_account(
+            create_pyth_legacy_oracle_account(
                 sol_keypair.pubkey(),
                 10.0,
                 SOL_MINT_DECIMALS.into(),
@@ -450,7 +450,7 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_SOL_EQUIVALENT_FEED,
-            create_pyth_pull_oracle_account(
+            create_pyth_legacy_oracle_account(
                 sol_equivalent_keypair.pubkey(),
                 10.0,
                 SOL_MINT_DECIMALS.into(),
@@ -459,7 +459,7 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_MNDE_FEED,
-            create_pyth_pull_oracle_account(
+            create_pyth_legacy_oracle_account(
                 mnde_keypair.pubkey(),
                 10.0,
                 MNDE_MINT_DECIMALS.into(),
@@ -497,13 +497,13 @@ impl TestFixture {
         );
         program.add_account(
             PYTH_SOL_REAL_FEED,
-            create_pyth_pull_price_account_from_bytes(
+            create_pyth_legacy_price_account_from_bytes(
                 include_bytes!("../data/H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG.bin").to_vec(),
             ),
         );
         program.add_account(
             PYTH_USDC_REAL_FEED,
-            create_pyth_pull_price_account_from_bytes(
+            create_pyth_legacy_price_account_from_bytes(
                 include_bytes!("../data/Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD.bin").to_vec(),
             ),
         );

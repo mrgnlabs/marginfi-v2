@@ -53,7 +53,7 @@ where
     }
 }
 
-pub fn create_pyth_pull_price_account_from_bytes(data: Vec<u8>) -> Account {
+pub fn create_pyth_legacy_price_account_from_bytes(data: Vec<u8>) -> Account {
     Account {
         lamports: 1_000_000,
         data,
@@ -63,7 +63,7 @@ pub fn create_pyth_pull_price_account_from_bytes(data: Vec<u8>) -> Account {
     }
 }
 
-pub fn create_pyth_pull_oracle_account(
+pub fn create_pyth_legacy_oracle_account(
     mint: Pubkey,
     ui_price: f64,
     mint_decimals: i32,
@@ -99,7 +99,7 @@ pub fn create_pyth_pull_oracle_account(
     })
     .to_vec();
 
-    create_pyth_pull_price_account_from_bytes(data)
+    create_pyth_legacy_price_account_from_bytes(data)
 }
 
 pub fn create_pyth_push_oracle_account_from_bytes(data: Vec<u8>) -> Account {
