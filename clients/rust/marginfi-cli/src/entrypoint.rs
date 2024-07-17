@@ -72,7 +72,7 @@ pub enum Command {
         #[clap(long, action)]
         only_stale: bool,
     },
-    InspectPythPushFeed {
+    InspectPythPushOracleFeed {
         pyth_feed: Pubkey,
     },
 }
@@ -162,15 +162,17 @@ impl From<RiskTierArg> for RiskTier {
 
 #[derive(Clone, Copy, Debug, Parser, ArgEnum)]
 pub enum OracleTypeArg {
-    PythEma,
+    PythLegacy,
     Switchboard,
+    PythPushOracle,
 }
 
 impl From<OracleTypeArg> for OracleSetup {
     fn from(value: OracleTypeArg) -> Self {
         match value {
-            OracleTypeArg::PythEma => OracleSetup::PythLegacy,
+            OracleTypeArg::PythLegacy => OracleSetup::PythLegacy,
             OracleTypeArg::Switchboard => OracleSetup::SwitchboardV2,
+            OracleTypeArg::PythPushOracle => OracleSetup::PythPushOracle,
         }
     }
 }
@@ -427,7 +429,7 @@ pub fn entry(opts: Opts) -> Result<()> {
 
             Ok(())
         }
-        Command::InspectPythPushFeed { pyth_feed } => {
+        Command::InspectPythPushOracleFeed { pyth_feed } => {
             let profile = load_profile()?;
             let config = profile.get_config(Some(&opts.cfg_override))?;
 
