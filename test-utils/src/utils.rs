@@ -8,7 +8,6 @@ use pyth_sdk_solana::state::{
 use pyth_solana_receiver_sdk::price_update::FeedId;
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use pyth_solana_receiver_sdk::price_update::VerificationLevel;
-use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use solana_program::{instruction::Instruction, pubkey};
 use solana_program_test::*;
 use solana_sdk::{account::Account, signature::Keypair};
@@ -106,7 +105,7 @@ pub fn create_pyth_push_oracle_account_from_bytes(data: Vec<u8>) -> Account {
     Account {
         lamports: 1_000_000,
         data,
-        owner: PYTH_PUSH_ORACLE_ID,
+        owner: pyth_solana_receiver_sdk::ID,
         executable: false,
         rent_epoch: 361,
     }

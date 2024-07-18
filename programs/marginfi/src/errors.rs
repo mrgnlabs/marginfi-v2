@@ -6,7 +6,6 @@ pub enum MarginfiError {
     MathError,
     #[msg("Invalid bank index")] // 6001
     BankNotFound,
-
     #[msg("Lending account balance not found")] // 6002
     LendingAccountBalanceNotFound,
     #[msg("Bank deposit capacity exceeded")] // 6003

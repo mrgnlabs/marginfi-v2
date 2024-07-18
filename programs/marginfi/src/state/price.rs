@@ -4,10 +4,7 @@ use anchor_lang::prelude::*;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
-use pyth_solana_receiver_sdk::{
-    price_update::{self, FeedId, PriceUpdateV2},
-    PYTH_PUSH_ORACLE_ID,
-};
+use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
@@ -26,6 +23,7 @@ use crate::{
 
 use super::marginfi_group::BankConfig;
 use anchor_lang::prelude::borsh;
+use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 
 #[repr(u8)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
@@ -122,7 +120,7 @@ impl OraclePriceFeedAdapter {
                 let account_info = &ais[0];
 
                 check!(
-                    account_info.owner == &PYTH_PUSH_ORACLE_ID,
+                    account_info.owner == &pyth_solana_receiver_sdk::id(),
                     MarginfiError::InvalidOracleAccount
                 );
 
@@ -393,7 +391,7 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
 
 fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
     check!(
-        ai.owner.eq(&PYTH_PUSH_ORACLE_ID),
+        ai.owner.eq(&pyth_solana_receiver_sdk::id()),
         MarginfiError::InvalidOracleAccount
     );
 
@@ -583,7 +581,10 @@ impl PythPushOraclePriceFeed {
     /// Marginfi sponsored feed id
     /// `constants::PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID = 3301`
     pub fn find_oracle_address(shard_id: u16, feed_id: &FeedId) -> (Pubkey, u8) {
-        Pubkey::find_program_address(&[&shard_id.to_le_bytes(), feed_id], &PYTH_PUSH_ORACLE_ID)
+        Pubkey::find_program_address(
+            &[&shard_id.to_le_bytes(), feed_id],
+            &PYTH_PUSH_ORACLE_ID
+        )
     }
 }
 
