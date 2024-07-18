@@ -581,10 +581,7 @@ impl PythPushOraclePriceFeed {
     /// Marginfi sponsored feed id
     /// `constants::PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID = 3301`
     pub fn find_oracle_address(shard_id: u16, feed_id: &FeedId) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[&shard_id.to_le_bytes(), feed_id],
-            &PYTH_PUSH_ORACLE_ID
-        )
+        Pubkey::find_program_address(&[&shard_id.to_le_bytes(), feed_id], &PYTH_PUSH_ORACLE_ID)
     }
 }
 
