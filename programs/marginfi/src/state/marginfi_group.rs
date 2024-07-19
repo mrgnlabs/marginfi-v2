@@ -25,6 +25,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, PriceFeed};
+use pyth_solana_receiver_sdk::price_update::FeedId;
 #[cfg(feature = "client")]
 use std::fmt::Display;
 use std::{
@@ -1182,8 +1183,17 @@ impl BankConfig {
     pub fn get_oracle_max_age(&self) -> u64 {
         match (self.oracle_max_age, self.oracle_setup) {
             (0, OracleSetup::SwitchboardV2) => MAX_SWB_ORACLE_AGE,
-            (0, OracleSetup::PythEma) => MAX_PYTH_ORACLE_AGE,
+            (0, OracleSetup::PythLegacy | OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
             (n, _) => n as u64,
+        }
+    }
+
+    pub fn get_pyth_push_oracle_feed_id(&self) -> Option<&FeedId> {
+        if matches!(self.oracle_setup, OracleSetup::PythPushOracle) {
+            let bytes: &[u8; 32] = self.oracle_keys[0].as_ref().try_into().unwrap();
+            Some(bytes)
+        } else {
+            None
         }
     }
 }

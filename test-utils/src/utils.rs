@@ -1,9 +1,13 @@
 use anchor_lang::prelude::*;
+use anchor_lang_29::Discriminator;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
 };
+use pyth_solana_receiver_sdk::price_update::FeedId;
+use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
+use pyth_solana_receiver_sdk::price_update::VerificationLevel;
 use solana_program::{instruction::Instruction, pubkey};
 use solana_program_test::*;
 use solana_sdk::{account::Account, signature::Keypair};
@@ -48,7 +52,7 @@ where
     }
 }
 
-pub fn create_pyth_price_account_from_file(data: Vec<u8>) -> Account {
+pub fn create_pyth_legacy_price_account_from_bytes(data: Vec<u8>) -> Account {
     Account {
         lamports: 1_000_000,
         data,
@@ -58,47 +62,90 @@ pub fn create_pyth_price_account_from_file(data: Vec<u8>) -> Account {
     }
 }
 
-pub fn create_pyth_price_account(
+pub fn create_pyth_legacy_oracle_account(
     mint: Pubkey,
     ui_price: f64,
     mint_decimals: i32,
     timestamp: Option<i64>,
 ) -> Account {
     let native_price = (ui_price * 10_f64.powf(mint_decimals as f64)) as i64;
+    let data = bytemuck::bytes_of(&SolanaPriceAccount {
+        prod: mint,
+        agg: PriceInfo {
+            conf: 0,
+            price: native_price,
+            status: PriceStatus::Trading,
+            ..Default::default()
+        },
+        expo: -mint_decimals,
+        prev_price: native_price,
+        magic: MAGIC,
+        ver: VERSION_2,
+        atype: AccountType::Price as u32,
+        timestamp: 0,
+        ema_price: Rational {
+            val: native_price,
+            numer: native_price,
+            denom: 1,
+        },
+        prev_timestamp: timestamp.unwrap_or(0),
+        ema_conf: Rational {
+            val: 0,
+            numer: 0,
+            denom: 1,
+        },
+        ..Default::default()
+    })
+    .to_vec();
+
+    create_pyth_legacy_price_account_from_bytes(data)
+}
+
+pub fn create_pyth_push_oracle_account_from_bytes(data: Vec<u8>) -> Account {
     Account {
         lamports: 1_000_000,
-        data: bytemuck::bytes_of(&SolanaPriceAccount {
-            prod: mint,
-            agg: PriceInfo {
-                conf: 0,
-                price: native_price,
-                status: PriceStatus::Trading,
-                ..Default::default()
-            },
-            expo: -mint_decimals,
-            prev_price: native_price,
-            magic: MAGIC,
-            ver: VERSION_2,
-            atype: AccountType::Price as u32,
-            timestamp: 0,
-            ema_price: Rational {
-                val: native_price,
-                numer: native_price,
-                denom: 1,
-            },
-            prev_timestamp: timestamp.unwrap_or(0),
-            ema_conf: Rational {
-                val: 0,
-                numer: 0,
-                denom: 1,
-            },
-            ..Default::default()
-        })
-        .to_vec(),
-        owner: PYTH_ID,
+        data,
+        owner: pyth_solana_receiver_sdk::ID,
         executable: false,
         rent_epoch: 361,
     }
+}
+
+pub fn create_pyth_push_oracle_account(
+    feed_id: FeedId,
+    ui_price: f64,
+    mint_decimals: i32,
+    timestamp: Option<i64>,
+    verification_level: VerificationLevel,
+) -> Account {
+    let native_price = (ui_price * 10_f64.powf(mint_decimals as f64)) as i64;
+
+    let price_update = PriceUpdateV2 {
+        write_authority: Pubkey::default(),
+        verification_level,
+        price_message: pyth_solana_receiver_sdk::price_update::PriceFeedMessage {
+            feed_id,
+            price: native_price,
+            conf: 0,
+            exponent: -mint_decimals,
+            publish_time: timestamp.unwrap_or_default(),
+            prev_publish_time: timestamp.unwrap_or_default(),
+            ema_price: native_price,
+            ema_conf: 0,
+        },
+        posted_slot: 1,
+    };
+
+    let mut data = vec![];
+    let mut account_data = vec![];
+
+    data.extend_from_slice(&PriceUpdateV2::DISCRIMINATOR);
+
+    price_update.serialize(&mut account_data).unwrap();
+
+    data.extend_from_slice(&account_data);
+
+    create_pyth_push_oracle_account_from_bytes(data)
 }
 
 pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Account {

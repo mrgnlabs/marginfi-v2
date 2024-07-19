@@ -1,16 +1,17 @@
 pub mod admin;
 pub mod emissions;
 pub mod group;
+pub mod oracle;
 
 use {
     crate::{
         config::Config,
         profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
         utils::{
-            calc_emissions_rate, create_oracle_key_array, find_bank_emssions_auth_pda,
-            find_bank_emssions_token_account_pda, find_bank_vault_authority_pda,
-            find_bank_vault_pda, load_observation_account_metas, process_transaction,
-            EXP_10_I80F48,
+            bank_to_oracle_key, calc_emissions_rate, create_oracle_key_array,
+            find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
+            find_bank_vault_authority_pda, find_bank_vault_pda, load_observation_account_metas,
+            process_transaction, EXP_10_I80F48,
         },
     },
     anchor_client::{
@@ -19,11 +20,13 @@ use {
     },
     anchor_spl::token_2022::spl_token_2022,
     anyhow::{anyhow, bail, Result},
+    borsh::BorshDeserialize,
     fixed::types::I80F48,
     log::info,
     marginfi::{
         constants::{
-            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, ZERO_AMOUNT_THRESHOLD,
+            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
+            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID, ZERO_AMOUNT_THRESHOLD,
         },
         prelude::*,
         state::{
@@ -32,11 +35,12 @@ use {
                 Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
                 InterestRateConfig, WrappedI80F48,
             },
-            price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter},
+            price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter, PythPushOraclePriceFeed},
         },
         utils::NumTraitsWithTolerance,
     },
     pyth_sdk_solana::state::{load_price_account, SolanaPriceAccount},
+    pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{
         rpc_client::RpcClient,
         rpc_filter::{Memcmp, RpcFilterType},
@@ -50,7 +54,6 @@ use {
         instruction::{AccountMeta, Instruction},
         message::Message,
         program_pack::Pack,
-        pubkey,
         pubkey::Pubkey,
         signature::Keypair,
         signer::Signer,
@@ -69,12 +72,6 @@ use {
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
     switchboard_solana::AggregatorAccountData,
-};
-
-#[cfg(feature = "lip")]
-use {
-    chrono::{DateTime, NaiveDateTime, Utc},
-    liquidity_incentive_program::state::{Campaign, Deposit},
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1077,7 +1074,7 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
     let opfa = OraclePriceFeedAdapter::try_from_bank_config_with_max_age(
         &bank.config,
         &[price_oracle_ai],
-        0,
+        &Clock::default(),
         u64::MAX,
     )
     .unwrap();
@@ -1123,7 +1120,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
         .mfi_program
         .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
             8 + size_of::<Pubkey>() + size_of::<u8>(),
-            pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+            solana_sdk::pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
                 .to_bytes()
                 .to_vec(),
         ))])?;
@@ -1139,7 +1136,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             )
         })
         .partition(|(setup, _, _, _)| match setup {
-            OracleSetup::PythEma => true,
+            OracleSetup::PythLegacy => true,
             OracleSetup::SwitchboardV2 => false,
             _ => panic!("Unknown oracle setup"),
         });
@@ -1502,12 +1499,29 @@ pub fn bank_configure(
     config: Config,
     profile: Profile,
     bank_pk: Pubkey,
-    bank_config_opt: BankConfigOpt,
+    mut bank_config_opt: BankConfigOpt,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
     let configure_bank_ixs_builder = config.mfi_program.request();
     let signing_keypairs = config.get_signers(false);
+
+    let mut extra_accounts = vec![];
+
+    if let Some(oracle) = &mut bank_config_opt.oracle {
+        extra_accounts.push(AccountMeta::new_readonly(oracle.keys[0], false));
+
+        if oracle.setup == OracleSetup::PythPushOracle {
+            let oracle_address = oracle.keys[0];
+            let mut account = rpc_client.get_account(&oracle_address)?;
+            let ai = (&oracle_address, &mut account).into_account_info();
+            let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai)?;
+
+            let feed_id_as_pubkey = Pubkey::new_from_array(feed_id);
+
+            oracle.keys[0] = feed_id_as_pubkey;
+        }
+    }
 
     let mut configure_bank_ixs = configure_bank_ixs_builder
         .accounts(marginfi::accounts::LendingPoolConfigureBank {
@@ -1520,11 +1534,7 @@ pub fn bank_configure(
         })
         .instructions()?;
 
-    if let Some(oracle) = &bank_config_opt.oracle {
-        configure_bank_ixs[0]
-            .accounts
-            .push(AccountMeta::new_readonly(oracle.keys[0], false));
-    }
+    configure_bank_ixs[0].accounts.extend(extra_accounts);
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
     let message = Message::new(&configure_bank_ixs, Some(&config.authority()));
@@ -2173,6 +2183,24 @@ pub fn marginfi_account_liquidate(
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
 
+    let oracle_accounts = vec![asset_bank.config, liability_bank.config]
+        .into_iter()
+        .map(|bank_config| {
+            let oracle_key = bank_to_oracle_key(&bank_config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
+            AccountMeta::new_readonly(oracle_key, false)
+        });
+
+    ix.accounts.extend(oracle_accounts);
+
+    let oracle_accounts = vec![asset_bank.config, liability_bank.config]
+        .into_iter()
+        .map(|bank_config| {
+            let oracle_key = bank_to_oracle_key(&bank_config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
+            AccountMeta::new_readonly(oracle_key, false)
+        });
+
+    ix.accounts.extend(oracle_accounts);
+
     if token_program == spl_token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(liability_bank.mint, false));
@@ -2365,4 +2393,24 @@ fn timestamp_to_string(timestamp: i64) -> String {
     )
     .format("%Y-%m-%d %H:%M:%S")
     .to_string()
+}
+
+pub fn inspect_pyth_push_feed(config: &Config, address: Pubkey) -> anyhow::Result<()> {
+    let mut account = config.mfi_program.rpc().get_account(&address)?;
+    let ai = (&address, &mut account).into_account_info();
+
+    let mut data = &ai.try_borrow_data()?[8..];
+    let price_update = PriceUpdateV2::deserialize(&mut data)?;
+
+    println!("Pyth Push Feed: {}", address);
+    let feed = PythPushOraclePriceFeed::load_unchecked(&ai)?;
+
+    println!(
+        "Price: {}",
+        feed.get_price_of_type(marginfi::state::price::OraclePriceType::RealTime, None)?
+    );
+
+    println!("Feed id: {:?}", price_update.price_message.feed_id);
+
+    Ok(())
 }

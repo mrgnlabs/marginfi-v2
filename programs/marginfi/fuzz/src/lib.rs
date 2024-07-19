@@ -262,7 +262,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                         protocol_ir_fee: I80F48!(0.1).into(),
                         ..Default::default()
                     },
-                    oracle_setup: marginfi::state::price::OracleSetup::PythEma,
+                    oracle_setup: marginfi::state::price::OracleSetup::PythLegacy,
                     oracle_keys: [
                         oracle.key(),
                         Pubkey::default(),
@@ -472,7 +472,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     MarginfiError::NoLiabilityFound.into(),
                     MarginfiError::OperationRepayOnly.into(),
                     // TODO: maybe change
-                    MarginfiError::BankAccoutNotFound.into(),
+                    MarginfiError::BankAccountNotFound.into(),
                     MarginfiError::AccountDisabled.into(),
                 ]
                 .contains(&error),
@@ -569,7 +569,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     MarginfiError::IllegalUtilizationRatio.into(),
                     MarginfiError::RiskEngineInitRejected.into(),
                     MarginfiError::NoAssetFound.into(),
-                    MarginfiError::BankAccoutNotFound.into(),
+                    MarginfiError::BankAccountNotFound.into(),
                     MarginfiError::AccountDisabled.into(),
                 ]
                 .contains(&error),

@@ -1,3 +1,4 @@
+use crate::processor::oracle::find_pyth_push_oracles_for_feed_id;
 use crate::{
     config::GlobalOptions,
     processor::{self, process_set_user_flag},
@@ -18,6 +19,7 @@ use marginfi::{
         price::OracleSetup,
     },
 };
+use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use rand::Rng;
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
 use type_layout::TypeLayout;
@@ -71,6 +73,12 @@ pub enum Command {
     ShowOracleAges {
         #[clap(long, action)]
         only_stale: bool,
+    },
+    InspectPythPushOracleFeed {
+        pyth_feed: Pubkey,
+    },
+    FindPythPull {
+        feed_id: String,
     },
 }
 
@@ -159,15 +167,17 @@ impl From<RiskTierArg> for RiskTier {
 
 #[derive(Clone, Copy, Debug, Parser, ArgEnum)]
 pub enum OracleTypeArg {
-    PythEma,
+    PythLegacy,
     Switchboard,
+    PythPushOracle,
 }
 
 impl From<OracleTypeArg> for OracleSetup {
     fn from(value: OracleTypeArg) -> Self {
         match value {
-            OracleTypeArg::PythEma => OracleSetup::PythEma,
+            OracleTypeArg::PythLegacy => OracleSetup::PythLegacy,
             OracleTypeArg::Switchboard => OracleSetup::SwitchboardV2,
+            OracleTypeArg::PythPushOracle => OracleSetup::PythPushOracle,
         }
     }
 }
@@ -421,6 +431,25 @@ pub fn entry(opts: Opts) -> Result<()> {
 
         Command::MakeTestI80F48 => {
             process_make_test_i80f48();
+
+            Ok(())
+        }
+        Command::InspectPythPushOracleFeed { pyth_feed } => {
+            let profile = load_profile()?;
+            let config = profile.get_config(Some(&opts.cfg_override))?;
+
+            processor::inspect_pyth_push_feed(&config, pyth_feed)?;
+
+            Ok(())
+        }
+        Command::FindPythPull { feed_id } => {
+            let profile = load_profile()?;
+            let config = profile.get_config(Some(&opts.cfg_override))?;
+            let feed_id = get_feed_id_from_hex(&feed_id).unwrap();
+
+            let rpc = config.mfi_program.rpc();
+
+            find_pyth_push_oracles_for_feed_id(&rpc, feed_id)?;
 
             Ok(())
         }

@@ -22,12 +22,14 @@ spl-discriminator = "0.2.2"
 spl-token-2022 = "3.0.2"
 
 anchor-lang = { git = "https://github.com/mrgnlabs/anchor.git", rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
+anchor-lang-29 = { version = "0.29.0", package = "anchor-lang" }
 anchor-spl = { git = "https://github.com/mrgnlabs/anchor.git", features = [
   "token_2022",
 ], rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
 anchor-client = { git = "https://github.com/mrgnlabs/anchor.git", rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
 
 pyth-sdk-solana = "=0.10.1"
+pyth-solana-receiver-sdk = "0.3.0"
 switchboard-solana = "0.29.0"
 borsh = "0.10.3"
 

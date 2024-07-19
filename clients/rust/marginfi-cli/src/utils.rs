@@ -6,10 +6,14 @@ use {
     log::error,
     marginfi::{
         bank_authority_seed, bank_seed,
-        constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS},
+        constants::{
+            EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS,
+            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
+        },
         state::{
             marginfi_account::MarginfiAccount,
-            marginfi_group::{Bank, BankVaultType},
+            marginfi_group::{Bank, BankConfig, BankVaultType},
+            price::PythPushOraclePriceFeed,
         },
     },
     solana_client::rpc_client::RpcClient,
@@ -58,6 +62,21 @@ pub fn process_transaction(
                 bail!(err);
             }
         },
+    }
+}
+
+pub fn bank_to_oracle_key(bank_config: &BankConfig, shard_id: u16) -> Pubkey {
+    let oracle_key_or_price_feed_id = bank_config.oracle_keys.first().unwrap();
+
+    match bank_config.oracle_setup {
+        marginfi::state::price::OracleSetup::PythPushOracle => {
+            PythPushOraclePriceFeed::find_oracle_address(
+                shard_id,
+                bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+            )
+            .0
+        }
+        _ => *oracle_key_or_price_feed_id,
     }
 }
 
@@ -162,6 +181,8 @@ pub fn load_observation_account_metas(
         .iter()
         .zip(bank_pks.iter())
         .flat_map(|(bank, bank_pk)| {
+            let oracle_key = bank_to_oracle_key(&bank.config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
+
             vec![
                 AccountMeta {
                     pubkey: *bank_pk,
@@ -169,7 +190,7 @@ pub fn load_observation_account_metas(
                     is_writable: false,
                 },
                 AccountMeta {
-                    pubkey: bank.config.oracle_keys[0],
+                    pubkey: oracle_key,
                     is_signer: false,
                     is_writable: false,
                 },

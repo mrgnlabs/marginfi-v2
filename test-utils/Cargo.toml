@@ -19,9 +19,11 @@ spl-tlv-account-resolution = { workspace = true }
 spl-discriminator = { workspace = true }
 
 anchor-lang = { workspace = true }
+anchor-lang-29 = { workspace = true }
 anchor-spl = { workspace = true }
 
 pyth-sdk-solana = { workspace = true }
+pyth-solana-receiver-sdk = { workspace = true }
 switchboard-solana = { workspace = true }
 
 bytemuck = "1.9.1"
