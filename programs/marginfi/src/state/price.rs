@@ -422,6 +422,15 @@ impl PythPushOraclePriceFeed {
     ///
     /// Meaning that when loading the pyth push oracle, we don't verify the account address
     /// directly, but rather we verify the feed_id in the oracle data.
+    ///
+    /// Security assumptions:
+    /// - The pyth-push-oracle account is owned by the pyth-solana-receiver program, checked in `load_price_update_v2_checked`
+    /// - The pyth-push-oracle account is a PriceUpdateV2 account, checked in `load_price_update_v2_checked`
+    /// - The pyth-push-oracle account has a minimum verification level, checked in `get_price_no_older_than_with_custom_verification_level`
+    /// - The pyth-push-oracle account has a valid feed_id, the pyth-solana-receiver program enforces that the feed_id matches the pythnet feed_id, checked in 
+    ///     - pyth-push-oracle asserts the a valid price update has a matching feed_id with the existing pyth-push-oracle update https://github.com/pyth-network/pyth-crosschain/blob/94f1bd54612adc3e186eaf0bb0f1f705880f20a6/target_chains/solana/programs/pyth-push-oracle/src/lib.rs#L101
+    ///     - pyth-solana-receiver set the feed_id directly from a pythnet verified price_update message https://github.com/pyth-network/pyth-crosschain/blob/94f1bd54612adc3e186eaf0bb0f1f705880f20a6/target_chains/solana/programs/pyth-solana-receiver/src/lib.rs#L437
+    /// - The pyth-push-oracle account is not older than the max_age, checked in `get_price_no_older_than_with_custom_verification_level`
     pub fn load_checked(
         ai: &AccountInfo,
         feed_id: &FeedId,
