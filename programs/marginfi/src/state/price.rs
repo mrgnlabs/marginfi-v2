@@ -857,7 +857,7 @@ mod tests {
             };
 
             let push_price = pyth_solana_receiver_sdk::price_update::Price {
-                price: legacy_price,
+                price,
                 conf,
                 exponent: -6,
                 publish_time: 0,
@@ -889,7 +889,7 @@ mod tests {
 
         assert_eq!(
             pyth_legacy.get_ema_price().unwrap(),
-            pyth_push.get_legacy_price().unwrap()
+            pyth_push.get_ema_price().unwrap()
         );
         assert_eq!(
             pyth_legacy.get_unweighted_price().unwrap(),
@@ -946,25 +946,26 @@ mod tests {
         );
 
         // new pricees with very wide confidence
-        let (price, push_price) = get_prices(100i64 * EXP_10[6] as i64, 100u64 * EXP_10[6] as u64);
+        let (legacy_price, push_price) =
+            get_prices(100i64 * EXP_10[6] as i64, 100u64 * EXP_10[6] as u64);
 
-        let (legacy_price, ema_push_price) =
+        let (legacy_ema, push_price_ema) =
             get_prices(99i64 * EXP_10[6] as i64, 88u64 * EXP_10[6] as u64);
 
         let pyth_legacy = PythLegacyPriceFeed {
-            legacy_price: Box::new(legacy_ema),
-            price: Box::new(price),
+            ema_price: Box::new(legacy_ema),
+            price: Box::new(legacy_price),
         };
 
         let pyth_push = PythPushOraclePriceFeed {
-            legacy_price: Box::new(ema_push_price),
+            ema_price: Box::new(push_price_ema),
             price: Box::new(push_price),
         };
 
         // Test high bias legacy
         assert_eq!(
             pyth_legacy.get_ema_price().unwrap(),
-            pyth_push.get_legacy_price().unwrap()
+            pyth_push.get_ema_price().unwrap()
         );
         assert_eq!(
             pyth_legacy.get_unweighted_price().unwrap(),
