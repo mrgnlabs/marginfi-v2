@@ -915,7 +915,7 @@ mod tests {
                 .unwrap()
         );
 
-        // Test high bias legacy
+        // Test high bias ema
         assert_eq!(
             pyth_legacy
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
@@ -925,7 +925,7 @@ mod tests {
                 .unwrap()
         );
 
-        // Test low bias legacy
+        // Test low bias ema
         assert_eq!(
             pyth_legacy
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
@@ -962,7 +962,7 @@ mod tests {
             price: Box::new(push_price),
         };
 
-        // Test high bias legacy
+        // Test high bias ema
         assert_eq!(
             pyth_legacy.get_ema_price().unwrap(),
             pyth_push.get_ema_price().unwrap()
@@ -991,7 +991,7 @@ mod tests {
                 .unwrap()
         );
 
-        // Test high bias legacy
+        // Test high bias ema
         assert_eq!(
             pyth_legacy
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
@@ -1001,7 +1001,7 @@ mod tests {
                 .unwrap()
         );
 
-        // Test low bias legacy
+        // Test low bias ema
         assert_eq!(
             pyth_legacy
                 .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
