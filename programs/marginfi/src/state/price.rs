@@ -116,7 +116,6 @@ impl OraclePriceFeedAdapter {
             OracleSetup::PythPushOracle => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
 
-                let price_feed_id = bank_config.oracle_keys[0].to_bytes();
                 let account_info = &ais[0];
 
                 check!(
@@ -124,10 +123,12 @@ impl OraclePriceFeedAdapter {
                     MarginfiError::InvalidOracleAccount
                 );
 
+                let price_feed_id = bank_config.get_pyth_push_oracle_feed_id().unwrap();
+
                 Ok(OraclePriceFeedAdapter::PythPushOracle(
                     PythPushOraclePriceFeed::load_checked(
                         account_info,
-                        &price_feed_id,
+                        price_feed_id,
                         clock,
                         max_age,
                     )?,
