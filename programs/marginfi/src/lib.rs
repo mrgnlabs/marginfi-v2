@@ -13,7 +13,7 @@ use prelude::*;
 use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
 cfg_if::cfg_if! {
-     if #[cfg(feature = "mainnet-beta")] {
+    if #[cfg(feature = "mainnet-beta")] {
         declare_id!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
     } else if #[cfg(feature = "devnet")] {
         declare_id!("neetcne3Ctrrud7vLdt2ypMm21gZHGN2mCmqWaMVcBQ");
