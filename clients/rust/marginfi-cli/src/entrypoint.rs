@@ -1,3 +1,4 @@
+use crate::processor::oracle::find_pyth_push_oracles_for_feed_id;
 use crate::{
     config::GlobalOptions,
     processor::{self, process_set_user_flag},
@@ -18,6 +19,7 @@ use marginfi::{
         price::OracleSetup,
     },
 };
+use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use rand::Rng;
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
 use type_layout::TypeLayout;
@@ -74,6 +76,9 @@ pub enum Command {
     },
     InspectPythPushOracleFeed {
         pyth_feed: Pubkey,
+    },
+    FindPythPull {
+        feed_id: String,
     },
 }
 
@@ -434,6 +439,17 @@ pub fn entry(opts: Opts) -> Result<()> {
             let config = profile.get_config(Some(&opts.cfg_override))?;
 
             processor::inspect_pyth_push_feed(&config, pyth_feed)?;
+
+            Ok(())
+        }
+        Command::FindPythPull { feed_id } => {
+            let profile = load_profile()?;
+            let config = profile.get_config(Some(&opts.cfg_override))?;
+            let feed_id = get_feed_id_from_hex(&feed_id).unwrap();
+
+            let rpc = config.mfi_program.rpc();
+
+            find_pyth_push_oracles_for_feed_id(&rpc, feed_id)?;
 
             Ok(())
         }

@@ -389,7 +389,7 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
     }
 }
 
-fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
+pub fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
     check!(
         ai.owner.eq(&pyth_solana_receiver_sdk::id()),
         MarginfiError::InvalidOracleAccount

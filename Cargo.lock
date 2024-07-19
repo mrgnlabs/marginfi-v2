@@ -2931,6 +2931,7 @@ dependencies = [
  "env_logger",
  "fixed",
  "fixed-macro",
+ "hex",
  "liquidity-incentive-program",
  "log",
  "marginfi",

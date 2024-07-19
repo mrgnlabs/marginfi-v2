@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod emissions;
 pub mod group;
+pub mod oracle;
 
 use {
     crate::{
