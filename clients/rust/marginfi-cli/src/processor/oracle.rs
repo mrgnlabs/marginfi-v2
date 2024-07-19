@@ -1,4 +1,3 @@
-use marginfi::state::price::{load_price_update_v2_checked, PythPushOraclePriceFeed};
 use pyth_solana_receiver_sdk::price_update::FeedId;
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::rpc_client::RpcClient;
@@ -30,7 +29,7 @@ pub fn find_pyth_push_oracles_for_feed_id(
 
     for (ref address, account) in res.iter_mut() {
         let ai = (address, account).into_account_info();
-        let price_update_v2 = load_price_update_v2_checked(&ai)?;
+        let price_update_v2 = marginfi::state::price::load_price_update_v2_checked(&ai)?;
 
         let feed_id = &price_update_v2.price_message.feed_id;
         let current_timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
