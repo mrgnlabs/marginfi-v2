@@ -117,7 +117,6 @@ pub struct Context {
 impl Context {
     pub async fn new(config: &SnapshotAccountsConfig) -> Self {
         let rpc_client = Arc::new(RpcClient::new_with_commitment(
-            //format!("{}/{}", config.rpc_endpoint, config.rpc_token),
             config.rpc_endpoint.clone(),
             CommitmentConfig {
                 commitment: solana_sdk::commitment_config::CommitmentLevel::Finalized,
