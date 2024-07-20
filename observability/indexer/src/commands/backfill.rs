@@ -10,7 +10,7 @@ use crate::{
 };
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
-use chrono::{NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
 use futures::future::join_all;
 use google_cloud_default::WithAuthExt;
@@ -126,7 +126,7 @@ pub async fn push_transactions_to_pubsub(
             let message = gcp_pubsub::PubsubTransaction {
                 id: Uuid::new_v4().to_string(),
                 created_at: now.format(DATE_FORMAT_STR).to_string(),
-                timestamp: NaiveDateTime::from_timestamp_opt(
+                timestamp: DateTime::from_timestamp(
                     transaction_data.transaction.block_time.unwrap_or(0),
                     0,
                 )

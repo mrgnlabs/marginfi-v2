@@ -2,7 +2,7 @@ use super::marginfi_account_dup::RiskEngine2;
 use crate::utils::big_query::DATE_FORMAT_STR;
 use crate::utils::snapshot::{BankAccounts, OracleData, Snapshot};
 use anyhow::anyhow;
-use chrono::{NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use itertools::Itertools;
@@ -151,7 +151,7 @@ impl MarginfiGroupMetrics {
         MarginfiGroupMetricsRow {
             id: Uuid::new_v4().to_string(),
             created_at: Utc::now().format(DATE_FORMAT_STR).to_string(),
-            timestamp: NaiveDateTime::from_timestamp_opt(self.timestamp, 0)
+            timestamp: DateTime::from_timestamp(self.timestamp, 0)
                 .unwrap()
                 .format(DATE_FORMAT_STR)
                 .to_string(),
@@ -368,7 +368,7 @@ impl LendingPoolBankMetrics {
         LendingPoolBankMetricsRow {
             id: Uuid::new_v4().to_string(),
             created_at: Utc::now().format(DATE_FORMAT_STR).to_string(),
-            timestamp: NaiveDateTime::from_timestamp_opt(self.timestamp, 0)
+            timestamp: DateTime::from_timestamp(self.timestamp, 0)
                 .unwrap()
                 .format(DATE_FORMAT_STR)
                 .to_string(),
@@ -462,17 +462,18 @@ impl MarginfiAccountMetrics {
         let price_feeds =
             HashMap::from_iter(snapshot.price_feeds.iter().map(|(oracle_pk, oracle_data)| {
                 match oracle_data {
-                    OracleData::Pyth(price_feed) => (
+                    OracleData::PythLegacy(price_feed) => (
                         *oracle_pk,
-                        OraclePriceFeedAdapter::PythEma(price_feed.clone()),
+                        OraclePriceFeedAdapter::PythLegacy(price_feed.clone()),
                     ),
                     OracleData::Switchboard(pf) => (
                         *oracle_pk,
                         OraclePriceFeedAdapter::SwitchboardV2(pf.clone()),
                     ),
-                    OracleData::PythPush(pf) => {
-                        (*oracle_pk, OraclePriceFeedAdapter::PythPush(pf.clone()))
-                    }
+                    OracleData::PythPush(pf) => (
+                        *oracle_pk,
+                        OraclePriceFeedAdapter::PythPushOracle(pf.clone()),
+                    ),
                 }
             }));
 
@@ -605,7 +606,7 @@ impl MarginfiAccountMetrics {
         MarginfiAccountMetricsRow {
             id: Uuid::new_v4().to_string(),
             created_at: Utc::now().format(DATE_FORMAT_STR).to_string(),
-            timestamp: NaiveDateTime::from_timestamp_opt(self.timestamp, 0)
+            timestamp: DateTime::from_timestamp(self.timestamp, 0)
                 .unwrap()
                 .format(DATE_FORMAT_STR)
                 .to_string(),

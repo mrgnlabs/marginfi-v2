@@ -1,12 +1,11 @@
-use crate::utils::convert_account;
 use crate::utils::metrics::{LendingPoolBankMetrics, MarginfiAccountMetrics, MarginfiGroupMetrics};
 use crate::utils::snapshot::Snapshot;
 use crate::utils::snapshot::{AccountRoutingType, BankUpdateRoutingType};
+use crate::utils::{convert_account, create_geyser_client};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
-use futures::SinkExt;
-use futures::{future::join_all, StreamExt};
+use futures::{future::join_all, SinkExt, StreamExt};
 use gcp_bigquery_client::model::table_data_insert_all_request::TableDataInsertAllRequest;
 use itertools::Itertools;
 use rayon::prelude::*;
@@ -29,7 +28,6 @@ use std::{
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
-use yellowstone_grpc_client::GeyserGrpcClient;
 use yellowstone_grpc_proto::geyser::subscribe_update::UpdateOneof;
 use yellowstone_grpc_proto::geyser::{
     CommitmentLevel, SubscribeRequest, SubscribeRequestFilterAccounts,
@@ -119,7 +117,8 @@ pub struct Context {
 impl Context {
     pub async fn new(config: &SnapshotAccountsConfig) -> Self {
         let rpc_client = Arc::new(RpcClient::new_with_commitment(
-            format!("{}/{}", config.rpc_endpoint, config.rpc_token),
+            //format!("{}/{}", config.rpc_endpoint, config.rpc_token),
+            config.rpc_endpoint.clone(),
             CommitmentConfig {
                 commitment: solana_sdk::commitment_config::CommitmentLevel::Finalized,
             },
@@ -239,25 +238,18 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
 async fn listen_to_updates(ctx: Arc<Context>) {
     loop {
         info!("Connecting geyser client");
-        let geyser_client_connection_result = GeyserGrpcClient::connect_with_timeout(
-            ctx.config.rpc_endpoint.to_string(),
-            Some(ctx.config.rpc_token.to_string()),
-            None,
-            Some(Duration::from_secs(10)),
-            Some(Duration::from_secs(10)),
-            false,
-        )
-        .await;
-        info!("Connected");
 
-        let mut geyser_client = match geyser_client_connection_result {
-            Ok(geyser_client) => geyser_client,
-            Err(err) => {
-                error!("Error connecting to geyser client: {}", err);
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                continue;
-            }
-        };
+        let mut geyser_client =
+            match create_geyser_client(&ctx.config.rpc_endpoint, &ctx.config.rpc_token).await {
+                Ok(geyser_client) => geyser_client,
+                Err(err) => {
+                    error!("Error connecting to geyser client: {}", err);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
+
+        info!("Connected");
 
         // Establish streams
         let geyser_sub_config = ctx.geyser_subscription_config.lock().await;

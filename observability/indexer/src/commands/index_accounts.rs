@@ -1,4 +1,6 @@
-use crate::utils::{big_query::DATE_FORMAT_STR, convert_account, protos::gcp_pubsub};
+use crate::utils::{
+    big_query::DATE_FORMAT_STR, convert_account, create_geyser_client, protos::gcp_pubsub,
+};
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, Utc};
@@ -21,7 +23,6 @@ use std::{
 use tonic::Status;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use yellowstone_grpc_client::GeyserGrpcClient;
 use yellowstone_grpc_proto::geyser::{
     subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
     SubscribeRequestFilterAccounts, SubscribeRequestFilterSlots,
@@ -112,20 +113,16 @@ pub async fn index_accounts(config: IndexAccountsConfig) -> Result<()> {
 async fn listen_to_updates(ctx: Arc<Context>) {
     loop {
         info!("Connecting geyser client");
-        let geyser_client_connection_result = GeyserGrpcClient::connect(
-            ctx.config.rpc_endpoint.to_string(),
-            Some(ctx.config.rpc_token.to_string()),
-            None,
-        );
 
-        let mut geyser_client = match geyser_client_connection_result {
-            Ok(geyser_client) => geyser_client,
-            Err(err) => {
-                error!("Error connecting to geyser client: {}", err);
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                continue;
-            }
-        };
+        let mut geyser_client =
+            match create_geyser_client(&ctx.config.rpc_endpoint, &ctx.config.rpc_token).await {
+                Ok(geyser_client) => geyser_client,
+                Err(err) => {
+                    error!("Error connecting to geyser client: {}", err);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
 
         let subscribe_request = SubscribeRequest {
             accounts: HashMap::from_iter([(

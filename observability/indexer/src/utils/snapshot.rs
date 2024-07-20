@@ -54,7 +54,7 @@ pub enum BankUpdateRoutingType {
 
 #[derive(Clone, Debug)]
 pub enum OracleData {
-    Pyth(PythEmaPriceFeed),
+    PythLegacy(PythLegacyPriceFeed),
     Switchboard(SwitchboardV2PriceFeed),
     PythPush(PythPushOraclePriceFeed),
 }
@@ -66,7 +66,7 @@ impl OracleData {
         bias: Option<PriceBias>,
     ) -> I80F48 {
         match self {
-            OracleData::Pyth(price_feed) => price_feed
+            OracleData::PythLegacy(price_feed) => price_feed
                 .get_price_of_type(oracle_price_type, bias)
                 .unwrap(),
             OracleData::Switchboard(price_feed) => price_feed
@@ -219,7 +219,7 @@ impl Snapshot {
 
                 match bank.config.oracle_setup {
                     OracleSetup::None => (),
-                    OracleSetup::PythEma => {
+                    OracleSetup::PythLegacy => {
                         let oracle_address = bank.config.oracle_keys[0];
                         self.routing_lookup
                             .insert(oracle_address, AccountRoutingType::PriceFeedPyth);
@@ -307,9 +307,9 @@ impl Snapshot {
             AccountRoutingType::PriceFeedPyth => {
                 let mut account = account.clone();
                 let ai = (account_pubkey, &mut account).into_account_info();
-                let pf = PythEmaPriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
+                let pf = PythLegacyPriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
                 self.price_feeds
-                    .insert(*account_pubkey, OracleData::Pyth(pf));
+                    .insert(*account_pubkey, OracleData::PythLegacy(pf));
             }
             AccountRoutingType::Bank(bank_pk, BankUpdateRoutingType::LiquidityTokenAccount) => {
                 self.banks
