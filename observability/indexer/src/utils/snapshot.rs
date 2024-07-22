@@ -232,26 +232,28 @@ impl Snapshot {
                         accounts_to_fetch.push(oracle_address);
                     }
                     OracleSetup::PythPushOracle => {
-                        let feed_id = bank.config.oracle_keys[0].to_bytes();
+                        let feed_id = bank.config.get_pyth_push_oracle_feed_id().unwrap();
                         let (pyth_sponsored_oracle_address, _) =
                             PythPushOraclePriceFeed::find_oracle_address(
                                 PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
-                                &feed_id,
+                                feed_id,
                             );
-                        let (mfi_sponsored_oracle_address, _) =
-                            PythPushOraclePriceFeed::find_oracle_address(
-                                PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID,
-                                &feed_id,
-                            );
-
                         self.routing_lookup.insert(
                             pyth_sponsored_oracle_address,
                             AccountRoutingType::PriceFeedPythPushOracle,
                         );
+                        accounts_to_fetch.push(pyth_sponsored_oracle_address);
+
+                        let (mfi_sponsored_oracle_address, _) =
+                            PythPushOraclePriceFeed::find_oracle_address(
+                                PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID,
+                                feed_id,
+                            );
                         self.routing_lookup.insert(
                             mfi_sponsored_oracle_address,
                             AccountRoutingType::PriceFeedPythPushOracle,
                         );
+                        accounts_to_fetch.push(mfi_sponsored_oracle_address);
                     }
                 }
 
