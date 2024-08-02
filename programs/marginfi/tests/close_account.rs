@@ -1,7 +1,7 @@
 use fixtures::{
     assert_custom_error,
     spl::TokenAccountFixture,
-    test::{BankMint, TestBankSetting, TestFixture, TestSettings},
+    test::{BankMint, TestFixture, TestSettings},
 };
 use marginfi::errors::MarginfiError;
 use solana_program_test::tokio;
