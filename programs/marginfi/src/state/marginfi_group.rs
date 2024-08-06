@@ -98,6 +98,7 @@ pub struct InterestRateConfigCompact {
     pub insurance_ir_fee: WrappedI80F48,
     pub protocol_fixed_fee_apr: WrappedI80F48,
     pub protocol_ir_fee: WrappedI80F48,
+    pub protocol_origination_fee: WrappedI80F48,
 }
 
 impl From<InterestRateConfigCompact> for InterestRateConfig {
@@ -110,7 +111,9 @@ impl From<InterestRateConfigCompact> for InterestRateConfig {
             insurance_ir_fee: ir_config.insurance_ir_fee,
             protocol_fixed_fee_apr: ir_config.protocol_fixed_fee_apr,
             protocol_ir_fee: ir_config.protocol_ir_fee,
-            _padding: [[0; 2]; 8],
+            protocol_origination_fee: ir_config.protocol_origination_fee,
+            _padding0: [0; 16],
+            _padding1: [[0;32]; 3],
         }
     }
 }
@@ -125,6 +128,7 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
             insurance_ir_fee: ir_config.insurance_ir_fee,
             protocol_fixed_fee_apr: ir_config.protocol_fixed_fee_apr,
             protocol_ir_fee: ir_config.protocol_ir_fee,
+            protocol_origination_fee: ir_config.protocol_origination_fee,
         }
     }
 }
@@ -147,8 +151,10 @@ pub struct InterestRateConfig {
     pub insurance_ir_fee: WrappedI80F48,
     pub protocol_fixed_fee_apr: WrappedI80F48,
     pub protocol_ir_fee: WrappedI80F48,
+    pub protocol_origination_fee: WrappedI80F48,
 
-    pub _padding: [[u64; 2]; 8], // 16 * 8 = 128 bytes
+    _padding0: [u8; 16],
+    _padding1: [[u8; 32]; 3]
 }
 
 impl InterestRateConfig {

@@ -58,6 +58,11 @@ pub fn lending_account_borrow<'info>(
         let mut bank = bank_loader.load_mut()?;
 
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
+        let origination_fee_rate: I80F48 = bank
+            .config
+            .interest_rate_config
+            .protocol_origination_fee // <- a new configurable fee...
+            .into();
 
         let mut bank_account = BankAccountWrapper::find_or_create(
             &bank_loader.key(),
@@ -77,8 +82,11 @@ pub fn lending_account_borrow<'info>(
             })
             .transpose()?
             .unwrap_or(amount);
+        let origination_fee: I80F48 = I80F48::from_num(amount_pre_fee)
+            .checked_mul(origination_fee_rate)
+            .unwrap(); // TODO wrap in ok_or error
 
-        bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
+        bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee)?;
         bank_account.withdraw_spl_transfer(
             amount_pre_fee,
             bank_liquidity_vault.to_account_info(),
