@@ -3,6 +3,7 @@ use crate::constants::{
 };
 use crate::events::{GroupEventHeader, LendingPoolBankCollectFeesEvent};
 use crate::state::liquid_insurance_fund::LiquidInsuranceFund;
+use crate::utils;
 use crate::{
     bank_signer,
     constants::{
@@ -13,11 +14,13 @@ use crate::{
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Transfer};
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use std::cmp::min;
 
-pub fn lending_pool_collect_bank_fees(ctx: Context<LendingPoolCollectBankFees>) -> MarginfiResult {
+pub fn lending_pool_collect_bank_fees<'info>(
+    mut ctx: Context<'_, '_, 'info, 'info, LendingPoolCollectBankFees<'info>>,
+) -> MarginfiResult {
     let LendingPoolCollectBankFees {
         liquidity_vault_authority,
         insurance_vault,
@@ -28,6 +31,8 @@ pub fn lending_pool_collect_bank_fees(ctx: Context<LendingPoolCollectBankFees>) 
     } = ctx.accounts;
 
     let mut bank = ctx.accounts.bank.load_mut()?;
+    let maybe_bank_mint =
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
     let mut available_liquidity = I80F48::from_num(liquidity_vault.amount);
 
@@ -73,34 +78,34 @@ pub fn lending_pool_collect_bank_fees(ctx: Context<LendingPoolCollectBankFees>) 
         group_fee_transfer_amount
             .checked_to_num()
             .ok_or_else(math_error!())?,
-        Transfer {
-            from: liquidity_vault.to_account_info(),
-            to: fee_vault.to_account_info(),
-            authority: liquidity_vault_authority.to_account_info(),
-        },
+        liquidity_vault.to_account_info(),
+        fee_vault.to_account_info(),
+        liquidity_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
         bank_signer!(
             BankVaultType::Liquidity,
             ctx.accounts.bank.key(),
             bank.liquidity_vault_authority_bump
         ),
+        ctx.remaining_accounts,
     )?;
 
     bank.withdraw_spl_transfer(
         insurance_fee_transfer_amount
             .checked_to_num()
             .ok_or_else(math_error!())?,
-        Transfer {
-            from: liquidity_vault.to_account_info(),
-            to: insurance_vault.to_account_info(),
-            authority: liquidity_vault_authority.to_account_info(),
-        },
+        liquidity_vault.to_account_info(),
+        insurance_vault.to_account_info(),
+        liquidity_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
         bank_signer!(
             BankVaultType::Liquidity,
             ctx.accounts.bank.key(),
             bank.liquidity_vault_authority_bump
         ),
+        ctx.remaining_accounts,
     )?;
 
     emit!(LendingPoolBankCollectFeesEvent {
@@ -148,7 +153,7 @@ pub struct LendingPoolCollectBankFees<'info> {
         ],
         bump = bank.load()?.liquidity_vault_bump
     )]
-    pub liquidity_vault: Account<'info, TokenAccount>,
+    pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -172,11 +177,11 @@ pub struct LendingPoolCollectBankFees<'info> {
     )]
     pub fee_vault: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
-pub fn lending_pool_withdraw_fees(
-    ctx: Context<LendingPoolWithdrawFees>,
+pub fn lending_pool_withdraw_fees<'info>(
+    mut ctx: Context<'_, '_, 'info, 'info, LendingPoolWithdrawFees<'info>>,
     amount: u64,
 ) -> MarginfiResult {
     let LendingPoolWithdrawFees {
@@ -189,20 +194,22 @@ pub fn lending_pool_withdraw_fees(
     } = ctx.accounts;
 
     let bank = bank_loader.load()?;
+    let maybe_bank_mint =
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
     bank.withdraw_spl_transfer(
         amount,
-        Transfer {
-            from: fee_vault.to_account_info(),
-            to: dst_token_account.to_account_info(),
-            authority: fee_vault_authority.to_account_info(),
-        },
+        fee_vault.to_account_info(),
+        dst_token_account.to_account_info(),
+        fee_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
         bank_signer!(
             BankVaultType::Fee,
             bank_loader.key(),
             bank.fee_vault_authority_bump
         ),
+        ctx.remaining_accounts,
     )?;
 
     Ok(())
@@ -247,11 +254,11 @@ pub struct LendingPoolWithdrawFees<'info> {
     #[account(mut)]
     pub dst_token_account: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
-pub fn lending_pool_withdraw_insurance(
-    ctx: Context<LendingPoolAdminDepositWithdrawInsurance>,
+pub fn lending_pool_withdraw_insurance<'a, 'b: 'info, 'info>(
+    mut ctx: Context<'a, 'b, 'info, 'info, LendingPoolAdminDepositWithdrawInsurance<'info>>,
     amount: I80F48,
 ) -> MarginfiResult {
     let LendingPoolAdminDepositWithdrawInsurance {
@@ -265,6 +272,8 @@ pub fn lending_pool_withdraw_insurance(
     } = ctx.accounts;
 
     let bank = bank_loader.load()?;
+    let maybe_bank_mint =
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
     // If there exist a liquid insurance fund, admin should be limited to admin shares
     let tokens = LiquidInsuranceFund::maybe_process_admin_withdraw(
@@ -275,24 +284,24 @@ pub fn lending_pool_withdraw_insurance(
 
     bank.withdraw_spl_transfer(
         tokens,
-        Transfer {
-            from: insurance_vault.to_account_info(),
-            to: admin_token_account.to_account_info(),
-            authority: insurance_vault_authority.to_account_info(),
-        },
+        insurance_vault.to_account_info(),
+        admin_token_account.to_account_info(),
+        insurance_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
         bank_signer!(
             BankVaultType::Insurance,
             bank_loader.key(),
             bank.insurance_vault_authority_bump
         ),
+        ctx.remaining_accounts,
     )?;
 
     Ok(())
 }
 
-pub fn lending_pool_deposit_insurance(
-    ctx: Context<LendingPoolAdminDepositWithdrawInsurance>,
+pub fn lending_pool_deposit_insurance<'a, 'info>(
+    mut ctx: Context<'a, 'info, 'info, 'info, LendingPoolAdminDepositWithdrawInsurance<'info>>,
     amount: u64,
 ) -> MarginfiResult {
     let LendingPoolAdminDepositWithdrawInsurance {
@@ -306,7 +315,8 @@ pub fn lending_pool_deposit_insurance(
     } = ctx.accounts;
 
     let bank = bank_loader.load()?;
-
+    let maybe_bank_mint =
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
     // If there exist a liquid insurance fund, need to update shares
     LiquidInsuranceFund::maybe_process_admin_deposit(
         liquid_insurance_fund,
@@ -316,17 +326,17 @@ pub fn lending_pool_deposit_insurance(
 
     bank.withdraw_spl_transfer(
         amount,
-        Transfer {
-            from: admin_token_account.to_account_info(),
-            to: insurance_vault.to_account_info(),
-            authority: admin.to_account_info(),
-        },
+        admin_token_account.to_account_info(),
+        insurance_vault.to_account_info(),
+        admin.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
         bank_signer!(
             BankVaultType::Insurance,
             bank_loader.key(),
             bank.insurance_vault_authority_bump
         ),
+        ctx.remaining_accounts,
     )?;
 
     Ok(())
@@ -355,7 +365,7 @@ pub struct LendingPoolAdminDepositWithdrawInsurance<'info> {
         ],
         bump = bank.load()?.insurance_vault_bump
     )]
-    pub insurance_vault: Account<'info, TokenAccount>,
+    pub insurance_vault: InterfaceAccount<'info, TokenAccount>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -371,7 +381,7 @@ pub struct LendingPoolAdminDepositWithdrawInsurance<'info> {
     #[account(mut)]
     pub admin_token_account: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 
     #[account(
         mut,

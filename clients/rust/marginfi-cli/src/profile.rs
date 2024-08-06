@@ -1,7 +1,5 @@
-use crate::config::CliSigner;
-
 use {
-    crate::config::{Config, GlobalOptions},
+    crate::config::{CliSigner, Config, GlobalOptions},
     anchor_client::{Client, Cluster},
     anyhow::{anyhow, bail, Result},
     dirs::home_dir,
@@ -168,7 +166,6 @@ impl Profile {
             .unwrap_or_else(|| panic!("No marginfi account set for profile \"{}\"", self.name))
     }
 
-    #[cfg(feature = "admin")]
     pub fn set_marginfi_group(&mut self, address: Pubkey) -> Result<()> {
         self.marginfi_group = Some(address);
         self.write_to_file()?;

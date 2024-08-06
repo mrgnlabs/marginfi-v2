@@ -1,6 +1,7 @@
 use std::{collections::HashMap, env, rc::Rc};
 
 use anchor_client::Client;
+use anchor_spl::token::spl_token;
 use anyhow::Result;
 use fixed::types::I80F48;
 use futures::future::join_all;
@@ -162,7 +163,7 @@ impl DefiLammaPoolInfo {
         let (apr_reward, apr_reward_borrow) = if bank.emissions_mint.ne(&Pubkey::default()) {
             let emissions_token_price = fetch_price_from_birdeye(&bank.emissions_mint).await?;
             let mint = rpc_client.get_account(&bank.emissions_mint)?;
-            let mint = spl_token::state::Mint::unpack_from_slice(&mint.data)?;
+            let mint = spl_token::state::Mint::unpack(&mint.data[..spl_token::state::Mint::LEN])?;
 
             // rate / 10 ^ decimals
             let reward_rate_per_token =

@@ -10,7 +10,7 @@ async fn marginfi_group_withdraw_fees_and_insurance() -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     // Mint 1000 USDC to the insurance vault
-    let bank_f = test_f.banks.get(&BankMint::USDC).unwrap();
+    let bank_f = test_f.banks.get(&BankMint::Usdc).unwrap();
     let bank = bank_f.load().await;
     test_f.usdc_mint.mint_to(&bank.insurance_vault, 1000).await;
 

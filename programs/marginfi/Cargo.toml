@@ -13,24 +13,31 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-default = []
+default = ["mainnet-beta"]
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 test-bpf = ["test", "debug"]
 test = []
 client = []
 devnet = []
 mainnet-beta = []
 debug = []
+staging = []
 
 [dependencies]
 solana-program = { workspace = true }
+spl-transfer-hook-interface = { workspace = true }
+spl-tlv-account-resolution = { workspace = true }
 
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true, features = ["metadata"] }
+anchor-lang-29 = { workspace = true }
 
 pyth-sdk-solana = { workspace = true }
-switchboard-v2 = { workspace = true }
+pyth-solana-receiver-sdk = { workspace = true }
+switchboard-solana = { workspace = true }
+borsh = "0.10.3"
 
-mpl-token-metadata = "1.13.2"
+mpl-token-metadata = "4"
 spl-token = "4.0"
 
 bytemuck = "1.9.1"
@@ -58,5 +65,6 @@ fixtures = { path = "../../test-utils", package = "test-utilities" }
 futures = "0.3.25"
 pretty_assertions = "1.2.1"
 rust_decimal = "*"
+test-case = "3.3.1"
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.115"

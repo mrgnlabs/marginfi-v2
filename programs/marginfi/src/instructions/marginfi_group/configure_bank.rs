@@ -1,13 +1,14 @@
 use crate::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED};
 use crate::events::{GroupEventHeader, LendingPoolBankConfigureEvent};
 use crate::prelude::MarginfiError;
-use crate::{check, math_error};
+use crate::{check, math_error, utils};
 use crate::{
     state::marginfi_group::{Bank, BankConfigOpt, MarginfiGroup},
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token_2022::{transfer_checked, TransferChecked};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 
 pub fn lending_pool_configure_bank(
@@ -71,16 +72,24 @@ pub fn lending_pool_setup_emissions(
     bank.emissions_rate = emissions_rate;
     bank.emissions_remaining = I80F48::from_num(total_emissions).into();
 
-    transfer(
+    let initial_emissions_amount_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
+        ctx.accounts.emissions_mint.to_account_info(),
+        total_emissions,
+        Clock::get()?.epoch,
+    )?;
+
+    transfer_checked(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
-            Transfer {
+            TransferChecked {
                 from: ctx.accounts.emissions_funding_account.to_account_info(),
                 to: ctx.accounts.emissions_token_account.to_account_info(),
                 authority: ctx.accounts.admin.to_account_info(),
+                mint: ctx.accounts.emissions_mint.to_account_info(),
             },
         ),
-        total_emissions,
+        initial_emissions_amount_pre_fee,
+        ctx.accounts.emissions_mint.decimals,
     )?;
 
     Ok(())
@@ -102,7 +111,7 @@ pub struct LendingPoolSetupEmissions<'info> {
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    pub emissions_mint: Account<'info, Mint>,
+    pub emissions_mint: InterfaceAccount<'info, Mint>,
 
     #[account(
         seeds = [
@@ -127,13 +136,13 @@ pub struct LendingPoolSetupEmissions<'info> {
         ],
         bump,
     )]
-    pub emissions_token_account: Box<Account<'info, TokenAccount>>,
+    pub emissions_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Account provided only for funding rewards
     #[account(mut)]
     pub emissions_funding_account: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
 
@@ -166,18 +175,6 @@ pub fn lending_pool_update_emissions_parameters(
     }
 
     if let Some(additional_emissions) = additional_emissions {
-        transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.emissions_funding_account.to_account_info(),
-                    to: ctx.accounts.emissions_token_account.to_account_info(),
-                    authority: ctx.accounts.admin.to_account_info(),
-                },
-            ),
-            additional_emissions,
-        )?;
-
         bank.emissions_remaining = I80F48::from(bank.emissions_remaining)
             .checked_add(I80F48::from_num(additional_emissions))
             .ok_or_else(math_error!())?
@@ -188,6 +185,26 @@ pub fn lending_pool_update_emissions_parameters(
             additional_emissions,
             I80F48::from(bank.emissions_remaining)
         );
+
+        let additional_emissions_amount_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
+            ctx.accounts.emissions_mint.to_account_info(),
+            additional_emissions,
+            Clock::get()?.epoch,
+        )?;
+
+        transfer_checked(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.emissions_funding_account.to_account_info(),
+                    to: ctx.accounts.emissions_token_account.to_account_info(),
+                    authority: ctx.accounts.admin.to_account_info(),
+                    mint: ctx.accounts.emissions_mint.to_account_info(),
+                },
+            ),
+            additional_emissions_amount_pre_fee,
+            ctx.accounts.emissions_mint.decimals,
+        )?;
     }
 
     Ok(())
@@ -209,7 +226,7 @@ pub struct LendingPoolUpdateEmissionsParameters<'info> {
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    pub emissions_mint: Account<'info, Mint>,
+    pub emissions_mint: InterfaceAccount<'info, Mint>,
 
     #[account(
         mut,
@@ -220,11 +237,11 @@ pub struct LendingPoolUpdateEmissionsParameters<'info> {
         ],
         bump,
     )]
-    pub emissions_token_account: Box<Account<'info, TokenAccount>>,
+    pub emissions_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Account provided only for funding rewards
     #[account(mut)]
     pub emissions_funding_account: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }

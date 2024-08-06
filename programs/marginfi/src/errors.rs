@@ -6,7 +6,6 @@ pub enum MarginfiError {
     MathError,
     #[msg("Invalid bank index")] // 6001
     BankNotFound,
-
     #[msg("Lending account balance not found")] // 6002
     LendingAccountBalanceNotFound,
     #[msg("Bank deposit capacity exceeded")] // 6003
@@ -44,7 +43,7 @@ pub enum MarginfiError {
     #[msg("Bank is ReduceOnly mode")] // 6019
     BankReduceOnly,
     #[msg("Bank is missing")] // 6020
-    BankAccoutNotFound,
+    BankAccountNotFound,
     #[msg("Operation is deposit-only")] // 6021
     OperationDepositOnly,
     #[msg("Operation is withdraw-only")] // 6022
@@ -65,13 +64,13 @@ pub enum MarginfiError {
     BankLiabilityCapacityExceeded,
     #[msg("Invalid Price")] // 6030
     InvalidPrice,
-    #[msg("Account can have only one liablity when account is under isolated risk")] // 6031
+    #[msg("Account can have only one liability when account is under isolated risk")] // 6031
     IsolatedAccountIllegalState, // 6032
     #[msg("Emissions already setup")]
     EmissionsAlreadySetup,
     #[msg("Oracle is not set")] // 6033
     OracleNotSetup,
-    #[msg("Invalid swithcboard decimal conversion")] // 6034
+    #[msg("Invalid switchboard decimal conversion")] // 6034
     InvalidSwitchboardDecimalConversion,
     #[msg("Cannot close balance because of outstanding emissions")] // 6035
     CannotCloseOutstandingEmissions,
@@ -93,11 +92,15 @@ pub enum MarginfiError {
     IllegalAccountAuthorityTransfer,
     #[msg("Unauthorized")] // 6045
     Unauthorized,
-    #[msg("InvalidWithdrawal")] // 6046
+    #[msg("Invalid account authority")] // 6046
+    IllegalAction,
+    #[msg("Token22 Banks require mint account as first remaining account")] // 6047
+    T22MintRequired,
+    #[msg("InvalidWithdrawal")] // 6048
     InvalidWithdrawal,
-    #[msg("Insurance fund account balance slots are full")] // 6047
+    #[msg("Insurance fund account balance slots are full")] // 6049
     InsuranceFundAccountBalanceSlotsFull,
-    #[msg("Insurance fund account withdraw slots are full")] // 6048
+    #[msg("Insurance fund account withdraw slots are full")] // 6050
     InsuranceFundAccountWithdrawSlotsFull,
 }
 

@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
+use pyth_solana_receiver_sdk::price_update::VerificationLevel;
 use solana_program::pubkey;
 
 pub const LIQUIDITY_VAULT_AUTHORITY_SEED: &str = "liquidity_vault_auth";
@@ -20,7 +21,7 @@ pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
         pub const PYTH_ID: Pubkey = pubkey!("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
-    } else if #[cfg(feature = "mainnet-beta")] {
+    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging"))] {
         pub const PYTH_ID: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");
     } else {
         pub const PYTH_ID: Pubkey = pubkey!("5rYvdyWAunZgD2EC1aKo7hQbutUUnkt7bBFM6xNq2z7Z");
@@ -128,3 +129,7 @@ pub const EXP_10: [i128; MAX_EXP_10] = [
 
 /// Value where total_asset_value_init_limit is considered inactive
 pub const TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE: u64 = 0;
+
+pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
+pub const PYTH_PUSH_PYTH_SPONSORED_SHARD_ID: u16 = 0;
+pub const PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;

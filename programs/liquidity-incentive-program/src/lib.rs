@@ -30,8 +30,8 @@ pub mod liquidity_incentive_program {
     ///
     /// # Returns
     /// * `Ok(())` if the campaign was successfully created, or an error otherwise.
-    pub fn create_campaign(
-        ctx: Context<CreateCampaign>,
+    pub fn create_campaign<'info>(
+        ctx: Context<'_, '_, '_, 'info, CreateCampaign<'info>>,
         lockup_period: u64,
         max_deposits: u64,
         max_rewards: u64,
@@ -51,7 +51,10 @@ pub mod liquidity_incentive_program {
     /// # Errors
     /// * `LIPError::CampaignNotActive` if the relevant campaign is not active.
     /// * `LIPError::DepositAmountTooLarge` is the deposit amount exceeds the amount of remaining deposits that can be made into the campaign.
-    pub fn create_deposit(ctx: Context<CreateDeposit>, amount: u64) -> Result<()> {
+    pub fn create_deposit<'info>(
+        ctx: Context<'_, '_, '_, 'info, CreateDeposit<'info>>,
+        amount: u64,
+    ) -> Result<()> {
         instructions::create_deposit::process(ctx, amount)
     }
 
@@ -71,7 +74,7 @@ pub mod liquidity_incentive_program {
     /// * Reloading ephemeral token account fails
     /// * Transferring additional reward to ephemeral token account fails
     /// * Reloading ephemeral token account after transfer fails
-    pub fn end_deposit(ctx: Context<EndDeposit>) -> Result<()> {
+    pub fn end_deposit<'info>(ctx: Context<'_, '_, '_, 'info, EndDeposit<'info>>) -> Result<()> {
         instructions::end_deposit::process(ctx)
     }
 }

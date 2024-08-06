@@ -1,24 +1,44 @@
-use crate::ui_to_native;
+use crate::{transfer_hook::TEST_HOOK_ID, ui_to_native};
 use anchor_lang::prelude::*;
-use anchor_spl::token::{
-    spl_token::{
+use anchor_spl::{
+    token::{spl_token, Mint, TokenAccount},
+    token_2022::{
         self,
-        instruction::{initialize_mint, mint_to},
+        spl_token_2022::{
+            self,
+            extension::{
+                interest_bearing_mint::InterestBearingConfig,
+                mint_close_authority::MintCloseAuthority, permanent_delegate::PermanentDelegate,
+                transfer_fee::TransferFee, transfer_hook::TransferHook, BaseState,
+                BaseStateWithExtensions, ExtensionType, StateWithExtensionsOwned,
+            },
+        },
     },
-    Mint, TokenAccount,
+    token_interface::spl_pod::bytemuck::pod_get_packed_len,
 };
+use solana_cli_output::CliAccount;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
-    instruction::Instruction, signature::Keypair, signer::Signer,
-    system_instruction::create_account, transaction::Transaction,
+    account::{AccountSharedData, ReadableAccount, WritableAccount},
+    instruction::Instruction,
+    native_token::LAMPORTS_PER_SOL,
+    program_pack::{Pack, Sealed},
+    signature::Keypair,
+    signer::Signer,
+    system_instruction::{self, create_account},
+    transaction::Transaction,
 };
-use std::{cell::RefCell, rc::Rc};
+use spl_transfer_hook_interface::{
+    get_extra_account_metas_address, instruction::initialize_extra_account_meta_list,
+};
+use std::{cell::RefCell, fs::File, io::Read, path::PathBuf, rc::Rc, str::FromStr};
 
 #[derive(Clone)]
 pub struct MintFixture {
     pub ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
-    pub mint: Mint,
+    pub mint: spl_token_2022::state::Mint,
+    pub token_program: Pubkey,
 }
 
 impl MintFixture {
@@ -41,7 +61,7 @@ impl MintFixture {
                 Mint::LEN as u64,
                 &spl_token::id(),
             );
-            let init_mint_ix = initialize_mint(
+            let init_mint_ix = spl_token::instruction::initialize_mint(
                 &spl_token::id(),
                 &keypair.pubkey(),
                 &ctx.payer.pubkey(),
@@ -66,13 +86,158 @@ impl MintFixture {
                 .unwrap()
                 .unwrap();
 
-            Mint::try_deserialize(&mut mint_account.data.as_slice()).unwrap()
+            spl_token_2022::state::Mint::unpack(mint_account.data.as_slice()).unwrap()
         };
 
         MintFixture {
             ctx: ctx_ref,
             key: keypair.pubkey(),
             mint,
+            token_program: spl_token::id(),
+        }
+    }
+
+    pub async fn new_token_22(
+        ctx: Rc<RefCell<ProgramTestContext>>,
+        mint_keypair: Option<Keypair>,
+        mint_decimals: Option<u8>,
+        extensions: &[SupportedExtension],
+    ) -> MintFixture {
+        let ctx_ref = Rc::clone(&ctx);
+        let keypair = mint_keypair.unwrap_or_else(Keypair::new);
+        let program = token_2022::ID;
+        let mint = {
+            let mut ctx = ctx.borrow_mut();
+
+            let rent = ctx.banks_client.get_rent().await.unwrap();
+
+            let extension_types = SupportedExtension::types(extensions.iter());
+            let len = ExtensionType::try_calculate_account_len::<spl_token_2022::state::Mint>(
+                &extension_types,
+            )
+            .unwrap();
+            let init_account_ix = create_account(
+                &ctx.payer.pubkey(),
+                &keypair.pubkey(),
+                rent.minimum_balance(len),
+                len as u64,
+                &program,
+            );
+            let init_mint_ix = spl_token_2022::instruction::initialize_mint(
+                &program,
+                &keypair.pubkey(),
+                &ctx.payer.pubkey(),
+                None,
+                mint_decimals.unwrap_or(6),
+            )
+            .unwrap();
+
+            let mut ixs = vec![init_account_ix];
+            ixs.extend(
+                extensions
+                    .iter()
+                    .map(|e| e.instruction(&keypair.pubkey(), &ctx.payer.pubkey())),
+            );
+            ixs.push(init_mint_ix);
+            let extra_metas_address = get_extra_account_metas_address(
+                &keypair.pubkey(),
+                &super::transfer_hook::TEST_HOOK_ID,
+            );
+            if extensions.contains(&SupportedExtension::TransferHook) {
+                ixs.push(system_instruction::transfer(
+                    &ctx.payer.pubkey(),
+                    &extra_metas_address,
+                    10 * LAMPORTS_PER_SOL,
+                ));
+                ixs.push(initialize_extra_account_meta_list(
+                    &super::transfer_hook::TEST_HOOK_ID,
+                    &extra_metas_address,
+                    &keypair.pubkey(),
+                    &ctx.payer.pubkey(),
+                    &[],
+                ))
+            }
+
+            let tx = Transaction::new_signed_with_payer(
+                &ixs,
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer, &keypair],
+                ctx.last_blockhash,
+            );
+
+            ctx.banks_client.process_transaction(tx).await.unwrap();
+
+            if extensions.contains(&SupportedExtension::TransferHook) {
+                ctx.banks_client
+                    .get_account(extra_metas_address)
+                    .await
+                    .unwrap()
+                    .unwrap();
+            }
+
+            let mint_account = ctx
+                .banks_client
+                .get_account(keypair.pubkey())
+                .await
+                .unwrap()
+                .unwrap();
+
+            StateWithExtensionsOwned::<spl_token_2022::state::Mint>::unpack(mint_account.data)
+                .unwrap()
+                .base
+        };
+
+        MintFixture {
+            ctx: ctx_ref,
+            key: keypair.pubkey(),
+            mint,
+            token_program: token_2022::ID,
+        }
+    }
+
+    pub fn new_from_file(
+        ctx: &Rc<RefCell<ProgramTestContext>>,
+        relative_path: &str,
+    ) -> MintFixture {
+        let ctx_ref = Rc::clone(ctx);
+
+        let (address, account_info) = {
+            let mut ctx = ctx.borrow_mut();
+
+            // load cargo workspace path from env
+            let mut path = PathBuf::from_str(env!("CARGO_MANIFEST_DIR")).unwrap();
+            path.push(relative_path);
+            let mut file = File::open(&path).unwrap();
+            let mut account_info_raw = String::new();
+            file.read_to_string(&mut account_info_raw).unwrap();
+
+            let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
+            let address = Pubkey::from_str(&account.keyed_account.pubkey).unwrap();
+            let mut account_info: AccountSharedData =
+                account.keyed_account.account.decode().unwrap();
+
+            let mut mint =
+                spl_token::state::Mint::unpack(&account_info.data()[..Mint::LEN]).unwrap();
+            let payer = ctx.payer.pubkey();
+            mint.mint_authority.replace(payer);
+
+            let mint_bytes = &mut [0; Mint::LEN];
+            spl_token::state::Mint::pack(mint, mint_bytes).unwrap();
+
+            account_info.data_as_mut_slice()[..Mint::LEN].copy_from_slice(mint_bytes);
+
+            ctx.set_account(&address, &account_info);
+
+            (address, account_info)
+        };
+
+        let mint = spl_token_2022::state::Mint::unpack(&account_info.data()[..Mint::LEN]).unwrap();
+
+        MintFixture {
+            ctx: ctx_ref,
+            key: address,
+            mint,
+            token_program: account_info.owner().to_owned(),
         }
     }
 
@@ -86,7 +251,10 @@ impl MintFixture {
             .await
             .unwrap()
             .unwrap();
-        self.mint = Mint::try_deserialize(&mut mint_account.data.as_slice()).unwrap();
+        self.mint =
+            StateWithExtensionsOwned::<spl_token_2022::state::Mint>::unpack(mint_account.data)
+                .unwrap()
+                .base;
     }
 
     pub async fn mint_to<T: Into<f64>>(&mut self, dest: &Pubkey, ui_amount: T) {
@@ -114,8 +282,8 @@ impl MintFixture {
 
     pub fn make_mint_to_ix(&self, dest: &Pubkey, amount: u64) -> Instruction {
         let ctx = self.ctx.borrow();
-        mint_to(
-            &spl_token::id(),
+        spl_token_2022::instruction::mint_to(
+            &self.token_program,
             &self.key,
             dest,
             &ctx.payer.pubkey(),
@@ -125,12 +293,22 @@ impl MintFixture {
         .unwrap()
     }
 
+    pub async fn create_empty_token_account(&self) -> TokenAccountFixture {
+        self.create_token_account_and_mint_to(0.0).await
+    }
+
     pub async fn create_token_account_and_mint_to<T: Into<f64>>(
         &self,
         ui_amount: T,
     ) -> TokenAccountFixture {
         let payer = self.ctx.borrow().payer.pubkey();
-        let token_account_f = TokenAccountFixture::new(self.ctx.clone(), &self.key, &payer).await;
+        let token_account_f = TokenAccountFixture::new_with_token_program(
+            self.ctx.clone(),
+            &self.key,
+            &payer,
+            &self.token_program,
+        )
+        .await;
 
         let mint_to_ix = self.make_mint_to_ix(
             &token_account_f.key,
@@ -157,7 +335,7 @@ impl MintFixture {
         ui_amount: T,
     ) -> TokenAccountFixture {
         let token_account_f =
-            TokenAccountFixture::new(self.ctx.clone(), &self.key, &owner.pubkey()).await;
+            TokenAccountFixture::new(self.ctx.clone(), self, &owner.pubkey()).await;
 
         let mint_to_ix = self.make_mint_to_ix(
             &token_account_f.key,
@@ -176,39 +354,96 @@ impl MintFixture {
 
         token_account_f
     }
+
+    pub async fn load_state(&self) -> StateWithExtensionsOwned<spl_token_2022::state::Mint> {
+        let mint_account = self
+            .ctx
+            .borrow_mut()
+            .banks_client
+            .get_account(self.key)
+            .await
+            .unwrap()
+            .unwrap();
+
+        StateWithExtensionsOwned::unpack(mint_account.data).unwrap()
+    }
 }
 
 pub struct TokenAccountFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
-    pub token: TokenAccount,
+    pub token: spl_token_2022::state::Account,
+    pub token_program: Pubkey,
 }
 
 impl TokenAccountFixture {
     pub async fn create_ixs(
+        ctx: &Rc<RefCell<ProgramTestContext>>,
         rent: Rent,
         mint_pk: &Pubkey,
         payer_pk: &Pubkey,
         owner_pk: &Pubkey,
         keypair: &Keypair,
-    ) -> [Instruction; 2] {
-        let init_account_ix = create_account(
-            payer_pk,
-            &keypair.pubkey(),
-            rent.minimum_balance(TokenAccount::LEN),
-            TokenAccount::LEN as u64,
-            &spl_token::id(),
-        );
+        token_program: &Pubkey,
+    ) -> Vec<Instruction> {
+        let mut ixs = vec![];
 
-        let init_token_ix = spl_token::instruction::initialize_account(
-            &spl_token::id(),
-            &keypair.pubkey(),
-            mint_pk,
-            owner_pk,
+        // Get extensions if t22 (should return no exts if spl_token)
+        // 1) Fetch mint
+        let mint_account = ctx
+            .borrow_mut()
+            .banks_client
+            .get_account(*mint_pk)
+            .await
+            .unwrap()
+            .unwrap();
+        let mint_exts =
+            spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Mint>::unpack(
+                &mint_account.data,
+            )
+            .unwrap();
+
+        let mint_extensions = mint_exts.get_extension_types().unwrap();
+        let required_extensions =
+            ExtensionType::get_required_init_account_extensions(&mint_extensions);
+
+        let space = ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(
+            &required_extensions,
         )
         .unwrap();
 
-        [init_account_ix, init_token_ix]
+        // Init account
+        ixs.push(create_account(
+            payer_pk,
+            &keypair.pubkey(),
+            rent.minimum_balance(space),
+            space as u64,
+            token_program,
+        ));
+
+        // 2) Add instructions
+        if required_extensions.contains(&ExtensionType::ImmutableOwner) {
+            ixs.push(
+                spl_token_2022::instruction::initialize_immutable_owner(
+                    token_program,
+                    &keypair.pubkey(),
+                )
+                .unwrap(),
+            )
+        }
+
+        // Token Account init
+        ixs.push(
+            spl_token_2022::instruction::initialize_account(
+                token_program,
+                &keypair.pubkey(),
+                mint_pk,
+                owner_pk,
+            )
+            .unwrap(),
+        );
+
+        ixs
     }
 
     pub async fn new_account(&self) -> Pubkey {
@@ -216,11 +451,13 @@ impl TokenAccountFixture {
         let mut ctx = self.ctx.borrow_mut();
 
         let ixs = Self::create_ixs(
+            &self.ctx,
             ctx.banks_client.get_rent().await.unwrap(),
             &self.token.mint,
             &ctx.payer.pubkey(),
             &ctx.payer.pubkey(),
             &keypair,
+            &self.token_program,
         )
         .await;
 
@@ -242,57 +479,104 @@ impl TokenAccountFixture {
         mint_pk: &Pubkey,
         owner_pk: &Pubkey,
         keypair: &Keypair,
+        token_program: &Pubkey,
     ) -> Self {
         let ctx_ref = ctx.clone();
 
         {
-            let mut ctx = ctx.borrow_mut();
+            let payer = ctx.borrow().payer.pubkey();
+            let rent = ctx.borrow_mut().banks_client.get_rent().await.unwrap();
+            let instructions = Self::create_ixs(
+                &ctx,
+                rent,
+                mint_pk,
+                &payer,
+                owner_pk,
+                keypair,
+                token_program,
+            )
+            .await;
 
-            let rent = ctx.banks_client.get_rent().await.unwrap();
-            let instructions =
-                Self::create_ixs(rent, mint_pk, &ctx.payer.pubkey(), owner_pk, keypair).await;
+            // Token extensions
 
             let tx = Transaction::new_signed_with_payer(
                 &instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer, keypair],
-                ctx.last_blockhash,
+                Some(&ctx.borrow().payer.pubkey()),
+                &[&ctx.borrow().payer, keypair],
+                ctx.borrow().last_blockhash,
             );
 
-            ctx.banks_client.process_transaction(tx).await.unwrap();
+            ctx.borrow_mut()
+                .banks_client
+                .process_transaction(tx)
+                .await
+                .unwrap();
         }
+
+        let mut ctx = ctx.borrow_mut();
+        let account = ctx
+            .banks_client
+            .get_account(keypair.pubkey())
+            .await
+            .unwrap()
+            .unwrap();
 
         Self {
             ctx: ctx_ref.clone(),
             key: keypair.pubkey(),
-            token: get_and_deserialize(ctx_ref.clone(), keypair.pubkey()).await,
+            token: StateWithExtensionsOwned::<spl_token_2022::state::Account>::unpack(account.data)
+                .unwrap()
+                .base,
+            token_program: *token_program,
         }
     }
 
     pub async fn new(
         ctx: Rc<RefCell<ProgramTestContext>>,
-        mint_pk: &Pubkey,
+        mint_fixture: &MintFixture,
         owner_pk: &Pubkey,
     ) -> TokenAccountFixture {
         let keypair = Keypair::new();
-        TokenAccountFixture::new_with_keypair(ctx, mint_pk, owner_pk, &keypair).await
+        let mint_pk = mint_fixture.key;
+        TokenAccountFixture::new_with_keypair(
+            ctx,
+            &mint_pk,
+            owner_pk,
+            &keypair,
+            &mint_fixture.token_program,
+        )
+        .await
+    }
+
+    pub async fn new_with_token_program(
+        ctx: Rc<RefCell<ProgramTestContext>>,
+        mint_pk: &Pubkey,
+        owner_pk: &Pubkey,
+        token_program: &Pubkey,
+    ) -> TokenAccountFixture {
+        let keypair = Keypair::new();
+        TokenAccountFixture::new_with_keypair(ctx, mint_pk, owner_pk, &keypair, token_program).await
     }
 
     pub async fn fetch(
         ctx: Rc<RefCell<ProgramTestContext>>,
         address: Pubkey,
     ) -> TokenAccountFixture {
-        let token = get_and_deserialize(ctx.clone(), address).await;
+        let token: spl_token_2022::state::Account =
+            get_and_deserialize_t22(ctx.clone(), address).await;
+        let token_program = token.owner;
 
         Self {
             ctx: ctx.clone(),
             key: address,
             token,
+            token_program,
         }
     }
 
     pub async fn balance(&self) -> u64 {
-        let token_account: TokenAccount = get_and_deserialize(self.ctx.clone(), self.key).await;
+        let token_account: spl_token_2022::state::Account =
+            get_and_deserialize_t22(self.ctx.clone(), self.key).await;
 
         token_account.amount
     }
@@ -304,11 +588,106 @@ pub async fn get_and_deserialize<T: AccountDeserialize>(
 ) -> T {
     let mut ctx = ctx.borrow_mut();
     let account = ctx.banks_client.get_account(pubkey).await.unwrap().unwrap();
+
     T::try_deserialize(&mut account.data.as_slice()).unwrap()
+}
+pub async fn get_and_deserialize_t22<T: BaseState + Pack + Sealed>(
+    ctx: Rc<RefCell<ProgramTestContext>>,
+    pubkey: Pubkey,
+) -> T {
+    let mut ctx = ctx.borrow_mut();
+    let account = ctx.banks_client.get_account(pubkey).await.unwrap().unwrap();
+
+    StateWithExtensionsOwned::<T>::unpack(account.data)
+        .unwrap()
+        .base
 }
 
 pub async fn balance_of(ctx: Rc<RefCell<ProgramTestContext>>, pubkey: Pubkey) -> u64 {
     let token_account: TokenAccount = get_and_deserialize(ctx, pubkey).await;
 
     token_account.amount
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SupportedExtension {
+    MintCloseAuthority,
+    InterestBearing,
+    PermanentDelegate,
+    TransferHook,
+    TransferFee,
+}
+
+impl SupportedExtension {
+    pub fn instruction(&self, mint: &Pubkey, key: &Pubkey) -> Instruction {
+        match self {
+            SupportedExtension::MintCloseAuthority => {
+                spl_token_2022::instruction::initialize_mint_close_authority(
+                    &token_2022::ID,
+                    mint,
+                    Some(key),
+                )
+                .unwrap()
+            }
+            SupportedExtension::InterestBearing => {
+                spl_token_2022::extension::interest_bearing_mint::instruction::initialize(
+                    &token_2022::ID,
+                    mint,
+                    Some(*key),
+                    1,
+                )
+                .unwrap()
+            }
+            SupportedExtension::PermanentDelegate => {
+                spl_token_2022::instruction::initialize_permanent_delegate(
+                    &token_2022::ID,
+                    mint,
+                    key,
+                )
+                .unwrap()
+            }
+            Self::TransferHook => {
+                spl_token_2022::extension::transfer_hook::instruction::initialize(
+                    &token_2022::ID,
+                    mint,
+                    Some(*key),
+                    Some(TEST_HOOK_ID),
+                )
+                .unwrap()
+            }
+            Self::TransferFee => {
+                spl_token_2022::extension::transfer_fee::instruction::initialize_transfer_fee_config(
+                &token_2022::ID,
+                mint,
+                None,
+                None,
+                500,
+                u64::MAX,
+            )
+            .unwrap()
+            }
+        }
+    }
+
+    pub fn space<'a>(exts: impl Iterator<Item = &'a SupportedExtension>) -> usize {
+        exts.map(|e| match e {
+            SupportedExtension::MintCloseAuthority => pod_get_packed_len::<MintCloseAuthority>(),
+            SupportedExtension::InterestBearing => pod_get_packed_len::<InterestBearingConfig>(),
+            SupportedExtension::PermanentDelegate => pod_get_packed_len::<PermanentDelegate>(),
+            SupportedExtension::TransferHook => pod_get_packed_len::<TransferHook>(),
+            SupportedExtension::TransferFee => pod_get_packed_len::<TransferFee>(),
+        })
+        .sum()
+    }
+
+    fn types<'a>(exts: impl Iterator<Item = &'a SupportedExtension>) -> Vec<ExtensionType> {
+        exts.map(|e| match e {
+            SupportedExtension::MintCloseAuthority => ExtensionType::MintCloseAuthority,
+            SupportedExtension::InterestBearing => ExtensionType::InterestBearingConfig,
+            SupportedExtension::PermanentDelegate => ExtensionType::PermanentDelegate,
+            SupportedExtension::TransferHook => ExtensionType::TransferHook,
+            SupportedExtension::TransferFee => ExtensionType::TransferFeeConfig,
+        })
+        .collect()
+    }
 }

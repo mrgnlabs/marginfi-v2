@@ -36,7 +36,7 @@ async fn marginfi_liquid_insurance_fund_create_success() -> anyhow::Result<()> {
 async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_success() -> anyhow::Result<()> {
     // first create bank
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     let min_withdraw_period = 60_u64 * 60_u64 * 24_u64 * 14_u64; // 2 weeks
 
@@ -98,7 +98,7 @@ async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_success() -> anyh
 async fn marginfi_liquid_insurance_fund_user_deposit_withdraw_success() -> anyhow::Result<()> {
     // first create bank
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     // Seconds
     let min_withdraw_period = 2;
@@ -231,7 +231,7 @@ async fn marginfi_liquid_insurance_fund_user_deposit_withdraw_success() -> anyho
 async fn marginfi_liquid_insurance_fund_admin_user_withdraw_limits() -> anyhow::Result<()> {
     // first create bank and lif
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     // Seconds
     let min_withdraw_period = 2;
@@ -312,7 +312,7 @@ async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_with_liquidation_
 ) -> anyhow::Result<()> {
     // first create bank
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     let min_withdraw_period = 60_u64 * 60_u64 * 24_u64 * 14_u64; // 2 weeks
 
@@ -381,11 +381,11 @@ async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_with_bad_debt_suc
         group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
-                mint: BankMint::USDC,
+                mint: BankMint::Usdc,
                 config: None,
             },
             TestBankSetting {
-                mint: BankMint::SOL,
+                mint: BankMint::Sol,
                 config: Some(BankConfig {
                     asset_weight_init: I80F48!(1).into(),
                     ..*DEFAULT_SOL_TEST_BANK_CONFIG
@@ -394,7 +394,7 @@ async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_with_bad_debt_suc
         ],
     }))
     .await;
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     let min_withdraw_period = 60_u64 * 60_u64 * 24_u64 * 14_u64; // 2 weeks
 
@@ -431,7 +431,7 @@ async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_with_bad_debt_suc
     bad_debt(&mut test_f).await?;
 
     // Withdraw
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
     usdc_bank_f
         .try_admin_withdraw_insurance(&source_account, I80F48!(100_000_000))
         .await
@@ -464,8 +464,8 @@ async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_with_bad_debt_suc
 // [x] with bad debt
 
 async fn liquidation(test_f: &TestFixture) -> anyhow::Result<()> {
-    let usdc_bank_f = test_f.get_bank(&BankMint::USDC);
-    let sol_bank_f = test_f.get_bank(&BankMint::SOL);
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f
@@ -515,7 +515,7 @@ async fn bad_debt(test_f: &mut TestFixture) -> anyhow::Result<()> {
     lender_mfi_account_f
         .try_bank_deposit(
             lender_token_account_usdc.key,
-            test_f.get_bank(&BankMint::USDC),
+            test_f.get_bank(&BankMint::Usdc),
             100_000,
         )
         .await?;
@@ -529,7 +529,7 @@ async fn bad_debt(test_f: &mut TestFixture) -> anyhow::Result<()> {
     borrower_account
         .try_bank_deposit(
             borrower_deposit_account.key,
-            test_f.get_bank(&BankMint::SOL),
+            test_f.get_bank(&BankMint::Sol),
             1_001,
         )
         .await?;
@@ -539,7 +539,7 @@ async fn bad_debt(test_f: &mut TestFixture) -> anyhow::Result<()> {
     borrower_account
         .try_bank_borrow(
             borrower_borrow_account.key,
-            test_f.get_bank(&BankMint::USDC),
+            test_f.get_bank(&BankMint::Usdc),
             10_000,
         )
         .await?;
@@ -550,7 +550,7 @@ async fn bad_debt(test_f: &mut TestFixture) -> anyhow::Result<()> {
         .value = 0_i128.to_le_bytes();
     borrower_account.set_account(&borrower_mfi_account).await?;
 
-    let bank = test_f.get_bank(&BankMint::USDC);
+    let bank = test_f.get_bank(&BankMint::Usdc);
     test_f
         .marginfi_group
         .try_handle_bankruptcy(bank, &borrower_account)

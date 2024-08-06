@@ -247,15 +247,15 @@ impl LiquidInsuranceFund {
     ///
     /// NOTE: this is done because if AccountLoader<'info, T> is used in a #[derive(Accounts)]
     /// struct in case 2), the instruction will simply fail due to an account owner check.
-    pub fn try_loader<'a, 'info>(
-        ai: &'a AccountInfo<'info>,
+    pub fn try_loader<'a>(
+        ai: &'a AccountInfo<'a>,
         // ) -> MarginfiResult<AccountLoader<'info, LiquidInsuranceFund>> {
-    ) -> MarginfiResult<AccountLoader<'info, LiquidInsuranceFund>> {
+    ) -> MarginfiResult<AccountLoader<'a, LiquidInsuranceFund>> {
         AccountLoader::try_from_unchecked(&crate::ID, ai)
     }
 
-    pub(crate) fn maybe_process_admin_withdraw(
-        liquid_insurance_fund: &AccountInfo,
+    pub(crate) fn maybe_process_admin_withdraw<'info>(
+        liquid_insurance_fund: &'info AccountInfo<'info>,
         insurance_vault_balance: u64,
         amount: I80F48,
     ) -> MarginfiResult<u64> {
@@ -265,6 +265,11 @@ impl LiquidInsuranceFund {
 
             let admin_shares = lif.get_admin_shares();
             if admin_shares < amount {
+                msg!(
+                    "admin shares {} vs amount requested {}",
+                    admin_shares,
+                    amount
+                );
                 return err!(MarginfiError::InvalidWithdrawal);
             }
 
@@ -281,8 +286,8 @@ impl LiquidInsuranceFund {
     }
 
     /// This does NOT check the lif account address. Caller must do this!
-    pub(crate) fn maybe_process_admin_deposit(
-        liquid_insurance_fund: &AccountInfo,
+    pub(crate) fn maybe_process_admin_deposit<'info>(
+        liquid_insurance_fund: &'info AccountInfo<'info>,
         insurance_vault_balance: u64,
         amount: u64,
     ) -> MarginfiResult<()> {
@@ -300,8 +305,8 @@ impl LiquidInsuranceFund {
         Ok(())
     }
 
-    pub fn maybe_process_bankruptcy(
-        liquid_insurance_fund: &AccountInfo,
+    pub fn maybe_process_bankruptcy<'info>(
+        liquid_insurance_fund: &'info AccountInfo<'info>,
         amount_covered_by_insurance: I80F48,
     ) -> MarginfiResult<()> {
         if let Ok(lif) = LiquidInsuranceFund::try_loader(liquid_insurance_fund) {
