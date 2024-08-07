@@ -52,6 +52,10 @@ impl TestSettings {
                 ..TestBankSetting::default()
             },
             TestBankSetting {
+                mint: BankMint::SolSwbPull,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
                 mint: BankMint::SolEquivalent,
                 ..TestBankSetting::default()
             },
@@ -86,10 +90,6 @@ impl TestSettings {
                 TestBankSetting {
                     mint: BankMint::Sol,
                     config: Some(*DEFAULT_SOL_TEST_SW_BANK_CONFIG),
-                },
-                TestBankSetting {
-                    mint: BankMint::SolSwbPull,
-                    config: Some(*DEFAULT_SB_PULL_SOL_TEST_REAL_BANK_CONFIG),
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
@@ -372,7 +372,6 @@ lazy_static! {
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(SWITCH_PULL_SOL_REAL_FEED.into()),
-        oracle_max_age: 100,
         ..*DEFAULT_TEST_BANK_CONFIG
     };
 }

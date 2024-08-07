@@ -318,6 +318,7 @@ impl SwitchboardPullPriceFeed {
         current_timestamp: i64,
         max_age: u64,
     ) -> MarginfiResult<Self> {
+        println!("load {:?}", ai.key());
         let ai_data = ai.data.borrow();
 
         check!(
