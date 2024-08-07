@@ -438,7 +438,7 @@ pub fn entry(opts: Opts) -> Result<()> {
             let profile = load_profile()?;
             let config = profile.get_config(Some(&opts.cfg_override))?;
 
-            processor::inspect_pyth_push_feed(&config, pyth_feed)?;
+            processor::oracle::inspect_pyth_push_feed(&config, pyth_feed)?;
 
             Ok(())
         }
