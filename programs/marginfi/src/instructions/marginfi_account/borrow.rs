@@ -86,6 +86,7 @@ pub fn lending_account_borrow<'info>(
             .checked_mul(origination_fee_rate)
             .unwrap(); // TODO wrap in ok_or error
 
+        // Note: Incurs a borrow that includes the origination fee, but withdraws just the amt
         bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee)?;
         bank_account.withdraw_spl_transfer(
             amount_pre_fee,

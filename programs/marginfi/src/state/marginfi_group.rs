@@ -113,7 +113,7 @@ impl From<InterestRateConfigCompact> for InterestRateConfig {
             protocol_ir_fee: ir_config.protocol_ir_fee,
             protocol_origination_fee: ir_config.protocol_origination_fee,
             _padding0: [0; 16],
-            _padding1: [[0;32]; 3],
+            _padding1: [[0; 32]; 3],
         }
     }
 }
