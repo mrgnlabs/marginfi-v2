@@ -148,6 +148,16 @@ pub fn create_pyth_push_oracle_account(
     create_pyth_push_oracle_account_from_bytes(data)
 }
 
+pub fn create_switch_pull_oracle_account_from_bytes(data: Vec<u8>) -> Account {
+    Account {
+        lamports: 1_000_000,
+        data,
+        owner: switchboard_on_demand::SWITCHBOARD_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 361,
+    }
+}
+
 pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Account {
     let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
     let aggregator_account = switchboard_solana::AggregatorAccountData {
@@ -699,4 +709,18 @@ pub mod lip {
             &liquidity_incentive_program::id(),
         )
     }
+}
+
+/// A minimal tool to convert a hex string like "22f123639" into the byte equivalent.
+pub fn hex_to_bytes(hex: &str) -> Vec<u8> {
+    hex.as_bytes()
+        .chunks(2)
+        .map(|chunk| {
+            let high = chunk[0] as char;
+            let low = chunk[1] as char;
+            let high = high.to_digit(16).expect("Invalid hex character") as u8;
+            let low = low.to_digit(16).expect("Invalid hex character") as u8;
+            (high << 4) | low
+        })
+        .collect()
 }

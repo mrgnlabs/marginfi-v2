@@ -5,6 +5,7 @@ use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
+use switchboard_on_demand::PullFeedAccountData;
 use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
@@ -33,6 +34,7 @@ pub enum OracleSetup {
     PythLegacy,
     SwitchboardV2,
     PythPushOracle,
+    SwitchboardPull,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -65,6 +67,7 @@ pub enum OraclePriceFeedAdapter {
     PythLegacy(PythLegacyPriceFeed),
     SwitchboardV2(SwitchboardV2PriceFeed),
     PythPushOracle(PythPushOraclePriceFeed),
+    SwitchboardPull(SwitchboardPullPriceFeed),
 }
 
 impl OraclePriceFeedAdapter {
@@ -134,6 +137,17 @@ impl OraclePriceFeedAdapter {
                     )?,
                 ))
             }
+            OracleSetup::SwitchboardPull => {
+                check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
+                check!(
+                    ais[0].key == &bank_config.oracle_keys[0],
+                    MarginfiError::InvalidOracleAccount
+                );
+
+                Ok(OraclePriceFeedAdapter::SwitchboardPull(
+                    SwitchboardPullPriceFeed::load_checked(&ais[0], clock.unix_timestamp, max_age)?,
+                ))
+            }
         }
     }
 
@@ -172,6 +186,17 @@ impl OraclePriceFeedAdapter {
                     &oracle_ais[0],
                     bank_config.get_pyth_push_oracle_feed_id().unwrap(),
                 )?;
+
+                Ok(())
+            }
+            OracleSetup::SwitchboardPull => {
+                check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
+                check!(
+                    oracle_ais[0].key == &bank_config.oracle_keys[0],
+                    MarginfiError::InvalidOracleAccount
+                );
+
+                SwitchboardPullPriceFeed::check_ais(&oracle_ais[0])?;
 
                 Ok(())
             }
@@ -277,6 +302,89 @@ impl PriceAdapter for PythLegacyPriceFeed {
                         .ok_or_else(math_error!())?),
                 }
             }
+        }
+    }
+}
+
+// TODO lite version of feed account
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
+pub struct SwitchboardPullPriceFeed {
+    feed: Box<PullFeedAccountData>,
+}
+
+impl SwitchboardPullPriceFeed {
+    pub fn load_checked(
+        ai: &AccountInfo,
+        current_timestamp: i64,
+        max_age: u64,
+    ) -> MarginfiResult<Self> {
+        let ai_data = ai.data.borrow();
+
+        check!(
+            ai.owner.eq(&switchboard_on_demand::SWITCHBOARD_PROGRAM_ID),
+            MarginfiError::InvalidOracleAccount
+        );
+
+        let feed =
+            PullFeedAccountData::parse(ai_data).map_err(|_| MarginfiError::InvalidOracleAccount)?;
+
+        // TODO validate staleness
+
+        Ok(Self {
+            feed: Box::new(*feed),
+        })
+    }
+
+    fn check_ais(ai: &AccountInfo) -> MarginfiResult {
+        let ai_data = ai.data.borrow();
+
+        check!(
+            ai.owner.eq(&switchboard_on_demand::SWITCHBOARD_PROGRAM_ID),
+            MarginfiError::InvalidOracleAccount
+        );
+
+        PullFeedAccountData::parse(ai_data).map_err(|_| MarginfiError::InvalidOracleAccount)?;
+
+        Ok(())
+    }
+
+    fn get_price(&self) -> MarginfiResult<I80F48> {
+        let sw_result = self.feed.result;
+        let price: I80F48 = I80F48::from_num(sw_result.value);
+
+        Ok(price)
+    }
+
+    fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
+        // TODO placeholder
+        let std_div = self.feed.std_dev().unwrap();
+
+        Ok(I80F48::from_num(42))
+    }
+}
+
+impl PriceAdapter for SwitchboardPullPriceFeed {
+    fn get_price_of_type(
+        &self,
+        _price_type: OraclePriceType,
+        bias: Option<PriceBias>,
+    ) -> MarginfiResult<I80F48> {
+        let price = self.get_price()?;
+
+        match bias {
+            Some(price_bias) => {
+                let confidence_interval = self.get_confidence_interval()?;
+
+                match price_bias {
+                    PriceBias::Low => Ok(price
+                        .checked_sub(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                    PriceBias::High => Ok(price
+                        .checked_add(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                }
+            }
+            None => Ok(price),
         }
     }
 }
