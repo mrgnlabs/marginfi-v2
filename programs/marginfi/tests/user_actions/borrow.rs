@@ -147,6 +147,7 @@ async fn marginfi_account_borrow_success(
 #[test_case(128_932., 10_000., 15_000.0, BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(36., 1.7, 1.9, BankMint::SolSwbPull, BankMint::Sol)]
 #[tokio::test]
 async fn marginfi_account_borrow_failure_not_enough_collateral(
     deposit_amount: f64,

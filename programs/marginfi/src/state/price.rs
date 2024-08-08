@@ -356,8 +356,10 @@ impl SwitchboardPullPriceFeed {
         let sw_result = self.feed.result;
         // Note: Pull oracles support mean (result.mean) or median (result.value)
         let price: I80F48 = I80F48::from_num(sw_result.value)
-            .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
-            .ok_or_else(math_error!())?;
+        .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
+        .ok_or_else(math_error!())?;
+
+        msg!("recorded price: {:?}", price); // TODO remove
 
         Ok(price)
     }
