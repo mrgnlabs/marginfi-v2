@@ -318,7 +318,6 @@ impl SwitchboardPullPriceFeed {
         current_timestamp: i64,
         max_age: u64,
     ) -> MarginfiResult<Self> {
-        println!("load {:?}", ai.key());
         let ai_data = ai.data.borrow();
 
         check!(
@@ -329,7 +328,11 @@ impl SwitchboardPullPriceFeed {
         let feed =
             PullFeedAccountData::parse(ai_data).map_err(|_| MarginfiError::InvalidOracleAccount)?;
 
-        // TODO validate staleness
+        // Check staleness
+        let last_updated = feed.last_update_timestamp;
+        if current_timestamp - last_updated > max_age as i64 {
+            return err!(MarginfiError::StaleOracle);
+        }
 
         Ok(Self {
             feed: Box::new(*feed),
@@ -351,16 +354,38 @@ impl SwitchboardPullPriceFeed {
 
     fn get_price(&self) -> MarginfiResult<I80F48> {
         let sw_result = self.feed.result;
-        let price: I80F48 = I80F48::from_num(sw_result.value);
+        // Note: Pull oracles support mean (result.mean) or median (result.value)
+        let price: I80F48 = I80F48::from_num(sw_result.value)
+            .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
+            .ok_or_else(math_error!())?;
 
         Ok(price)
     }
 
     fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
-        // TODO placeholder
-        let std_div = self.feed.std_dev().unwrap();
+        let std_div: I80F48 = I80F48::from_num(self.feed.result.std_dev);
 
-        Ok(I80F48::from_num(42))
+        let conf_interval = std_div
+            .checked_mul(STD_DEV_MULTIPLE)
+            .ok_or_else(math_error!())?;
+
+        let price = self.get_price()?;
+
+        let max_conf_interval = price
+            .checked_mul(MAX_CONF_INTERVAL)
+            .ok_or_else(math_error!())?;
+
+        assert!(
+            max_conf_interval >= I80F48::ZERO,
+            "Negative max confidence interval"
+        );
+
+        assert!(
+            conf_interval >= I80F48::ZERO,
+            "Negative confidence interval"
+        );
+
+        Ok(min(conf_interval, max_conf_interval))
     }
 }
 

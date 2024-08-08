@@ -323,7 +323,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         check_bank_field!(total_asset_value_init_limit);
         check_bank_field!(oracle_max_age);
 
-    
+
 
         assert!(permissionless_bad_debt_settlement
             // If Some(...) check flag set properly
