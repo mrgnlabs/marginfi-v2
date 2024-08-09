@@ -359,7 +359,10 @@ impl SwitchboardPullPriceFeed {
             .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
             .ok_or_else(math_error!())?;
 
-        msg!("recorded price: {:?}", price); // TODO remove
+        // WARNING: Adding a line like the following will cause the entire project to silently fail
+        // to build, resulting in `Program not deployed` errors downstream when testing 
+        
+        // msg!("recorded price: {:?}", price);
 
         Ok(price)
     }
