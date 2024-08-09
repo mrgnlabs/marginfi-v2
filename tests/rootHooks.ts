@@ -9,7 +9,7 @@ import {
   SetupTestUserOptions,
 } from "./utils/mocks";
 import { Marginfi } from "../target/types/marginfi";
-import { Transaction } from "@solana/web3.js";
+import { Keypair, Transaction } from "@solana/web3.js";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export const verbose = true;
@@ -18,6 +18,9 @@ export let globalProgramAdmin: mockUser = undefined;
 export let groupAdmin: mockUser = undefined;
 export const users: mockUser[] = [];
 export const numUsers = 2;
+
+/** Group used for all happy-path tests */
+export const marginfiGroup = Keypair.generate();
 
 export const mochaHooks = {
   beforeAll: async () => {
