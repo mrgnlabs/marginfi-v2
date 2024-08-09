@@ -1,11 +1,11 @@
-use std::cmp::min;
+use std::{cell::Ref, cmp::min};
 
 use anchor_lang::prelude::*;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
-use switchboard_on_demand::PullFeedAccountData;
+use switchboard_on_demand::{CurrentResult, PullFeedAccountData};
 use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
@@ -309,7 +309,7 @@ impl PriceAdapter for PythLegacyPriceFeed {
 // TODO lite version of feed account
 #[cfg_attr(feature = "client", derive(Clone, Debug))]
 pub struct SwitchboardPullPriceFeed {
-    feed: Box<PullFeedAccountData>,
+    feed: Box<LitePullFeedAccountData>,
 }
 
 impl SwitchboardPullPriceFeed {
@@ -335,7 +335,7 @@ impl SwitchboardPullPriceFeed {
         }
 
         Ok(Self {
-            feed: Box::new(*feed),
+            feed: Box::new(feed.into()),
         })
     }
 
@@ -356,8 +356,8 @@ impl SwitchboardPullPriceFeed {
         let sw_result = self.feed.result;
         // Note: Pull oracles support mean (result.mean) or median (result.value)
         let price: I80F48 = I80F48::from_num(sw_result.value)
-        .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
-        .ok_or_else(math_error!())?;
+            .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
+            .ok_or_else(math_error!())?;
 
         msg!("recorded price: {:?}", price); // TODO remove
 
@@ -758,6 +758,29 @@ impl PriceAdapter for PythPushOraclePriceFeed {
                         .ok_or_else(math_error!())?),
                 }
             }
+        }
+    }
+}
+
+/// A slimmed down version of the PullFeedAccountData struct copied from the
+/// switchboard-on-demand/src/pull_feed.rs
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
+struct LitePullFeedAccountData {
+    pub result: CurrentResult,
+}
+
+impl From<&PullFeedAccountData> for LitePullFeedAccountData {
+    fn from(feed: &PullFeedAccountData) -> Self {
+        Self {
+            result: feed.result,
+        }
+    }
+}
+
+impl From<Ref<'_, PullFeedAccountData>> for LitePullFeedAccountData {
+    fn from(feed: Ref<'_, PullFeedAccountData>) -> Self {
+        Self {
+            result: feed.result,
         }
     }
 }
