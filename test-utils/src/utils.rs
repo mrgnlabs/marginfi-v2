@@ -148,6 +148,16 @@ pub fn create_pyth_push_oracle_account(
     create_pyth_push_oracle_account_from_bytes(data)
 }
 
+pub fn create_switch_pull_oracle_account_from_bytes(data: Vec<u8>) -> Account {
+    Account {
+        lamports: 1_000_000,
+        data,
+        owner: switchboard_on_demand::SWITCHBOARD_PROGRAM_ID,
+        executable: false,
+        rent_epoch: 361,
+    }
+}
+
 pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Account {
     let native_price = ui_price * 10_i64.pow(mint_decimals as u32);
     let aggregator_account = switchboard_solana::AggregatorAccountData {

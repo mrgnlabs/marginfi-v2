@@ -25,6 +25,7 @@ anchor-spl = { workspace = true }
 pyth-sdk-solana = { workspace = true }
 pyth-solana-receiver-sdk = { workspace = true }
 switchboard-solana = { workspace = true }
+switchboard-on-demand = { workspace = true }
 
 bytemuck = "1.9.1"
 fixed = "1.12.0"

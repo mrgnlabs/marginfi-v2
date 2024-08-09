@@ -490,6 +490,12 @@ impl<'info> RiskEngine<'_, 'info> {
                 a.balance.bank_pk, assets, liabilities
             );
 
+            // TODO remove
+            msg!(
+                "BALS Balance {}, assets: {}, liabilities: {}",
+                a.balance.bank_pk, assets, liabilities
+            );
+
             total_assets = total_assets.checked_add(assets).ok_or_else(math_error!())?;
             total_liabilities = total_liabilities
                 .checked_add(liabilities)
