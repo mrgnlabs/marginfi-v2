@@ -353,6 +353,9 @@ pub enum ProfileCommand {
         #[clap(long)]
         account: Option<Pubkey>,
     },
+    Delete {
+        name: String,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -503,6 +506,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             group,
             account,
         ),
+        ProfileCommand::Delete { name } => processor::delete_profile(name),
     }
 }
 

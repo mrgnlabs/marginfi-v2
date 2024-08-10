@@ -226,6 +226,26 @@ pub fn load_profile_by_name(name: &str) -> Result<Profile> {
     Ok(profile)
 }
 
+pub fn delete_profile_by_name(name: &str) -> Result<()> {
+    let cli_config_dir = get_cli_config_dir();
+    let profile_file = cli_config_dir.join("profiles").join(format!("{name}.json"));
+
+    if !profile_file.exists() {
+        return Err(anyhow!("Profile {} does not exist", name));
+    }
+
+    match fs::remove_file(profile_file) {
+        Ok(()) => {
+            println!("successfully deleted profile {name}");
+            Ok(())
+        }
+        Err(e) => {
+            println!("failed to delete profile {name}: {e:?}");
+            Err(e)
+        }
+    }
+}
+
 pub fn get_cli_config_dir() -> PathBuf {
     home_dir()
         .expect("$HOME not set")
