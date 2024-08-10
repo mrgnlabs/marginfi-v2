@@ -1672,6 +1672,7 @@ pub fn list_profiles() -> Result<()> {
 #[allow(clippy::too_many_arguments)]
 pub fn configure_profile(
     name: String,
+    new_name: Option<String>,
     cluster: Option<Cluster>,
     keypair_path: Option<String>,
     multisig: Option<Pubkey>,
@@ -1683,6 +1684,7 @@ pub fn configure_profile(
 ) -> Result<()> {
     let mut profile = profile::load_profile_by_name(&name)?;
     profile.config(
+        new_name,
         cluster,
         keypair_path,
         multisig,
@@ -1693,11 +1695,16 @@ pub fn configure_profile(
         account,
     )?;
 
+    if let Err(e) = profile::delete_profile_by_name(&name) {
+        println!("failed to delete old profile {name}: {e:?}");
+        return Err(e);
+    }
+
     Ok(())
 }
 
 pub fn delete_profile(name: String) -> Result<()> {
-    profile::delete_profile_by_name(&name);
+    profile::delete_profile_by_name(&name)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1818,6 +1825,7 @@ pub fn marginfi_account_use(
     }
 
     profile.config(
+        None,
         None,
         None,
         None,
@@ -2288,6 +2296,7 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
     let mut profile = profile.clone();
 
     profile.config(
+        None,
         None,
         None,
         None,

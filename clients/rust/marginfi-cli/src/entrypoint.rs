@@ -337,6 +337,8 @@ pub enum ProfileCommand {
     Update {
         name: String,
         #[clap(long)]
+        new_name: Option<String>,
+        #[clap(long)]
         cluster: Option<Cluster>,
         #[clap(long)]
         keypair_path: Option<String>,
@@ -494,9 +496,11 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             commitment,
             group,
             name,
+            new_name,
             account,
         } => processor::configure_profile(
             name,
+            new_name,
             cluster,
             keypair_path,
             multisig,

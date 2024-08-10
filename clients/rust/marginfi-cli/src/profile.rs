@@ -115,6 +115,7 @@ impl Profile {
     #[allow(clippy::too_many_arguments)]
     pub fn config(
         &mut self,
+        new_name: Option<String>,
         cluster: Option<Cluster>,
         keypair_path: Option<String>,
         multisig: Option<Pubkey>,
@@ -124,6 +125,10 @@ impl Profile {
         group: Option<Pubkey>,
         account: Option<Pubkey>,
     ) -> Result<()> {
+        if let Some(name) = new_name {
+            self.name = name;
+        }
+
         if let Some(cluster) = cluster {
             self.cluster = cluster;
         }
@@ -241,7 +246,7 @@ pub fn delete_profile_by_name(name: &str) -> Result<()> {
         }
         Err(e) => {
             println!("failed to delete profile {name}: {e:?}");
-            Err(e)
+            Err(e.into())
         }
     }
 }
