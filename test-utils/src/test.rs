@@ -216,7 +216,7 @@ pub const PYTH_USDC_REAL_FEED: Pubkey = pubkey!("PythUsdcRea1Price11111111111111
 pub const PYTH_PUSH_SOL_REAL_FEED: Pubkey = pubkey!("PythPushSo1Rea1Price11111111111111111111111");
 
 pub const SWITCH_PULL_SOL_REAL_FEED: Pubkey =
-    pubkey!("56PpAg9fHx2yHEwdTkvCH5R5x2PAsDoNANUhdbvLXLM6");
+    pubkey!("BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP");
 
 pub fn get_oracle_id_from_feed_id(feed_id: Pubkey) -> Option<Pubkey> {
     match feed_id.to_bytes() {
@@ -529,13 +529,12 @@ impl TestFixture {
             ),
         );
 
-        // From mainnet: https://solana.fm/address/56PpAg9fHx2yHEwdTkvCH5R5x2PAsDoNANUhdbvLXLM6
-        // Alternative: BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP
-        // Sol @ ~ $157
+        // From mainnet: https://solana.fm/address/BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP
+        // Sol @ ~ $153
         program.add_account(
             SWITCH_PULL_SOL_REAL_FEED,
             create_switch_pull_oracle_account_from_bytes(
-                include_bytes!("../data/56PpAg9fHx2yHEwdTkvCH5R5x2PAsDoNANUhdbvLXLM6.bin").to_vec(),
+                include_bytes!("../data/BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP.bin").to_vec(),
             ),
         );
 
