@@ -318,6 +318,7 @@ pub fn group_add_bank(
     protocol_ir_fee: f64,
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
+    compute_unit_price: Option<u64>,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
@@ -407,7 +408,9 @@ pub fn group_add_bank(
         )?
     };
 
-    let mut ixs = vec![ComputeBudgetInstruction::set_compute_unit_price(1)];
+    let mut ixs = vec![ComputeBudgetInstruction::set_compute_unit_price(
+        compute_unit_price.unwrap_or(1),
+    )];
     ixs.extend(add_bank_ixs);
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();

@@ -586,6 +586,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_ir_fee,
             risk_tier,
             oracle_max_age,
+            global_options.compute_unit_price,
         ),
 
         GroupCommand::HandleBankruptcy { accounts } => {
