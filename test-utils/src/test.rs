@@ -371,7 +371,7 @@ lazy_static! {
         oracle_setup: OracleSetup::SwitchboardPull,
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
-        oracle_keys: create_oracle_key_array(SWITCH_PULL_SOL_REAL_FEED.into()),
+        oracle_keys: create_oracle_key_array(SWITCH_PULL_SOL_REAL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
 }
