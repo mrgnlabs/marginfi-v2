@@ -1691,6 +1691,7 @@ pub fn configure_profile(
     account: Option<Pubkey>,
 ) -> Result<()> {
     let mut profile = profile::load_profile_by_name(&name)?;
+    let using_new_name = new_name.is_some();
     profile.config(
         new_name,
         cluster,
@@ -1703,9 +1704,11 @@ pub fn configure_profile(
         account,
     )?;
 
-    if let Err(e) = profile::delete_profile_by_name(&name) {
-        println!("failed to delete old profile {name}: {e:?}");
-        return Err(e);
+    if using_new_name {
+        if let Err(e) = profile::delete_profile_by_name(&name) {
+            println!("failed to delete old profile {name}: {e:?}");
+            return Err(e);
+        }
     }
 
     Ok(())
