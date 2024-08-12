@@ -115,7 +115,7 @@ pub enum GroupCommand {
         #[clap(long)]
         borrow_limit_ui: u64,
         #[clap(long)]
-        pyth_oracle: Pubkey,
+        oracle_key: Pubkey,
         #[clap(long)]
         feed_id: Option<Pubkey>,
         #[clap(long)]
@@ -549,7 +549,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            pyth_oracle,
+            oracle_key,
             feed_id,
             optimal_utilization_rate,
             plateau_interest_rate,
@@ -568,7 +568,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             profile,
             bank_mint,
             seed,
-            pyth_oracle,
+            oracle_key,
             feed_id,
             oracle_type,
             asset_weight_init,
