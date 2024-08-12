@@ -329,7 +329,7 @@ impl SwitchboardPullPriceFeed {
 
         // Check staleness
         let last_updated = feed.last_update_timestamp;
-        if current_timestamp - last_updated > max_age as i64 {
+        if current_timestamp.saturating_sub(last_updated) > max_age as i64 {
             return err!(MarginfiError::StaleOracle);
         }
 
@@ -354,7 +354,7 @@ impl SwitchboardPullPriceFeed {
     fn get_price(&self) -> MarginfiResult<I80F48> {
         let sw_result = self.feed.result;
         // Note: Pull oracles support mean (result.mean) or median (result.value)
-        let price: I80F48 = I80F48::from_num(sw_result.value)
+        let price: I80F48 = I80F48::from_num(sw_result.mean)
             .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
             .ok_or_else(math_error!())?;
 

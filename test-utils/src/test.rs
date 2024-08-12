@@ -607,7 +607,9 @@ impl TestFixture {
                     BankMint::UsdcSwb => (&usdc_mint_f, *DEFAULT_USDC_TEST_SW_BANK_CONFIG),
                     BankMint::Sol => (&sol_mint_f, *DEFAULT_SOL_TEST_BANK_CONFIG),
                     BankMint::SolSwb => (&sol_mint_f, *DEFAULT_SOL_TEST_SW_BANK_CONFIG),
-                    BankMint::SolSwbPull => (&sol_mint_f, *DEFAULT_SB_PULL_SOL_TEST_REAL_BANK_CONFIG),
+                    BankMint::SolSwbPull => {
+                        (&sol_mint_f, *DEFAULT_SB_PULL_SOL_TEST_REAL_BANK_CONFIG)
+                    }
                     BankMint::SolEquivalent => (
                         &sol_equivalent_mint_f,
                         *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
