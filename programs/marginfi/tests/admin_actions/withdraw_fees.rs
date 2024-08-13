@@ -3,7 +3,7 @@ use anchor_spl::token_2022::spl_token_2022::extension::{
     transfer_fee::TransferFeeConfig, BaseStateWithExtensions,
 };
 use fixtures::{
-    assert_anchor_error,
+    assert_anchor_error, native,
     test::{BankMint, TestFixture, TestSettings},
 };
 use marginfi::state::marginfi_group::GroupConfig;
@@ -24,20 +24,28 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_admin_success(
 
     let bank_f = test_f.banks.get_mut(&bank_mint).unwrap();
 
-    let insurance_vault_balance = 1_000_u64;
+    let insurance_vault_balance = 1_000;
+    let insurance_vault_balance_native =
+        native!(insurance_vault_balance, bank_f.mint.mint.decimals);
     let fee_vault_balance = 750;
 
     // Mint `insurance_vault_balance` USDC to the insurance vault
+    // 1) Mint to admin
+    // 2) Deposit as admin
+    let receiving_account = bank_f.mint.create_empty_token_account().await;
     let bank = bank_f.load().await;
     bank_f
         .mint
-        .mint_to(&bank.insurance_vault, insurance_vault_balance as f64)
+        .mint_to(&receiving_account.key, insurance_vault_balance as f64)
         .await;
+    bank_f
+        .try_admin_deposit_insurance(&receiving_account, insurance_vault_balance_native)
+        .await
+        .unwrap();
 
     // Create a receiving account and try to withdraw `insurance_vault_balance` USDC from the insurance vault
-    let receiving_account = bank_f.mint.create_empty_token_account().await;
     bank_f
-        .try_admin_withdraw_insurance(&receiving_account, insurance_vault_balance.into())
+        .try_admin_withdraw_insurance(&receiving_account, insurance_vault_balance_native.into())
         .await?;
 
     let transfer_fee = bank_f
@@ -46,12 +54,12 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_admin_success(
         .await
         .get_extension::<TransferFeeConfig>()
         .map(|tf| {
-            tf.calculate_epoch_fee(0, insurance_vault_balance)
+            tf.calculate_epoch_fee(0, insurance_vault_balance_native)
                 .unwrap_or(0)
         })
         .unwrap_or(0);
 
-    let expected_received_balance = insurance_vault_balance - transfer_fee;
+    let expected_received_balance = insurance_vault_balance_native - transfer_fee;
     assert_eq!(receiving_account.balance().await, expected_received_balance); // Verifies that the receiving account balance is 1000 USDC
 
     // Mint `fee_vault_balance` USDC to the fee vault

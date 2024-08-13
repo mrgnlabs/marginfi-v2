@@ -356,20 +356,25 @@ impl BankFixture {
             bank_authority_seed!(BankVaultType::Insurance, self.key),
             &marginfi::id(),
         );
+        let mut accounts = marginfi::accounts::LendingPoolAdminDepositWithdrawInsurance {
+            marginfi_group: bank.group,
+            token_program: self.get_token_program(),
+            bank: self.key,
+            admin: signer_pk,
+            insurance_vault: bank.insurance_vault,
+            insurance_vault_authority,
+            admin_token_account: receiving_account.key,
+            liquid_insurance_fund: LiquidInsuranceFund::address(&self.key),
+        }
+        .to_account_metas(Some(true));
+
+        if self.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(self.mint.key, false));
+        }
 
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolAdminDepositWithdrawInsurance {
-                marginfi_group: bank.group,
-                token_program: anchor_spl::token::ID,
-                bank: self.key,
-                admin: signer_pk,
-                insurance_vault: bank.insurance_vault,
-                insurance_vault_authority,
-                admin_token_account: receiving_account.key,
-                liquid_insurance_fund: LiquidInsuranceFund::address(&self.key),
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingPoolWithdrawInsurance {
                 amount: amount.into(),
             }
@@ -419,10 +424,7 @@ impl BankFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts,
-            data: marginfi::instruction::LendingPoolWithdrawInsurance {
-                amount: I80F48::from(amount).into(),
-            }
-            .data(),
+            data: marginfi::instruction::LendingPoolDepositInsurance { amount }.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
