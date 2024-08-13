@@ -279,6 +279,7 @@ impl LiquidInsuranceFund {
 
             token_amount.to_num::<u64>()
         } else {
+            // If we are in this branch, the I80F48 is token amount
             amount.to_num::<u64>()
         };
 

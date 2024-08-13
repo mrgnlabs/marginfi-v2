@@ -317,11 +317,26 @@ pub fn lending_pool_deposit_insurance<'a, 'info>(
     let bank = bank_loader.load()?;
     let maybe_bank_mint =
         utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+
+    // Calculate post-fee amount
+    let post_fee_amount = maybe_bank_mint
+        .as_ref()
+        .map(|mint_ai| {
+            let clock = Clock::get().unwrap();
+            utils::calculate_post_fee_spl_deposit_amount(
+                mint_ai.to_account_info(),
+                amount,
+                clock.epoch,
+            )
+        })
+        .unwrap_or(Ok(amount))?;
+    msg!("prefee {} postfee {}", amount, post_fee_amount);
+
     // If there exist a liquid insurance fund, need to update shares
     LiquidInsuranceFund::maybe_process_admin_deposit(
         liquid_insurance_fund,
         insurance_vault.amount,
-        amount,
+        post_fee_amount,
     )?;
 
     bank.withdraw_spl_transfer(

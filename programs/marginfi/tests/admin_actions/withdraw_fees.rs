@@ -43,12 +43,7 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_admin_success(
         .await
         .unwrap();
 
-    // Create a receiving account and try to withdraw `insurance_vault_balance` USDC from the insurance vault
-    bank_f
-        .try_admin_withdraw_insurance(&receiving_account, insurance_vault_balance_native.into())
-        .await?;
-
-    let transfer_fee = bank_f
+    let first_transfer_fee = bank_f
         .mint
         .load_state()
         .await
@@ -59,7 +54,27 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_admin_success(
         })
         .unwrap_or(0);
 
-    let expected_received_balance = insurance_vault_balance_native - transfer_fee;
+    // Create a receiving account and try to withdraw `insurance_vault_balance` USDC from the insurance vault
+    bank_f
+        .try_admin_withdraw_insurance(
+            &receiving_account,
+            (insurance_vault_balance_native - first_transfer_fee).into(),
+        )
+        .await?;
+
+    let second_transfer_fee = bank_f
+        .mint
+        .load_state()
+        .await
+        .get_extension::<TransferFeeConfig>()
+        .map(|tf| {
+            tf.calculate_epoch_fee(0, insurance_vault_balance_native - first_transfer_fee)
+                .unwrap_or(0)
+        })
+        .unwrap_or(0);
+
+    let expected_received_balance =
+        insurance_vault_balance_native - first_transfer_fee - second_transfer_fee;
     assert_eq!(receiving_account.balance().await, expected_received_balance); // Verifies that the receiving account balance is 1000 USDC
 
     // Mint `fee_vault_balance` USDC to the fee vault
