@@ -421,7 +421,7 @@ impl MarginfiGroupFixture {
             signer: self.ctx.borrow().payer.pubkey(),
             bank: bank_fixture.key,
             rent: sysvar::rent::id(),
-            token_program: anchor_spl::token::ID,
+            token_program: bank_fixture.get_token_program(),
             system_program: system_program::id(),
             liquid_insurance_fund: LiquidInsuranceFund::address(&bank_fixture.key),
             lif_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,

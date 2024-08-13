@@ -1,26 +1,22 @@
 use fixed_macro::types::I80F48;
 use fixtures::{
     lif::LiquidInsuranceFundAccountFixture,
-    spl::{MintFixture, TokenAccountFixture},
-    test::{
-        BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG,
-        DEFAULT_USDC_TEST_BANK_CONFIG,
-    },
+    spl::TokenAccountFixture,
+    test::{BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG},
 };
 use marginfi::state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig};
 use solana_program_test::tokio;
+use test_case::test_case;
 
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::Sol)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::T22WithFee)]
 #[tokio::test]
-async fn marginfi_liquid_insurance_fund_create_success() -> anyhow::Result<()> {
-    // first create bank
-    let test_f = TestFixture::new(None).await;
+async fn marginfi_liquid_insurance_fund_create_success(bank_mint: BankMint) -> anyhow::Result<()> {
+    let mut test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-    let bank_asset_mint_fixture = MintFixture::new(test_f.context.clone(), None, None).await;
-
-    let bank_fixture = test_f
-        .marginfi_group
-        .try_lending_pool_add_bank(&bank_asset_mint_fixture, *DEFAULT_USDC_TEST_BANK_CONFIG)
-        .await?;
+    let bank_fixture = test_f.banks.get_mut(&bank_mint).unwrap();
 
     let min_withdraw_period = 60_u64 * 60_u64 * 24_u64 * 14_u64; // 2 weeks
 

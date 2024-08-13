@@ -5,7 +5,7 @@ use crate::{
     MarginfiGroup, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount};
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 
 #[derive(Accounts)]
 pub struct CreateLiquidInsuranceFund<'info> {
@@ -40,7 +40,7 @@ pub struct CreateLiquidInsuranceFund<'info> {
         mut,
         address = bank.load()?.insurance_vault,
     )]
-    pub lif_vault: Box<Account<'info, TokenAccount>>,
+    pub lif_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -52,7 +52,7 @@ pub struct CreateLiquidInsuranceFund<'info> {
     )]
     pub lif_authority: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
