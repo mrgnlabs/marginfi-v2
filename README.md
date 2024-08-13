@@ -71,3 +71,18 @@ Run `./scripts/verify_mainnet.sh`
 Integration tests for the on-chain marginfi programs are located under
 `/programs/marginfi/tests`. To run the tests, use `cargo test-bpf`. Be sure to 
 use an x86 toolchain when compiling and running the tests.
+
+
+## Localnet Anchor Tests
+
+Build the program with: 
+
+`anchor build -p marginfi --no-default-features --features localnet`
+
+You may also need to build the liquidity incentive program and mock program:
+* `anchor build -p mocks`
+* `anchor build -p liquidity_incentive_program -- --no-default-features`
+
+Run the tests:
+
+`anchor test --skip-build`

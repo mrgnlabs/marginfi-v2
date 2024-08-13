@@ -1,5 +1,5 @@
 import { Program } from "@coral-xyz/anchor";
-import { PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { AccountMeta, PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import {
   deriveFeeVault,
@@ -30,6 +30,13 @@ export type AddBankArgs = {
 export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
   // const id = program.programId;
   // const bank = args.bank;
+
+  // Note that oracle is passed as a key in config and as an acc in remaining accs...
+  const oracleMeta: AccountMeta = {
+    pubkey: args.config.oracleKey,
+    isSigner: false,
+    isWritable: false,
+  };
 
   const ix = program.methods
     .lendingPoolAddBank({
@@ -63,6 +70,7 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
       tokenProgram: TOKEN_PROGRAM_ID,
       // systemProgram: SystemProgram.programId,
     })
+    .remainingAccounts([oracleMeta])
     .instruction();
 
   return ix;

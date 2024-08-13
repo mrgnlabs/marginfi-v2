@@ -5,13 +5,16 @@ import {
   Ecosystem,
   getGenericEcosystem,
   mockUser,
+  Oracles,
   setupTestUser,
   SetupTestUserOptions,
 } from "./utils/mocks";
 import { Marginfi } from "../target/types/marginfi";
 import { Keypair, Transaction } from "@solana/web3.js";
+import { setupPythOracles } from "./utils/pyth_mocks";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
+export let oracles: Oracles = undefined;
 export const verbose = true;
 /** The program owner is also the provider wallet */
 export let globalProgramAdmin: mockUser = undefined;
@@ -93,5 +96,18 @@ export const mochaHooks = {
       wallet.payer,
       setupUserOptions
     );
+
+    oracles = await setupPythOracles(
+      wallet,
+      150,
+      ecosystem.wsolDecimals,
+      1,
+      ecosystem.usdcDecimals,
+      10,
+      ecosystem.tokenADecimals,
+      20,
+      ecosystem.tokenBDecimals,
+      verbose
+    );
   },
-}
+};

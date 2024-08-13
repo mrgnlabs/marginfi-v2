@@ -2,7 +2,7 @@ import { Program, workspace } from "@coral-xyz/anchor";
 import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { addBank, groupConfigure } from "./utils/instructions";
 import { Marginfi } from "../target/types/marginfi";
-import { ecosystem, groupAdmin, marginfiGroup } from "./rootHooks";
+import { ecosystem, groupAdmin, marginfiGroup, oracles } from "./rootHooks";
 import { assertKeysEqual } from "./utils/genericTests";
 import { defaultBankConfig } from "./utils/types";
 
@@ -10,7 +10,7 @@ describe("Lending pool add bank (add bank to group)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
 
   it("(admin) Add bank - happy path", async () => {
-    let config = defaultBankConfig(PublicKey.unique());
+    let config = defaultBankConfig(oracles.usdcOracle.publicKey);
     let bank = Keypair.generate();
 
     await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(

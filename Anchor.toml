@@ -9,6 +9,7 @@ skip-lint = false
 [programs.localnet]
 liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
 marginfi = "2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr"
+mocks = "5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C"
 
 [programs.mainnet]
 liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"

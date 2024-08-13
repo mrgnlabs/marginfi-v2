@@ -1,4 +1,4 @@
-import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
+import { AnchorProvider, BN, Program, Wallet } from "@coral-xyz/anchor";
 import {
   createAssociatedTokenAccountInstruction,
   createInitializeMintInstruction,
@@ -15,6 +15,7 @@ import {
   Transaction,
 } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
+import { Mocks } from "../../target/types/mocks";
 
 export type Ecosystem = {
   /** A generic wsol mint with 9 decimals (same as native) */
@@ -272,4 +273,75 @@ export const createSimpleMint = async (
   );
 
   return { ixes, mint };
+};
+
+export type Oracles = {
+  wsolOracle: Keypair,
+  wsolPrice: number,
+  wsolDecimals: number,
+  usdcOracle: Keypair,
+  usdcPrice: number,
+  usdcDecimals: number,
+  tokenAOracle: Keypair,
+  tokenAPrice: number,
+  tokenADecimals: number,
+  tokenBOracle: Keypair,
+  tokenBPrice: number,
+  tokenBDecimals:number,
+}
+
+/**
+ * Creates an account to store data arbitrary data.
+ * @param program - the mock program
+ * @param space - for account space and rent exemption
+ * @param wallet - pays tx fee
+ * @returns address of the newly created account
+ */
+export const createMockAccount = async (
+  program: Program<Mocks>,
+  space: number,
+  wallet: Wallet
+) => {
+  const newAccount = Keypair.generate();
+  const createTx = new Transaction().add(
+    SystemProgram.createAccount({
+      fromPubkey: wallet.publicKey,
+      newAccountPubkey: newAccount.publicKey,
+      programId: program.programId,
+      lamports:
+        await program.provider.connection.getMinimumBalanceForRentExemption(
+          space
+        ),
+      space,
+    })
+  );
+
+  await program.provider.sendAndConfirm(createTx, [wallet.payer, newAccount]);
+  return newAccount;
+};
+
+/**
+ * Writes arbitrary bytes to a mock account
+ * @param program - the Mock program
+ * @param wallet - pays tx fee
+ * @param account - account to write into (create with `createMockAccount` first)
+ * @param offset - byte to start writing
+ * @param input - bytes to write
+ */
+export const storeMockAccount = async (
+  program: Program<Mocks>,
+  wallet: Wallet,
+  account: Keypair,
+  offset: number,
+  input: Buffer
+) => {
+  const tx = new Transaction().add(
+    await program.methods
+      .write(new BN(offset), input)
+      .accounts({
+        target: account.publicKey,
+      })
+      .instruction()
+  );
+  await program.provider.sendAndConfirm(tx, [wallet.payer, account]);
 };
