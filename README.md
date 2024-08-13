@@ -78,3 +78,7 @@ Run the full test suite with `.scripts/test-program.sh <program_to_test>`
 Run a single test:
 `.scripts/test-program.sh <program_to_test> <name_of_test>`
 * e.g. `.scripts/test-program.sh marginfi configure_bank_success --verbose`
+
+## Footguns
+
+Debugging `I80F48`s by `msg!("val: {:?}", some_val_I80F48);` can cause silent build issues leading to `Program is not deployed`. Convert these values to string before printing them.
