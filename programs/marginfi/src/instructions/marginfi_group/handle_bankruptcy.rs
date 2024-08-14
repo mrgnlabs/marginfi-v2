@@ -38,7 +38,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     } = ctx.accounts;
     let bank = bank_loader.load()?;
     let maybe_bank_mint =
-        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank.mint, token_program.key)?;
 
     let clock = Clock::get()?;
 

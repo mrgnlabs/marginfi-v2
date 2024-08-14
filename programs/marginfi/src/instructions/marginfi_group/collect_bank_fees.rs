@@ -32,7 +32,7 @@ pub fn lending_pool_collect_bank_fees<'info>(
 
     let mut bank = ctx.accounts.bank.load_mut()?;
     let maybe_bank_mint =
-        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank.mint, token_program.key)?;
 
     let mut available_liquidity = I80F48::from_num(liquidity_vault.amount);
 
@@ -195,7 +195,7 @@ pub fn lending_pool_withdraw_fees<'info>(
 
     let bank = bank_loader.load()?;
     let maybe_bank_mint =
-        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank.mint, token_program.key)?;
 
     bank.withdraw_spl_transfer(
         amount,
@@ -273,7 +273,7 @@ pub fn lending_pool_withdraw_insurance<'a, 'b: 'info, 'info>(
 
     let bank = bank_loader.load()?;
     let maybe_bank_mint =
-        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank.mint, token_program.key)?;
 
     // If there exist a liquid insurance fund, admin should be limited to admin shares
     let tokens = LiquidInsuranceFund::maybe_process_admin_withdraw(
@@ -316,7 +316,7 @@ pub fn lending_pool_deposit_insurance<'a, 'info>(
 
     let bank = bank_loader.load()?;
     let maybe_bank_mint =
-        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank.mint, token_program.key)?;
 
     // Calculate post-fee amount
     let post_fee_amount = maybe_bank_mint
@@ -330,7 +330,6 @@ pub fn lending_pool_deposit_insurance<'a, 'info>(
             )
         })
         .unwrap_or(Ok(amount))?;
-    msg!("prefee {} postfee {}", amount, post_fee_amount);
 
     // If there exist a liquid insurance fund, need to update shares
     LiquidInsuranceFund::maybe_process_admin_deposit(

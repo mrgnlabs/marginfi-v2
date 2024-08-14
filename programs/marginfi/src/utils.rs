@@ -1,7 +1,6 @@
 use crate::{
-    bank_authority_seed, bank_seed,
-    state::marginfi_group::{Bank, BankVaultType},
-    MarginfiError, MarginfiResult,
+    bank_authority_seed, bank_seed, state::marginfi_group::BankVaultType, MarginfiError,
+    MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -116,7 +115,7 @@ pub fn nonzero_fee(mint_ai: AccountInfo, epoch: u64) -> MarginfiResult<bool> {
 /// Ok(None) if Tokenkeg
 pub fn maybe_take_bank_mint<'c: 'info, 'info>(
     remaining_accounts: &mut &'c [AccountInfo<'info>],
-    bank: &Bank,
+    bank_mint: &Pubkey,
     token_program: &Pubkey,
 ) -> MarginfiResult<Option<InterfaceAccount<'info, Mint>>> {
     match *token_program {
@@ -127,7 +126,7 @@ pub fn maybe_take_bank_mint<'c: 'info, 'info>(
                 .ok_or(MarginfiError::T22MintRequired)?;
             *remaining_accounts = remaining;
 
-            if bank.mint != *maybe_mint.key {
+            if *bank_mint != *maybe_mint.key {
                 return err!(MarginfiError::T22MintRequired);
             }
 

@@ -37,7 +37,7 @@ pub fn lending_account_borrow<'info>(
     let clock = Clock::get()?;
     let maybe_bank_mint = utils::maybe_take_bank_mint(
         &mut ctx.remaining_accounts,
-        &*bank_loader.load()?,
+        &bank_loader.load()?.mint,
         token_program.key,
     )?;
 

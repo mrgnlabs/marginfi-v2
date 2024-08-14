@@ -78,6 +78,7 @@ pub fn create_liquid_insurance_fund(
 
     lif.initialize(
         bank.key(),
+        bank.load()?.mint,
         lif_authority.key(),
         min_withdraw_period,
         lif_vault_bump,

@@ -104,7 +104,7 @@ pub fn lending_account_liquidate<'info>(
 
     let maybe_liab_bank_mint = utils::maybe_take_bank_mint(
         &mut ctx.remaining_accounts,
-        &*ctx.accounts.liab_bank.load()?,
+        &ctx.accounts.liab_bank.load()?.mint,
         ctx.accounts.token_program.key,
     )?;
     {
