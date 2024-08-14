@@ -4,11 +4,12 @@ use anchor_spl::token_2022::spl_token_2022::extension::{
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{
+    bank::BankFixture,
     lif::LiquidInsuranceFundAccountFixture,
     spl::TokenAccountFixture,
-    test::{BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG},
+    test::{BankMint, TestFixture, TestSettings},
 };
-use marginfi::state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig};
+use marginfi::state::marginfi_group::{BankConfigOpt, BankVaultType};
 use solana_program_test::tokio;
 use test_case::test_case;
 
@@ -522,72 +523,76 @@ async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_with_liquidation_
     )
     .await;
     assert_eq!(insurance_vault.balance().await, 1);
-    assert!(dbg!(source_account.balance().await) > pre_liq_withdraw_amount);
+    assert!(source_account.balance().await > pre_liq_withdraw_amount);
 
     Ok(())
 }
 
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::Sol)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::T22WithFee)]
 #[tokio::test]
 async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_with_bad_debt_success(
+    bank_mint: BankMint,
 ) -> anyhow::Result<()> {
     // first create bank
-    let test_f = TestFixture::new(Some(TestSettings {
-        group_config: Some(GroupConfig { admin: None }),
-        banks: vec![
-            TestBankSetting {
-                mint: BankMint::Usdc,
-                config: None,
-            },
-            TestBankSetting {
-                mint: BankMint::Sol,
-                config: Some(BankConfig {
-                    asset_weight_init: I80F48!(1).into(),
-                    ..*DEFAULT_SOL_TEST_BANK_CONFIG
-                }),
-            },
-        ],
-    }))
-    .await;
-    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank_f = test_f.get_bank(&bank_mint);
+
+    let deposit_amount_ui = 100_f64;
+    let deposit_amount: u64 =
+        (deposit_amount_ui as u64) * 10_u64.pow(bank_f.mint.mint.decimals as u32);
 
     let min_withdraw_period = 60_u64 * 60_u64 * 24_u64 * 14_u64; // 2 weeks
 
     let mut lif_f = test_f
         .marginfi_group
-        .try_create_liquid_insurance_fund(usdc_bank_f, min_withdraw_period)
+        .try_create_liquid_insurance_fund(bank_f, min_withdraw_period)
         .await?;
 
     // Deposit through deposit ix should update admin shares
-    let source_account = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
+    let source_account = bank_f
+        .mint
+        .create_token_account_and_mint_to(deposit_amount_ui)
+        .await;
 
-    usdc_bank_f
-        .try_admin_deposit_insurance(&source_account, 100_000_000)
+    bank_f
+        .try_admin_deposit_insurance(&source_account, deposit_amount)
         .await
         .unwrap();
+
+    let first_transfer_fee = bank_f
+        .mint
+        .load_state()
+        .await
+        .get_extension::<TransferFeeConfig>()
+        .map(|tf| tf.calculate_epoch_fee(0, deposit_amount).unwrap_or(0))
+        .unwrap_or(0);
+    let postfee_deposit_amount = deposit_amount - first_transfer_fee;
 
     // Check shares
     let lif = lif_f.load().await;
     let admin_shares = lif.get_admin_shares();
     let total_shares = lif.get_total_shares();
     assert_eq!(total_shares, admin_shares);
-    assert_eq!(total_shares, I80F48!(100_000_000.0));
+    assert_eq!(total_shares, I80F48::from(postfee_deposit_amount));
 
     // Check balance
     let insurance_vault = TokenAccountFixture::fetch(
         test_f.context.clone(),
-        usdc_bank_f.get_vault(BankVaultType::Insurance).0,
+        bank_f.get_vault(BankVaultType::Insurance).0,
     )
     .await;
-    assert_eq!(insurance_vault.balance().await, 100_000_000);
+    assert_eq!(insurance_vault.balance().await, postfee_deposit_amount);
     assert_eq!(source_account.balance().await, 0);
 
-    // Liquidation occurs
-    bad_debt(&test_f).await?;
+    // Bad Debt handling occurs
+    bad_debt(&test_f, bank_f).await?;
 
     // Withdraw
-    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
-    usdc_bank_f
-        .try_admin_withdraw_insurance(&source_account, I80F48!(100_000_000))
+    bank_f
+        .try_admin_withdraw_insurance(&source_account, postfee_deposit_amount.into())
         .await
         .unwrap();
 
@@ -598,14 +603,27 @@ async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_with_bad_debt_suc
     assert_eq!(total_shares, admin_shares);
     assert_eq!(total_shares, I80F48!(0.0));
 
+    let second_transfer_fee = bank_f
+        .mint
+        .load_state()
+        .await
+        .get_extension::<TransferFeeConfig>()
+        .map(|tf| {
+            tf.calculate_epoch_fee(0, postfee_deposit_amount)
+                .unwrap_or(0)
+        })
+        .unwrap_or(0);
+    // In the absence of bad debt
+    let postfee_withdraw_amount = deposit_amount - first_transfer_fee - second_transfer_fee;
+
     // Check balance
     let insurance_vault = TokenAccountFixture::fetch(
         test_f.context.clone(),
-        usdc_bank_f.get_vault(BankVaultType::Insurance).0,
+        bank_f.get_vault(BankVaultType::Insurance).0,
     )
     .await;
     assert_eq!(insurance_vault.balance().await, 0);
-    assert!(dbg!(source_account.balance().await) < 100_000_000);
+    assert!(dbg!(source_account.balance().await) < postfee_withdraw_amount);
 
     Ok(())
 }
@@ -663,54 +681,43 @@ async fn liquidation(test_f: &TestFixture, bank_mint: &BankMint) -> anyhow::Resu
     Ok(())
 }
 
-async fn bad_debt(test_f: &TestFixture) -> anyhow::Result<()> {
+async fn bad_debt(test_f: &TestFixture, bank_f: &BankFixture) -> anyhow::Result<()> {
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
-    let lender_token_account_usdc = test_f
-        .usdc_mint
-        .create_token_account_and_mint_to(100_000)
-        .await;
+    let lender_token_account = bank_f.mint.create_token_account_and_mint_to(200_000).await;
     lender_mfi_account_f
-        .try_bank_deposit(
-            lender_token_account_usdc.key,
-            test_f.get_bank(&BankMint::Usdc),
-            100_000,
-        )
+        .try_bank_deposit(lender_token_account.key, bank_f, 100_000)
         .await?;
 
     let borrower_account = test_f.create_marginfi_account().await;
     let borrower_deposit_account = test_f
-        .sol_mint
-        .create_token_account_and_mint_to(1_001)
+        .sol_equivalent_mint
+        .create_token_account_and_mint_to(2_000)
         .await;
 
     borrower_account
         .try_bank_deposit(
             borrower_deposit_account.key,
-            test_f.get_bank(&BankMint::Sol),
-            1_001,
+            test_f.get_bank(&BankMint::SolEquivalent),
+            1_000,
         )
         .await?;
 
-    let borrower_borrow_account = test_f.usdc_mint.create_token_account_and_mint_to(0).await;
+    let borrower_borrow_account = bank_f.mint.create_token_account_and_mint_to(0).await;
 
     borrower_account
-        .try_bank_borrow(
-            borrower_borrow_account.key,
-            test_f.get_bank(&BankMint::Usdc),
-            10_000,
-        )
+        .try_bank_borrow(borrower_borrow_account.key, bank_f, 1_000)
         .await?;
 
+    // Artificially bankrupt user
     let mut borrower_mfi_account = borrower_account.load().await;
     borrower_mfi_account.lending_account.balances[0]
         .asset_shares
         .value = 0_i128.to_le_bytes();
     borrower_account.set_account(&borrower_mfi_account).await?;
 
-    let bank = test_f.get_bank(&BankMint::Usdc);
     test_f
         .marginfi_group
-        .try_handle_bankruptcy(bank, &borrower_account)
+        .try_handle_bankruptcy(bank_f, &borrower_account)
         .await
         .unwrap();
 

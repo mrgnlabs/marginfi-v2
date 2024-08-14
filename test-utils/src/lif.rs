@@ -96,19 +96,6 @@ pub struct LiquidInsuranceFundAccountFixture {
 }
 
 impl LiquidInsuranceFundAccountFixture {
-    #[inline]
-    fn new(
-        ctx: Rc<RefCell<ProgramTestContext>>,
-        user: Keypair,
-    ) -> LiquidInsuranceFundAccountFixture {
-        LiquidInsuranceFundAccountFixture {
-            ctx,
-            key: LiquidInsuranceFundAccount::address(&user.pubkey()),
-            user,
-            data: vec![],
-        }
-    }
-
     pub fn user(&self) -> &Keypair {
         &self.user
     }
