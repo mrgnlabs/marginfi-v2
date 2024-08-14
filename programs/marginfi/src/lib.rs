@@ -240,8 +240,8 @@ pub mod marginfi {
         liquid_insurance_fund::create_liquid_insurance_fund_account(ctx)
     }
 
-    pub fn deposit_into_liquid_insurance_fund(
-        ctx: Context<DepositIntoLiquidInsuranceFund>,
+    pub fn deposit_into_liquid_insurance_fund<'info>(
+        ctx: Context<'_, '_, 'info, 'info, DepositIntoLiquidInsuranceFund<'info>>,
         amount: u64,
     ) -> MarginfiResult {
         liquid_insurance_fund::deposit_into_liquid_insurance_fund(ctx, amount)
@@ -257,8 +257,8 @@ pub mod marginfi {
         )
     }
 
-    pub fn settle_withdraw_claim_in_liquid_insurance_fund(
-        ctx: Context<SettleWithdrawClaimInLiquidInsuranceFund>,
+    pub fn settle_withdraw_claim_in_liquid_insurance_fund<'info>(
+        ctx: Context<'_, '_, 'info, 'info, SettleWithdrawClaimInLiquidInsuranceFund<'info>>,
     ) -> MarginfiResult {
         liquid_insurance_fund::settle_withdraw_claim_in_liquid_insurance_fund(ctx)
     }

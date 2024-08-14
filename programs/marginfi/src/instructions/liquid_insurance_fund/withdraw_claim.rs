@@ -10,7 +10,7 @@ use crate::{
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Transfer};
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 
 #[derive(Accounts)]
 pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
@@ -18,7 +18,7 @@ pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
     pub signer: Signer<'info>,
 
     #[account(mut)]
-    pub signer_token_account: Account<'info, TokenAccount>,
+    pub signer_token_account: InterfaceAccount<'info, TokenAccount>,
 
     /// The corresponding insurance vault that the liquid insurance fund deposits into.
     /// This is the insurance vault of the underlying bank
@@ -30,7 +30,7 @@ pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
         ],
         bump = liquid_insurance_fund.load()?.lif_vault_bump,
     )]
-    pub bank_insurance_vault: Box<Account<'info, TokenAccount>>,
+    pub bank_insurance_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         seeds = [
@@ -54,74 +54,73 @@ pub struct SettleWithdrawClaimInLiquidInsuranceFund<'info> {
     )]
     pub user_insurance_fund_account: AccountLoader<'info, LiquidInsuranceFundAccount>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 /// 1) Retrieve earliest withdraw request for this user, for this liquid insurance fund
 /// 2) Check whether enough time has passed
 /// 3) Process withdrawal
 /// 4) Transfer tokens
-pub fn settle_withdraw_claim_in_liquid_insurance_fund(
-    ctx: Context<SettleWithdrawClaimInLiquidInsuranceFund>,
+pub fn settle_withdraw_claim_in_liquid_insurance_fund<'info>(
+    mut ctx: Context<'_, '_, 'info, 'info, SettleWithdrawClaimInLiquidInsuranceFund<'info>>,
 ) -> MarginfiResult {
     let SettleWithdrawClaimInLiquidInsuranceFund {
         signer_token_account,
         bank_insurance_vault,
         bank_insurance_vault_authority,
-        liquid_insurance_fund,
+        liquid_insurance_fund: liquid_insurance_fund_loader,
         user_insurance_fund_account,
         token_program,
         signer: _,
     } = ctx.accounts;
+    let mut liquid_insurance_fund = liquid_insurance_fund_loader.load_mut()?;
+    let maybe_bank_mint = crate::utils::maybe_take_bank_mint(
+        &mut ctx.remaining_accounts,
+        &liquid_insurance_fund.bank_mint,
+        token_program.key,
+    )?;
     let clock = Clock::get()?;
 
     // 1) Retrieve earliest withdraw request for this user, for this liquid insurance fund
     let mut user_account = user_insurance_fund_account.load_mut()?;
-    let mut liquid_insurance_fund_account = liquid_insurance_fund.load_mut()?;
-    liquid_insurance_fund_account
-        .update_share_price_internal(bank_insurance_vault.amount.into())?;
+    liquid_insurance_fund.update_share_price_internal(bank_insurance_vault.amount.into())?;
     let withdrawal = user_account
-        .get_earliest_withdrawal(&liquid_insurance_fund.key())
+        .get_earliest_withdrawal(&liquid_insurance_fund_loader.key())
         .ok_or(MarginfiError::InvalidWithdrawal)?;
 
     // 2) Check whether enough time has passed
-    msg!(
-        "request {}; time {}",
-        withdrawal.withdraw_request_timestamp,
-        clock.unix_timestamp
-    );
     check!(
         clock.unix_timestamp
             >= withdrawal
                 .withdraw_request_timestamp
-                .checked_add(liquid_insurance_fund_account.min_withdraw_period)
+                .checked_add(liquid_insurance_fund.min_withdraw_period)
                 .ok_or_else(math_error!())?,
         // TODO: more informative error
         MarginfiError::InvalidWithdrawal
     );
 
     // 3) Calculate share value in tokens
-    let user_withdraw_amount: u64 = liquid_insurance_fund_account.process_withdrawal(withdrawal)?;
+    let user_withdraw_amount: u64 = liquid_insurance_fund.process_withdrawal(withdrawal)?;
 
     // Withdraw user funds from the relevant insurance vault
-    liquid_insurance_fund_account.withdraw_spl_transfer(
+    liquid_insurance_fund.withdraw_spl_transfer(
         user_withdraw_amount,
-        Transfer {
-            from: bank_insurance_vault.to_account_info(),
-            to: signer_token_account.to_account_info(),
-            authority: bank_insurance_vault_authority.to_account_info(),
-        },
+        bank_insurance_vault.to_account_info(),
+        signer_token_account.to_account_info(),
+        bank_insurance_vault_authority.to_account_info(),
         token_program.to_account_info(),
+        maybe_bank_mint.as_ref(),
+        ctx.remaining_accounts,
         bank_signer!(
             BankVaultType::Insurance,
-            liquid_insurance_fund_account.bank,
-            liquid_insurance_fund_account.lif_authority_bump
+            liquid_insurance_fund.bank,
+            liquid_insurance_fund.lif_authority_bump
         ),
     )?;
 
     emit!(MarginfiWithdrawClaimLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader {
-            bank: liquid_insurance_fund_account.bank,
+            bank: liquid_insurance_fund.bank,
         },
         amount: user_withdraw_amount,
         success: true,

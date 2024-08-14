@@ -334,8 +334,13 @@ impl MintFixture {
         owner: &Keypair,
         ui_amount: T,
     ) -> TokenAccountFixture {
-        let token_account_f =
-            TokenAccountFixture::new(self.ctx.clone(), self, &owner.pubkey()).await;
+        let token_account_f = TokenAccountFixture::new_with_token_program(
+            self.ctx.clone(),
+            &self.key,
+            &owner.pubkey(),
+            &self.token_program,
+        )
+        .await;
 
         let mint_to_ix = self.make_mint_to_ix(
             &token_account_f.key,

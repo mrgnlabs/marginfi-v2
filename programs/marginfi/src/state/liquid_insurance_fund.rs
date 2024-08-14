@@ -1,7 +1,10 @@
 use std::cmp::min;
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, Transfer};
+use anchor_spl::{
+    token::{transfer, Transfer},
+    token_interface::Mint,
+};
 use fixed::types::I80F48;
 
 use crate::{
@@ -20,6 +23,7 @@ use super::marginfi_group::WrappedI80F48;
 #[derive(AnchorDeserialize, AnchorSerialize)]
 pub struct LiquidInsuranceFund {
     pub bank: Pubkey,
+    pub bank_mint: Pubkey,
     pub vault_authority: Pubkey,
     pub min_withdraw_period: i64,
     pub last_update: i64,
@@ -42,6 +46,7 @@ impl LiquidInsuranceFund {
     pub fn initialize(
         &mut self,
         bank: Pubkey,
+        bank_mint: Pubkey,
         vault_authority: Pubkey,
         min_withdraw_period: i64,
         lif_vault_bump: u8,
@@ -51,6 +56,7 @@ impl LiquidInsuranceFund {
         let admin_shares = I80F48::from(balance);
         *self = LiquidInsuranceFund {
             bank,
+            bank_mint,
             min_withdraw_period,
             total_shares: admin_shares.into(),
             lazy_share_value: I80F48::ONE.into(),
@@ -82,28 +88,64 @@ impl LiquidInsuranceFund {
         Ok(withdraw_token_amount)
     }
 
-    pub(crate) fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
+    pub(crate) fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'b>,
-        program: AccountInfo<'c>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        program: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
+        remaining_accounts: &'info [AccountInfo<'info>],
     ) -> MarginfiResult {
         // Only deposits to the bank's insurance vault are allowed.
         // TODO add check against bank insurance vault? By deriving address
 
         debug!(
             "deposit_spl_transfer: amount: {} from {} to {}, auth {}",
-            amount, accounts.from.key, accounts.to.key, accounts.authority.key
+            amount, from.key, to.key, authority.key
         );
 
-        transfer(CpiContext::new(program, accounts), amount)
+        if let Some(mint) = maybe_mint {
+            anchor_spl::token_2022::spl_token_2022::onchain::invoke_transfer_checked(
+                program.key,
+                from,
+                mint.to_account_info(),
+                to,
+                authority,
+                remaining_accounts,
+                amount,
+                mint.decimals,
+                &[],
+            )?;
+        } else {
+            #[allow(deprecated)]
+            transfer(
+                CpiContext::new_with_signer(
+                    program,
+                    Transfer {
+                        from,
+                        to,
+                        authority,
+                    },
+                    &[],
+                ),
+                amount,
+            )?;
+        }
+
+        Ok(())
     }
 
-    pub(crate) fn withdraw_spl_transfer<'b: 'c, 'c: 'b>(
+    pub(crate) fn withdraw_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'b>,
-        program: AccountInfo<'c>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        program: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
+        remaining_accounts: &'info [AccountInfo<'info>],
         signer_seeds: &[&[&[u8]]],
     ) -> MarginfiResult {
         // Only withdraws from the bank's insurance vault are allowed.
@@ -111,13 +153,38 @@ impl LiquidInsuranceFund {
 
         debug!(
             "withdraw_spl_transfer: amount: {} from {} to {}, auth {}",
-            amount, accounts.from.key, accounts.to.key, accounts.authority.key
+            amount, from.key, to.key, authority.key
         );
 
-        transfer(
-            CpiContext::new_with_signer(program, accounts, signer_seeds),
-            amount,
-        )
+        if let Some(mint) = maybe_mint {
+            anchor_spl::token_2022::spl_token_2022::onchain::invoke_transfer_checked(
+                program.key,
+                from,
+                mint.to_account_info(),
+                to,
+                authority,
+                remaining_accounts,
+                amount,
+                mint.decimals,
+                signer_seeds,
+            )?;
+        } else {
+            #[allow(deprecated)]
+            transfer(
+                CpiContext::new_with_signer(
+                    program,
+                    Transfer {
+                        from,
+                        to,
+                        authority,
+                    },
+                    signer_seeds,
+                ),
+                amount,
+            )?;
+        }
+
+        Ok(())
     }
 
     pub(crate) fn deposit_shares(&mut self, shares: I80F48) -> MarginfiResult {
