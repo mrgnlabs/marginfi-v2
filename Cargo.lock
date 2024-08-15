@@ -1064,9 +1064,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.1.11"
+version = "1.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fb8dd288a69fc53a1996d7ecfbf4a20d59065bff137ce7e56bbd620de191189"
+checksum = "68064e60dbf1f17005c2fde4d07c16d8baa506fd7ffed8ccab702d93617975c7"
 dependencies = [
  "jobserver",
  "libc",
@@ -3573,8 +3573,7 @@ dependencies = [
 [[package]]
 name = "pyth-sdk"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e7aeef4d5f0a9c98ff5af2ddd84a8b89919c512188305b497a9eb9afa97a949"
+source = "git+https://github.com/pyth-network/pyth-sdk-rs?rev=05ddf2beccac5bccdb8c31999f1940e4589b2c66#05ddf2beccac5bccdb8c31999f1940e4589b2c66"
 dependencies = [
  "borsh 0.10.3",
  "borsh-derive 0.10.3",
@@ -3587,8 +3586,7 @@ dependencies = [
 [[package]]
 name = "pyth-sdk-solana"
 version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f913de6eb29d8def199af3beaee645e84c5281327d58777eff3fdd9f1d37105"
+source = "git+https://github.com/pyth-network/pyth-sdk-rs?rev=05ddf2beccac5bccdb8c31999f1940e4589b2c66#05ddf2beccac5bccdb8c31999f1940e4589b2c66"
 dependencies = [
  "borsh 0.10.3",
  "borsh-derive 0.10.3",
@@ -3604,8 +3602,7 @@ dependencies = [
 [[package]]
 name = "pyth-solana-receiver-sdk"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b7854c4176470c8d86de301dc5b57ac84227dabb9527328b585fc332962d60b"
+source = "git+https://github.com/pyth-network/pyth-crosschain?rev=acf5a40abfac4909074fac7ba9ae0afc263e1127#acf5a40abfac4909074fac7ba9ae0afc263e1127"
 dependencies = [
  "anchor-lang",
  "hex",
@@ -3616,8 +3613,7 @@ dependencies = [
 [[package]]
 name = "pythnet-sdk"
 version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d674382ba4798254178b47c8a4cdd9ace09cb8d1554a6de180f8ab326c4d5c41"
+source = "git+https://github.com/pyth-network/pyth-crosschain?rev=acf5a40abfac4909074fac7ba9ae0afc263e1127#acf5a40abfac4909074fac7ba9ae0afc263e1127"
 dependencies = [
  "anchor-lang",
  "bincode",
@@ -4362,9 +4358,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.124"
+version = "1.0.125"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66ad62847a56b3dba58cc891acd13884b9c61138d330c0d7b6181713d4fce38d"
+checksum = "83c8e735a073ccf5be70aa8066aa984eaf2fa000db6c8d0100ae605b366d31ed"
 dependencies = [
  "indexmap 2.4.0",
  "itoa",
