@@ -290,32 +290,32 @@ assert_struct_align!(Bank, 8);
 )]
 #[derive(Default)]
 pub struct Bank {
-    pub mint: Pubkey,
-    pub mint_decimals: u8,
+    pub mint: Pubkey, // 0-32
+    pub mint_decimals: u8, // 32-33 
 
-    pub group: Pubkey,
+    pub group: Pubkey, // 33 - 65
 
-    pub asset_share_value: WrappedI80F48,
-    pub liability_share_value: WrappedI80F48,
+    pub asset_share_value: WrappedI80F48, // 65 - 81
+    pub liability_share_value: WrappedI80F48, // 81 - 97
 
-    pub liquidity_vault: Pubkey,
-    pub liquidity_vault_bump: u8,
-    pub liquidity_vault_authority_bump: u8,
+    pub liquidity_vault: Pubkey, // 97 - 129
+    pub liquidity_vault_bump: u8, // 129 - 130
+    pub liquidity_vault_authority_bump: u8, // 130 - 131
 
-    pub insurance_vault: Pubkey,
-    pub insurance_vault_bump: u8,
-    pub insurance_vault_authority_bump: u8,
-    pub collected_insurance_fees_outstanding: WrappedI80F48,
+    pub insurance_vault: Pubkey, // 131 - 163
+    pub insurance_vault_bump: u8, // 163 - 164
+    pub insurance_vault_authority_bump: u8, // 164 - 165
+    pub collected_insurance_fees_outstanding: WrappedI80F48, // 165 - 181
 
-    pub fee_vault: Pubkey,
-    pub fee_vault_bump: u8,
-    pub fee_vault_authority_bump: u8,
-    pub collected_group_fees_outstanding: WrappedI80F48,
+    pub fee_vault: Pubkey, // 181 - 213
+    pub fee_vault_bump: u8, // 213 - 214
+    pub fee_vault_authority_bump: u8, // 214 - 215
+    pub collected_group_fees_outstanding: WrappedI80F48, // 215 - 231
 
-    pub total_liability_shares: WrappedI80F48,
-    pub total_asset_shares: WrappedI80F48,
+    pub total_liability_shares: WrappedI80F48, // 231 - 247
+    pub total_asset_shares: WrappedI80F48, // 247 - 263
 
-    pub last_update: i64,
+    pub last_update: i64, // 263 - 271
 
     pub config: BankConfig,
 
