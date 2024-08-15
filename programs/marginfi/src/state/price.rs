@@ -400,7 +400,7 @@ pub fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpd
     let discriminator = &price_feed_data[0..8];
 
     check!(
-        discriminator == <PriceUpdateV2 as anchor_lang_29::Discriminator>::DISCRIMINATOR,
+        discriminator == <PriceUpdateV2 as anchor_lang::Discriminator>::DISCRIMINATOR,
         MarginfiError::InvalidOracleAccount
     );
 
@@ -592,7 +592,7 @@ impl PythPushOraclePriceFeed {
     /// Marginfi sponsored feed id
     /// `constants::PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID = 3301`
     pub fn find_oracle_address(shard_id: u16, feed_id: &FeedId) -> (Pubkey, u8) {
-        Pubkey::find_program_address(&[&shard_id.to_le_bytes(), feed_id], &PYTH_PUSH_ORACLE_ID)
+        anchor_lang::prelude::Pubkey::find_program_address(&[&shard_id.to_le_bytes(), feed_id], &Pubkey::new_from_array(PYTH_PUSH_ORACLE_ID.to_bytes()))
     }
 }
 
@@ -700,7 +700,9 @@ fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResu
 /// Load and validate a pyth price feed account.
 fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
-    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
+    let price_feed = SolanaPriceAccount::account_info_to_feed(
+        ai
+    )
         .map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
 }

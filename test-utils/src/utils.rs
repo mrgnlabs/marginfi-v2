@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_lang_29::Discriminator;
+use anchor_lang::Discriminator;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use marginfi::constants::PYTH_ID;
 use pyth_sdk_solana::state::{
@@ -411,7 +411,7 @@ pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Accou
     Account {
         lamports: 10000,
         data,
-        owner: SWITCHBOARD_PROGRAM_ID,
+        owner: Pubkey::new_from_array(SWITCHBOARD_PROGRAM_ID.to_bytes()),
         executable: false,
         rent_epoch: 0,
     }

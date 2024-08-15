@@ -7,6 +7,7 @@ edition = "2021"
 [features]
 lip = ["liquidity-incentive-program"]
 
+
 [dependencies]
 solana-cli-output = { workspace = true }
 solana-program = { workspace = true }
@@ -19,17 +20,16 @@ spl-tlv-account-resolution = { workspace = true }
 spl-discriminator = { workspace = true }
 
 anchor-lang = { workspace = true }
-anchor-lang-29 = { workspace = true }
 anchor-spl = { workspace = true }
 
 pyth-sdk-solana = { workspace = true }
 pyth-solana-receiver-sdk = { workspace = true }
 switchboard-solana = { workspace = true }
 
-bytemuck = "1.9.1"
-fixed = "1.12.0"
+bytemuck = "1.16.3"
+fixed = "1.28.0"
 fixed-macro = "1.2.0"
-lazy_static = "1.4.0"
+lazy_static = "1.5.0"
 static_assertions = "1.1.0"
 type-layout = "0.2.0"
 anyhow = "1.0.66"

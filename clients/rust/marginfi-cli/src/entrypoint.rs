@@ -23,6 +23,7 @@ use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use rand::Rng;
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
 use type_layout::TypeLayout;
+use anchor_spl::token::spl_token;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

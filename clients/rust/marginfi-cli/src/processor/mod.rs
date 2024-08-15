@@ -18,7 +18,13 @@ use {
         anchor_lang::{InstructionData, ToAccountMetas},
         Cluster,
     },
-    anchor_spl::token_2022::spl_token_2022,
+    anchor_spl::{
+        token::spl_token,
+        token_2022::spl_token_2022,
+        associated_token::spl_associated_token_account::{
+            get_associated_token_address, instruction::create_associated_token_account_idempotent,
+        },
+    },
     anyhow::{anyhow, bail, Result},
     borsh::BorshDeserialize,
     fixed::types::I80F48,
@@ -60,9 +66,6 @@ use {
         system_program,
         sysvar::{self, Sysvar},
         transaction::Transaction,
-    },
-    spl_associated_token_account::{
-        get_associated_token_address, instruction::create_associated_token_account_idempotent,
     },
     std::{
         collections::HashMap,

@@ -74,7 +74,7 @@ pub struct GroupConfig {
 }
 
 /// Load and validate a pyth price feed account.
-pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
+pub fn load_pyth_price_feed(ai: &anchor_lang::prelude::AccountInfo) -> MarginfiResult<PriceFeed> {
     check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
     let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
         .map_err(|_| MarginfiError::InvalidOracleAccount)?;
