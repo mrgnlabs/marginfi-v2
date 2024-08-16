@@ -38,9 +38,6 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
     isWritable: false,
   };
 
-  let [vault] = deriveLiquidityVault(program.programId, args.bank)
-  console.log("vault buff " + vault.toBytes());
-
   const ix = program.methods
     .lendingPoolAddBank({
       assetWeightInit: args.config.assetWeightInit,
