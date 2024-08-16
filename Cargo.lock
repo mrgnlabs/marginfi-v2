@@ -377,6 +377,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arc-swap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
+
+[[package]]
 name = "ark-bn254"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2698,6 +2704,7 @@ dependencies = [
  "spl-tlv-account-resolution 0.6.5",
  "spl-transfer-hook-interface 0.6.5",
  "static_assertions",
+ "switchboard-on-demand",
  "switchboard-solana",
  "test-case",
  "test-utilities",
@@ -2954,8 +2961,24 @@ checksum = "b8536030f9fea7127f841b45bb6243b27255787fb4eb83958aa1ef9d2fdc0c36"
 dependencies = [
  "num-bigint 0.2.6",
  "num-complex 0.2.4",
+ "num-complex 0.2.4",
  "num-integer",
  "num-iter",
+ "num-rational 0.2.4",
+ "num-traits",
+]
+
+[[package]]
+name = "num"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
+dependencies = [
+ "num-bigint 0.4.6",
+ "num-complex 0.4.6",
+ "num-integer",
+ "num-iter",
+ "num-rational 0.4.2",
  "num-rational 0.2.4",
  "num-traits",
 ]
@@ -3002,6 +3025,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
 dependencies = [
  "autocfg",
+ "num-traits",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
+dependencies = [
  "num-traits",
 ]
 
@@ -3086,6 +3118,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-rational"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f83d14da390562dca69fc84082e73e548e1ad308d24accdedd2720017cb37824"
+dependencies = [
+ "num-bigint 0.4.6",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3102,6 +3145,15 @@ checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
 dependencies = [
  "hermit-abi 0.3.9",
  "libc",
+]
+
+[[package]]
+name = "num_enum"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f646caf906c20226733ed5b1374287eb97e3c2a5c227ce668c1f2ce20ae57c9"
+dependencies = [
+ "num_enum_derive 0.5.11",
 ]
 
 [[package]]
@@ -3352,6 +3404,7 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fd23b938276f14057220b707937bcb42fa76dda7560e57a2da30cb52d557937"
 dependencies = [
+ "num 0.2.1",
  "num 0.2.1",
 ]
 
@@ -4611,7 +4664,7 @@ dependencies = [
  "serde_json",
  "solana-config-program",
  "solana-sdk",
- "spl-token",
+ "spl-token 4.0.0",
  "spl-token-2022 1.0.0",
  "spl-token-group-interface 0.1.0",
  "spl-token-metadata-interface 0.2.0",
@@ -5635,7 +5688,7 @@ dependencies = [
  "solana-sdk",
  "spl-associated-token-account 2.3.0",
  "spl-memo",
- "spl-token",
+ "spl-token 4.0.0",
  "spl-token-2022 1.0.0",
  "thiserror",
 ]
@@ -5807,7 +5860,7 @@ dependencies = [
  "num-derive 0.4.2",
  "num-traits",
  "solana-program",
- "spl-token",
+ "spl-token 4.0.0",
  "spl-token-2022 1.0.0",
  "thiserror",
 ]
@@ -5985,16 +6038,16 @@ dependencies = [
 
 [[package]]
 name = "spl-tlv-account-resolution"
-version = "0.5.1"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "615d381f48ddd2bb3c57c7f7fb207591a2a05054639b18a62e785117dd7a8683"
+checksum = "fab8edfd37be5fa17c9e42c1bff86abbbaf0494b031b37957f2728ad2ff842ba"
 dependencies = [
  "bytemuck",
  "solana-program",
- "spl-discriminator 0.1.0",
- "spl-pod 0.1.0",
- "spl-program-error 0.3.0",
- "spl-type-length-value 0.3.0",
+ "spl-discriminator 0.2.5",
+ "spl-pod 0.2.5",
+ "spl-program-error 0.4.4",
+ "spl-type-length-value 0.4.6",
 ]
 
 [[package]]
@@ -6003,7 +6056,11 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fab8edfd37be5fa17c9e42c1bff86abbbaf0494b031b37957f2728ad2ff842ba"
 dependencies = [
+ "arrayref",
  "bytemuck",
+ "num-derive 0.3.3",
+ "num-traits",
+ "num_enum 0.5.11",
  "solana-program",
  "spl-discriminator 0.2.5",
  "spl-pod 0.2.5",
@@ -6042,7 +6099,7 @@ dependencies = [
  "solana-zk-token-sdk",
  "spl-memo",
  "spl-pod 0.1.0",
- "spl-token",
+ "spl-token 4.0.0",
  "spl-token-group-interface 0.1.0",
  "spl-token-metadata-interface 0.2.0",
  "spl-transfer-hook-interface 0.4.1",
@@ -6480,6 +6537,7 @@ dependencies = [
  "spl-token-2022 3.0.4",
  "spl-transfer-hook-interface 0.6.5",
  "static_assertions",
+ "switchboard-on-demand",
  "switchboard-solana",
  "test_transfer_hook",
  "type-layout",
