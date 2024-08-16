@@ -24,6 +24,10 @@ export const numUsers = 2;
 
 /** Group used for all happy-path tests */
 export const marginfiGroup = Keypair.generate();
+/** Bank for USDC */
+export const bankKeypairUsdc = Keypair.generate();
+/** Bank for token A */
+export const bankKeypairA = Keypair.generate();
 
 export const mochaHooks = {
   beforeAll: async () => {

@@ -47,7 +47,7 @@ export type BankConfig = {
  * The default bank config has
  * * all weights are 1
  * * state = operational, risk tier = collateral
- * * uses the given oracle
+ * * uses the given oracle, assumes it's = pythLegacy
  * * 1_000_000_000 deposit/borrow limit
  * * 100_000_000_000 total asset value limit
  * @returns

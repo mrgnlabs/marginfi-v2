@@ -326,7 +326,7 @@ pub struct Bank {
 
     pub last_update: i64, // 280 - 288
 
-    pub config: BankConfig, // 288 - 544
+    pub config: BankConfig, // 288 - 832
 
     /// Bank Config Flags
     ///
@@ -334,12 +334,12 @@ pub struct Bank {
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
     ///
-    pub flags: u64,
+    pub flags: u64, // 832 - 840
     /// Emissions APR.
     /// Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens (bank mint) (native amount) per 1 YEAR.
-    pub emissions_rate: u64,
-    pub emissions_remaining: WrappedI80F48,
-    pub emissions_mint: Pubkey,
+    pub emissions_rate: u64, // 840 - 848 
+    pub emissions_remaining: WrappedI80F48, // 848 - 864
+    pub emissions_mint: Pubkey, // 864 - 896
 
     pub _padding_0: [[u64; 2]; 28],
     pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
