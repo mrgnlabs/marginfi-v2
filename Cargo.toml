@@ -24,10 +24,10 @@ anchor-lang = "=0.30.1"
 anchor-spl = "=0.30.1"
 anchor-client = "=0.30.1"
 
-pyth-sdk-solana = { git = "https://github.com/pyth-network/pyth-sdk-rs", rev = "05ddf2beccac5bccdb8c31999f1940e4589b2c66" }
-pyth-solana-receiver-sdk = { git = "https://github.com/pyth-network/pyth-crosschain", rev = "acf5a40abfac4909074fac7ba9ae0afc263e1127" }
+pyth-sdk-solana = { git = "https://github.com/pyth-network/pyth-sdk-rs"  }
+pyth-solana-receiver-sdk = { git = "https://github.com/pyth-network/pyth-crosschain"  }
 switchboard-solana = "=0.30.4"
-switchboard-on-demand = "0.1.14"
+switchboard-on-demand = "=0.1.14"
 
 borsh = "=0.10.3"
 
