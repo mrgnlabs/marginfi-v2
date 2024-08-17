@@ -18,7 +18,7 @@ import {
   assertKeyDefault,
   assertKeysEqual,
 } from "./utils/genericTests";
-import { defaultBankConfig, OracleSetup } from "./utils/types";
+import { convertRiskTierU64ToRiskTier, defaultBankConfig, OracleSetup } from "./utils/types";
 import {
   deriveLiquidityVaultAuthority,
   deriveLiquidityVault,
@@ -120,8 +120,8 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { pythLegacy: {} });
     assertBNEqual(config.borrowLimit, 1_000_000_000);
-    // TODO modify RiskTier to pass alignment requirements...
-    assert.deepEqual(config.riskTier, { collateral: {} });
+    const actualRiskTier = convertRiskTierU64ToRiskTier(config.riskTier);
+    assert.deepEqual(actualRiskTier, { collateral: {} });
     assertBNEqual(config.totalAssetValueInitLimit, 100_000_000_000);
     assert.equal(config.oracleMaxAge, 100);
   });

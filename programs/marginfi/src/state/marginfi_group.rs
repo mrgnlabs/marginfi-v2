@@ -139,14 +139,14 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48, // 360 - 376
-    pub plateau_interest_rate: WrappedI80F48, // 376 - 392
-    pub max_interest_rate: WrappedI80F48, // 392 - 408
+    pub plateau_interest_rate: WrappedI80F48,    // 376 - 392
+    pub max_interest_rate: WrappedI80F48,        // 392 - 408
 
     // Fees
     pub insurance_fee_fixed_apr: WrappedI80F48, // 408 - 424
-    pub insurance_ir_fee: WrappedI80F48, // 424 - 440
-    pub protocol_fixed_fee_apr: WrappedI80F48, // 440 - 456
-    pub protocol_ir_fee: WrappedI80F48, // 456 - 472
+    pub insurance_ir_fee: WrappedI80F48,        // 424 - 440
+    pub protocol_fixed_fee_apr: WrappedI80F48,  // 440 - 456
+    pub protocol_ir_fee: WrappedI80F48,         // 456 - 472
 
     pub _padding: [[u64; 2]; 8], // 16 * 8 = 128 bytes (472 - 600)
 }
@@ -337,9 +337,9 @@ pub struct Bank {
     pub flags: u64, // 832 - 840
     /// Emissions APR.
     /// Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens (bank mint) (native amount) per 1 YEAR.
-    pub emissions_rate: u64, // 840 - 848 
+    pub emissions_rate: u64, // 840 - 848
     pub emissions_remaining: WrappedI80F48, // 848 - 864
-    pub emissions_mint: Pubkey, // 864 - 896
+    pub emissions_mint: Pubkey,             // 864 - 896
 
     pub _padding_0: [[u64; 2]; 28],
     pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
@@ -938,17 +938,53 @@ impl Display for BankOperationalState {
     }
 }
 
-#[repr(u64)]
+/// This used to be a u64 enum, which Anchor has difficulty encoding/aligning. The following hack
+/// maintains full backwards compatability with the original u64-encoded value.
+#[repr(C)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, AnchorSerialize, AnchorDeserialize)]
+pub struct RiskTierU64 {
+    value: u8,
+    _padding: [u8; 7],
+}
+
+impl RiskTierU64 {
+    pub fn new(tier: RiskTier) -> Self {
+        Self {
+            value: tier as u8,
+            _padding: [0; 7],
+        }
+    }
+
+    pub fn as_risk_tier(&self) -> RiskTier {
+        match self.value {
+            0 => RiskTier::Collateral,
+            1 => RiskTier::Isolated,
+            _ => panic!("Invalid value for RiskTier"),
+        }
+    }
+}
+
+impl Into<RiskTier> for RiskTierU64 {
+    fn into(self) -> RiskTier {
+        match self.value {
+            0 => RiskTier::Collateral,
+            1 => RiskTier::Isolated,
+            _ => panic!("Invalid value for RiskTier"),
+        }
+    }
+}
+
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum RiskTier {
-    Collateral,
+    Collateral = 0,
     /// ## Isolated Risk
     /// Assets in this trance can be borrowed only in isolation.
     /// They can't be borrowed together with other assets.
     ///
     /// For example, if users has USDC, and wants to borrow XYZ which is isolated,
     /// they can't borrow XYZ together with SOL, only XYZ alone.
-    Isolated,
+    Isolated = 1,
 }
 
 #[repr(C)]
@@ -975,7 +1011,7 @@ pub struct BankConfigCompact {
 
     pub borrow_limit: u64,
 
-    pub risk_tier: RiskTier,
+    pub risk_tier: RiskTierU64,
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1052,18 +1088,18 @@ assert_struct_align!(BankConfig, 8);
 #[derive(Debug)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
-    pub asset_weight_init: WrappedI80F48, // 288 - 304
+    pub asset_weight_init: WrappedI80F48,  // 288 - 304
     pub asset_weight_maint: WrappedI80F48, // 304 - 320
 
-    pub liability_weight_init: WrappedI80F48, // 320 - 336
+    pub liability_weight_init: WrappedI80F48,  // 320 - 336
     pub liability_weight_maint: WrappedI80F48, // 336 - 352
 
     pub deposit_limit: u64, // 352 - 360
 
     pub interest_rate_config: InterestRateConfig, // 360 - 600
-    pub operational_state: BankOperationalState, // 600
+    pub operational_state: BankOperationalState,  // 600
 
-    pub oracle_setup: OracleSetup, // 601
+    pub oracle_setup: OracleSetup,              // 601
     pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS], // 602 - 762
     // Note: Key 0 at 602 - 634, and so forth.
 
@@ -1072,7 +1108,7 @@ pub struct BankConfig {
 
     pub borrow_limit: u64, // 768 - 776
 
-    pub risk_tier: RiskTier, // 776 - 784
+    pub risk_tier: RiskTierU64, // 776 - 784
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1106,7 +1142,7 @@ impl Default for BankConfig {
             oracle_setup: OracleSetup::None,
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
             _pad0: [0; 6],
-            risk_tier: RiskTier::Isolated,
+            risk_tier: RiskTierU64::new(RiskTier::Isolated),
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
             _pad1: [0; 6],
@@ -1171,7 +1207,7 @@ impl BankConfig {
 
         self.interest_rate_config.validate()?;
 
-        if self.risk_tier == RiskTier::Isolated {
+        if self.risk_tier.as_risk_tier() == RiskTier::Isolated {
             check!(asset_init_w == I80F48::ZERO, MarginfiError::InvalidConfig);
             check!(asset_maint_w == I80F48::ZERO, MarginfiError::InvalidConfig);
         }
@@ -1269,7 +1305,7 @@ pub struct BankConfigOpt {
 
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
-    pub risk_tier: Option<RiskTier>,
+    pub risk_tier: Option<RiskTierU64>,
 
     pub total_asset_value_init_limit: Option<u64>,
 

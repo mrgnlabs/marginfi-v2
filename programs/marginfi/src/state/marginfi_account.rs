@@ -260,7 +260,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         requirement_type: RequirementType,
         bank: &'a Bank,
     ) -> MarginfiResult<I80F48> {
-        match bank.config.risk_tier {
+        match bank.config.risk_tier.as_risk_tier() {
             RiskTier::Collateral => {
                 let price_feed = self.try_get_price_feed();
 
@@ -692,7 +692,7 @@ impl<'info> RiskEngine<'_, 'info> {
                 .load()
                 .unwrap()
                 .config
-                .risk_tier
+                .risk_tier.as_risk_tier()
                 == RiskTier::Isolated
         });
 

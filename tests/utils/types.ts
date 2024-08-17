@@ -6,7 +6,47 @@ import BN from "bn.js";
 export const I80F48_ZERO = bigNumberToWrappedI80F48(0);
 export const I80F48_ONE = bigNumberToWrappedI80F48(1);
 
+export type RiskTierU64 = {
+  value: number;
+  padding: number[]; // (should be exactly 7 elements)
+};
+
 export type RiskTier = { collateral: {} } | { isolated: {} };
+
+/**
+ * Helper function to create a RiskTierU64 from a classic RiskTier
+ */
+export const convertRiskTierToU64 = (tier: RiskTier): RiskTierU64 => {
+  let value: number;
+  if ("collateral" in tier) {
+    value = 0;
+  } else if ("isolated" in tier) {
+    value = 1;
+  } else {
+    throw new Error("Unknown RiskTier");
+  }
+
+  return {
+    value,
+    padding: [0, 0, 0, 0, 0, 0, 0], // 7 bytes of padding
+  };
+};
+
+/**
+ * Helper function to create a classic RiskTier from a RiskTierU64
+ */
+export const convertRiskTierU64ToRiskTier = (
+  tierU64: RiskTierU64
+): RiskTier => {
+  switch (tierU64.value) {
+    case 0:
+      return { collateral: {} };
+    case 1:
+      return { isolated: {} };
+    default:
+      throw new Error("Unknown RiskTier value in RiskTierU64");
+  }
+};
 
 export type OperationalState =
   | { paused: {} }
@@ -38,7 +78,7 @@ export type BankConfig = {
 
   borrowLimit: BN;
   /** Collateral = 0, Isolated = 1 */
-  riskTier: RiskTier;
+  riskTier: RiskTierU64;
   totalAssetValueInitLimit: BN;
   oracleMaxAge: number;
 };
@@ -68,9 +108,9 @@ export const defaultBankConfig = (oracleKey: PublicKey) => {
     },
     oracleKey: oracleKey,
     borrowLimit: new BN(1_000_000_000),
-    riskTier: {
+    riskTier: convertRiskTierToU64({
       collateral: undefined,
-    },
+    }),
     totalAssetValueInitLimit: new BN(100_000_000_000),
     oracleMaxAge: 100,
   };
