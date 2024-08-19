@@ -185,7 +185,6 @@ pub fn lending_pool_add_bank_with_seed(
     } = ctx.accounts;
 
     let mut bank = bank_loader.load_init()?;
-    msg!("init: {:?}", bank_config.total_asset_value_init_limit);
 
     let liquidity_vault_bump = ctx.bumps.liquidity_vault;
     let liquidity_vault_authority_bump = ctx.bumps.liquidity_vault_authority;
