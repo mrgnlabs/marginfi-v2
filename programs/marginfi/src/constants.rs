@@ -25,8 +25,13 @@ cfg_if::cfg_if! {
     }
 }
 
-// TODO add localnet/devnet
-pub const SWITCHBOARD_PULL_ID: Pubkey = pubkey!("SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv");
+cfg_if::cfg_if! {
+    if #[cfg(feature = "devnet")] {
+        pub const SWITCHBOARD_PULL_ID: Pubkey = pubkey!("Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2");
+    } else {
+        pub const SWITCHBOARD_PULL_ID: Pubkey = pubkey!("SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv");
+    }
+}
 
 /// TODO: Make these variable per bank
 pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);

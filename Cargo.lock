@@ -4816,7 +4816,7 @@ version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58267dd2fbaa6dceecba9e3e106d2d90a2b02497c0e8b01b8759beccf5113938"
 dependencies = [
- "num 0.2.1",
+ "num 0.4.3",
 ]
 
 [[package]]
@@ -6658,9 +6658,9 @@ dependencies = [
 
 [[package]]
 name = "switchboard-on-demand"
-version = "0.1.13"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d25f9c5e5776ee0db744d4adf4d61711416677eb03b03a499d2d895e348ebc24"
+checksum = "3852951c42f8876a443060b6882bda945f1621224236ead37959e80f5369cf81"
 dependencies = [
  "arc-swap",
  "async-trait",
