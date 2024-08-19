@@ -16,7 +16,7 @@ use crate::{
     check,
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL,
-        MIN_PYTH_PUSH_VERIFICATION_LEVEL, PYTH_ID, STD_DEV_MULTIPLE,
+        MIN_PYTH_PUSH_VERIFICATION_LEVEL, PYTH_ID, STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID,
     },
     debug, math_error,
     prelude::*,
@@ -320,7 +320,7 @@ impl SwitchboardPullPriceFeed {
         let ai_data = ai.data.borrow();
 
         check!(
-            ai.owner.eq(&switchboard_on_demand::SWITCHBOARD_PROGRAM_ID),
+            ai.owner.eq(&SWITCHBOARD_PULL_ID),
             MarginfiError::InvalidOracleAccount
         );
 
@@ -342,7 +342,7 @@ impl SwitchboardPullPriceFeed {
         let ai_data = ai.data.borrow();
 
         check!(
-            ai.owner.eq(&switchboard_on_demand::SWITCHBOARD_PROGRAM_ID),
+            ai.owner.eq(&SWITCHBOARD_PULL_ID),
             MarginfiError::InvalidOracleAccount
         );
 
@@ -1210,7 +1210,7 @@ mod tests {
         Account {
             lamports: 1_000_000,
             data,
-            owner: switchboard_on_demand::SWITCHBOARD_PROGRAM_ID,
+            owner: SWITCHBOARD_PULL_ID,
             executable: false,
             rent_epoch: 361,
         }
