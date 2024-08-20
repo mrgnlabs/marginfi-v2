@@ -53,8 +53,8 @@ jobs:
   test-unit:
     name: Rust Unit Tests
     runs-on: ubuntu-latest
-    env:
-      RUSTUP_TOOLCHAIN: stable
+    # env:
+    #   RUSTUP_TOOLCHAIN: stable
     steps:
       - uses: actions/checkout@v3
 

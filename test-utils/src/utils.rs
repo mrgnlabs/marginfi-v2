@@ -11,11 +11,11 @@ use pyth_solana_receiver_sdk::price_update::VerificationLevel;
 use solana_program::{instruction::Instruction, pubkey};
 use solana_program_test::*;
 use solana_sdk::{account::Account, signature::Keypair};
+use switchboard_on_demand::SWITCHBOARD_PROGRAM_ID;
 use std::mem::size_of;
 use std::{cell::RefCell, rc::Rc};
 use switchboard_solana::{
-    AggregatorAccountData, AggregatorResolutionMode, AggregatorRound, SwitchboardDecimal,
-    SWITCHBOARD_PROGRAM_ID,
+    AggregatorAccountData, AggregatorResolutionMode, AggregatorRound, SwitchboardDecimal
 };
 
 pub const MS_PER_SLOT: u64 = 400;
@@ -421,7 +421,7 @@ pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Accou
     Account {
         lamports: 10000,
         data,
-        owner: Pubkey::new_from_array(SWITCHBOARD_PROGRAM_ID.to_bytes()),
+        owner: SWITCHBOARD_PROGRAM_ID,
         executable: false,
         rent_epoch: 0,
     }

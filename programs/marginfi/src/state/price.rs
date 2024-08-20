@@ -5,9 +5,9 @@ use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
-use switchboard_on_demand::{CurrentResult, PullFeedAccountData};
+use switchboard_on_demand::{CurrentResult, PullFeedAccountData, SWITCHBOARD_PROGRAM_ID};
 use switchboard_solana::{
-    AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
+    AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal,
 };
 
 pub use pyth_sdk_solana;
@@ -16,7 +16,7 @@ use crate::{
     check,
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL,
-        MIN_PYTH_PUSH_VERIFICATION_LEVEL, PYTH_ID, STD_DEV_MULTIPLE,
+        MIN_PYTH_PUSH_VERIFICATION_LEVEL, PYTH_ID, STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID
     },
     debug, math_error,
     prelude::*,
@@ -320,7 +320,7 @@ impl SwitchboardPullPriceFeed {
         let ai_data = ai.data.borrow();
 
         check!(
-            ai.owner.eq(&switchboard_on_demand::SWITCHBOARD_PROGRAM_ID),
+            ai.owner.eq(&SWITCHBOARD_PULL_ID),
             MarginfiError::InvalidOracleAccount
         );
 
@@ -342,7 +342,7 @@ impl SwitchboardPullPriceFeed {
         let ai_data = ai.data.borrow();
 
         check!(
-            ai.owner.eq(&switchboard_on_demand::SWITCHBOARD_PROGRAM_ID),
+            ai.owner.eq(&SWITCHBOARD_PULL_ID),
             MarginfiError::InvalidOracleAccount
         );
 
@@ -730,7 +730,8 @@ impl PythPushOraclePriceFeed {
     /// Marginfi sponsored feed id
     /// `constants::PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID = 3301`
     pub fn find_oracle_address(shard_id: u16, feed_id: &FeedId) -> (Pubkey, u8) {
-        anchor_lang::prelude::Pubkey::find_program_address(&[&shard_id.to_le_bytes(), feed_id], &Pubkey::new_from_array(PYTH_PUSH_ORACLE_ID.to_bytes()))
+        // anchor_lang::prelude::Pubkey::find_program_address(&[&shard_id.to_le_bytes(), feed_id], &Pubkey::new_from_array(PYTH_PUSH_ORACLE_ID.to_bytes()))
+        anchor_lang::prelude::Pubkey::find_program_address(&[&shard_id.to_le_bytes(), feed_id], &PYTH_PUSH_ORACLE_ID)
     }
 }
 
@@ -1212,7 +1213,7 @@ mod tests {
         Account {
             lamports: 1_000_000,
             data,
-            owner: switchboard_on_demand::SWITCHBOARD_PROGRAM_ID,
+            owner: SWITCHBOARD_PULL_ID,
             executable: false,
             rent_epoch: 361,
         }
