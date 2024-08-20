@@ -23,6 +23,27 @@ export const printBufferGroups = (
   }
   console.log(columnHeader);
 
+  // Function to calculate RGB color based on row index
+  const calculateGradientColor = (startIndex) => {
+    const maxIndex = 255 * 3;
+    const normalizedIndex = (startIndex % maxIndex);
+
+    let r = 0, g = 0, b = 0;
+
+    if (normalizedIndex < 255) {
+      b = 255;
+      g = normalizedIndex;
+    } else if (normalizedIndex < 510) {
+      g = 255;
+      b = 510 - normalizedIndex;
+    } else {
+      g = 765 - normalizedIndex;
+      r = normalizedIndex - 510;
+    }
+
+    return `\x1b[38;2;${r};${g};${b}m`;
+  };
+
   // Print the buffer content
   for (let i = 0; i < totalLength; i += groupLength) {
     let group = [];
@@ -44,11 +65,13 @@ export const printBufferGroups = (
     }
 
     // Skip printing if the entire group is zero
-    if (!allZero && skipEmptyRows) {
+    if (!allZero || !skipEmptyRows) {
+      const color = calculateGradientColor(i);
+      const label = `${i.toString().padStart(3, " ")}-${(i + groupLength - 1)
+        .toString()
+        .padStart(3, " ")}`;
       console.log(
-        `${i.toString().padStart(3, " ")}-${(i + groupLength - 1)
-          .toString()
-          .padStart(3, " ")} | ${group.join(" | ")}`
+        `${color}${label}\x1b[0m | ${group.join(" | ")}`
       );
     }
   }
