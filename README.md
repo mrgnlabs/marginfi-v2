@@ -77,7 +77,7 @@ use an x86 toolchain when compiling and running the tests.
 
 Build the program with: 
 
-`anchor build -p marginfi --no-default-features --features localnet`
+`anchor build -p marginfi --no-default-features`
 
 You may also need to build the liquidity incentive program and mock program:
 * `anchor build -p mocks`

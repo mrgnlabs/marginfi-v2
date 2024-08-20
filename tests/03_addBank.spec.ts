@@ -1,6 +1,6 @@
 import { Program, workspace } from "@coral-xyz/anchor";
-import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
-import { addBank, groupConfigure } from "./utils/instructions";
+import { PublicKey, Transaction } from "@solana/web3.js";
+import { addBank } from "./utils/instructions";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
@@ -18,7 +18,7 @@ import {
   assertKeyDefault,
   assertKeysEqual,
 } from "./utils/genericTests";
-import { convertRiskTierU64ToRiskTier, defaultBankConfig, OracleSetup } from "./utils/types";
+import { defaultBankConfig } from "./utils/types";
 import {
   deriveLiquidityVaultAuthority,
   deriveLiquidityVault,
@@ -59,7 +59,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     let bankData = (
       await program.provider.connection.getAccountInfo(bankKey)
     ).data.subarray(8);
-    printBufferGroups(bankData, 8, 896);
+    printBufferGroups(bankData, 16, 896);
 
     const bank = await program.account.bank.fetch(bankKey);
     const config = bank.config;
@@ -120,8 +120,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { pythLegacy: {} });
     assertBNEqual(config.borrowLimit, 1_000_000_000);
-    const actualRiskTier = convertRiskTierU64ToRiskTier(config.riskTier);
-    assert.deepEqual(actualRiskTier, { collateral: {} });
+    assert.deepEqual(config.riskTier, { collateral: {} });
     assertBNEqual(config.totalAssetValueInitLimit, 100_000_000_000);
     assert.equal(config.oracleMaxAge, 100);
   });
@@ -147,5 +146,20 @@ describe("Lending pool add bank (add bank to group)", () => {
     if (verbose) {
       console.log("*init token A bank " + bankKey);
     }
+  });
+
+  it("Decodes a mainnet bank configured before manual padding", async () => {
+    let bonkBankKey = new PublicKey(
+      "DeyH7QxWvnbbaVB4zFrf4hoq7Q8z1ZT14co42BGwGtfM"
+    );
+    let bankData = (
+      await program.provider.connection.getAccountInfo(bonkBankKey)
+    ).data.subarray(8);
+    printBufferGroups(bankData, 16, 896);
+
+    const bank = await program.account.bank.fetch(bonkBankKey);
+    const config = bank.config;
+    const interest = config.interestRateConfig;
+    const id = program.programId;
   });
 });

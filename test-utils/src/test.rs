@@ -15,7 +15,7 @@ use marginfi::{
     constants::MAX_ORACLE_KEYS,
     state::{
         marginfi_group::{
-            BankConfig, BankOperationalState, GroupConfig, InterestRateConfig, RiskTier, RiskTierU64,
+            BankConfig, BankOperationalState, GroupConfig, InterestRateConfig, RiskTier,
         },
         price::OracleSetup,
     },
@@ -247,7 +247,7 @@ lazy_static! {
         liability_weight_maint: I80F48!(1).into(),
 
         operational_state: BankOperationalState::Operational,
-        risk_tier: RiskTierU64::new(RiskTier::Collateral),
+        risk_tier: RiskTier::Collateral,
 
         interest_rate_config: InterestRateConfig {
             insurance_fee_fixed_apr: I80F48!(0).into(),
@@ -278,7 +278,7 @@ lazy_static! {
         deposit_limit: native!(1_000_000, "SOL_EQ_ISO"),
         borrow_limit: native!(1_000_000, "SOL_EQ_ISO"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_EQUIVALENT_FEED),
-        risk_tier: RiskTierU64::new(RiskTier::Isolated),
+        risk_tier: RiskTier::Isolated,
         asset_weight_maint: I80F48!(0).into(),
         asset_weight_init: I80F48!(0).into(),
         ..*DEFAULT_TEST_BANK_CONFIG

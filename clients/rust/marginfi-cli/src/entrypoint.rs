@@ -14,7 +14,7 @@ use marginfi::{
         marginfi_account::{Balance, LendingAccount, MarginfiAccount, FLASHLOAN_ENABLED_FLAG},
         marginfi_group::{
             Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
-            InterestRateConfigOpt, OracleConfig, RiskTier, WrappedI80F48, RiskTierU64
+            InterestRateConfigOpt, OracleConfig, RiskTier, WrappedI80F48,
         },
         price::OracleSetup,
     },
@@ -162,12 +162,6 @@ impl From<RiskTierArg> for RiskTier {
             RiskTierArg::Collateral => RiskTier::Collateral,
             RiskTierArg::Isolated => RiskTier::Isolated,
         }
-    }
-}
-
-impl From<RiskTierArg> for RiskTierU64 {
-    fn from(value: RiskTierArg) -> Self {
-        RiskTierU64::from(RiskTier::from(value))
     }
 }
 

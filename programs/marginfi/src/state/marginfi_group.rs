@@ -938,40 +938,6 @@ impl Display for BankOperationalState {
     }
 }
 
-/// This used to be a u64 enum, which Anchor has difficulty encoding/aligning. The following hack
-/// maintains full backwards compatability with the original u64-encoded value.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, AnchorSerialize, AnchorDeserialize)]
-pub struct RiskTierU64 {
-    value: u8,
-    _padding: [u8; 7],
-}
-
-impl RiskTierU64 {
-    pub fn new(tier: RiskTier) -> Self {
-        Self {
-            value: tier as u8,
-            _padding: [0; 7],
-        }
-    }
-}
-
-impl From<RiskTier> for RiskTierU64 {
-    fn from(tier: RiskTier) -> Self {
-        RiskTierU64::new(tier)
-    }
-}
-
-impl From<RiskTierU64> for RiskTier {
-    fn from(tier_u64: RiskTierU64) -> Self {
-        match tier_u64.value {
-            0 => RiskTier::Collateral,
-            1 => RiskTier::Isolated,
-            _ => panic!("Invalid value for RiskTier"),
-        }
-    }
-}
-
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum RiskTier {
@@ -1009,7 +975,9 @@ pub struct BankConfigCompact {
 
     pub borrow_limit: u64,
 
-    pub risk_tier: RiskTierU64,
+    pub risk_tier: RiskTier,
+
+    pub _pad0: [u8; 7],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1047,9 +1015,10 @@ impl From<BankConfigCompact> for BankConfig {
             _pad0: [0; 6],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
+            _pad1: [0; 7],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
-            _pad1: [0; 6],
+            _pad2: [0; 6],
             _padding: [0; 32],
         }
     }
@@ -1069,6 +1038,7 @@ impl From<BankConfig> for BankConfigCompact {
             oracle_key: config.oracle_keys[0],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
+            _pad0: [0; 7],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
         }
@@ -1106,7 +1076,9 @@ pub struct BankConfig {
 
     pub borrow_limit: u64, // 768 - 776
 
-    pub risk_tier: RiskTierU64, // 776 - 784
+    pub risk_tier: RiskTier, // 776 - 784
+
+    pub _pad1: [u8; 7],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1121,7 +1093,7 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16, // 792  - 794
 
-    pub _pad1: [u8; 6], // 1x u16 + 6 = 8
+    pub _pad2: [u8; 6], // 1x u16 + 6 = 8
 
     pub _padding: [u8; 32],
 }
@@ -1140,10 +1112,11 @@ impl Default for BankConfig {
             oracle_setup: OracleSetup::None,
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
             _pad0: [0; 6],
-            risk_tier: RiskTierU64::new(RiskTier::Isolated),
+            risk_tier: RiskTier::Isolated,
+            _pad1: [0; 7],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
-            _pad1: [0; 6],
+            _pad2: [0; 6],
             _padding: [0; 32],
         }
     }
@@ -1304,7 +1277,7 @@ pub struct BankConfigOpt {
 
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
-    pub risk_tier: Option<RiskTierU64>,
+    pub risk_tier: Option<RiskTier>,
 
     pub total_asset_value_init_limit: Option<u64>,
 
