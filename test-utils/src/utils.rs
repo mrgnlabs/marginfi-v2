@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::Discriminator;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use marginfi::constants::PYTH_ID;
+use marginfi::constants::SWITCHBOARD_PULL_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
 };
@@ -152,7 +153,7 @@ pub fn create_switch_pull_oracle_account_from_bytes(data: Vec<u8>) -> Account {
     Account {
         lamports: 1_000_000,
         data,
-        owner: switchboard_on_demand::SWITCHBOARD_PROGRAM_ID,
+        owner: SWITCHBOARD_PULL_ID,
         executable: false,
         rent_epoch: 361,
     }

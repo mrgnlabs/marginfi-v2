@@ -35,7 +35,6 @@ borsh = "=0.10.3"
 # while solana-install (agave-install) for version 1.18.22 uses rustc version 1.75
 fixed = "=1.20.0"
 
-
 [profile.release]
 overflow-checks = true
 lto = "fat"
