@@ -1076,9 +1076,9 @@ pub struct BankConfig {
 
     pub borrow_limit: u64, // 768 - 776
 
-    pub risk_tier: RiskTier, // 776 - 784
+    pub risk_tier: RiskTier, // 776
 
-    pub _pad1: [u8; 7],
+    pub _pad1: [u8; 7], // 777 - 784
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,

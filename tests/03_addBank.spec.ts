@@ -149,17 +149,39 @@ describe("Lending pool add bank (add bank to group)", () => {
   });
 
   it("Decodes a mainnet bank configured before manual padding", async () => {
+    // mainnet program ID
+    const id = new PublicKey("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
+
     let bonkBankKey = new PublicKey(
       "DeyH7QxWvnbbaVB4zFrf4hoq7Q8z1ZT14co42BGwGtfM"
     );
-    let bankData = (
+    let bonkBankData = (
       await program.provider.connection.getAccountInfo(bonkBankKey)
     ).data.subarray(8);
-    printBufferGroups(bankData, 16, 896);
+    printBufferGroups(bonkBankData, 16, 896);
 
-    const bank = await program.account.bank.fetch(bonkBankKey);
-    const config = bank.config;
-    const interest = config.interestRateConfig;
-    const id = program.programId;
+    let cloudBankKey = new PublicKey(
+      "4kNXetv8hSv9PzvzPZzEs1CTH6ARRRi2b8h6jk1ad1nP"
+    );
+    let cloudBankData = (
+      await program.provider.connection.getAccountInfo(cloudBankKey)
+    ).data.subarray(8);
+    printBufferGroups(cloudBankData, 16, 896);
+
+    const bonkBank = await program.account.bank.fetch(bonkBankKey);
+    const bonkConfig = bonkBank.config;
+    const bonkInterest = bonkConfig.interestRateConfig;
+
+    assert.deepEqual(bonkConfig.riskTier, { collateral: {} });
+
+    // TODO moar
+
+    const cloudBank = await program.account.bank.fetch(cloudBankKey);
+    const cloudConfig = cloudBank.config;
+    const cloutInterest = cloudConfig.interestRateConfig;
+
+    assert.deepEqual(cloudConfig.riskTier, { isolated: {} });
+
+    // TODO moar
   });
 });
