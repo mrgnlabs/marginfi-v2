@@ -954,19 +954,17 @@ impl RiskTierU64 {
             _padding: [0; 7],
         }
     }
+}
 
-    pub fn as_risk_tier(&self) -> RiskTier {
-        match self.value {
-            0 => RiskTier::Collateral,
-            1 => RiskTier::Isolated,
-            _ => panic!("Invalid value for RiskTier"),
-        }
+impl From<RiskTier> for RiskTierU64 {
+    fn from(tier: RiskTier) -> Self {
+        RiskTierU64::new(tier)
     }
 }
 
-impl Into<RiskTier> for RiskTierU64 {
-    fn into(self) -> RiskTier {
-        match self.value {
+impl From<RiskTierU64> for RiskTier {
+    fn from(tier_u64: RiskTierU64) -> Self {
+        match tier_u64.value {
             0 => RiskTier::Collateral,
             1 => RiskTier::Isolated,
             _ => panic!("Invalid value for RiskTier"),
@@ -1052,7 +1050,7 @@ impl From<BankConfigCompact> for BankConfig {
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
             _pad1: [0; 6],
-            _padding: [0; 30],
+            _padding: [0; 32],
         }
     }
 }
@@ -1125,7 +1123,7 @@ pub struct BankConfig {
 
     pub _pad1: [u8; 6], // 1x u16 + 6 = 8
 
-    pub _padding: [u8; 30],
+    pub _padding: [u8; 32],
 }
 
 impl Default for BankConfig {
@@ -1146,7 +1144,7 @@ impl Default for BankConfig {
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
             _pad1: [0; 6],
-            _padding: [0; 30],
+            _padding: [0; 32],
         }
     }
 }
@@ -1207,7 +1205,8 @@ impl BankConfig {
 
         self.interest_rate_config.validate()?;
 
-        if self.risk_tier.as_risk_tier() == RiskTier::Isolated {
+        let risk_tier: RiskTier = self.risk_tier.into();
+        if risk_tier == RiskTier::Isolated {
             check!(asset_init_w == I80F48::ZERO, MarginfiError::InvalidConfig);
             check!(asset_maint_w == I80F48::ZERO, MarginfiError::InvalidConfig);
         }
