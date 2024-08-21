@@ -144,4 +144,4 @@ jobs:
         run: sleep 60 
 
       - name: Run tests
-        run: anchor test --skip-build
+        run: anchor test --skip-build --skip-local-validator
