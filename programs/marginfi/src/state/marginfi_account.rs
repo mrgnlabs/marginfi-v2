@@ -260,8 +260,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         requirement_type: RequirementType,
         bank: &'a Bank,
     ) -> MarginfiResult<I80F48> {
-        let risk_tier: RiskTier = bank.config.risk_tier.into();
-        match risk_tier {
+        match bank.config.risk_tier {
             RiskTier::Collateral => {
                 let price_feed = self.try_get_price_feed();
 
@@ -688,14 +687,13 @@ impl<'info> RiskEngine<'_, 'info> {
         let is_in_isolated_risk_tier = balances_with_liablities.clone().any(|a| {
             // SAFETY: We are shortening 'info -> 'a
             let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&a.bank) };
-            let risk_tier: RiskTier = AccountLoader::<Bank>::try_from(shorter_bank)
+            AccountLoader::<Bank>::try_from(shorter_bank)
                 .unwrap()
                 .load()
                 .unwrap()
                 .config
                 .risk_tier
-                .into();
-            risk_tier == RiskTier::Isolated
+                == RiskTier::Isolated
         });
 
         check!(

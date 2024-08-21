@@ -941,14 +941,14 @@ impl Display for BankOperationalState {
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum RiskTier {
-    Collateral = 0,
+    Collateral,
     /// ## Isolated Risk
     /// Assets in this trance can be borrowed only in isolation.
     /// They can't be borrowed together with other assets.
     ///
     /// For example, if users has USDC, and wants to borrow XYZ which is isolated,
     /// they can't borrow XYZ together with SOL, only XYZ alone.
-    Isolated = 1,
+    Isolated,
 }
 
 #[repr(C)]
@@ -1178,8 +1178,7 @@ impl BankConfig {
 
         self.interest_rate_config.validate()?;
 
-        let risk_tier: RiskTier = self.risk_tier.into();
-        if risk_tier == RiskTier::Isolated {
+        if self.risk_tier == RiskTier::Isolated {
             check!(asset_init_w == I80F48::ZERO, MarginfiError::InvalidConfig);
             check!(asset_maint_w == I80F48::ZERO, MarginfiError::InvalidConfig);
         }
