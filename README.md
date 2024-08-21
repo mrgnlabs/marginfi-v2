@@ -89,7 +89,7 @@ Run a single test:
 
 Build the program with:
 
-`anchor build -p marginfi --no-default-features`
+`anchor build -p marginfi -- --no-default-features`
 
 You may also need to build the liquidity incentive program and mock program:
 
