@@ -137,9 +137,6 @@ jobs:
       - name: Build mocks program
         run: anchor build -p mocks
 
-      - name: Create keypair
-        run: solana-keygen new --no-bip39-passphrase
-
       - name: Make Anchor.toml compatible with runner
         run: sed -i 's:/user/:/runner/:' Anchor.toml
 
