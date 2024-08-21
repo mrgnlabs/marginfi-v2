@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, TokenAccount, Token};
+use anchor_spl::token::{Mint, Token, TokenAccount};
 
 use crate::state::PoolAuth;
 
