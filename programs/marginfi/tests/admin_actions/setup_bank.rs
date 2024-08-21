@@ -242,6 +242,7 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
 #[test_case(BankMint::Usdc)]
 #[test_case(BankMint::PyUSD)]
 #[test_case(BankMint::T22WithFee)]
+#[test_case(BankMint::SolSwbPull)]
 #[tokio::test]
 async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
@@ -324,7 +325,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         check_bank_field!(total_asset_value_init_limit);
         check_bank_field!(oracle_max_age);
 
-    
+
 
         assert!(permissionless_bad_debt_settlement
             // If Some(...) check flag set properly

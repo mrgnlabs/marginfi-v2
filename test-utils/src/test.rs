@@ -52,6 +52,10 @@ impl TestSettings {
                 ..TestBankSetting::default()
             },
             TestBankSetting {
+                mint: BankMint::SolSwbPull,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
                 mint: BankMint::SolEquivalent,
                 ..TestBankSetting::default()
             },
@@ -153,6 +157,7 @@ pub enum BankMint {
     UsdcSwb,
     Sol,
     SolSwb,
+    SolSwbPull,
     SolEquivalent,
     SolEquivalent1,
     SolEquivalent2,
@@ -209,6 +214,9 @@ pub const PYTH_PYUSD_FEED: Pubkey = pubkey!("PythPyusdPrice111111111111111111111
 pub const PYTH_SOL_REAL_FEED: Pubkey = pubkey!("PythSo1Rea1Price111111111111111111111111111");
 pub const PYTH_USDC_REAL_FEED: Pubkey = pubkey!("PythUsdcRea1Price11111111111111111111111111");
 pub const PYTH_PUSH_SOL_REAL_FEED: Pubkey = pubkey!("PythPushSo1Rea1Price11111111111111111111111");
+
+pub const SWITCH_PULL_SOL_REAL_FEED: Pubkey =
+    pubkey!("BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP");
 
 pub fn get_oracle_id_from_feed_id(feed_id: Pubkey) -> Option<Pubkey> {
     match feed_id.to_bytes() {
@@ -357,6 +365,13 @@ lazy_static! {
         borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_PUSH_REAL_SOL_FEED_ID.into()),
         oracle_max_age: 100,
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    pub static ref DEFAULT_SB_PULL_SOL_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::SwitchboardPull,
+        deposit_limit: native!(1_000_000, "SOL"),
+        borrow_limit: native!(1_000_000, "SOL"),
+        oracle_keys: create_oracle_key_array(SWITCH_PULL_SOL_REAL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
 }
@@ -514,6 +529,15 @@ impl TestFixture {
             ),
         );
 
+        // From mainnet: https://solana.fm/address/BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP
+        // Sol @ ~ $153
+        program.add_account(
+            SWITCH_PULL_SOL_REAL_FEED,
+            create_switch_pull_oracle_account_from_bytes(
+                include_bytes!("../data/BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP.bin").to_vec(),
+            ),
+        );
+
         let context = Rc::new(RefCell::new(program.start_with_context().await));
 
         {
@@ -583,6 +607,9 @@ impl TestFixture {
                     BankMint::UsdcSwb => (&usdc_mint_f, *DEFAULT_USDC_TEST_SW_BANK_CONFIG),
                     BankMint::Sol => (&sol_mint_f, *DEFAULT_SOL_TEST_BANK_CONFIG),
                     BankMint::SolSwb => (&sol_mint_f, *DEFAULT_SOL_TEST_SW_BANK_CONFIG),
+                    BankMint::SolSwbPull => {
+                        (&sol_mint_f, *DEFAULT_SB_PULL_SOL_TEST_REAL_BANK_CONFIG)
+                    }
                     BankMint::SolEquivalent => (
                         &sol_equivalent_mint_f,
                         *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,

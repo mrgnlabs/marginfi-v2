@@ -178,3 +178,17 @@ fn ceil_div(numerator: u128, denominator: u128) -> Option<u128> {
         .checked_sub(1)?
         .checked_div(denominator)
 }
+
+/// A minimal tool to convert a hex string like "22f123639" into the byte equivalent.
+pub fn hex_to_bytes(hex: &str) -> Vec<u8> {
+    hex.as_bytes()
+        .chunks(2)
+        .map(|chunk| {
+            let high = chunk[0] as char;
+            let low = chunk[1] as char;
+            let high = high.to_digit(16).expect("Invalid hex character") as u8;
+            let low = low.to_digit(16).expect("Invalid hex character") as u8;
+            (high << 4) | low
+        })
+        .collect()
+}

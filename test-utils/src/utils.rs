@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_lang_29::Discriminator;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use marginfi::constants::PYTH_ID;
+use marginfi::constants::SWITCHBOARD_PULL_ID;
 use pyth_sdk_solana::state::{
     AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
 };
@@ -146,6 +147,16 @@ pub fn create_pyth_push_oracle_account(
     data.extend_from_slice(&account_data);
 
     create_pyth_push_oracle_account_from_bytes(data)
+}
+
+pub fn create_switch_pull_oracle_account_from_bytes(data: Vec<u8>) -> Account {
+    Account {
+        lamports: 1_000_000,
+        data,
+        owner: SWITCHBOARD_PULL_ID,
+        executable: false,
+        rent_epoch: 361,
+    }
 }
 
 pub fn create_switchboard_price_feed(ui_price: i64, mint_decimals: i32) -> Account {

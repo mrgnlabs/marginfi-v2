@@ -1,10 +1,11 @@
-use std::cmp::min;
+use std::{cell::Ref, cmp::min};
 
 use anchor_lang::prelude::*;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
+use switchboard_on_demand::{CurrentResult, PullFeedAccountData};
 use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
@@ -15,7 +16,7 @@ use crate::{
     check,
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL,
-        MIN_PYTH_PUSH_VERIFICATION_LEVEL, PYTH_ID, STD_DEV_MULTIPLE,
+        MIN_PYTH_PUSH_VERIFICATION_LEVEL, PYTH_ID, STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID,
     },
     debug, math_error,
     prelude::*,
@@ -33,6 +34,7 @@ pub enum OracleSetup {
     PythLegacy,
     SwitchboardV2,
     PythPushOracle,
+    SwitchboardPull,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -65,6 +67,7 @@ pub enum OraclePriceFeedAdapter {
     PythLegacy(PythLegacyPriceFeed),
     SwitchboardV2(SwitchboardV2PriceFeed),
     PythPushOracle(PythPushOraclePriceFeed),
+    SwitchboardPull(SwitchboardPullPriceFeed),
 }
 
 impl OraclePriceFeedAdapter {
@@ -134,6 +137,17 @@ impl OraclePriceFeedAdapter {
                     )?,
                 ))
             }
+            OracleSetup::SwitchboardPull => {
+                check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
+                check!(
+                    ais[0].key == &bank_config.oracle_keys[0],
+                    MarginfiError::InvalidOracleAccount
+                );
+
+                Ok(OraclePriceFeedAdapter::SwitchboardPull(
+                    SwitchboardPullPriceFeed::load_checked(&ais[0], clock.unix_timestamp, max_age)?,
+                ))
+            }
         }
     }
 
@@ -172,6 +186,17 @@ impl OraclePriceFeedAdapter {
                     &oracle_ais[0],
                     bank_config.get_pyth_push_oracle_feed_id().unwrap(),
                 )?;
+
+                Ok(())
+            }
+            OracleSetup::SwitchboardPull => {
+                check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
+                check!(
+                    oracle_ais[0].key == &bank_config.oracle_keys[0],
+                    MarginfiError::InvalidOracleAccount
+                );
+
+                SwitchboardPullPriceFeed::check_ais(&oracle_ais[0])?;
 
                 Ok(())
             }
@@ -277,6 +302,119 @@ impl PriceAdapter for PythLegacyPriceFeed {
                         .ok_or_else(math_error!())?),
                 }
             }
+        }
+    }
+}
+
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
+pub struct SwitchboardPullPriceFeed {
+    feed: Box<LitePullFeedAccountData>,
+}
+
+impl SwitchboardPullPriceFeed {
+    pub fn load_checked(
+        ai: &AccountInfo,
+        current_timestamp: i64,
+        max_age: u64,
+    ) -> MarginfiResult<Self> {
+        let ai_data = ai.data.borrow();
+
+        check!(
+            ai.owner.eq(&SWITCHBOARD_PULL_ID),
+            MarginfiError::InvalidOracleAccount
+        );
+
+        let feed =
+            PullFeedAccountData::parse(ai_data).map_err(|_| MarginfiError::InvalidOracleAccount)?;
+
+        // Check staleness
+        let last_updated = feed.last_update_timestamp;
+        if current_timestamp.saturating_sub(last_updated) > max_age as i64 {
+            return err!(MarginfiError::StaleOracle);
+        }
+
+        Ok(Self {
+            feed: Box::new(feed.into()),
+        })
+    }
+
+    fn check_ais(ai: &AccountInfo) -> MarginfiResult {
+        let ai_data = ai.data.borrow();
+
+        check!(
+            ai.owner.eq(&SWITCHBOARD_PULL_ID),
+            MarginfiError::InvalidOracleAccount
+        );
+
+        PullFeedAccountData::parse(ai_data).map_err(|_| MarginfiError::InvalidOracleAccount)?;
+
+        Ok(())
+    }
+
+    fn get_price(&self) -> MarginfiResult<I80F48> {
+        let sw_result = self.feed.result;
+        // Note: Pull oracles support mean (result.mean) or median (result.value)
+        let price: I80F48 = I80F48::from_num(sw_result.value)
+            .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
+            .ok_or_else(math_error!())?;
+
+        // WARNING: Adding a line like the following will cause the entire project to silently fail
+        // to build, resulting in `Program not deployed` errors downstream when testing
+
+        // msg!("recorded price: {:?}", price);
+
+        Ok(price)
+    }
+
+    fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
+        let std_div: I80F48 = I80F48::from_num(self.feed.result.std_dev);
+
+        let conf_interval = std_div
+            .checked_mul(STD_DEV_MULTIPLE)
+            .ok_or_else(math_error!())?;
+
+        let price = self.get_price()?;
+
+        let max_conf_interval = price
+            .checked_mul(MAX_CONF_INTERVAL)
+            .ok_or_else(math_error!())?;
+
+        assert!(
+            max_conf_interval >= I80F48::ZERO,
+            "Negative max confidence interval"
+        );
+
+        assert!(
+            conf_interval >= I80F48::ZERO,
+            "Negative confidence interval"
+        );
+
+        Ok(min(conf_interval, max_conf_interval))
+    }
+}
+
+impl PriceAdapter for SwitchboardPullPriceFeed {
+    fn get_price_of_type(
+        &self,
+        _price_type: OraclePriceType,
+        bias: Option<PriceBias>,
+    ) -> MarginfiResult<I80F48> {
+        let price = self.get_price()?;
+
+        match bias {
+            Some(price_bias) => {
+                let confidence_interval = self.get_confidence_interval()?;
+
+                match price_bias {
+                    PriceBias::Low => Ok(price
+                        .checked_sub(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                    PriceBias::High => Ok(price
+                        .checked_add(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                }
+            }
+            None => Ok(price),
         }
     }
 }
@@ -626,6 +764,29 @@ impl PriceAdapter for PythPushOraclePriceFeed {
     }
 }
 
+/// A slimmed down version of the PullFeedAccountData struct copied from the
+/// switchboard-on-demand/src/pull_feed.rs
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
+struct LitePullFeedAccountData {
+    pub result: CurrentResult,
+}
+
+impl From<&PullFeedAccountData> for LitePullFeedAccountData {
+    fn from(feed: &PullFeedAccountData) -> Self {
+        Self {
+            result: feed.result,
+        }
+    }
+}
+
+impl From<Ref<'_, PullFeedAccountData>> for LitePullFeedAccountData {
+    fn from(feed: Ref<'_, PullFeedAccountData>) -> Self {
+        Self {
+            result: feed.result,
+        }
+    }
+}
+
 /// A slimmed down version of the AggregatorAccountData struct copied from the switchboard-v2/src/aggregator.rs
 #[cfg_attr(feature = "client", derive(Clone, Debug))]
 struct LiteAggregatorAccountData {
@@ -738,6 +899,8 @@ mod tests {
     use fixed_macro::types::I80F48;
     use pretty_assertions::assert_eq;
     use rust_decimal::Decimal;
+
+    use crate::utils::hex_to_bytes;
 
     use super::*;
     #[test]
@@ -1020,5 +1183,93 @@ mod tests {
                 .get_price_of_type(OraclePriceType::RealTime, None)
                 .unwrap()
         );
+    }
+
+    use solana_sdk::account::Account;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    /// Convert an account to info, useful if you only care about data for testing purposes.
+    pub fn account_to_account_info<'a>(
+        account: &'a mut Account,
+        key: &'a Pubkey,
+    ) -> AccountInfo<'a> {
+        AccountInfo {
+            key,
+            lamports: Rc::new(RefCell::new(&mut account.lamports)),
+            data: Rc::new(RefCell::new(&mut account.data[..])),
+            owner: &account.owner,
+            rent_epoch: account.rent_epoch,
+            is_signer: false,
+            is_writable: true,
+            executable: account.executable,
+        }
+    }
+
+    pub fn create_switch_pull_oracle_account_from_bytes(data: Vec<u8>) -> Account {
+        Account {
+            lamports: 1_000_000,
+            data,
+            owner: SWITCHBOARD_PULL_ID,
+            executable: false,
+            rent_epoch: 361,
+        }
+    }
+
+    #[test]
+    fn swb_pull_get_price() {
+        // From mainnet: https://solana.fm/address/BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP
+        // Actual price $155.59404527
+        // conf/Std_dev ~5%
+        let bytes = hex_to_bytes("c41b6cc40ad7db286f5e7566ac000a9530e56b1db49585772719aeaaeeadb4d9bd8c2357b88e9e782e53d81000000000000000000000000000985f538057856308000000000000005cba953f3f15356b17703e554d3983801916531d7976aa424ad64348ec50e4224650d81000000000000000000000000000a0d5a780cc7f580800000000000000a20b742cedab55efd1faf60aef2cb872a092d24dfba8a48c8b953a5e90ac7bbf874ed81000000000000000000000000000c04958360093580800000000000000e7ef024ea756f8beec2eaa40234070da356754a8eeb2ac6a17c32d17c3e99f8ddc50d81000000000000000000000000000bc8739b45d215b0800000000000000e3e5130902c3e9c27917789769f1ae05de15cf504658beafeed2c598a949b3b7bf53d810000000000000000000000000007cec168c94d667080000000000000020e270b743473d87eff321663e267ba1c9a151f7969cef8147f625e9a2af7287ea54d81000000000000000000000000000dc65eccc174d6f0800000000000000ab605484238ac93f225c65f24d7705bb74b00cdb576555c3995e196691a4de5f484ed8100000000000000000000000000088f28dc9271d59080000000000000015196392573dc9043242716f629d4c0fb93bc0cff7a1a10ede24281b0e98fb7d5454d810000000000000000000000000000441a10ca4a268080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000048ac38271f28ab1b12e49439bddf54871094e4832a56c7a8ec57bd18d357980086807068432f186a147cf0b13a30067d386204ea9d6c8b04743ac2ef010b07524c935636f2523f6aeeb6dc7b7dab0e86a13ff2c794f7895fc78851d69fdb593bdccdb36600000000000000000000000000e40b540200000001000000534f4c2f55534400000000000000000000000000000000000000000000000000000000019e9eb66600000000fca3d11000000000000000000000000000000000000000000000000000000000000000000000000000dc65eccc174d6f0800000000000000006c9225e039550300000000000000000070d3c6ecddf76b080000000000000000d8244bc073aa060000000000000000000441a10ca4a268080000000000000000dc65eccc174d6f08000000000000000200000000000000ea54d810000000005454d81000000000ea54d81000000000fa0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+        let mut acc = create_switch_pull_oracle_account_from_bytes(bytes);
+        let key = pubkey!("BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP");
+        let ai = account_to_account_info(&mut acc, &key);
+        let ai_check = SwitchboardPullPriceFeed::check_ais(&ai);
+        assert!(ai_check.is_ok());
+
+        let current_timestamp = 42;
+        let max_age = 100;
+        let feed: SwitchboardPullPriceFeed =
+            SwitchboardPullPriceFeed::load_checked(&ai, current_timestamp, max_age).unwrap();
+        let price: I80F48 = feed.get_price().unwrap();
+        let conf: I80F48 = feed.get_confidence_interval().unwrap();
+
+        //println!("price: {:?}, conf: {:?}", price, conf);
+
+        let target_price: I80F48 = I80F48::from_num(155); // Target price is $155
+        let price_tolerance: I80F48 = target_price * I80F48::from_num(0.01);
+
+        let target_conf: I80F48 = target_price * I80F48::from_num(0.05);
+        let conf_tolerance: I80F48 = target_conf * I80F48::from_num(0.005);
+
+        let min_price: I80F48 = target_price.checked_sub(price_tolerance).unwrap();
+        let max_price: I80F48 = target_price.checked_add(price_tolerance).unwrap();
+        assert!(price >= min_price && price <= max_price);
+
+        let min_conf: I80F48 = target_conf.checked_sub(conf_tolerance).unwrap();
+        let max_conf: I80F48 = target_conf.checked_add(conf_tolerance).unwrap();
+        assert!(conf >= min_conf && conf <= max_conf);
+
+        let price_bias_none: I80F48 = feed
+            .get_price_of_type(OraclePriceType::RealTime, None)
+            .unwrap();
+        assert_eq!(price, price_bias_none);
+
+        let price_bias_low: I80F48 = feed
+            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
+            .unwrap();
+        let target_price_low: I80F48 = target_price.checked_sub(target_conf).unwrap();
+        let min_price: I80F48 = target_price_low.checked_sub(price_tolerance).unwrap();
+        let max_price: I80F48 = target_price_low.checked_add(price_tolerance).unwrap();
+        assert!(price_bias_low >= min_price && price_bias_low <= max_price);
+
+        let price_bias_high: I80F48 = feed
+            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))
+            .unwrap();
+        let target_price_high: I80F48 = target_price.checked_add(target_conf).unwrap();
+        let min_price: I80F48 = target_price_high.checked_sub(price_tolerance).unwrap();
+        let max_price: I80F48 = target_price_high.checked_add(price_tolerance).unwrap();
+        assert!(price_bias_high >= min_price && price_bias_high <= max_price);
     }
 }
