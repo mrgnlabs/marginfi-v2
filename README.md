@@ -96,6 +96,8 @@ You may also need to build the liquidity incentive program and mock program:
 - `anchor build -p mocks`
 - `anchor build -p liquidity_incentive_program -- --no-default-features`
 
+Remember to `yarn install`
+
 Run the tests:
 
 `anchor test --skip-build`

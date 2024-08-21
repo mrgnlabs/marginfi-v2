@@ -114,3 +114,28 @@ jobs:
           cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
+
+  localnet-test-marginfi:
+    name: Build And Test Marginfi Program
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/setup-common/
+      - uses: ./.github/actions/setup-anchor-cli/
+
+      - name: Install Node.js dependencies
+        run: yarn install
+
+      - name: Build marginfi program
+        run: anchor build -p marginfi --no-default-features
+
+      - name: Build liquidity incentive program
+        run: anchor build -p liquidity_incentive_program --no-default-features
+
+      - name: Build mocks program
+        run: anchor build -p mocks
+
+      - name: Run tests
+        run: anchor test --skip-build
