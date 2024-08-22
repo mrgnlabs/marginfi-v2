@@ -284,6 +284,7 @@ pub struct InterestRateConfigOpt {
     pub insurance_ir_fee: Option<WrappedI80F48>,
     pub protocol_fixed_fee_apr: Option<WrappedI80F48>,
     pub protocol_ir_fee: Option<WrappedI80F48>,
+    pub protocol_origination_fee: Option<WrappedI80F48>,
 }
 
 assert_struct_size!(Bank, 1856);

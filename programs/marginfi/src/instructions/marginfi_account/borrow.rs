@@ -63,7 +63,7 @@ pub fn lending_account_borrow<'info>(
         let origination_fee_rate: I80F48 = bank
             .config
             .interest_rate_config
-            .protocol_origination_fee // <- a new configurable fee...
+            .protocol_origination_fee
             .into();
 
         let mut bank_account = BankAccountWrapper::find_or_create(
@@ -84,33 +84,42 @@ pub fn lending_account_borrow<'info>(
             })
             .transpose()?
             .unwrap_or(amount);
-        let origination_fee: I80F48 = I80F48::from_num(amount_pre_fee)
-            .checked_mul(origination_fee_rate)
-            .ok_or_else(math_error!())?;
-        let origination_fee_u64: u64 = origination_fee.checked_to_num().ok_or_else(math_error!())?;
 
-        // Incurs a borrow that includes the origination fee, but withdraws just the amt
-        bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee)?;
+        let origination_fee_u64: u64;
+        if !origination_fee_rate.is_zero() {
+            let origination_fee: I80F48 = I80F48::from_num(amount_pre_fee)
+                .checked_mul(origination_fee_rate)
+                .ok_or_else(math_error!())?;
+            origination_fee_u64 = origination_fee.checked_to_num().ok_or_else(math_error!())?;
+
+            // Incurs a borrow that includes the origination fee (but withdraws just the amt)
+            bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee)?;
+
+            // The bank fee account gains the origination fee
+            bank_account.withdraw_spl_transfer(
+                origination_fee_u64,
+                bank_liquidity_vault.to_account_info(),
+                fee_vault.to_account_info(),
+                bank_liquidity_vault_authority.to_account_info(),
+                maybe_bank_mint.as_ref(),
+                token_program.to_account_info(),
+                bank_signer!(
+                    BankVaultType::Liquidity,
+                    bank_loader.key(),
+                    liquidity_vault_authority_bump
+                ),
+                ctx.remaining_accounts,
+            )?;
+        } else {
+            // Incurs a borrow for the amount without any fee
+            origination_fee_u64 = 0;
+            bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
+        }
+
         bank_account.withdraw_spl_transfer(
             amount_pre_fee,
             bank_liquidity_vault.to_account_info(),
             destination_token_account.to_account_info(),
-            bank_liquidity_vault_authority.to_account_info(),
-            maybe_bank_mint.as_ref(),
-            token_program.to_account_info(),
-            bank_signer!(
-                BankVaultType::Liquidity,
-                bank_loader.key(),
-                liquidity_vault_authority_bump
-            ),
-            ctx.remaining_accounts,
-        )?;
-
-        // The bank fee account gains the origination fee
-        bank_account.withdraw_spl_transfer(
-            origination_fee_u64,
-            bank_liquidity_vault.to_account_info(),
-            fee_vault.to_account_info(),
             bank_liquidity_vault_authority.to_account_info(),
             maybe_bank_mint.as_ref(),
             token_program.to_account_info(),
