@@ -140,7 +140,7 @@ pub fn lending_account_borrow<'info>(
             },
             bank: bank_loader.key(),
             mint: bank.mint,
-            amount_pre_fee: amount_pre_fee,
+            amount_pre_fee,
             fee: origination_fee_u64
         });
     }
