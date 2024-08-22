@@ -11,14 +11,16 @@ if [ -z "$program_lib_name" ] || [ -z "$cluster" ]; then
 fi
 
 if [ "$cluster" = "mainnet" ]; then
-    cluster_feature="mainnet-beta"
+    features="--features mainnet-beta"
 elif [ "$cluster" = "devnet" ]; then
-    cluster_feature=" devnet"
+    features="--features devnet --no-default-features"
+elif [ "$cluster" = "staging" ]; then
+    features="--features staging --no-default-features"
 else
     echo "Error: Unknown cluster: $cluster"
     exit 1
 fi
 
-cmd="anchor build -p $program_lib_name -- --features $cluster_feature"
+cmd="anchor build -p $program_lib_name -- $features"
 echo "Running: $cmd"
 eval "$cmd"

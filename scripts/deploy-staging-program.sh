@@ -23,6 +23,9 @@ deployer_key_path=$1
 program_address_or_keypair=$2
 [ -z "$program_address_or_keypair" ] && echo "Missing program_address_or_keypair argument" && exit 1
 
+rpc_url=$3
+[ -z "$rpc_url" ] && echo "Missing rpc_url argument" && exit 1
+
 deployer_pk=$(solana-keygen pubkey $deployer_key_path)
 deployer_balance=$(solana balance $deployer_key_path)
 set +e
@@ -69,7 +72,7 @@ fi
 
 solana program deploy \
  --use-rpc \
- --url $url \
+ --url $rpc_url \
  --fee-payer $deployer_key_path \
  --keypair $deployer_key_path \
  --program-id $program_address_or_keypair \
