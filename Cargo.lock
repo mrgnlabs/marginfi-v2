@@ -2954,6 +2954,7 @@ dependencies = [
  "solana-sdk",
  "spl-associated-token-account 2.3.0",
  "spl-token 4.0.0",
+ "switchboard-on-demand",
  "switchboard-solana",
  "type-layout",
 ]

@@ -80,6 +80,9 @@ pub enum Command {
     FindPythPull {
         feed_id: String,
     },
+    InspectSwbPullFeed {
+        address: Pubkey,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -450,6 +453,14 @@ pub fn entry(opts: Opts) -> Result<()> {
             let rpc = config.mfi_program.rpc();
 
             find_pyth_push_oracles_for_feed_id(&rpc, feed_id)?;
+
+            Ok(())
+        }
+        Command::InspectSwbPullFeed { address } => {
+            let profile = load_profile()?;
+            let config = profile.get_config(Some(&opts.cfg_override))?;
+
+            processor::oracle::inspect_swb_pull_feed(&config, address)?;
 
             Ok(())
         }
