@@ -1,9 +1,13 @@
-use pyth_solana_receiver_sdk::price_update::FeedId;
+use crate::config::Config;
+use borsh::BorshDeserialize;
+use marginfi::state::price::{PriceAdapter, PythPushOraclePriceFeed};
+use pyth_solana_receiver_sdk::price_update::{FeedId, PriceUpdateV2};
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
 use solana_sdk::account_info::IntoAccountInfo;
+use solana_sdk::pubkey::Pubkey;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn find_pyth_push_oracles_for_feed_id(
@@ -42,6 +46,29 @@ pub fn find_pyth_push_oracles_for_feed_id(
             address, feed_id_hex, verification_level, age_secs
         );
     }
+
+    Ok(())
+}
+
+pub fn inspect_pyth_push_feed(config: &Config, address: Pubkey) -> anyhow::Result<()> {
+    let mut account = config.mfi_program.rpc().get_account(&address)?;
+    let ai = (&address, &mut account).into_account_info();
+
+    let mut data = &ai.try_borrow_data()?[8..];
+    let price_update = PriceUpdateV2::deserialize(&mut data)?;
+
+    println!("Pyth Push Feed: {}", address);
+    let feed = PythPushOraclePriceFeed::load_unchecked(&ai)?;
+
+    println!(
+        "Price: {}",
+        feed.get_price_of_type(marginfi::state::price::OraclePriceType::RealTime, None)?
+    );
+
+    let feed_id = price_update.price_message.feed_id;
+
+    println!("Feed id: {:?}", feed_id);
+    println!("Feed id hex: 0x{}", hex::encode(feed_id));
 
     Ok(())
 }

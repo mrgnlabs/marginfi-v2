@@ -20,7 +20,6 @@ use {
     },
     anchor_spl::token_2022::spl_token_2022,
     anyhow::{anyhow, bail, Result},
-    borsh::BorshDeserialize,
     fixed::types::I80F48,
     log::info,
     marginfi::{
@@ -40,7 +39,6 @@ use {
         utils::NumTraitsWithTolerance,
     },
     pyth_sdk_solana::state::{load_price_account, SolanaPriceAccount},
-    pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{
         rpc_client::RpcClient,
         rpc_filter::{Memcmp, RpcFilterType},
@@ -2393,24 +2391,4 @@ fn timestamp_to_string(timestamp: i64) -> String {
     )
     .format("%Y-%m-%d %H:%M:%S")
     .to_string()
-}
-
-pub fn inspect_pyth_push_feed(config: &Config, address: Pubkey) -> anyhow::Result<()> {
-    let mut account = config.mfi_program.rpc().get_account(&address)?;
-    let ai = (&address, &mut account).into_account_info();
-
-    let mut data = &ai.try_borrow_data()?[8..];
-    let price_update = PriceUpdateV2::deserialize(&mut data)?;
-
-    println!("Pyth Push Feed: {}", address);
-    let feed = PythPushOraclePriceFeed::load_unchecked(&ai)?;
-
-    println!(
-        "Price: {}",
-        feed.get_price_of_type(marginfi::state::price::OraclePriceType::RealTime, None)?
-    );
-
-    println!("Feed id: {:?}", price_update.price_message.feed_id);
-
-    Ok(())
 }
