@@ -30,5 +30,5 @@ test-ledger/
 *.json
 
 # Allow specific json files
-!tests/fixtures/bonk_bank.json
-!tests/fixtures/cloud_bank.json
+!tests/fixtures/**/*.json
+!programs/marginfi/tests/fixtures/**/*.json
