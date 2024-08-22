@@ -292,6 +292,7 @@ assert_struct_align!(Bank, 8);
 pub struct Bank {
     pub mint: Pubkey,
     pub mint_decimals: u8,
+
     pub group: Pubkey,
 
     // Note: The padding is here, not after mint_decimals. Pubkey has alignment 1, so those 32
