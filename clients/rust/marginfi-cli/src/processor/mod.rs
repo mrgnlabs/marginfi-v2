@@ -299,6 +299,7 @@ pub fn group_add_bank(
     bank_mint: Pubkey,
     seed: bool,
     oracle_key: Pubkey,
+    feed_id: Option<Pubkey>,
     oracle_setup: crate::OracleTypeArg,
     asset_weight_init: f64,
     asset_weight_maint: f64,
@@ -315,6 +316,7 @@ pub fn group_add_bank(
     protocol_ir_fee: f64,
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
+    compute_unit_price: Option<u64>,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
@@ -371,6 +373,7 @@ pub fn group_add_bank(
             bank_mint,
             token_program,
             oracle_key,
+            feed_id,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,
@@ -390,6 +393,7 @@ pub fn group_add_bank(
             token_program,
             &bank_keypair,
             oracle_key,
+            feed_id,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,
@@ -403,7 +407,9 @@ pub fn group_add_bank(
         )?
     };
 
-    let mut ixs = vec![ComputeBudgetInstruction::set_compute_unit_price(1)];
+    let mut ixs = vec![ComputeBudgetInstruction::set_compute_unit_price(
+        compute_unit_price.unwrap_or(1),
+    )];
     ixs.extend(add_bank_ixs);
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
@@ -428,6 +434,7 @@ fn create_bank_ix_with_seed(
     bank_mint: Pubkey,
     token_program: Pubkey,
     oracle_key: Pubkey,
+    feed_id: Option<Pubkey>,
     asset_weight_init: WrappedI80F48,
     asset_weight_maint: WrappedI80F48,
     liability_weight_init: WrappedI80F48,
@@ -520,7 +527,7 @@ fn create_bank_ix_with_seed(
                 interest_rate_config,
                 operational_state: BankOperationalState::Operational,
                 oracle_setup: oracle_setup.into(),
-                oracle_keys: create_oracle_key_array(oracle_key),
+                oracle_keys: create_oracle_key_array(feed_id.unwrap_or(oracle_key)),
                 risk_tier: risk_tier.into(),
                 oracle_max_age,
                 ..BankConfig::default()
@@ -544,6 +551,7 @@ fn create_bank_ix(
     token_program: Pubkey,
     bank_keypair: &Keypair,
     oracle_key: Pubkey,
+    feed_id: Option<Pubkey>,
     asset_weight_init: WrappedI80F48,
     asset_weight_maint: WrappedI80F48,
     liability_weight_init: WrappedI80F48,
@@ -615,7 +623,7 @@ fn create_bank_ix(
                 interest_rate_config,
                 operational_state: BankOperationalState::Operational,
                 oracle_setup: oracle_setup.into(),
-                oracle_keys: create_oracle_key_array(oracle_key),
+                oracle_keys: create_oracle_key_array(feed_id.unwrap_or(oracle_key)),
                 risk_tier: risk_tier.into(),
                 oracle_max_age,
                 ..BankConfig::default()
@@ -1670,6 +1678,7 @@ pub fn list_profiles() -> Result<()> {
 #[allow(clippy::too_many_arguments)]
 pub fn configure_profile(
     name: String,
+    new_name: Option<String>,
     cluster: Option<Cluster>,
     keypair_path: Option<String>,
     multisig: Option<Pubkey>,
@@ -1680,7 +1689,9 @@ pub fn configure_profile(
     account: Option<Pubkey>,
 ) -> Result<()> {
     let mut profile = profile::load_profile_by_name(&name)?;
+    let using_new_name = new_name.is_some();
     profile.config(
+        new_name,
         cluster,
         keypair_path,
         multisig,
@@ -1691,7 +1702,18 @@ pub fn configure_profile(
         account,
     )?;
 
+    if using_new_name {
+        if let Err(e) = profile::delete_profile_by_name(&name) {
+            println!("failed to delete old profile {name}: {e:?}");
+            return Err(e);
+        }
+    }
+
     Ok(())
+}
+
+pub fn delete_profile(name: String) -> Result<()> {
+    profile::delete_profile_by_name(&name)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1812,6 +1834,7 @@ pub fn marginfi_account_use(
     }
 
     profile.config(
+        None,
         None,
         None,
         None,
@@ -2282,6 +2305,7 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
     let mut profile = profile.clone();
 
     profile.config(
+        None,
         None,
         None,
         None,

@@ -118,7 +118,9 @@ pub enum GroupCommand {
         #[clap(long)]
         borrow_limit_ui: u64,
         #[clap(long)]
-        pyth_oracle: Pubkey,
+        oracle_key: Pubkey,
+        #[clap(long)]
+        feed_id: Option<Pubkey>,
         #[clap(long)]
         optimal_utilization_rate: f64,
         #[clap(long)]
@@ -340,6 +342,8 @@ pub enum ProfileCommand {
     Update {
         name: String,
         #[clap(long)]
+        new_name: Option<String>,
+        #[clap(long)]
         cluster: Option<Cluster>,
         #[clap(long)]
         keypair_path: Option<String>,
@@ -355,6 +359,9 @@ pub enum ProfileCommand {
         group: Option<Pubkey>,
         #[clap(long)]
         account: Option<Pubkey>,
+    },
+    Delete {
+        name: String,
     },
 }
 
@@ -502,9 +509,11 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             commitment,
             group,
             name,
+            new_name,
             account,
         } => processor::configure_profile(
             name,
+            new_name,
             cluster,
             keypair_path,
             multisig,
@@ -514,6 +523,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             group,
             account,
         ),
+        ProfileCommand::Delete { name } => processor::delete_profile(name),
     }
 }
 
@@ -550,7 +560,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            pyth_oracle,
+            oracle_key,
+            feed_id,
             optimal_utilization_rate,
             plateau_interest_rate,
             max_interest_rate,
@@ -568,7 +579,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             profile,
             bank_mint,
             seed,
-            pyth_oracle,
+            oracle_key,
+            feed_id,
             oracle_type,
             asset_weight_init,
             asset_weight_maint,
@@ -585,6 +597,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_ir_fee,
             risk_tier,
             oracle_max_age,
+            global_options.compute_unit_price,
         ),
 
         GroupCommand::HandleBankruptcy { accounts } => {
