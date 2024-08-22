@@ -138,17 +138,17 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
 #[derive(Default, Debug)]
 pub struct InterestRateConfig {
     // Curve Params
-    pub optimal_utilization_rate: WrappedI80F48, // 360 - 376
-    pub plateau_interest_rate: WrappedI80F48,    // 376 - 392
-    pub max_interest_rate: WrappedI80F48,        // 392 - 408
+    pub optimal_utilization_rate: WrappedI80F48,
+    pub plateau_interest_rate: WrappedI80F48,
+    pub max_interest_rate: WrappedI80F48,
 
     // Fees
-    pub insurance_fee_fixed_apr: WrappedI80F48, // 408 - 424
-    pub insurance_ir_fee: WrappedI80F48,        // 424 - 440
-    pub protocol_fixed_fee_apr: WrappedI80F48,  // 440 - 456
-    pub protocol_ir_fee: WrappedI80F48,         // 456 - 472
+    pub insurance_fee_fixed_apr: WrappedI80F48,
+    pub insurance_ir_fee: WrappedI80F48,
+    pub protocol_fixed_fee_apr: WrappedI80F48,
+    pub protocol_ir_fee: WrappedI80F48,
 
-    pub _padding: [[u64; 2]; 8], // 16 * 8 = 128 bytes (472 - 600)
+    pub _padding: [[u64; 2]; 8], // 16 * 8 = 128 bytes
 }
 
 impl InterestRateConfig {
@@ -290,43 +290,43 @@ assert_struct_align!(Bank, 8);
 )]
 #[derive(Default)]
 pub struct Bank {
-    pub mint: Pubkey,      // 0 - 32
-    pub mint_decimals: u8, // 32
-    pub group: Pubkey,     // 33 - 65
+    pub mint: Pubkey,
+    pub mint_decimals: u8,
+    pub group: Pubkey,
 
     // Note: The padding is here, not after mint_decimals. Pubkey has alignment 1, so those 32
     // bytes can cross the alignment 8 threshold, but WrappedI80F48 has alignment 8 and cannot
     pub _pad0: [u8; 7], // 1x u8 + 7 = 8
 
-    pub asset_share_value: WrappedI80F48,     // 72 - 88
-    pub liability_share_value: WrappedI80F48, // 88 - 104
+    pub asset_share_value: WrappedI80F48,
+    pub liability_share_value: WrappedI80F48,
 
-    pub liquidity_vault: Pubkey,            // 104 - 136
-    pub liquidity_vault_bump: u8,           // 136
-    pub liquidity_vault_authority_bump: u8, // 137
+    pub liquidity_vault: Pubkey,
+    pub liquidity_vault_bump: u8,
+    pub liquidity_vault_authority_bump: u8,
 
-    pub insurance_vault: Pubkey,            // 138 - 170
-    pub insurance_vault_bump: u8,           // 170
-    pub insurance_vault_authority_bump: u8, // 171
+    pub insurance_vault: Pubkey,
+    pub insurance_vault_bump: u8,
+    pub insurance_vault_authority_bump: u8,
 
     pub _pad1: [u8; 4], // 4x u8 + 4 = 8
 
-    pub collected_insurance_fees_outstanding: WrappedI80F48, // 176 - 192
+    pub collected_insurance_fees_outstanding: WrappedI80F48,
 
-    pub fee_vault: Pubkey,            // 192 - 224
-    pub fee_vault_bump: u8,           // 224
-    pub fee_vault_authority_bump: u8, // 225
+    pub fee_vault: Pubkey,
+    pub fee_vault_bump: u8,
+    pub fee_vault_authority_bump: u8,
 
     pub _pad2: [u8; 6], // 2x u8 + 6 = 8
 
-    pub collected_group_fees_outstanding: WrappedI80F48, // 232 - 248
+    pub collected_group_fees_outstanding: WrappedI80F48,
 
-    pub total_liability_shares: WrappedI80F48, // 248 - 264
-    pub total_asset_shares: WrappedI80F48,     // 264 - 280
+    pub total_liability_shares: WrappedI80F48,
+    pub total_asset_shares: WrappedI80F48,
 
-    pub last_update: i64, // 280 - 288
+    pub last_update: i64,
 
-    pub config: BankConfig, // 288 - 832
+    pub config: BankConfig,
 
     /// Bank Config Flags
     ///
@@ -334,12 +334,12 @@ pub struct Bank {
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
     ///
-    pub flags: u64, // 832 - 840
+    pub flags: u64,
     /// Emissions APR.
     /// Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens (bank mint) (native amount) per 1 YEAR.
     pub emissions_rate: u64, // 840 - 848
-    pub emissions_remaining: WrappedI80F48, // 848 - 864
-    pub emissions_mint: Pubkey,             // 864 - 896
+    pub emissions_remaining: WrappedI80F48,
+    pub emissions_mint: Pubkey,
 
     pub _padding_0: [[u64; 2]; 28],
     pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
@@ -1055,29 +1055,28 @@ assert_struct_align!(BankConfig, 8);
 #[derive(Debug)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
-    pub asset_weight_init: WrappedI80F48,  // 288 - 304
-    pub asset_weight_maint: WrappedI80F48, // 304 - 320
+    pub asset_weight_init: WrappedI80F48,
+    pub asset_weight_maint: WrappedI80F48,
 
-    pub liability_weight_init: WrappedI80F48,  // 320 - 336
-    pub liability_weight_maint: WrappedI80F48, // 336 - 352
+    pub liability_weight_init: WrappedI80F48,
+    pub liability_weight_maint: WrappedI80F48,
 
-    pub deposit_limit: u64, // 352 - 360
+    pub deposit_limit: u64,
 
-    pub interest_rate_config: InterestRateConfig, // 360 - 600
-    pub operational_state: BankOperationalState,  // 600
+    pub interest_rate_config: InterestRateConfig,
+    pub operational_state: BankOperationalState,
 
-    pub oracle_setup: OracleSetup,              // 601
-    pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS], // 602 - 762
-    // Note: Key 0 at 602 - 634, and so forth.
+    pub oracle_setup: OracleSetup,
+    pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS],
 
     // Note: Pubkey is aligned 1, so borrow_limit is the first aligned-8 value after deposit_limit
     pub _pad0: [u8; 6], // Bank state (1) + Oracle Setup (1) + 6 = 8
 
-    pub borrow_limit: u64, // 768 - 776
+    pub borrow_limit: u64,
 
-    pub risk_tier: RiskTier, // 776
+    pub risk_tier: RiskTier,
 
-    pub _pad1: [u8; 7], // 777 - 784
+    pub _pad1: [u8; 7],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1087,10 +1086,10 @@ pub struct BankConfig {
     /// This is useful for limiting the damage of orcale attacks.
     ///
     /// Value is UI USD value, for example value 100 -> $100
-    pub total_asset_value_init_limit: u64, // 784 - 792
+    pub total_asset_value_init_limit: u64,
 
     /// Time window in seconds for the oracle price feed to be considered live.
-    pub oracle_max_age: u16, // 792  - 794
+    pub oracle_max_age: u16,
 
     pub _padding: [u8; 38],
 }
