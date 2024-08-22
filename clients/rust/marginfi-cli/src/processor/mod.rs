@@ -2074,6 +2074,7 @@ pub fn marginfi_account_borrow(
                 &config.program_id,
             )
             .0,
+            fee_vault: find_bank_vault_pda(&bank_pk, BankVaultType::Fee, &config.program_id).0,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingAccountBorrow { amount }.data(),

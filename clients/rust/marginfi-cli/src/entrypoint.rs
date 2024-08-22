@@ -242,6 +242,8 @@ pub enum BankCommand {
         pf_fa: Option<f64>,
         #[clap(long, help = "Protocol IR fee")]
         pf_ir: Option<f64>,
+        #[clap(long, help = "Protocol origination fee")]
+        pf_or: Option<f64>,
         #[clap(long, arg_enum, help = "Bank risk tier")]
         risk_tier: Option<RiskTierArg>,
         #[clap(long, arg_enum, help = "Bank oracle type")]
@@ -623,6 +625,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             if_ir,
             pf_fa,
             pf_ir,
+            pf_or,
             risk_tier,
             oracle_type,
             oracle_key,
@@ -672,6 +675,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                         insurance_ir_fee: if_ir.map(|x| I80F48::from_num(x).into()),
                         protocol_fixed_fee_apr: pf_fa.map(|x| I80F48::from_num(x).into()),
                         protocol_ir_fee: pf_ir.map(|x| I80F48::from_num(x).into()),
+                        protocol_origination_fee: pf_or.map(|x| I80F48::from_num(x).into()),
                     }),
                     risk_tier: risk_tier.map(|x| x.into()),
                     total_asset_value_init_limit: usd_init_limit,
