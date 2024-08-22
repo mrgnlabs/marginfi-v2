@@ -1018,8 +1018,7 @@ impl From<BankConfigCompact> for BankConfig {
             _pad1: [0; 7],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
-            _pad2: [0; 6],
-            _padding: [0; 32],
+            _padding: [0; 38],
         }
     }
 }
@@ -1093,9 +1092,7 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16, // 792  - 794
 
-    pub _pad2: [u8; 6], // 1x u16 + 6 = 8
-
-    pub _padding: [u8; 32],
+    pub _padding: [u8; 38],
 }
 
 impl Default for BankConfig {
@@ -1116,8 +1113,7 @@ impl Default for BankConfig {
             _pad1: [0; 7],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
-            _pad2: [0; 6],
-            _padding: [0; 32],
+            _padding: [0; 38],
         }
     }
 }

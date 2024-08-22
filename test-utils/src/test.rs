@@ -513,19 +513,19 @@ impl TestFixture {
         program.add_account(
             PYTH_SOL_REAL_FEED,
             create_pyth_legacy_price_account_from_bytes(
-                include_bytes!("../data/H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG.bin").to_vec(),
+                include_bytes!("../data/pyth_legacy_sol_price.bin").to_vec(),
             ),
         );
         program.add_account(
             PYTH_USDC_REAL_FEED,
             create_pyth_legacy_price_account_from_bytes(
-                include_bytes!("../data/Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD.bin").to_vec(),
+                include_bytes!("../data/pyth_legacy_usdc_price.bin").to_vec(),
             ),
         );
         program.add_account(
             PYTH_PUSH_SOL_REAL_FEED,
             create_pyth_push_oracle_account_from_bytes(
-                include_bytes!("../data/7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE.bin").to_vec(),
+                include_bytes!("../data/pyth_push_sol_price.bin").to_vec(),
             ),
         );
 
@@ -534,7 +534,7 @@ impl TestFixture {
         program.add_account(
             SWITCH_PULL_SOL_REAL_FEED,
             create_switch_pull_oracle_account_from_bytes(
-                include_bytes!("../data/BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP.bin").to_vec(),
+                include_bytes!("../data/swb_pull_sol_price.bin").to_vec(),
             ),
         );
 
