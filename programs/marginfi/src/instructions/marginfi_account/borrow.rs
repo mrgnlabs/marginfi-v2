@@ -1,7 +1,8 @@
 use crate::{
     bank_signer, check,
-    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
+    constants::{FEE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     events::{AccountEventHeader, LendingAccountBorrowEvent},
+    math_error,
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
@@ -32,6 +33,7 @@ pub fn lending_account_borrow<'info>(
         token_program,
         bank_liquidity_vault_authority,
         bank: bank_loader,
+        fee_vault,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
@@ -84,14 +86,31 @@ pub fn lending_account_borrow<'info>(
             .unwrap_or(amount);
         let origination_fee: I80F48 = I80F48::from_num(amount_pre_fee)
             .checked_mul(origination_fee_rate)
-            .unwrap(); // TODO wrap in ok_or error
+            .ok_or_else(math_error!())?;
+        let origination_fee_u64: u64 = origination_fee.checked_to_num().ok_or_else(math_error!())?;
 
-        // Note: Incurs a borrow that includes the origination fee, but withdraws just the amt
+        // Incurs a borrow that includes the origination fee, but withdraws just the amt
         bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee)?;
         bank_account.withdraw_spl_transfer(
             amount_pre_fee,
             bank_liquidity_vault.to_account_info(),
             destination_token_account.to_account_info(),
+            bank_liquidity_vault_authority.to_account_info(),
+            maybe_bank_mint.as_ref(),
+            token_program.to_account_info(),
+            bank_signer!(
+                BankVaultType::Liquidity,
+                bank_loader.key(),
+                liquidity_vault_authority_bump
+            ),
+            ctx.remaining_accounts,
+        )?;
+
+        // The bank fee account gains the origination fee
+        bank_account.withdraw_spl_transfer(
+            origination_fee_u64,
+            bank_liquidity_vault.to_account_info(),
+            fee_vault.to_account_info(),
             bank_liquidity_vault_authority.to_account_info(),
             maybe_bank_mint.as_ref(),
             token_program.to_account_info(),
@@ -112,7 +131,8 @@ pub fn lending_account_borrow<'info>(
             },
             bank: bank_loader.key(),
             mint: bank.mint,
-            amount: amount_pre_fee,
+            amount_pre_fee: amount_pre_fee,
+            fee: origination_fee_u64
         });
     }
 
@@ -167,6 +187,16 @@ pub struct LendingAccountBorrow<'info> {
         bump = bank.load() ?.liquidity_vault_bump,
     )]
     pub bank_liquidity_vault: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        seeds = [
+            FEE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub fee_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }

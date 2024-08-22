@@ -105,7 +105,8 @@ pub struct LendingAccountBorrowEvent {
     pub header: AccountEventHeader,
     pub bank: Pubkey,
     pub mint: Pubkey,
-    pub amount: u64,
+    pub amount_pre_fee: u64,
+    pub fee: u64
 }
 
 #[event]

@@ -153,8 +153,8 @@ pub struct InterestRateConfig {
     pub protocol_ir_fee: WrappedI80F48,
     pub protocol_origination_fee: WrappedI80F48,
 
-    _padding0: [u8; 16],
-    _padding1: [[u8; 32]; 3]
+    pub _padding0: [u8; 16],
+    pub _padding1: [[u8; 32]; 3]
 }
 
 impl InterestRateConfig {
