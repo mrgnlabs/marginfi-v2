@@ -142,12 +142,18 @@ jobs:
       - name: Start Solana Test Validator
         run: |
           solana-test-validator --reset --limit-ledger-size 1000 \
-          --bpf-program Lip1111111111111111111111111111111111111111 target/deploy/liquidity_incentive_program.so \
-          --bpf-program 2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr target/deploy/marginfi.so \
-          --bpf-program 5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C target/deploy/mocks.so &
 
       - name: Wait for Validator to Start
-        run: sleep 60 
+        run: sleep 60
+
+      - name: Deploy Liquidity Incentive Program
+        run: solana program deploy --program-id Lip1111111111111111111111111111111111111111 target/deploy/liquidity_incentive_program.so
+
+      - name: Deploy Marginfi Program
+        run: solana program deploy --program-id 2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr target/deploy/marginfi.so
+
+      - name: Deploy Mocks Program
+        run: solana program deploy --program-id 5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C target/deploy/mocks.so
 
       - name: Run tests
         run: anchor test --skip-build --skip-local-validator
