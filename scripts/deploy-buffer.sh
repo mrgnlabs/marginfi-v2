@@ -3,23 +3,14 @@ ROOT=$(git rev-parse --show-toplevel)
 cd $ROOT
 
 program_lib_name=$1
-cluster=$2
+rpc_url=$2
 keypair=$3
 
-if [ -z "$keypair" ] || [ -z "$program_lib_name" ] || [ -z "$cluster" ]; then
-    echo "Usage: $0 <program_lib_name> <cluster> <keypair>"
+if [ -z "$program_lib_name" ] || [ -z "$rpc_url" ] || [ -z "$keypair" ]; then
+    echo "Usage: $0 <program_lib_name> <rpc_url> <keypair>"
     exit 1
 fi
 
-if [ "$cluster" = "mainnet" ]; then
-    url_moniker="https://api.mainnet-beta.solana.com"
-elif [ "$cluster" = "devnet" ]; then
-    url_moniker="https://api.devnet.solana.com"
-else
-    echo "Error: Unknown cluster: $cluster"
-    exit 1
-fi
-
-cmd="solana --url $url_moniker program write-buffer "$ROOT/target/deploy/$program_lib_name.so" -k $keypair"
+cmd="solana --url $rpc_url program write-buffer "$ROOT/target/deploy/$program_lib_name.so" -k $keypair"
 echo "Running: $cmd"
 eval "$cmd"
