@@ -337,7 +337,7 @@ pub struct Bank {
     pub flags: u64,
     /// Emissions APR.
     /// Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens (bank mint) (native amount) per 1 YEAR.
-    pub emissions_rate: u64, // 840 - 848
+    pub emissions_rate: u64,
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
