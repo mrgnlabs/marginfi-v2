@@ -125,11 +125,10 @@ jobs:
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
 
+      - uses: ./.github/actions/build-workspace/
+
       - name: Install Node.js dependencies
         run: yarn install
-
-      - name: Build workspace
-        run: anchor build
 
       - name: Build marginfi program
         run: anchor build -p marginfi -- --no-default-features
