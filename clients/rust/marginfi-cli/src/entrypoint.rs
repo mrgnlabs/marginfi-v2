@@ -175,6 +175,7 @@ pub enum OracleTypeArg {
     PythLegacy,
     Switchboard,
     PythPushOracle,
+    SwitchboardPull,
 }
 
 impl From<OracleTypeArg> for OracleSetup {
@@ -183,6 +184,7 @@ impl From<OracleTypeArg> for OracleSetup {
             OracleTypeArg::PythLegacy => OracleSetup::PythLegacy,
             OracleTypeArg::Switchboard => OracleSetup::SwitchboardV2,
             OracleTypeArg::PythPushOracle => OracleSetup::PythPushOracle,
+            OracleTypeArg::SwitchboardPull => OracleSetup::SwitchboardPull,
         }
     }
 }
