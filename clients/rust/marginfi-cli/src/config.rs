@@ -37,6 +37,9 @@ pub struct GlobalOptions {
         default_value_t = false
     )]
     pub skip_confirmation: bool,
+
+    #[clap(global = true, long)]
+    pub compute_unit_price: Option<u64>,
 }
 
 #[derive(Copy, Clone, Debug)]
