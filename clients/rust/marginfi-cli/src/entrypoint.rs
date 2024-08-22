@@ -173,7 +173,7 @@ impl From<RiskTierArg> for RiskTier {
 #[derive(Clone, Copy, Debug, Parser, ArgEnum)]
 pub enum OracleTypeArg {
     PythLegacy,
-    Switchboard,
+    SwitchboardLegacy,
     PythPushOracle,
     SwitchboardPull,
 }
@@ -182,7 +182,7 @@ impl From<OracleTypeArg> for OracleSetup {
     fn from(value: OracleTypeArg) -> Self {
         match value {
             OracleTypeArg::PythLegacy => OracleSetup::PythLegacy,
-            OracleTypeArg::Switchboard => OracleSetup::SwitchboardV2,
+            OracleTypeArg::SwitchboardLegacy => OracleSetup::SwitchboardV2,
             OracleTypeArg::PythPushOracle => OracleSetup::PythPushOracle,
             OracleTypeArg::SwitchboardPull => OracleSetup::SwitchboardPull,
         }
