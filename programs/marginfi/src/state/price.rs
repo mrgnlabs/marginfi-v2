@@ -1,6 +1,7 @@
 use std::{cell::Ref, cmp::min};
 
 use anchor_lang::prelude::*;
+use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
@@ -30,12 +31,14 @@ use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
 pub enum OracleSetup {
-    None,
-    PythLegacy,
-    SwitchboardV2,
-    PythPushOracle,
-    SwitchboardPull,
+    None = 0,
+    PythLegacy = 1,
+    SwitchboardV2 = 2,
+    PythPushOracle = 3,
+    SwitchboardPull = 4,
 }
+unsafe impl Zeroable for OracleSetup {}
+unsafe impl Pod for OracleSetup {}
 
 #[derive(Copy, Clone, Debug)]
 pub enum PriceBias {
