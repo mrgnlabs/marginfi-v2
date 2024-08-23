@@ -750,6 +750,7 @@ assert_struct_align!(Balance, 8);
 pub struct Balance {
     pub active: bool,
     pub bank_pk: Pubkey,
+    pub _pad0: [u8; 7],
     pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
     pub emissions_outstanding: WrappedI80F48,
@@ -821,6 +822,7 @@ impl Balance {
         Balance {
             active: false,
             bank_pk: Pubkey::default(),
+            _pad0: [0; 7],
             asset_shares: WrappedI80F48::from(I80F48::ZERO),
             liability_shares: WrappedI80F48::from(I80F48::ZERO),
             emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),
@@ -880,6 +882,7 @@ impl<'a> BankAccountWrapper<'a> {
                 lending_account.balances[empty_index] = Balance {
                     active: true,
                     bank_pk: *bank_pk,
+                    _pad0: [0; 7],
                     asset_shares: I80F48::ZERO.into(),
                     liability_shares: I80F48::ZERO.into(),
                     emissions_outstanding: I80F48::ZERO.into(),
@@ -1409,6 +1412,7 @@ mod test {
                 balances: [Balance {
                     active: true,
                     bank_pk: bank_pk.into(),
+                    _pad0: [0; 7],
                     asset_shares: WrappedI80F48::default(),
                     liability_shares: WrappedI80F48::default(),
                     emissions_outstanding: WrappedI80F48::default(),
