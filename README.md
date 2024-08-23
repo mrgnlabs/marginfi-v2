@@ -5,6 +5,7 @@
 Marginfi is a decentralized liquidity aggregation protocol built on the Solana blockchain that allows users to access a range of lending markets through a single platform, supporting cryptocurrencies such as SOL, USDC, USDT, wBTC (Portal), ETH (Portal), and BONK. The platform pools liquidity from various sources, offering competitive interest rates to lenders and lower interest rates to borrowers. Marginfi plans to introduce cross-composing in the future, enabling users to trade between different assets on the platform, further enhancing liquidity and providing more opportunities for investment returns.
 
 ## Installation
+
 > :warning: marginfi-v2 only compiles on the x86_64 architecture. This is to
 > ensure struct sizes are always backwards compatible between the SVM and local
 > development. Ensure the x86_64 arch is enabled before compiling the project.
@@ -68,9 +69,12 @@ Install the `solana-verify` tool [here](https://github.com/Ellipsis-Labs/solana-
 Run `./scripts/verify_mainnet.sh`
 
 ## Testing
+
 Integration tests for the on-chain marginfi programs are located under
-`/programs/marginfi/tests`. To run the tests, use `cargo test-bpf`. Be sure to 
+`/programs/marginfi/tests`. To run the tests, use `cargo test-bpf`. Be sure to
 use an x86 toolchain when compiling and running the tests.
+
+## Rust Tests
 
 Run the full test suite with `./scripts/test-program.sh <program_to_test>`
 * e.g. `./scripts/test-program.sh all --sane`
@@ -78,6 +82,23 @@ Run the full test suite with `./scripts/test-program.sh <program_to_test>`
 Run a single test:
 `./scripts/test-program.sh <program_to_test> <name_of_test>`
 * e.g. `./scripts/test-program.sh marginfi configure_bank_success --verbose`
+
+## Localnet Anchor Tests
+
+Build the program with:
+
+`anchor build -p marginfi -- --no-default-features`
+
+You may also need to build the liquidity incentive program and mock program:
+
+- `anchor build -p mocks`
+- `anchor build -p liquidity_incentive_program -- --no-default-features`
+
+Remember to `yarn install`
+
+Run the tests:
+
+`anchor test --skip-build`
 
 ## Footguns
 

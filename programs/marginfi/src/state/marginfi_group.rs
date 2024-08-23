@@ -302,6 +302,10 @@ pub struct Bank {
 
     pub group: Pubkey,
 
+    // Note: The padding is here, not after mint_decimals. Pubkey has alignment 1, so those 32
+    // bytes can cross the alignment 8 threshold, but WrappedI80F48 has alignment 8 and cannot
+    pub _pad0: [u8; 7], // 1x u8 + 7 = 8
+
     pub asset_share_value: WrappedI80F48,
     pub liability_share_value: WrappedI80F48,
 
@@ -312,11 +316,17 @@ pub struct Bank {
     pub insurance_vault: Pubkey,
     pub insurance_vault_bump: u8,
     pub insurance_vault_authority_bump: u8,
+
+    pub _pad1: [u8; 4], // 4x u8 + 4 = 8
+
     pub collected_insurance_fees_outstanding: WrappedI80F48,
 
     pub fee_vault: Pubkey,
     pub fee_vault_bump: u8,
     pub fee_vault_authority_bump: u8,
+
+    pub _pad2: [u8; 6], // 2x u8 + 6 = 8
+
     pub collected_group_fees_outstanding: WrappedI80F48,
 
     pub total_liability_shares: WrappedI80F48,
@@ -936,7 +946,7 @@ impl Display for BankOperationalState {
     }
 }
 
-#[repr(u64)]
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum RiskTier {
     Collateral,
@@ -975,6 +985,8 @@ pub struct BankConfigCompact {
 
     pub risk_tier: RiskTier,
 
+    pub _pad0: [u8; 7],
+
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
     /// then SOL assets will be discounted by 50%.
@@ -1008,11 +1020,13 @@ impl From<BankConfigCompact> for BankConfig {
             operational_state: config.operational_state,
             oracle_setup: config.oracle_setup,
             oracle_keys: keys,
+            _pad0: [0; 6],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
+            _pad1: [0; 7],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
-            _padding: [0; 19],
+            _padding: [0; 38],
         }
     }
 }
@@ -1031,6 +1045,7 @@ impl From<BankConfig> for BankConfigCompact {
             oracle_key: config.oracle_keys[0],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
+            _pad0: [0; 7],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
         }
@@ -1062,9 +1077,14 @@ pub struct BankConfig {
     pub oracle_setup: OracleSetup,
     pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS],
 
+    // Note: Pubkey is aligned 1, so borrow_limit is the first aligned-8 value after deposit_limit
+    pub _pad0: [u8; 6], // Bank state (1) + Oracle Setup (1) + 6 = 8
+
     pub borrow_limit: u64,
 
     pub risk_tier: RiskTier,
+
+    pub _pad1: [u8; 7],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1079,7 +1099,7 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
 
-    pub _padding: [u16; 19], // 16 * 4 = 64 bytes
+    pub _padding: [u8; 38],
 }
 
 impl Default for BankConfig {
@@ -1095,10 +1115,12 @@ impl Default for BankConfig {
             operational_state: BankOperationalState::Paused,
             oracle_setup: OracleSetup::None,
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
+            _pad0: [0; 6],
             risk_tier: RiskTier::Isolated,
+            _pad1: [0; 7],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
-            _padding: [0; 19],
+            _padding: [0; 38],
         }
     }
 }

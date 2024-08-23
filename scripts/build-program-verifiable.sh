@@ -19,9 +19,9 @@ fi
 if [ "$deployment" = "mainnet" ]; then
     features="--features mainnet-beta"
 elif [ "$deployment" = "devnet" ]; then
-    features="--features devnet"
+    features="--features devnet --no-default-features"
 elif [ "$deployment" = "staging" ]; then
-    features="--features staging"
+    features="--features staging --no-default-features"
 else
     echo "Error: Unknown deployment: $deployment"
     exit 1

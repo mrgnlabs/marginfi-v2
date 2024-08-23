@@ -1,0 +1,31 @@
+[package]
+name = "mocks"
+version = "0.1.0"
+description = "External program mocks"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "mocks"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = ["mainnet-beta"]
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+test-bpf = ["test", "debug"]
+test = []
+client = []
+devnet = []
+mainnet-beta = []
+debug = []
+staging = []
+
+[dependencies]
+anchor-lang = { workspace = true }
+anchor-spl = { workspace = true }
+
+bytemuck = { version = "1.9.1", features = ["derive"] }
+static_assertions = "1.1.0"

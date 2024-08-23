@@ -8,7 +8,8 @@ skip-lint = false
 
 [programs.localnet]
 liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
-marginfi = "Mfi1111111111111111111111111111111111111111"
+marginfi = "2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr"
+mocks = "5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C"
 
 [programs.mainnet]
 liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
@@ -18,11 +19,12 @@ marginfi = "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "https://devnet.rpcpool.com/"
+cluster = "localnet"
+# cluster = "https://devnet.rpcpool.com/"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.ts --exit --require tests/rootHooks.ts"
 
 [test]
 startup_wait = 5000
@@ -33,6 +35,14 @@ upgradeable = false
 bind_address = "0.0.0.0"
 ledger = ".anchor/test-ledger"
 rpc_port = 8899
+
+[[test.validator.account]]
+address = "DeyH7QxWvnbbaVB4zFrf4hoq7Q8z1ZT14co42BGwGtfM"
+filename = "tests/fixtures/bonk_bank.json"
+
+[[test.validator.account]]
+address = "4kNXetv8hSv9PzvzPZzEs1CTH6ARRRi2b8h6jk1ad1nP"
+filename = "tests/fixtures/cloud_bank.json"
 
 [[test.validator.account]]
 address = "8FRFC6MoGGkMFQwngccyu69VnYbzykGeez7ignHVAFSN"

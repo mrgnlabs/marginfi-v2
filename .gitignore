@@ -28,3 +28,7 @@ test-ledger/
 
 # keypairs
 *.json
+
+# Allow specific json files
+!tests/fixtures/**/*.json
+!programs/marginfi/tests/fixtures/**/*.json

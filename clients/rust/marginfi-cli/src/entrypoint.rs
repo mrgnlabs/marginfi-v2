@@ -80,6 +80,9 @@ pub enum Command {
     FindPythPull {
         feed_id: String,
     },
+    InspectSwbPullFeed {
+        address: Pubkey,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -115,7 +118,9 @@ pub enum GroupCommand {
         #[clap(long)]
         borrow_limit_ui: u64,
         #[clap(long)]
-        pyth_oracle: Pubkey,
+        oracle_key: Pubkey,
+        #[clap(long)]
+        feed_id: Option<Pubkey>,
         #[clap(long)]
         optimal_utilization_rate: f64,
         #[clap(long)]
@@ -168,16 +173,18 @@ impl From<RiskTierArg> for RiskTier {
 #[derive(Clone, Copy, Debug, Parser, ArgEnum)]
 pub enum OracleTypeArg {
     PythLegacy,
-    Switchboard,
+    SwitchboardLegacy,
     PythPushOracle,
+    SwitchboardPull,
 }
 
 impl From<OracleTypeArg> for OracleSetup {
     fn from(value: OracleTypeArg) -> Self {
         match value {
             OracleTypeArg::PythLegacy => OracleSetup::PythLegacy,
-            OracleTypeArg::Switchboard => OracleSetup::SwitchboardV2,
+            OracleTypeArg::SwitchboardLegacy => OracleSetup::SwitchboardV2,
             OracleTypeArg::PythPushOracle => OracleSetup::PythPushOracle,
+            OracleTypeArg::SwitchboardPull => OracleSetup::SwitchboardPull,
         }
     }
 }
@@ -339,6 +346,8 @@ pub enum ProfileCommand {
     Update {
         name: String,
         #[clap(long)]
+        new_name: Option<String>,
+        #[clap(long)]
         cluster: Option<Cluster>,
         #[clap(long)]
         keypair_path: Option<String>,
@@ -354,6 +363,9 @@ pub enum ProfileCommand {
         group: Option<Pubkey>,
         #[clap(long)]
         account: Option<Pubkey>,
+    },
+    Delete {
+        name: String,
     },
 }
 
@@ -440,7 +452,7 @@ pub fn entry(opts: Opts) -> Result<()> {
             let profile = load_profile()?;
             let config = profile.get_config(Some(&opts.cfg_override))?;
 
-            processor::inspect_pyth_push_feed(&config, pyth_feed)?;
+            processor::oracle::inspect_pyth_push_feed(&config, pyth_feed)?;
 
             Ok(())
         }
@@ -452,6 +464,14 @@ pub fn entry(opts: Opts) -> Result<()> {
             let rpc = config.mfi_program.rpc();
 
             find_pyth_push_oracles_for_feed_id(&rpc, feed_id)?;
+
+            Ok(())
+        }
+        Command::InspectSwbPullFeed { address } => {
+            let profile = load_profile()?;
+            let config = profile.get_config(Some(&opts.cfg_override))?;
+
+            processor::oracle::inspect_swb_pull_feed(&config, address)?;
 
             Ok(())
         }
@@ -493,9 +513,11 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             commitment,
             group,
             name,
+            new_name,
             account,
         } => processor::configure_profile(
             name,
+            new_name,
             cluster,
             keypair_path,
             multisig,
@@ -505,6 +527,7 @@ fn profile(subcmd: ProfileCommand) -> Result<()> {
             group,
             account,
         ),
+        ProfileCommand::Delete { name } => processor::delete_profile(name),
     }
 }
 
@@ -541,7 +564,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            pyth_oracle,
+            oracle_key,
+            feed_id,
             optimal_utilization_rate,
             plateau_interest_rate,
             max_interest_rate,
@@ -559,7 +583,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             profile,
             bank_mint,
             seed,
-            pyth_oracle,
+            oracle_key,
+            feed_id,
             oracle_type,
             asset_weight_init,
             asset_weight_maint,
@@ -576,6 +601,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             protocol_ir_fee,
             risk_tier,
             oracle_max_age,
+            global_options.compute_unit_price,
         ),
 
         GroupCommand::HandleBankruptcy { accounts } => {

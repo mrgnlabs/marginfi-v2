@@ -72,6 +72,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             emissions_mint,
             _padding_0,
             _padding_1,
+            .. // ignore internal padding
         } = bank_f.load().await;
         #[rustfmt::skip]
         let _ = {
@@ -174,6 +175,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             emissions_mint,
             _padding_0,
             _padding_1,
+            .. // ignore internal padding
         } = bank_f.load().await;
         #[rustfmt::skip]
         let _ = {

@@ -4,11 +4,16 @@ use anchor_lang::AccountDeserialize;
 use anyhow::bail;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use fixed::types::I80F48;
-use marginfi::state::{marginfi_account::MarginfiAccount, marginfi_group::Bank};
+use marginfi::state::{
+    marginfi_account::MarginfiAccount,
+    marginfi_group::{Bank, BankOperationalState, RiskTier},
+    price::OracleSetup,
+};
 use solana_account_decoder::UiAccountData;
 use solana_cli_output::CliAccount;
 use solana_program::pubkey;
 use solana_program_test::tokio;
+use switchboard_solana::Pubkey;
 
 #[tokio::test]
 async fn account_field_values_reg() -> anyhow::Result<()> {
@@ -29,12 +34,23 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     let account = MarginfiAccount::try_deserialize(&mut BASE64_STANDARD.decode(data)?.as_slice())?;
 
     assert_eq!(
+        account.group,
+        pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+    );
+    assert_eq!(
         account.authority,
         pubkey!("Dq7wypbedtaqQK9QqEFvfrxc4ppfRGXCeTVd7ee7n2jw")
     );
+    assert_eq!(account.account_flags, 0);
+    assert_eq!(account._padding, [0; 63]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.active);
+    assert_eq!(
+        balance_1.bank_pk,
+        pubkey!("2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB")
+    );
+    assert_eq!(balance_1._pad0, [0; 7]);
     assert_eq!(
         I80F48::from(balance_1.asset_shares),
         I80F48::from_str("1650216221.466876226897366").unwrap()
@@ -47,9 +63,19 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(balance_1.emissions_outstanding),
         I80F48::from_str("0").unwrap()
     );
+    assert_eq!(
+        I80F48::from(balance_1.last_update),
+        I80F48::from_str("1711158766").unwrap()
+    );
+    assert_eq!(balance_1._padding, [0; 1]);
 
     let balance_2 = account.lending_account.balances[1];
     assert!(balance_2.active);
+    assert_eq!(
+        balance_2.bank_pk,
+        pubkey!("CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh")
+    );
+    assert_eq!(balance_2._pad0, [0; 7]);
     assert_eq!(
         I80F48::from(balance_2.asset_shares),
         I80F48::from_str("0").unwrap()
@@ -62,6 +88,11 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(balance_2.emissions_outstanding),
         I80F48::from_str("0").unwrap()
     );
+    assert_eq!(
+        I80F48::from(balance_2.last_update),
+        I80F48::from_str("1711158793").unwrap()
+    );
+    assert_eq!(balance_2._padding, [0; 1]);
 
     // Sample 2
 
@@ -78,12 +109,23 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     let account = MarginfiAccount::try_deserialize(&mut BASE64_STANDARD.decode(data)?.as_slice())?;
 
     assert_eq!(
+        account.group,
+        pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+    );
+    assert_eq!(
         account.authority,
         pubkey!("3T1kGHp7CrdeW9Qj1t8NMc2Ks233RyvzVhoaUPWoBEFK")
     );
+    assert_eq!(account.account_flags, 0);
+    assert_eq!(account._padding, [0; 63]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.active);
+    assert_eq!(
+        balance_1.bank_pk,
+        pubkey!("6hS9i46WyTq1KXcoa2Chas2Txh9TJAVr6n1t3tnrE23K")
+    );
+    assert_eq!(balance_1._pad0, [0; 7]);
     assert_eq!(
         I80F48::from(balance_1.asset_shares),
         I80F48::from_str("470.952530958931234").unwrap()
@@ -96,9 +138,19 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(balance_1.emissions_outstanding),
         I80F48::from_str("26891413.388324654086347").unwrap()
     );
+    assert_eq!(
+        I80F48::from(balance_1.last_update),
+        I80F48::from_str("1705760628").unwrap()
+    );
+    assert_eq!(balance_1._padding, [0; 1]);
 
     let balance_2 = account.lending_account.balances[1];
     assert!(!balance_2.active);
+    assert_eq!(
+        balance_2.bank_pk,
+        pubkey!("11111111111111111111111111111111")
+    );
+    assert_eq!(balance_2._pad0, [0; 7]);
     assert_eq!(
         I80F48::from(balance_2.asset_shares),
         I80F48::from_str("0").unwrap()
@@ -111,6 +163,11 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(balance_2.emissions_outstanding),
         I80F48::from_str("0").unwrap()
     );
+    assert_eq!(
+        I80F48::from(balance_2.last_update),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(balance_2._padding, [0; 1]);
 
     // Sample 3
 
@@ -127,12 +184,23 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     let account = MarginfiAccount::try_deserialize(&mut BASE64_STANDARD.decode(data)?.as_slice())?;
 
     assert_eq!(
+        account.group,
+        pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+    );
+    assert_eq!(
         account.authority,
         pubkey!("7hmfVTuXc7HeX3YQjpiCXGVQuTeXonzjp795jorZukVR")
     );
+    assert_eq!(account.account_flags, 0);
+    assert_eq!(account._padding, [0; 63]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(!balance_1.active);
+    assert_eq!(
+        balance_1.bank_pk,
+        pubkey!("11111111111111111111111111111111")
+    );
+    assert_eq!(balance_1._pad0, [0; 7]);
     assert_eq!(
         I80F48::from(balance_1.asset_shares),
         I80F48::from_str("0").unwrap()
@@ -145,6 +213,11 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(balance_1.emissions_outstanding),
         I80F48::from_str("0").unwrap()
     );
+    assert_eq!(
+        I80F48::from(balance_1.last_update),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(balance_1._padding, [0; 1]);
 
     Ok(())
 }
@@ -428,6 +501,162 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
         I80F48::from_str("0.05").unwrap()
     );
+
+    // Sample 4 (PyUSD)
+
+    let mut path = PathBuf::from_str(bank_fixtures_path).unwrap();
+    path.push("bank_pyusd_230822.json");
+    let mut file = File::open(&path).unwrap();
+    let mut account_info_raw = String::new();
+    file.read_to_string(&mut account_info_raw).unwrap();
+
+    let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
+    let UiAccountData::Binary(data, _) = account.keyed_account.account.data else {
+        bail!("Expecting Binary format for fixtures")
+    };
+    let bank = Bank::try_deserialize(&mut BASE64_STANDARD.decode(data)?.as_slice())?;
+
+    assert_eq!(
+        bank.mint,
+        pubkey!("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo")
+    );
+    assert_eq!(bank.mint_decimals, 6);
+    assert_eq!(
+        bank.group,
+        pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+    );
+    assert_eq!(bank._pad0, [0; 7]);
+    assert_eq!(
+        I80F48::from(bank.asset_share_value),
+        I80F48::from_str("1.000087706703773").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.liability_share_value),
+        I80F48::from_str("1.00157842522853").unwrap()
+    );
+    assert_eq!(
+        bank.liquidity_vault,
+        pubkey!("HUmHLAXvcoUgWAtanAnCPNssBnAUzEfSRsb4MZYw7R73")
+    );
+    assert_eq!(bank.liquidity_vault_bump, 249);
+    assert_eq!(bank.liquidity_vault_authority_bump, 255);
+    assert_eq!(
+        bank.insurance_vault,
+        pubkey!("4jE6g1pLG5NmW19z9DgzjCwYEDy3jYSqix1Lv5BN4yEc")
+    );
+    assert_eq!(bank.insurance_vault_bump, 255);
+    assert_eq!(bank.insurance_vault_authority_bump, 254);
+    assert_eq!(bank._pad1, [0; 4]);
+    assert_eq!(
+        I80F48::from(bank.collected_insurance_fees_outstanding),
+        I80F48::from_str("3459.51398842307891").unwrap()
+    );
+    assert_eq!(
+        bank.fee_vault,
+        pubkey!("AzVkUZFuvGwy3pD6U2eAJJNhHYMnzkzBFjjhn8CSVFRa")
+    );
+    assert_eq!(bank.fee_vault_bump, 255);
+    assert_eq!(bank.fee_vault_authority_bump, 253);
+    assert_eq!(bank._pad2, [0; 6]);
+    assert_eq!(
+        I80F48::from(bank.collected_group_fees_outstanding),
+        I80F48::from_str("1015697146.551430542063226").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.total_liability_shares),
+        I80F48::from_str("1997270567603.702517235172913").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.total_asset_shares),
+        I80F48::from_str("39996492038102.214176640606695").unwrap()
+    );
+    assert_eq!(bank.last_update, 1724302256);
+
+    assert_eq!(
+        I80F48::from(bank.config.asset_weight_init),
+        I80F48::from_str("0.899999976158142").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.asset_weight_maint),
+        I80F48::from_str("0.94999998807907").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.liability_weight_init),
+        I80F48::from_str("1.25").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.liability_weight_maint),
+        I80F48::from_str("1.1").unwrap()
+    );
+    assert_eq!(bank.config.deposit_limit, 40000000000000);
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.optimal_utilization_rate),
+        I80F48::from_str("0.8").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.plateau_interest_rate),
+        I80F48::from_str("0.1").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.max_interest_rate),
+        I80F48::from_str("3").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.insurance_fee_fixed_apr),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.insurance_ir_fee),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.protocol_fixed_fee_apr),
+        I80F48::from_str("0.01").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.config.interest_rate_config.protocol_ir_fee),
+        I80F48::from_str("0.05").unwrap()
+    );
+    assert_eq!(
+        bank.config.operational_state,
+        BankOperationalState::Operational
+    );
+    assert_eq!(bank.config.oracle_setup, OracleSetup::PythPushOracle);
+    assert_eq!(
+        bank.config.oracle_keys,
+        [
+            pubkey!("E3iagrg2kXyNJ9Ad2R2pNUsRmXutyQScu3m1FcQmBsAH"),
+            Pubkey::default(),
+            Pubkey::default(),
+            Pubkey::default(),
+            Pubkey::default()
+        ]
+    );
+    assert_eq!(bank.config._pad0, [0; 6]);
+    assert_eq!(bank.config.borrow_limit, 2000000000000);
+    assert_eq!(bank.config.risk_tier, RiskTier::Collateral);
+    assert_eq!(bank.config._pad1, [0; 7]);
+    assert_eq!(bank.config.total_asset_value_init_limit, 0);
+    assert_eq!(bank.config.oracle_max_age, 300);
+    assert_eq!(bank.config._padding, [0; 38]);
+
+    assert_eq!(bank.flags, 2);
+
+    assert_eq!(
+        I80F48::from(bank.emissions_rate),
+        I80F48::from_str("170000").unwrap()
+    );
+    assert_eq!(
+        I80F48::from(bank.emissions_remaining),
+        I80F48::from_str("130585694893.67407796351017").unwrap()
+    );
+    assert_eq!(
+        bank.emissions_mint,
+        pubkey!("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo")
+    );
+
+    assert_eq!(bank._padding_0, [[0, 0]; 28]);
+    assert_eq!(bank._padding_1, [[0, 0]; 32]);
 
     Ok(())
 }
