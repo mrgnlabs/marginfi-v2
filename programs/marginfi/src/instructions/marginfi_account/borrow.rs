@@ -89,7 +89,8 @@ pub fn lending_account_borrow<'info>(
         if !origination_fee_rate.is_zero() {
             let origination_fee: I80F48 = I80F48::from_num(amount_pre_fee)
                 .checked_mul(origination_fee_rate)
-                .ok_or_else(math_error!())?;
+                .ok_or_else(math_error!())?
+                .floor(); // round fees down in the user's favor
             origination_fee_u64 = origination_fee.checked_to_num().ok_or_else(math_error!())?;
 
             // Incurs a borrow that includes the origination fee (but withdraws just the amt)
