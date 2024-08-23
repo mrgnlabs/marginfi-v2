@@ -34,12 +34,23 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     let account = MarginfiAccount::try_deserialize(&mut BASE64_STANDARD.decode(data)?.as_slice())?;
 
     assert_eq!(
+        account.group,
+        pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+    );
+    assert_eq!(
         account.authority,
         pubkey!("Dq7wypbedtaqQK9QqEFvfrxc4ppfRGXCeTVd7ee7n2jw")
     );
+    assert_eq!(account.account_flags, 0);
+    assert_eq!(account._padding, [0; 63]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.active);
+    assert_eq!(
+        balance_1.bank_pk,
+        pubkey!("2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB")
+    );
+    assert_eq!(balance_1._pad0, [0; 7]);
     assert_eq!(
         I80F48::from(balance_1.asset_shares),
         I80F48::from_str("1650216221.466876226897366").unwrap()
@@ -52,9 +63,19 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(balance_1.emissions_outstanding),
         I80F48::from_str("0").unwrap()
     );
+    assert_eq!(
+        I80F48::from(balance_1.last_update),
+        I80F48::from_str("1711158766").unwrap()
+    );
+    assert_eq!(balance_1._padding, [0; 1]);
 
     let balance_2 = account.lending_account.balances[1];
     assert!(balance_2.active);
+    assert_eq!(
+        balance_2.bank_pk,
+        pubkey!("CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh")
+    );
+    assert_eq!(balance_2._pad0, [0; 7]);
     assert_eq!(
         I80F48::from(balance_2.asset_shares),
         I80F48::from_str("0").unwrap()
@@ -67,6 +88,11 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(balance_2.emissions_outstanding),
         I80F48::from_str("0").unwrap()
     );
+    assert_eq!(
+        I80F48::from(balance_2.last_update),
+        I80F48::from_str("1711158793").unwrap()
+    );
+    assert_eq!(balance_2._padding, [0; 1]);
 
     // Sample 2
 
@@ -83,12 +109,23 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     let account = MarginfiAccount::try_deserialize(&mut BASE64_STANDARD.decode(data)?.as_slice())?;
 
     assert_eq!(
+        account.group,
+        pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+    );
+    assert_eq!(
         account.authority,
         pubkey!("3T1kGHp7CrdeW9Qj1t8NMc2Ks233RyvzVhoaUPWoBEFK")
     );
+    assert_eq!(account.account_flags, 0);
+    assert_eq!(account._padding, [0; 63]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.active);
+    assert_eq!(
+        balance_1.bank_pk,
+        pubkey!("6hS9i46WyTq1KXcoa2Chas2Txh9TJAVr6n1t3tnrE23K")
+    );
+    assert_eq!(balance_1._pad0, [0; 7]);
     assert_eq!(
         I80F48::from(balance_1.asset_shares),
         I80F48::from_str("470.952530958931234").unwrap()
@@ -101,9 +138,19 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(balance_1.emissions_outstanding),
         I80F48::from_str("26891413.388324654086347").unwrap()
     );
+    assert_eq!(
+        I80F48::from(balance_1.last_update),
+        I80F48::from_str("1705760628").unwrap()
+    );
+    assert_eq!(balance_1._padding, [0; 1]);
 
     let balance_2 = account.lending_account.balances[1];
     assert!(!balance_2.active);
+    assert_eq!(
+        balance_2.bank_pk,
+        pubkey!("11111111111111111111111111111111")
+    );
+    assert_eq!(balance_2._pad0, [0; 7]);
     assert_eq!(
         I80F48::from(balance_2.asset_shares),
         I80F48::from_str("0").unwrap()
@@ -116,6 +163,11 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(balance_2.emissions_outstanding),
         I80F48::from_str("0").unwrap()
     );
+    assert_eq!(
+        I80F48::from(balance_2.last_update),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(balance_2._padding, [0; 1]);
 
     // Sample 3
 
@@ -132,12 +184,23 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     let account = MarginfiAccount::try_deserialize(&mut BASE64_STANDARD.decode(data)?.as_slice())?;
 
     assert_eq!(
+        account.group,
+        pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
+    );
+    assert_eq!(
         account.authority,
         pubkey!("7hmfVTuXc7HeX3YQjpiCXGVQuTeXonzjp795jorZukVR")
     );
+    assert_eq!(account.account_flags, 0);
+    assert_eq!(account._padding, [0; 63]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(!balance_1.active);
+    assert_eq!(
+        balance_1.bank_pk,
+        pubkey!("11111111111111111111111111111111")
+    );
+    assert_eq!(balance_1._pad0, [0; 7]);
     assert_eq!(
         I80F48::from(balance_1.asset_shares),
         I80F48::from_str("0").unwrap()
@@ -150,6 +213,11 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(balance_1.emissions_outstanding),
         I80F48::from_str("0").unwrap()
     );
+    assert_eq!(
+        I80F48::from(balance_1.last_update),
+        I80F48::from_str("0").unwrap()
+    );
+    assert_eq!(balance_1._padding, [0; 1]);
 
     Ok(())
 }
