@@ -19,6 +19,7 @@ use test_case::test_case;
 #[test_case(128932.0, 9834.0, BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 1.7, BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(200., 1.1, BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_account_borrow_success(
     deposit_amount: f64,
@@ -119,6 +120,17 @@ async fn marginfi_account_borrow_success(
         })
         .unwrap_or(0);
     let borrow_amount_pre_fee = borrow_amount_native + borrow_fee;
+    let origination_fee_rate: I80F48 = debt_bank_f
+        .load() // ?? could optimize load calls in this test?
+        .await
+        .config
+        .interest_rate_config
+        .protocol_origination_fee
+        .into();
+    let origination_fee: I80F48 = I80F48::from_num(borrow_amount_native)
+        .checked_mul(origination_fee_rate)
+        .unwrap();
+    let origination_fee_i64: i64 = origination_fee.checked_to_num().expect("out of bounds");
 
     let active_balance_count = marginfi_account
         .lending_account
@@ -126,7 +138,7 @@ async fn marginfi_account_borrow_success(
         .count();
     assert_eq!(2, active_balance_count);
 
-    let expected_liquidity_vault_delta = -(borrow_amount_pre_fee as i64);
+    let expected_liquidity_vault_delta = -(borrow_amount_pre_fee as i64 + origination_fee_i64);
     let actual_liquidity_vault_delta = post_vault_balance as i64 - pre_vault_balance as i64;
     let accounted_user_balance_delta = post_user_debt_accounted - pre_user_debt_accounted;
 
@@ -147,7 +159,7 @@ async fn marginfi_account_borrow_success(
 #[test_case(128_932., 10_000., 15_000.0, BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
-#[test_case(1., 100., 155.1, BankMint::SolSwbPull, BankMint::Usdc)] // Sol @ $155
+#[test_case(1., 100., 155.1, BankMint::SolSwbPull, BankMint::Usdc)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_account_borrow_failure_not_enough_collateral(
     deposit_amount: f64,
