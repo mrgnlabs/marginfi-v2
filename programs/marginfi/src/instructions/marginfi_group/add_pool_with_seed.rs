@@ -9,14 +9,14 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 
-/// Add a bank to the lending pool
-///
-/// Admin only
-///
-/// TODO: Allow for different oracle configurations
-pub fn lending_pool_add_bank(
-    ctx: Context<LendingPoolAddBank>,
+/// A copy of lending_pool_add_bank but with an additional bank seed provided.
+/// This seed is used by the LendingPoolAddBankWithSeed.bank to generate a
+/// PDA account to sign for newly added bank transactions securely.
+/// The previous lending_pool_add_bank is preserved for backwards-compatibility.
+pub fn lending_pool_add_bank_with_seed(
+    ctx: Context<LendingPoolAddBankWithSeed>,
     bank_config: BankConfig,
+    _bank_seed: u64,
 ) -> MarginfiResult {
     // Transfer the flat sol init fee to the global fee wallet
     let fee_state = ctx.accounts.fee_state.load()?;
@@ -28,7 +28,7 @@ pub fn lending_pool_add_bank(
         )?;
     }
 
-    let LendingPoolAddBank {
+    let LendingPoolAddBankWithSeed {
         bank_mint,
         liquidity_vault,
         insurance_vault,
@@ -78,13 +78,13 @@ pub fn lending_pool_add_bank(
     Ok(())
 }
 
-/*
-. Aligns line spacing for easier comparison against with_seed
-.
-*/
+/// A copy of LendingPoolAddBank but with an additional bank seed provided.
+/// This seed is used by the LendingPoolAddBankWithSeed.bank to generate a
+/// PDA account to sign for newly added bank transactions securely.
+/// The previous LendingPoolAddBank is preserved for backwards-compatibility.
 #[derive(Accounts)]
-#[instruction(bank_config: BankConfigCompact)]
-pub struct LendingPoolAddBank<'info> {
+#[instruction(bank_config: BankConfigCompact, bank_seed: u64)]
+pub struct LendingPoolAddBankWithSeed<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -115,12 +115,12 @@ pub struct LendingPoolAddBank<'info> {
         init,
         space = 8 + std::mem::size_of::<Bank>(),
         payer = fee_payer,
-        /*
-        In the "with seed" version of this ix, the seed is defined here
-        .
-        .
-        .
-        */
+        seeds = [
+            marginfi_group.key().as_ref(),
+            bank_mint.key().as_ref(),
+            &bank_seed.to_le_bytes(),
+        ],
+        bump,
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -198,7 +198,7 @@ pub struct LendingPoolAddBank<'info> {
     pub system_program: Program<'info, System>,
 }
 
-impl<'info> LendingPoolAddBank<'info> {
+impl<'info> LendingPoolAddBankWithSeed<'info> {
     fn transfer_flat_fee(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, anchor_lang::system_program::Transfer<'info>> {

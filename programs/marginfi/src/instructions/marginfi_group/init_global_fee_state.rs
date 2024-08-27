@@ -1,0 +1,43 @@
+// Runs once per program to init the global fee state.
+
+use crate::constants::FEE_STATE_SEED;
+use crate::state::fee_state;
+use anchor_lang::prelude::*;
+use fee_state::FeeState;
+
+pub fn initialize_fee_state(
+    ctx: Context<InitFeeState>,
+    admin_key: Pubkey,
+    fee_wallet: Pubkey,
+    bank_init_flat_sol_fee: u32,
+) -> Result<()> {
+    let mut fee_state = ctx.accounts.fee_state.load_init()?;
+    fee_state.global_fee_admin = admin_key;
+    fee_state.global_fee_wallet = fee_wallet;
+    fee_state.key = ctx.accounts.fee_state.key();
+    fee_state.bank_init_flat_sol_fee = bank_init_flat_sol_fee;
+    fee_state.bump_seed = ctx.bumps.fee_state;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct InitFeeState<'info> {
+    /// Pays the init fee
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        init,
+        seeds = [
+            FEE_STATE_SEED.as_bytes()
+        ],
+        bump,
+        payer = payer,
+        space = 8 + FeeState::LEN,
+    )]
+    pub fee_state: AccountLoader<'info, FeeState>,
+
+    pub rent: Sysvar<'info, Rent>,
+    pub system_program: Program<'info, System>,
+}

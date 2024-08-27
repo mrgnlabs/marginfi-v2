@@ -4,6 +4,8 @@ use crate::utils::*;
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 
 use anyhow::Result;
+use marginfi::constants::FEE_STATE_SEED;
+use marginfi::state::fee_state::FeeState;
 use marginfi::{
     prelude::MarginfiGroup,
     state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
@@ -16,9 +18,72 @@ use solana_sdk::{
 };
 use std::{cell::RefCell, mem, rc::Rc};
 
+pub struct FeeStateFixture {
+    pub fee_state: Pubkey,
+    pub fee_wallet: Pubkey,
+}
+
+impl FeeStateFixture {
+    pub async fn new(ctx: Rc<RefCell<ProgramTestContext>>) -> FeeStateFixture {
+        let (fee_state_key, _bump) =
+            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
+
+        {
+            let mut ctx = ctx.borrow_mut();
+
+            // Skip setup if the fee state was already initialized
+            let fee_state_account = ctx.banks_client.get_account(fee_state_key).await.unwrap();
+
+            if let Some(account) = fee_state_account {
+                if !account.data.is_empty() {
+                    let fee_state_data: FeeState =
+                        FeeState::try_deserialize(&mut &account.data[..]).unwrap();
+                    return FeeStateFixture {
+                        fee_state: fee_state_key,
+                        fee_wallet: fee_state_data.global_fee_wallet,
+                    };
+                }
+            }
+
+            let fee_wallet = Keypair::new();
+
+            let init_fee_state_ix = Instruction {
+                program_id: marginfi::id(),
+                accounts: marginfi::accounts::InitFeeState {
+                    payer: ctx.payer.pubkey(),
+                    fee_state: fee_state_key,
+                    rent: sysvar::rent::id(),
+                    system_program: system_program::id(),
+                }
+                .to_account_metas(Some(true)),
+                data: marginfi::instruction::InitGlobalFeeState {
+                    admin: ctx.payer.pubkey(),
+                    fee_wallet: fee_wallet.pubkey(),
+                    bank_init_flat_sol_fee: 10000,
+                }
+                .data(),
+            };
+
+            let tx = Transaction::new_signed_with_payer(
+                &[init_fee_state_ix],
+                Some(&ctx.payer.pubkey().clone()),
+                &[&ctx.payer],
+                ctx.last_blockhash,
+            );
+            ctx.banks_client.process_transaction(tx).await.unwrap();
+
+            FeeStateFixture {
+                fee_state: fee_state_key,
+                fee_wallet: fee_wallet.pubkey(),
+            }
+        }
+    }
+}
+
 pub struct MarginfiGroupFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
+    pub fee_state_fixture: FeeStateFixture
 }
 
 impl MarginfiGroupFixture {
@@ -66,6 +131,7 @@ impl MarginfiGroupFixture {
         MarginfiGroupFixture {
             ctx: ctx_ref.clone(),
             key: group_key.pubkey(),
+            fee_state_fixture: FeeStateFixture::new(ctx).await
         }
     }
 
@@ -83,6 +149,8 @@ impl MarginfiGroupFixture {
             marginfi_group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
             fee_payer: self.ctx.borrow().payer.pubkey(),
+            fee_state: self.fee_state_fixture.fee_state,
+            global_fee_wallet: self.fee_state_fixture.fee_wallet,
             bank_mint,
             bank: bank_key.pubkey(),
             liquidity_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Liquidity).0,
@@ -160,6 +228,8 @@ impl MarginfiGroupFixture {
             marginfi_group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
             fee_payer: self.ctx.borrow().payer.pubkey(),
+            fee_state: self.fee_state_fixture.fee_state,
+            global_fee_wallet: self.fee_state_fixture.fee_wallet,
             bank_mint,
             bank: pda,
             liquidity_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Liquidity).0,

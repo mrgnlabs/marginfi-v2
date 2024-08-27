@@ -214,6 +214,26 @@ pub mod marginfi {
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
         marginfi_account::close_account(ctx)
     }
+
+    /// (Runs once per program) Configures the fee state account, where the global admin sets fees
+    /// that are assessed to the protocol
+    pub fn init_global_fee_state(
+        ctx: Context<InitFeeState>,
+        admin: Pubkey,
+        fee_wallet: Pubkey,
+        bank_init_flat_sol_fee: u32,
+    ) -> MarginfiResult {
+        marginfi_group::initialize_fee_state(ctx, admin, fee_wallet, bank_init_flat_sol_fee)
+    }
+
+    /// (global fee admin only) Adjust fees or the destination wallet
+    pub fn edit_global_fee_state(
+        ctx: Context<EditFeeState>,
+        fee_wallet: Pubkey,
+        bank_init_flat_sol_fee: u32,
+    ) -> MarginfiResult {
+        marginfi_group::edit_fee_state(ctx, fee_wallet, bank_init_flat_sol_fee)
+    }
 }
 
 #[cfg(not(feature = "no-entrypoint"))]
