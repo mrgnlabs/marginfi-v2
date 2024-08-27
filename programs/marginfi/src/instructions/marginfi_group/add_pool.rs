@@ -333,10 +333,8 @@ pub struct LendingPoolAddBankWithSeed<'info> {
 }
 
 
-/// A copy of LendingPoolAddBank but with an additional bank seed provided.
-/// This seed is used by the LendingPoolAddBankWithSeed.bank to generate a
-/// PDA account to sign for newly added bank transactions securely.
-/// The previous LendingPoolAddBank is preserved for backwards-compatibility.
+/// A copy of LendingPoolAddBankWithSeed but with explicit bumps provided.
+/// These bumps are used by multiple marginfi functions to efficiently generate the correct address to be used.
 #[derive(Accounts)]
 #[instruction(
     bank_config: BankConfigCompact, 
