@@ -205,7 +205,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             fee_vault_authority.key,
             bank.key,
         );
-        let (fee_state_key, fee_state_bump) =
+        let (_fee_state_key, fee_state_bump) =
             Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
 
         let oracle = state.new_oracle_account(

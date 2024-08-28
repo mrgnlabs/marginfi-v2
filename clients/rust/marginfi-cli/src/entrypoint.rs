@@ -85,6 +85,7 @@ pub enum Command {
     },
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Parser)]
 pub enum GroupCommand {
     Get {
