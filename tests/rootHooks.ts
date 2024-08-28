@@ -10,8 +10,15 @@ import {
   SetupTestUserOptions,
 } from "./utils/mocks";
 import { Marginfi } from "../target/types/marginfi";
-import { Keypair, Transaction } from "@solana/web3.js";
+import {
+  Keypair,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
 import { setupPythOracles } from "./utils/pyth_mocks";
+import { initGlobalFeeState } from "./utils/instructions";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -19,8 +26,12 @@ export const verbose = true;
 /** The program owner is also the provider wallet */
 export let globalProgramAdmin: mockUser = undefined;
 export let groupAdmin: mockUser = undefined;
+export let globalFeeWallet: PublicKey = undefined;
 export const users: mockUser[] = [];
 export const numUsers = 2;
+
+/** Lamports charged when creating any pool */
+export const INIT_POOL_ORIGINATION_FEE = 1000;
 
 /** Group used for all happy-path tests */
 export const marginfiGroup = Keypair.generate();
@@ -69,6 +80,27 @@ export const mochaHooks = {
     tx.add(...usdcIxes);
     tx.add(...aIxes);
     tx.add(...bIxes);
+
+    let globalFeeKeypair = Keypair.generate();
+    globalFeeWallet = globalFeeKeypair.publicKey;
+    // Send some sol to the global fee wallet for rent
+    tx.add(
+      SystemProgram.transfer({
+        fromPubkey: wallet.publicKey,
+        toPubkey: globalFeeWallet,
+        lamports: 10 * LAMPORTS_PER_SOL,
+      })
+    );
+
+    // Init the global fee state
+    tx.add(
+      await initGlobalFeeState(program, {
+        payer: provider.publicKey,
+        admin: wallet.payer.publicKey,
+        wallet: globalFeeWallet,
+        bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
+      })
+    );
 
     await provider.sendAndConfirm(tx, [usdcMint, aMint, bMint]);
 

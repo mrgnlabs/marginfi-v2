@@ -6,7 +6,9 @@ import {
   bankKeypairA,
   bankKeypairUsdc,
   ecosystem,
+  globalFeeWallet,
   groupAdmin,
+  INIT_POOL_ORIGINATION_FEE,
   marginfiGroup,
   oracles,
   verbose,
@@ -38,6 +40,10 @@ describe("Lending pool add bank (add bank to group)", () => {
     let bankKey = bankKeypairUsdc.publicKey;
     const now = Date.now() / 1000;
 
+    const feeAccSolBefore = await program.provider.connection.getBalance(
+      globalFeeWallet
+    );
+
     await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await addBank(program, {
@@ -46,15 +52,25 @@ describe("Lending pool add bank (add bank to group)", () => {
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
           bank: bankKey,
+          // globalFeeWallet: globalFeeWallet,
           config: setConfig,
         })
       ),
       [bankKeypairUsdc]
     );
 
+    const feeAccSolAfter = await program.provider.connection.getBalance(
+      globalFeeWallet
+    );
+
     if (verbose) {
       console.log("*init USDC bank " + bankKey);
+      console.log(
+        " Origination fee collected: " + (feeAccSolAfter - feeAccSolBefore)
+      );
     }
+
+    assert.equal(feeAccSolAfter - feeAccSolBefore, INIT_POOL_ORIGINATION_FEE);
 
     let bankData = (
       await program.provider.connection.getAccountInfo(bankKey)
@@ -141,6 +157,7 @@ describe("Lending pool add bank (add bank to group)", () => {
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
           bank: bankKey,
+          // globalFeeWallet: globalFeeWallet,
           config: config,
         })
       ),

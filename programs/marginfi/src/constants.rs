@@ -40,6 +40,9 @@ cfg_if::cfg_if! {
 pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);
 pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
 
+/// The default fee, in native SOL in native decimals (i.e. lamports) used in testing
+pub const INIT_BANK_ORIGINATION_FEE_DEFAULT: u32 = 10000;
+
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 
 pub const MAX_PYTH_ORACLE_AGE: u64 = 60;
