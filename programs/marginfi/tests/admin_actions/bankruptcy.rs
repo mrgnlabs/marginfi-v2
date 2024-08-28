@@ -458,7 +458,8 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
         .into();
     let origination_fee: I80F48 = I80F48::from_num(borrow_amount_native)
         .checked_mul(origination_fee_rate)
-        .unwrap();
+        .unwrap()
+        .ceil(); // Round up when repaying
     let origination_fee_u64: u64 = origination_fee.checked_to_num().expect("out of bounds");
     let actual_borrow_position = borrow_amount_native
         + origination_fee_u64

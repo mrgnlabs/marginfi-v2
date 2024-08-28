@@ -273,7 +273,8 @@ async fn marginfi_account_repay_all_success(
     let origination_fee: I80F48 =
         I80F48::from_num(native!(borrow_amount, debt_bank.mint.mint.decimals, f64))
             .checked_mul(origination_fee_rate)
-            .unwrap();
+            .unwrap()
+            .ceil(); // Round up when repaying
     let origination_fee_u64: u64 = origination_fee.checked_to_num().expect("out of bounds");
 
     let expected_liquidity_delta = I80F48::from(
