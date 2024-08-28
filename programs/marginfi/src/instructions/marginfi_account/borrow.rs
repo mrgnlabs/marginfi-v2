@@ -12,7 +12,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
-use fixed::types::I80F48;
+use fixed::{traits::Fixed, types::I80F48};
 use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
@@ -33,7 +33,6 @@ pub fn lending_account_borrow<'info>(
         token_program,
         bank_liquidity_vault_authority,
         bank: bank_loader,
-        fee_vault,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
@@ -56,6 +55,7 @@ pub fn lending_account_borrow<'info>(
         bank_loader.key(),
     )?;
 
+    let mut origination_fee: I80F48 = I80F48::ZERO;
     {
         let mut bank = bank_loader.load_mut()?;
 
@@ -87,29 +87,13 @@ pub fn lending_account_borrow<'info>(
 
         let origination_fee_u64: u64;
         if !origination_fee_rate.is_zero() {
-            let origination_fee: I80F48 = I80F48::from_num(amount_pre_fee)
+            origination_fee = I80F48::from_num(amount_pre_fee)
                 .checked_mul(origination_fee_rate)
-                .ok_or_else(math_error!())?; 
+                .ok_or_else(math_error!())?;
             origination_fee_u64 = origination_fee.checked_to_num().ok_or_else(math_error!())?;
 
             // Incurs a borrow that includes the origination fee (but withdraws just the amt)
             bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee)?;
-
-            // The bank fee account gains the origination fee
-            bank_account.withdraw_spl_transfer(
-                origination_fee_u64,
-                bank_liquidity_vault.to_account_info(),
-                fee_vault.to_account_info(),
-                bank_liquidity_vault_authority.to_account_info(),
-                maybe_bank_mint.as_ref(),
-                token_program.to_account_info(),
-                bank_signer!(
-                    BankVaultType::Liquidity,
-                    bank_loader.key(),
-                    liquidity_vault_authority_bump
-                ),
-                ctx.remaining_accounts,
-            )?;
         } else {
             // Incurs a borrow for the amount without any fee
             origination_fee_u64 = 0;
@@ -142,6 +126,14 @@ pub fn lending_account_borrow<'info>(
             mint: bank.mint,
             amount: amount_pre_fee + origination_fee_u64,
         });
+    } // release mutable borrow of bank
+
+    // The bank fee account gains the origination fee
+    {
+        let mut bank = bank_loader.load_mut()?;
+        let bank_fees_before: I80F48 = bank.collected_group_fees_outstanding.into();
+        let bank_fees_after: I80F48 = bank_fees_before.saturating_add(origination_fee);
+        bank.collected_group_fees_outstanding = bank_fees_after.into();
     }
 
     // Check account health, if below threshold fail transaction
@@ -195,16 +187,6 @@ pub struct LendingAccountBorrow<'info> {
         bump = bank.load() ?.liquidity_vault_bump,
     )]
     pub bank_liquidity_vault: InterfaceAccount<'info, TokenAccount>,
-
-    #[account(
-        mut,
-        seeds = [
-            FEE_VAULT_SEED.as_bytes(),
-            bank.key().as_ref(),
-        ],
-        bump,
-    )]
-    pub fee_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }

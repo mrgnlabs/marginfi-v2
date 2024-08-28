@@ -235,7 +235,6 @@ impl MarginfiAccountFixture {
             destination_token_account: destination_account,
             bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             bank_liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
-            fee_vault: bank.get_vault(BankVaultType::Fee).0,
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));

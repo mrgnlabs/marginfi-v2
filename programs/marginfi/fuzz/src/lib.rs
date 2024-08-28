@@ -635,7 +635,6 @@ impl<'state> MarginfiFuzzContext<'state> {
                     ))?,
                     bank_liquidity_vault_authority: ails(bank.liquidity_vault_authority.clone()),
                     bank_liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
-                    fee_vault: InterfaceAccount::try_from(airls(&bank.fee_vault))?,
                 },
                 aisls(&remaining_accounts),
                 Default::default(),

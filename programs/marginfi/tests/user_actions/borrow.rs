@@ -86,6 +86,11 @@ async fn marginfi_account_borrow_success(
         .balance()
         .await;
     let pre_user_debt_accounted = I80F48::ZERO;
+    let pre_fee_balance: I80F48 = debt_bank_f
+        .load()
+        .await
+        .collected_group_fees_outstanding
+        .into();
 
     let res = user_mfi_account_f
         .try_bank_borrow(user_debt_token_account_f.key, debt_bank_f, borrow_amount)
@@ -130,7 +135,6 @@ async fn marginfi_account_borrow_success(
     let origination_fee: I80F48 = I80F48::from_num(borrow_amount_native)
         .checked_mul(origination_fee_rate)
         .unwrap();
-    let origination_fee_i64: i64 = origination_fee.checked_to_num().expect("out of bounds");
 
     let active_balance_count = marginfi_account
         .lending_account
@@ -138,16 +142,27 @@ async fn marginfi_account_borrow_success(
         .count();
     assert_eq!(2, active_balance_count);
 
-    let expected_liquidity_vault_delta = -(borrow_amount_pre_fee as i64 + origination_fee_i64);
+    let expected_liquidity_vault_delta = -(borrow_amount_pre_fee as i64);
     let actual_liquidity_vault_delta = post_vault_balance as i64 - pre_vault_balance as i64;
     let accounted_user_balance_delta = post_user_debt_accounted - pre_user_debt_accounted;
 
+    // The liquidity vault paid out just the pre-origination fee amount (e.g. what the user borrowed
+    // before accounting for the fee)
     assert_eq!(expected_liquidity_vault_delta, actual_liquidity_vault_delta);
     assert_eq_with_tolerance!(
-        I80F48::from(expected_liquidity_vault_delta),
+        // Note: the user still gains debt which includes the origination fee
+        I80F48::from(expected_liquidity_vault_delta) - origination_fee,
         -accounted_user_balance_delta,
         1
     );
+
+    // The outstanding origination fee is recorded
+    let post_fee_balance: I80F48 = debt_bank_f
+        .load()
+        .await
+        .collected_group_fees_outstanding
+        .into();
+    assert_eq!(pre_fee_balance + origination_fee, post_fee_balance);
 
     Ok(())
 }
