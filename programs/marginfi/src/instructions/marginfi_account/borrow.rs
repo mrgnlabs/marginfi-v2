@@ -1,6 +1,6 @@
 use crate::{
     bank_signer, check,
-    constants::{FEE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
+    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     events::{AccountEventHeader, LendingAccountBorrowEvent},
     math_error,
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
@@ -12,7 +12,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
-use fixed::{traits::Fixed, types::I80F48};
+use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
