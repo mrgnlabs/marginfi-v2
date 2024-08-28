@@ -42,19 +42,26 @@ impl AccountsState {
             .alloc(Pubkey::new(transmute_to_bytes(&rand::random::<[u64; 4]>())))
     }
 
-    pub fn new_sol_account<'bump>(&'bump self, lamports: u64) -> AccountInfo<'bump> {
-        self.new_sol_account_with_pubkey(self.random_pubkey(), lamports)
+    pub fn new_sol_account<'bump>(
+        &'bump self,
+        lamports: u64,
+        signer: bool,
+        writeable: bool,
+    ) -> AccountInfo<'bump> {
+        self.new_sol_account_with_pubkey(self.random_pubkey(), lamports, signer, writeable)
     }
 
     pub fn new_sol_account_with_pubkey<'bump>(
         &'bump self,
         pubkey: &'bump Pubkey,
         lamports: u64,
+        signer: bool,
+        writeable: bool,
     ) -> AccountInfo<'bump> {
         AccountInfo::new(
             pubkey,
-            true,
-            false,
+            signer,
+            writeable,
             self.bump.alloc(lamports),
             &mut [],
             &system_program::ID,
@@ -73,7 +80,7 @@ impl AccountsState {
                 false,
                 true,
                 self.bump.alloc(9999999),
-                self.allocate_dex_owned_account(256 +8),
+                self.allocate_dex_owned_account(256 + 8),
                 self.bump.alloc(program_id),
                 false,
                 Epoch::default(),

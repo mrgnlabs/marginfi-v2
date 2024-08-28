@@ -66,8 +66,8 @@ impl<'state> MarginfiFuzzContext<'state> {
         n_users: u8,
     ) -> Self {
         let system_program = state.new_program(system_program::id());
-        let admin = state.new_sol_account(1_000_000);
-        let fee_state_wallet = state.new_sol_account(1_000_000);
+        let admin = state.new_sol_account(1_000_000, true, false);
+        let fee_state_wallet = state.new_sol_account(1_000_000, false, true);
         let rent_sysvar = state.new_rent_sysvar_account(Rent::free());
         let marginfi_group =
             initialize_marginfi_group(state, admin.clone(), system_program.clone());
@@ -81,8 +81,8 @@ impl<'state> MarginfiFuzzContext<'state> {
 
         let mut marginfi_state = MarginfiFuzzContext {
             marginfi_group,
-            fee_state_wallet,
             fee_state,
+            fee_state_wallet,
             banks: vec![],
             owner: admin,
             system_program,
