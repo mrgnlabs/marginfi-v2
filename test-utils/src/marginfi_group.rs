@@ -21,7 +21,7 @@ use std::{cell::RefCell, mem, rc::Rc};
 
 async fn airdrop_sol(context: &mut ProgramTestContext, key: &Pubkey, amount: u64) {
     let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
-    let tx = system_transaction::transfer(&context.payer, &key, amount, recent_blockhash);
+    let tx = system_transaction::transfer(&context.payer, key, amount, recent_blockhash);
     context.banks_client.process_transaction(tx).await.unwrap();
 }
 

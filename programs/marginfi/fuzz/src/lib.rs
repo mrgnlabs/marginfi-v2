@@ -18,6 +18,7 @@ use arbitrary_helpers::{
 };
 use bank_accounts::{get_bank_map, BankAccounts};
 use fixed_macro::types::I80F48;
+use marginfi::{constants::FEE_STATE_SEED, state::fee_state::FeeState};
 use marginfi::{
     errors::MarginfiError,
     instructions::LendingPoolAddBankBumps,
@@ -46,6 +47,8 @@ pub mod utils;
 
 pub struct MarginfiFuzzContext<'info> {
     pub marginfi_group: AccountInfo<'info>,
+    pub fee_state: AccountInfo<'info>,
+    pub fee_state_wallet: AccountInfo<'info>,
     pub banks: Vec<BankAccounts<'info>>,
     pub marginfi_accounts: Vec<UserAccount<'info>>,
     pub owner: AccountInfo<'info>,
@@ -64,12 +67,22 @@ impl<'state> MarginfiFuzzContext<'state> {
     ) -> Self {
         let system_program = state.new_program(system_program::id());
         let admin = state.new_sol_account(1_000_000);
+        let fee_state_wallet = state.new_sol_account(1_000_000);
         let rent_sysvar = state.new_rent_sysvar_account(Rent::free());
         let marginfi_group =
             initialize_marginfi_group(state, admin.clone(), system_program.clone());
+        let fee_state = initialize_fee_state(
+            state,
+            admin.clone(),
+            fee_state_wallet.clone(),
+            rent_sysvar.clone(),
+            system_program.clone(),
+        );
 
         let mut marginfi_state = MarginfiFuzzContext {
             marginfi_group,
+            fee_state_wallet,
+            fee_state,
             banks: vec![],
             owner: admin,
             system_program,
@@ -192,6 +205,8 @@ impl<'state> MarginfiFuzzContext<'state> {
             fee_vault_authority.key,
             bank.key,
         );
+        let (fee_state_key, fee_state_bump) =
+            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
 
         let oracle = state.new_oracle_account(
             rent.clone(),
@@ -207,6 +222,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             insurance_vault: insurance_vault_bump,
             fee_vault_authority: fee_vault_authority_bump,
             fee_vault: fee_vault_bump,
+            fee_state: fee_state_bump,
         };
 
         let token_program = match initial_bank_config.token_type {
@@ -225,6 +241,8 @@ impl<'state> MarginfiFuzzContext<'state> {
                             .unwrap(),
                         admin: Signer::try_from(airls(&self.owner)).unwrap(),
                         fee_payer: Signer::try_from(airls(&self.owner)).unwrap(),
+                        fee_state: AccountLoader::try_from(airls(&self.fee_state)).unwrap(),
+                        global_fee_wallet: ails(self.fee_state_wallet.clone()),
                         bank_mint: Box::new(InterfaceAccount::try_from(airls(&mint)).unwrap()),
                         bank: AccountLoader::try_from_unchecked(&marginfi::ID, airls(&bank))
                             .unwrap(),
@@ -947,6 +965,40 @@ fn initialize_marginfi_group<'a>(
     set_discriminator::<MarginfiGroup>(marginfi_group.clone());
 
     marginfi_group
+}
+
+fn initialize_fee_state<'a>(
+    state: &'a AccountsState,
+    admin: AccountInfo<'a>,
+    wallet: AccountInfo<'a>,
+    rent: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
+) -> AccountInfo<'a> {
+    let program_id = marginfi::id();
+    let (fee_state, _fee_state_bump) = state.new_fee_state(program_id);
+
+    marginfi::instructions::marginfi_group::initialize_fee_state(
+        Context::new(
+            &marginfi::id(),
+            &mut marginfi::instructions::InitFeeState {
+                payer: Signer::try_from(airls(&admin)).unwrap(),
+                fee_state: AccountLoader::try_from_unchecked(&program_id, airls(&fee_state))
+                    .unwrap(),
+                rent: Sysvar::from_account_info(airls(&rent)).unwrap(),
+                system_program: Program::try_from(airls(&system_program)).unwrap(),
+            },
+            &[],
+            Default::default(),
+        ),
+        admin.key(),
+        wallet.key(),
+        1000,
+    )
+    .unwrap();
+
+    set_discriminator::<FeeState>(fee_state.clone());
+
+    fee_state
 }
 
 #[cfg(test)]
