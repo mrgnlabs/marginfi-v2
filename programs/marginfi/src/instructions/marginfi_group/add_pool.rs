@@ -1,9 +1,13 @@
 use crate::{
     constants::{
-        FEE_STATE_SEED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED
+        FEE_STATE_SEED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
-    state::{fee_state::FeeState, marginfi_group::{Bank, BankConfig, BankConfigCompact, MarginfiGroup}},
+    state::{
+        fee_state::FeeState,
+        marginfi_group::{Bank, BankConfig, BankConfigCompact, MarginfiGroup},
+    },
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -99,7 +103,7 @@ pub struct LendingPoolAddBank<'info> {
 
     // Note: there is just one FeeState per program, so no further check is required.
     #[account(
-        seeds = [FEE_STATE_SEED.as_bytes()], 
+        seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
         has_one = global_fee_wallet
     )]

@@ -145,6 +145,8 @@ pub enum GroupCommand {
             default_value = "60"
         )]
         oracle_max_age: u16,
+        #[clap(long)]
+        global_fee_wallet: Pubkey,
     },
     HandleBankruptcy {
         accounts: Vec<Pubkey>,
@@ -576,6 +578,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             risk_tier,
             oracle_type,
             oracle_max_age,
+            global_fee_wallet,
         } => processor::group_add_bank(
             config,
             profile,
@@ -600,6 +603,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             risk_tier,
             oracle_max_age,
             global_options.compute_unit_price,
+            global_fee_wallet,
         ),
 
         GroupCommand::HandleBankruptcy { accounts } => {

@@ -10,8 +10,8 @@ use {
         utils::{
             bank_to_oracle_key, calc_emissions_rate, create_oracle_key_array,
             find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
-            find_bank_vault_authority_pda, find_bank_vault_pda, load_observation_account_metas,
-            process_transaction, EXP_10_I80F48,
+            find_bank_vault_authority_pda, find_bank_vault_pda, find_fee_state_pda,
+            load_observation_account_metas, process_transaction, EXP_10_I80F48,
         },
     },
     anchor_client::{
@@ -317,6 +317,7 @@ pub fn group_add_bank(
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
     compute_unit_price: Option<u64>,
+    global_fee_wallet: Pubkey,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
@@ -384,6 +385,7 @@ pub fn group_add_bank(
             oracle_setup,
             risk_tier,
             oracle_max_age,
+            global_fee_wallet,
         )?
     } else {
         create_bank_ix(
@@ -404,6 +406,7 @@ pub fn group_add_bank(
             oracle_setup,
             risk_tier,
             oracle_max_age,
+            global_fee_wallet,
         )?
     };
 
@@ -445,6 +448,7 @@ fn create_bank_ix_with_seed(
     oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
+    global_fee_wallet: Pubkey,
 ) -> Result<Vec<Instruction>> {
     use solana_sdk::commitment_config::CommitmentConfig;
 
@@ -514,6 +518,8 @@ fn create_bank_ix_with_seed(
             token_program,
             system_program: system_program::id(),
             fee_payer: config.authority(),
+            fee_state: find_fee_state_pda(&config.program_id).0,
+            global_fee_wallet,
         })
         .accounts(AccountMeta::new_readonly(oracle_key, false))
         .args(marginfi::instruction::LendingPoolAddBankWithSeed {
@@ -562,6 +568,7 @@ fn create_bank_ix(
     oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
+    global_fee_wallet: Pubkey,
 ) -> Result<Vec<Instruction>> {
     let add_bank_ixs_builder = config.mfi_program.request();
     let add_bank_ixs = add_bank_ixs_builder
@@ -610,6 +617,8 @@ fn create_bank_ix(
             token_program,
             system_program: system_program::id(),
             fee_payer: config.explicit_fee_payer(),
+            fee_state: find_fee_state_pda(&config.program_id).0,
+            global_fee_wallet,
         })
         .accounts(AccountMeta::new_readonly(oracle_key, false))
         .args(marginfi::instruction::LendingPoolAddBank {

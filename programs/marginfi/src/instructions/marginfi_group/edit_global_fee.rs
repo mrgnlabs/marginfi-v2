@@ -1,7 +1,7 @@
 // Global fee admin calls this to edit the fee rate or the fee wallet.
 
-use crate::state::fee_state;
 use crate::constants::FEE_STATE_SEED;
+use crate::state::fee_state;
 use anchor_lang::prelude::*;
 use fee_state::FeeState;
 
@@ -26,7 +26,7 @@ pub struct EditFeeState<'info> {
     // Note: there is just one FeeState per program, so no further check is required.
     #[account(
         mut,
-        seeds = [FEE_STATE_SEED.as_bytes()], 
+        seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
         has_one = global_fee_admin
     )]
