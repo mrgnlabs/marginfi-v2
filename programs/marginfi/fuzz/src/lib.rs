@@ -66,8 +66,8 @@ impl<'state> MarginfiFuzzContext<'state> {
         n_users: u8,
     ) -> Self {
         let system_program = state.new_program(system_program::id());
-        let admin = state.new_sol_account(1_000_000, true, false);
-        let fee_state_wallet = state.new_sol_account(1_000_000, false, false);
+        let admin = state.new_sol_account(1_000_000, true, true);
+        let fee_state_wallet = state.new_sol_account(1_000_000, true, true);
         let rent_sysvar = state.new_rent_sysvar_account(Rent::free());
         let marginfi_group =
             initialize_marginfi_group(state, admin.clone(), system_program.clone());
@@ -992,7 +992,9 @@ fn initialize_fee_state<'a>(
         ),
         admin.key(),
         wallet.key(),
-        1000,
+        // WARN: tests will fail at add_bank::system_program::transfer if this is non-zero because
+        // the fuzz suite does not yet support the system program.
+        0,
     )
     .unwrap();
 
