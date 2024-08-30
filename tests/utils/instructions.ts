@@ -1,4 +1,4 @@
-import { Program } from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
 import { AccountMeta, PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import {
@@ -11,6 +11,7 @@ import {
 } from "./pdas";
 import { BankConfig } from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { BankConfigOptRaw } from "@mrgnlabs/marginfi-client-v2";
 
 export const MAX_ORACLE_KEYS = 5;
 
@@ -51,6 +52,7 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
       oracleKey: args.config.oracleKey,
       borrowLimit: args.config.borrowLimit,
       riskTier: args.config.riskTier,
+      pad0: [0, 0, 0, 0, 0, 0, 0],
       totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
       oracleMaxAge: args.config.oracleMaxAge,
     })
@@ -119,5 +121,99 @@ export const groupInitialize = (
     })
     .instruction();
 
+  return ix;
+};
+
+export type ConfigureBankArgs = {
+  marginfiGroup: PublicKey;
+  admin: PublicKey;
+  bank: PublicKey;
+  bankConfigOpt: BankConfigOptRaw;
+};
+
+export const configureBank = (
+  program: Program<Marginfi>,
+  args: ConfigureBankArgs
+) => {
+  const ix = program.methods
+    .lendingPoolConfigureBank(args.bankConfigOpt)
+    .accounts({
+      marginfiGroup: args.marginfiGroup,
+      admin: args.admin,
+      bank: args.bank,
+    })
+    .instruction();
+  return ix;
+};
+
+export type SetupEmissionsArgs = {
+  marginfiGroup: PublicKey;
+  admin: PublicKey;
+  bank: PublicKey;
+  emissionsMint: PublicKey;
+  fundingAccount: PublicKey;
+  emissionsFlags: BN;
+  emissionsRate: BN;
+  totalEmissions: BN;
+};
+
+export const setupEmissions = (
+  program: Program<Marginfi>,
+  args: SetupEmissionsArgs
+) => {
+  const ix = program.methods
+    .lendingPoolSetupEmissions(
+      args.emissionsFlags,
+      args.emissionsRate,
+      args.totalEmissions
+    )
+    .accounts({
+      marginfiGroup: args.marginfiGroup,
+      admin: args.admin,
+      bank: args.bank,
+      emissionsMint: args.emissionsMint,
+      // emissionsAuth: deriveEmissionsAuth()
+      // emissionsTokenAccount: deriveEmissionsTokenAccount()
+      emissionsFundingAccount: args.fundingAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      // systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  return ix;
+};
+
+export type UpdateEmissionsArgs = {
+  marginfiGroup: PublicKey;
+  admin: PublicKey;
+  bank: PublicKey;
+  emissionsMint: PublicKey;
+  fundingAccount: PublicKey;
+  emissionsFlags: BN | null;
+  emissionsRate: BN | null;
+  additionalEmissions: BN | null;
+};
+
+export const updateEmissions = (
+  program: Program<Marginfi>,
+  args: UpdateEmissionsArgs
+) => {
+  const ix = program.methods
+    .lendingPoolUpdateEmissionsParameters(
+      args.emissionsFlags,
+      args.emissionsRate,
+      args.additionalEmissions
+    )
+    .accounts({
+      marginfiGroup: args.marginfiGroup,
+      admin: args.admin,
+      bank: args.bank,
+      emissionsMint: args.emissionsMint,
+      // emissionsAuth: deriveEmissionsAuth()
+      // emissionsTokenAccount: deriveEmissionsTokenAccount()
+      emissionsFundingAccount: args.fundingAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      // systemProgram: SystemProgram.programId,
+    })
+    .instruction();
   return ix;
 };

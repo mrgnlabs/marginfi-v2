@@ -9,6 +9,7 @@ import {
   groupAdmin,
   marginfiGroup,
   oracles,
+  printBuffers,
   verbose,
 } from "./rootHooks";
 import {
@@ -59,7 +60,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     let bankData = (
       await program.provider.connection.getAccountInfo(bankKey)
     ).data.subarray(8);
-    printBufferGroups(bankData, 16, 896);
+    if (printBuffers) {
+      printBufferGroups(bankData, 16, 896);
+    }
 
     const bank = await program.account.bank.fetch(bankKey);
     const config = bank.config;
@@ -110,6 +113,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Equal(config.assetWeightInit, 1);
     assertI80F48Equal(config.assetWeightMaint, 1);
     assertI80F48Equal(config.liabilityWeightInit, 1);
+    assertI80F48Equal(config.liabilityWeightMaint, 1);
     assertBNEqual(config.depositLimit, 1_000_000_000);
 
     const tolerance = 0.000001;
@@ -164,7 +168,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     let bonkBankData = (
       await program.provider.connection.getAccountInfo(bonkBankKey)
     ).data.subarray(8);
-    printBufferGroups(bonkBankData, 16, 896);
+    if (printBuffers) {
+      printBufferGroups(bonkBankData, 16, 896);
+    }
 
     let cloudBankKey = new PublicKey(
       "4kNXetv8hSv9PzvzPZzEs1CTH6ARRRi2b8h6jk1ad1nP"
@@ -172,7 +178,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     let cloudBankData = (
       await program.provider.connection.getAccountInfo(cloudBankKey)
     ).data.subarray(8);
-    printBufferGroups(cloudBankData, 16, 896);
+    if (printBuffers) {
+      printBufferGroups(cloudBankData, 16, 896);
+    }
 
     const bbk = bonkBankKey;
     const bb = await program.account.bank.fetch(bonkBankKey);
@@ -291,3 +299,5 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.equal(cloudConfig.oracleMaxAge, 60);
   });
 });
+
+// TODO add bank with seed

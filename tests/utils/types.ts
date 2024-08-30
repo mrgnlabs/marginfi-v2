@@ -1,23 +1,30 @@
+import {
+  BankConfigOpt,
+  BankConfigOptRaw,
+  InterestRateConfig,
+  InterestRateConfigRaw,
+  OperationalState,
+  OracleSetupRaw,
+  RiskTier,
+  RiskTierRaw,
+} from "@mrgnlabs/marginfi-client-v2";
 import { bigNumberToWrappedI80F48, WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { PublicKey } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 
 import BN from "bn.js";
 
 export const I80F48_ZERO = bigNumberToWrappedI80F48(0);
 export const I80F48_ONE = bigNumberToWrappedI80F48(1);
 
-export type RiskTier = { collateral: {} } | { isolated: {} };
+export const EMISSIONS_FLAG_NONE = 0;
+export const EMISSIONS_FLAG_BORROW_ACTIVE = 1;
+export const EMISSIONS_FLAG_LENDING_ACTIVE = 2;
 
-export type OperationalState =
+type OperationalStateRaw =
   | { paused: {} }
   | { operational: {} }
   | { reduceOnly: {} };
-
-export type OracleSetup =
-  | { none: {} }
-  | { pythLegacy: {} }
-  | { switchboardV2: {} }
-  | { pythPushOracle: {} };
 
 export type BankConfig = {
   assetWeightInit: WrappedI80F48;
@@ -27,18 +34,18 @@ export type BankConfig = {
   liabilityWeightMain: WrappedI80F48;
 
   depositLimit: BN;
-  interestRateConfig: InterestRateConfig;
+  interestRateConfig: InterestRateConfigRaw;
 
   /** Paused = 0, Operational = 1, ReduceOnly = 2 */
-  operationalState: OperationalState;
+  operationalState: OperationalStateRaw;
 
   /** None = 0, PythLegacy = 1, SwitchboardV2 = 2, PythPushOracle =3 */
-  oracleSetup: OracleSetup;
+  oracleSetup: OracleSetupRaw;
   oracleKey: PublicKey;
 
   borrowLimit: BN;
   /** Collateral = 0, Isolated = 1 */
-  riskTier: RiskTier;
+  riskTier: RiskTierRaw;
   totalAssetValueInitLimit: BN;
   oracleMaxAge: number;
 };
@@ -59,7 +66,7 @@ export const defaultBankConfig = (oracleKey: PublicKey) => {
     liabilityWeightInit: I80F48_ONE,
     liabilityWeightMain: I80F48_ONE,
     depositLimit: new BN(1_000_000_000),
-    interestRateConfig: defaultInterestRateConfig(),
+    interestRateConfig: defaultInterestRateConfigRaw(),
     operationalState: {
       operational: undefined,
     },
@@ -77,15 +84,56 @@ export const defaultBankConfig = (oracleKey: PublicKey) => {
   return config;
 };
 
-export type InterestRateConfig = {
-  optimalUtilizationRate: WrappedI80F48;
-  plateauInterestRate: WrappedI80F48;
-  maxInterestRate: WrappedI80F48;
+/**
+ * The same parameters as `defaultBankConfig`, and no change to oracle
+ * @returns
+ */
+export const defaultBankConfigOpt = () => {
+  let bankConfigOpt: BankConfigOpt = {
+    assetWeightInit: new BigNumber(1),
+    assetWeightMaint: new BigNumber(1),
+    liabilityWeightInit: new BigNumber(1),
+    liabilityWeightMaint: new BigNumber(1),
+    depositLimit: new BigNumber(1_000_000_000),
+    borrowLimit: new BigNumber(1_000_000_000),
+    riskTier: RiskTier.Collateral,
+    totalAssetValueInitLimit: new BigNumber(100_000_000_000),
+    interestRateConfig: defaultInterestRateConfig(),
+    operationalState: OperationalState.Operational,
+    oracle: null,
+    oracleMaxAge: 100,
+    permissionlessBadDebtSettlement: null,
+  };
 
-  insuranceFeeFixedApr: WrappedI80F48;
-  insuranceIrFee: WrappedI80F48;
-  protocolFixedFeeApr: WrappedI80F48;
-  protocolIrFee: WrappedI80F48;
+  return bankConfigOpt;
+};
+
+/**
+ * The same parameters as `defaultBankConfig`, and no change to oracle
+ * @returns
+ */
+export const defaultBankConfigOptRaw = () => {
+  let bankConfigOpt: BankConfigOptRaw = {
+    assetWeightInit: I80F48_ONE,
+    assetWeightMaint: I80F48_ONE,
+    liabilityWeightInit: I80F48_ONE,
+    liabilityWeightMaint: I80F48_ONE,
+    depositLimit: new BN(1_000_000_000),
+    borrowLimit: new BN(1_000_000_000),
+    riskTier: {
+      collateral: undefined,
+    },
+    totalAssetValueInitLimit: new BN(100_000_000_000),
+    interestRateConfig: defaultInterestRateConfigRaw(),
+    operationalState: {
+      operational: undefined,
+    },
+    oracle: null,
+    oracleMaxAge: 100,
+    permissionlessBadDebtSettlement: null,
+  };
+
+  return bankConfigOpt;
 };
 
 /**
@@ -96,8 +144,8 @@ export type InterestRateConfig = {
  * * All others values = 0
  * @returns
  */
-export const defaultInterestRateConfig = () => {
-  let config: InterestRateConfig = {
+export const defaultInterestRateConfigRaw = () => {
+  let config: InterestRateConfigRaw = {
     optimalUtilizationRate: bigNumberToWrappedI80F48(0.5),
     plateauInterestRate: bigNumberToWrappedI80F48(0.6),
     maxInterestRate: bigNumberToWrappedI80F48(3),
@@ -105,6 +153,23 @@ export const defaultInterestRateConfig = () => {
     insuranceIrFee: I80F48_ZERO,
     protocolFixedFeeApr: I80F48_ZERO,
     protocolIrFee: I80F48_ZERO,
+  };
+  return config;
+};
+
+/**
+ * The same parameters as `defaultInterestRateConfigRaw`
+ * @returns
+ */
+export const defaultInterestRateConfig = () => {
+  let config: InterestRateConfig = {
+    optimalUtilizationRate: new BigNumber(0.5),
+    plateauInterestRate: new BigNumber(0.6),
+    maxInterestRate: new BigNumber(3),
+    insuranceFeeFixedApr: new BigNumber(0),
+    insuranceIrFee: new BigNumber(0),
+    protocolFixedFeeApr: new BigNumber(0),
+    protocolIrFee: new BigNumber(0),
   };
   return config;
 };
