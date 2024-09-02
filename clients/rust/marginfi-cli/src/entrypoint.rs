@@ -153,6 +153,10 @@ pub enum GroupCommand {
         #[clap(short = 't', long)]
         existing_token_lookup_tables: Vec<Pubkey>,
     },
+    CheckLookupTable {
+        #[clap(short = 't', long)]
+        existing_token_lookup_tables: Vec<Pubkey>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Parser, ArgEnum)]
@@ -605,6 +609,14 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         GroupCommand::HandleBankruptcy { accounts } => {
             processor::handle_bankruptcy_for_accounts(&config, &profile, accounts)
         }
+
+        GroupCommand::CheckLookupTable {
+            existing_token_lookup_tables,
+        } => processor::group::process_check_lookup_tables(
+            &config,
+            &profile,
+            existing_token_lookup_tables,
+        ),
 
         GroupCommand::UpdateLookupTable {
             existing_token_lookup_tables,

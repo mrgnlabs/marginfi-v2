@@ -15,6 +15,127 @@ use std::mem::size_of;
 const CHUNK_SIZE: usize = 22;
 const KEY_BATCH_SIZE: usize = 20;
 
+pub fn process_check_lookup_tables(
+    config: &Config,
+    profile: &Profile,
+    existing_lookup_tables: Vec<Pubkey>,
+) -> Result<()> {
+    let rpc = config.mfi_program.rpc();
+    let marginfi_group = profile.marginfi_group.expect("group not set");
+
+    let mut accounts: Vec<Account> = vec![];
+
+    for chunk in existing_lookup_tables.chunks(CHUNK_SIZE) {
+        let accounts_2: Vec<Account> = rpc
+            .get_multiple_accounts(chunk)?
+            .into_iter()
+            .flatten()
+            .collect();
+
+        accounts.extend(accounts_2);
+    }
+
+    let lookup_tables: Vec<AddressLookupTable> = accounts
+        .iter_mut()
+        .zip(existing_lookup_tables.iter())
+        .map(|(account, address)| {
+            let lookup_table = AddressLookupTable::deserialize(&account.data).unwrap();
+            println!(
+                "Loaded table {} with {} addresses",
+                address,
+                lookup_table.addresses.len()
+            );
+
+            if lookup_table.meta.authority != Some(config.authority()) {
+                println!(
+                    "Lookup table {} has wrong authority {:?}",
+                    address, lookup_table.meta.authority,
+                );
+            }
+
+            lookup_table
+        })
+        .collect();
+
+    let banks = config
+        .mfi_program
+        .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+            8 + size_of::<Pubkey>() + size_of::<u8>(),
+            marginfi_group.to_bytes().to_vec(),
+        ))])?;
+
+    let _bank_pks = banks.iter().map(|(pk, _)| *pk).collect::<Vec<Pubkey>>();
+
+    let oracle_pks = banks
+        .iter()
+        .flat_map(|(_, bank)| bank.config.oracle_keys)
+        .filter(|pk| pk != &Pubkey::default())
+        .collect::<Vec<Pubkey>>();
+
+    // Dedup the oracle pks.
+    let _oracle_pks = oracle_pks
+        .into_iter()
+        .fold(vec![], |mut acc, pk| {
+            if !acc.contains(&pk) {
+                acc.push(pk);
+            }
+            acc
+        })
+        .into_iter()
+        .collect::<Vec<Pubkey>>();
+
+    // Join keys
+    let mut keys = vec![
+        config.mfi_program.id(),
+        marginfi_group,
+        spl_token::id(),
+        system_program::id(),
+    ];
+
+    for (bank_pk, bank) in banks.iter() {
+        keys.push(*bank_pk);
+        keys.push(bank.liquidity_vault);
+        let (vault_auth, _) = utils::find_bank_vault_authority_pda(
+            bank_pk,
+            marginfi::state::marginfi_group::BankVaultType::Liquidity,
+            &marginfi::ID,
+        );
+
+        keys.push(vault_auth);
+
+        keys.extend_from_slice(
+            &bank
+                .config
+                .oracle_keys
+                .iter()
+                .filter(|pk| **pk != Pubkey::default())
+                .cloned()
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    keys.dedup();
+
+    // Find missing keys in lookup tables
+    let missing_keys = keys
+        .iter()
+        .filter(|pk| {
+            let missing = !lookup_tables
+                .iter()
+                .any(|lookup_table| lookup_table.addresses.iter().any(|address| &address == pk));
+
+            println!("Key {} missing: {}", pk, missing);
+
+            missing
+        })
+        .cloned()
+        .collect::<Vec<Pubkey>>();
+
+    println!("Missing {} keys", missing_keys.len());
+
+    Ok(())
+}
+
 pub fn process_update_lookup_tables(
     config: &Config,
     profile: &Profile,
