@@ -115,16 +115,13 @@ pub async fn index_transactions(config: IndexTransactionsConfig) -> Result<()> {
 async fn listen_to_updates(ctx: Arc<Context>) {
     loop {
         info!("Connecting geyser client");
-        let geyser_client_connection_result = GeyserGrpcClient::connect_with_timeout(
-            ctx.config.rpc_endpoint.to_string(),
-            Some(ctx.config.rpc_token.to_string()),
-            None,
-            Some(Duration::from_secs(10)),
-            Some(Duration::from_secs(10)),
-            false,
-        )
-        .await;
-        info!("Connected");
+        let geyser_client_connection_result =
+            GeyserGrpcClient::build_from_shared(ctx.config.rpc_endpoint.to_string())
+                .unwrap()
+                .x_token(Some(ctx.config.rpc_token.to_string()))
+                .unwrap()
+                .connect()
+                .await;
 
         let mut geyser_client = match geyser_client_connection_result {
             Ok(geyser_client) => geyser_client,
