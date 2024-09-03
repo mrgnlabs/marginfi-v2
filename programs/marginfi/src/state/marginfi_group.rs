@@ -369,7 +369,7 @@ pub struct InterestRateConfigOpt {
 /// Group level configuration to be used in bank accounts.
 #[derive(Clone, Debug)]
 pub struct GroupBankConfig {
-    protocol_fees: bool,
+    pub protocol_fees: bool,
 }
 
 assert_struct_size!(Bank, 1856);
