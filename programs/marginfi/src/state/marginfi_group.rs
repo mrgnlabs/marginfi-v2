@@ -9,9 +9,9 @@ use crate::{
     constants::{
         EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
-        LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PRICE_AGE_SEC,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PROTOCOL_FEE_FIXED, PROTOCOL_FEE_RATE, PYTH_ID,
-        SECONDS_PER_YEAR, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
+        LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, MAX_SWB_ORACLE_AGE,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_ID, SECONDS_PER_YEAR,
+        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
     prelude::MarginfiError,
@@ -19,10 +19,16 @@ use crate::{
     state::marginfi_account::calc_value,
     MarginfiResult,
 };
+use crate::{
+    borsh::{BorshDeserialize, BorshSerialize},
+    constants::{PROTOCOL_FEE_FIXED, PROTOCOL_FEE_RATE},
+};
+use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{transfer, Transfer};
+use anchor_spl::token_interface::*;
 use fixed::types::I80F48;
-use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
+use pyth_sdk_solana::{state::SolanaPriceAccount, PriceFeed};
+use pyth_solana_receiver_sdk::price_update::FeedId;
 #[cfg(feature = "client")]
 use std::fmt::Display;
 use std::{
@@ -84,12 +90,11 @@ pub struct GroupConfig {
 /// Load and validate a pyth price feed account.
 pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
-    let price_feed =
-        load_price_feed_from_account_info(ai).map_err(|_| MarginfiError::InvalidOracleAccount)?;
+    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
+        .map_err(|_| MarginfiError::InvalidOracleAccount)?;
     Ok(price_feed)
 }
 
-#[zero_copy]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -155,7 +160,7 @@ assert_struct_size!(InterestRateConfig, 240);
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, Debug)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -382,6 +387,10 @@ pub struct Bank {
 
     pub group: Pubkey,
 
+    // Note: The padding is here, not after mint_decimals. Pubkey has alignment 1, so those 32
+    // bytes can cross the alignment 8 threshold, but WrappedI80F48 has alignment 8 and cannot
+    pub _pad0: [u8; 7], // 1x u8 + 7 = 8
+
     pub asset_share_value: WrappedI80F48,
     pub liability_share_value: WrappedI80F48,
 
@@ -392,11 +401,17 @@ pub struct Bank {
     pub insurance_vault: Pubkey,
     pub insurance_vault_bump: u8,
     pub insurance_vault_authority_bump: u8,
+
+    pub _pad1: [u8; 4], // 4x u8 + 4 = 8
+
     pub collected_insurance_fees_outstanding: WrappedI80F48,
 
     pub fee_vault: Pubkey,
     pub fee_vault_bump: u8,
     pub fee_vault_authority_bump: u8,
+
+    pub _pad2: [u8; 6], // 2x u8 + 6 = 8
+
     pub collected_group_fees_outstanding: WrappedI80F48,
 
     pub total_liability_shares: WrappedI80F48,
@@ -468,9 +483,7 @@ impl Bank {
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
-            collected_protocol_fees_outstanding: I80F48::ZERO.into(),
-            _padding_0: [[0; 2]; 27],
-            _padding_1: [[0; 2]; 32],
+            ..Default::default()
         }
     }
 
@@ -750,49 +763,114 @@ impl Bank {
                 bank,
                 mint: self.mint,
                 delta: time_delta,
-                fees_collected: fees_collected.to_num::<f64>(),
-                insurance_collected: insurance_collected.to_num::<f64>(),
+                fees_collected: group_fees_collected.to_num::<f64>(),
+                insurance_collected: insurance_fees_collected.to_num::<f64>(),
             });
         }
 
         Ok(())
     }
 
-    pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
+    pub fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'b>,
-        program: AccountInfo<'c>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
+        program: AccountInfo<'info>,
+        remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
         check!(
-            accounts.to.key.eq(&self.liquidity_vault),
+            to.key.eq(&self.liquidity_vault),
             MarginfiError::InvalidTransfer
         );
 
         debug!(
             "deposit_spl_transfer: amount: {} from {} to {}, auth {}",
-            amount, accounts.from.key, accounts.to.key, accounts.authority.key
+            amount, from.key, to.key, authority.key
         );
 
-        transfer(CpiContext::new(program, accounts), amount)
+        if let Some(mint) = maybe_mint {
+            spl_token_2022::onchain::invoke_transfer_checked(
+                program.key,
+                from,
+                mint.to_account_info(),
+                to,
+                authority,
+                remaining_accounts,
+                amount,
+                mint.decimals,
+                &[],
+            )?;
+        } else {
+            #[allow(deprecated)]
+            transfer(
+                CpiContext::new_with_signer(
+                    program,
+                    Transfer {
+                        from,
+                        to,
+                        authority,
+                    },
+                    &[],
+                ),
+                amount,
+            )?;
+        }
+
+        Ok(())
     }
 
-    pub fn withdraw_spl_transfer<'b: 'c, 'c: 'b>(
+    pub fn withdraw_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'b>,
-        program: AccountInfo<'c>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
+        program: AccountInfo<'info>,
         signer_seeds: &[&[&[u8]]],
+        remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
         debug!(
             "withdraw_spl_transfer: amount: {} from {} to {}, auth {}",
-            amount, accounts.from.key, accounts.to.key, accounts.authority.key
+            amount, from.key, to.key, authority.key
         );
 
-        transfer(
-            CpiContext::new_with_signer(program, accounts, signer_seeds),
-            amount,
-        )
+        if let Some(mint) = maybe_mint {
+            spl_token_2022::onchain::invoke_transfer_checked(
+                program.key,
+                from,
+                mint.to_account_info(),
+                to,
+                authority,
+                remaining_accounts,
+                amount,
+                mint.decimals,
+                signer_seeds,
+            )?;
+        } else {
+            // `transfer_checked` and `transfer` does the same thing, the additional `_checked` logic
+            // is only to assert the expected attributes by the user (mint, decimal scaling),
+            //
+            // Security of `transfer` is equal to `transfer_checked`.
+            #[allow(deprecated)]
+            transfer(
+                CpiContext::new_with_signer(
+                    program,
+                    Transfer {
+                        from,
+                        to,
+                        authority,
+                    },
+                    signer_seeds,
+                ),
+                amount,
+            )?;
+        }
+
+        Ok(())
     }
 
     /// Socialize a loss `loss_amount` among depositors,
@@ -1017,7 +1095,7 @@ impl Display for BankOperationalState {
     }
 }
 
-#[repr(u64)]
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum RiskTier {
     Collateral,
@@ -1030,7 +1108,6 @@ pub enum RiskTier {
     Isolated,
 }
 
-#[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -1056,6 +1133,8 @@ pub struct BankConfigCompact {
     pub borrow_limit: u64,
 
     pub risk_tier: RiskTier,
+
+    pub _pad0: [u8; 7],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1090,11 +1169,13 @@ impl From<BankConfigCompact> for BankConfig {
             operational_state: config.operational_state,
             oracle_setup: config.oracle_setup,
             oracle_keys: keys,
+            _pad0: [0; 6],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
+            _pad1: [0; 7],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
-            _padding: [0; 19],
+            _padding: [0; 38],
         }
     }
 }
@@ -1113,6 +1194,7 @@ impl From<BankConfig> for BankConfigCompact {
             oracle_key: config.oracle_keys[0],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
+            _pad0: [0; 7],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
         }
@@ -1127,7 +1209,7 @@ assert_struct_align!(BankConfig, 8);
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(AnchorDeserialize, AnchorSerialize, Debug)]
+#[derive(Debug)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub asset_weight_init: WrappedI80F48,
@@ -1144,9 +1226,14 @@ pub struct BankConfig {
     pub oracle_setup: OracleSetup,
     pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS],
 
+    // Note: Pubkey is aligned 1, so borrow_limit is the first aligned-8 value after deposit_limit
+    pub _pad0: [u8; 6], // Bank state (1) + Oracle Setup (1) + 6 = 8
+
     pub borrow_limit: u64,
 
     pub risk_tier: RiskTier,
+
+    pub _pad1: [u8; 7],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1161,7 +1248,7 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
 
-    pub _padding: [u16; 19], // 16 * 4 = 64 bytes
+    pub _padding: [u8; 38],
 }
 
 impl Default for BankConfig {
@@ -1177,10 +1264,12 @@ impl Default for BankConfig {
             operational_state: BankOperationalState::Paused,
             oracle_setup: OracleSetup::None,
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
+            _pad0: [0; 6],
             risk_tier: RiskTier::Isolated,
+            _pad1: [0; 7],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
-            _padding: [0; 19],
+            _padding: [0; 38],
         }
     }
 }
@@ -1270,9 +1359,19 @@ impl BankConfig {
 
     #[inline]
     pub fn get_oracle_max_age(&self) -> u64 {
-        match self.oracle_max_age {
-            0 => MAX_PRICE_AGE_SEC,
-            n => n as u64,
+        match (self.oracle_max_age, self.oracle_setup) {
+            (0, OracleSetup::SwitchboardV2) => MAX_SWB_ORACLE_AGE,
+            (0, OracleSetup::PythLegacy | OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
+            (n, _) => n as u64,
+        }
+    }
+
+    pub fn get_pyth_push_oracle_feed_id(&self) -> Option<&FeedId> {
+        if matches!(self.oracle_setup, OracleSetup::PythPushOracle) {
+            let bytes: &[u8; 32] = self.oracle_keys[0].as_ref().try_into().unwrap();
+            Some(bytes)
+        } else {
+            None
         }
     }
 }
@@ -1283,7 +1382,7 @@ impl BankConfig {
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Default, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, BorshDeserialize, BorshSerialize)]
 pub struct WrappedI80F48 {
     pub value: [u8; 16],
 }
@@ -1342,7 +1441,7 @@ pub struct BankConfigOpt {
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize)]
+#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize, Debug)]
 pub struct OracleConfig {
     pub setup: OracleSetup,
     pub keys: [Pubkey; MAX_ORACLE_KEYS],
@@ -1631,11 +1730,11 @@ mod tests {
 
         bank.accrue_interest(
             current_timestamp,
-            #[cfg(not(feature = "client"))]
-            Pubkey::default(),
             &GroupBankConfig {
                 protocol_fees: false,
             },
+            #[cfg(not(feature = "client"))]
+            Pubkey::default(),
         )
         .unwrap();
 

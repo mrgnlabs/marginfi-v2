@@ -1,18 +1,19 @@
-use crate::config::TxMode;
-use marginfi::bank_seed;
-use marginfi::constants::EMISSIONS_TOKEN_ACCOUNT_SEED;
-#[cfg(feature = "admin")]
-use marginfi::constants::{EMISSIONS_AUTH_SEED, MAX_ORACLE_KEYS};
 use {
+    crate::config::TxMode,
     anyhow::{bail, Result},
     fixed::types::I80F48,
     fixed_macro::types::I80F48,
     log::error,
     marginfi::{
-        bank_authority_seed,
+        bank_authority_seed, bank_seed,
+        constants::{
+            EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, MAX_ORACLE_KEYS,
+            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
+        },
         state::{
             marginfi_account::MarginfiAccount,
-            marginfi_group::{Bank, BankVaultType},
+            marginfi_group::{Bank, BankConfig, BankVaultType},
+            price::PythPushOraclePriceFeed,
         },
     },
     solana_client::rpc_client::RpcClient,
@@ -64,6 +65,21 @@ pub fn process_transaction(
     }
 }
 
+pub fn bank_to_oracle_key(bank_config: &BankConfig, shard_id: u16) -> Pubkey {
+    let oracle_key_or_price_feed_id = bank_config.oracle_keys.first().unwrap();
+
+    match bank_config.oracle_setup {
+        marginfi::state::price::OracleSetup::PythPushOracle => {
+            PythPushOraclePriceFeed::find_oracle_address(
+                shard_id,
+                bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+            )
+            .0
+        }
+        _ => *oracle_key_or_price_feed_id,
+    }
+}
+
 pub fn find_bank_vault_pda(
     bank_pk: &Pubkey,
     vault_type: BankVaultType,
@@ -80,7 +96,6 @@ pub fn find_bank_vault_authority_pda(
     Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), program_id)
 }
 
-#[cfg(feature = "admin")]
 pub fn find_bank_emssions_auth_pda(
     bank: Pubkey,
     emissions_mint: Pubkey,
@@ -111,7 +126,6 @@ pub fn find_bank_emssions_token_account_pda(
     )
 }
 
-#[cfg(feature = "admin")]
 pub fn create_oracle_key_array(oracle_key: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
     let mut oracle_keys = [Pubkey::default(); MAX_ORACLE_KEYS];
     oracle_keys[0] = oracle_key;
@@ -167,6 +181,8 @@ pub fn load_observation_account_metas(
         .iter()
         .zip(bank_pks.iter())
         .flat_map(|(bank, bank_pk)| {
+            let oracle_key = bank_to_oracle_key(&bank.config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
+
             vec![
                 AccountMeta {
                     pubkey: *bank_pk,
@@ -174,7 +190,7 @@ pub fn load_observation_account_metas(
                     is_writable: false,
                 },
                 AccountMeta {
-                    pubkey: bank.config.oracle_keys[0],
+                    pubkey: oracle_key,
                     is_signer: false,
                     is_writable: false,
                 },
@@ -184,7 +200,6 @@ pub fn load_observation_account_metas(
     account_metas
 }
 
-#[cfg(feature = "admin")]
 pub fn calc_emissions_rate(ui_rate: f64, emissions_mint_decimals: u8) -> u64 {
     (ui_rate * 10u64.pow(emissions_mint_decimals as u32) as f64) as u64
 }

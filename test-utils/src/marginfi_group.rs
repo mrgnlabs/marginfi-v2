@@ -1,8 +1,8 @@
 use super::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
-use crate::prelude::MintFixture;
+use crate::prelude::{get_oracle_id_from_feed_id, MintFixture};
 use crate::utils::*;
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
-use anchor_spl::token;
+
 use anyhow::Result;
 use bytemuck::bytes_of;
 use marginfi::{
@@ -12,8 +12,8 @@ use marginfi::{
 use solana_program::sysvar;
 use solana_program_test::*;
 use solana_sdk::{
-    instruction::Instruction, signature::Keypair, signer::Signer,
-    transaction::Transaction,
+    compute_budget::ComputeBudgetInstruction, instruction::Instruction, signature::Keypair,
+    signer::Signer, transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
 
@@ -93,12 +93,22 @@ impl MarginfiGroupFixture {
             fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
             fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
             rent: sysvar::rent::id(),
-            token_program: token::ID,
+            token_program: bank_asset_mint_fixture.token_program,
             system_program: system_program::id(),
         }
         .to_account_metas(Some(true));
 
-        accounts.push(AccountMeta::new_readonly(bank_config.oracle_keys[0], false));
+        let oracle_key = {
+            let oracle_key_or_feed_id = bank_config.oracle_keys[0];
+            match bank_config.oracle_setup {
+                marginfi::state::price::OracleSetup::PythPushOracle => {
+                    get_oracle_id_from_feed_id(oracle_key_or_feed_id).unwrap()
+                }
+                _ => oracle_key_or_feed_id,
+            }
+        };
+
+        accounts.push(AccountMeta::new_readonly(oracle_key, false));
 
         let ix = Instruction {
             program_id: marginfi::id(),
@@ -160,7 +170,7 @@ impl MarginfiGroupFixture {
             fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
             fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
             rent: sysvar::rent::id(),
-            token_program: token::ID,
+            token_program: bank_fixture.get_token_program(),
             system_program: system_program::id(),
         }
         .to_account_metas(Some(true));
@@ -298,19 +308,24 @@ impl MarginfiGroupFixture {
     pub async fn try_collect_fees(&self, bank: &BankFixture) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
 
+        let mut accounts = marginfi::accounts::LendingPoolCollectBankFees {
+            marginfi_group: self.key,
+            bank: bank.key,
+            liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
+            liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
+            fee_vault: bank.get_vault(BankVaultType::Fee).0,
+            token_program: bank.get_token_program(),
+            protocol_fee_vault: marginfi::constants::PROTOCOL_FEE_TREASURY,
+        }
+        .to_account_metas(Some(true));
+        if bank.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
+        }
+
         let ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::LendingPoolCollectBankFees {
-                marginfi_group: self.key,
-                bank: bank.key,
-                liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
-                liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
-                insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
-                fee_vault: bank.get_vault(BankVaultType::Fee).0,
-                token_program: token::ID,
-                protocol_fee_vault: marginfi::constants::PROTOCOL_FEE_TREASURY,
-            }
-            .to_account_metas(Some(true)),
+            accounts,
             data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
         };
 
@@ -331,6 +346,16 @@ impl MarginfiGroupFixture {
         bank: &BankFixture,
         marginfi_account: &MarginfiAccountFixture,
     ) -> Result<(), BanksClientError> {
+        self.try_handle_bankruptcy_with_nonce(bank, marginfi_account, 100)
+            .await
+    }
+
+    pub async fn try_handle_bankruptcy_with_nonce(
+        &self,
+        bank: &BankFixture,
+        marginfi_account: &MarginfiAccountFixture,
+        nonce: u64,
+    ) -> Result<(), BanksClientError> {
         let mut accounts = marginfi::accounts::LendingPoolHandleBankruptcy {
             marginfi_group: self.key,
             signer: self.ctx.borrow().payer.pubkey(),
@@ -339,9 +364,12 @@ impl MarginfiGroupFixture {
             liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
             insurance_vault_authority: bank.get_vault_authority(BankVaultType::Insurance).0,
-            token_program: token::ID,
+            token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
+        if bank.mint.token_program == spl_token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
+        }
 
         accounts.append(
             &mut marginfi_account
@@ -357,8 +385,10 @@ impl MarginfiGroupFixture {
             data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
         };
 
+        let nonce_ix = ComputeBudgetInstruction::set_compute_unit_price(nonce);
+
         let tx = Transaction::new_signed_with_payer(
-            &[ix],
+            &[ix, nonce_ix],
             Some(&ctx.payer.pubkey()),
             &[&ctx.payer],
             ctx.last_blockhash,

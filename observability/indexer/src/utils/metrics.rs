@@ -489,6 +489,9 @@ impl MarginfiAccountMetrics {
                         *oracle_pk,
                         OraclePriceFeedAdapter::SwitchboardV2(pf.clone()),
                     ),
+                    OracleData::PythPush(pf) => {
+                        (*oracle_pk, OraclePriceFeedAdapter::PythPush(pf.clone()))
+                    }
                 }
             }));
 

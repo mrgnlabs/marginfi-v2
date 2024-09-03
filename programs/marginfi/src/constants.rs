@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
+use pyth_solana_receiver_sdk::price_update::VerificationLevel;
 use solana_program::pubkey;
 
 pub const LIQUIDITY_VAULT_AUTHORITY_SEED: &str = "liquidity_vault_auth";
@@ -17,10 +18,19 @@ pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
         pub const PYTH_ID: Pubkey = pubkey!("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
-    } else if #[cfg(feature = "mainnet-beta")] {
+    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging"))] {
         pub const PYTH_ID: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");
     } else {
-        pub const PYTH_ID: Pubkey = pubkey!("5rYvdyWAunZgD2EC1aKo7hQbutUUnkt7bBFM6xNq2z7Z");
+        // The key of the mock program on localnet (see its declared id)
+        pub const PYTH_ID: Pubkey = pubkey!("5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C");
+    }
+}
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "devnet")] {
+        pub const SWITCHBOARD_PULL_ID: Pubkey = pubkey!("Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2");
+    } else {
+        pub const SWITCHBOARD_PULL_ID: Pubkey = pubkey!("SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv");
     }
 }
 
@@ -30,7 +40,8 @@ pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
 
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 
-pub const MAX_PRICE_AGE_SEC: u64 = 60;
+pub const MAX_PYTH_ORACLE_AGE: u64 = 60;
+pub const MAX_SWB_ORACLE_AGE: u64 = 3 * 60;
 
 /// Range that contains 95% price data distribution
 ///
@@ -137,3 +148,7 @@ cfg_if::cfg_if! {
 
 pub const PROTOCOL_FEE_RATE: I80F48 = I80F48!(0.025);
 pub const PROTOCOL_FEE_FIXED: I80F48 = I80F48!(0.01);
+
+pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
+pub const PYTH_PUSH_PYTH_SPONSORED_SHARD_ID: u16 = 0;
+pub const PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;

@@ -14,7 +14,7 @@ use crate::{
     utils::NumTraitsWithTolerance,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::Transfer;
+use anchor_spl::token_interface::Mint;
 use fixed::types::I80F48;
 use std::{
     cmp::{max, min},
@@ -42,7 +42,7 @@ pub struct MarginfiAccount {
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
     pub account_flags: u64, // 8
-    pub _padding: [u64; 63],             // 8 * 63 = 512
+    pub _padding: [u64; 63],             // 504
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
@@ -101,6 +101,17 @@ impl MarginfiAccount {
         );
         Ok(())
     }
+
+    pub fn can_be_closed(&self) -> bool {
+        let is_disabled = self.get_flag(DISABLED_FLAG);
+        let only_has_empty_balances = self
+            .lending_account
+            .balances
+            .iter()
+            .all(|balance| balance.get_side().is_none());
+
+        !is_disabled && only_has_empty_balances
+    }
 }
 
 #[derive(Debug)]
@@ -139,8 +150,8 @@ impl RequirementType {
     }
 }
 
-pub struct BankAccountWithPriceFeed<'a, 'b> {
-    bank: AccountInfo<'b>,
+pub struct BankAccountWithPriceFeed<'a, 'info> {
+    bank: AccountInfo<'info>,
     price_feed: Box<MarginfiResult<OraclePriceFeedAdapter>>,
     balance: &'a Balance,
 }
@@ -150,11 +161,11 @@ pub enum BalanceSide {
     Liabilities,
 }
 
-impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
-    pub fn load(
+impl<'info> BankAccountWithPriceFeed<'_, 'info> {
+    pub fn load<'a>(
         lending_account: &'a LendingAccount,
-        remaining_ais: &[AccountInfo<'b>],
-    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a, 'b>>> {
+        remaining_ais: &'info [AccountInfo<'info>],
+    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a, 'info>>> {
         let active_balances = lending_account
             .balances
             .iter()
@@ -165,11 +176,11 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
         debug!("Got {} remaining accounts", remaining_ais.len());
 
         check!(
-            active_balances.len() * 2 == remaining_ais.len(),
+            active_balances.len() * 2 <= remaining_ais.len(),
             MarginfiError::MissingPythOrBankAccount
         );
 
-        let current_timestamp = Clock::get()?.unix_timestamp;
+        let clock = Clock::get()?;
 
         active_balances
             .iter()
@@ -193,7 +204,7 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
                     Box::new(OraclePriceFeedAdapter::try_from_bank_config(
                         &bank.config,
                         oracle_ais,
-                        current_timestamp,
+                        &clock,
                     ))
                 };
 
@@ -215,13 +226,18 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
     /// 3. Initial requirement is discounted by the initial discount, if enabled and the usd limit is exceeded.
     /// 4. Assets are only calculated for collateral risk tier.
     /// 5. Oracle errors are ignored for deposits in isolated risk tier.
-    pub fn calc_weighted_assets_and_liabilities_values(
-        &self,
+    fn calc_weighted_assets_and_liabilities_values<'a>(
+        &'a self,
         requirement_type: RequirementType,
-    ) -> MarginfiResult<(I80F48, I80F48)> {
+    ) -> MarginfiResult<(I80F48, I80F48)>
+    where
+        'info: 'a,
+    {
         match self.balance.get_side() {
             Some(side) => {
-                let bank_al = AccountLoader::<Bank>::try_from(&self.bank)?;
+                // SAFETY: We are shortening 'info -> 'a
+                let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&self.bank) };
+                let bank_al = AccountLoader::<Bank>::try_from(shorter_bank)?;
                 let bank = bank_al.load()?;
                 match side {
                     BalanceSide::Assets => Ok((
@@ -239,14 +255,25 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
     }
 
     #[inline(always)]
-    fn calc_weighted_assets(
-        &self,
+    fn calc_weighted_assets<'a>(
+        &'a self,
         requirement_type: RequirementType,
-        bank: &Bank,
+        bank: &'a Bank,
     ) -> MarginfiResult<I80F48> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
-                let price_feed = self.try_get_price_feed()?;
+                let price_feed = self.try_get_price_feed();
+
+                if matches!(
+                    (&price_feed, requirement_type),
+                    (&Err(PriceFeedError::StaleOracle), RequirementType::Initial)
+                ) {
+                    debug!("Skipping stale oracle");
+                    return Ok(I80F48::ZERO);
+                }
+
+                let price_feed = price_feed?;
+
                 let mut asset_weight = bank
                     .config
                     .get_weight(requirement_type, BalanceSide::Assets);
@@ -301,16 +328,32 @@ impl<'a, 'b> BankAccountWithPriceFeed<'a, 'b> {
         )
     }
 
-    fn try_get_price_feed(&self) -> MarginfiResult<&OraclePriceFeedAdapter> {
+    fn try_get_price_feed(&self) -> std::result::Result<&OraclePriceFeedAdapter, PriceFeedError> {
         match self.price_feed.as_ref() {
             Ok(a) => Ok(a),
-            Err(_) => Err(MarginfiError::StaleOracle)?,
+            #[allow(unused_variables)]
+            Err(e) => {
+                debug!("Price feed error: {:?}", e);
+                Err(PriceFeedError::StaleOracle)
+            }
         }
     }
 
     #[inline]
     pub fn is_empty(&self, side: BalanceSide) -> bool {
         self.balance.is_empty(side)
+    }
+}
+
+enum PriceFeedError {
+    StaleOracle,
+}
+
+impl From<PriceFeedError> for Error {
+    fn from(value: PriceFeedError) -> Self {
+        match value {
+            PriceFeedError::StaleOracle => error!(MarginfiError::StaleOracle),
+        }
     }
 }
 
@@ -378,16 +421,16 @@ impl RiskRequirementType {
     }
 }
 
-pub struct RiskEngine<'a, 'b> {
+pub struct RiskEngine<'a, 'info> {
     marginfi_account: &'a MarginfiAccount,
-    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a, 'b>>,
+    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a, 'info>>,
 }
 
-impl<'a, 'b> RiskEngine<'a, 'b> {
-    pub fn new(
+impl<'info> RiskEngine<'_, 'info> {
+    pub fn new<'a>(
         marginfi_account: &'a MarginfiAccount,
-        remaining_ais: &[AccountInfo<'b>],
-    ) -> MarginfiResult<Self> {
+        remaining_ais: &'info [AccountInfo<'info>],
+    ) -> MarginfiResult<RiskEngine<'a, 'info>> {
         check!(
             !marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
             MarginfiError::AccountInFlashloan
@@ -398,27 +441,27 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 
     /// Internal constructor used either after manually checking account is not in a flashloan,
     /// or explicity checking health for flashloan enabled actions.
-    fn new_no_flashloan_check(
+    fn new_no_flashloan_check<'a>(
         marginfi_account: &'a MarginfiAccount,
-        remaining_ais: &[AccountInfo<'b>],
-    ) -> MarginfiResult<Self> {
+        remaining_ais: &'info [AccountInfo<'info>],
+    ) -> MarginfiResult<RiskEngine<'a, 'info>> {
         let bank_accounts_with_price =
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
-        Ok(Self {
+        Ok(RiskEngine {
             marginfi_account,
             bank_accounts_with_price,
         })
     }
 
-    /// Checks account is healty after performing actions that increase risk (removing liquidity).
+    /// Checks account is healthy after performing actions that increase risk (removing liquidity).
     ///
-    /// `IN_FLASHLOAN_FLAG` behaviour.
+    /// `IN_FLASHLOAN_FLAG` behavior.
     /// - Health check is skipped.
     /// - `remaining_ais` can be an empty vec.
-    pub fn check_account_init_health(
+    pub fn check_account_init_health<'a>(
         marginfi_account: &'a MarginfiAccount,
-        remaining_ais: &[AccountInfo<'b>],
+        remaining_ais: &'info [AccountInfo<'info>],
     ) -> MarginfiResult<()> {
         if marginfi_account.get_flag(IN_FLASHLOAN_FLAG) {
             return Ok(());
@@ -442,6 +485,11 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
             let (assets, liabilities) =
                 a.calc_weighted_assets_and_liabilities_values(requirement_type.to_weight_type())?;
 
+            debug!(
+                "Balance {}, assets: {}, liabilities: {}",
+                a.balance.bank_pk, assets, liabilities
+            );
+
             total_assets = total_assets.checked_add(assets).ok_or_else(math_error!())?;
             total_liabilities = total_liabilities
                 .checked_add(liabilities)
@@ -452,7 +500,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
     }
 
     pub fn get_account_health(
-        &self,
+        &'info self,
         requirement_type: RiskRequirementType,
     ) -> MarginfiResult<I80F48> {
         let (total_weighted_assets, total_weighted_liabilities) =
@@ -474,7 +522,7 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
 
         check!(
             total_weighted_assets >= total_weighted_liabilities,
-            MarginfiError::BadAccountHealth
+            MarginfiError::RiskEngineInitRejected
         );
 
         self.check_account_risk_tiers()?;
@@ -625,7 +673,10 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         Ok(())
     }
 
-    fn check_account_risk_tiers(&self) -> MarginfiResult {
+    fn check_account_risk_tiers<'a>(&'a self) -> MarginfiResult
+    where
+        'info: 'a,
+    {
         let balances_with_liablities = self
             .bank_accounts_with_price
             .iter()
@@ -634,7 +685,9 @@ impl<'a, 'b> RiskEngine<'a, 'b> {
         let n_balances_with_liablities = balances_with_liablities.clone().count();
 
         let is_in_isolated_risk_tier = balances_with_liablities.clone().any(|a| {
-            AccountLoader::<Bank>::try_from(&a.bank)
+            // SAFETY: We are shortening 'info -> 'a
+            let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&a.bank) };
+            AccountLoader::<Bank>::try_from(shorter_bank)
                 .unwrap()
                 .load()
                 .unwrap()
@@ -697,6 +750,7 @@ assert_struct_align!(Balance, 8);
 pub struct Balance {
     pub active: bool,
     pub bank_pk: Pubkey,
+    pub _pad0: [u8; 7],
     pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
     pub emissions_outstanding: WrappedI80F48,
@@ -755,10 +809,10 @@ impl Balance {
             asset_shares < EMPTY_BALANCE_THRESHOLD || liability_shares < EMPTY_BALANCE_THRESHOLD
         );
 
-        if I80F48::from(self.asset_shares) >= EMPTY_BALANCE_THRESHOLD {
-            Some(BalanceSide::Assets)
-        } else if I80F48::from(self.liability_shares) >= EMPTY_BALANCE_THRESHOLD {
+        if I80F48::from(self.liability_shares) >= EMPTY_BALANCE_THRESHOLD {
             Some(BalanceSide::Liabilities)
+        } else if I80F48::from(self.asset_shares) >= EMPTY_BALANCE_THRESHOLD {
+            Some(BalanceSide::Assets)
         } else {
             None
         }
@@ -768,6 +822,7 @@ impl Balance {
         Balance {
             active: false,
             bank_pk: Pubkey::default(),
+            _pad0: [0; 7],
             asset_shares: WrappedI80F48::from(I80F48::ZERO),
             liability_shares: WrappedI80F48::from(I80F48::ZERO),
             emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),
@@ -793,7 +848,7 @@ impl<'a> BankAccountWrapper<'a> {
             .balances
             .iter_mut()
             .find(|balance| balance.active && balance.bank_pk.eq(bank_pk))
-            .ok_or_else(|| error!(MarginfiError::BankAccoutNotFound))?;
+            .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
 
         Ok(Self { balance, bank })
     }
@@ -815,7 +870,7 @@ impl<'a> BankAccountWrapper<'a> {
                 let balance = lending_account
                     .balances
                     .get_mut(balance_index)
-                    .ok_or_else(|| error!(MarginfiError::BankAccoutNotFound))?;
+                    .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
 
                 Ok(Self { balance, bank })
             }
@@ -827,6 +882,7 @@ impl<'a> BankAccountWrapper<'a> {
                 lending_account.balances[empty_index] = Balance {
                     active: true,
                     bank_pk: *bank_pk,
+                    _pad0: [0; 7],
                     asset_shares: I80F48::ZERO.into(),
                     liability_shares: I80F48::ZERO.into(),
                     emissions_outstanding: I80F48::ZERO.into(),
@@ -1236,24 +1292,48 @@ impl<'a> BankAccountWrapper<'a> {
 
     // ------------ SPL helpers
 
-    pub fn deposit_spl_transfer<'b: 'c, 'c: 'b>(
+    pub fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'b>,
-        program: AccountInfo<'c>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
+        program: AccountInfo<'info>,
+        remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
-        self.bank.deposit_spl_transfer(amount, accounts, program)
+        self.bank.deposit_spl_transfer(
+            amount,
+            from,
+            to,
+            authority,
+            maybe_mint,
+            program,
+            remaining_accounts,
+        )
     }
 
-    pub fn withdraw_spl_transfer<'b: 'c, 'c: 'b>(
+    pub fn withdraw_spl_transfer<'info>(
         &self,
         amount: u64,
-        accounts: Transfer<'b>,
-        program: AccountInfo<'c>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
+        program: AccountInfo<'info>,
         signer_seeds: &[&[&[u8]]],
+        remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult {
-        self.bank
-            .withdraw_spl_transfer(amount, accounts, program, signer_seeds)
+        self.bank.withdraw_spl_transfer(
+            amount,
+            from,
+            to,
+            authority,
+            maybe_mint,
+            program,
+            signer_seeds,
+            remaining_accounts,
+        )
     }
 }
 
@@ -1332,6 +1412,7 @@ mod test {
                 balances: [Balance {
                     active: true,
                     bank_pk: bank_pk.into(),
+                    _pad0: [0; 7],
                     asset_shares: WrappedI80F48::default(),
                     liability_shares: WrappedI80F48::default(),
                     emissions_outstanding: WrappedI80F48::default(),

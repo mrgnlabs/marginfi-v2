@@ -1,7 +1,5 @@
-use crate::config::CliSigner;
-
 use {
-    crate::config::{Config, GlobalOptions},
+    crate::config::{CliSigner, Config, GlobalOptions},
     anchor_client::{Client, Cluster},
     anyhow::{anyhow, bail, Result},
     dirs::home_dir,
@@ -117,6 +115,7 @@ impl Profile {
     #[allow(clippy::too_many_arguments)]
     pub fn config(
         &mut self,
+        new_name: Option<String>,
         cluster: Option<Cluster>,
         keypair_path: Option<String>,
         multisig: Option<Pubkey>,
@@ -126,6 +125,10 @@ impl Profile {
         group: Option<Pubkey>,
         account: Option<Pubkey>,
     ) -> Result<()> {
+        if let Some(name) = new_name {
+            self.name = name;
+        }
+
         if let Some(cluster) = cluster {
             self.cluster = cluster;
         }
@@ -168,7 +171,6 @@ impl Profile {
             .unwrap_or_else(|| panic!("No marginfi account set for profile \"{}\"", self.name))
     }
 
-    #[cfg(feature = "admin")]
     pub fn set_marginfi_group(&mut self, address: Pubkey) -> Result<()> {
         self.marginfi_group = Some(address);
         self.write_to_file()?;
@@ -227,6 +229,26 @@ pub fn load_profile_by_name(name: &str) -> Result<Profile> {
     let profile: Profile = serde_json::from_str(&profile)?;
 
     Ok(profile)
+}
+
+pub fn delete_profile_by_name(name: &str) -> Result<()> {
+    let cli_config_dir = get_cli_config_dir();
+    let profile_file = cli_config_dir.join("profiles").join(format!("{name}.json"));
+
+    if !profile_file.exists() {
+        return Err(anyhow!("Profile {} does not exist", name));
+    }
+
+    match fs::remove_file(profile_file) {
+        Ok(()) => {
+            println!("successfully deleted profile {name}");
+            Ok(())
+        }
+        Err(e) => {
+            println!("failed to delete profile {name}: {e:?}");
+            Err(e.into())
+        }
+    }
 }
 
 pub fn get_cli_config_dir() -> PathBuf {

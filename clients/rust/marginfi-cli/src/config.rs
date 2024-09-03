@@ -1,5 +1,3 @@
-use solana_sdk::signature::Signature;
-
 use {
     anchor_client::{Client, Cluster, Program},
     clap::Parser,
@@ -39,6 +37,9 @@ pub struct GlobalOptions {
         default_value_t = false
     )]
     pub skip_confirmation: bool,
+
+    #[clap(global = true, long)]
+    pub compute_unit_price: Option<u64>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -50,14 +51,6 @@ pub enum TxMode {
 
 pub enum CliSigner {
     Keypair(Keypair),
-}
-
-impl CliSigner {
-    pub fn pubkey(&self) -> Pubkey {
-        match self {
-            CliSigner::Keypair(keypair) => keypair.pubkey(),
-        }
-    }
 }
 
 pub fn clone_keypair(keypair: &Keypair) -> Keypair {
@@ -72,27 +65,6 @@ impl Clone for CliSigner {
     }
 }
 
-impl Signer for CliSigner {
-    fn try_pubkey(&self) -> Result<Pubkey, solana_sdk::signature::SignerError> {
-        Ok(self.pubkey())
-    }
-
-    fn try_sign_message(
-        &self,
-        message: &[u8],
-    ) -> Result<Signature, solana_sdk::signature::SignerError> {
-        match self {
-            CliSigner::Keypair(keypair) => Ok(keypair.try_sign_message(message)?),
-        }
-    }
-
-    fn is_interactive(&self) -> bool {
-        match self {
-            CliSigner::Keypair(_) => true,
-        }
-    }
-}
-
 impl Deref for CliSigner {
     type Target = Keypair;
 
@@ -103,15 +75,20 @@ impl Deref for CliSigner {
     }
 }
 
+#[allow(dead_code)]
 pub struct Config {
+    #[allow(dead_code)]
     pub cluster: Cluster,
     pub fee_payer: Keypair,
     pub multisig: Option<Pubkey>,
     pub program_id: Pubkey,
+    #[allow(dead_code)]
     pub commitment: CommitmentConfig,
     pub dry_run: bool,
+    #[allow(dead_code)]
     pub client: Client<CliSigner>,
     pub mfi_program: Program<CliSigner>,
+    #[allow(dead_code)]
     pub lip_program: Program<CliSigner>,
 }
 

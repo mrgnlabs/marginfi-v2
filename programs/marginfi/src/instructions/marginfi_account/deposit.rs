@@ -7,9 +7,10 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
         marginfi_group::Bank,
     },
+    utils,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, Transfer};
+use anchor_spl::token_interface::TokenInterface;
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
@@ -20,7 +21,10 @@ use solana_program::sysvar::Sysvar;
 /// 4. Transfer funds from the signer's token account to the bank's liquidity vault
 ///
 /// Will error if there is an existing liability <=> repaying is not allowed.
-pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64) -> MarginfiResult {
+pub fn lending_account_deposit<'info>(
+    mut ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
+    amount: u64,
+) -> MarginfiResult {
     let LendingAccountDeposit {
         marginfi_account: marginfi_account_loader,
         signer,
@@ -31,6 +35,12 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
         marginfi_group: marginfi_group_loader,
         ..
     } = ctx.accounts;
+    let clock = Clock::get()?;
+    let maybe_bank_mint = utils::maybe_take_bank_mint(
+        &mut ctx.remaining_accounts,
+        &*bank_loader.load()?,
+        token_program.key,
+    )?;
 
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
@@ -41,7 +51,7 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
     );
 
     bank.accrue_interest(
-        Clock::get()?.unix_timestamp,
+        clock.unix_timestamp,
         &marginfi_group_loader.load()?.get_group_bank_config(),
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
@@ -54,14 +64,23 @@ pub fn lending_account_deposit(ctx: Context<LendingAccountDeposit>, amount: u64)
     )?;
 
     bank_account.deposit(I80F48::from_num(amount))?;
+
+    let amount_pre_fee = maybe_bank_mint
+        .as_ref()
+        .map(|mint| {
+            utils::calculate_pre_fee_spl_deposit_amount(mint.to_account_info(), amount, clock.epoch)
+        })
+        .transpose()?
+        .unwrap_or(amount);
+
     bank_account.deposit_spl_transfer(
-        amount,
-        Transfer {
-            from: signer_token_account.to_account_info(),
-            to: bank_liquidity_vault.to_account_info(),
-            authority: signer.to_account_info(),
-        },
+        amount_pre_fee,
+        signer_token_account.to_account_info(),
+        bank_liquidity_vault.to_account_info(),
+        signer.to_account_info(),
+        maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
+        ctx.remaining_accounts,
     )?;
 
     emit!(LendingAccountDepositEvent {
@@ -115,5 +134,5 @@ pub struct LendingAccountDeposit<'info> {
     )]
     pub bank_liquidity_vault: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }

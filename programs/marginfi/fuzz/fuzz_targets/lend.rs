@@ -51,17 +51,27 @@ enum Action {
 #[derive(Debug)]
 pub struct ActionSequence(Vec<Action>);
 
+impl ActionSequence {
+    pub const N_ACTIONS: usize = 400;
+}
+
 impl<'a> Arbitrary<'a> for ActionSequence {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        let n_actions = 100;
-        let mut actions = Vec::with_capacity(n_actions);
+        let mut actions = Vec::with_capacity(Self::N_ACTIONS);
 
-        for _ in 0..n_actions {
+        for _ in 0..Self::N_ACTIONS {
+            if u.is_empty() {
+                panic!("Byte exhaustion detected, stopping early");
+            }
             let action = Action::arbitrary(u)?;
             actions.push(action);
         }
 
         Ok(ActionSequence(actions))
+    }
+
+    fn size_hint(_: usize) -> (usize, Option<usize>) {
+        (Self::N_ACTIONS * 10, Some(Self::N_ACTIONS * 10))
     }
 }
 
@@ -92,7 +102,7 @@ fn process_actions(ctx: FuzzerContext) -> Result<()> {
     context.metrics.read().unwrap().print();
     context.metrics.read().unwrap().log();
 
-    verify_end_state(&context)?;
+    verify_end_state(&context).unwrap();
 
     accounst_state.reset();
 
@@ -134,10 +144,10 @@ fn setup_logging() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn verify_end_state(mga: &MarginfiFuzzContext) -> anyhow::Result<()> {
+fn verify_end_state<'a>(mga: &'a MarginfiFuzzContext<'a>) -> anyhow::Result<()> {
     mga.banks.iter().try_for_each(|bank| {
-        let bank_loader = AccountLoader::<Bank>::try_from(&bank.bank)?;
-        let mut bank_data = bank_loader.load_mut()?;
+        let bank_loader = AccountLoader::<Bank>::try_from(&bank.bank).unwrap();
+        let mut bank_data = bank_loader.load_mut().unwrap();
 
         let latest_timestamp = *mga.last_sysvar_current_timestamp.read().unwrap();
 
@@ -158,7 +168,7 @@ fn verify_end_state(mga: &MarginfiFuzzContext) -> anyhow::Result<()> {
         let net_accounted_balance = total_deposits - total_liabilities;
 
         let liquidity_vault_token_account =
-            spl_token::state::Account::unpack(&bank.liquidity_vault.data.borrow())?;
+            spl_token::state::Account::unpack(&bank.liquidity_vault.data.borrow()[..spl_token::state::Account::LEN]).unwrap();
 
         marginfi_fuzz::log!("Accounted Deposits: {}, Liabs: {}, Net {}, Outstanding Fees: {}, Net with Fees {}, Value Token Balance {}, Net Without Fees {}",
             total_deposits,
