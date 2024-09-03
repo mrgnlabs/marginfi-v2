@@ -161,7 +161,7 @@ fn verify_end_state<'a>(mga: &'a MarginfiFuzzContext<'a>) -> anyhow::Result<()> 
         bank_data.accrue_interest(
             clock.unix_timestamp ,
             &GroupBankConfig {
-                protocol_fees: false,
+                protocol_fees: true,
             }
         )?;
 

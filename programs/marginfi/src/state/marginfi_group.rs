@@ -299,9 +299,9 @@ impl InterestRateCalc {
     /// To be clear we don't particularly appreciate the piecewise linear nature of this "curve", but it is what it is.
     #[inline]
     fn interest_rate_curve(&self, ur: I80F48) -> Option<I80F48> {
-        let optimal_ur = self.optimal_utilization_rate.into();
-        let plateau_ir = self.plateau_interest_rate.into();
-        let max_ir: I80F48 = self.max_interest_rate.into();
+        let optimal_ur: I80F48 = self.optimal_utilization_rate;
+        let plateau_ir: I80F48 = self.plateau_interest_rate;
+        let max_ir: I80F48 = self.max_interest_rate;
 
         if ur <= optimal_ur {
             ur.checked_div(optimal_ur)?.checked_mul(plateau_ir)
