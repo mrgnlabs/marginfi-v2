@@ -423,7 +423,7 @@ impl MarginfiGroupFixture {
 
         let data = bytes_of(&group);
 
-        account.data[8..].copy_from_slice(&data);
+        account.data[8..].copy_from_slice(data);
 
         ctx.set_account(&self.key, &account.into())
     }

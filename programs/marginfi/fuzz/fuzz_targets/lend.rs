@@ -166,7 +166,7 @@ fn verify_end_state<'a>(mga: &'a MarginfiFuzzContext<'a>) -> anyhow::Result<()> 
         )?;
 
         let outstanding_fees = I80F48::from(bank_data.collected_group_fees_outstanding)
-            + I80F48::from(bank_data.collected_insurance_fees_outstanding);
+            + I80F48::from(bank_data.collected_insurance_fees_outstanding) + I80F48::from(bank_data.collected_protocol_fees_outstanding);
 
         let total_deposits = bank_data.get_asset_amount(bank_data.total_asset_shares.into())?;
 

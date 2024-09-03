@@ -2410,10 +2410,10 @@ Deposit start {}, end {} ({})
 
 #[cfg(feature = "lip")]
 fn timestamp_to_string(timestamp: i64) -> String {
-    use chrono::{DateTime, NaiveDateTime, Utc};
+    use chrono::{DateTime, Utc};
 
     DateTime::<Utc>::from_naive_utc_and_offset(
-        NaiveDateTime::from_timestamp_opt(timestamp, 0).unwrap(),
+        DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc(),
         Utc,
     )
     .format("%Y-%m-%d %H:%M:%S")
