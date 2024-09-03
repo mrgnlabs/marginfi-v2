@@ -2321,6 +2321,8 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
 
 #[cfg(feature = "lip")]
 pub fn process_list_lip_campaigns(config: &Config) {
+    use liquidity_incentive_program::state::Campaign;
+
     let campaings = config.lip_program.accounts::<Campaign>(vec![]).unwrap();
 
     print!("Found {} campaigns", campaings.len());
@@ -2354,6 +2356,7 @@ Max Rewards: {}
 
 #[cfg(feature = "lip")]
 pub fn process_list_deposits(config: &Config) {
+    use liquidity_incentive_program::state::{Campaign, Deposit};
     use solana_sdk::clock::SECONDS_PER_DAY;
 
     let mut deposits = config.lip_program.accounts::<Deposit>(vec![]).unwrap();
@@ -2407,6 +2410,8 @@ Deposit start {}, end {} ({})
 
 #[cfg(feature = "lip")]
 fn timestamp_to_string(timestamp: i64) -> String {
+    use chrono::{DateTime, NaiveDateTime, Utc};
+
     DateTime::<Utc>::from_naive_utc_and_offset(
         NaiveDateTime::from_timestamp_opt(timestamp, 0).unwrap(),
         Utc,
