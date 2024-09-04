@@ -8,7 +8,7 @@ use futures::future::join_all;
 use lazy_static::lazy_static;
 use marginfi::{
     constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, SECONDS_PER_YEAR},
-    state::marginfi_group::Bank,
+    state::marginfi_group::{Bank, ComputedInterestRates, GroupBankConfig, MarginfiGroup},
 };
 use reqwest::header::CONTENT_TYPE;
 use s3::{creds::Credentials, Bucket, Region};
@@ -60,13 +60,20 @@ async fn main() -> Result<()> {
     let rpc = program.rpc();
 
     let banks = program.accounts::<Bank>(vec![])?;
+    let groups = program.accounts::<MarginfiGroup>(vec![])?;
+    let groups_map = groups
+        .iter()
+        .map(|(pk, group)| (*pk, group.get_group_bank_config()))
+        .collect::<HashMap<_, _>>();
 
     println!("Found {} banks", banks.len());
 
     let snapshot = join_all(
         banks
             .iter()
-            .map(|(bank_pk, bank)| DefiLammaPoolInfo::from_bank(bank, bank_pk, &rpc))
+            .map(|(bank_pk, bank)| {
+                DefiLammaPoolInfo::from_bank(bank, bank_pk, &rpc, groups_map.get(bank_pk).unwrap())
+            })
             .collect::<Vec<_>>(),
     )
     .await
@@ -123,7 +130,12 @@ struct DefiLammaPoolInfo {
 }
 
 impl DefiLammaPoolInfo {
-    pub async fn from_bank(bank: &Bank, bank_pk: &Pubkey, rpc_client: &RpcClient) -> Result<Self> {
+    pub async fn from_bank(
+        bank: &Bank,
+        bank_pk: &Pubkey,
+        rpc_client: &RpcClient,
+        bank_group_config: &GroupBankConfig,
+    ) -> Result<Self> {
         let ltv = I80F48::ONE / I80F48::from(bank.config.liability_weight_init);
         let reward_tokens = if bank.emissions_mint != Pubkey::default() {
             vec![bank.emissions_mint.to_string()]
@@ -152,13 +164,18 @@ impl DefiLammaPoolInfo {
             I80F48::ZERO
         };
 
-        let (lending_rate, borrowing_rate, _, _) = bank
+        let ir_calc = bank
             .config
             .interest_rate_config
-            .calc_interest_rate(ur)
-            .ok_or_else(|| {
-                anyhow::anyhow!("Failed to calculate interest rate for bank {}", bank_pk)
-            })?;
+            .create_interest_rate_calculator(bank_group_config);
+
+        let ComputedInterestRates {
+            lending_rate_apr,
+            borrowing_rate_apr,
+            ..
+        } = ir_calc.calc_interest_rate(ur).ok_or_else(|| {
+            anyhow::anyhow!("Failed to calculate interest rate for bank {}", bank_pk)
+        })?;
 
         let (apr_reward, apr_reward_borrow) = if bank.emissions_mint.ne(&Pubkey::default()) {
             let emissions_token_price = fetch_price_from_birdeye(&bank.emissions_mint).await?;
@@ -202,22 +219,22 @@ impl DefiLammaPoolInfo {
             ltv: ltv.to_num(),
             reward_tokens,
             apy_base: dec_to_percentage(apr_to_apy(
-                lending_rate.to_num(),
+                lending_rate_apr.to_num(),
                 SECONDS_PER_YEAR.to_num(),
             )),
             apy_reward: apr_reward.map(|a| {
                 dec_to_percentage(apr_to_apy(
-                    (lending_rate + a).to_num(),
+                    (lending_rate_apr + a).to_num(),
                     SECONDS_PER_YEAR.to_num(),
                 ))
             }),
             apy_base_borrow: dec_to_percentage(apr_to_apy(
-                borrowing_rate.to_num(),
+                borrowing_rate_apr.to_num(),
                 SECONDS_PER_YEAR.to_num(),
             )),
             apy_reward_borrow: apr_reward_borrow.map(|a| {
                 dec_to_percentage(apr_to_apy(
-                    (borrowing_rate + a).to_num(),
+                    (borrowing_rate_apr + a).to_num(),
                     SECONDS_PER_YEAR.to_num(),
                 ))
             }),

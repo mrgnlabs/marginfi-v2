@@ -133,9 +133,9 @@ pub enum GroupCommand {
         #[clap(long)]
         insurance_ir_fee: f64,
         #[clap(long)]
-        protocol_fixed_fee_apr: f64,
+        group_fixed_fee_apr: f64,
         #[clap(long)]
-        protocol_ir_fee: f64,
+        group_ir_fee: f64,
         #[clap(long, arg_enum)]
         risk_tier: RiskTierArg,
         #[clap(long, arg_enum)]
@@ -572,8 +572,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             max_interest_rate,
             insurance_fee_fixed_apr,
             insurance_ir_fee,
-            protocol_fixed_fee_apr,
-            protocol_ir_fee,
+            group_fixed_fee_apr,
+            group_ir_fee,
             deposit_limit_ui,
             borrow_limit_ui,
             risk_tier,
@@ -599,8 +599,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             max_interest_rate,
             insurance_fee_fixed_apr,
             insurance_ir_fee,
-            protocol_fixed_fee_apr,
-            protocol_ir_fee,
+            group_fixed_fee_apr,
+            group_ir_fee,
             risk_tier,
             oracle_max_age,
             global_options.compute_unit_price,

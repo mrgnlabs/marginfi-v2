@@ -130,8 +130,8 @@ class LendingPoolBankUpdateRecord(AccountUpdateRecordBase):
             "config_interest_rate_config_max_interest_rate:BIGNUMERIC",
             "config_interest_rate_config_insurance_fee_fixed_apr:BIGNUMERIC",
             "config_interest_rate_config_insurance_ir_fee:BIGNUMERIC",
-            "config_interest_rate_config_protocol_fixed_fee_apr:BIGNUMERIC",
-            "config_interest_rate_config_protocol_ir_fee:BIGNUMERIC",
+            "config_interest_rate_config_group_fixed_fee_apr:BIGNUMERIC",
+            "config_interest_rate_config_group_ir_fee:BIGNUMERIC",
             "config_operational_state:STRING",
             "config_oracle_setup:STRING",
             "config_oracle_keys:STRING",
@@ -169,8 +169,8 @@ class LendingPoolBankUpdateRecord(AccountUpdateRecordBase):
     config_interest_rate_config_max_interest_rate: float
     config_interest_rate_config_insurance_fee_fixed_apr: float
     config_interest_rate_config_insurance_ir_fee: float
-    config_interest_rate_config_protocol_fixed_fee_apr: float
-    config_interest_rate_config_protocol_ir_fee: float
+    config_interest_rate_config_group_fixed_fee_apr: float
+    config_interest_rate_config_group_ir_fee: float
     config_operational_state: str
     config_oracle_setup: str
     config_oracle_keys: str
@@ -222,10 +222,10 @@ class LendingPoolBankUpdateRecord(AccountUpdateRecordBase):
             parsed_data.data.config.interest_rate_config.insurance_fee_fixed_apr)
         self.config_interest_rate_config_insurance_ir_fee = wrapped_i80f48_to_float(
             parsed_data.data.config.interest_rate_config.insurance_ir_fee)
-        self.config_interest_rate_config_protocol_fixed_fee_apr = wrapped_i80f48_to_float(
-            parsed_data.data.config.interest_rate_config.protocol_fixed_fee_apr)
-        self.config_interest_rate_config_protocol_ir_fee = wrapped_i80f48_to_float(
-            parsed_data.data.config.interest_rate_config.protocol_ir_fee)
+        self.config_interest_rate_config_group_fixed_fee_apr = wrapped_i80f48_to_float(
+            parsed_data.data.config.interest_rate_config.group_fixed_fee_apr)
+        self.config_interest_rate_config_group_ir_fee = wrapped_i80f48_to_float(
+            parsed_data.data.config.interest_rate_config.group_ir_fee)
 
 
 AccountUpdateRecordTypes = [MarginfiGroupUpdateRecord,

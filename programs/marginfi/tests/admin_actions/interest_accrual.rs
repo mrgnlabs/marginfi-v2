@@ -33,6 +33,7 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
                 }),
             },
         ],
+        protocol_fees: false,
     }))
     .await;
 
@@ -103,7 +104,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
                         optimal_utilization_rate: I80F48!(0.9).into(),
                         plateau_interest_rate: I80F48!(1).into(),
                         protocol_fixed_fee_apr: I80F48!(0.01).into(),
-                        insurance_fee_fixed_apr: I80F48!(0.01).into(),
+                        protocol_ir_fee: I80F48!(0.01).into(),
                         ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
                     },
                     ..*DEFAULT_USDC_TEST_BANK_CONFIG
@@ -119,6 +120,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 

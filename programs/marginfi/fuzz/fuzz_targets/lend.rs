@@ -6,7 +6,10 @@ use arbitrary::Arbitrary;
 use fixed::types::I80F48;
 use lazy_static::lazy_static;
 use libfuzzer_sys::fuzz_target;
-use marginfi::{assert_eq_with_tolerance, state::marginfi_group::Bank};
+use marginfi::{
+    assert_eq_with_tolerance,
+    state::marginfi_group::{Bank, GroupBankConfig},
+};
 use marginfi_fuzz::{
     account_state::AccountsState, arbitrary_helpers::*, metrics::Metrics, MarginfiFuzzContext,
 };
@@ -155,10 +158,15 @@ fn verify_end_state<'a>(mga: &'a MarginfiFuzzContext<'a>) -> anyhow::Result<()> 
 
         clock.unix_timestamp = latest_timestamp as i64 + 3600;
 
-        bank_data.accrue_interest(clock.unix_timestamp)?;
+        bank_data.accrue_interest(
+            clock.unix_timestamp ,
+            &GroupBankConfig {
+                protocol_fees: true,
+            }
+        )?;
 
         let outstanding_fees = I80F48::from(bank_data.collected_group_fees_outstanding)
-            + I80F48::from(bank_data.collected_insurance_fees_outstanding);
+            + I80F48::from(bank_data.collected_insurance_fees_outstanding) + I80F48::from(bank_data.collected_protocol_fees_outstanding);
 
         let total_deposits = bank_data.get_asset_amount(bank_data.total_asset_shares.into())?;
 

@@ -1,6 +1,7 @@
-use crate::constants::{FEE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_AUTHORITY_SEED};
+use crate::constants::{FEE_STATE_SEED, FEE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_AUTHORITY_SEED};
 use crate::events::{GroupEventHeader, LendingPoolBankCollectFeesEvent};
-use crate::utils;
+use crate::state::fee_state::FeeState;
+use crate::{check, utils, MarginfiError};
 use crate::{
     bank_signer,
     constants::{
@@ -11,6 +12,7 @@ use crate::{
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use std::cmp::min;
@@ -105,6 +107,21 @@ pub fn lending_pool_collect_bank_fees<'info>(
         ctx.remaining_accounts,
     )?;
 
+    let mint = bank.mint;
+    let global_fee_wallet = ctx.accounts.fee_state.load()?.global_fee_wallet;
+    let token_program_id = ctx.accounts.token_program.key();
+    let ata_expected = get_associated_token_address_with_program_id(
+        &global_fee_wallet,
+        &mint,
+        &token_program_id,
+    );
+    check!(
+        !ctx.accounts.fee_ata.key().eq(&ata_expected),
+        MarginfiError::InvalidFeeAta
+    );
+
+    // TODO transfer the program fee
+
     emit!(LendingPoolBankCollectFeesEvent {
         header: GroupEventHeader {
             marginfi_group: ctx.accounts.marginfi_group.key(),
@@ -173,6 +190,17 @@ pub struct LendingPoolCollectBankFees<'info> {
         bump = bank.load()?.fee_vault_bump
     )]
     pub fee_vault: AccountInfo<'info>,
+
+    // Note: there is just one FeeState per program, so no further check is required.
+    #[account(
+        seeds = [FEE_STATE_SEED.as_bytes()],
+        bump,
+    )]
+    pub fee_state: AccountLoader<'info, FeeState>,
+
+    /// CHECK: Cannonical ATA of the `FeeState.global_fee_wallet` for the currency used by this bank
+    #[account(mut)]
+    pub fee_ata: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }

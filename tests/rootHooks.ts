@@ -19,6 +19,7 @@ import {
 } from "@solana/web3.js";
 import { setupPythOracles } from "./utils/pyth_mocks";
 import { initGlobalFeeState } from "./utils/instructions";
+import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -32,6 +33,9 @@ export const numUsers = 2;
 
 /** Lamports charged when creating any pool */
 export const INIT_POOL_ORIGINATION_FEE = 1000;
+
+export const PROGRAM_FEE_FIXED = 0.01;
+export const PROGRAM_FEE_RATE = 0.02;
 
 /** Group used for all happy-path tests */
 export const marginfiGroup = Keypair.generate();
@@ -99,6 +103,8 @@ export const mochaHooks = {
         admin: wallet.payer.publicKey,
         wallet: globalFeeWallet,
         bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
+        programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
+        programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
       })
     );
 

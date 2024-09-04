@@ -32,6 +32,7 @@ pub fn lending_account_deposit<'info>(
         bank_liquidity_vault,
         token_program,
         bank: bank_loader,
+        marginfi_group: marginfi_group_loader,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
@@ -51,6 +52,7 @@ pub fn lending_account_deposit<'info>(
 
     bank.accrue_interest(
         clock.unix_timestamp,
+        &*marginfi_group_loader.load()?,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;

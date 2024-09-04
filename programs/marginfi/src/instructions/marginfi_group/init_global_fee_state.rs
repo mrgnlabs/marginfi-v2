@@ -2,6 +2,7 @@
 
 use crate::constants::FEE_STATE_SEED;
 use crate::state::fee_state;
+use crate::state::marginfi_group::WrappedI80F48;
 use anchor_lang::prelude::*;
 use fee_state::FeeState;
 
@@ -10,6 +11,8 @@ pub fn initialize_fee_state(
     admin_key: Pubkey,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
+    program_fee_fixed: WrappedI80F48,
+    program_fee_rate: WrappedI80F48,
 ) -> Result<()> {
     let mut fee_state = ctx.accounts.fee_state.load_init()?;
     fee_state.global_fee_admin = admin_key;
@@ -17,6 +20,8 @@ pub fn initialize_fee_state(
     fee_state.key = ctx.accounts.fee_state.key();
     fee_state.bank_init_flat_sol_fee = bank_init_flat_sol_fee;
     fee_state.bump_seed = ctx.bumps.fee_state;
+    fee_state.program_fee_fixed = program_fee_fixed;
+    fee_state.program_fee_rate = program_fee_rate;
 
     Ok(())
 }

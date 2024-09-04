@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 
 use crate::{assert_struct_align, assert_struct_size};
 
+use super::marginfi_group::WrappedI80F48;
+
 assert_struct_size!(FeeState, 256);
 assert_struct_align!(FeeState, 8);
 
@@ -26,8 +28,13 @@ pub struct FeeState {
     _padding0: [u8; 4],
     // Pad to 128 bytes
     _padding1: [u8; 15],
+    /// Fee collected by the program owner from all groups
+    pub program_fee_fixed: WrappedI80F48,
+    /// Fee collected by the program owner from all groups
+    pub program_fee_rate: WrappedI80F48,
     // Reserved for future use
-    _reserved0: [u8; 128],
+    _reserved0: [u8; 32],
+    _reserved1: [u8; 64],
 }
 
 impl FeeState {

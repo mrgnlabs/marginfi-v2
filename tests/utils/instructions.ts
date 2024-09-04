@@ -11,6 +11,7 @@ import {
 } from "./pdas";
 import { BankConfig } from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
 export const MAX_ORACLE_KEYS = 5;
 
@@ -117,6 +118,7 @@ export const groupInitialize = (
     .marginfiGroupInitialize()
     .accounts({
       marginfiGroup: args.marginfiGroup,
+      // feeState: deriveGlobalFeeState(id),
       admin: args.admin,
       // systemProgram: SystemProgram.programId,
     })
@@ -130,6 +132,8 @@ export type InitGlobalFeeStateArgs = {
   admin: PublicKey;
   wallet: PublicKey;
   bankInitFlatSolFee: number;
+  programFeeFixed: WrappedI80F48;
+  programFeeRate: WrappedI80F48;
 };
 
 export const initGlobalFeeState = (
@@ -137,7 +141,13 @@ export const initGlobalFeeState = (
   args: InitGlobalFeeStateArgs
 ) => {
   const ix = program.methods
-    .initGlobalFeeState(args.admin, args.wallet, args.bankInitFlatSolFee)
+    .initGlobalFeeState(
+      args.admin,
+      args.wallet,
+      args.bankInitFlatSolFee,
+      args.programFeeFixed,
+      args.programFeeRate
+    )
     .accounts({
       payer: args.payer,
       // feeState = deriveGlobalFeeState(id),
@@ -153,6 +163,8 @@ export type EditGlobalFeeStateArgs = {
   admin: PublicKey;
   wallet: PublicKey;
   bankInitFlatSolFee: number;
+  programFeeFixed: WrappedI80F48;
+  programFeeRate: WrappedI80F48;
 };
 
 // TODO add test for this
@@ -161,7 +173,12 @@ export const editGlobalFeeState = (
   args: EditGlobalFeeStateArgs
 ) => {
   const ix = program.methods
-    .editGlobalFeeState(args.wallet, args.bankInitFlatSolFee)
+    .editGlobalFeeState(
+      args.wallet,
+      args.bankInitFlatSolFee,
+      args.programFeeFixed,
+      args.programFeeRate
+    )
     .accounts({
       globalFeeAdmin: args.admin,
       // feeState = deriveGlobalFeeState(id),

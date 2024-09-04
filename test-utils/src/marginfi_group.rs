@@ -4,7 +4,11 @@ use crate::utils::*;
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 
 use anyhow::Result;
-use marginfi::constants::{FEE_STATE_SEED, INIT_BANK_ORIGINATION_FEE_DEFAULT};
+use bytemuck::bytes_of;
+use marginfi::constants::{
+    FEE_STATE_SEED, INIT_BANK_ORIGINATION_FEE_DEFAULT, PROTOCOL_FEE_FIXED_DEFAULT,
+    PROTOCOL_FEE_RATE_DEFAULT,
+};
 use marginfi::state::fee_state::FeeState;
 use marginfi::{
     prelude::MarginfiGroup,
@@ -52,6 +56,7 @@ impl MarginfiGroupFixture {
                 accounts: marginfi::accounts::MarginfiGroupInitialize {
                     marginfi_group: group_key.pubkey(),
                     admin: ctx.payer.pubkey(),
+                    fee_state: fee_state_key,
                     system_program: system_program::id(),
                 }
                 .to_account_metas(Some(true)),
@@ -109,6 +114,8 @@ impl MarginfiGroupFixture {
                         admin: ctx.payer.pubkey(),
                         fee_wallet: fee_wallet.pubkey(),
                         bank_init_flat_sol_fee: INIT_BANK_ORIGINATION_FEE_DEFAULT,
+                        program_fee_fixed: PROTOCOL_FEE_FIXED_DEFAULT.into(),
+                        program_fee_rate: PROTOCOL_FEE_RATE_DEFAULT.into(),
                     }
                     .data(),
                 };
@@ -385,6 +392,8 @@ impl MarginfiGroupFixture {
             insurance_vault: bank.get_vault(BankVaultType::Insurance).0,
             fee_vault: bank.get_vault(BankVaultType::Fee).0,
             token_program: bank.get_token_program(),
+            fee_state: self.fee_state,
+            fee_ata: self.fee_wallet, // TODO maybe the ATA instead
         }
         .to_account_metas(Some(true));
         if bank.mint.token_program == spl_token_2022::ID {
@@ -475,5 +484,24 @@ impl MarginfiGroupFixture {
             &self.key,
         )
         .await
+    }
+
+    pub async fn set_protocol_fees_flag(&self, enabled: bool) {
+        let mut group = self.load().await;
+        let mut ctx = self.ctx.borrow_mut();
+        let mut account = ctx
+            .banks_client
+            .get_account(self.key)
+            .await
+            .unwrap()
+            .unwrap();
+
+        group.program_fees = if enabled { 1 } else { 0 };
+
+        let data = bytes_of(&group);
+
+        account.data[8..].copy_from_slice(data);
+
+        ctx.set_account(&self.key, &account.into())
     }
 }

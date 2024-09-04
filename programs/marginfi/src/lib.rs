@@ -11,6 +11,7 @@ use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
 use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
+use state::marginfi_group::WrappedI80F48;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet-beta")] {
@@ -222,8 +223,17 @@ pub mod marginfi {
         admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
+        program_fee_fixed: WrappedI80F48,
+        program_fee_rate: WrappedI80F48,
     ) -> MarginfiResult {
-        marginfi_group::initialize_fee_state(ctx, admin, fee_wallet, bank_init_flat_sol_fee)
+        marginfi_group::initialize_fee_state(
+            ctx,
+            admin,
+            fee_wallet,
+            bank_init_flat_sol_fee,
+            program_fee_fixed,
+            program_fee_rate,
+        )
     }
 
     /// (global fee admin only) Adjust fees or the destination wallet
@@ -231,8 +241,16 @@ pub mod marginfi {
         ctx: Context<EditFeeState>,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
+        program_fee_fixed: WrappedI80F48,
+        program_fee_rate: WrappedI80F48,
     ) -> MarginfiResult {
-        marginfi_group::edit_fee_state(ctx, fee_wallet, bank_init_flat_sol_fee)
+        marginfi_group::edit_fee_state(
+            ctx,
+            fee_wallet,
+            bank_init_flat_sol_fee,
+            program_fee_fixed,
+            program_fee_rate,
+        )
     }
 }
 

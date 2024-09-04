@@ -31,6 +31,7 @@ import {
 } from "./utils/pdas";
 import { assert } from "chai";
 import { printBufferGroups } from "./utils/tools";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("Lending pool add bank (add bank to group)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -132,10 +133,11 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Approx(interest.optimalUtilizationRate, 0.5, tolerance);
     assertI80F48Approx(interest.plateauInterestRate, 0.6, tolerance);
     assertI80F48Approx(interest.maxInterestRate, 3, tolerance);
-    assertI80F48Equal(interest.insuranceFeeFixedApr, 0);
-    assertI80F48Equal(interest.insuranceIrFee, 0);
-    assertI80F48Equal(interest.protocolFixedFeeApr, 0);
-    assertI80F48Equal(interest.protocolIrFee, 0);
+
+    assertI80F48Approx(interest.insuranceFeeFixedApr, 0.01, tolerance);
+    assertI80F48Approx(interest.insuranceIrFee, 0.02, tolerance);
+    assertI80F48Approx(interest.protocolFixedFeeApr, 0.03, tolerance);
+    assertI80F48Approx(interest.protocolIrFee, 0.04, tolerance);
 
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { pythLegacy: {} });
@@ -143,6 +145,8 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.deepEqual(config.riskTier, { collateral: {} });
     assertBNEqual(config.totalAssetValueInitLimit, 100_000_000_000);
     assert.equal(config.oracleMaxAge, 100);
+
+    assertI80F48Equal(bank.collectedProtocolFeesOutstanding, 0);
   });
 
   it("(admin) Add bank (token A) - happy path", async () => {
