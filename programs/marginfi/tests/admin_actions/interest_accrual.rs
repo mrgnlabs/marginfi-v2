@@ -1,4 +1,5 @@
 use anchor_lang::prelude::Clock;
+use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_eq_noise, native, prelude::*};
@@ -94,6 +95,7 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> {
+    println!("hello world");
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
@@ -161,6 +163,24 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
         .marginfi_group
         .try_accrue_interest(usdc_bank_f)
         .await?;
+
+    // The program fee ata needs to exist, but doesn't need any assets.
+    {
+        let ctx = test_f.context.clone();
+        let ata = TokenAccountFixture::new_from_ata(
+            ctx,
+            &test_f.usdc_mint.key,
+            &test_f.marginfi_group.fee_wallet,
+            &test_f.usdc_mint.token_program,
+        )
+        .await;
+        let ata_expected = get_associated_token_address_with_program_id(
+            &test_f.marginfi_group.fee_wallet,
+            &test_f.usdc_mint.key,
+            &test_f.usdc_mint.token_program,
+        );
+        assert_eq!(ata.key, ata_expected);
+    }
 
     test_f.marginfi_group.try_collect_fees(usdc_bank_f).await?;
 

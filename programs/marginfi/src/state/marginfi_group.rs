@@ -258,7 +258,9 @@ pub struct InterestRateCalc {
     // Fees
     insurance_fixed_fee: I80F48,
     insurance_rate_fee: I80F48,
+    /// AKA group fixed fee
     protocol_fixed_fee: I80F48,
+    /// AKA group rate fee
     protocol_rate_fee: I80F48,
 
     program_fee_fixed: I80F48,
@@ -461,7 +463,7 @@ pub struct Bank {
     pub emissions_mint: Pubkey,
 
     /// Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s cannonical ATA for `mint`
-    pub collected_protocol_fees_outstanding: WrappedI80F48,
+    pub collected_program_fees_outstanding: WrappedI80F48,
 
     pub _padding_0: [[u64; 2]; 27],
     pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
@@ -769,9 +771,9 @@ impl Bank {
             };
         }
         if protocol_fees_collected > I80F48::ZERO {
-            self.collected_protocol_fees_outstanding = {
+            self.collected_program_fees_outstanding = {
                 protocol_fees_collected
-                    .checked_add(self.collected_protocol_fees_outstanding.into())
+                    .checked_add(self.collected_program_fees_outstanding.into())
                     .ok_or_else(math_error!())?
                     .into()
             };

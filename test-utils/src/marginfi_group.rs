@@ -3,6 +3,7 @@ use crate::prelude::{get_oracle_id_from_feed_id, MintFixture};
 use crate::utils::*;
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 
+use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use anyhow::Result;
 use bytemuck::bytes_of;
 use marginfi::constants::{
@@ -384,6 +385,12 @@ impl MarginfiGroupFixture {
     pub async fn try_collect_fees(&self, bank: &BankFixture) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
 
+        let fee_ata = get_associated_token_address_with_program_id(
+            &self.fee_wallet,
+            &bank.mint.key,
+            &bank.get_token_program(),
+        );
+
         let mut accounts = marginfi::accounts::LendingPoolCollectBankFees {
             marginfi_group: self.key,
             bank: bank.key,
@@ -393,7 +400,7 @@ impl MarginfiGroupFixture {
             fee_vault: bank.get_vault(BankVaultType::Fee).0,
             token_program: bank.get_token_program(),
             fee_state: self.fee_state,
-            fee_ata: self.fee_wallet, // TODO maybe the ATA instead
+            fee_ata,
         }
         .to_account_metas(Some(true));
         if bank.mint.token_program == spl_token_2022::ID {

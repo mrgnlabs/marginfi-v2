@@ -10,8 +10,8 @@ pub mod utils;
 use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
-use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 use state::marginfi_group::WrappedI80F48;
+use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet-beta")] {
@@ -251,6 +251,11 @@ pub mod marginfi {
             program_fee_fixed,
             program_fee_rate,
         )
+    }
+
+    /// (Permissionless) Force any group to adopt the current FeeState settings
+    pub fn propogate_fee_state(ctx: Context<PropogateFee>) -> MarginfiResult {
+        marginfi_group::propogate_fee(ctx)
     }
 }
 
