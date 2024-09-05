@@ -146,7 +146,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertBNEqual(config.totalAssetValueInitLimit, 100_000_000_000);
     assert.equal(config.oracleMaxAge, 100);
 
-    assertI80F48Equal(bank.collectedProtocolFeesOutstanding, 0);
+    assertI80F48Equal(bank.collectedProgramFeesOutstanding, 0);
   });
 
   it("(admin) Add bank (token A) - happy path", async () => {
