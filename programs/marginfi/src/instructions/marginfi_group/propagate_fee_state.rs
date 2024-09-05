@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 use crate::{constants::FEE_STATE_SEED, state::fee_state::FeeState, MarginfiGroup};
 
 #[derive(Accounts)]
-pub struct PropogateFee<'info> {
+pub struct PropagateFee<'info> {
     // Note: there is just one FeeState per program, so no further check is required.
     #[account(
         seeds = [FEE_STATE_SEED.as_bytes()],
@@ -16,7 +16,7 @@ pub struct PropogateFee<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 }
 
-pub fn propogate_fee(ctx: Context<PropogateFee>) -> Result<()> {
+pub fn propagate_fee(ctx: Context<PropagateFee>) -> Result<()> {
     let mut group = ctx.accounts.marginfi_group.load_mut()?;
     let fee_state = ctx.accounts.fee_state.load()?;
 

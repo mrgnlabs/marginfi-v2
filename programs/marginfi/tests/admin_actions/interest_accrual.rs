@@ -95,7 +95,6 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> {
-    println!("hello world");
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {

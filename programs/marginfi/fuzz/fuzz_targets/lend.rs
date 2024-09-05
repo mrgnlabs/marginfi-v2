@@ -8,7 +8,8 @@ use lazy_static::lazy_static;
 use libfuzzer_sys::fuzz_target;
 use marginfi::{
     assert_eq_with_tolerance,
-    state::marginfi_group::{Bank, GroupBankConfig},
+    prelude::MarginfiGroup,
+    state::marginfi_group::Bank,
 };
 use marginfi_fuzz::{
     account_state::AccountsState, arbitrary_helpers::*, metrics::Metrics, MarginfiFuzzContext,
@@ -148,6 +149,7 @@ fn setup_logging() -> anyhow::Result<()> {
 }
 
 fn verify_end_state<'a>(mga: &'a MarginfiFuzzContext<'a>) -> anyhow::Result<()> {
+    let group = AccountLoader::<MarginfiGroup>::try_from(&mga.marginfi_group).unwrap();
     mga.banks.iter().try_for_each(|bank| {
         let bank_loader = AccountLoader::<Bank>::try_from(&bank.bank).unwrap();
         let mut bank_data = bank_loader.load_mut().unwrap();
@@ -160,13 +162,11 @@ fn verify_end_state<'a>(mga: &'a MarginfiFuzzContext<'a>) -> anyhow::Result<()> 
 
         bank_data.accrue_interest(
             clock.unix_timestamp ,
-            &GroupBankConfig {
-                protocol_fees: true,
-            }
+            &group.load().unwrap()
         )?;
 
         let outstanding_fees = I80F48::from(bank_data.collected_group_fees_outstanding)
-            + I80F48::from(bank_data.collected_insurance_fees_outstanding) + I80F48::from(bank_data.collected_protocol_fees_outstanding);
+            + I80F48::from(bank_data.collected_insurance_fees_outstanding) + I80F48::from(bank_data.collected_program_fees_outstanding);
 
         let total_deposits = bank_data.get_asset_amount(bank_data.total_asset_shares.into())?;
 

@@ -254,8 +254,8 @@ pub mod marginfi {
     }
 
     /// (Permissionless) Force any group to adopt the current FeeState settings
-    pub fn propogate_fee_state(ctx: Context<PropogateFee>) -> MarginfiResult {
-        marginfi_group::propogate_fee(ctx)
+    pub fn propagate_fee_state(ctx: Context<PropagateFee>) -> MarginfiResult {
+        marginfi_group::propagate_fee(ctx)
     }
 }
 

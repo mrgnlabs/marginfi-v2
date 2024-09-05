@@ -8,7 +8,7 @@ use futures::future::join_all;
 use lazy_static::lazy_static;
 use marginfi::{
     constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, SECONDS_PER_YEAR},
-    state::marginfi_group::{Bank, ComputedInterestRates, GroupBankConfig, MarginfiGroup},
+    state::marginfi_group::{Bank, ComputedInterestRates, MarginfiGroup},
 };
 use reqwest::header::CONTENT_TYPE;
 use s3::{creds::Credentials, Bucket, Region};
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
     let groups = program.accounts::<MarginfiGroup>(vec![])?;
     let groups_map = groups
         .iter()
-        .map(|(pk, group)| (*pk, group.get_group_bank_config()))
+        .map(|(pk, group)| (*pk, group))
         .collect::<HashMap<_, _>>();
 
     println!("Found {} banks", banks.len());
@@ -134,7 +134,7 @@ impl DefiLammaPoolInfo {
         bank: &Bank,
         bank_pk: &Pubkey,
         rpc_client: &RpcClient,
-        bank_group_config: &GroupBankConfig,
+        group: &MarginfiGroup
     ) -> Result<Self> {
         let ltv = I80F48::ONE / I80F48::from(bank.config.liability_weight_init);
         let reward_tokens = if bank.emissions_mint != Pubkey::default() {
@@ -167,7 +167,7 @@ impl DefiLammaPoolInfo {
         let ir_calc = bank
             .config
             .interest_rate_config
-            .create_interest_rate_calculator(bank_group_config);
+            .create_interest_rate_calculator(group);
 
         let ComputedInterestRates {
             lending_rate_apr,

@@ -8,7 +8,7 @@ mod edit_global_fee;
 mod handle_bankruptcy;
 mod init_global_fee_state;
 mod initialize;
-mod propogate_fee_state;
+mod propagate_fee_state;
 
 pub use accrue_bank_interest::*;
 pub use add_pool::*;
@@ -20,4 +20,4 @@ pub use edit_global_fee::*;
 pub use handle_bankruptcy::*;
 pub use init_global_fee_state::*;
 pub use initialize::*;
-pub use propogate_fee_state::*;
+pub use propagate_fee_state::*;

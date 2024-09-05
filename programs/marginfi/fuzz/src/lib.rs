@@ -69,13 +69,17 @@ impl<'state> MarginfiFuzzContext<'state> {
         let admin = state.new_sol_account(1_000_000, true, true);
         let fee_state_wallet = state.new_sol_account(1_000_000, true, true);
         let rent_sysvar = state.new_rent_sysvar_account(Rent::free());
-        let marginfi_group =
-            initialize_marginfi_group(state, admin.clone(), system_program.clone());
         let fee_state = initialize_fee_state(
             state,
             admin.clone(),
             fee_state_wallet.clone(),
             rent_sysvar.clone(),
+            system_program.clone(),
+        );
+        let marginfi_group = initialize_marginfi_group(
+            state,
+            admin.clone(),
+            fee_state.clone(),
             system_program.clone(),
         );
 
@@ -274,10 +278,10 @@ impl<'state> MarginfiFuzzContext<'state> {
                         optimal_utilization_rate: I80F48!(0.5).into(),
                         plateau_interest_rate: I80F48!(0.5).into(),
                         max_interest_rate: I80F48!(4).into(),
-                        insurance_fixed_fee: I80F48!(0.01).into(),
-                        insurance_rate_fee: I80F48!(0.05).into(),
-                        group_fixed_fee: I80F48!(0.01).into(),
-                        group_rate_fee: I80F48!(0.1).into(),
+                        insurance_fee_fixed_apr: I80F48!(0.01).into(),
+                        insurance_ir_fee: I80F48!(0.05).into(),
+                        protocol_fixed_fee_apr: I80F48!(0.01).into(),
+                        protocol_ir_fee: I80F48!(0.1).into(),
                         ..Default::default()
                     },
                     oracle_setup: marginfi::state::price::OracleSetup::PythLegacy,
@@ -942,6 +946,7 @@ pub fn set_discriminator<T: Discriminator>(ai: AccountInfo) {
 fn initialize_marginfi_group<'a>(
     state: &'a AccountsState,
     admin: AccountInfo<'a>,
+    fee_state: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
 ) -> AccountInfo<'a> {
     let program_id = marginfi::id();
@@ -955,6 +960,7 @@ fn initialize_marginfi_group<'a>(
             marginfi_group: AccountLoader::try_from_unchecked(&program_id, airls(&marginfi_group))
                 .unwrap(),
             admin: Signer::try_from(airls(&admin)).unwrap(),
+            fee_state: AccountLoader::try_from_unchecked(&program_id, airls(&fee_state)).unwrap(),
             system_program: Program::try_from(airls(&system_program)).unwrap(),
         },
         &[],
@@ -995,6 +1001,8 @@ fn initialize_fee_state<'a>(
         // WARN: tests will fail at add_bank::system_program::transfer if this is non-zero because
         // the fuzz suite does not yet support the system program.
         0,
+        I80F48!(0).into(),
+        I80F48!(0).into(),
     )
     .unwrap();
 
