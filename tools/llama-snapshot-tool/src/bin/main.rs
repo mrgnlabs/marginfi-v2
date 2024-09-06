@@ -134,7 +134,7 @@ impl DefiLammaPoolInfo {
         bank: &Bank,
         bank_pk: &Pubkey,
         rpc_client: &RpcClient,
-        group: &MarginfiGroup
+        group: &MarginfiGroup,
     ) -> Result<Self> {
         let ltv = I80F48::ONE / I80F48::from(bank.config.liability_weight_init);
         let reward_tokens = if bank.emissions_mint != Pubkey::default() {
