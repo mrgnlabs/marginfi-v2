@@ -12,6 +12,7 @@ import {
 import { Marginfi } from "../target/types/marginfi";
 import { Keypair, Transaction } from "@solana/web3.js";
 import { setupPythOracles } from "./utils/pyth_mocks";
+import { StakingCollatizer } from "../target/types/staking_collatizer";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -31,7 +32,9 @@ export const bankKeypairA = Keypair.generate();
 
 export const mochaHooks = {
   beforeAll: async () => {
-    const program = workspace.Marginfi as Program<Marginfi>;
+    const mrgnProgram = workspace.Marginfi as Program<Marginfi>;
+    const collatProgram =
+      workspace.StakingCollatizer as Program<StakingCollatizer>;
     const provider = AnchorProvider.local();
     const wallet = provider.wallet as Wallet;
 
@@ -73,7 +76,8 @@ export const mochaHooks = {
     await provider.sendAndConfirm(tx, [usdcMint, aMint, bMint]);
 
     const setupUserOptions: SetupTestUserOptions = {
-      marginProgram: program,
+      marginProgram: mrgnProgram,
+      collatizerProgram: collatProgram,
       forceWallet: undefined,
       // If mints are created, typically create the ATA too, otherwise pass undefined...
       wsolMint: undefined,

@@ -10,6 +10,7 @@ skip-lint = false
 liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
 marginfi = "2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr"
 mocks = "5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C"
+staking-collatizer = "65e81uBnLPtUNaFbgzeU4gMwmCbMeeh6GCLDhEVaNNon"
 
 [programs.mainnet]
 liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
@@ -19,12 +20,14 @@ marginfi = "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
-# cluster = "https://devnet.rpcpool.com/"
+cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.ts --exit --require tests/rootHooks.ts"
+# test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.ts --exit --require tests/rootHooks.ts"
+
+# Staking Collatizer only
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/s*.spec.ts --exit --require tests/rootHooks.ts"
 
 [test]
 startup_wait = 5000
