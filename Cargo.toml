@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["programs/*", "clients/rust/*", "tools/*", "observability/indexer"]
+members = ["programs/*", "clients/rust/*", "tools/*"]
 
 [workspace.dependencies]
 solana-cli-output = "=1.18.17"
