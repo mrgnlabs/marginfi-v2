@@ -112,13 +112,13 @@ pub fn lending_account_liquidate<'info>(
         let group = &*marginfi_group_loader.load()?;
         ctx.accounts.asset_bank.load_mut()?.accrue_interest(
             current_timestamp,
-            &group,
+            group,
             #[cfg(not(feature = "client"))]
             ctx.accounts.asset_bank.key(),
         )?;
         ctx.accounts.liab_bank.load_mut()?.accrue_interest(
             current_timestamp,
-            &group,
+            group,
             #[cfg(not(feature = "client"))]
             ctx.accounts.liab_bank.key(),
         )?;

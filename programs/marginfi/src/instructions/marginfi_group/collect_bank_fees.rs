@@ -28,11 +28,8 @@ pub fn lending_pool_collect_bank_fees<'info>(
         let global_fee_wallet = &ctx.accounts.fee_state.load()?.global_fee_wallet;
         let token_program_id = &ctx.accounts.token_program.key();
         let program_fee_ata = &ctx.accounts.fee_ata.key();
-        let ata_expected = get_associated_token_address_with_program_id(
-            global_fee_wallet,
-            mint,
-            &token_program_id,
-        );
+        let ata_expected =
+            get_associated_token_address_with_program_id(global_fee_wallet, mint, token_program_id);
         check!(
             program_fee_ata.eq(&ata_expected),
             MarginfiError::InvalidFeeAta

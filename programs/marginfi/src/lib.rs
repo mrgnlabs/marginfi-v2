@@ -257,6 +257,13 @@ pub mod marginfi {
     pub fn propagate_fee_state(ctx: Context<PropagateFee>) -> MarginfiResult {
         marginfi_group::propagate_fee(ctx)
     }
+
+    /// (global fee admin only) Enable or disable program fees for any group. Does not require the
+    /// group admin to sign: the global fee state admin can turn program fees on or off for any
+    /// group
+    pub fn config_group_fee(ctx: Context<ConfigGroupFee>, flag: u64) -> MarginfiResult {
+        marginfi_group::config_group_fee(ctx, flag)
+    }
 }
 
 #[cfg(not(feature = "no-entrypoint"))]
