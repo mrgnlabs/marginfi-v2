@@ -464,15 +464,20 @@ impl MarginfiAccountMetrics {
                 match oracle_data {
                     OracleData::Pyth(price_feed) => (
                         *oracle_pk,
-                        OraclePriceFeedAdapter::PythEma(price_feed.clone()),
+                        OraclePriceFeedAdapter::PythLegacy(price_feed.clone()),
                     ),
                     OracleData::Switchboard(pf) => (
                         *oracle_pk,
                         OraclePriceFeedAdapter::SwitchboardV2(pf.clone()),
                     ),
-                    OracleData::PythPush(pf) => {
-                        (*oracle_pk, OraclePriceFeedAdapter::PythPush(pf.clone()))
-                    }
+                    OracleData::PythPush(pf) => (
+                        *oracle_pk,
+                        OraclePriceFeedAdapter::PythPushOracle(pf.clone()),
+                    ),
+                    OracleData::SwitchboardPull(pf) => (
+                        *oracle_pk,
+                        OraclePriceFeedAdapter::SwitchboardPull(pf.clone()),
+                    ),
                 }
             }));
 
