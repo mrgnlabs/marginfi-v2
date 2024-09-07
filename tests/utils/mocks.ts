@@ -369,3 +369,10 @@ export const storeMockAccount = async (
   );
   await program.provider.sendAndConfirm(tx, [wallet.payer, account]);
 };
+
+export type Validator = {
+  node: PublicKey;
+  authorizedVoter: PublicKey;
+  authorizedWithdrawer: PublicKey;
+  voteAccount: PublicKey;
+}

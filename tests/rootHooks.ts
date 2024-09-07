@@ -4,13 +4,21 @@ import {
   echoEcosystemInfo,
   Ecosystem,
   getGenericEcosystem,
-  mockUser,
+  mockUser as MockUser,
   Oracles,
   setupTestUser,
   SetupTestUserOptions,
+  Validator,
 } from "./utils/mocks";
 import { Marginfi } from "../target/types/marginfi";
-import { Keypair, Transaction } from "@solana/web3.js";
+import {
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  VoteInit,
+  VoteProgram,
+} from "@solana/web3.js";
 import { setupPythOracles } from "./utils/pyth_mocks";
 import { StakingCollatizer } from "../target/types/staking_collatizer";
 
@@ -18,10 +26,15 @@ export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
 export const verbose = true;
 /** The program owner is also the provider wallet */
-export let globalProgramAdmin: mockUser = undefined;
-export let groupAdmin: mockUser = undefined;
-export const users: mockUser[] = [];
+export let globalProgramAdmin: MockUser = undefined;
+export let groupAdmin: MockUser = undefined;
+/** Administers valiator votes and withdraws */
+export let validatorAdmin: MockUser = undefined;
+export const users: MockUser[] = [];
 export const numUsers = 2;
+
+export const validators: Validator[] = [];
+export const numValidators = 2;
 
 /** Group used for all happy-path tests */
 export const marginfiGroup = Keypair.generate();
@@ -87,6 +100,11 @@ export const mochaHooks = {
     };
 
     groupAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
+    validatorAdmin = await setupTestUser(
+      provider,
+      wallet.payer,
+      setupUserOptions
+    );
 
     for (let i = 0; i < numUsers; i++) {
       const user = await setupTestUser(
@@ -117,5 +135,74 @@ export const mochaHooks = {
       ecosystem.tokenBDecimals,
       verbose
     );
+
+    for (let i = 0; i < numValidators; i++) {
+      const validator = await createValidator(
+        provider,
+        validatorAdmin.wallet,
+        validatorAdmin.wallet.publicKey
+      );
+      if (verbose) {
+        console.log("Validator vote acc [" + i + "]: " + validator.voteAccount);
+      }
+      validators.push(validator);
+    }
+    if (verbose) {
+      console.log("---End ecosystem setup---");
+      console.log("");
+    }
   },
+};
+
+/**
+ * Create a mock validator with given vote/withdraw authority
+ *
+ * @param provider
+ * @param authorizedVoter - also pays init fees
+ * @param authorizedWithdrawer - also pays init fees
+ * @param comission - defaults to 0
+ */
+export const createValidator = async (
+  provider: AnchorProvider,
+  authorizedVoter: Keypair,
+  authorizedWithdrawer: PublicKey,
+  commission: number = 0 // Commission rate from 0 to 100
+) => {
+  const voteAccount = Keypair.generate();
+  const node = Keypair.generate();
+
+  const tx = new Transaction().add(
+    // Create the vote account
+    SystemProgram.createAccount({
+      fromPubkey: authorizedVoter.publicKey,
+      newAccountPubkey: voteAccount.publicKey,
+      lamports: await provider.connection.getMinimumBalanceForRentExemption(
+        VoteProgram.space
+      ),
+      space: VoteProgram.space,
+      programId: VoteProgram.programId,
+    }),
+    // Initialize the vote account
+    VoteProgram.initializeAccount({
+      votePubkey: voteAccount.publicKey,
+      nodePubkey: node.publicKey,
+      voteInit: new VoteInit(
+        node.publicKey,
+        authorizedVoter.publicKey,
+        authorizedWithdrawer,
+        commission
+      ),
+    })
+  );
+
+  await provider.sendAndConfirm(tx, [voteAccount, authorizedVoter, node]);
+
+  const validator: Validator = {
+    node: node.publicKey,
+    authorizedVoter: authorizedVoter.publicKey,
+    authorizedWithdrawer: authorizedWithdrawer,
+    voteAccount: voteAccount.publicKey,
+  };
+
+  return validator;
 };
