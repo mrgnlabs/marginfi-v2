@@ -219,33 +219,23 @@ export type StakeHistoryEntry = {
  * and modified to directly read from buffer
  * */
 export const getStakeHistory = function (data: Buffer): StakeHistoryEntry[] {
+  // Note: Is just `Vec<(Epoch, StakeHistoryEntry)>` internally
   const stakeHistory: StakeHistoryEntry[] = [];
-  const entrySize = 24; // Each entry is 24 bytes (3 x 8-byte u64 fields)
+  const entrySize = 32; // Each entry is 32 bytes (4 x 8-byte u64 fields)
 
-  // TODO use account parsed and compare what the issue is....
   for (
-    let offset = 0, epoch = 0n;
-    offset + entrySize <= data.length;
+    // skip the first 8 bytes for the Vec overhead
+    let offset = 8, epoch = 0n;
+    offset + entrySize < data.length;
     offset += entrySize, epoch++
   ) {
-    const effective = data.readBigUInt64LE(offset); // u64 effective
-    const activating = data.readBigUInt64LE(offset + 8); // u64 activating
-    const deactivating = data.readBigUInt64LE(offset + 16); // u64 deactivating
+    const epoch = data.readBigUInt64LE(offset); // Note `epoch` is just a u64 renamed
+    const effective = data.readBigUInt64LE(offset + 8); // u64 effective
+    const activating = data.readBigUInt64LE(offset + 16); // u64 activating
+    const deactivating = data.readBigUInt64LE(offset + 24); // u64 deactivating
 
-    if (epoch < 5) {
-      console.log(
-        "LOG " +
-          epoch +
-          ": e" +
-          effective +
-          " a" +
-          activating +
-          " d" +
-          deactivating
-      );
-    }
     stakeHistory.push({
-      epoch, // Inferred from the position in the stake history
+      epoch,
       effective,
       activating,
       deactivating,
@@ -286,23 +276,7 @@ function getStakeHistoryEntry(
   stakeHistory: StakeHistoryEntry[]
 ): StakeHistoryEntry | null {
   for (const entry of stakeHistory) {
-    console.log(
-      "epoch read: " +
-        entry.epoch +
-        " " +
-        entry.activating +
-        " " +
-        entry.effective
-    );
     if (entry.epoch === epoch) {
-      console.log(
-        "epoch found: " +
-          entry.epoch +
-          " " +
-          entry.activating +
-          " " +
-          entry.effective
-      );
       return entry;
     }
   }
@@ -342,9 +316,7 @@ export function getStakeAndActivating(
   }
 
   let currentEpoch = delegation.activationEpoch;
-  console.log("current: " + currentEpoch);
   let entry = getStakeHistoryEntry(currentEpoch, stakeHistory);
-  console.log("entry: " + entry.activating + " " + entry.deactivating);
   if (entry !== null) {
     // target_epoch > self.activation_epoch
 
@@ -355,10 +327,8 @@ export function getStakeAndActivating(
       currentEpoch++;
       const remaining = delegation.stake - currentEffectiveStake;
       const weight = Number(remaining) / Number(entry.activating);
-      console.log(weight);
       const newlyEffectiveClusterStake =
         Number(entry.effective) * WARMUP_COOLDOWN_RATE;
-      console.log(newlyEffectiveClusterStake);
       const newlyEffectiveStake = BigInt(
         Math.max(1, Math.round(weight * newlyEffectiveClusterStake))
       );
@@ -524,10 +494,6 @@ export async function getStakeActivation(
         return getStakeHistory(stakeHistoryInfo.data);
       })(),
     ]);
-  let sh = stakeHistory[0];
-  console.log("EPOCH 0 " + sh.epoch + " " + sh.activating + " " + sh.effective);
-  sh = stakeHistory[1];
-  console.log("EPOCH 1 " + sh.epoch + " " + sh.activating + " " + sh.effective);
 
   const targetEpoch = epoch ? epoch : epochInfo.epoch;
   const { effective, activating, deactivating } =

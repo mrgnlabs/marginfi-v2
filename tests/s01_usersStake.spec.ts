@@ -136,63 +136,38 @@ describe("User stakes some native and creates an account", () => {
       );
     }
 
-    bankrunContext.warpToEpoch(2n);
-
-    clock = await client.getAccount(SYSVAR_CLOCK_PUBKEY);
-    // epoch is bytes 16-24
-    epoch = new BN(clock.data.slice(16, 24), 10, "le").toNumber();
-    if (verbose) {
-      console.log("Warped to epoch: " + epoch);
-    }
-
-    const stakeStatusAfter2 = await getStakeActivation(
-      bankRunProvider.connection,
-      stakeAccount,
-      epoch
-    );
-    if (verbose) {
-      console.log("It is now epoch: " + epoch);
-      console.log(
-        "Stake active: " +
-          stakeStatusAfter2.active.toLocaleString() +
-          " inactive " +
-          stakeStatusAfter2.inactive.toLocaleString() +
-          " status: " +
-          stakeStatusAfter2.status
-      );
-    }
   });
 
-  //   it("(user 0) Init user account - happy path", async () => {
-  //     // TODO the stake program must be rewritten to use the bankrun provider...
-  //     const epoch = (await provider.connection.getEpochInfo()).epoch;
-  //     const stakeStatusAfter = await getStakeActivation(
-  //       provider.connection,
-  //       stakeAccount
-  //     );
-  //     if (verbose) {
-  //       console.log("It is now epoch: " + epoch);
-  //       console.log(
-  //         "Stake active: " +
-  //           stakeStatusAfter.active.toLocaleString() +
-  //           " inactive " +
-  //           stakeStatusAfter.inactive.toLocaleString() +
-  //           " status: " +
-  //           stakeStatusAfter.status
-  //       );
-  //     }
+    it("(user 0) Init user account - happy path", async () => {
+      // TODO the stake program must be rewritten to use the bankrun provider...
+      const epoch = (await provider.connection.getEpochInfo()).epoch;
+      const stakeStatusAfter = await getStakeActivation(
+        provider.connection,
+        stakeAccount
+      );
+      if (verbose) {
+        console.log("It is now epoch: " + epoch);
+        console.log(
+          "Stake active: " +
+            stakeStatusAfter.active.toLocaleString() +
+            " inactive " +
+            stakeStatusAfter.inactive.toLocaleString() +
+            " status: " +
+            stakeStatusAfter.status
+        );
+      }
 
-  //     let tx = new Transaction();
+      let tx = new Transaction();
 
-  //     tx.add(
-  //       await program.methods
-  //         .initUser()
-  //         .accounts({
-  //           payer: users[0].wallet.publicKey,
-  //         })
-  //         .instruction()
-  //     );
+      tx.add(
+        await program.methods
+          .initUser()
+          .accounts({
+            payer: users[0].wallet.publicKey,
+          })
+          .instruction()
+      );
 
-  //     await users[0].userCollatizerProgram.provider.sendAndConfirm(tx);
-  //   });
+      await users[0].userCollatizerProgram.provider.sendAndConfirm(tx);
+    });
 });
