@@ -27,6 +27,7 @@ export let oracles: Oracles = undefined;
 export const verbose = true;
 /** The program owner is also the provider wallet */
 export let globalProgramAdmin: MockUser = undefined;
+/** Administers the mrgnlend group and/or stake holder accounts */
 export let groupAdmin: MockUser = undefined;
 /** Administers valiator votes and withdraws */
 export let validatorAdmin: MockUser = undefined;

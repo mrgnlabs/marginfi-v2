@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-#[account()]
+#[account(zero_copy)]
 pub struct StakeUser {
     /// The account's own key
     pub key: Pubkey,

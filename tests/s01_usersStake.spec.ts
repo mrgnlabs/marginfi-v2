@@ -168,6 +168,8 @@ describe("User stakes some native and creates an account", () => {
           .instruction()
       );
 
+      // TODO check the account...
+
       await users[0].userCollatizerProgram.provider.sendAndConfirm(tx);
     });
 });
