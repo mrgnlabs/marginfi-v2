@@ -1,14 +1,9 @@
-import { AnchorProvider } from "@coral-xyz/anchor";
 import {
   Keypair,
   Transaction,
   SystemProgram,
   StakeProgram,
   PublicKey,
-  LAMPORTS_PER_SOL,
-  AccountInfo,
-  ParsedAccountData,
-  RpcResponseAndContext,
   Connection,
 } from "@solana/web3.js";
 import { mockUser } from "./mocks";
@@ -16,17 +11,10 @@ import { mockUser } from "./mocks";
 /**
  * Create a stake account for some user
  * @param user
- * @param provider
  * @param amount - in SOL (lamports), in native decimals
- * @param verbose
  * @returns
  */
-export const createStakeAccount = async (
-  user: mockUser,
-  provider: AnchorProvider,
-  amount: number,
-  verbose: boolean = true
-) => {
+export const createStakeAccount = (user: mockUser, amount: number) => {
   const stakeAccount = Keypair.generate();
   const userPublicKey = user.wallet.publicKey;
 
@@ -48,44 +36,25 @@ export const createStakeAccount = async (
     })
   );
 
-  await provider.sendAndConfirm(tx, [user.wallet, stakeAccount]);
-
-  if (verbose) {
-    console.log("Create stake account: " + stakeAccount.publicKey);
-    console.log(" Stake: " + amount / LAMPORTS_PER_SOL + " SOL");
-  }
-  return stakeAccount.publicKey;
+  return { createTx: tx, stakeAccountKeypair: stakeAccount };
 };
 
 /**
  * Delegate a stake account to a validator.
  * @param user - wallet signs
- * @param provider
  * @param stakeAccount
  * @param validatorVoteAccount
- * @param verbose
  */
-export const delegateStake = async (
+export const delegateStake = (
   user: mockUser,
-  provider: AnchorProvider,
   stakeAccount: PublicKey,
-  validatorVoteAccount: PublicKey,
-  verbose: boolean = true,
-  userDisplayName: string = "some user"
+  validatorVoteAccount: PublicKey
 ) => {
-  const tx = new Transaction().add(
-    StakeProgram.delegate({
-      stakePubkey: stakeAccount,
-      authorizedPubkey: user.wallet.publicKey,
-      votePubkey: validatorVoteAccount,
-    })
-  );
-
-  await provider.sendAndConfirm(tx, [user.wallet]);
-
-  if (verbose) {
-    console.log(userDisplayName + " delegated to " + validatorVoteAccount);
-  }
+  return StakeProgram.delegate({
+    stakePubkey: stakeAccount,
+    authorizedPubkey: user.wallet.publicKey,
+    votePubkey: validatorVoteAccount,
+  });
 };
 
 /**
@@ -225,14 +194,21 @@ export const getStakeHistory = function (data: Buffer): StakeHistoryEntry[] {
 
   for (
     // skip the first 8 bytes for the Vec overhead
-    let offset = 8, epoch = 0n;
+    let offset = 8;
     offset + entrySize < data.length;
-    offset += entrySize, epoch++
+    offset += entrySize
   ) {
     const epoch = data.readBigUInt64LE(offset); // Note `epoch` is just a u64 renamed
     const effective = data.readBigUInt64LE(offset + 8); // u64 effective
     const activating = data.readBigUInt64LE(offset + 16); // u64 activating
     const deactivating = data.readBigUInt64LE(offset + 24); // u64 deactivating
+
+    // if (epoch < 10 && offset < 300) {
+    //   console.log("epoch " + epoch);
+    //   console.log("e " + effective);
+    //   console.log("a " + activating);
+    //   console.log("d " + deactivating);
+    // }
 
     stakeHistory.push({
       epoch,

@@ -8,6 +8,8 @@ pub struct InitUser<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
+    // TODO owner seperate from payer
+
     #[account(
         init,
         seeds = [
@@ -25,9 +27,9 @@ pub struct InitUser<'info> {
 }
 
 pub fn init_user(ctx: Context<InitUser>) -> Result<()> {
-    msg!(
-        "Nothing was done. Signed by: {:?}",
-        ctx.accounts.payer.key()
-    );
+    let mut stake_user = ctx.accounts.stake_user.load_init()?;
+
+    stake_user.key = ctx.accounts.stake_user.key();
+
     Ok(())
 }

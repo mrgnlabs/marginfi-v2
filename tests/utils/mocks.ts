@@ -98,8 +98,13 @@ export type mockUser = {
   usdcAccount: PublicKey;
   /** A marginfi program that uses the user's wallet */
   userMarginProgram: Program<Marginfi> | undefined;
-  /** A staking collatizer program that uses the user's wallet */
+  /**
+   * A staking collatizer program that uses the user's wallet.
+   * * NOTE: When testing, you will most likely use BankRun's client instead!
+   */
   userCollatizerProgram: Program<StakingCollatizer> | undefined;
+  /** A map to store arbitrary accounts related to the user using a string key */
+  accounts: Map<string, PublicKey>;
 };
 
 /**
@@ -217,6 +222,7 @@ export const setupTestUser = async (
     userCollatizerProgram: options.marginProgram
       ? getUserCollatizerProgram(options.collatizerProgram, userWalletKeypair)
       : undefined,
+    accounts: new Map<string, PublicKey>(),
   };
   return user;
 };
@@ -375,4 +381,4 @@ export type Validator = {
   authorizedVoter: PublicKey;
   authorizedWithdrawer: PublicKey;
   voteAccount: PublicKey;
-}
+};

@@ -29,6 +29,7 @@ pub struct InitStakeHolder<'info> {
     )]
     pub stakeholder: AccountLoader<'info, StakeHolder>,
 
+    // TODO remove?
     /// CHECK: used by CPI
     pub vote_account: UncheckedAccount<'info>,
 

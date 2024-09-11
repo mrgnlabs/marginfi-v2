@@ -24,3 +24,10 @@ export const deriveStakeHolderStakeAccount = (
     programId
   );
 };
+
+export const deriveStakeUser = (programId: PublicKey, payer: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("stakeuser", "utf-8"), payer.toBuffer()],
+    programId
+  );
+};

@@ -24,4 +24,8 @@ pub mod staking_collatizer {
     pub fn init_stakeholder(ctx: Context<InitStakeHolder>) -> Result<()> {
         instructions::init_stakeholder::init_stakeholder(ctx)
     }
+
+    pub fn deposit_stake(ctx: Context<DepositStake>) -> Result<()> {
+        instructions::deposit_stake::deposit_stake(ctx)
+    }
 }

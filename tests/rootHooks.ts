@@ -14,13 +14,19 @@ import { Marginfi } from "../target/types/marginfi";
 import {
   Keypair,
   PublicKey,
+  StakeProgram,
   SystemProgram,
+  SYSVAR_EPOCH_SCHEDULE_PUBKEY,
+  SYSVAR_STAKE_HISTORY_PUBKEY,
   Transaction,
   VoteInit,
   VoteProgram,
 } from "@solana/web3.js";
 import { setupPythOracles } from "./utils/pyth_mocks";
 import { StakingCollatizer } from "../target/types/staking_collatizer";
+import { BankrunProvider } from "anchor-bankrun";
+import { BanksClient, ProgramTestContext, startAnchor } from "solana-bankrun";
+import path from "path";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -43,6 +49,13 @@ export const marginfiGroup = Keypair.generate();
 export const bankKeypairUsdc = Keypair.generate();
 /** Bank for token A */
 export const bankKeypairA = Keypair.generate();
+
+export let bankrunContext: ProgramTestContext;
+export let bankRunProvider: BankrunProvider;
+export let bankrunProgram: Program<StakingCollatizer>;
+export let banksClient: BanksClient;
+/** keys copied into the bankrun instance */
+let copyKeys: PublicKey[] = [];
 
 export const mochaHooks = {
   beforeAll: async () => {
@@ -88,6 +101,7 @@ export const mochaHooks = {
     tx.add(...bIxes);
 
     await provider.sendAndConfirm(tx, [usdcMint, aMint, bMint]);
+    copyKeys.push(usdcMint.publicKey, aMint.publicKey, bMint.publicKey);
 
     const setupUserOptions: SetupTestUserOptions = {
       marginProgram: mrgnProgram,
@@ -106,6 +120,8 @@ export const mochaHooks = {
       wallet.payer,
       setupUserOptions
     );
+    copyKeys.push(groupAdmin.usdcAccount);
+    copyKeys.push(groupAdmin.wallet.publicKey);
 
     for (let i = 0; i < numUsers; i++) {
       const user = await setupTestUser(
@@ -113,7 +129,7 @@ export const mochaHooks = {
         wallet.payer,
         setupUserOptions
       );
-      users.push(user);
+      addUser(user);
     }
 
     // Global admin uses the payer wallet...
@@ -146,13 +162,49 @@ export const mochaHooks = {
       if (verbose) {
         console.log("Validator vote acc [" + i + "]: " + validator.voteAccount);
       }
-      validators.push(validator);
+      addValidator(validator);
     }
+
+    copyKeys.push(StakeProgram.programId);
+    copyKeys.push(SYSVAR_STAKE_HISTORY_PUBKEY);
+
+    const accountKeys = copyKeys;
+
+    const accounts = await provider.connection.getMultipleAccountsInfo(
+      accountKeys
+    );
+    const addedAccounts = accountKeys.map((address, index) => ({
+      address,
+      info: accounts[index],
+    }));
+
+    bankrunContext = await startAnchor(path.resolve(), [], addedAccounts);
+    bankRunProvider = new BankrunProvider(bankrunContext);
+    bankrunProgram = new Program(collatProgram.idl, bankRunProvider);
+    banksClient = bankrunContext.banksClient;
+
     if (verbose) {
       console.log("---End ecosystem setup---");
       console.log("");
     }
   },
+};
+
+const addValidator = (validator: Validator) => {
+  validators.push(validator);
+  // copyKeys.push(validator.authorizedVoter);
+  // copyKeys.push(validator.authorizedWithdrawer);
+  // copyKeys.push(validator.node);
+  copyKeys.push(validator.voteAccount);
+};
+
+const addUser = (user: MockUser) => {
+  users.push(user);
+  // copyKeys.push(user.tokenAAccount);
+  // copyKeys.push(user.tokenBAccount);
+  copyKeys.push(user.usdcAccount);
+  copyKeys.push(user.wallet.publicKey);
+  // copyKeys.push(user.wsolAccount);
 };
 
 /**

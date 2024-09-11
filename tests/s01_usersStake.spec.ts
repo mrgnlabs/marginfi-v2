@@ -3,17 +3,23 @@ import {
   BN,
   getProvider,
   Program,
-  Wallet,
   workspace,
 } from "@coral-xyz/anchor";
 import {
-  Connection,
   LAMPORTS_PER_SOL,
   PublicKey,
   SYSVAR_CLOCK_PUBKEY,
   Transaction,
 } from "@solana/web3.js";
-import { users, validators, verbose } from "./rootHooks";
+import {
+  bankrunProgram as bankrunProgram,
+  bankrunContext,
+  bankRunProvider,
+  users,
+  validators,
+  verbose,
+  banksClient,
+} from "./rootHooks";
 import { StakingCollatizer } from "../target/types/staking_collatizer";
 import {
   createStakeAccount,
@@ -24,40 +30,46 @@ import {
 import { assertBNEqual, assertKeysEqual } from "./utils/genericTests";
 import { u64MAX_BN } from "./utils/types";
 
-import path from "path";
-import { BankrunProvider } from "anchor-bankrun";
-import type { ProgramTestContext } from "solana-bankrun";
-import { Clock, startAnchor } from "solana-bankrun";
+import { deriveStakeUser } from "./utils/stakeCollatizer/pdas";
 
 describe("User stakes some native and creates an account", () => {
   const program = workspace.StakingCollatizer as Program<StakingCollatizer>;
-  const provider = getProvider() as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
-
-  let bankrunContext: ProgramTestContext;
-  let bankRunProvider: BankrunProvider;
-  let bankrunProgram: Program<StakingCollatizer>;
 
   let stakeAccount: PublicKey;
 
   it("(user 0) Create user stake account and stake to validator", async () => {
-    stakeAccount = await createStakeAccount(
+    let { createTx, stakeAccountKeypair } = createStakeAccount(
       users[0],
-      provider,
       10 * LAMPORTS_PER_SOL
     );
+    createTx.recentBlockhash = bankrunContext.lastBlockhash;
+    createTx.sign(users[0].wallet, stakeAccountKeypair);
+    await banksClient.processTransaction(createTx);
+    stakeAccount = stakeAccountKeypair.publicKey;
 
-    await delegateStake(
+    if (verbose) {
+      console.log("Create stake account: " + stakeAccount);
+      console.log(" Stake: " + 10 / LAMPORTS_PER_SOL + " SOL");
+    }
+    users[0].accounts.set("v0_stakeacc", stakeAccountKeypair.publicKey);
+
+    let delegateTx = delegateStake(
       users[0],
-      provider,
       stakeAccount,
-      validators[0].voteAccount,
-      verbose,
-      "user 0"
+      validators[0].voteAccount
     );
+    delegateTx.recentBlockhash = bankrunContext.lastBlockhash;
+    delegateTx.sign(users[0].wallet);
+    await banksClient.processTransaction(delegateTx);
 
-    const epochBefore = (await provider.connection.getEpochInfo()).epoch;
-    const stakeAccountInfo = await provider.connection.getAccountInfo(
+    if (verbose) {
+      console.log("user 0 delegated to " + validators[0].voteAccount);
+    }
+
+    let clock = await banksClient.getAccount(SYSVAR_CLOCK_PUBKEY);
+    // epoch is bytes 16-24
+    let epochBefore = new BN(clock.data.slice(16, 24), 10, "le").toNumber();
+    const stakeAccountInfo = await bankRunProvider.connection.getAccountInfo(
       stakeAccount
     );
     const stakeAccBefore = getStakeAccount(stakeAccountInfo.data);
@@ -74,8 +86,9 @@ describe("User stakes some native and creates an account", () => {
     assertBNEqual(new BN(delegation.deactivationEpoch.toString()), u64MAX_BN);
 
     const stakeStatusBefore = await getStakeActivation(
-      provider.connection,
-      stakeAccount
+      bankRunProvider.connection,
+      stakeAccount,
+      epochBefore
     );
     if (verbose) {
       console.log("It is now epoch: " + epochBefore);
@@ -91,28 +104,9 @@ describe("User stakes some native and creates an account", () => {
   });
 
   it("Advance the epoch", async () => {
-    // Load the necessary accounts and add them to the bankrun context
-    const accountKeys = [
-      stakeAccount,
-      users[0].wallet.publicKey,
-      validators[0].voteAccount,
-    ];
-    const accounts = await program.provider.connection.getMultipleAccountsInfo(
-      accountKeys
-    );
-    const addedAccounts = accountKeys.map((address, index) => ({
-      address,
-      info: accounts[index],
-    }));
-
-    bankrunContext = await startAnchor(path.resolve(), [], addedAccounts);
-    bankRunProvider = new BankrunProvider(bankrunContext);
-    bankrunProgram = new Program(program.idl, provider);
-    const client = bankrunContext.banksClient;
-
     bankrunContext.warpToEpoch(1n);
 
-    let clock = await client.getAccount(SYSVAR_CLOCK_PUBKEY);
+    let clock = await banksClient.getAccount(SYSVAR_CLOCK_PUBKEY);
     // epoch is bytes 16-24
     let epoch = new BN(clock.data.slice(16, 24), 10, "le").toNumber();
     if (verbose) {
@@ -135,41 +129,29 @@ describe("User stakes some native and creates an account", () => {
           stakeStatusAfter1.status
       );
     }
-
   });
 
-    it("(user 0) Init user account - happy path", async () => {
-      // TODO the stake program must be rewritten to use the bankrun provider...
-      const epoch = (await provider.connection.getEpochInfo()).epoch;
-      const stakeStatusAfter = await getStakeActivation(
-        provider.connection,
-        stakeAccount
-      );
-      if (verbose) {
-        console.log("It is now epoch: " + epoch);
-        console.log(
-          "Stake active: " +
-            stakeStatusAfter.active.toLocaleString() +
-            " inactive " +
-            stakeStatusAfter.inactive.toLocaleString() +
-            " status: " +
-            stakeStatusAfter.status
-        );
-      }
+  it("(user 0) Init user account - happy path", async () => {
+    let tx = new Transaction();
 
-      let tx = new Transaction();
+    tx.add(
+      await program.methods
+        .initUser()
+        .accounts({
+          payer: users[0].wallet.publicKey,
+        })
+        .instruction()
+    );
 
-      tx.add(
-        await program.methods
-          .initUser()
-          .accounts({
-            payer: users[0].wallet.publicKey,
-          })
-          .instruction()
-      );
+    const [stakeUserKey] = deriveStakeUser(
+      program.programId,
+      users[0].wallet.publicKey
+    );
+    tx.recentBlockhash = bankrunContext.lastBlockhash;
+    tx.sign(users[0].wallet);
+    await banksClient.processTransaction(tx);
 
-      // TODO check the account...
-
-      await users[0].userCollatizerProgram.provider.sendAndConfirm(tx);
-    });
+    let userAcc = await bankrunProgram.account.stakeUser.fetch(stakeUserKey);
+    assertKeysEqual(userAcc.key, stakeUserKey);
+  });
 });

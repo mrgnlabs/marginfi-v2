@@ -1,35 +1,22 @@
 import {
   AnchorProvider,
-  BN,
   getProvider,
   Program,
   Wallet,
   workspace,
 } from "@coral-xyz/anchor";
+import { PublicKey, StakeProgram, Transaction } from "@solana/web3.js";
 import {
-  Connection,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SYSVAR_CLOCK_PUBKEY,
-  SYSVAR_RENT_PUBKEY,
-  SYSVAR_STAKE_HISTORY_PUBKEY,
-  Transaction,
-} from "@solana/web3.js";
-import { groupAdmin, users, validators, verbose } from "./rootHooks";
+  bankrunProgram,
+  bankrunContext,
+  groupAdmin,
+  validators,
+  banksClient,
+  users,
+} from "./rootHooks";
 import { StakingCollatizer } from "../target/types/staking_collatizer";
-import {
-  createStakeAccount,
-  delegateStake,
-  getStakeAccount,
-  getStakeActivation,
-} from "./utils/stake-utils";
 import { assertBNEqual, assertKeysEqual } from "./utils/genericTests";
-import { u64MAX_BN } from "./utils/types";
 
-import path from "path";
-import { BankrunProvider } from "anchor-bankrun";
-import type { ProgramTestContext } from "solana-bankrun";
-import { Clock, startAnchor } from "solana-bankrun";
 import {
   deriveStakeHolder,
   deriveStakeHolderStakeAccount,
@@ -50,14 +37,14 @@ describe("Create a stake holder for validator", () => {
           payer: groupAdmin.wallet.publicKey,
           admin: groupAdmin.wallet.publicKey,
           voteAccount: validators[0].voteAccount,
-          stakeProgram: new PublicKey(
-            "Stake11111111111111111111111111111111111111"
-          ),
+          stakeProgram: StakeProgram.programId,
         })
         .instruction()
     );
 
-    await groupAdmin.userCollatizerProgram.provider.sendAndConfirm(tx);
+    tx.recentBlockhash = bankrunContext.lastBlockhash;
+    tx.sign(groupAdmin.wallet);
+    await banksClient.processTransaction(tx);
 
     const [stakeholderKey] = deriveStakeHolder(
       program.programId,
@@ -68,11 +55,44 @@ describe("Create a stake holder for validator", () => {
       program.programId,
       stakeholderKey
     );
-    let sh = await program.account.stakeHolder.fetch(stakeholderKey);
+    let sh = await bankrunProgram.account.stakeHolder.fetch(stakeholderKey);
     assertKeysEqual(sh.key, stakeholderKey);
     assertKeysEqual(sh.admin, groupAdmin.wallet.publicKey);
     assertKeysEqual(sh.voteAccount, validators[0].voteAccount);
     assertKeysEqual(sh.stakeAccount, stakeholderStakeAcc);
     assertBNEqual(sh.netDelegation, 0);
+  });
+
+  // TODO move to new file
+  it("(user 0) deposit stake to holder in exchange for collateral", async () => {
+    let tx = new Transaction();
+
+    let stakeAcc = users[0].accounts.get("v0_stakeacc");
+    console.log("read stake acc: " + stakeAcc);
+    const [stakeholderKey] = deriveStakeHolder(
+      program.programId,
+      validators[0].voteAccount,
+      groupAdmin.wallet.publicKey
+    );
+
+    tx.add(
+      await program.methods
+        .depositStake()
+        .accounts({
+          admin: users[0].wallet.publicKey,
+          stakeAuthority: users[0].wallet.publicKey,
+          stakeholder: stakeholderKey,
+          // userStakeAccount: stakeAcc,
+          stakeProgram: StakeProgram.programId,
+        })
+        .instruction()
+    );
+
+    tx.recentBlockhash = bankrunContext.lastBlockhash;
+    tx.sign(users[0].wallet);
+    let res = await banksClient.processTransaction(tx);
+    console.log("res " + res);
+
+
   });
 });
