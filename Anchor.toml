@@ -11,6 +11,7 @@ liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
 marginfi = "2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr"
 mocks = "5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C"
 staking_collatizer = "65e81uBnLPtUNaFbgzeU4gMwmCbMeeh6GCLDhEVaNNon"
+spl_single_pool = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE"
 
 [programs.mainnet]
 liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
@@ -50,3 +51,7 @@ filename = "tests/fixtures/cloud_bank.json"
 [[test.validator.account]]
 address = "8FRFC6MoGGkMFQwngccyu69VnYbzykGeez7ignHVAFSN"
 filename = "tests/fixtures/localnet_usdc.json"
+
+[[test.genesis]]
+address = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE"
+program = "tests/fixtures/spl_single_pool.so"

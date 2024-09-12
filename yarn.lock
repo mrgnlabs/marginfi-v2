@@ -9,6 +9,13 @@
   dependencies:
     regenerator-runtime "^0.14.0"
 
+"@babel/runtime@^7.25.0":
+  version "7.25.6"
+  resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.25.6.tgz#9afc3289f7184d8d7f98b099884c26317b9264d2"
+  integrity sha512-VBj9MYyDb9tuLq7yzqjgzt6Q+IBQLrGZfdjOekyEirZPHxXWoTSGUTMrpsfi58Up73d13NfYLv8HT9vmznjzhQ==
+  dependencies:
+    regenerator-runtime "^0.14.0"
+
 "@coral-xyz/anchor-errors@^0.30.1":
   version "0.30.1"
   resolved "https://registry.yarnpkg.com/@coral-xyz/anchor-errors/-/anchor-errors-0.30.1.tgz#bdfd3a353131345244546876eb4afc0e125bec30"
@@ -126,6 +133,48 @@
   version "4.4.2"
   resolved "https://registry.yarnpkg.com/@js-sdsl/ordered-map/-/ordered-map-4.4.2.tgz#9299f82874bab9e4c7f9c48d865becbfe8d6907c"
   integrity sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==
+
+"@metaplex-foundation/umi-options@^0.8.9":
+  version "0.8.9"
+  resolved "https://registry.yarnpkg.com/@metaplex-foundation/umi-options/-/umi-options-0.8.9.tgz#9c9e269d9eee7d055ad6831dcb30a30127dcb0c5"
+  integrity sha512-jSQ61sZMPSAk/TXn8v8fPqtz3x8d0/blVZXLLbpVbo2/T5XobiI6/MfmlUosAjAUaQl6bHRF8aIIqZEFkJiy4A==
+
+"@metaplex-foundation/umi-public-keys@^0.8.9":
+  version "0.8.9"
+  resolved "https://registry.yarnpkg.com/@metaplex-foundation/umi-public-keys/-/umi-public-keys-0.8.9.tgz#ca7a927c924ed8e28d0f8bb3dc0f2adc1f9011ec"
+  integrity sha512-CxMzN7dgVGOq9OcNCJe2casKUpJ3RmTVoOvDFyeoTQuK+vkZ1YSSahbqC1iGuHEtKTLSjtWjKvUU6O7zWFTw3Q==
+  dependencies:
+    "@metaplex-foundation/umi-serializers-encodings" "^0.8.9"
+
+"@metaplex-foundation/umi-serializers-core@^0.8.9":
+  version "0.8.9"
+  resolved "https://registry.yarnpkg.com/@metaplex-foundation/umi-serializers-core/-/umi-serializers-core-0.8.9.tgz#cd5ae763a59e54dd01f1284f4a6bf4e78e4aab9c"
+  integrity sha512-WT82tkiYJ0Qmscp7uTj1Hz6aWQPETwaKLAENAUN5DeWghkuBKtuxyBKVvEOuoXerJSdhiAk0e8DWA4cxcTTQ/w==
+
+"@metaplex-foundation/umi-serializers-encodings@^0.8.9":
+  version "0.8.9"
+  resolved "https://registry.yarnpkg.com/@metaplex-foundation/umi-serializers-encodings/-/umi-serializers-encodings-0.8.9.tgz#0f02605ee3e6fbeac1abc4fb267a7cc96ecb4410"
+  integrity sha512-N3VWLDTJ0bzzMKcJDL08U3FaqRmwlN79FyE4BHj6bbAaJ9LEHjDQ9RJijZyWqTm0jE7I750fU7Ow5EZL38Xi6Q==
+  dependencies:
+    "@metaplex-foundation/umi-serializers-core" "^0.8.9"
+
+"@metaplex-foundation/umi-serializers-numbers@^0.8.9":
+  version "0.8.9"
+  resolved "https://registry.yarnpkg.com/@metaplex-foundation/umi-serializers-numbers/-/umi-serializers-numbers-0.8.9.tgz#28c10367f6aebac0276ec1bce81d0d8db54b05de"
+  integrity sha512-NtBf1fnVNQJHFQjLFzRu2i9GGnigb9hOm/Gfrk628d0q0tRJB7BOM3bs5C61VAs7kJs4yd+pDNVAERJkknQ7Lg==
+  dependencies:
+    "@metaplex-foundation/umi-serializers-core" "^0.8.9"
+
+"@metaplex-foundation/umi-serializers@^0.8.9":
+  version "0.8.9"
+  resolved "https://registry.yarnpkg.com/@metaplex-foundation/umi-serializers/-/umi-serializers-0.8.9.tgz#af6c5bb1a3276cbe252fd08e359b305ed80a3343"
+  integrity sha512-Sve8Etm3zqvLSUfza+MYRkjTnCpiaAFT7VWdqeHzA3n58P0AfT3p74RrZwVt/UFkxI+ln8BslwBDJmwzcPkuHw==
+  dependencies:
+    "@metaplex-foundation/umi-options" "^0.8.9"
+    "@metaplex-foundation/umi-public-keys" "^0.8.9"
+    "@metaplex-foundation/umi-serializers-core" "^0.8.9"
+    "@metaplex-foundation/umi-serializers-encodings" "^0.8.9"
+    "@metaplex-foundation/umi-serializers-numbers" "^0.8.9"
 
 "@mrgnlabs/marginfi-client-v2@^3.1.0":
   version "3.1.0"
@@ -271,6 +320,19 @@
     bs58 "^5.0.0"
     jito-ts "^3.0.1"
 
+"@solana/addresses@2.0.0-experimental.21e994f":
+  version "2.0.0-experimental.21e994f"
+  resolved "https://registry.yarnpkg.com/@solana/addresses/-/addresses-2.0.0-experimental.21e994f.tgz#51509c4e48c3feae573f30a0ad7736d2054b1bdf"
+  integrity sha512-zmg+ALhjxZApKJKSjeGK7EgMT9NywdvGKlAjyNL2fieiFWp0lRTBmWyjPBCQQGdJjBkayCscq3GQkDF2MhC6fg==
+  dependencies:
+    "@metaplex-foundation/umi-serializers" "^0.8.9"
+    "@solana/assertions" "2.0.0-experimental.21e994f"
+
+"@solana/assertions@2.0.0-experimental.21e994f":
+  version "2.0.0-experimental.21e994f"
+  resolved "https://registry.yarnpkg.com/@solana/assertions/-/assertions-2.0.0-experimental.21e994f.tgz#a67143b41aaf1d810176b943a203f1508f4095df"
+  integrity sha512-iGOUpOqkqxzQ/xi4Q3YLiBQPASiQ43NYTalmQm99hmOhySRA4+yyQTmMW1PJ8FAm7Zf86cCiYTf19Exa7+DxoQ==
+
 "@solana/buffer-layout-utils@=0.2.0", "@solana/buffer-layout-utils@^0.2.0":
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/@solana/buffer-layout-utils/-/buffer-layout-utils-0.2.0.tgz#b45a6cab3293a2eb7597cceb474f229889d875ca"
@@ -399,6 +461,23 @@
     chalk "^5.3.0"
     commander "^12.1.0"
 
+"@solana/functional@2.0.0-experimental.21e994f":
+  version "2.0.0-experimental.21e994f"
+  resolved "https://registry.yarnpkg.com/@solana/functional/-/functional-2.0.0-experimental.21e994f.tgz#e7ebdc8fcb14a0a2bc7d0f7df8667d171f54a10b"
+  integrity sha512-FMXFiTA+hsc9FCv0r47oF7njq/K9x7zh0H+To7tpeqwN65LtJPu5BMG7xZY3rn5TrudgKw6XPuIr3ARbI8+IWA==
+
+"@solana/instructions@2.0.0-experimental.21e994f":
+  version "2.0.0-experimental.21e994f"
+  resolved "https://registry.yarnpkg.com/@solana/instructions/-/instructions-2.0.0-experimental.21e994f.tgz#f308fdb671252ff52fcf08366fe7a1800b0d54b1"
+  integrity sha512-PuJJzvT7wtwE5UcGavUppnfVWnoxL8CPhZBb96HpOaQhQ2JuyhN445bfav5KkaUMCE6ubrVzOEqzrbtygD3aBg==
+
+"@solana/keys@2.0.0-experimental.21e994f":
+  version "2.0.0-experimental.21e994f"
+  resolved "https://registry.yarnpkg.com/@solana/keys/-/keys-2.0.0-experimental.21e994f.tgz#52e9307a0a0055f2bbff23e76b38cb4ba7f75da3"
+  integrity sha512-Qsm7ARy69PdIuis7TZy8ELyhq0pcRFPXtaZ8vLFUvsukrcWRowiJ8JJs6Q3tA+gQK5vUn9ABp7a7Qs0FHzgbyw==
+  dependencies:
+    "@solana/assertions" "2.0.0-experimental.21e994f"
+
 "@solana/options@2.0.0-preview.2":
   version "2.0.0-preview.2"
   resolved "https://registry.yarnpkg.com/@solana/options/-/options-2.0.0-preview.2.tgz#13ff008bf43a5056ef9a091dc7bb3f39321e867e"
@@ -417,6 +496,33 @@
     "@solana/codecs-numbers" "2.0.0-preview.4"
     "@solana/codecs-strings" "2.0.0-preview.4"
     "@solana/errors" "2.0.0-preview.4"
+
+"@solana/rpc-core@2.0.0-experimental.21e994f":
+  version "2.0.0-experimental.21e994f"
+  resolved "https://registry.yarnpkg.com/@solana/rpc-core/-/rpc-core-2.0.0-experimental.21e994f.tgz#294c0ea4d99c1bd6b11bb0c0cc67847adb6f3c3a"
+  integrity sha512-T7VcTLRi4dsqmpFYdnvcHZFS8Vcgdi6funMUrXcM7ofQqb8vWGJnlX6AX0eIZiVsmoYk5Ki8wW4D6Ul6bXZyZg==
+  dependencies:
+    "@metaplex-foundation/umi-serializers" "^0.8.9"
+
+"@solana/rpc-transport@2.0.0-experimental.21e994f":
+  version "2.0.0-experimental.21e994f"
+  resolved "https://registry.yarnpkg.com/@solana/rpc-transport/-/rpc-transport-2.0.0-experimental.21e994f.tgz#2b8c3f97f4853711daaeed03ff0700a1d44aca4a"
+  integrity sha512-PfGPzRuEodhfLyOD8ZneYQ389SWYgmj1Q/HWQZo8yZMsiAaW/lqCygoW88lecxXKlZF5gJYrBX154kgvGqEM7g==
+
+"@solana/spl-single-pool-classic@^1.0.2":
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/@solana/spl-single-pool-classic/-/spl-single-pool-classic-1.0.2.tgz#f675cdf39037cd42a3a4690a030cc77c0837e40c"
+  integrity sha512-kh2D3KElYsJWZIoksCd5dlC9jsKict7WTS+lZvhaGXTarZbjMqhIaiiMTe5oqKgHSNwavoP05VJ8YlTmbTxTLg==
+  dependencies:
+    "@solana/spl-single-pool" "1.0.0"
+    "@solana/web3.js" "^1.91.6"
+
+"@solana/spl-single-pool@1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@solana/spl-single-pool/-/spl-single-pool-1.0.0.tgz#eec9ca109ad63936b60cab6f2f6f9566e0cd0eeb"
+  integrity sha512-m2zNzRXcYXibd2n514TQhWM7WkWuCqddNHmxgPDcpSFpwbP9hNUigjGoJeR1khvKjRj5jV+PdiiwBEWi3pExfw==
+  dependencies:
+    "@solana/web3.js" "=2.0.0-experimental.21e994f"
 
 "@solana/spl-token-group@^0.0.5":
   version "0.0.5"
@@ -452,6 +558,15 @@
   dependencies:
     buffer "^6.0.3"
 
+"@solana/transactions@2.0.0-experimental.21e994f":
+  version "2.0.0-experimental.21e994f"
+  resolved "https://registry.yarnpkg.com/@solana/transactions/-/transactions-2.0.0-experimental.21e994f.tgz#48dc6483a1d57e85cd23c88e854239b2ac0bd097"
+  integrity sha512-DunbTMBzlC7jmTzkFsRm5DhGe+MjaZ8m+SJ7V520mQq+kxrbPrRmI3ikfUVdejg0WaEV4Dy+RwQ5xllsrJ47kA==
+  dependencies:
+    "@metaplex-foundation/umi-serializers" "^0.8.9"
+    "@solana/addresses" "2.0.0-experimental.21e994f"
+    "@solana/keys" "2.0.0-experimental.21e994f"
+
 "@solana/wallet-adapter-base@^0.9.23":
   version "0.9.23"
   resolved "https://registry.yarnpkg.com/@solana/wallet-adapter-base/-/wallet-adapter-base-0.9.23.tgz#3b17c28afd44e173f44f658bf9700fd637e12a11"
@@ -470,12 +585,48 @@
     "@wallet-standard/base" "^1.0.1"
     "@wallet-standard/features" "^1.0.3"
 
+"@solana/web3.js@=2.0.0-experimental.21e994f":
+  version "2.0.0-experimental.21e994f"
+  resolved "https://registry.yarnpkg.com/@solana/web3.js/-/web3.js-2.0.0-experimental.21e994f.tgz#c5568d88903f63c85de700c03b2acef2217d059f"
+  integrity sha512-Yy0D57nlNTDm0BhBRIM85Sn52T6vjxpBRRdwE/FOJJmN92n0Qpc4mTAwOPfEqoVpiTcluUBZ4l8FAWxjGCFMgQ==
+  dependencies:
+    "@metaplex-foundation/umi-serializers" "^0.8.9"
+    "@solana/addresses" "2.0.0-experimental.21e994f"
+    "@solana/functional" "2.0.0-experimental.21e994f"
+    "@solana/instructions" "2.0.0-experimental.21e994f"
+    "@solana/keys" "2.0.0-experimental.21e994f"
+    "@solana/rpc-core" "2.0.0-experimental.21e994f"
+    "@solana/rpc-transport" "2.0.0-experimental.21e994f"
+    "@solana/transactions" "2.0.0-experimental.21e994f"
+    fast-stable-stringify "^1.0.0"
+
 "@solana/web3.js@^1.32.0", "@solana/web3.js@^1.68.0", "@solana/web3.js@^1.90.0", "@solana/web3.js@^1.93.2", "@solana/web3.js@^1.95.2":
   version "1.95.2"
   resolved "https://registry.yarnpkg.com/@solana/web3.js/-/web3.js-1.95.2.tgz#6f8a0362fa75886a21550dbec49aad54481463a6"
   integrity sha512-SjlHp0G4qhuhkQQc+YXdGkI8EerCqwxvgytMgBpzMUQTafrkNant3e7pgilBGgjy/iM40ICvWBLgASTPMrQU7w==
   dependencies:
     "@babel/runtime" "^7.24.8"
+    "@noble/curves" "^1.4.2"
+    "@noble/hashes" "^1.4.0"
+    "@solana/buffer-layout" "^4.0.1"
+    agentkeepalive "^4.5.0"
+    bigint-buffer "^1.1.5"
+    bn.js "^5.2.1"
+    borsh "^0.7.0"
+    bs58 "^4.0.1"
+    buffer "6.0.3"
+    fast-stable-stringify "^1.0.0"
+    jayson "^4.1.1"
+    node-fetch "^2.7.0"
+    rpc-websockets "^9.0.2"
+    superstruct "^2.0.2"
+
+"@solana/web3.js@^1.91.6":
+  version "1.95.3"
+  resolved "https://registry.yarnpkg.com/@solana/web3.js/-/web3.js-1.95.3.tgz#70b5f4d76823f56b5af6403da51125fffeb65ff3"
+  integrity sha512-O6rPUN0w2fkNqx/Z3QJMB9L225Ex10PRDH8bTaIUPZXMPV0QP8ZpPvjQnXK+upUczlRgzHzd6SjKIha1p+I6og==
+  dependencies:
+    "@babel/runtime" "^7.25.0"
     "@noble/curves" "^1.4.2"
     "@noble/hashes" "^1.4.0"
     "@solana/buffer-layout" "^4.0.1"

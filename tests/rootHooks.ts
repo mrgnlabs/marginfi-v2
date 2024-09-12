@@ -27,6 +27,7 @@ import { StakingCollatizer } from "../target/types/staking_collatizer";
 import { BankrunProvider } from "anchor-bankrun";
 import { BanksClient, ProgramTestContext, startAnchor } from "solana-bankrun";
 import path from "path";
+import { SinglePoolProgram } from "@solana/spl-single-pool-classic";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -163,6 +164,11 @@ export const mochaHooks = {
         console.log("Validator vote acc [" + i + "]: " + validator.voteAccount);
       }
       addValidator(validator);
+
+      const splStakePool = await createSplStakePool(provider);
+      if (verbose) {
+        console.log("init stake pool");
+      }
     }
 
     copyKeys.push(StakeProgram.programId);
@@ -259,3 +265,74 @@ export const createValidator = async (
 
   return validator;
 };
+
+export const createSplStakePool = async (provider: AnchorProvider) => {
+  console.log("id: " + SinglePoolProgram.programId);
+  let info = await provider.connection.getAccountInfo(
+    SinglePoolProgram.programId
+  );
+  console.log("exec: " + info.executable);
+  console.log("data: " + info.data);
+  let tx = await SinglePoolProgram.initialize(
+    // @ts-ignore
+    provider.connection,
+    validators[0].voteAccount,
+    users[0].wallet.publicKey,
+    true
+  );
+
+  // @ts-ignore
+  await provider.sendAndConfirm(tx, [users[0].wallet]);
+};
+
+// Attempt to manually build an spl stake pool init since the TS library doesn't expose one...
+
+// export const createSplStakePool = async (
+//   provider: AnchorProvider,
+//   accounts: any
+// ) => {
+//   console.log("id: " + solanaStakePool.STAKE_POOL_PROGRAM_ID);
+
+//   const keys = [
+//     { pubkey: accounts.stakePoolAccount, isSigner: false, isWritable: true },
+//     { pubkey: accounts.manager, isSigner: true, isWritable: false },
+//     { pubkey: accounts.staker, isSigner: false, isWritable: false },
+//     { pubkey: accounts.withdrawAuthority, isSigner: false, isWritable: false },
+//     { pubkey: accounts.validatorList, isSigner: false, isWritable: true },
+//     { pubkey: accounts.reserveStake, isSigner: false, isWritable: false },
+//     { pubkey: accounts.poolTokenMint, isSigner: false, isWritable: false },
+//     { pubkey: accounts.feeAccount, isSigner: false, isWritable: false },
+//     {
+//       pubkey: TOKEN_PROGRAM_ID,
+//       isSigner: false,
+//       isWritable: false,
+//     },
+//     // Add optional deposit authority if necessary
+//   ];
+
+//   const FEE = { numerator: new BN(1), denominator: new BN(50) };
+//   const REFERRAL_FEE = 1;
+
+//   const data = Buffer.concat([
+//     Buffer.from([0]), // Initialize instruction discriminator
+//     FEE.numerator.toArrayLike(Buffer, "le", 8),
+//     FEE.denominator.toArrayLike(Buffer, "le", 8),
+//     FEE.numerator.toArrayLike(Buffer, "le", 8), // Withdrawal fee
+//     FEE.denominator.toArrayLike(Buffer, "le", 8),
+//     FEE.numerator.toArrayLike(Buffer, "le", 8), // Deposit fee
+//     FEE.denominator.toArrayLike(Buffer, "le", 8),
+//     Buffer.from([REFERRAL_FEE]), // Referral fee
+//     Buffer.from(new BN(100).toArrayLike(Buffer, "le", 4)), // max_validators
+//   ]);
+
+//   const instruction = new TransactionInstruction({
+//     keys,
+//     programId: solanaStakePool.STAKE_POOL_PROGRAM_ID,
+//     data,
+//   });
+
+//   const tx = new Transaction().add(instruction);
+//   await provider.sendAndConfirm(tx);
+
+//   //await provider.sendAndConfirm(tx, [users[0].wallet]);
+// };

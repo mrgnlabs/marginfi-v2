@@ -8,6 +8,7 @@
     "@coral-xyz/spl-token": "^0.30.1",
     "@solana/spl-token": "^0.4.8",
     "@solana/web3.js": "^1.95.2",
+    "@solana/spl-single-pool-classic": "^1.0.2",
     "@mrgnlabs/mrgn-common": "^1.7.0",
     "@mrgnlabs/marginfi-client-v2": "^3.1.0",
     "mocha": "^10.2.0",

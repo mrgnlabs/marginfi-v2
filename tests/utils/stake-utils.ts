@@ -5,8 +5,11 @@ import {
   StakeProgram,
   PublicKey,
   Connection,
+  SYSVAR_CLOCK_PUBKEY,
 } from "@solana/web3.js";
 import { mockUser } from "./mocks";
+import { BanksClient } from "solana-bankrun";
+import { BN } from "@coral-xyz/anchor";
 
 /**
  * Create a stake account for some user
@@ -500,3 +503,10 @@ export async function getStakeActivation(
     inactive,
   };
 }
+
+export const getEpoch = async (banksClient: BanksClient) => {
+  let clock = await banksClient.getAccount(SYSVAR_CLOCK_PUBKEY);
+  // epoch is bytes 16-24
+  let epoch = new BN(clock.data.slice(16, 24), 10, "le").toNumber();
+  return epoch;
+};
