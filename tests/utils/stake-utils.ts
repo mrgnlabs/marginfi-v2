@@ -504,9 +504,14 @@ export async function getStakeActivation(
   };
 }
 
-export const getEpoch = async (banksClient: BanksClient) => {
+export const getEpochAndSlot = async (banksClient: BanksClient) => {
   let clock = await banksClient.getAccount(SYSVAR_CLOCK_PUBKEY);
-  // epoch is bytes 16-24
+
+  // Slot is bytes 0-8
+  let slot = new BN(clock.data.slice(0, 8), 10, "le").toNumber();
+
+  // Epoch is bytes 16-24
   let epoch = new BN(clock.data.slice(16, 24), 10, "le").toNumber();
-  return epoch;
+
+  return { epoch, slot };
 };

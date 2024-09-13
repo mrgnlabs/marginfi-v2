@@ -1,5 +1,10 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
 import {
   bankrunContext,
   bankRunProvider,
@@ -12,7 +17,7 @@ import {
 import {
   createStakeAccount,
   delegateStake,
-  getEpoch,
+  getEpochAndSlot,
   getStakeAccount,
   getStakeActivation,
 } from "./utils/stake-utils";
@@ -44,7 +49,7 @@ describe("User stakes some native and creates an account", () => {
           stake +
           " SOL (" +
           (stake * LAMPORTS_PER_SOL).toLocaleString() +
-          ") in native"
+          " in native)"
       );
     }
     users[0].accounts.set("v0_stakeacc", stakeAccountKeypair.publicKey);
@@ -62,7 +67,7 @@ describe("User stakes some native and creates an account", () => {
       console.log("user 0 delegated to " + validators[0].voteAccount);
     }
 
-    let epochBefore = await getEpoch(banksClient);
+    let { epoch, slot } = await getEpochAndSlot(banksClient);
     const stakeAccountInfo = await bankRunProvider.connection.getAccountInfo(
       stakeAccount
     );
@@ -76,16 +81,16 @@ describe("User stakes some native and creates an account", () => {
       new BN(delegation.stake.toString()),
       new BN(10 * LAMPORTS_PER_SOL).sub(rent)
     );
-    assertBNEqual(new BN(delegation.activationEpoch.toString()), epochBefore);
+    assertBNEqual(new BN(delegation.activationEpoch.toString()), epoch);
     assertBNEqual(new BN(delegation.deactivationEpoch.toString()), u64MAX_BN);
 
     const stakeStatusBefore = await getStakeActivation(
       bankRunProvider.connection,
       stakeAccount,
-      epochBefore
+      epoch
     );
     if (verbose) {
-      console.log("It is now epoch: " + epochBefore);
+      console.log("It is now epoch: " + epoch + " slot " + slot);
       console.log(
         "Stake active: " +
           stakeStatusBefore.active.toLocaleString() +
@@ -97,21 +102,26 @@ describe("User stakes some native and creates an account", () => {
     }
   });
 
+  // User delegates to stake pool (this works fine)
+
   it("Advance the epoch", async () => {
     bankrunContext.warpToEpoch(1n);
 
-    let epoch = await getEpoch(banksClient);
+    let { epoch: epochAfterWarp, slot: slotAfterWarp } = await getEpochAndSlot(
+      banksClient
+    );
     if (verbose) {
-      console.log("Warped to epoch: " + epoch);
+      console.log(
+        "Warped to epoch: " + epochAfterWarp + " slot " + slotAfterWarp
+      );
     }
 
     const stakeStatusAfter = await getStakeActivation(
       bankRunProvider.connection,
       stakeAccount,
-      epoch
+      epochAfterWarp
     );
     if (verbose) {
-      console.log("It is now epoch: " + epoch);
       console.log(
         "Stake active: " +
           stakeStatusAfter.active.toLocaleString() +
@@ -121,27 +131,44 @@ describe("User stakes some native and creates an account", () => {
           stakeStatusAfter.status
       );
     }
+
+    // Advance a few slots and send some dummy txes to end the rewards period
+
+    // NOTE: ALL STAKE PROGRAM IXES ARE DISABLED DURING THE REWARDS PERIOD. THIS MUST OCCUR OR THE
+    // STAKE PROGRAM CANNOT RUN
+
+    for (let i = 0; i < 100; i++) {
+      bankrunContext.warpToSlot(BigInt(i + slotAfterWarp + 1));
+      const dummyTx = new Transaction();
+      dummyTx.add(
+        SystemProgram.transfer({
+          fromPubkey: users[0].wallet.publicKey,
+          toPubkey: bankrunProgram.provider.publicKey,
+          lamports: i,
+        })
+      );
+      dummyTx.recentBlockhash = bankrunContext.lastBlockhash;
+      dummyTx.sign(users[0].wallet);
+      await banksClient.processTransaction(dummyTx);
+      if (i % 10 == 0) {
+        console.log("Dummy ix: " + i);
+        let { epoch, slot } = await getEpochAndSlot(banksClient);
+        console.log("is now epoch: " + epoch + " slot " + slot);
+      }
+    }
   });
 
+  // User runs StakeProgram.authorize (this fails)
+
   it("(user 0) Deposit stake to the LST pool", async () => {
-    console.log(" stake acc " + validators[0].splPool);
-    console.log(" wallet " + users[0].wallet.publicKey);
-    console.log(" stake acc " + users[0].accounts.get("v0_stakeacc"));
-    // TODO this doesn't work with banks client, rewrite from source (ew)
-    // const tx = await SinglePoolProgram.deposit({
-    //   // @ts-ignore // Doesn't matter
-    //   connection: bankRunProvider.connection,
-    //   pool: validators[0].splPool,
-    //   userWallet: users[0].wallet.publicKey,
-    //   userStakeAccount: users[0].accounts.get("v0_stakeacc"),
-    //   // depositFromDefaultAccount: false,
-    // });
+    const userStakeAccount = users[0].accounts.get("v0_stakeacc");
 
     let tx = new Transaction();
     const ixes = await depositToSinglePoolIxes(
       bankRunProvider.connection,
       users[0].wallet.publicKey,
-      validators[0].splMint,
+      validators[0].splPool,
+      userStakeAccount,
       verbose
     );
     tx.add(...ixes);

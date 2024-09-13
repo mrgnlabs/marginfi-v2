@@ -180,7 +180,7 @@ export const mochaHooks = {
       }
     }
 
-    copyKeys.push(StakeProgram.programId);
+    // copyKeys.push(StakeProgram.programId);
     copyKeys.push(SYSVAR_STAKE_HISTORY_PUBKEY);
 
     const accountKeys = copyKeys;

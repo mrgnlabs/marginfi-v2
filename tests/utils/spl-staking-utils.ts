@@ -1,8 +1,19 @@
 import {
+  findPoolMintAddress,
+  findPoolStakeAuthorityAddress,
+} from "@solana/spl-single-pool-classic";
+import {
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import {
+  Connection,
+  PublicKey,
+  StakeAuthorizationLayout,
+  StakeProgram,
+  TransactionInstruction,
+} from "@solana/web3.js";
+import { SINGLE_POOL_PROGRAM_ID } from "./types";
 
 export enum SinglePoolAccountType {
   Uninitialized = 0,
@@ -53,9 +64,17 @@ export const decodeSinglePool = (buffer: Buffer) => {
 export const depositToSinglePoolIxes = async (
   connection: Connection,
   userWallet: PublicKey,
-  splMint: PublicKey,
+  splPool: PublicKey,
+  userStakeAccount: PublicKey,
   verbose: boolean = false
 ) => {
+  const splMint = await findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, splPool);
+
+  const splAuthority = await findPoolStakeAuthorityAddress(
+    SINGLE_POOL_PROGRAM_ID,
+    splPool
+  );
+
   const ixes: TransactionInstruction[] = [];
   const lstAta = getAssociatedTokenAddressSync(splMint, userWallet);
   try {
@@ -76,6 +95,24 @@ export const depositToSinglePoolIxes = async (
       )
     );
   }
+
+  const authorizeStakerIxes = StakeProgram.authorize({
+    stakePubkey: userStakeAccount,
+    authorizedPubkey: userWallet,
+    newAuthorizedPubkey: splAuthority,
+    stakeAuthorizationType: StakeAuthorizationLayout.Staker,
+  }).instructions;
+
+  ixes.push(...authorizeStakerIxes);
+
+  const authorizeWithdrawIxes = StakeProgram.authorize({
+    stakePubkey: userStakeAccount,
+    authorizedPubkey: userWallet,
+    newAuthorizedPubkey: splAuthority,
+    stakeAuthorizationType: StakeAuthorizationLayout.Withdrawer,
+  }).instructions;
+
+  ixes.push(...authorizeWithdrawIxes);
 
   return ixes;
 };
