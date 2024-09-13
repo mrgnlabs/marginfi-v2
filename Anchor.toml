@@ -26,8 +26,8 @@ wallet = "~/.config/solana/id.json"
 [scripts]
 # test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.ts --exit --require tests/rootHooks.ts"
 
-# Staking Collatizer only
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/s*.spec.ts --exit --require tests/rootHooks.ts"
+# Staking Collatizer only (remove RUST_LOG= to see bankRun logs)
+test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/s*.spec.ts --exit --require tests/rootHooks.ts"
 
 [test]
 startup_wait = 5000

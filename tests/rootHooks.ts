@@ -27,6 +27,8 @@ import { BanksClient, ProgramTestContext, startAnchor } from "solana-bankrun";
 import path from "path";
 import {
   findPoolAddress,
+  findPoolMintAddress,
+  findPoolStakeAuthorityAddress,
   SinglePoolProgram,
 } from "@solana/spl-single-pool-classic";
 import { SINGLE_POOL_PROGRAM_ID } from "./utils/types";
@@ -167,9 +169,14 @@ export const mochaHooks = {
       }
       addValidator(validator);
 
-      const splStakePool = await createSplStakePool(provider, validator);
+      let { poolKey, poolMintKey, poolAuthority } = await createSplStakePool(
+        provider,
+        validator
+      );
       if (verbose) {
-        console.log("init stake pool");
+        console.log(" spl stake pool: " + poolKey);
+        console.log(" spl stake mint: " + poolMintKey);
+        console.log(" spl pool auth:  " + poolAuthority);
       }
     }
 
@@ -218,6 +225,8 @@ const addUser = (user: MockUser) => {
 /**
  * Create a mock validator with given vote/withdraw authority
  *
+ * * Note: Spl Pool fields are initialized to pubkey default.
+ *
  * @param provider
  * @param authorizedVoter - also pays init fees
  * @param authorizedWithdrawer - also pays init fees
@@ -264,15 +273,17 @@ export const createValidator = async (
     authorizedWithdrawer: authorizedWithdrawer,
     voteAccount: voteAccount.publicKey,
     splPool: PublicKey.default,
+    splMint: PublicKey.default,
+    splAuthority: PublicKey.default,
   };
 
   return validator;
 };
 
 /**
- *
+ * Create a single-validator spl stake pool.
  * @param provider
- * @param validator - mutated, adds the spl key
+ * @param validator - mutated, adds the spl keys
  */
 export const createSplStakePool = async (
   provider: AnchorProvider,
@@ -303,4 +314,21 @@ export const createSplStakePool = async (
 
   const pool = decodeSinglePool(poolAcc.data);
   assertKeysEqual(pool.voteAccountAddress, validator.voteAccount);
+
+  const poolMintKey = await findPoolMintAddress(
+    SINGLE_POOL_PROGRAM_ID,
+    poolKey
+  );
+  validator.splMint = poolMintKey;
+  copyKeys.push(poolMintKey);
+
+  const poolAuthority = await findPoolStakeAuthorityAddress(
+    SINGLE_POOL_PROGRAM_ID,
+    poolKey
+  );
+  validator.splAuthority = poolAuthority;
+  // Note: accounts that do not exist (blank PDAs) cannot be pushed)
+  // copyKeys.push(poolAuthority);
+
+  return { poolKey, poolMintKey, poolAuthority };
 };

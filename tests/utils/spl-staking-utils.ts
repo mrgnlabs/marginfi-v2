@@ -1,4 +1,8 @@
-import { PublicKey } from "@solana/web3.js";
+import {
+  createAssociatedTokenAccountInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
+import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 export enum SinglePoolAccountType {
   Uninitialized = 0,
@@ -42,4 +46,36 @@ export const decodeSinglePool = (buffer: Buffer) => {
     accountType,
     voteAccountAddress,
   };
+};
+
+// See `https://www.npmjs.com/package/@solana/spl-single-pool` transactions.ts for the original
+
+export const depositToSinglePoolIxes = async (
+  connection: Connection,
+  userWallet: PublicKey,
+  splMint: PublicKey,
+  verbose: boolean = false
+) => {
+  const ixes: TransactionInstruction[] = [];
+  const lstAta = getAssociatedTokenAddressSync(splMint, userWallet);
+  try {
+    await connection.getAccountInfo(lstAta);
+    if (verbose) {
+      console.log("Existing LST ata at: " + lstAta);
+    }
+  } catch (err) {
+    if (verbose) {
+      console.log("Did not find token account, creating: " + lstAta);
+    }
+    ixes.push(
+      createAssociatedTokenAccountInstruction(
+        userWallet,
+        lstAta,
+        userWallet,
+        splMint
+      )
+    );
+  }
+
+  return ixes;
 };

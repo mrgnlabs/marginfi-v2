@@ -19,15 +19,18 @@ import {
 import { assertBNEqual, assertKeysEqual } from "./utils/genericTests";
 import { u64MAX_BN } from "./utils/types";
 import { SinglePoolProgram } from "@solana/spl-single-pool-classic";
+import { getAssociatedTokenAddressSync } from "@mrgnlabs/mrgn-common";
+import { depositToSinglePoolIxes } from "./utils/spl-staking-utils";
 
 describe("User stakes some native and creates an account", () => {
   /** Users's validator 0 stake account */
   let stakeAccount: PublicKey;
+  const stake = 10;
 
   it("(user 0) Create user stake account and stake to validator", async () => {
     let { createTx, stakeAccountKeypair } = createStakeAccount(
       users[0],
-      10 * LAMPORTS_PER_SOL
+      stake * LAMPORTS_PER_SOL
     );
     createTx.recentBlockhash = bankrunContext.lastBlockhash;
     createTx.sign(users[0].wallet, stakeAccountKeypair);
@@ -36,7 +39,13 @@ describe("User stakes some native and creates an account", () => {
 
     if (verbose) {
       console.log("Create stake account: " + stakeAccount);
-      console.log(" Stake: " + 10 / LAMPORTS_PER_SOL + " SOL");
+      console.log(
+        " Stake: " +
+          stake +
+          " SOL (" +
+          (stake * LAMPORTS_PER_SOL).toLocaleString() +
+          ") in native"
+      );
     }
     users[0].accounts.set("v0_stakeacc", stakeAccountKeypair.publicKey);
 
@@ -96,7 +105,7 @@ describe("User stakes some native and creates an account", () => {
       console.log("Warped to epoch: " + epoch);
     }
 
-    const stakeStatusAfter1 = await getStakeActivation(
+    const stakeStatusAfter = await getStakeActivation(
       bankRunProvider.connection,
       stakeAccount,
       epoch
@@ -105,12 +114,41 @@ describe("User stakes some native and creates an account", () => {
       console.log("It is now epoch: " + epoch);
       console.log(
         "Stake active: " +
-          stakeStatusAfter1.active.toLocaleString() +
+          stakeStatusAfter.active.toLocaleString() +
           " inactive " +
-          stakeStatusAfter1.inactive.toLocaleString() +
+          stakeStatusAfter.inactive.toLocaleString() +
           " status: " +
-          stakeStatusAfter1.status
+          stakeStatusAfter.status
       );
     }
+  });
+
+  it("(user 0) Deposit stake to the LST pool", async () => {
+    console.log(" stake acc " + validators[0].splPool);
+    console.log(" wallet " + users[0].wallet.publicKey);
+    console.log(" stake acc " + users[0].accounts.get("v0_stakeacc"));
+    // TODO this doesn't work with banks client, rewrite from source (ew)
+    // const tx = await SinglePoolProgram.deposit({
+    //   // @ts-ignore // Doesn't matter
+    //   connection: bankRunProvider.connection,
+    //   pool: validators[0].splPool,
+    //   userWallet: users[0].wallet.publicKey,
+    //   userStakeAccount: users[0].accounts.get("v0_stakeacc"),
+    //   // depositFromDefaultAccount: false,
+    // });
+
+    let tx = new Transaction();
+    const ixes = await depositToSinglePoolIxes(
+      bankRunProvider.connection,
+      users[0].wallet.publicKey,
+      validators[0].splMint,
+      verbose
+    );
+    tx.add(...ixes);
+
+    tx.recentBlockhash = bankrunContext.lastBlockhash;
+    tx.sign(users[0].wallet);
+    // @ts-ignore // Doesn't matter
+    await banksClient.processTransaction(tx);
   });
 });

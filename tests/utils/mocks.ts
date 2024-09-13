@@ -355,4 +355,8 @@ export type Validator = {
   authorizedWithdrawer: PublicKey;
   voteAccount: PublicKey;
   splPool: PublicKey;
+  /** spl pool's mint for the LST */
+  splMint: PublicKey;
+  /** spl pool's authority for LST management (a PDA automatically created on init) */
+  splAuthority: PublicKey;
 };
