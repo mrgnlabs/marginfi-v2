@@ -6,7 +6,10 @@ import BN from "bn.js";
 export const I80F48_ZERO = bigNumberToWrappedI80F48(0);
 export const I80F48_ONE = bigNumberToWrappedI80F48(1);
 /** Equivalent in value to u64::MAX in Rust */
-export const u64MAX_BN= new BN("18446744073709551615");
+export const u64MAX_BN = new BN("18446744073709551615");
+export const SINGLE_POOL_PROGRAM_ID = new PublicKey(
+  "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE"
+);
 
 export type RiskTier = { collateral: {} } | { isolated: {} };
 

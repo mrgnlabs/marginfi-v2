@@ -1,40 +1,27 @@
+import { BN, Program, workspace } from "@coral-xyz/anchor";
+import { LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
 import {
-  AnchorProvider,
-  BN,
-  getProvider,
-  Program,
-  workspace,
-} from "@coral-xyz/anchor";
-import {
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SYSVAR_CLOCK_PUBKEY,
-  Transaction,
-} from "@solana/web3.js";
-import {
-  bankrunProgram as bankrunProgram,
   bankrunContext,
   bankRunProvider,
   users,
   validators,
   verbose,
   banksClient,
+  bankrunProgram,
 } from "./rootHooks";
-import { StakingCollatizer } from "../target/types/staking_collatizer";
 import {
   createStakeAccount,
   delegateStake,
+  getEpoch,
   getStakeAccount,
   getStakeActivation,
 } from "./utils/stake-utils";
 import { assertBNEqual, assertKeysEqual } from "./utils/genericTests";
 import { u64MAX_BN } from "./utils/types";
-
-import { deriveStakeUser } from "./utils/stakeCollatizer/pdas";
+import { SinglePoolProgram } from "@solana/spl-single-pool-classic";
 
 describe("User stakes some native and creates an account", () => {
-  const program = workspace.StakingCollatizer as Program<StakingCollatizer>;
-
+  /** Users's validator 0 stake account */
   let stakeAccount: PublicKey;
 
   it("(user 0) Create user stake account and stake to validator", async () => {
@@ -66,9 +53,7 @@ describe("User stakes some native and creates an account", () => {
       console.log("user 0 delegated to " + validators[0].voteAccount);
     }
 
-    let clock = await banksClient.getAccount(SYSVAR_CLOCK_PUBKEY);
-    // epoch is bytes 16-24
-    let epochBefore = new BN(clock.data.slice(16, 24), 10, "le").toNumber();
+    let epochBefore = await getEpoch(banksClient);
     const stakeAccountInfo = await bankRunProvider.connection.getAccountInfo(
       stakeAccount
     );
@@ -106,9 +91,7 @@ describe("User stakes some native and creates an account", () => {
   it("Advance the epoch", async () => {
     bankrunContext.warpToEpoch(1n);
 
-    let clock = await banksClient.getAccount(SYSVAR_CLOCK_PUBKEY);
-    // epoch is bytes 16-24
-    let epoch = new BN(clock.data.slice(16, 24), 10, "le").toNumber();
+    let epoch = await getEpoch(banksClient);
     if (verbose) {
       console.log("Warped to epoch: " + epoch);
     }
@@ -129,29 +112,5 @@ describe("User stakes some native and creates an account", () => {
           stakeStatusAfter1.status
       );
     }
-  });
-
-  it("(user 0) Init user account - happy path", async () => {
-    let tx = new Transaction();
-
-    tx.add(
-      await program.methods
-        .initUser()
-        .accounts({
-          payer: users[0].wallet.publicKey,
-        })
-        .instruction()
-    );
-
-    const [stakeUserKey] = deriveStakeUser(
-      program.programId,
-      users[0].wallet.publicKey
-    );
-    tx.recentBlockhash = bankrunContext.lastBlockhash;
-    tx.sign(users[0].wallet);
-    await banksClient.processTransaction(tx);
-
-    let userAcc = await bankrunProgram.account.stakeUser.fetch(stakeUserKey);
-    assertKeysEqual(userAcc.key, stakeUserKey);
   });
 });

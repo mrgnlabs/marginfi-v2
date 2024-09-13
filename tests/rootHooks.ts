@@ -16,18 +16,23 @@ import {
   PublicKey,
   StakeProgram,
   SystemProgram,
-  SYSVAR_EPOCH_SCHEDULE_PUBKEY,
   SYSVAR_STAKE_HISTORY_PUBKEY,
   Transaction,
   VoteInit,
   VoteProgram,
 } from "@solana/web3.js";
 import { setupPythOracles } from "./utils/pyth_mocks";
-import { StakingCollatizer } from "../target/types/staking_collatizer";
 import { BankrunProvider } from "anchor-bankrun";
 import { BanksClient, ProgramTestContext, startAnchor } from "solana-bankrun";
 import path from "path";
-import { SinglePoolProgram } from "@solana/spl-single-pool-classic";
+import {
+  findPoolAddress,
+  SinglePoolProgram,
+} from "@solana/spl-single-pool-classic";
+import { SINGLE_POOL_PROGRAM_ID } from "./utils/types";
+import { assertKeysEqual } from "./utils/genericTests";
+import { assert } from "chai";
+import { decodeSinglePool } from "./utils/spl-staking-utils";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -53,7 +58,7 @@ export const bankKeypairA = Keypair.generate();
 
 export let bankrunContext: ProgramTestContext;
 export let bankRunProvider: BankrunProvider;
-export let bankrunProgram: Program<StakingCollatizer>;
+export let bankrunProgram: Program<Marginfi>;
 export let banksClient: BanksClient;
 /** keys copied into the bankrun instance */
 let copyKeys: PublicKey[] = [];
@@ -61,8 +66,6 @@ let copyKeys: PublicKey[] = [];
 export const mochaHooks = {
   beforeAll: async () => {
     const mrgnProgram = workspace.Marginfi as Program<Marginfi>;
-    const collatProgram =
-      workspace.StakingCollatizer as Program<StakingCollatizer>;
     const provider = AnchorProvider.local();
     const wallet = provider.wallet as Wallet;
 
@@ -106,7 +109,6 @@ export const mochaHooks = {
 
     const setupUserOptions: SetupTestUserOptions = {
       marginProgram: mrgnProgram,
-      collatizerProgram: collatProgram,
       forceWallet: undefined,
       // If mints are created, typically create the ATA too, otherwise pass undefined...
       wsolMint: undefined,
@@ -165,7 +167,7 @@ export const mochaHooks = {
       }
       addValidator(validator);
 
-      const splStakePool = await createSplStakePool(provider);
+      const splStakePool = await createSplStakePool(provider, validator);
       if (verbose) {
         console.log("init stake pool");
       }
@@ -186,7 +188,7 @@ export const mochaHooks = {
 
     bankrunContext = await startAnchor(path.resolve(), [], addedAccounts);
     bankRunProvider = new BankrunProvider(bankrunContext);
-    bankrunProgram = new Program(collatProgram.idl, bankRunProvider);
+    bankrunProgram = new Program(mrgnProgram.idl, bankRunProvider);
     banksClient = bankrunContext.banksClient;
 
     if (verbose) {
@@ -261,78 +263,44 @@ export const createValidator = async (
     authorizedVoter: authorizedVoter.publicKey,
     authorizedWithdrawer: authorizedWithdrawer,
     voteAccount: voteAccount.publicKey,
+    splPool: PublicKey.default,
   };
 
   return validator;
 };
 
-export const createSplStakePool = async (provider: AnchorProvider) => {
-  console.log("id: " + SinglePoolProgram.programId);
-  let info = await provider.connection.getAccountInfo(
-    SinglePoolProgram.programId
-  );
-  console.log("exec: " + info.executable);
-  console.log("data: " + info.data);
+/**
+ *
+ * @param provider
+ * @param validator - mutated, adds the spl key
+ */
+export const createSplStakePool = async (
+  provider: AnchorProvider,
+  validator: Validator
+) => {
   let tx = await SinglePoolProgram.initialize(
-    // @ts-ignore
+    // @ts-ignore // Doesn't matter
     provider.connection,
-    validators[0].voteAccount,
+    validator.voteAccount,
     users[0].wallet.publicKey,
     true
   );
 
-  // @ts-ignore
+  // @ts-ignore // Doesn't matter
   await provider.sendAndConfirm(tx, [users[0].wallet]);
+
+  // Note: you can import the id from @solana/spl-single-pool (the classic version doesn't have it)
+  const poolKey = await findPoolAddress(
+    SINGLE_POOL_PROGRAM_ID,
+    validator.voteAccount
+  );
+  validator.splPool = poolKey;
+
+  const poolAcc = await provider.connection.getAccountInfo(poolKey);
+  // Rudimentary validation that this account now exists and is owned by the single pool program
+  assertKeysEqual(poolAcc.owner, SINGLE_POOL_PROGRAM_ID);
+  assert.equal(poolAcc.executable, false);
+
+  const pool = decodeSinglePool(poolAcc.data);
+  assertKeysEqual(pool.voteAccountAddress, validator.voteAccount);
 };
-
-// Attempt to manually build an spl stake pool init since the TS library doesn't expose one...
-
-// export const createSplStakePool = async (
-//   provider: AnchorProvider,
-//   accounts: any
-// ) => {
-//   console.log("id: " + solanaStakePool.STAKE_POOL_PROGRAM_ID);
-
-//   const keys = [
-//     { pubkey: accounts.stakePoolAccount, isSigner: false, isWritable: true },
-//     { pubkey: accounts.manager, isSigner: true, isWritable: false },
-//     { pubkey: accounts.staker, isSigner: false, isWritable: false },
-//     { pubkey: accounts.withdrawAuthority, isSigner: false, isWritable: false },
-//     { pubkey: accounts.validatorList, isSigner: false, isWritable: true },
-//     { pubkey: accounts.reserveStake, isSigner: false, isWritable: false },
-//     { pubkey: accounts.poolTokenMint, isSigner: false, isWritable: false },
-//     { pubkey: accounts.feeAccount, isSigner: false, isWritable: false },
-//     {
-//       pubkey: TOKEN_PROGRAM_ID,
-//       isSigner: false,
-//       isWritable: false,
-//     },
-//     // Add optional deposit authority if necessary
-//   ];
-
-//   const FEE = { numerator: new BN(1), denominator: new BN(50) };
-//   const REFERRAL_FEE = 1;
-
-//   const data = Buffer.concat([
-//     Buffer.from([0]), // Initialize instruction discriminator
-//     FEE.numerator.toArrayLike(Buffer, "le", 8),
-//     FEE.denominator.toArrayLike(Buffer, "le", 8),
-//     FEE.numerator.toArrayLike(Buffer, "le", 8), // Withdrawal fee
-//     FEE.denominator.toArrayLike(Buffer, "le", 8),
-//     FEE.numerator.toArrayLike(Buffer, "le", 8), // Deposit fee
-//     FEE.denominator.toArrayLike(Buffer, "le", 8),
-//     Buffer.from([REFERRAL_FEE]), // Referral fee
-//     Buffer.from(new BN(100).toArrayLike(Buffer, "le", 4)), // max_validators
-//   ]);
-
-//   const instruction = new TransactionInstruction({
-//     keys,
-//     programId: solanaStakePool.STAKE_POOL_PROGRAM_ID,
-//     data,
-//   });
-
-//   const tx = new Transaction().add(instruction);
-//   await provider.sendAndConfirm(tx);
-
-//   //await provider.sendAndConfirm(tx, [users[0].wallet]);
-// };

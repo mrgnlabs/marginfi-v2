@@ -16,7 +16,6 @@ import {
 } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { Mocks } from "../../target/types/mocks";
-import { StakingCollatizer } from "../../target/types/staking_collatizer";
 
 export type Ecosystem = {
   /** A generic wsol mint with 9 decimals (same as native) */
@@ -98,11 +97,6 @@ export type mockUser = {
   usdcAccount: PublicKey;
   /** A marginfi program that uses the user's wallet */
   userMarginProgram: Program<Marginfi> | undefined;
-  /**
-   * A staking collatizer program that uses the user's wallet.
-   * * NOTE: When testing, you will most likely use BankRun's client instead!
-   */
-  userCollatizerProgram: Program<StakingCollatizer> | undefined;
   /** A map to store arbitrary accounts related to the user using a string key */
   accounts: Map<string, PublicKey>;
 };
@@ -112,7 +106,6 @@ export type mockUser = {
  */
 export interface SetupTestUserOptions {
   marginProgram: Program<Marginfi>;
-  collatizerProgram: Program<StakingCollatizer>;
   /** Force the mock user to use this keypair */
   forceWallet: Keypair;
   wsolMint: PublicKey;
@@ -219,9 +212,6 @@ export const setupTestUser = async (
     userMarginProgram: options.marginProgram
       ? getUserMarginfiProgram(options.marginProgram, userWalletKeypair)
       : undefined,
-    userCollatizerProgram: options.marginProgram
-      ? getUserCollatizerProgram(options.collatizerProgram, userWalletKeypair)
-      : undefined,
     accounts: new Map<string, PublicKey>(),
   };
   return user;
@@ -235,23 +225,6 @@ export const setupTestUser = async (
  */
 export const getUserMarginfiProgram = (
   program: Program<Marginfi>,
-  userWallet: Keypair | Wallet
-) => {
-  const wallet =
-    userWallet instanceof Keypair ? new Wallet(userWallet) : userWallet;
-  const provider = new AnchorProvider(program.provider.connection, wallet, {});
-  const userProgram = new Program(program.idl, provider);
-  return userProgram;
-};
-
-/**
- * Generates a mock program that can sign transactions as the user's wallet
- * @param program
- * @param userWallet
- * @returns
- */
-export const getUserCollatizerProgram = (
-  program: Program<StakingCollatizer>,
   userWallet: Keypair | Wallet
 ) => {
   const wallet =
@@ -381,4 +354,5 @@ export type Validator = {
   authorizedVoter: PublicKey;
   authorizedWithdrawer: PublicKey;
   voteAccount: PublicKey;
+  splPool: PublicKey;
 };
