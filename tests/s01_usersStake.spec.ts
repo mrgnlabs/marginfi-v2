@@ -130,6 +130,7 @@ describe("User stakes some native and creates an account", () => {
           " status: " +
           stakeStatusAfter.status
       );
+      console.log("");
     }
 
     // Advance a few slots and send some dummy txes to end the rewards period
@@ -137,7 +138,10 @@ describe("User stakes some native and creates an account", () => {
     // NOTE: ALL STAKE PROGRAM IXES ARE DISABLED DURING THE REWARDS PERIOD. THIS MUST OCCUR OR THE
     // STAKE PROGRAM CANNOT RUN
 
-    for (let i = 0; i < 100; i++) {
+    if (verbose) {
+      console.log("Now stalling for a few slots to end the rewards period...");
+    }
+    for (let i = 0; i < 3; i++) {
       bankrunContext.warpToSlot(BigInt(i + slotAfterWarp + 1));
       const dummyTx = new Transaction();
       dummyTx.add(
@@ -150,11 +154,11 @@ describe("User stakes some native and creates an account", () => {
       dummyTx.recentBlockhash = bankrunContext.lastBlockhash;
       dummyTx.sign(users[0].wallet);
       await banksClient.processTransaction(dummyTx);
-      if (i % 10 == 0) {
-        console.log("Dummy ix: " + i);
-        let { epoch, slot } = await getEpochAndSlot(banksClient);
-        console.log("is now epoch: " + epoch + " slot " + slot);
-      }
+    }
+
+    let { epoch, slot } = await getEpochAndSlot(banksClient);
+    if (verbose) {
+      console.log("It is now epoch: " + epoch + " slot " + slot);
     }
   });
 

@@ -84,7 +84,7 @@ export const depositToSinglePoolIxes = async (
     }
   } catch (err) {
     if (verbose) {
-      console.log("Did not find token account, creating: " + lstAta);
+      console.log("Failed to find ata, creating: " + lstAta);
     }
     ixes.push(
       createAssociatedTokenAccountInstruction(
@@ -113,6 +113,8 @@ export const depositToSinglePoolIxes = async (
   }).instructions;
 
   ixes.push(...authorizeWithdrawIxes);
+
+  // TODO execute the deposit...
 
   return ixes;
 };
