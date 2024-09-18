@@ -3,7 +3,7 @@ import {
   workspace,
 } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
-import { groupInitialize } from "./utils/instructions";
+import { groupInitialize } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
 import { groupAdmin, marginfiGroup, verbose } from "./rootHooks";
 import { assertKeysEqual } from "./utils/genericTests";

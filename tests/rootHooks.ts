@@ -4,7 +4,7 @@ import {
   echoEcosystemInfo,
   Ecosystem,
   getGenericEcosystem,
-  mockUser as MockUser,
+  MockUser as MockUser,
   Oracles,
   setupTestUser,
   SetupTestUserOptions,

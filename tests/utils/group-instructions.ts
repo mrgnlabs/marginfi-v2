@@ -32,7 +32,7 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
   // const id = program.programId;
   // const bank = args.bank;
 
-  // Note that oracle is passed as a key in config and as an acc in remaining accs...
+  // Note: oracle is passed as a key in config AND as an acc in remaining accs
   const oracleMeta: AccountMeta = {
     pubkey: args.config.oracleKey,
     isSigner: false,

@@ -7,7 +7,7 @@ import {
   workspace,
 } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
-import { setupEmissions, updateEmissions } from "./utils/instructions";
+import { setupEmissions, updateEmissions } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairUsdc,

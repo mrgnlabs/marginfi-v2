@@ -7,7 +7,7 @@ import {
   Connection,
   SYSVAR_CLOCK_PUBKEY,
 } from "@solana/web3.js";
-import { mockUser } from "./mocks";
+import { MockUser } from "./mocks";
 import { BanksClient } from "solana-bankrun";
 import { BN } from "@coral-xyz/anchor";
 
@@ -17,7 +17,7 @@ import { BN } from "@coral-xyz/anchor";
  * @param amount - in SOL (lamports), in native decimals
  * @returns
  */
-export const createStakeAccount = (user: mockUser, amount: number) => {
+export const createStakeAccount = (user: MockUser, amount: number) => {
   const stakeAccount = Keypair.generate();
   const userPublicKey = user.wallet.publicKey;
 
@@ -49,7 +49,7 @@ export const createStakeAccount = (user: mockUser, amount: number) => {
  * @param validatorVoteAccount
  */
 export const delegateStake = (
-  user: mockUser,
+  user: MockUser,
   stakeAccount: PublicKey,
   validatorVoteAccount: PublicKey
 ) => {

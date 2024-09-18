@@ -85,7 +85,7 @@ export const echoEcosystemInfo = (
 /**
  *  A typical user, with a wallet, ATAs for mock tokens, and a program to sign/send txes with.
  */
-export type mockUser = {
+export type MockUser = {
   wallet: Keypair;
   /** Users's ATA for wsol*/
   wsolAccount: PublicKey;
@@ -100,6 +100,9 @@ export type mockUser = {
   /** A map to store arbitrary accounts related to the user using a string key */
   accounts: Map<string, PublicKey>;
 };
+
+/** in mockUser.accounts, key used to get/set the users's account for group 0 */
+export const USER_ACCOUNT: string = "g0_acc";
 
 /**
  * Options to skip various parts of mock user setup
@@ -202,7 +205,7 @@ export const setupTestUser = async (
 
   await provider.sendAndConfirm(tx, [wallet]);
 
-  const user: mockUser = {
+  const user: MockUser = {
     wallet: userWalletKeypair,
     wsolAccount: wsolAccount,
     tokenAAccount: tokenAAccount,

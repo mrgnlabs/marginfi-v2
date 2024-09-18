@@ -41,6 +41,9 @@ pub struct MarginfiAccount {
     /// Flags:
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
+    /// - IN_FLASHLOAN_FLAG (1 << 1)
+    /// - FLASHLOAN_ENABLED_FLAG (1 << 2)
+    /// - TRANSFER_AUTHORITY_ALLOWED_FLAG (1 << 3)
     pub account_flags: u64, // 8
     pub _padding: [u64; 63],             // 504
 }

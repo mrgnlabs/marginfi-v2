@@ -73,7 +73,7 @@ export const assertI80F48Equal = (
 export const assertI80F48Approx = (
   a: WrappedI80F48,
   b: WrappedI80F48 | BN | number,
-  tolerance: number = .000001
+  tolerance: number = 0.000001
 ) => {
   const bigA = wrappedI80F48toBigNumber(a);
   let bigB: BigNumber;
@@ -93,7 +93,8 @@ export const assertI80F48Approx = (
 
   if (diff.isGreaterThan(allowedDifference)) {
     throw new Error(
-      `Values are not approximately equal. Difference: ${diff.toString()}, Allowed Tolerance: ${tolerance}`
+      `Values are not approximately equal. A: ${bigA.toString()} B: ${bigB.toString()} 
+      Difference: ${diff.toString()}, Allowed Tolerance: ${tolerance}`
     );
   }
 };
@@ -132,7 +133,7 @@ export const assertBNApproximately = (
  * @returns
  */
 export const getTokenBalance = async (
-  provider: AnchorProvider | BankrunProvider ,
+  provider: AnchorProvider | BankrunProvider,
   account: PublicKey
 ) => {
   const accountInfo = await provider.connection.getAccountInfo(account);

@@ -60,8 +60,8 @@ export type BankConfig = {
  * * all weights are 1
  * * state = operational, risk tier = collateral
  * * uses the given oracle, assumes it's = pythLegacy
- * * 1_000_000_000 deposit/borrow limit
- * * 100_000_000_000 total asset value limit
+ * * 100_000_000_000 deposit/borrow limit
+ * * 1_000_000_000_000 total asset value limit
  * @returns
  */
 export const defaultBankConfig = (oracleKey: PublicKey) => {
@@ -70,7 +70,7 @@ export const defaultBankConfig = (oracleKey: PublicKey) => {
     assetWeightMaint: I80F48_ONE,
     liabilityWeightInit: I80F48_ONE,
     liabilityWeightMain: I80F48_ONE,
-    depositLimit: new BN(1_000_000_000),
+    depositLimit: new BN(100_000_000_000),
     interestRateConfig: defaultInterestRateConfigRaw(),
     operationalState: {
       operational: undefined,
@@ -79,11 +79,11 @@ export const defaultBankConfig = (oracleKey: PublicKey) => {
       pythLegacy: undefined,
     },
     oracleKey: oracleKey,
-    borrowLimit: new BN(1_000_000_000),
+    borrowLimit: new BN(100_000_000_000),
     riskTier: {
       collateral: undefined,
     },
-    totalAssetValueInitLimit: new BN(100_000_000_000),
+    totalAssetValueInitLimit: new BN(1_000_000_000_000),
     oracleMaxAge: 100,
   };
   return config;
