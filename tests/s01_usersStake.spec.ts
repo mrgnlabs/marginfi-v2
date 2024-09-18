@@ -21,11 +21,22 @@ import {
   getStakeAccount,
   getStakeActivation,
 } from "./utils/stake-utils";
-import { assertBNEqual, assertKeysEqual } from "./utils/genericTests";
+import {
+  assertBNEqual,
+  assertKeysEqual,
+  getTokenBalance,
+} from "./utils/genericTests";
 import { u64MAX_BN } from "./utils/types";
-import { SinglePoolProgram } from "@solana/spl-single-pool-classic";
+import {
+  SinglePoolInstruction,
+  SinglePoolProgram,
+} from "@solana/spl-single-pool-classic";
 import { getAssociatedTokenAddressSync } from "@mrgnlabs/mrgn-common";
-import { depositToSinglePoolIxes } from "./utils/spl-staking-utils";
+import {
+  decodeSinglePool,
+  depositToSinglePoolIxes,
+} from "./utils/spl-staking-utils";
+import { assert } from "chai";
 
 describe("User stakes some native and creates an account", () => {
   /** Users's validator 0 stake account */
@@ -52,7 +63,7 @@ describe("User stakes some native and creates an account", () => {
           " in native)"
       );
     }
-    users[0].accounts.set("v0_stakeacc", stakeAccountKeypair.publicKey);
+    users[0].accounts.set("v0_stakeAcc", stakeAccount);
 
     let delegateTx = delegateStake(
       users[0],
@@ -162,11 +173,43 @@ describe("User stakes some native and creates an account", () => {
     }
   });
 
-  // User runs StakeProgram.authorize (this fails)
+  it("(user 0) Deposits stake to the LST pool", async () => {
+    const userStakeAccount = users[0].accounts.get("v0_stakeAcc");
+    // Note: you can use `findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, splPool);` if mint is not known.
+    const lstAta = getAssociatedTokenAddressSync(
+      validators[0].splMint,
+      users[0].wallet.publicKey
+    );
+    users[0].accounts.set("v0_lstAta", lstAta);
 
-  it("(user 0) Deposit stake to the LST pool", async () => {
-    const userStakeAccount = users[0].accounts.get("v0_stakeacc");
+    // Note: user stake account exists before, but is closed after
+    // Here we note the balance of the stake account prior
+    const stakeAccountInfo = await bankRunProvider.connection.getAccountInfo(
+      userStakeAccount
+    );
+    const stakeAccBefore = getStakeAccount(stakeAccountInfo.data);
+    const rent = new BN(stakeAccBefore.meta.rentExemptReserve.toString());
+    const delegationBefore = Number(
+      stakeAccBefore.stake.delegation.stake.toString()
+    );
+    assertBNEqual(
+      new BN(delegationBefore),
+      new BN(10 * LAMPORTS_PER_SOL).sub(rent)
+    );
 
+    // The spl stake pool account is already infused with 1 SOL at init
+    const splStakeInfoBefore = await bankRunProvider.connection.getAccountInfo(
+      validators[0].splStake
+    );
+    const splStakePoolBefore = getStakeAccount(splStakeInfoBefore.data);
+    const delegationSplPoolBefore = new BN(
+      splStakePoolBefore.stake.delegation.stake.toString()
+    );
+    if (verbose) {
+      console.log("pool stake before: " + delegationSplPoolBefore.toString());
+    }
+
+    // Create lst ata, transfer authority, execute the deposit
     let tx = new Transaction();
     const ixes = await depositToSinglePoolIxes(
       bankRunProvider.connection,
@@ -176,10 +219,44 @@ describe("User stakes some native and creates an account", () => {
       verbose
     );
     tx.add(...ixes);
-
     tx.recentBlockhash = bankrunContext.lastBlockhash;
     tx.sign(users[0].wallet);
-    // @ts-ignore // Doesn't matter
     await banksClient.processTransaction(tx);
+
+    // The stake account no longer exists
+    try {
+      const accountInfo = await bankRunProvider.connection.getAccountInfo(
+        userStakeAccount
+      );
+      assert.ok(
+        accountInfo === null,
+        "The account should not exist, but it does."
+      );
+    } catch (err) {
+      assert.ok(true, "The account does not exist.");
+    }
+
+    const [lstAfter, splStakePoolInfo] = await Promise.all([
+      getTokenBalance(bankRunProvider, lstAta),
+      bankRunProvider.connection.getAccountInfo(validators[0].splStake),
+    ]);
+    if (verbose) {
+      console.log("lst after: " + lstAfter.toLocaleString());
+    }
+    // LST tokens are issued 1:1 with stake because there has been zero appreciation
+    assert.equal(lstAfter, delegationBefore);
+
+    const splStakePool = getStakeAccount(splStakePoolInfo.data);
+    const delegationSplPoolAfter = new BN(
+      splStakePool.stake.delegation.stake.toString()
+    );
+    if (verbose) {
+      console.log("pool stake after: " + delegationSplPoolAfter.toString());
+    }
+    // The stake pool gained all of the stake that was held in the user stake acc
+    assertBNEqual(
+      delegationSplPoolAfter.sub(delegationSplPoolBefore),
+      delegationBefore
+    );
   });
 });

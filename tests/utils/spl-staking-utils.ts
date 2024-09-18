@@ -1,6 +1,7 @@
 import {
   findPoolMintAddress,
   findPoolStakeAuthorityAddress,
+  SinglePoolInstruction,
 } from "@solana/spl-single-pool-classic";
 import {
   createAssociatedTokenAccountInstruction,
@@ -61,6 +62,16 @@ export const decodeSinglePool = (buffer: Buffer) => {
 
 // See `https://www.npmjs.com/package/@solana/spl-single-pool` transactions.ts for the original
 
+/**
+ * Builds ixes to create the LST ata as-needed, pass stake authority to the spl pool, and deposit to
+ * the stake pool
+ * @param connection
+ * @param userWallet
+ * @param splPool
+ * @param userStakeAccount
+ * @param verbose
+ * @returns
+ */
 export const depositToSinglePoolIxes = async (
   connection: Connection,
   userWallet: PublicKey,
@@ -114,7 +125,14 @@ export const depositToSinglePoolIxes = async (
 
   ixes.push(...authorizeWithdrawIxes);
 
-  // TODO execute the deposit...
+  const depositIx = await SinglePoolInstruction.depositStake(
+    splPool,
+    userStakeAccount,
+    lstAta,
+    userWallet
+  );
+
+  ixes.push(depositIx);
 
   return ixes;
 };

@@ -359,4 +359,6 @@ export type Validator = {
   splMint: PublicKey;
   /** spl pool's authority for LST management (a PDA automatically created on init) */
   splAuthority: PublicKey;
+  /** spl pool's stake account */
+  splStake: PublicKey;
 };
