@@ -297,6 +297,20 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.deepEqual(cloudConfig.riskTier, { isolated: {} });
     assertBNEqual(cloudConfig.totalAssetValueInitLimit, 0);
     assert.equal(cloudConfig.oracleMaxAge, 60);
+
+    let pyUsdcBankKey = new PublicKey(
+      "Fe5QkKPVAh629UPP5aJ8sDZu8HTfe6M26jDQkKyXVhoA"
+    );
+    let pyUsdcBankData = (
+      await program.provider.connection.getAccountInfo(pyUsdcBankKey)
+    ).data.subarray(8);
+    printBufferGroups(pyUsdcBankData, 16, 896);
+
+    const pb = await program.account.bank.fetch(pyUsdcBankKey);
+    assertKeysEqual(
+      pb.emissionsMint,
+      new PublicKey("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo")
+    );
   });
 });
 
