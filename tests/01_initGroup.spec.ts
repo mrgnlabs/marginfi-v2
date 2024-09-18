@@ -5,7 +5,7 @@ import {
 import { Transaction } from "@solana/web3.js";
 import { groupInitialize } from "./utils/instructions";
 import { Marginfi } from "../target/types/marginfi";
-import { groupAdmin, marginfiGroup } from "./rootHooks";
+import { groupAdmin, marginfiGroup, verbose } from "./rootHooks";
 import { assertKeysEqual } from "./utils/genericTests";
 
 describe("Init group", () => {
@@ -29,5 +29,9 @@ describe("Init group", () => {
       marginfiGroup.publicKey
     );
     assertKeysEqual(group.admin, groupAdmin.wallet.publicKey);
+    if(verbose){
+      console.log("*init group: " + marginfiGroup.publicKey);
+      console.log(" group admin: " + group.admin);
+    }
   });
 });

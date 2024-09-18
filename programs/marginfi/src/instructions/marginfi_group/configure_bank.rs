@@ -140,7 +140,7 @@ pub struct LendingPoolSetupEmissions<'info> {
 
     /// CHECK: Account provided only for funding rewards
     #[account(mut)]
-    pub emissions_funding_account: AccountInfo<'info>,
+    pub emissions_funding_account: AccountInfo<'info>, // TODO why isn't this TokenAccount?
 
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,

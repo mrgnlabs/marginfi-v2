@@ -65,15 +65,15 @@ export const assertI80F48Equal = (
 };
 
 /**
- * Shorthand to convert I80F48 to a string and compare against a BN, number, or other WrappedI80F48 within a given tolerance
+ * Shorthand to convert I80F48 to a BigNumber and compare against a BN, number, or other WrappedI80F48 within a given tolerance
  * @param a
  * @param b
- * @param tolerance - the allowed difference between the two values
+ * @param tolerance - the allowed difference between the two values (default .000001)
  */
 export const assertI80F48Approx = (
   a: WrappedI80F48,
   b: WrappedI80F48 | BN | number,
-  tolerance: number
+  tolerance: number = .000001
 ) => {
   const bigA = wrappedI80F48toBigNumber(a);
   let bigB: BigNumber;

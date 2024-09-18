@@ -39,7 +39,10 @@ import { decodeSinglePool } from "./utils/spl-staking-utils";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
+/** Show various information about accounts and tests */
 export const verbose = true;
+/** Show the raw buffer printout of various structs */
+export const printBuffers = false;
 /** The program owner is also the provider wallet */
 export let globalProgramAdmin: MockUser = undefined;
 /** Administers the mrgnlend group and/or stake holder accounts */

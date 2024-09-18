@@ -115,45 +115,45 @@ jobs:
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
 
-  # localnet-test-marginfi:
-  #   name: Anchor localnet tests marginfi
-  #   runs-on: ubuntu-latest
+  localnet-test-marginfi:
+    name: Anchor localnet tests marginfi
+    runs-on: ubuntu-latest
 
-  #   steps:
-  #     - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-  #     - uses: ./.github/actions/setup-common/
-  #     - uses: ./.github/actions/setup-anchor-cli/
+      - uses: ./.github/actions/setup-common/
+      - uses: ./.github/actions/setup-anchor-cli/
 
-  #     - uses: ./.github/actions/build-workspace/
+      - uses: ./.github/actions/build-workspace/
 
-  #     - name: Install Node.js dependencies
-  #       run: yarn install
+      - name: Install Node.js dependencies
+        run: yarn install
 
-  #     - name: Build marginfi program
-  #       run: anchor build -p marginfi -- --no-default-features
+      - name: Build marginfi program
+        run: anchor build -p marginfi -- --no-default-features
 
-  #     - name: Build liquidity incentive program
-  #       run: anchor build -p liquidity_incentive_program -- --no-default-features
+      - name: Build liquidity incentive program
+        run: anchor build -p liquidity_incentive_program -- --no-default-features
 
-  #     - name: Build mocks program
-  #       run: anchor build -p mocks
+      - name: Build mocks program
+        run: anchor build -p mocks
 
-  #     - name: Start Solana Test Validator
-  #       run: |
-  #         solana-test-validator --reset --limit-ledger-size 1000 \
+      - name: Start Solana Test Validator
+        run: |
+          solana-test-validator --reset --limit-ledger-size 1000 \
 
-  #     - name: Wait for Validator to Start
-  #       run: sleep 60
+      - name: Wait for Validator to Start
+        run: sleep 60
 
-  #     - name: Deploy Liquidity Incentive Program
-  #       run: solana program deploy --program-id Lip1111111111111111111111111111111111111111 target/deploy/liquidity_incentive_program.so
+      - name: Deploy Liquidity Incentive Program
+        run: solana program deploy --program-id Lip1111111111111111111111111111111111111111 target/deploy/liquidity_incentive_program.so
 
-  #     - name: Deploy Marginfi Program
-  #       run: solana program deploy --program-id 2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr target/deploy/marginfi.so
+      - name: Deploy Marginfi Program
+        run: solana program deploy --program-id 2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr target/deploy/marginfi.so
 
-  #     - name: Deploy Mocks Program
-  #       run: solana program deploy --program-id 5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C target/deploy/mocks.so
+      - name: Deploy Mocks Program
+        run: solana program deploy --program-id 5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C target/deploy/mocks.so
 
-  #     - name: Run tests
-  #       run: anchor test --skip-build --skip-local-validator
+      - name: Run tests
+        run: anchor test --skip-build --skip-local-validator
