@@ -15,6 +15,7 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import { SINGLE_POOL_PROGRAM_ID } from "./types";
+import { ProgramTestContext } from "solana-bankrun";
 
 export enum SinglePoolAccountType {
   Uninitialized = 0,
@@ -135,4 +136,16 @@ export const depositToSinglePoolIxes = async (
   ixes.push(depositIx);
 
   return ixes;
+};
+
+/**
+ * Generally, use this instead of `bankrunContext.lastBlockhash` (which does not work if the test
+ * has already run for some time and the blockhash has advanced)
+ * @param bankrunContext
+ * @returns
+ */
+export const getBankrunBlockhash = async (
+  bankrunContext: ProgramTestContext
+) => {
+  return (await bankrunContext.banksClient.getLatestBlockhash())[0];
 };

@@ -35,6 +35,7 @@ import { getAssociatedTokenAddressSync } from "@mrgnlabs/mrgn-common";
 import {
   decodeSinglePool,
   depositToSinglePoolIxes,
+  getBankrunBlockhash,
 } from "./utils/spl-staking-utils";
 import { assert } from "chai";
 
@@ -48,7 +49,8 @@ describe("User stakes some native and creates an account", () => {
       users[0],
       stake * LAMPORTS_PER_SOL
     );
-    createTx.recentBlockhash = bankrunContext.lastBlockhash;
+    // Note: bankrunContext.lastBlockhash only works if non-bankrun tests didn't run previously
+    createTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     createTx.sign(users[0].wallet, stakeAccountKeypair);
     await banksClient.processTransaction(createTx);
     stakeAccount = stakeAccountKeypair.publicKey;
@@ -70,7 +72,7 @@ describe("User stakes some native and creates an account", () => {
       stakeAccount,
       validators[0].voteAccount
     );
-    delegateTx.recentBlockhash = bankrunContext.lastBlockhash;
+    delegateTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     delegateTx.sign(users[0].wallet);
     await banksClient.processTransaction(delegateTx);
 
@@ -162,7 +164,7 @@ describe("User stakes some native and creates an account", () => {
           lamports: i,
         })
       );
-      dummyTx.recentBlockhash = bankrunContext.lastBlockhash;
+      dummyTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
       dummyTx.sign(users[0].wallet);
       await banksClient.processTransaction(dummyTx);
     }
@@ -175,7 +177,7 @@ describe("User stakes some native and creates an account", () => {
 
   it("(user 0) Deposits stake to the LST pool", async () => {
     const userStakeAccount = users[0].accounts.get("v0_stakeAcc");
-    // Note: you can use `findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, splPool);` if mint is not known.
+    // Note: use `findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, splPool);` if mint is not known.
     const lstAta = getAssociatedTokenAddressSync(
       validators[0].splMint,
       users[0].wallet.publicKey
@@ -219,7 +221,7 @@ describe("User stakes some native and creates an account", () => {
       verbose
     );
     tx.add(...ixes);
-    tx.recentBlockhash = bankrunContext.lastBlockhash;
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(users[0].wallet);
     await banksClient.processTransaction(tx);
 
