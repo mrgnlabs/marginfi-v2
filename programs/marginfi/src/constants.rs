@@ -139,3 +139,12 @@ pub const TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE: u64 = 0;
 pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
 pub const PYTH_PUSH_PYTH_SPONSORED_SHARD_ID: u16 = 0;
 pub const PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
+
+/// A regular asset that can be comingled with any other regular asset or with `ASSET_TAG_SOL`
+pub const ASSET_TAG_DEFAULT: u8 = 0;
+/// Accounts with a SOL position can comingle with **either** `ASSET_TAG_DEFAULT` or
+/// `ASSET_TAG_STAKED` positions, but not both
+pub const ASSET_TAG_SOL: u8 = 1;
+/// Staked SOL assets. Accounts with a STAKED position can only deposit other STAKED assets or SOL
+/// (`ASSET_TAG_SOL`) and can only borrow SOL (`ASSET_TAG_SOL`)
+pub const ASSET_TAG_STAKED: u8 = 2;

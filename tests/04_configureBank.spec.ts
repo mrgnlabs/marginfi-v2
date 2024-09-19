@@ -5,12 +5,13 @@ import { Marginfi } from "../target/types/marginfi";
 import { bankKeypairUsdc, groupAdmin, marginfiGroup } from "./rootHooks";
 import { assertBNEqual, assertI80F48Approx } from "./utils/genericTests";
 import { assert } from "chai";
-import {
-  BankConfigOptRaw,
-  InterestRateConfigRaw,
-} from "@mrgnlabs/marginfi-client-v2";
+import { InterestRateConfigRaw } from "@mrgnlabs/marginfi-client-v2";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
-import { defaultBankConfigOptRaw } from "./utils/types";
+import {
+  ASSET_TAG_SOL,
+  BankConfigOptWithAssetTag,
+  defaultBankConfigOptRaw,
+} from "./utils/types";
 
 describe("Lending pool configure bank", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -27,7 +28,7 @@ describe("Lending pool configure bank", () => {
       protocolIrFee: bigNumberToWrappedI80F48(0.6),
     };
 
-    let bankConfigOpt: BankConfigOptRaw = {
+    let bankConfigOpt: BankConfigOptWithAssetTag = {
       assetWeightInit: bigNumberToWrappedI80F48(0.6),
       assetWeightMaint: bigNumberToWrappedI80F48(0.7),
       liabilityWeightInit: bigNumberToWrappedI80F48(1.9),
@@ -35,6 +36,7 @@ describe("Lending pool configure bank", () => {
       depositLimit: new BN(5000),
       borrowLimit: new BN(10000),
       riskTier: null,
+      assetTag: ASSET_TAG_SOL,
       totalAssetValueInitLimit: new BN(15000),
       interestRateConfig: interestRateConfig,
       operationalState: {
@@ -78,6 +80,7 @@ describe("Lending pool configure bank", () => {
     assert.deepEqual(config.oracleSetup, { pythLegacy: {} }); // no change
     assertBNEqual(config.borrowLimit, 10000);
     assert.deepEqual(config.riskTier, { collateral: {} }); // no change
+    assert.equal(config.assetTag, ASSET_TAG_SOL);
     assertBNEqual(config.totalAssetValueInitLimit, 15000);
     assert.equal(config.oracleMaxAge, 50);
   });

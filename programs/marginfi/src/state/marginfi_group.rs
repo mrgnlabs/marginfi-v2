@@ -2,7 +2,6 @@ use super::{
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
-use crate::borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
@@ -19,6 +18,10 @@ use crate::{
     set_if_some,
     state::marginfi_account::calc_value,
     MarginfiResult,
+};
+use crate::{
+    borsh::{BorshDeserialize, BorshSerialize},
+    constants::ASSET_TAG_DEFAULT,
 };
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::*;
@@ -547,6 +550,8 @@ impl Bank {
 
         set_if_some!(self.config.risk_tier, config.risk_tier);
 
+        set_if_some!(self.config.asset_tag, config.asset_tag);
+
         set_if_some!(
             self.config.total_asset_value_init_limit,
             config.total_asset_value_init_limit
@@ -978,7 +983,17 @@ pub struct BankConfigCompact {
 
     pub risk_tier: RiskTier,
 
-    pub _pad0: [u8; 7],
+    /// Determines what kinds of assets users of this bank can interact with.
+    /// Options:
+    /// * ASSET_TAG_DEFAULT (0) - A regular asset that can be comingled with any other regular asset
+    ///   or with `ASSET_TAG_SOL`
+    /// * ASSET_TAG_SOL (1) - Accounts with a SOL position can comingle with **either**
+    /// `ASSET_TAG_DEFAULT` or `ASSET_TAG_STAKED` positions, but not both
+    /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
+    /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
+    pub asset_tag: u8,
+
+    pub _pad0: [u8; 6],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1016,7 +1031,8 @@ impl From<BankConfigCompact> for BankConfig {
             _pad0: [0; 6],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
-            _pad1: [0; 7],
+            asset_tag: ASSET_TAG_DEFAULT,
+            _pad1: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
             _padding: [0; 38],
@@ -1038,7 +1054,8 @@ impl From<BankConfig> for BankConfigCompact {
             oracle_key: config.oracle_keys[0],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
-            _pad0: [0; 7],
+            asset_tag: ASSET_TAG_DEFAULT,
+            _pad0: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
         }
@@ -1077,7 +1094,17 @@ pub struct BankConfig {
 
     pub risk_tier: RiskTier,
 
-    pub _pad1: [u8; 7],
+    /// Determines what kinds of assets users of this bank can interact with.
+    /// Options:
+    /// * ASSET_TAG_DEFAULT (0) - A regular asset that can be comingled with any other regular asset
+    ///   or with `ASSET_TAG_SOL`
+    /// * ASSET_TAG_SOL (1) - Accounts with a SOL position can comingle with **either**
+    /// `ASSET_TAG_DEFAULT` or `ASSET_TAG_STAKED` positions, but not both
+    /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
+    /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
+    pub asset_tag: u8,
+
+    pub _pad1: [u8; 6],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1110,7 +1137,8 @@ impl Default for BankConfig {
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
             _pad0: [0; 6],
             risk_tier: RiskTier::Isolated,
-            _pad1: [0; 7],
+            asset_tag: ASSET_TAG_DEFAULT,
+            _pad1: [0; 6],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
             _padding: [0; 38],
@@ -1273,6 +1301,8 @@ pub struct BankConfigOpt {
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
     pub risk_tier: Option<RiskTier>,
+
+    pub asset_tag: Option<u8>,
 
     pub total_asset_value_init_limit: Option<u64>,
 

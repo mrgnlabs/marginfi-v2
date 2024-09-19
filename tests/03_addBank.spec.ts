@@ -19,7 +19,7 @@ import {
   assertKeyDefault,
   assertKeysEqual,
 } from "./utils/genericTests";
-import { defaultBankConfig } from "./utils/types";
+import { ASSET_TAG_DEFAULT, defaultBankConfig } from "./utils/types";
 import {
   deriveLiquidityVaultAuthority,
   deriveLiquidityVault,
@@ -129,6 +129,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.deepEqual(config.oracleSetup, { pythLegacy: {} });
     assertBNEqual(config.borrowLimit, 100_000_000_000);
     assert.deepEqual(config.riskTier, { collateral: {} });
+    assert.equal(config.assetTag, ASSET_TAG_DEFAULT);
     assertBNEqual(config.totalAssetValueInitLimit, 1_000_000_000_000);
     assert.equal(config.oracleMaxAge, 100);
   });

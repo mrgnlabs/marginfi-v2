@@ -14,7 +14,6 @@ import { Marginfi } from "../target/types/marginfi";
 import {
   Keypair,
   PublicKey,
-  StakeProgram,
   SystemProgram,
   SYSVAR_STAKE_HISTORY_PUBKEY,
   Transaction,
@@ -53,7 +52,7 @@ export const users: MockUser[] = [];
 export const numUsers = 2;
 
 export const validators: Validator[] = [];
-export const numValidators = 2;
+export const numValidators = 1;
 
 /** Group used for all happy-path tests */
 export const marginfiGroup = Keypair.generate();
@@ -161,6 +160,9 @@ export const mochaHooks = {
       ecosystem.tokenBDecimals,
       verbose
     );
+    copyKeys.push(oracles.wsolOracle.publicKey);
+    copyKeys.push(oracles.usdcOracle.publicKey);
+    copyKeys.push(oracles.tokenAOracle.publicKey);
 
     for (let i = 0; i < numValidators; i++) {
       const validator = await createValidator(

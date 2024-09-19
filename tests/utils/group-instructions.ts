@@ -9,7 +9,7 @@ import {
   deriveLiquidityVault,
   deriveLiquidityVaultAuthority,
 } from "./pdas";
-import { BankConfig } from "./types";
+import { BankConfig, BankConfigOptWithAssetTag } from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { BankConfigOptRaw } from "@mrgnlabs/marginfi-client-v2";
 
@@ -52,7 +52,8 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
       oracleKey: args.config.oracleKey,
       borrowLimit: args.config.borrowLimit,
       riskTier: args.config.riskTier,
-      pad0: [0, 0, 0, 0, 0, 0, 0],
+      assetTag: args.config.assetTag,
+      pad0: [0, 0, 0, 0, 0, 0],
       totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
       oracleMaxAge: args.config.oracleMaxAge,
     })
@@ -128,7 +129,7 @@ export type ConfigureBankArgs = {
   marginfiGroup: PublicKey;
   admin: PublicKey;
   bank: PublicKey;
-  bankConfigOpt: BankConfigOptRaw;
+  bankConfigOpt: BankConfigOptWithAssetTag; // BankConfigOptRaw + assetTag
 };
 
 export const configureBank = (

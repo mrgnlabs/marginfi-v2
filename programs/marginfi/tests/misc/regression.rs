@@ -4,10 +4,13 @@ use anchor_lang::AccountDeserialize;
 use anyhow::bail;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use fixed::types::I80F48;
-use marginfi::state::{
-    marginfi_account::MarginfiAccount,
-    marginfi_group::{Bank, BankOperationalState, RiskTier},
-    price::OracleSetup,
+use marginfi::{
+    constants::ASSET_TAG_DEFAULT,
+    state::{
+        marginfi_account::MarginfiAccount,
+        marginfi_group::{Bank, BankOperationalState, RiskTier},
+        price::OracleSetup,
+    },
 };
 use solana_account_decoder::UiAccountData;
 use solana_cli_output::CliAccount;
@@ -635,7 +638,8 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank.config._pad0, [0; 6]);
     assert_eq!(bank.config.borrow_limit, 2000000000000);
     assert_eq!(bank.config.risk_tier, RiskTier::Collateral);
-    assert_eq!(bank.config._pad1, [0; 7]);
+    assert_eq!(bank.config.asset_tag, ASSET_TAG_DEFAULT);
+    assert_eq!(bank.config._pad1, [0; 6]);
     assert_eq!(bank.config.total_asset_value_init_limit, 0);
     assert_eq!(bank.config.oracle_max_age, 300);
     assert_eq!(bank.config._padding, [0; 38]);

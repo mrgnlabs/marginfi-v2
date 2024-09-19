@@ -26,6 +26,10 @@ export const EMISSIONS_FLAG_NONE = 0;
 export const EMISSIONS_FLAG_BORROW_ACTIVE = 1;
 export const EMISSIONS_FLAG_LENDING_ACTIVE = 2;
 
+export const ASSET_TAG_DEFAULT = 0;
+export const ASSET_TAG_SOL = 1;
+export const ASSET_TAG_STAKED = 2;
+
 type OperationalStateRaw =
   | { paused: {} }
   | { operational: {} }
@@ -51,6 +55,7 @@ export type BankConfig = {
   borrowLimit: BN;
   /** Collateral = 0, Isolated = 1 */
   riskTier: RiskTierRaw;
+  assetTag: number;
   totalAssetValueInitLimit: BN;
   oracleMaxAge: number;
 };
@@ -62,6 +67,7 @@ export type BankConfig = {
  * * uses the given oracle, assumes it's = pythLegacy
  * * 100_000_000_000 deposit/borrow limit
  * * 1_000_000_000_000 total asset value limit
+ * * asset tag default (`ASSET_TAG_DEFAULT`)
  * @returns
  */
 export const defaultBankConfig = (oracleKey: PublicKey) => {
@@ -83,6 +89,7 @@ export const defaultBankConfig = (oracleKey: PublicKey) => {
     riskTier: {
       collateral: undefined,
     },
+    assetTag: ASSET_TAG_DEFAULT,
     totalAssetValueInitLimit: new BN(1_000_000_000_000),
     oracleMaxAge: 100,
   };
@@ -118,7 +125,7 @@ export const defaultBankConfigOpt = () => {
  * @returns
  */
 export const defaultBankConfigOptRaw = () => {
-  let bankConfigOpt: BankConfigOptRaw = {
+  let bankConfigOpt: BankConfigOptWithAssetTag = {
     assetWeightInit: I80F48_ONE,
     assetWeightMaint: I80F48_ONE,
     liabilityWeightInit: I80F48_ONE,
@@ -128,6 +135,7 @@ export const defaultBankConfigOptRaw = () => {
     riskTier: {
       collateral: undefined,
     },
+    assetTag: ASSET_TAG_DEFAULT,
     totalAssetValueInitLimit: new BN(100_000_000_000),
     interestRateConfig: defaultInterestRateConfigRaw(),
     operationalState: {
@@ -177,4 +185,9 @@ export const defaultInterestRateConfig = () => {
     protocolIrFee: new BigNumber(0),
   };
   return config;
+};
+
+// TODO remove when package updates
+export type BankConfigOptWithAssetTag = BankConfigOptRaw & {
+  assetTag: number | null;
 };
