@@ -214,13 +214,30 @@ impl PythLegacyPriceFeed {
     pub fn load_checked(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
         let price_feed = load_pyth_price_feed(ai)?;
 
-        let ema_price = price_feed
-            .get_ema_price_no_older_than(current_time, max_age)
-            .ok_or(MarginfiError::StaleOracle)?;
+        // Note: mainnet/staging/devnet use oracle age, localnet ignores oracle age
+        let ema_price = if cfg!(any(
+            feature = "mainnet-beta",
+            feature = "staging",
+            feature = "devnet"
+        )) {
+            price_feed
+                .get_ema_price_no_older_than(current_time, max_age)
+                .ok_or(MarginfiError::StaleOracle)?
+        } else {
+            price_feed.get_ema_price_unchecked()
+        };
 
-        let price = price_feed
-            .get_price_no_older_than(current_time, max_age)
-            .ok_or(MarginfiError::StaleOracle)?;
+        let price = if cfg!(any(
+            feature = "mainnet-beta",
+            feature = "staging",
+            feature = "devnet"
+        )) {
+            price_feed
+                .get_price_no_older_than(current_time, max_age)
+                .ok_or(MarginfiError::StaleOracle)?
+        } else {
+            price_feed.get_price_unchecked()
+        };
 
         Ok(Self {
             ema_price: Box::new(ema_price),

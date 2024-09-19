@@ -218,7 +218,7 @@ const addValidator = (validator: Validator) => {
 
 const addUser = (user: MockUser) => {
   users.push(user);
-  // copyKeys.push(user.tokenAAccount);
+  copyKeys.push(user.tokenAAccount);
   // copyKeys.push(user.tokenBAccount);
   copyKeys.push(user.usdcAccount);
   copyKeys.push(user.wallet.publicKey);
@@ -227,9 +227,7 @@ const addUser = (user: MockUser) => {
 
 /**
  * Create a mock validator with given vote/withdraw authority
- *
- * * Note: Spl Pool fields are initialized to pubkey default.
- *
+ * * Note: Spl Pool fields (splPool, mint, authority, stake) are initialized to pubkey default.
  * @param provider
  * @param authorizedVoter - also pays init fees
  * @param authorizedWithdrawer - also pays init fees
@@ -305,7 +303,7 @@ export const createSplStakePool = async (
   // @ts-ignore // Doesn't matter
   await provider.sendAndConfirm(tx, [users[0].wallet]);
 
-  // Note: you can import the id from @solana/spl-single-pool (the classic version doesn't have it)
+  // Note: import the id from @solana/spl-single-pool (the classic version doesn't have it)
   const poolKey = await findPoolAddress(
     SINGLE_POOL_PROGRAM_ID,
     validator.voteAccount
@@ -337,7 +335,7 @@ export const createSplStakePool = async (
     poolKey
   );
   validator.splAuthority = poolAuthority;
-  // Note: accounts that do not exist (blank PDAs) cannot be pushed)
+  // Note: accounts that do not exist (blank PDAs) cannot be pushed to bankrun
   // copyKeys.push(poolAuthority);
 
   return { poolKey, poolMintKey, poolAuthority, poolStake };

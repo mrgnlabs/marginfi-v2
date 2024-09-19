@@ -26,6 +26,7 @@ import { assert } from "chai";
 import { depositIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { createMintToInstruction } from "@solana/spl-token";
+import { deriveLiquidityVault } from "./utils/pdas";
 
 describe("Deposit funds", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -65,21 +66,30 @@ describe("Deposit funds", () => {
   });
 
   it("(user 0) deposit token A to bank - happy path", async () => {
-    const userABefore = await getTokenBalance(provider, users[0].tokenAAccount);
+    const user = users[0];
+    const [bankLiquidityVault] = deriveLiquidityVault(
+      program.programId,
+      bankKeypairA.publicKey
+    );
+    const [userABefore, vaultABefore] = await Promise.all([
+      getTokenBalance(provider, user.tokenAAccount),
+      getTokenBalance(provider, bankLiquidityVault),
+    ]);
     if (verbose) {
       console.log("user 0 A before: " + userABefore.toLocaleString());
+      console.log("vault A before:  " + vaultABefore.toLocaleString());
     }
 
-    const user0Account = users[0].accounts.get(USER_ACCOUNT);
+    const user0Account = user.accounts.get(USER_ACCOUNT);
 
     await users[0].userMarginProgram.provider.sendAndConfirm(
       new Transaction().add(
         await depositIx(program, {
           marginfiGroup: marginfiGroup.publicKey,
           marginfiAccount: user0Account,
-          authority: users[0].wallet.publicKey,
+          authority: user.wallet.publicKey,
           bank: bankKeypairA.publicKey,
-          tokenAccount: users[0].tokenAAccount,
+          tokenAccount: user.tokenAAccount,
           amount: depositAmountA_native,
         })
       )
@@ -96,32 +106,36 @@ describe("Deposit funds", () => {
     let now = Math.floor(Date.now() / 1000);
     assertBNApproximately(balances[0].lastUpdate, now, 2);
 
-    const userAAfter = await getTokenBalance(provider, users[0].tokenAAccount);
+    const [userAAfter, vaultAAfter] = await Promise.all([
+      getTokenBalance(provider, user.tokenAAccount),
+      getTokenBalance(provider, bankLiquidityVault),
+    ]);
     if (verbose) {
-      console.log("user 0 A after: " + userABefore.toLocaleString());
+      console.log("user 0 A after: " + userAAfter.toLocaleString());
+      console.log("vault A after:  " + vaultAAfter.toLocaleString());
     }
     assert.equal(userABefore - depositAmountA_native.toNumber(), userAAfter);
+    // TODO this will change when origination fees are implemented.
+    assert.equal(vaultABefore + depositAmountA_native.toNumber(), vaultAAfter);
   });
 
   it("(user 1) deposit USDC to bank - happy path", async () => {
-    const userUsdcBefore = await getTokenBalance(
-      provider,
-      users[1].usdcAccount
-    );
+    const user = users[1];
+    const userUsdcBefore = await getTokenBalance(provider, user.usdcAccount);
     if (verbose) {
-      console.log("user 1 usdc before: " + userUsdcBefore.toLocaleString());
+      console.log("user 1 USDC before: " + userUsdcBefore.toLocaleString());
     }
 
-    const user1Account = users[1].accounts.get(USER_ACCOUNT);
+    const user1Account = user.accounts.get(USER_ACCOUNT);
 
     await users[1].userMarginProgram.provider.sendAndConfirm(
       new Transaction().add(
         await depositIx(program, {
           marginfiGroup: marginfiGroup.publicKey,
           marginfiAccount: user1Account,
-          authority: users[1].wallet.publicKey,
+          authority: user.wallet.publicKey,
           bank: bankKeypairUsdc.publicKey,
-          tokenAccount: users[1].usdcAccount,
+          tokenAccount: user.usdcAccount,
           amount: depositAmountUsdc_native,
         })
       )
@@ -138,9 +152,9 @@ describe("Deposit funds", () => {
     let now = Math.floor(Date.now() / 1000);
     assertBNApproximately(balances[0].lastUpdate, now, 2);
 
-    const userUsdcAfter = await getTokenBalance(provider, users[1].usdcAccount);
+    const userUsdcAfter = await getTokenBalance(provider, user.usdcAccount);
     if (verbose) {
-      console.log("user 1 usdc after: " + userUsdcBefore.toLocaleString());
+      console.log("user 1 USDC after: " + userUsdcAfter.toLocaleString());
     }
     assert.equal(
       userUsdcBefore - depositAmountUsdc_native.toNumber(),
