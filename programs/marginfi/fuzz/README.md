@@ -28,3 +28,21 @@ Before the invoke we also copy to a local cache and revert the state if the inst
 ### Actions
 
 The framework uses the arbitrary library to generate a random sequence of actions that are then processed on the same state.
+
+### How to Run
+
+Run `python3 ./generate_corpus.py`. You may use python if you don't have python3 installed, or you may need to install python.
+
+Build with `cargo build`. 
+
+If this fails, you probably need to update your Rust toolchain: 
+
+`rustup install nightly-2024-06-05`
+
+And possibly: 
+
+`rustup component add rust-src --toolchain nightly-2024-06-05-x86_64-unknown-linux-gnu`
+
+Run with `cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300`
+
+To rerun some tests after a failure: `cargo +nightly-2024-06-05 fuzz run -Zbuild-std lend artifacts/lend/crash-ae5084b9433152babdaf7dcd75781eacd7ea55c7`, replacing  the hash after crash- with the one you see in the terminal.
