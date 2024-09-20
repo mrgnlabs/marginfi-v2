@@ -107,10 +107,10 @@ pub fn check_flashloan_can_start(
 
     let marginf_account = marginfi_account.load()?;
 
-    check!(
-        !marginf_account.get_flag(DISABLED_FLAG),
-        MarginfiError::AccountDisabled
-    );
+    // check!(
+    //     !marginf_account.get_flag(DISABLED_FLAG),
+    //     MarginfiError::AccountDisabled
+    // );
 
     check!(
         !marginf_account.get_flag(IN_FLASHLOAN_FLAG),
