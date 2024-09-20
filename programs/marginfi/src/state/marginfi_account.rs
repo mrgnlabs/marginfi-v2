@@ -5,9 +5,7 @@ use super::{
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
-        EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR,
-        ZERO_AMOUNT_THRESHOLD,
+        ASSET_TAG_DEFAULT, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -753,7 +751,10 @@ assert_struct_align!(Balance, 8);
 pub struct Balance {
     pub active: bool,
     pub bank_pk: Pubkey,
-    pub _pad0: [u8; 7],
+    /// Inherited from the bank when the position is first created and CANNOT BE CHANGED after that.
+    /// Note that all balances created before the addition of this feature use `ASSET_TAG_DEFAULT`
+    pub bank_asset_tag: u8,
+    pub _pad0: [u8; 6],
     pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
     pub emissions_outstanding: WrappedI80F48,
@@ -825,7 +826,8 @@ impl Balance {
         Balance {
             active: false,
             bank_pk: Pubkey::default(),
-            _pad0: [0; 7],
+            bank_asset_tag: ASSET_TAG_DEFAULT,
+            _pad0: [0; 6],
             asset_shares: WrappedI80F48::from(I80F48::ZERO),
             liability_shares: WrappedI80F48::from(I80F48::ZERO),
             emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),
@@ -885,7 +887,8 @@ impl<'a> BankAccountWrapper<'a> {
                 lending_account.balances[empty_index] = Balance {
                     active: true,
                     bank_pk: *bank_pk,
-                    _pad0: [0; 7],
+                    bank_asset_tag: bank.config.asset_tag,
+                    _pad0: [0; 6],
                     asset_shares: I80F48::ZERO.into(),
                     liability_shares: I80F48::ZERO.into(),
                     emissions_outstanding: I80F48::ZERO.into(),
@@ -1415,7 +1418,8 @@ mod test {
                 balances: [Balance {
                     active: true,
                     bank_pk: bank_pk.into(),
-                    _pad0: [0; 7],
+                    bank_asset_tag: ASSET_TAG_DEFAULT,
+                    _pad0: [0; 6],
                     asset_shares: WrappedI80F48::default(),
                     liability_shares: WrappedI80F48::default(),
                     emissions_outstanding: WrappedI80F48::default(),

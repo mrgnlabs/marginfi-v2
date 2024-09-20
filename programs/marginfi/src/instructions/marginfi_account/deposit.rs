@@ -1,13 +1,13 @@
 use crate::{
     check,
-    constants::LIQUIDITY_VAULT_SEED,
+    constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, LIQUIDITY_VAULT_SEED},
     events::{AccountEventHeader, LendingAccountDepositEvent},
     prelude::*,
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
         marginfi_group::Bank,
     },
-    utils,
+    utils::{self, validate_asset_tags},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::TokenInterface;
@@ -43,6 +43,8 @@ pub fn lending_account_deposit<'info>(
 
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+
+    validate_asset_tags(&bank, &marginfi_account)?;
 
     check!(
         !marginfi_account.get_flag(DISABLED_FLAG),

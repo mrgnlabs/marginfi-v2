@@ -7,6 +7,7 @@ import { BankrunProvider } from "anchor-bankrun";
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
 import { assert } from "chai";
+import { BanksTransactionResultWithMeta } from "solana-bankrun";
 
 /**
  * Shorthand for `assert.equal(a.toString(), b.toString())`
@@ -174,4 +175,20 @@ export const waitUntil = async (
   }
   const toWait = Math.ceil(time - now) * 1000;
   await new Promise((r) => setTimeout(r, toWait));
+};
+
+/**
+ * Assert a bankrun Tx executed with `tryProcessTransaction` failed with the expected error code.
+ * Throws an error if the tx succeeded or a different error was found.
+ * @param result
+ * @param expectedErrorCode - In hex, as you see in Anchor logs, e.g. for error 6047 pass `0x179f`
+ */
+export const assertBankrunTxFailed = (
+  result: BanksTransactionResultWithMeta,
+  expectedErrorCode: string
+) => {
+  assert(result.meta.logMessages.length > 0);
+  assert(result.result, "TX succeeded when it should have failed");
+  const lastLog = result.meta.logMessages.pop();
+  assert(lastLog.includes(expectedErrorCode), "Actual error: " + lastLog);
 };

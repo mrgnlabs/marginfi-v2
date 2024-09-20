@@ -60,6 +60,8 @@ export const marginfiGroup = Keypair.generate();
 export const bankKeypairUsdc = Keypair.generate();
 /** Bank for token A */
 export const bankKeypairA = Keypair.generate();
+/** Bank for "WSOL", which is treated the same as SOL */
+export const bankKeypairSol = Keypair.generate();
 
 export let bankrunContext: ProgramTestContext;
 export let bankRunProvider: BankrunProvider;
@@ -74,24 +76,31 @@ export const mochaHooks = {
     const provider = AnchorProvider.local();
     const wallet = provider.wallet as Wallet;
 
+    copyKeys.push(wallet.publicKey);
+
     if (verbose) {
       console.log("Global Ecosystem Information ");
       echoEcosystemInfo(ecosystem, {
         skipA: false,
         skipB: false,
         skipUsdc: false,
-        skipWsol: true,
+        skipWsol: false,
       });
       console.log("");
     }
 
+    const { ixes: wsolIxes, mint: wsolMint } = await createSimpleMint(
+      provider.publicKey,
+      provider.connection,
+      ecosystem.wsolDecimals,
+      ecosystem.wsolMint
+    );
     const { ixes: usdcIxes, mint: usdcMint } = await createSimpleMint(
       provider.publicKey,
       provider.connection,
       ecosystem.usdcDecimals,
       ecosystem.usdcMint
     );
-
     const { ixes: aIxes, mint: aMint } = await createSimpleMint(
       provider.publicKey,
       provider.connection,
@@ -105,18 +114,24 @@ export const mochaHooks = {
       ecosystem.tokenBMint
     );
     const tx = new Transaction();
+    tx.add(...wsolIxes);
     tx.add(...usdcIxes);
     tx.add(...aIxes);
     tx.add(...bIxes);
 
-    await provider.sendAndConfirm(tx, [usdcMint, aMint, bMint]);
-    copyKeys.push(usdcMint.publicKey, aMint.publicKey, bMint.publicKey);
+    await provider.sendAndConfirm(tx, [wsolMint, usdcMint, aMint, bMint]);
+    copyKeys.push(
+      wsolMint.publicKey,
+      usdcMint.publicKey,
+      aMint.publicKey,
+      bMint.publicKey
+    );
 
     const setupUserOptions: SetupTestUserOptions = {
       marginProgram: mrgnProgram,
       forceWallet: undefined,
       // If mints are created, typically create the ATA too, otherwise pass undefined...
-      wsolMint: undefined,
+      wsolMint: ecosystem.wsolMint.publicKey,
       tokenAMint: ecosystem.tokenAMint.publicKey,
       tokenBMint: ecosystem.tokenBMint.publicKey,
       usdcMint: ecosystem.usdcMint.publicKey,
@@ -224,7 +239,7 @@ const addUser = (user: MockUser) => {
   // copyKeys.push(user.tokenBAccount);
   copyKeys.push(user.usdcAccount);
   copyKeys.push(user.wallet.publicKey);
-  // copyKeys.push(user.wsolAccount);
+  copyKeys.push(user.wsolAccount);
 };
 
 /**
@@ -279,6 +294,7 @@ export const createValidator = async (
     splMint: PublicKey.default,
     splAuthority: PublicKey.default,
     splStake: PublicKey.default,
+    bank: PublicKey.default,
   };
 
   return validator;

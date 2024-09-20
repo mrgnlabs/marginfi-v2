@@ -1,38 +1,30 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { Keypair, Transaction } from "@solana/web3.js";
 import { addBank, groupInitialize } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
 import {
-  bankKeypairA,
+  bankKeypairSol,
   bankKeypairUsdc,
   bankrunContext,
+  bankrunProgram,
   banksClient,
   ecosystem,
   groupAdmin,
   marginfiGroup,
   oracles,
-  printBuffers,
-  users,
+  validators,
   verbose,
 } from "./rootHooks";
 import {
-  assertBNEqual,
-  assertI80F48Approx,
-  assertI80F48Equal,
-  assertKeyDefault,
   assertKeysEqual,
 } from "./utils/genericTests";
-import { ASSET_TAG_DEFAULT, defaultBankConfig } from "./utils/types";
 import {
-  deriveLiquidityVaultAuthority,
-  deriveLiquidityVault,
-  deriveInsuranceVaultAuthority,
-  deriveInsuranceVault,
-  deriveFeeVaultAuthority,
-  deriveFeeVault,
-} from "./utils/pdas";
+  ASSET_TAG_DEFAULT,
+  ASSET_TAG_SOL,
+  ASSET_TAG_STAKED,
+  defaultBankConfig,
+} from "./utils/types";
 import { assert } from "chai";
-import { printBufferGroups } from "./utils/tools";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 
 describe("Init group and add banks with asset category flags", () => {
@@ -51,7 +43,7 @@ describe("Init group and add banks with asset category flags", () => {
     tx.sign(groupAdmin.wallet, marginfiGroup);
     await banksClient.processTransaction(tx);
 
-    let group = await program.account.marginfiGroup.fetch(
+    let group = await bankrunProgram.account.marginfiGroup.fetch(
       marginfiGroup.publicKey
     );
     assertKeysEqual(group.admin, groupAdmin.wallet.publicKey);
@@ -64,10 +56,8 @@ describe("Init group and add banks with asset category flags", () => {
   it("(admin) Add bank (USDC) - is neither SOL nor staked LST", async () => {
     let setConfig = defaultBankConfig(oracles.usdcOracle.publicKey);
     let bankKey = bankKeypairUsdc.publicKey;
-    const now = Date.now() / 1000;
 
     let tx = new Transaction();
-
     tx.add(
       await addBank(program, {
         marginfiGroup: marginfiGroup.publicKey,
@@ -86,37 +76,68 @@ describe("Init group and add banks with asset category flags", () => {
       console.log("*init USDC bank " + bankKey);
     }
 
-    let bankData = (
-      await program.provider.connection.getAccountInfo(bankKey)
-    ).data.subarray(8);
-    if (printBuffers) {
-      printBufferGroups(bankData, 16, 896);
-    }
-
-    const bank = await program.account.bank.fetch(bankKey);
+    const bank = await bankrunProgram.account.bank.fetch(bankKey);
     assert.equal(bank.config.assetTag, ASSET_TAG_DEFAULT);
   });
 
-  //   it("(admin) Add bank (token A) - happy path", async () => {
-  //     let config = defaultBankConfig(oracles.tokenAOracle.publicKey);
-  //     let bankKey = bankKeypairA.publicKey;
+  it("(admin) Add bank (SOL) - is tagged as SOL", async () => {
+    let setConfig = defaultBankConfig(oracles.wsolOracle.publicKey);
+    setConfig.assetTag = ASSET_TAG_SOL;
+    let bankKey = bankKeypairSol.publicKey;
 
-  //     await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
-  //       new Transaction().add(
-  //         await addBank(program, {
-  //           marginfiGroup: marginfiGroup.publicKey,
-  //           admin: groupAdmin.wallet.publicKey,
-  //           feePayer: groupAdmin.wallet.publicKey,
-  //           bankMint: ecosystem.tokenAMint.publicKey,
-  //           bank: bankKey,
-  //           config: config,
-  //         })
-  //       ),
-  //       [bankKeypairA]
-  //     );
+    let tx = new Transaction();
+    tx.add(
+      await addBank(program, {
+        marginfiGroup: marginfiGroup.publicKey,
+        admin: groupAdmin.wallet.publicKey,
+        feePayer: groupAdmin.wallet.publicKey,
+        bankMint: ecosystem.wsolMint.publicKey,
+        bank: bankKey,
+        config: setConfig,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet, bankKeypairSol);
+    await banksClient.processTransaction(tx);
 
-  //     if (verbose) {
-  //       console.log("*init token A bank " + bankKey);
-  //     }
-  //   });
+    if (verbose) {
+      console.log("*init SOL bank " + bankKey);
+    }
+
+    const bank = await bankrunProgram.account.bank.fetch(bankKey);
+    assert.equal(bank.config.assetTag, ASSET_TAG_SOL);
+  });
+
+  it("(admin) Add bank (Staked SOL) - is tagged as Staked", async () => {
+    let setConfig = defaultBankConfig(oracles.wsolOracle.publicKey);
+    setConfig.assetTag = ASSET_TAG_STAKED;
+    // Staked assets aren't designed to be borrowed...
+    setConfig.borrowLimit = new BN(0);
+    let bankKeypair = Keypair.generate();
+    validators[0].bank = bankKeypair.publicKey;
+
+    let tx = new Transaction();
+    tx.add(
+      await addBank(program, {
+        marginfiGroup: marginfiGroup.publicKey,
+        admin: groupAdmin.wallet.publicKey,
+        feePayer: groupAdmin.wallet.publicKey,
+        bankMint: validators[0].splMint,
+        bank: validators[0].bank,
+        config: setConfig,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet, bankKeypair);
+    await banksClient.processTransaction(tx);
+
+    if (verbose) {
+      console.log("*init LST bank " + validators[0].bank + " (validator 0)");
+    }
+
+    const bank = await bankrunProgram.account.bank.fetch(validators[0].bank);
+    assert.equal(bank.config.assetTag, ASSET_TAG_STAKED);
+  });
+
+  // TODO add an LST-based pool without permission
 });

@@ -86,16 +86,18 @@ pub enum MarginfiError {
     IllegalFlashloan,
     #[msg("Illegal flag")] // 6041
     IllegalFlag,
-    #[msg("Illegal balance state")] // 6043
+    #[msg("Illegal balance state")] // 6042
     IllegalBalanceState,
-    #[msg("Illegal account authority transfer")] // 6044
+    #[msg("Illegal account authority transfer")] // 6043
     IllegalAccountAuthorityTransfer,
-    #[msg("Unauthorized")] // 6045
+    #[msg("Unauthorized")] // 6044
     Unauthorized,
-    #[msg("Invalid account authority")] // 6046
+    #[msg("Invalid account authority")] // 6045
     IllegalAction,
-    #[msg("Token22 Banks require mint account as first remaining account")] // 6047
+    #[msg("Token22 Banks require mint account as first remaining account")] // 6046
     T22MintRequired,
+    #[msg("Staked SOL accounts can only deposit staked assets and borrow SOL")] // 6047
+    AssetTagMismatch,
 }
 
 impl From<MarginfiError> for ProgramError {

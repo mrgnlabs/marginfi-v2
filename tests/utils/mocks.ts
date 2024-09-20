@@ -103,6 +103,10 @@ export type MockUser = {
 
 /** in mockUser.accounts, key used to get/set the users's account for group 0 */
 export const USER_ACCOUNT: string = "g0_acc";
+/** in mockUser.accounts, key used to get/set the users's LST ATA for validator 0 */
+export const LST_ATA = "v0_lstAta"
+/** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */
+export const STAKE_ACC = "v0_stakeAcc"
 
 /**
  * Options to skip various parts of mock user setup
@@ -364,4 +368,6 @@ export type Validator = {
   splAuthority: PublicKey;
   /** spl pool's stake account */
   splStake: PublicKey;
+  /** bank created for this validator's LST on the "main" group */
+  bank: PublicKey;
 };
