@@ -74,6 +74,7 @@ pub enum Command {
     ShowOracleAges {
         #[clap(long, action)]
         only_stale: bool,
+        marginfi_group: Option<Pubkey>,
     },
     InspectPythPushOracleFeed {
         pyth_feed: Pubkey,
@@ -158,6 +159,7 @@ pub enum GroupCommand {
         #[clap(short = 't', long)]
         existing_token_lookup_tables: Vec<Pubkey>,
     },
+    CollectAllFees,
 }
 
 #[derive(Clone, Copy, Debug, Parser, ArgEnum)]
@@ -439,11 +441,17 @@ pub fn entry(opts: Opts) -> Result<()> {
 
         Command::InspectSize {} => inspect_size(),
 
-        Command::ShowOracleAges { only_stale } => {
+        Command::ShowOracleAges {
+            only_stale,
+            marginfi_group,
+        } => {
             let profile = load_profile()?;
             let config = profile.get_config(Some(&opts.cfg_override))?;
+            let marginfi_group = marginfi_group.unwrap_or(profile.marginfi_group.expect(
+                "If no marginfi group is provided, the profile must have a marginfi group",
+            ));
 
-            processor::show_oracle_ages(config, only_stale)?;
+            processor::show_oracle_ages(config, only_stale, marginfi_group)?;
 
             Ok(())
         }
@@ -628,6 +636,13 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             &profile,
             existing_token_lookup_tables,
         ),
+        GroupCommand::CollectAllFees => processor::admin::process_collect_all_fees(
+            &config,
+            profile
+                .marginfi_group
+                .as_ref()
+                .expect("Group must be set in profile"),
+        ),
     }
 }
 
@@ -754,7 +769,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         BankCommand::SettleAllEmissions { bank } => {
             processor::emissions::claim_all_emissions_for_bank(&config, &profile, bank)
         }
-        BankCommand::CollectFees { bank } => processor::admin::process_collect_fees(config, bank),
+        BankCommand::CollectFees { bank } => processor::admin::process_collect_fees(&config, bank),
         BankCommand::WithdrawFees {
             bank,
             amount,

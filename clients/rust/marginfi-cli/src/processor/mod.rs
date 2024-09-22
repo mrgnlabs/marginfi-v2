@@ -20,12 +20,14 @@ use {
     },
     anchor_spl::token_2022::spl_token_2022,
     anyhow::{anyhow, bail, Result},
+    borsh::BorshDeserialize,
     fixed::types::I80F48,
-    log::info,
+    log::{info, warn},
     marginfi::{
         constants::{
             EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
-            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID, ZERO_AMOUNT_THRESHOLD,
+            PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
+            ZERO_AMOUNT_THRESHOLD,
         },
         prelude::*,
         state::{
@@ -39,6 +41,7 @@ use {
         utils::NumTraitsWithTolerance,
     },
     pyth_sdk_solana::state::{load_price_account, SolanaPriceAccount},
+    pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{
         rpc_client::RpcClient,
         rpc_filter::{Memcmp, RpcFilterType},
@@ -1121,52 +1124,70 @@ Prince:
     Ok(())
 }
 
-pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
-    let banks = config
-        .mfi_program
-        .accounts::<Bank>(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-            8 + size_of::<Pubkey>() + size_of::<u8>(),
-            solana_sdk::pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8")
-                .to_bytes()
-                .to_vec(),
-        ))])?;
-
-    let (pyth_feeds, swb_feeds): (Vec<_>, Vec<_>) = banks
-        .into_iter()
-        .map(|(_, b)| {
-            (
-                b.config.oracle_setup,
-                b.config.oracle_max_age,
-                b.mint,
-                *b.config.oracle_keys.clone().first().unwrap(),
+pub fn get_oracle_addresses(bank_config: &BankConfig) -> Vec<Pubkey> {
+    match bank_config.oracle_setup {
+        OracleSetup::SwitchboardV2 | OracleSetup::PythLegacy => vec![bank_config.oracle_keys[0]],
+        OracleSetup::PythPushOracle => vec![
+            PythPushOraclePriceFeed::find_oracle_address(
+                PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID,
+                bank_config.oracle_keys[0].as_ref().try_into().unwrap(),
             )
-        })
-        .partition(|(setup, _, _, _)| match setup {
-            OracleSetup::PythLegacy => true,
-            OracleSetup::SwitchboardV2 => false,
-            _ => panic!("Unknown oracle setup"),
-        });
+            .0,
+            PythPushOraclePriceFeed::find_oracle_address(
+                PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
+                bank_config.oracle_keys[0].as_ref().try_into().unwrap(),
+            )
+            .0,
+        ],
+        OracleSetup::SwitchboardPull => unimplemented!(),
+        OracleSetup::None => unreachable!(),
+    }
+}
 
-    let pyth_feeds = pyth_feeds
-        .into_iter()
-        .map(|(_, max_age, mint, key)| (max_age, mint, key))
-        .collect::<Vec<_>>();
+pub fn show_oracle_ages(config: Config, only_stale: bool, marginfi_group: Pubkey) -> Result<()> {
+    let mut pyth_feeds = vec![];
+    let mut pyth_push_oracle_feeds = vec![];
+    let mut swb_feeds = vec![];
 
-    let swb_feeds = swb_feeds
-        .into_iter()
-        .map(|(_, max_age, mint, key)| (max_age, mint, key))
-        .collect::<Vec<_>>();
+    let banks = load_all_banks(&config, Some(marginfi_group))?;
 
-    let mut pyth_max_ages: HashMap<Pubkey, (u16, f64)> = HashMap::from_iter(
+    for (_, bank) in banks.iter() {
+        let oracle_addresses = get_oracle_addresses(&bank.config);
+        let max_age_s = bank.config.get_oracle_max_age();
+        match bank.config.oracle_setup {
+            OracleSetup::PythLegacy => {
+                pyth_feeds.push((max_age_s, bank.mint, oracle_addresses[0]));
+            }
+            OracleSetup::SwitchboardV2 => {
+                swb_feeds.push((max_age_s, bank.mint, oracle_addresses[0]));
+            }
+            OracleSetup::PythPushOracle => {
+                pyth_push_oracle_feeds.push((max_age_s, bank.mint, oracle_addresses[0]));
+                pyth_push_oracle_feeds.push((max_age_s, bank.mint, oracle_addresses[1]));
+            }
+            OracleSetup::SwitchboardPull => {
+                warn!("SwitchboardPull is not supported");
+            }
+            OracleSetup::None => unreachable!(),
+        }
+    }
+
+    let mut pyth_max_ages: HashMap<Pubkey, (f64, f64)> = HashMap::from_iter(
         pyth_feeds
             .iter()
-            .map(|(max_age, mint, _)| (*max_age, *mint))
+            .map(|(max_age, mint, _)| (*max_age as f64 / 60f64, *mint))
             .map(|(max_age, mint)| (mint, (max_age, 0f64))),
     );
-    let mut swb_max_ages: HashMap<Pubkey, (u16, f64)> = HashMap::from_iter(
+    let mut pyth_push_oracle_max_ages: HashMap<Pubkey, (f64, f64)> = HashMap::from_iter(
+        pyth_push_oracle_feeds
+            .iter()
+            .map(|(max_age, mint, _)| (*max_age as f64 / 60f64, *mint))
+            .map(|(max_age, mint)| (mint, (max_age, 0f64))),
+    );
+    let mut swb_max_ages: HashMap<Pubkey, (f64, f64)> = HashMap::from_iter(
         swb_feeds
             .iter()
-            .map(|(max_age, mint, _)| (*max_age, *mint))
+            .map(|(max_age, mint, _)| (*max_age as f64 / 60f64, *mint))
             .map(|(max_age, mint)| (mint, (max_age, 0f64))),
     );
 
@@ -1195,6 +1216,33 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
                 let pa: SolanaPriceAccount = *load_price_account(account.data()).unwrap();
 
                 (mint, pa, max_age)
+            })
+            .collect::<Vec<_>>();
+
+        let pyth_push_oracle_keys = pyth_push_oracle_feeds
+            .iter()
+            .map(|(_, _, key)| *key)
+            .collect::<Vec<_>>();
+        let pyth_push_oracle_mints = pyth_push_oracle_feeds
+            .iter()
+            .map(|(_, key, _)| *key)
+            .collect::<Vec<_>>();
+        let pyth_push_oracle_max_age = pyth_push_oracle_feeds
+            .iter()
+            .map(|(max_age, _, _)| *max_age)
+            .collect::<Vec<_>>();
+
+        let pyth_push_oracle_feed_accounts = config
+            .mfi_program
+            .rpc()
+            .get_multiple_accounts(pyth_push_oracle_keys.as_slice())?
+            .into_iter()
+            .zip(pyth_push_oracle_mints)
+            .zip(pyth_push_oracle_max_age)
+            .filter_map(|((maybe_account, mint), max_age)| {
+                let data = maybe_account?.data;
+                let pa = PriceUpdateV2::deserialize(&mut &data[8..]).unwrap();
+                Some((mint, pa, max_age))
             })
             .collect::<Vec<_>>();
 
@@ -1230,6 +1278,12 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .collect::<Vec<_>>();
         pyth_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
 
+        let mut pyth_push_oracle_ages = pyth_push_oracle_feed_accounts
+            .iter()
+            .map(|(mint, pa, _)| ((now - pa.price_message.publish_time) as f64 / 60f64, *mint))
+            .collect::<Vec<_>>();
+        pyth_push_oracle_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
+
         let mut swb_ages = swb_feed_accounts
             .iter()
             .map(|(mint, pa, _)| {
@@ -1241,18 +1295,12 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .collect::<Vec<_>>();
         swb_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
 
-        println!("Pyth");
+        println!("Pyth Legacy: ");
         for (pa, mint) in pyth_ages.into_iter() {
             let (max_age, max_duration) = pyth_max_ages.get_mut(&mint).unwrap();
             *max_duration = pa.max(*max_duration);
 
-            let max_age = if *max_age == 0 {
-                1f64
-            } else {
-                *max_age as f64 / 60f64
-            };
-
-            if only_stale && *max_duration < max_age {
+            if only_stale && (*max_duration < *max_age as f64) {
                 continue;
             }
             println!(
@@ -1260,18 +1308,27 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
                 mint, pa, max_duration, max_age
             );
         }
-        println!("Switchboard");
+
+        println!("Pyth Push Oracle: ");
+        for (pa, mint) in pyth_push_oracle_ages.into_iter() {
+            let (max_age, max_duration) = pyth_push_oracle_max_ages.get_mut(&mint).unwrap();
+            *max_duration = pa.max(*max_duration);
+
+            if only_stale && (*max_duration < *max_age as f64) {
+                continue;
+            }
+            println!(
+                "- {:?}: {:.2}min (max: {:.2}min) - allowed: {:.2}min",
+                mint, pa, max_duration, max_age
+            );
+        }
+
+        println!("Switchboard V2: ");
         for (pa, mint) in swb_ages.into_iter() {
             let (max_age, max_duration) = swb_max_ages.get_mut(&mint).unwrap();
             *max_duration = pa.max(*max_duration);
 
-            let max_age = if *max_age == 0 {
-                1f64
-            } else {
-                *max_age as f64 / 60f64
-            };
-
-            if only_stale && *max_duration < max_age {
+            if only_stale && (*max_duration < *max_age as f64) {
                 continue;
             }
             println!(
