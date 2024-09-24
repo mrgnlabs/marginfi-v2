@@ -111,12 +111,21 @@ describe("User stakes some native and creates an account", () => {
     }
   });
 
-  it("(user 1) Stakes and delegates too", async () => {
-    const user = users[1];
+  it("(user 1/2) Stakes and delegates too", async () => {
+    await stakeAndDelegateForUser(1, stake);
+    await stakeAndDelegateForUser(2, stake);
+  });
+
+  const stakeAndDelegateForUser = async (
+    userIndex: number,
+    stakeAmount: number
+  ) => {
+    const user = users[userIndex];
     let { createTx, stakeAccountKeypair } = createStakeAccount(
       user,
-      stake * LAMPORTS_PER_SOL
+      stakeAmount * LAMPORTS_PER_SOL
     );
+
     createTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     createTx.sign(user.wallet, stakeAccountKeypair);
     await banksClient.processTransaction(createTx);
@@ -130,7 +139,7 @@ describe("User stakes some native and creates an account", () => {
     delegateTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     delegateTx.sign(user.wallet);
     await banksClient.processTransaction(delegateTx);
-  });
+  };
 
   it("Advance the epoch", async () => {
     bankrunContext.warpToEpoch(1n);
@@ -278,8 +287,13 @@ describe("User stakes some native and creates an account", () => {
     );
   });
 
-  it("(user 1) deposits to the stake pool too", async () => {
-    const user = users[1];
+  it("(user 1/2) deposits to the stake pool too", async () => {
+    await depositForUser(1);
+    await depositForUser(2);
+  });
+
+  const depositForUser = async (userIndex: number) => {
+    const user = users[userIndex];
     let tx = new Transaction();
     const ixes = await depositToSinglePoolIxes(
       bankRunProvider.connection,
@@ -298,5 +312,5 @@ describe("User stakes some native and creates an account", () => {
       user.wallet.publicKey
     );
     user.accounts.set(LST_ATA, lstAta);
-  });
+  };
 });

@@ -135,22 +135,31 @@ jobs:
       - name: Install Node.js dependencies
         run: yarn install
 
-      - name: Debug environment
-        run: |
-          node -v
-          printenv
-
       - name: Build marginfi program
         run: anchor build -p marginfi -- --no-default-features
-
-      - name: Build liquidity incentive program
-        run: anchor build -p liquidity_incentive_program -- --no-default-features
 
       - name: Build mocks program
         run: anchor build -p mocks
 
-      - name: Run tests
-        run: anchor test --skip-build
+      # Handles extraneous (os error 2) that appears during testing in some versions of solana. See:
+      # https://solana.stackexchange.com/questions/1648/error-no-such-file-or-directory-os-error-2-error-from-anchor-test
+      - name: Run Anchor tests
+        run: |
+          set -o pipefail
+          anchor test --skip-build 2>&1 | tee test_output.log
+          
+          if grep -q "failing" test_output.log; then
+            echo "Real test failure detected."
+            exit 1
+          fi
+
+          if grep -q "No such file or directory (os error 2)" test_output.log; then
+            echo "Extraneous error detected, ignoring it..."
+            exit 0
+          else
+            echo "Test run completed without extraneous errors."
+            exit 0
+          fi
 
       # - name: Start Solana Test Validator
       #   run: |

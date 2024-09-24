@@ -218,3 +218,27 @@ export const updateEmissions = (
     .instruction();
   return ix;
 };
+
+export type CacheSolExchangeRateArgs = {
+  bank: PublicKey;
+  lstMint: PublicKey;
+  solPool: PublicKey;
+  stakePool: PublicKey;
+};
+
+export const cacheSolExchangeRate = (
+  program: Program<Marginfi>,
+  args: CacheSolExchangeRateArgs
+) => {
+  const ix = program.methods
+    .cacheSolExRate()
+    .accounts({
+      bank: args.bank,
+      lstMint: args.lstMint,
+      solPool: args.solPool,
+      stakePool: args.stakePool,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .instruction();
+  return ix;
+};

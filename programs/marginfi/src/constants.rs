@@ -26,6 +26,17 @@ cfg_if::cfg_if! {
     }
 }
 
+// TODO update to the actual deployment key on mainnet/devnet/staging
+cfg_if::cfg_if! {
+    if #[cfg(feature = "devnet")] {
+        pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
+    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging"))] {
+        pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
+    } else {
+        pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
+    }
+}
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
         pub const SWITCHBOARD_PULL_ID: Pubkey = pubkey!("Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2");

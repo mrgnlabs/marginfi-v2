@@ -9,33 +9,24 @@ import {
 import { Keypair, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
-  bankKeypairA,
   bankKeypairSol,
   bankKeypairUsdc,
   bankrunContext,
   bankrunProgram,
   banksClient,
   ecosystem,
-  groupAdmin,
   marginfiGroup,
-  numUsers,
   users,
   validators,
-  verbose,
 } from "./rootHooks";
 import {
   assertBankrunTxFailed,
-  assertBNApproximately,
-  assertI80F48Approx,
-  assertI80F48Equal,
   assertKeysEqual,
-  getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
 import { accountInit, depositIx } from "./utils/user-instructions";
 import { LST_ATA, USER_ACCOUNT } from "./utils/mocks";
 import { createMintToInstruction } from "@solana/spl-token";
-import { deriveLiquidityVault } from "./utils/pdas";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { BanksTransactionResultWithMeta } from "solana-bankrun";
 
@@ -232,5 +223,34 @@ describe("Deposit funds (included staked assets)", () => {
     );
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[2].active, false);
+  });
+
+  it("(user 2) deposits to staked bank - should succeed", async () => {
+    const user = users[2];
+    const userAccount = user.accounts.get(USER_ACCOUNT);
+    const userLstAta = user.accounts.get(LST_ATA);
+
+    let tx = new Transaction().add(
+      await depositIx(program, {
+        marginfiGroup: marginfiGroup.publicKey,
+        marginfiAccount: userAccount,
+        authority: user.wallet.publicKey,
+        bank: validators[0].bank,
+        tokenAccount: userLstAta,
+        amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
+      })
+    );
+
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.tryProcessTransaction(tx);
+
+    // Verify the deposit worked and the entry exists
+    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    const balances = userAcc.lendingAccount.balances;
+    assert.equal(balances[0].active, true);
+    assertKeysEqual(balances[0].bankPk, validators[0].bank);
   });
 });

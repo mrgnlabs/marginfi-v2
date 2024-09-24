@@ -49,7 +49,7 @@ export let groupAdmin: MockUser = undefined;
 /** Administers valiator votes and withdraws */
 export let validatorAdmin: MockUser = undefined;
 export const users: MockUser[] = [];
-export const numUsers = 2;
+export const numUsers = 3;
 
 export const validators: Validator[] = [];
 export const numValidators = 1;

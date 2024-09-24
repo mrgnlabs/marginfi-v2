@@ -98,6 +98,8 @@ pub enum MarginfiError {
     T22MintRequired,
     #[msg("Staked SOL accounts can only deposit staked assets and borrow SOL")] // 6047
     AssetTagMismatch,
+    #[msg("Stake pool validation failed: check the stake pool, mint, or sol pool")] // 6048
+    StakePoolValidationFailed,
 }
 
 impl From<MarginfiError> for ProgramError {

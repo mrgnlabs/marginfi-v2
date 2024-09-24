@@ -104,9 +104,9 @@ export type MockUser = {
 /** in mockUser.accounts, key used to get/set the users's account for group 0 */
 export const USER_ACCOUNT: string = "g0_acc";
 /** in mockUser.accounts, key used to get/set the users's LST ATA for validator 0 */
-export const LST_ATA = "v0_lstAta"
+export const LST_ATA = "v0_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */
-export const STAKE_ACC = "v0_stakeAcc"
+export const STAKE_ACC = "v0_stakeAcc";
 
 /**
  * Options to skip various parts of mock user setup
@@ -362,11 +362,11 @@ export type Validator = {
   authorizedWithdrawer: PublicKey;
   voteAccount: PublicKey;
   splPool: PublicKey;
-  /** spl pool's mint for the LST */
+  /** spl pool's mint for the LST (a PDA automatically created on init) */
   splMint: PublicKey;
-  /** spl pool's authority for LST management (a PDA automatically created on init) */
+  /** spl pool's authority for LST management, a PDA with no data/lamports */
   splAuthority: PublicKey;
-  /** spl pool's stake account */
+  /** spl pool's stake account (a PDA automatically created on init, contains the SOL held by the pool) */
   splStake: PublicKey;
   /** bank created for this validator's LST on the "main" group */
   bank: PublicKey;

@@ -190,5 +190,8 @@ export const assertBankrunTxFailed = (
   assert(result.meta.logMessages.length > 0);
   assert(result.result, "TX succeeded when it should have failed");
   const lastLog = result.meta.logMessages.pop();
-  assert(lastLog.includes(expectedErrorCode), "Actual error: " + lastLog);
+  assert(
+    lastLog.includes(expectedErrorCode),
+    "\nExpected code " + expectedErrorCode + " but got: " + lastLog
+  );
 };
