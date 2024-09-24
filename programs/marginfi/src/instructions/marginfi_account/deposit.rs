@@ -1,6 +1,6 @@
 use crate::{
     check,
-    constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, LIQUIDITY_VAULT_SEED},
+    constants::LIQUIDITY_VAULT_SEED,
     events::{AccountEventHeader, LendingAccountDepositEvent},
     prelude::*,
     state::{

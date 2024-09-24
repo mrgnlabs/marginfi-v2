@@ -139,6 +139,10 @@ jobs:
       - name: Build mocks program
         run: anchor build -p mocks
 
+      - name: Run tests
+        run: anchor test --skip-build
+
+
       # - name: Start Solana Test Validator
       #   run: |
       #     solana-test-validator --reset --limit-ledger-size 1000 \
@@ -154,6 +158,3 @@ jobs:
 
       # - name: Deploy Mocks Program
       #   run: solana program deploy --program-id 5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C target/deploy/mocks.so
-
-      - name: Run tests
-        run: anchor test --skip-build
