@@ -350,7 +350,7 @@ pub struct Bank {
     /// 1, then the LST trades 1:1 for SOL. If this is 1.1, then 1 LST can be exchange for 1.1 SOL.
     ///
     /// Currently, this cannot be less than 1 (but this may change if slashing is implemented)
-    /// 
+    ///
     /// For banks where `config.asset_tag != ASSET_TAG_STAKED` this field does nothing and may be 0,
     /// 1, or any other value.
     pub sol_appreciation_rate: WrappedI80F48,

@@ -5,7 +5,7 @@ use super::{
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        ASSET_TAG_DEFAULT, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE,
+        ASSET_TAG_DEFAULT, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE,
         EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48,
         MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
@@ -296,6 +296,12 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                     }
                 }
 
+                if bank.config.asset_tag == ASSET_TAG_STAKED {
+                    asset_weight = asset_weight
+                        .checked_mul(bank.sol_appreciation_rate.into())
+                        .ok_or_else(math_error!())?;
+                }
+
                 calc_value(
                     bank.get_asset_amount(self.balance.asset_shares.into())?,
                     lower_price,
@@ -322,6 +328,8 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
             requirement_type.get_oracle_price_type(),
             Some(PriceBias::High),
         )?;
+
+        // If `ASSET_TAG_STAKED` assets can ever be borrowed, accomodate for that here...
 
         calc_value(
             bank.get_liability_amount(self.balance.liability_shares.into())?,

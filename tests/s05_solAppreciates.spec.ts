@@ -47,18 +47,19 @@ import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { BanksTransactionResultWithMeta } from "solana-bankrun";
 import { cacheSolExchangeRate } from "./utils/group-instructions";
 import { I80F48_ONE } from "./utils/types";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("Deposit funds (included staked assets)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
   const provider = getProvider() as AnchorProvider;
   const wallet = provider.wallet as Wallet;
 
-  // User 2 has a validator 0 staked depost [0] position - worth 1 LST token
+  // User 2 has a validator 0 staked depost [0] position - net value = 1 LST token
   // Users 0/1/2 deposited 10 SOL each, so a total of 30 is staked with validator 0
   /** SOL to add to the validator as pretend-earned epoch rewards */
   const appreciation = 30;
 
-  it("(user 2) borrows 1.1 SOL against their STAKED position - fails, not enough funds", async () => {
+  it("(user 2) tries to borrow 1.1 SOL against 1 v0 STAKED - fails, not enough funds", async () => {
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
@@ -93,7 +94,7 @@ describe("Deposit funds (included staked assets)", () => {
 
   // Note: there is some natural appreciation here because a few epochs have elapsed...
   // TODO: Show math for expected appreciation due to epochs advancing
-  it("(permissionless) validator 0 cache stake - happy path (small change)", async () => {
+  it("(permissionless) v0 cache stake - happy path (natural appreciation)", async () => {
     let tx = new Transaction().add(
       await cacheSolExchangeRate(program, {
         bank: validators[0].bank,
@@ -107,10 +108,17 @@ describe("Deposit funds (included staked assets)", () => {
     await banksClient.processTransaction(tx);
 
     const bank = await bankrunProgram.account.bank.fetch(validators[0].bank);
+    if (verbose) {
+      console.log(
+        "1 [validator 0 LST token] is now worth: " +
+          wrappedI80F48toBigNumber(bank.solAppreciationRate).toString() +
+          " SOL"
+      );
+    }
     assertI80F48Approx(bank.solAppreciationRate, 1.033, 0.01);
   });
 
-  it("attacker tries to sneak a bad spl pool - should fail", async () => {
+  it("(attacker) tries to sneak a bad spl pool - should fail", async () => {
     let tx = new Transaction().add(
       await cacheSolExchangeRate(program, {
         bank: validators[0].bank,
@@ -127,7 +135,7 @@ describe("Deposit funds (included staked assets)", () => {
   });
 
   // Here we mock epoch rewards by simply minting SOL into the validator's pool without staking
-  it("Validator 0 stake appreciates in value", async () => {
+  it("v0 stake grows by " + appreciation + " SOL", async () => {
     let tx = new Transaction();
     tx.add(
       SystemProgram.transfer({
@@ -142,7 +150,6 @@ describe("Deposit funds (included staked assets)", () => {
   });
 
   it("(permissionless) validator 0 cache stake - 1 LST is now worth 2 SOL", async () => {
-    // No appreciation yet, so no change...
     let tx = new Transaction().add(
       await cacheSolExchangeRate(program, {
         bank: validators[0].bank,
@@ -156,36 +163,45 @@ describe("Deposit funds (included staked assets)", () => {
     await banksClient.processTransaction(tx);
 
     const bank = await bankrunProgram.account.bank.fetch(validators[0].bank);
+    if (verbose) {
+      console.log(
+        "1 [validator 0 LST token] is now worth: " +
+          wrappedI80F48toBigNumber(bank.solAppreciationRate).toString() +
+          " SOL"
+      );
+    }
     assertI80F48Approx(bank.solAppreciationRate, 2.033, 0.01);
   });
 
   // The account is now worth enough for this borrow to succeed!
   it("(user 2) borrows 1.1 SOL against their STAKED position - succeeds", async () => {
-    // const user = users[2];
-    // const userAccount = user.accounts.get(USER_ACCOUNT);
-    // let tx = new Transaction().add(
-    //   await borrowIx(program, {
-    //     marginfiGroup: marginfiGroup.publicKey,
-    //     marginfiAccount: userAccount,
-    //     authority: user.wallet.publicKey,
-    //     bank: bankKeypairSol.publicKey,
-    //     tokenAccount: user.wsolAccount,
-    //     remaining: [
-    //       validators[0].bank,
-    //       oracles.wsolOracle.publicKey,
-    //       bankKeypairSol.publicKey,
-    //       oracles.wsolOracle.publicKey,
-    //     ],
-    //     amount: new BN(1.1 * 10 ** ecosystem.wsolDecimals),
-    //   })
-    // );
-    // tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    // tx.sign(user.wallet);
-    // let result = await banksClient.processTransaction(tx);
-    // const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
-    //   userAccount
-    // );
-    // const balances = userAcc.lendingAccount.balances;
-    // assert.equal(balances[1].active, false);
+    const user = users[2];
+    const userAccount = user.accounts.get(USER_ACCOUNT);
+    let tx = new Transaction().add(
+      await borrowIx(program, {
+        marginfiGroup: marginfiGroup.publicKey,
+        marginfiAccount: userAccount,
+        authority: user.wallet.publicKey,
+        bank: bankKeypairSol.publicKey,
+        tokenAccount: user.wsolAccount,
+        remaining: [
+          validators[0].bank,
+          oracles.wsolOracle.publicKey,
+          bankKeypairSol.publicKey,
+          oracles.wsolOracle.publicKey,
+        ],
+        amount: new BN(1.1 * 10 ** ecosystem.wsolDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+
+    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    const balances = userAcc.lendingAccount.balances;
+    assert.equal(balances[1].active, true);
+    assertKeysEqual(balances[1].bankPk, bankKeypairSol.publicKey);
   });
 });
