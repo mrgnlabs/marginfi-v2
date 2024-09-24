@@ -72,8 +72,8 @@ let copyKeys: PublicKey[] = [];
 
 export const mochaHooks = {
   beforeAll: async () => {
-    // If this fails you are in the wrong environment to run this test suite.
-    console.log("Crypto support: ", !!global.crypto?.subtle);
+    // If this is false, you are in the wrong environment to run this test suite, try polyfill.
+    console.log("Environment supports crypto: ", !!global.crypto?.subtle);
 
     const mrgnProgram = workspace.Marginfi as Program<Marginfi>;
     const provider = AnchorProvider.local();

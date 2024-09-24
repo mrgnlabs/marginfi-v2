@@ -15,14 +15,13 @@ import {
   validators,
   verbose,
 } from "./rootHooks";
-import {
-  assertKeysEqual,
-} from "./utils/genericTests";
+import { assertI80F48Equal, assertKeysEqual } from "./utils/genericTests";
 import {
   ASSET_TAG_DEFAULT,
   ASSET_TAG_SOL,
   ASSET_TAG_STAKED,
   defaultBankConfig,
+  I80F48_ONE,
 } from "./utils/types";
 import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
@@ -137,6 +136,8 @@ describe("Init group and add banks with asset category flags", () => {
 
     const bank = await bankrunProgram.account.bank.fetch(validators[0].bank);
     assert.equal(bank.config.assetTag, ASSET_TAG_STAKED);
+    // Note: This field is set for all banks, but only relevant for ASSET_TAG_STAKED banks.
+    assertI80F48Equal(bank.solAppreciationRate, I80F48_ONE);
   });
 
   // TODO add an LST-based pool without permission

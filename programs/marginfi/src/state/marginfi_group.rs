@@ -345,7 +345,17 @@ pub struct Bank {
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 28],
+    /// For banks where `config.asset_tag == ASSET_TAG_STAKED`, this defines the last-cached
+    /// exchange rate of LST to SOL, i.e. the price appreciation of the LST. For example, if this is
+    /// 1, then the LST trades 1:1 for SOL. If this is 1.1, then 1 LST can be exchange for 1.1 SOL.
+    ///
+    /// Currently, this cannot be less than 1 (but this may change if slashing is implemented)
+    /// 
+    /// For banks where `config.asset_tag != ASSET_TAG_STAKED` this field does nothing and may be 0,
+    /// 1, or any other value.
+    pub sol_appreciation_rate: WrappedI80F48,
+
+    pub _padding_0: [[u64; 2]; 27],
     pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
 }
 
@@ -392,6 +402,7 @@ impl Bank {
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
+            sol_appreciation_rate: I80F48::ONE.into(),
             ..Default::default()
         }
     }
@@ -1119,6 +1130,7 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
 
+    // Note: 6 bytes of padding to next 8 byte alignment, then end padding
     pub _padding: [u8; 38],
 }
 

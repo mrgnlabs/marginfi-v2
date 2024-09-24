@@ -70,6 +70,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             emissions_rate,
             emissions_remaining,
             emissions_mint,
+            sol_appreciation_rate,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -99,8 +100,9 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(emissions_rate, 0);
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
+            assert_eq!(sol_appreciation_rate, I80F48!(1.0).into());
 
-            assert_eq!(_padding_0, <[[u64; 2]; 28] as Default>::default());
+            assert_eq!(_padding_0, <[[u64; 2]; 27] as Default>::default());
             assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
 
             // this is the only loosely checked field
@@ -173,6 +175,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             emissions_rate,
             emissions_remaining,
             emissions_mint,
+            sol_appreciation_rate,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -202,8 +205,9 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(emissions_rate, 0);
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
+            assert_eq!(sol_appreciation_rate, I80F48!(1.0).into());
 
-            assert_eq!(_padding_0, <[[u64; 2]; 28] as Default>::default());
+            assert_eq!(_padding_0, <[[u64; 2]; 27] as Default>::default());
             assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
 
             // this is the only loosely checked field

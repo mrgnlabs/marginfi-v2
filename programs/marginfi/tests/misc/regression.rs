@@ -663,8 +663,13 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         bank.emissions_mint,
         pubkey!("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo")
     );
+    // legacy banks can have 0 for this field, it does nothing for banks not using ASSET_TAG_STAKED
+    assert_eq!(
+        I80F48::from(bank.sol_appreciation_rate),
+        I80F48::from_str("0").unwrap()
+    );
 
-    assert_eq!(bank._padding_0, [[0, 0]; 28]);
+    assert_eq!(bank._padding_0, [[0, 0]; 27]);
     assert_eq!(bank._padding_1, [[0, 0]; 32]);
 
     Ok(())

@@ -1,4 +1,4 @@
-import { BN, Program, workspace } from "@coral-xyz/anchor";
+import { BN } from "@coral-xyz/anchor";
 import {
   LAMPORTS_PER_SOL,
   PublicKey,
@@ -27,13 +27,8 @@ import {
   getTokenBalance,
 } from "./utils/genericTests";
 import { u64MAX_BN } from "./utils/types";
-import {
-  SinglePoolInstruction,
-  SinglePoolProgram,
-} from "@solana/spl-single-pool-classic";
 import { getAssociatedTokenAddressSync } from "@mrgnlabs/mrgn-common";
 import {
-  decodeSinglePool,
   depositToSinglePoolIxes,
   getBankrunBlockhash,
 } from "./utils/spl-staking-utils";
