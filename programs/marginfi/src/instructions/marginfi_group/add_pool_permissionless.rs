@@ -23,8 +23,8 @@ use crate::{
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     state::{
         marginfi_group::{
-            Bank, BankConfigCompact, BankOperationalState, InterestRateConfig,
-            MarginfiGroup, RiskTier,
+            Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiGroup,
+            RiskTier,
         },
         price::OracleSetup,
     },
