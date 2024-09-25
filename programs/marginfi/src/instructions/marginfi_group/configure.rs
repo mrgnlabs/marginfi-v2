@@ -35,6 +35,7 @@ pub struct MarginfiGroupConfigure<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
+        // TODO moving to `marginfi_group` as `has_one` adds a mystery signer?
         address = marginfi_group.load()?.admin,
     )]
     pub admin: Signer<'info>,

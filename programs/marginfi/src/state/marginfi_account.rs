@@ -5,9 +5,9 @@ use super::{
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
-        EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR,
-        ZERO_AMOUNT_THRESHOLD,
+        ASSET_TAG_DEFAULT, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE,
+        EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48,
+        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -41,6 +41,9 @@ pub struct MarginfiAccount {
     /// Flags:
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
+    /// - IN_FLASHLOAN_FLAG (1 << 1)
+    /// - FLASHLOAN_ENABLED_FLAG (1 << 2)
+    /// - TRANSFER_AUTHORITY_ALLOWED_FLAG (1 << 3)
     pub account_flags: u64, // 8
     pub _padding: [u64; 63],             // 504
 }
@@ -293,6 +296,12 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                     }
                 }
 
+                if bank.config.asset_tag == ASSET_TAG_STAKED {
+                    asset_weight = asset_weight
+                        .checked_mul(bank.sol_appreciation_rate.into())
+                        .ok_or_else(math_error!())?;
+                }
+
                 calc_value(
                     bank.get_asset_amount(self.balance.asset_shares.into())?,
                     lower_price,
@@ -319,6 +328,8 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
             requirement_type.get_oracle_price_type(),
             Some(PriceBias::High),
         )?;
+
+        // If `ASSET_TAG_STAKED` assets can ever be borrowed, accomodate for that here...
 
         calc_value(
             bank.get_liability_amount(self.balance.liability_shares.into())?,
@@ -750,7 +761,10 @@ assert_struct_align!(Balance, 8);
 pub struct Balance {
     pub active: bool,
     pub bank_pk: Pubkey,
-    pub _pad0: [u8; 7],
+    /// Inherited from the bank when the position is first created and CANNOT BE CHANGED after that.
+    /// Note that all balances created before the addition of this feature use `ASSET_TAG_DEFAULT`
+    pub bank_asset_tag: u8,
+    pub _pad0: [u8; 6],
     pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
     pub emissions_outstanding: WrappedI80F48,
@@ -822,7 +836,8 @@ impl Balance {
         Balance {
             active: false,
             bank_pk: Pubkey::default(),
-            _pad0: [0; 7],
+            bank_asset_tag: ASSET_TAG_DEFAULT,
+            _pad0: [0; 6],
             asset_shares: WrappedI80F48::from(I80F48::ZERO),
             liability_shares: WrappedI80F48::from(I80F48::ZERO),
             emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),
@@ -882,7 +897,8 @@ impl<'a> BankAccountWrapper<'a> {
                 lending_account.balances[empty_index] = Balance {
                     active: true,
                     bank_pk: *bank_pk,
-                    _pad0: [0; 7],
+                    bank_asset_tag: bank.config.asset_tag,
+                    _pad0: [0; 6],
                     asset_shares: I80F48::ZERO.into(),
                     liability_shares: I80F48::ZERO.into(),
                     emissions_outstanding: I80F48::ZERO.into(),
@@ -1412,7 +1428,8 @@ mod test {
                 balances: [Balance {
                     active: true,
                     bank_pk: bank_pk.into(),
-                    _pad0: [0; 7],
+                    bank_asset_tag: ASSET_TAG_DEFAULT,
+                    _pad0: [0; 6],
                     asset_shares: WrappedI80F48::default(),
                     liability_shares: WrappedI80F48::default(),
                     emissions_outstanding: WrappedI80F48::default(),
