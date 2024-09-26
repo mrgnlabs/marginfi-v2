@@ -4,7 +4,9 @@ use crate::{
     events::{AccountEventHeader, LendingAccountBorrowEvent},
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
+        marginfi_account::{
+            BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG,
+        },
         marginfi_group::{Bank, BankVaultType},
     },
     utils,
@@ -57,6 +59,8 @@ pub fn lending_account_borrow<'info>(
     {
         let mut bank = bank_loader.load_mut()?;
 
+        let is_flashloan = marginfi_account.get_flag(IN_FLASHLOAN_FLAG);
+
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
 
         let mut bank_account = BankAccountWrapper::find_or_create(
@@ -78,7 +82,12 @@ pub fn lending_account_borrow<'info>(
             .transpose()?
             .unwrap_or(amount);
 
-        bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
+        if is_flashloan {
+            bank_account.borrow_skip_limit_checks(I80F48::from_num(amount_pre_fee))?;
+        } else {
+            bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
+        }
+
         bank_account.withdraw_spl_transfer(
             amount_pre_fee,
             bank_liquidity_vault.to_account_info(),

@@ -441,6 +441,32 @@ impl Bank {
         Ok(())
     }
 
+    pub fn check_deposit_borrow_limits(&self) -> MarginfiResult {
+        debug!("=== check_deposit_borrow_limits ===");
+        if self.config.is_deposit_limit_active() && self.config.is_borrow_limit_active() {
+            let total_deposits_amount = self.get_asset_amount(self.total_asset_shares.into())?;
+            let deposit_limit = I80F48::from_num(self.config.deposit_limit);
+            let total_liability_amount =
+                self.get_liability_amount(self.total_liability_shares.into())?;
+            let borrow_limit = I80F48::from_num(self.config.borrow_limit);
+
+            debug!("total_deposits_amount: {}", total_deposits_amount);
+            debug!("deposit_limit: {}", deposit_limit);
+            debug!("total_liability_amount: {}", total_liability_amount);
+            debug!("borrow_limit: {}", borrow_limit);
+
+            check!(
+                total_deposits_amount < deposit_limit,
+                crate::prelude::MarginfiError::BankAssetCapacityExceeded
+            );
+            check!(
+                total_liability_amount < borrow_limit,
+                crate::prelude::MarginfiError::BankLiabilityCapacityExceeded
+            )
+        }
+        Ok(())
+    }
+
     pub fn maybe_get_asset_weight_init_discount(
         &self,
         price: I80F48,
