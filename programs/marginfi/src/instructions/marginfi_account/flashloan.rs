@@ -133,6 +133,8 @@ pub fn lending_account_end_flashloan<'info>(
 
     marginfi_account.unset_flag(IN_FLASHLOAN_FLAG);
 
+    // check bank deposit/borrow limits
+    RiskEngine::check_bank_deposit_borrow_limit(ctx.remaining_accounts)?;
     RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts)?;
 
     Ok(())
