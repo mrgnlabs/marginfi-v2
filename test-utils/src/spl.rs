@@ -1,6 +1,10 @@
 use crate::{transfer_hook::TEST_HOOK_ID, ui_to_native};
 use anchor_lang::prelude::*;
 use anchor_spl::{
+    associated_token::{
+        get_associated_token_address_with_program_id,
+        spl_associated_token_account::instruction::create_associated_token_account,
+    },
     token::{spl_token, Mint, TokenAccount},
     token_2022::{
         self,
@@ -297,7 +301,7 @@ impl MintFixture {
         self.create_token_account_and_mint_to(0.0).await
     }
 
-    pub async fn create_token_account_and_mint_to<T: Into<f64>>(
+    pub async fn create_token_account_and_mint_to<'a, T: Into<f64>>(
         &self,
         ui_amount: T,
     ) -> TokenAccountFixture {
@@ -498,6 +502,57 @@ impl TokenAccountFixture {
         Self {
             ctx: ctx_ref.clone(),
             key: keypair.pubkey(),
+            token: StateWithExtensionsOwned::<spl_token_2022::state::Account>::unpack(account.data)
+                .unwrap()
+                .base,
+            token_program: *token_program,
+        }
+    }
+
+    pub async fn new_from_ata(
+        ctx: Rc<RefCell<ProgramTestContext>>,
+        mint_pk: &Pubkey,
+        owner_pk: &Pubkey,
+        token_program: &Pubkey,
+    ) -> Self {
+        let ctx_ref = ctx.clone();
+        let ata_address =
+            get_associated_token_address_with_program_id(owner_pk, mint_pk, token_program);
+
+        {
+            let create_ata_ix = create_associated_token_account(
+                &ctx.borrow().payer.pubkey(),
+                owner_pk,
+                mint_pk,
+                token_program,
+            );
+
+            let tx = Transaction::new_signed_with_payer(
+                &[create_ata_ix],
+                Some(&ctx.borrow().payer.pubkey()),
+                &[&ctx.borrow().payer],
+                ctx.borrow().last_blockhash,
+            );
+
+            ctx.borrow_mut()
+                .banks_client
+                .process_transaction(tx)
+                .await
+                .unwrap();
+        }
+
+        // Now retrieve the account info for the newly created ATA
+        let mut ctx = ctx.borrow_mut();
+        let account = ctx
+            .banks_client
+            .get_account(ata_address)
+            .await
+            .unwrap()
+            .unwrap();
+
+        Self {
+            ctx: ctx_ref.clone(),
+            key: ata_address, // Use the ATA address as the key
             token: StateWithExtensionsOwned::<spl_token_2022::state::Account>::unpack(account.data)
                 .unwrap()
                 .base,

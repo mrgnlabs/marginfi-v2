@@ -50,3 +50,10 @@ export const deriveFeeVault = (programId: PublicKey, bank: PublicKey) => {
     programId
   );
 };
+
+export const deriveGlobalFeeState = (programId: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("feestate", "utf-8")],
+    programId
+  );
+};

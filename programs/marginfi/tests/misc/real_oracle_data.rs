@@ -23,6 +23,7 @@ async fn real_oracle_marginfi_account_borrow_success() -> anyhow::Result<()> {
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 
@@ -97,6 +98,7 @@ async fn real_oracle_pyth_push_marginfi_account_borrow_success() -> anyhow::Resu
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 

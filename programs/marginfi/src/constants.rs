@@ -12,6 +12,8 @@ pub const LIQUIDITY_VAULT_SEED: &str = "liquidity_vault";
 pub const INSURANCE_VAULT_SEED: &str = "insurance_vault";
 pub const FEE_VAULT_SEED: &str = "fee_vault";
 
+pub const FEE_STATE_SEED: &str = "feestate";
+
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 
@@ -37,6 +39,9 @@ cfg_if::cfg_if! {
 /// TODO: Make these variable per bank
 pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);
 pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
+
+/// The default fee, in native SOL in native decimals (i.e. lamports) used in testing
+pub const INIT_BANK_ORIGINATION_FEE_DEFAULT: u32 = 10000;
 
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 
@@ -135,6 +140,11 @@ pub const EXP_10: [i128; MAX_EXP_10] = [
 
 /// Value where total_asset_value_init_limit is considered inactive
 pub const TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE: u64 = 0;
+
+/// For testing, this is a typical program fee.
+pub const PROTOCOL_FEE_RATE_DEFAULT: I80F48 = I80F48!(0.025);
+/// For testing, this is a typical program fee.
+pub const PROTOCOL_FEE_FIXED_DEFAULT: I80F48 = I80F48!(0.01);
 
 pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
 pub const PYTH_PUSH_PYTH_SPONSORED_SHARD_ID: u16 = 0;

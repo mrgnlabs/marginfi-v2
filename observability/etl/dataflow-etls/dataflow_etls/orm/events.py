@@ -177,8 +177,8 @@ class LendingPoolBankConfigureRecord(GroupRecordBase):
             "max_interest_rate:NUMERIC",
             "insurance_fee_fixed_apr:NUMERIC",
             "insurance_ir_fee:NUMERIC",
-            "protocol_fixed_fee_apr:NUMERIC",
-            "protocol_ir_fee:NUMERIC",
+            "group_fixed_fee_apr:NUMERIC",
+            "group_ir_fee:NUMERIC",
         ]
     )
 
@@ -204,8 +204,8 @@ class LendingPoolBankConfigureRecord(GroupRecordBase):
 
     insurance_fee_fixed_apr: Optional[float]
     insurance_ir_fee: Optional[float]
-    protocol_fixed_fee_apr: Optional[float]
-    protocol_ir_fee: Optional[float]
+    group_fixed_fee_apr: Optional[float]
+    group_ir_fee: Optional[float]
 
     def __init__(self, event: Event, instruction: "InstructionWithLogs", instruction_args: NamedInstruction):
         super().__init__(event, instruction, instruction_args)
@@ -238,10 +238,10 @@ class LendingPoolBankConfigureRecord(GroupRecordBase):
             event.data.config.interest_rate_config.insurance_fee_fixed_apr, wrapped_i80f48_to_float)
         self.insurance_ir_fee = map_optional(
             event.data.config.interest_rate_config.insurance_ir_fee, wrapped_i80f48_to_float)
-        self.protocol_fixed_fee_apr = map_optional(
-            event.data.config.interest_rate_config.protocol_fixed_fee_apr, wrapped_i80f48_to_float)
-        self.protocol_ir_fee = map_optional(
-            event.data.config.interest_rate_config.protocol_ir_fee, wrapped_i80f48_to_float)
+        self.group_fixed_fee_apr = map_optional(
+            event.data.config.interest_rate_config.group_fixed_fee_apr, wrapped_i80f48_to_float)
+        self.group_ir_fee = map_optional(
+            event.data.config.interest_rate_config.group_ir_fee, wrapped_i80f48_to_float)
 
 
 @dataclass

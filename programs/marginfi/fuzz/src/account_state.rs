@@ -13,7 +13,10 @@ use anchor_spl::token_2022::spl_token_2022::{
     state::Mint,
 };
 use bumpalo::Bump;
-use marginfi::{constants::PYTH_ID, state::marginfi_group::BankVaultType};
+use marginfi::{
+    constants::{FEE_STATE_SEED, PYTH_ID},
+    state::marginfi_group::BankVaultType,
+};
 use pyth_sdk_solana::state::{
     AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
 };
@@ -39,24 +42,50 @@ impl AccountsState {
             .alloc(Pubkey::new(transmute_to_bytes(&rand::random::<[u64; 4]>())))
     }
 
-    pub fn new_sol_account<'bump>(&'bump self, lamports: u64) -> AccountInfo<'bump> {
-        self.new_sol_account_with_pubkey(self.random_pubkey(), lamports)
+    pub fn new_sol_account<'bump>(
+        &'bump self,
+        lamports: u64,
+        signer: bool,
+        writeable: bool,
+    ) -> AccountInfo<'bump> {
+        self.new_sol_account_with_pubkey(self.random_pubkey(), lamports, signer, writeable)
     }
 
     pub fn new_sol_account_with_pubkey<'bump>(
         &'bump self,
         pubkey: &'bump Pubkey,
         lamports: u64,
+        signer: bool,
+        writeable: bool,
     ) -> AccountInfo<'bump> {
         AccountInfo::new(
             pubkey,
-            true,
-            false,
+            signer,
+            writeable,
             self.bump.alloc(lamports),
             &mut [],
             &system_program::ID,
             false,
             Epoch::default(),
+        )
+    }
+
+    pub fn new_fee_state<'a>(&'a self, program_id: Pubkey) -> (AccountInfo<'a>, u8) {
+        let (fee_state_key, fee_state_bump) =
+            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
+
+        (
+            AccountInfo::new(
+                self.bump.alloc(fee_state_key),
+                false,
+                true,
+                self.bump.alloc(9999999),
+                self.allocate_dex_owned_account(256 + 8),
+                self.bump.alloc(program_id),
+                false,
+                Epoch::default(),
+            ),
+            fee_state_bump,
         )
     }
 
@@ -244,6 +273,17 @@ impl AccountsState {
         )
     }
 
+    pub fn new_blank_owned_account_with_key(
+        &self,
+        key: Pubkey,
+        owner_pubkey: Pubkey,
+    ) -> AccountInfo {
+        self.new_dex_owned_blank_account_with_key(
+            self.bump.alloc(key),
+            self.bump.alloc(owner_pubkey),
+        )
+    }
+
     pub fn new_dex_owned_account_with_lamports<'bump>(
         &'bump self,
         unpadded_len: usize,
@@ -256,6 +296,23 @@ impl AccountsState {
             true,
             self.bump.alloc(lamports),
             self.allocate_dex_owned_account(unpadded_len),
+            program_id,
+            false,
+            Epoch::default(),
+        )
+    }
+
+    pub fn new_dex_owned_blank_account_with_key<'bump>(
+        &'bump self,
+        key: &'bump Pubkey,
+        program_id: &'bump Pubkey,
+    ) -> AccountInfo<'bump> {
+        AccountInfo::new(
+            key,
+            false,
+            true,
+            self.bump.alloc(0),
+            &mut [],
             program_id,
             false,
             Epoch::default(),
