@@ -160,7 +160,7 @@ pub fn load_observation_account_metas(
         .lending_account
         .balances
         .iter()
-        .filter_map(|balance| balance.active.then_some(balance.bank_pk))
+        .filter_map(|balance| balance.is_active().then_some(balance.bank_pk))
         .collect::<Vec<_>>();
 
     for bank_pk in include_banks {

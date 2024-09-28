@@ -692,7 +692,7 @@ impl MarginfiAccountFixture {
             .balances
             .iter()
             .filter_map(|balance| {
-                if balance.active {
+                if balance.is_active() {
                     Some(balance.bank_pk)
                 } else {
                     None

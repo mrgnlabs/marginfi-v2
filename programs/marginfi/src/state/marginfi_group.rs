@@ -23,6 +23,7 @@ use crate::{
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
+use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::FeedId;
@@ -129,13 +130,12 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
     }
 }
 
-#[zero_copy]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Copy, Clone, AnchorSerialize, AnchorDeserialize, Zeroable, Pod)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -282,7 +282,7 @@ pub struct InterestRateConfigOpt {
 
 assert_struct_size!(Bank, 1856);
 assert_struct_align!(Bank, 8);
-#[account(zero_copy(unsafe))]
+#[account(zero_copy)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -921,12 +921,14 @@ fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48)
 
 #[repr(u8)]
 #[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
+#[derive(Debug, Clone, Copy, AnchorDeserialize, AnchorSerialize)]
 pub enum BankOperationalState {
-    Paused,
-    Operational,
-    ReduceOnly,
+    Paused = 0,
+    Operational = 1,
+    ReduceOnly = 2,
 }
+unsafe impl Zeroable for BankOperationalState {}
+unsafe impl Pod for BankOperationalState {}
 
 #[cfg(feature = "client")]
 impl Display for BankOperationalState {
@@ -942,15 +944,17 @@ impl Display for BankOperationalState {
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum RiskTier {
-    Collateral,
+    Collateral = 0,
     /// ## Isolated Risk
     /// Assets in this trance can be borrowed only in isolation.
     /// They can't be borrowed together with other assets.
     ///
     /// For example, if users has USDC, and wants to borrow XYZ which is isolated,
     /// they can't borrow XYZ together with SOL, only XYZ alone.
-    Isolated,
+    Isolated = 1,
 }
+unsafe impl Zeroable for RiskTier {}
+unsafe impl Pod for RiskTier {}
 
 #[repr(C)]
 #[cfg_attr(
@@ -1019,7 +1023,8 @@ impl From<BankConfigCompact> for BankConfig {
             _pad1: [0; 7],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
-            _padding: [0; 38],
+            _padding0: [0; 6],
+            _padding1: [0; 32],
         }
     }
 }
@@ -1047,13 +1052,12 @@ impl From<BankConfig> for BankConfigCompact {
 
 assert_struct_size!(BankConfig, 544);
 assert_struct_align!(BankConfig, 8);
-#[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(PartialEq, Eq, TypeLayout)
 )]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, AnchorDeserialize, AnchorSerialize, Zeroable, Pod)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub asset_weight_init: WrappedI80F48,
@@ -1092,7 +1096,8 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
 
-    pub _padding: [u8; 38],
+    pub _padding0: [u8; 6],
+    pub _padding1: [u8; 32],
 }
 
 impl Default for BankConfig {
@@ -1113,7 +1118,8 @@ impl Default for BankConfig {
             _pad1: [0; 7],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
-            _padding: [0; 38],
+            _padding0: [0; 6],
+            _padding1: [0; 32],
         }
     }
 }

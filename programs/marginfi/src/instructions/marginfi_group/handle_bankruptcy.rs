@@ -67,7 +67,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         .lending_account
         .balances
         .iter_mut()
-        .find(|balance| balance.active && balance.bank_pk == bank_loader.key());
+        .find(|balance| balance.is_active() && balance.bank_pk == bank_loader.key());
 
     check!(
         lending_account_balance.is_some(),

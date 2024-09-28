@@ -15,6 +15,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
+use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
 use std::{
     cmp::{max, min},
@@ -25,7 +26,7 @@ use type_layout::TypeLayout;
 
 assert_struct_size!(MarginfiAccount, 2304);
 assert_struct_align!(MarginfiAccount, 8);
-#[account(zero_copy(unsafe))]
+#[account(zero_copy)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
@@ -42,7 +43,8 @@ pub struct MarginfiAccount {
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
     pub account_flags: u64, // 8
-    pub _padding: [u64; 63],             // 504
+    pub _padding0: [u64; 32],            // 504
+    pub _padding1: [u64; 31],
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
@@ -61,7 +63,7 @@ impl MarginfiAccount {
         self.lending_account
             .balances
             .iter()
-            .filter(|b| b.active)
+            .filter(|b| b.is_active())
             .count()
             * 2 // TODO: Make account count oracle setup specific
     }
@@ -169,7 +171,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         let active_balances = lending_account
             .balances
             .iter()
-            .filter(|balance| balance.active)
+            .filter(|balance| balance.is_active())
             .collect::<Vec<_>>();
 
         debug!("Expecting {} remaining accounts", active_balances.len() * 2);
@@ -709,12 +711,12 @@ const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 assert_struct_size!(LendingAccount, 1728);
 assert_struct_align!(LendingAccount, 8);
-#[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq, TypeLayout)
 )]
+#[derive(AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod)]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES], // 104 * 16 = 1664
     pub _padding: [u64; 8],                                // 8 * 8 = 64
@@ -722,7 +724,7 @@ pub struct LendingAccount {
 
 impl LendingAccount {
     pub fn get_first_empty_balance(&self) -> Option<usize> {
-        self.balances.iter().position(|b| !b.active)
+        self.balances.iter().position(|b| !b.is_active())
     }
 }
 
@@ -731,24 +733,24 @@ impl LendingAccount {
     pub fn get_balance(&self, bank_pk: &Pubkey) -> Option<&Balance> {
         self.balances
             .iter()
-            .find(|balance| balance.active && balance.bank_pk.eq(bank_pk))
+            .find(|balance| balance.is_active() && balance.bank_pk.eq(bank_pk))
     }
 
     pub fn get_active_balances_iter(&self) -> impl Iterator<Item = &Balance> {
-        self.balances.iter().filter(|b| b.active)
+        self.balances.iter().filter(|b| b.is_active())
     }
 }
 
 assert_struct_size!(Balance, 104);
 assert_struct_align!(Balance, 8);
-#[zero_copy(unsafe)]
 #[repr(C)]
 #[cfg_attr(
     any(feature = "test", feature = "client"),
     derive(Debug, PartialEq, Eq, TypeLayout)
 )]
+#[derive(AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod)]
 pub struct Balance {
-    pub active: bool,
+    pub active: u8,
     pub bank_pk: Pubkey,
     pub _pad0: [u8; 7],
     pub asset_shares: WrappedI80F48,
@@ -759,6 +761,14 @@ pub struct Balance {
 }
 
 impl Balance {
+    pub fn is_active(&self) -> bool {
+        self.active != 0
+    }
+
+    pub fn set_active(&mut self, value: bool) {
+        self.active = value as u8;
+    }
+
     /// Check whether a balance is empty while accounting for any rounding errors
     /// that might have occured during depositing/withdrawing.
     #[inline]
@@ -820,7 +830,7 @@ impl Balance {
 
     pub fn empty_deactivated() -> Self {
         Balance {
-            active: false,
+            active: 0,
             bank_pk: Pubkey::default(),
             _pad0: [0; 7],
             asset_shares: WrappedI80F48::from(I80F48::ZERO),
@@ -847,7 +857,7 @@ impl<'a> BankAccountWrapper<'a> {
         let balance = lending_account
             .balances
             .iter_mut()
-            .find(|balance| balance.active && balance.bank_pk.eq(bank_pk))
+            .find(|balance| balance.is_active() && balance.bank_pk.eq(bank_pk))
             .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
 
         Ok(Self { balance, bank })
@@ -863,7 +873,7 @@ impl<'a> BankAccountWrapper<'a> {
         let balance_index = lending_account
             .balances
             .iter()
-            .position(|balance| balance.active && balance.bank_pk.eq(bank_pk));
+            .position(|balance| balance.is_active() && balance.bank_pk.eq(bank_pk));
 
         match balance_index {
             Some(balance_index) => {
@@ -880,7 +890,7 @@ impl<'a> BankAccountWrapper<'a> {
                     .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
 
                 lending_account.balances[empty_index] = Balance {
-                    active: true,
+                    active: 1,
                     bank_pk: *bank_pk,
                     _pad0: [0; 7],
                     asset_shares: I80F48::ZERO.into(),
@@ -1410,7 +1420,7 @@ mod test {
             authority: authority.into(),
             lending_account: LendingAccount {
                 balances: [Balance {
-                    active: true,
+                    active: 1,
                     bank_pk: bank_pk.into(),
                     _pad0: [0; 7],
                     asset_shares: WrappedI80F48::default(),
@@ -1422,7 +1432,8 @@ mod test {
                 _padding: [0; 8],
             },
             account_flags: TRANSFER_AUTHORITY_ALLOWED_FLAG,
-            _padding: [0; 63],
+            _padding0: [0; 32],
+            _padding1: [0; 31],
         };
 
         assert!(acc.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
