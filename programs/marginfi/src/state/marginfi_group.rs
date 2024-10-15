@@ -46,8 +46,10 @@ assert_struct_size!(MarginfiGroup, 1056);
 #[derive(Default)]
 pub struct MarginfiGroup {
     pub admin: Pubkey,
-    /// Flag that determines if this group pays program level fees. 1 = pays the fee, all other = does not pay.
-    pub program_fees: u64,
+    /// Bitmask for group settings flags.
+    /// * Bit 0: If set, program-level fees are enabled.
+    /// * Bits 1-63: Reserved for future use.
+    pub group_flags: u64,
     /// Caches information from the global `FeeState` so the FeeState can be omitted on certain ixes
     pub fee_state_cache: FeeStateCache,
     pub _padding_0: [[u64; 2]; 27],
@@ -67,6 +69,11 @@ pub struct FeeStateCache {
 
 impl MarginfiGroup {
     const PROGRAM_FEES_ENABLED: u64 = 1;
+
+    /// Bits in use for flag settings.
+    const ALLOWED_FLAGS: u64 = Self::PROGRAM_FEES_ENABLED;
+    // To add: const ALLOWED_FLAGS: u64 = PROGRAM_FEES_ENABLED | ANOTHER_FEATURE_BIT;
+
     /// Configure the group parameters.
     /// This function validates config values so the group remains in a valid state.
     /// Any modification of group config should happen through this function.
@@ -82,13 +89,34 @@ impl MarginfiGroup {
     #[allow(clippy::too_many_arguments)]
     pub fn set_initial_configuration(&mut self, admin_pk: Pubkey) {
         self.admin = admin_pk;
-        self.program_fees = Self::PROGRAM_FEES_ENABLED;
+        self.group_flags = Self::PROGRAM_FEES_ENABLED;
     }
 
     pub fn get_group_bank_config(&self) -> GroupBankConfig {
         GroupBankConfig {
-            program_fees: self.program_fees == Self::PROGRAM_FEES_ENABLED,
+            program_fees: self.group_flags == Self::PROGRAM_FEES_ENABLED,
         }
+    }
+
+    /// Validates that only allowed flags are being set.
+    pub fn validate_flags(flag: u64) -> MarginfiResult {
+        // Note: 0xnnnn & 0x1110, is nonzero for 0x1000 & 0x1110
+        let flag_ok = flag & !Self::ALLOWED_FLAGS == 0;
+        check!(flag_ok, MarginfiError::IllegalFlag);
+
+        Ok(())
+    }
+
+    /// Sets flag and errors if a disallowed flag is set
+    pub fn set_flags(&mut self, flag: u64) -> MarginfiResult {
+        Self::validate_flags(flag)?;
+        self.group_flags = flag;
+        Ok(())
+    }
+
+    /// True if program fees are enabled
+    pub fn program_fees_enabled(&self) -> bool {
+        (self.group_flags & Self::PROGRAM_FEES_ENABLED) != 0
     }
 }
 
@@ -1791,7 +1819,7 @@ mod tests {
 
         let ur = I80F48!(207_112_621_602) / I80F48!(10_000_000_000_000);
         let mut group = MarginfiGroup::default();
-        group.program_fees = 1;
+        group.group_flags = 1;
         group.fee_state_cache.program_fee_fixed = PROTOCOL_FEE_FIXED_DEFAULT.into();
         group.fee_state_cache.program_fee_rate = PROTOCOL_FEE_RATE_DEFAULT.into();
 
@@ -1874,7 +1902,7 @@ mod tests {
         };
 
         let mut group = MarginfiGroup::default();
-        group.program_fees = 1;
+        group.group_flags = 1;
         group.fee_state_cache.program_fee_fixed = PROTOCOL_FEE_FIXED_DEFAULT.into();
         group.fee_state_cache.program_fee_rate = PROTOCOL_FEE_RATE_DEFAULT.into();
 

@@ -22,7 +22,7 @@ pub struct ConfigGroupFee<'info> {
 pub fn config_group_fee(ctx: Context<ConfigGroupFee>, flag: u64) -> MarginfiResult {
     let mut marginfi_group = ctx.accounts.marginfi_group.load_mut()?;
 
-    marginfi_group.program_fees = flag;
+    marginfi_group.set_flags(flag)?;
 
     Ok(())
 }

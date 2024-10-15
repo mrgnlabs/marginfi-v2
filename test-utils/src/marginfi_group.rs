@@ -503,7 +503,7 @@ impl MarginfiGroupFixture {
             .unwrap()
             .unwrap();
 
-        group.program_fees = if enabled { 1 } else { 0 };
+        group.group_flags = if enabled { 1 } else { 0 };
 
         let data = bytes_of(&group);
 

@@ -1,5 +1,7 @@
 // Runs once per program to init the global fee state.
 
+use std::str::FromStr;
+
 use crate::constants::FEE_STATE_SEED;
 use crate::state::fee_state;
 use crate::state::marginfi_group::WrappedI80F48;
@@ -15,7 +17,14 @@ pub fn initialize_fee_state(
     program_fee_rate: WrappedI80F48,
 ) -> Result<()> {
     let mut fee_state = ctx.accounts.fee_state.load_init()?;
-    fee_state.global_fee_admin = admin_key;
+    // On mainnet we always use the mrgn program multisig. On other networks, configurable.
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "mainnet-beta")] {
+            fee_state.global_fee_admin = Pubkey::from_str("3HGdGLrnK9DsnHi1mCrUMLGfQHcu6xUrXhMY14GYjqvM").unwrap();
+        } else {
+            fee_state.global_fee_admin = admin_key;
+        }
+    }
     fee_state.global_fee_wallet = fee_wallet;
     fee_state.key = ctx.accounts.fee_state.key();
     fee_state.bank_init_flat_sol_fee = bank_init_flat_sol_fee;
