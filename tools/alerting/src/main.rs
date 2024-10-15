@@ -8,10 +8,7 @@ use std::{
 use log::{error, info, warn};
 use marginfi::{
     constants::{PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID},
-    state::{
-        marginfi_group::Bank,
-        price::{OracleSetup},
-    },
+    state::{marginfi_group::Bank, price::OracleSetup},
 };
 use pagerduty_rs::{
     eventsv2sync::EventsV2,
