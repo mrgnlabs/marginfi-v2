@@ -8,6 +8,7 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
+use marginfi::state::marginfi_account::TRANSFER_AUTHORITY_ALLOWED_FLAG;
 use marginfi::{
     prelude::*,
     state::{
@@ -153,6 +154,10 @@ pub enum GroupCommand {
         accounts: Vec<Pubkey>,
     },
     UpdateLookupTable {
+        #[clap(short = 't', long)]
+        existing_token_lookup_tables: Vec<Pubkey>,
+    },
+    CheckLookupTable {
         #[clap(short = 't', long)]
         existing_token_lookup_tables: Vec<Pubkey>,
     },
@@ -408,6 +413,8 @@ pub enum AccountCommand {
         account_pk: Pubkey,
         #[clap(long)]
         flashloans_enabled: bool,
+        #[clap(long)]
+        account_migration_enabled: bool,
     },
 }
 
@@ -610,6 +617,14 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         GroupCommand::HandleBankruptcy { accounts } => {
             processor::handle_bankruptcy_for_accounts(&config, &profile, accounts)
         }
+
+        GroupCommand::CheckLookupTable {
+            existing_token_lookup_tables,
+        } => processor::group::process_check_lookup_tables(
+            &config,
+            &profile,
+            existing_token_lookup_tables,
+        ),
 
         GroupCommand::UpdateLookupTable {
             existing_token_lookup_tables,
@@ -886,12 +901,18 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
         AccountCommand::SetFlag {
             flashloans_enabled: flashloan,
             account_pk,
+            account_migration_enabled,
         } => {
             let mut flag = 0;
 
             if flashloan {
                 println!("Setting flashloan flag");
                 flag |= FLASHLOAN_ENABLED_FLAG;
+            }
+
+            if account_migration_enabled {
+                println!("Setting account migration flag");
+                flag |= TRANSFER_AUTHORITY_ALLOWED_FLAG;
             }
 
             if flag == 0 {

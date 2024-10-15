@@ -308,7 +308,7 @@ impl PriceAdapter for PythLegacyPriceFeed {
 
 #[cfg_attr(feature = "client", derive(Clone, Debug))]
 pub struct SwitchboardPullPriceFeed {
-    feed: Box<LitePullFeedAccountData>,
+    pub feed: Box<LitePullFeedAccountData>,
 }
 
 impl SwitchboardPullPriceFeed {
@@ -767,14 +767,22 @@ impl PriceAdapter for PythPushOraclePriceFeed {
 /// A slimmed down version of the PullFeedAccountData struct copied from the
 /// switchboard-on-demand/src/pull_feed.rs
 #[cfg_attr(feature = "client", derive(Clone, Debug))]
-struct LitePullFeedAccountData {
+pub struct LitePullFeedAccountData {
     pub result: CurrentResult,
+    #[cfg(feature = "client")]
+    pub feed_hash: [u8; 32],
+    #[cfg(feature = "client")]
+    pub last_update_timestamp: i64,
 }
 
 impl From<&PullFeedAccountData> for LitePullFeedAccountData {
     fn from(feed: &PullFeedAccountData) -> Self {
         Self {
             result: feed.result,
+            #[cfg(feature = "client")]
+            feed_hash: feed.feed_hash,
+            #[cfg(feature = "client")]
+            last_update_timestamp: feed.last_update_timestamp,
         }
     }
 }
@@ -783,6 +791,10 @@ impl From<Ref<'_, PullFeedAccountData>> for LitePullFeedAccountData {
     fn from(feed: Ref<'_, PullFeedAccountData>) -> Self {
         Self {
             result: feed.result,
+            #[cfg(feature = "client")]
+            feed_hash: feed.feed_hash,
+            #[cfg(feature = "client")]
+            last_update_timestamp: feed.last_update_timestamp,
         }
     }
 }
