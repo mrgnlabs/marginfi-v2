@@ -28,14 +28,22 @@ marginfi = { path = "../../programs/marginfi", features = [
 ] }
 
 gcp-bigquery-client = "0.16.7"
-google-cloud-default = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994", features = ["pubsub"] }
+google-cloud-default = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994", features = [
+    "pubsub",
+] }
 google-cloud-auth = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994" }
 google-cloud-pubsub = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994" }
 google-cloud-gax = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994" }
-google-cloud-googleapis = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994", features = ["bytes", "pubsub"] }
+google-cloud-googleapis = { git = " https://github.com/mrgnlabs/google-cloud-rust.git", rev = "3f651f2d9fd8cca547bb11490d2575d9bf90f994", features = [
+    "bytes",
+    "pubsub",
+] }
 yup-oauth2 = "8.3.0"
-yellowstone-grpc-client = { git = "https://github.com/rpcpool/yellowstone-grpc.git", rev = "a2cd1498ac64baa1017d4a4cdefbf46100215b4c" }
-yellowstone-grpc-proto = { git = "https://github.com/rpcpool/yellowstone-grpc.git", rev = "a2cd1498ac64baa1017d4a4cdefbf46100215b4c" }
+yellowstone-grpc-client = { git = "https://github.com/rpcpool/yellowstone-grpc.git", rev = "87e1755b0d7a4e8101cb5feb6f30063aa91f343f" }
+yellowstone-grpc-proto = { git = "https://github.com/rpcpool/yellowstone-grpc.git", rev = "87e1755b0d7a4e8101cb5feb6f30063aa91f343f" }
+switchboard-on-demand-client = "0.1.7"
+switchboard-on-demand = "0.1.7"
+hex = "0.4.3"
 fixed = "1.12.0"
 fixed-macro = "1.2.0"
 dotenv = "0.15.0"
