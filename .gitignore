@@ -32,3 +32,5 @@ test-ledger/
 # Allow specific json files
 !tests/fixtures/**/*.json
 !programs/marginfi/tests/fixtures/**/*.json
+
+alerting/configs
