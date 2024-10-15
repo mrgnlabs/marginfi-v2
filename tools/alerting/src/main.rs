@@ -325,7 +325,7 @@ fn check_pyth_push_oracle(
             pyth_sponsered_oracle_address,
         ])?;
 
-        match (accounts.get(0).cloned(), accounts.get(1).cloned()) {
+        match (accounts.first().cloned(), accounts.get(1).cloned()) {
             (Some(Some(account)), _) => account,
             (_, Some(Some(account))) => account,
             _ => anyhow::bail!("Oracle account for bank {} not found", address),
@@ -503,13 +503,12 @@ fn clear_stale_oracle_alert(context: &AlertingContext, address: &Pubkey) -> anyh
 }
 
 fn get_oracle_dedup_key(address: &Pubkey) -> String {
-    format!("stale-oracle-{}", address.to_string())
+    format!("stale-oracle-{}", address)
 }
 
 fn get_current_unix_timestamp_secs() -> i64 {
-    let now = SystemTime::now()
+    SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
-        .as_secs() as i64;
-    now
+        .as_secs() as i64
 }
