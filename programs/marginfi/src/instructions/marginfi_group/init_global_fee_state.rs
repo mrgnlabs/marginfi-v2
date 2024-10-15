@@ -18,11 +18,12 @@ pub fn initialize_fee_state(
     // On mainnet we always use the mrgn program multisig. On other networks, configurable.
     cfg_if::cfg_if! {
         if #[cfg(feature = "mainnet-beta")] {
-            fee_state.global_fee_admin = pubkey!("3HGdGLrnK9DsnHi1mCrUMLGfQHcu6xUrXhMY14GYjqvM");
-        } else {
-            fee_state.global_fee_admin = admin_key;
+            if ctx.accounts.payer.key != &pubkey!("3HGdGLrnK9DsnHi1mCrUMLGfQHcu6xUrXhMY14GYjqvM"){
+                panic!("The mrgn program multisig must sign on mainnet.")
+            }
         }
     }
+    fee_state.global_fee_admin = admin_key;
     fee_state.global_fee_wallet = fee_wallet;
     fee_state.key = ctx.accounts.fee_state.key();
     fee_state.bank_init_flat_sol_fee = bank_init_flat_sol_fee;
