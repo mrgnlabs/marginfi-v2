@@ -15,9 +15,8 @@ pub fn initialize_fee_state(
     program_fee_rate: WrappedI80F48,
 ) -> Result<()> {
     let mut fee_state = ctx.accounts.fee_state.load_init()?;
-    // On mainnet we always use the mrgn program multisig. On other networks, configurable.
     cfg_if::cfg_if! {
-        if #[cfg(feature = "mainnet-beta")] {
+        if #[cfg(all(feature = "mainnet-beta", feature = "fee-deploy"))] {
             if ctx.accounts.payer.key != &pubkey!("3HGdGLrnK9DsnHi1mCrUMLGfQHcu6xUrXhMY14GYjqvM"){
                 panic!("The mrgn program multisig must sign on mainnet.")
             }
