@@ -22,7 +22,7 @@ devnet = []
 mainnet-beta = []
 debug = []
 staging = []
-fee-deploy = []
+ignore-fee-deploy = []
 
 [dependencies]
 solana-program = { workspace = true }
