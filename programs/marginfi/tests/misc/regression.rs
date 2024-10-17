@@ -655,7 +655,7 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         pubkey!("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo")
     );
 
-    assert_eq!(bank._padding_0, [[0, 0]; 28]);
+    assert_eq!(bank._padding_0, [[0, 0]; 27]);
     assert_eq!(bank._padding_1, [[0, 0]; 32]);
 
     Ok(())

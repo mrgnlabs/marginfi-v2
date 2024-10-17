@@ -402,6 +402,7 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 
@@ -524,6 +525,7 @@ async fn marginfi_account_liquidation_failure_liquidatee_not_unhealthy() -> anyh
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 
@@ -627,6 +629,7 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 

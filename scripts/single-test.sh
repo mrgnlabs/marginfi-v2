@@ -20,7 +20,7 @@ cd $ROOT
 
 SBF_OUT_DIR="$ROOT/target/deploy"
 RUST_LOG="solana_runtime::message_processor::stable_log=debug"
-CARGO_CMD="SBF_OUT_DIR=$SBF_OUT_DIR RUST_LOG=$RUST_LOG cargo nextest run --package $program_name --features=test,test-bpf --test-threads=1 -- $test_name"
+CARGO_CMD="SBF_OUT_DIR=$SBF_OUT_DIR RUST_LOG=$RUST_LOG cargo nextest run --package $program_name --features=test,test-bpf --nocapture -- $test_name"
 
 echo "Running: $CARGO_CMD"
 

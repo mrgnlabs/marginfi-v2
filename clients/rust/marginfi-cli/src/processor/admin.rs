@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    utils::{process_transaction, ui_to_native},
+    utils::{find_fee_state_pda, process_transaction, ui_to_native},
 };
 use anchor_client::anchor_lang::{prelude::*, InstructionData};
 use anchor_spl::associated_token;
@@ -32,6 +32,8 @@ pub fn process_collect_fees(config: Config, bank_pk: Pubkey) -> Result<()> {
             liquidity_vault_authority,
             liquidity_vault: bank.liquidity_vault,
             insurance_vault: bank.insurance_vault,
+            fee_state: find_fee_state_pda(&marginfi::id()).0,
+            fee_ata: find_fee_state_pda(&marginfi::id()).0, // TODO
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),

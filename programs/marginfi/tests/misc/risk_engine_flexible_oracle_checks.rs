@@ -240,6 +240,7 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 
@@ -337,6 +338,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
                 }),
             },
         ],
+        protocol_fees: false,
     }))
     .await;
 

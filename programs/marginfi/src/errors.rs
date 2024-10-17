@@ -96,6 +96,8 @@ pub enum MarginfiError {
     IllegalAction,
     #[msg("Token22 Banks require mint account as first remaining account")] // 6047
     T22MintRequired,
+    #[msg("Invalid ATA for global fee account")] // 6048
+    InvalidFeeAta,
 }
 
 impl From<MarginfiError> for ProgramError {

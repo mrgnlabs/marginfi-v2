@@ -10,8 +10,10 @@ path = "src/bin/main.rs"
 [features]
 devnet = ["marginfi/devnet"]
 mainnet-beta = ["marginfi/mainnet-beta"]
+default = ["mainnet-beta", "admin", "dev", "lip"]
+admin = []
+dev = []
 staging = ["marginfi/staging"]
-default = ["mainnet-beta"]
 lip = []
 
 [dependencies]

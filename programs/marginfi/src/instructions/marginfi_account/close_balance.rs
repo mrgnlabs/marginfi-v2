@@ -13,6 +13,7 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
     let LendingAccountCloseBalance {
         marginfi_account,
         bank: bank_loader,
+        marginfi_group: marginfi_group_loader,
         ..
     } = ctx.accounts;
 
@@ -26,6 +27,7 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
 
     bank.accrue_interest(
         Clock::get()?.unix_timestamp,
+        &*marginfi_group_loader.load()?,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;

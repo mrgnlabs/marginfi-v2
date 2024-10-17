@@ -22,6 +22,7 @@ devnet = []
 mainnet-beta = []
 debug = []
 staging = []
+ignore-fee-deploy = []
 
 [dependencies]
 anchor-lang = { workspace = true }

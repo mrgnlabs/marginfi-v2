@@ -15,6 +15,7 @@ async fn marginfi_group_bank_paused_should_error() -> anyhow::Result<()> {
             config: None,
         }],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 
@@ -54,6 +55,7 @@ async fn marginfi_group_bank_reduce_only_withdraw_success() -> anyhow::Result<()
             config: None,
         }],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 
@@ -101,6 +103,7 @@ async fn marginfi_group_bank_reduce_only_deposit_success() -> anyhow::Result<()>
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 
@@ -160,6 +163,7 @@ async fn marginfi_group_bank_reduce_only_borrow_failure() -> anyhow::Result<()> 
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 
@@ -207,6 +211,7 @@ async fn marginfi_group_bank_reduce_only_deposit_failure() -> anyhow::Result<()>
             config: None,
         }],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 

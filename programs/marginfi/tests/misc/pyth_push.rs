@@ -28,6 +28,7 @@ async fn pyth_push_fullv_borrow() -> anyhow::Result<()> {
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 
@@ -96,6 +97,7 @@ async fn pyth_push_partv_borrow() -> anyhow::Result<()> {
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 
@@ -159,6 +161,7 @@ async fn pyth_push_fullv_liquidate() -> anyhow::Result<()> {
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 

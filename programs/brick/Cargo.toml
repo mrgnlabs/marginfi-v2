@@ -6,7 +6,6 @@ edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "brick"
 
 [features]
 no-entrypoint = []
@@ -16,10 +15,9 @@ cpi = ["no-entrypoint"]
 default = []
 idl-build = ["anchor-lang/idl-build"]
 test = []
-
-[profile.release]
-overflow-checks = true
+ignore-fee-deploy = []
 
 [dependencies]
-solana-program.workspace = true
-anchor-lang.workspace = true
+# Remove workspace = true if already defined in the root Cargo.toml
+anchor-lang = { workspace = true }
+solana-program = { workspace = true }
