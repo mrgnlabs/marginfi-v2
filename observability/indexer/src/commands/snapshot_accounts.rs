@@ -211,7 +211,7 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
                 })
                 .collect::<Vec<_>>(),
         );
-        context.crossbar_store.refresh_prices().await;
+        context.crossbar_store.refresh_prices().await.unwrap();
 
         snapshot
             .routing_lookup
@@ -236,7 +236,20 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
         let context = context.clone();
         async move {
             loop {
-                context.crossbar_store.refresh_prices().await;
+                let mut retry_count = 0;
+                while retry_count < 3 {
+                    match context.crossbar_store.refresh_prices().await {
+                        Ok(_) => break,
+                        Err(e) => {
+                            retry_count += 1;
+                            if retry_count == 3 {
+                                error!("Failed to refresh prices after 3 attempts: {:?}", e);
+                            } else {
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                            }
+                        }
+                    }
+                }
                 let mut snapshot = context.account_snapshot.lock().await;
                 let feeds_per_address: HashMap<Pubkey, crate::utils::crossbar::SimulatedPrice> =
                     context.crossbar_store.get_prices_per_address();

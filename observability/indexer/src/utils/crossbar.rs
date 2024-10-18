@@ -1,3 +1,4 @@
+use anyhow::Result;
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, sync::Mutex};
 use switchboard_on_demand_client::CrossbarClient;
@@ -27,7 +28,7 @@ pub struct CrossbarCache {
 impl CrossbarCache {
     /// Creates a new CrossbarCache empty instance
     pub fn new() -> Self {
-        let crossbar_client = CrossbarClient::default(None);
+        let crossbar_client = CrossbarClient::default();
         Self {
             crossbar_client,
             feeds: Mutex::new(HashMap::new()),
@@ -50,24 +51,43 @@ impl CrossbarCache {
         }
     }
 
-    pub async fn refresh_prices(&self) {
+    pub async fn refresh_prices(&self) -> Result<()> {
         if self.feeds.lock().unwrap().is_empty() {
-            return;
+            return Ok(());
         }
 
-        let feed_hashes = self
+        let feed_hashes: Vec<String> = self
             .feeds
             .lock()
             .unwrap()
             .values()
             .map(|feed| feed.feed_meta.feed_hash.clone())
-            .collect::<Vec<_>>();
+            .collect();
 
-        let simulated_prices = self
-            .crossbar_client
-            .simulate_feeds(&feed_hashes.iter().map(|x| x.as_str()).collect::<Vec<_>>())
-            .await
-            .unwrap();
+        const CHUNK_SIZE: usize = 20;
+
+        let chunk_futures: Vec<_> = feed_hashes
+            .chunks(CHUNK_SIZE)
+            .map(|chunk| {
+                let client = self.crossbar_client.clone();
+                let chunk_vec: Vec<String> = chunk.to_vec();
+                tokio::spawn(async move {
+                    client
+                        .simulate_feeds(
+                            &chunk_vec.iter().map(|x| x.as_str()).collect::<Vec<&str>>(),
+                        )
+                        .await
+                })
+            })
+            .collect();
+
+        let chunk_results = futures::future::try_join_all(chunk_futures).await?;
+        let mut simulated_prices = Vec::new();
+        for result in chunk_results {
+            if let Ok(chunk_result) = result {
+                simulated_prices.extend(chunk_result);
+            }
+        }
 
         let timestamp = chrono::Utc::now().timestamp();
 
@@ -83,6 +103,8 @@ impl CrossbarCache {
                 }
             }
         }
+
+        Ok(())
     }
 
     pub fn get_prices_per_address(&self) -> HashMap<Pubkey, SimulatedPrice> {
@@ -136,7 +158,7 @@ mod tests {
                 feed_hash: feed_hash2.clone(),
             },
         ]);
-        crossbar_maintainer.refresh_prices().await;
+        crossbar_maintainer.refresh_prices().await.unwrap();
         println!("Price: {:?}", price.lock().unwrap());
         println!("Price2: {:?}", price2.lock().unwrap());
     }
