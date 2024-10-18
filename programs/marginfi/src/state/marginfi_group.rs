@@ -2,7 +2,6 @@ use super::{
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
-use crate::borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
@@ -19,6 +18,10 @@ use crate::{
     set_if_some,
     state::marginfi_account::calc_value,
     MarginfiResult,
+};
+use crate::{
+    borsh::{BorshDeserialize, BorshSerialize},
+    constants::ASSET_TAG_DEFAULT,
 };
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::*;
@@ -342,7 +345,17 @@ pub struct Bank {
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 28],
+    /// For banks where `config.asset_tag == ASSET_TAG_STAKED`, this defines the last-cached
+    /// exchange rate of LST to SOL, i.e. the price appreciation of the LST. For example, if this is
+    /// 1, then the LST trades 1:1 for SOL. If this is 1.1, then 1 LST can be exchange for 1.1 SOL.
+    ///
+    /// Currently, this cannot be less than 1 (but this may change if slashing is implemented)
+    ///
+    /// For banks where `config.asset_tag != ASSET_TAG_STAKED` this field does nothing and may be 0,
+    /// 1, or any other value.
+    pub sol_appreciation_rate: WrappedI80F48,
+
+    pub _padding_0: [[u64; 2]; 27],
     pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
 }
 
@@ -389,6 +402,7 @@ impl Bank {
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
+            sol_appreciation_rate: I80F48::ONE.into(),
             ..Default::default()
         }
     }
@@ -546,6 +560,8 @@ impl Bank {
         }
 
         set_if_some!(self.config.risk_tier, config.risk_tier);
+
+        set_if_some!(self.config.asset_tag, config.asset_tag);
 
         set_if_some!(
             self.config.total_asset_value_init_limit,
@@ -978,7 +994,17 @@ pub struct BankConfigCompact {
 
     pub risk_tier: RiskTier,
 
-    pub _pad0: [u8; 7],
+    /// Determines what kinds of assets users of this bank can interact with.
+    /// Options:
+    /// * ASSET_TAG_DEFAULT (0) - A regular asset that can be comingled with any other regular asset
+    ///   or with `ASSET_TAG_SOL`
+    /// * ASSET_TAG_SOL (1) - Accounts with a SOL position can comingle with **either**
+    /// `ASSET_TAG_DEFAULT` or `ASSET_TAG_STAKED` positions, but not both
+    /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
+    /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
+    pub asset_tag: u8,
+
+    pub _pad0: [u8; 6],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1016,7 +1042,8 @@ impl From<BankConfigCompact> for BankConfig {
             _pad0: [0; 6],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
-            _pad1: [0; 7],
+            asset_tag: config.asset_tag,
+            _pad1: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
             _padding: [0; 38],
@@ -1038,7 +1065,8 @@ impl From<BankConfig> for BankConfigCompact {
             oracle_key: config.oracle_keys[0],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
-            _pad0: [0; 7],
+            asset_tag: config.asset_tag,
+            _pad0: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
         }
@@ -1077,7 +1105,17 @@ pub struct BankConfig {
 
     pub risk_tier: RiskTier,
 
-    pub _pad1: [u8; 7],
+    /// Determines what kinds of assets users of this bank can interact with.
+    /// Options:
+    /// * ASSET_TAG_DEFAULT (0) - A regular asset that can be comingled with any other regular asset
+    ///   or with `ASSET_TAG_SOL`
+    /// * ASSET_TAG_SOL (1) - Accounts with a SOL position can comingle with **either**
+    /// `ASSET_TAG_DEFAULT` or `ASSET_TAG_STAKED` positions, but not both
+    /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
+    /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
+    pub asset_tag: u8,
+
+    pub _pad1: [u8; 6],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1092,6 +1130,7 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
 
+    // Note: 6 bytes of padding to next 8 byte alignment, then end padding
     pub _padding: [u8; 38],
 }
 
@@ -1110,7 +1149,8 @@ impl Default for BankConfig {
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
             _pad0: [0; 6],
             risk_tier: RiskTier::Isolated,
-            _pad1: [0; 7],
+            asset_tag: ASSET_TAG_DEFAULT,
+            _pad1: [0; 6],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
             _padding: [0; 38],
@@ -1273,6 +1313,8 @@ pub struct BankConfigOpt {
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
     pub risk_tier: Option<RiskTier>,
+
+    pub asset_tag: Option<u8>,
 
     pub total_asset_value_init_limit: Option<u64>,
 

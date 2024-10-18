@@ -7,7 +7,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
         marginfi_group::{Bank, BankVaultType},
     },
-    utils,
+    utils::{self, validate_asset_tags},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
@@ -56,6 +56,8 @@ pub fn lending_account_borrow<'info>(
 
     {
         let mut bank = bank_loader.load_mut()?;
+
+        validate_asset_tags(&bank, &marginfi_account)?;
 
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
 

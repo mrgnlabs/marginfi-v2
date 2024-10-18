@@ -1,4 +1,9 @@
-// Adapted from PsyLend
+// TODO the Price struct has changed a bit since this copy-pasta was generated some time ago,
+// however price and ema price/expo/conf are in the same spot, so if those are all you need, there's
+// no need to update (all modern changes are backwards compatible, new versions of Pyth on-chain
+// will still deserialize the price data)
+
+// Adapated from PsyLend, Jet labs, etc
 import { Program, Wallet, workspace } from "@coral-xyz/anchor";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { Oracles, createMockAccount, storeMockAccount } from "./mocks";
@@ -289,6 +294,10 @@ export const writeProductBuffer = (
  * @param wsolDecimals
  * @param usdcPrice
  * @param usdcDecimals
+ * @param tokenAPrice:   
+ * @param tokenADecimals:
+ * @param tokenBPrice:   
+ * @param tokenBDecimals:
  * @param verbose
  * @param skips - set to true to skip sending txes, which makes tests run faster if you don't need
  * those oracles.

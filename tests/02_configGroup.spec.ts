@@ -6,7 +6,7 @@ import {
   workspace,
 } from "@coral-xyz/anchor";
 import { Keypair, Transaction } from "@solana/web3.js";
-import { groupConfigure } from "./utils/instructions";
+import { groupConfigure } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
 import { groupAdmin, marginfiGroup } from "./rootHooks";
 import { assertKeysEqual } from "./utils/genericTests";
