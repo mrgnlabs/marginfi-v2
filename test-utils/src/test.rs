@@ -30,6 +30,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 pub struct TestSettings {
     pub group_config: Option<GroupConfig>,
     pub banks: Vec<TestBankSetting>,
+    pub protocol_fees: bool,
 }
 
 impl TestSettings {
@@ -76,6 +77,7 @@ impl TestSettings {
         Self {
             banks,
             group_config: Some(GroupConfig { admin: None }),
+            protocol_fees: false,
         }
     }
 
@@ -93,6 +95,33 @@ impl TestSettings {
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
+            protocol_fees: false,
+        }
+    }
+
+    pub fn all_banks_one_isolated() -> Self {
+        Self {
+            banks: vec![
+                TestBankSetting {
+                    mint: BankMint::Usdc,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::Sol,
+                    ..TestBankSetting::default()
+                },
+                TestBankSetting {
+                    mint: BankMint::SolEquivalent,
+                    config: Some(BankConfig {
+                        risk_tier: RiskTier::Isolated,
+                        asset_weight_maint: I80F48!(0).into(),
+                        asset_weight_init: I80F48!(0).into(),
+                        ..*DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG
+                    }),
+                },
+            ],
+            group_config: Some(GroupConfig { admin: None }),
+            protocol_fees: false,
         }
     }
 
@@ -141,6 +170,7 @@ impl TestSettings {
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
+            protocol_fees: false,
         }
     }
 }
@@ -598,6 +628,10 @@ impl TestFixture {
                 .unwrap_or(GroupConfig { admin: None }),
         )
         .await;
+
+        tester_group
+            .set_protocol_fees_flag(test_settings.clone().unwrap_or_default().protocol_fees)
+            .await;
 
         let mut banks = HashMap::new();
         if let Some(test_settings) = test_settings.clone() {

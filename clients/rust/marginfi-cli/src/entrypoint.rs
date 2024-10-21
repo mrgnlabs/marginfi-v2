@@ -86,6 +86,7 @@ pub enum Command {
     },
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Parser)]
 pub enum GroupCommand {
     Get {
@@ -133,9 +134,9 @@ pub enum GroupCommand {
         #[clap(long)]
         insurance_ir_fee: f64,
         #[clap(long)]
-        protocol_fixed_fee_apr: f64,
+        group_fixed_fee_apr: f64,
         #[clap(long)]
-        protocol_ir_fee: f64,
+        group_ir_fee: f64,
         #[clap(long, arg_enum)]
         risk_tier: RiskTierArg,
         #[clap(long, arg_enum)]
@@ -146,6 +147,8 @@ pub enum GroupCommand {
             default_value = "60"
         )]
         oracle_max_age: u16,
+        #[clap(long)]
+        global_fee_wallet: Pubkey,
     },
     HandleBankruptcy {
         accounts: Vec<Pubkey>,
@@ -576,13 +579,14 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             max_interest_rate,
             insurance_fee_fixed_apr,
             insurance_ir_fee,
-            protocol_fixed_fee_apr,
-            protocol_ir_fee,
+            group_fixed_fee_apr,
+            group_ir_fee,
             deposit_limit_ui,
             borrow_limit_ui,
             risk_tier,
             oracle_type,
             oracle_max_age,
+            global_fee_wallet,
         } => processor::group_add_bank(
             config,
             profile,
@@ -602,11 +606,12 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             max_interest_rate,
             insurance_fee_fixed_apr,
             insurance_ir_fee,
-            protocol_fixed_fee_apr,
-            protocol_ir_fee,
+            group_fixed_fee_apr,
+            group_ir_fee,
             risk_tier,
             oracle_max_age,
             global_options.compute_unit_price,
+            global_fee_wallet,
         ),
 
         GroupCommand::HandleBankruptcy { accounts } => {

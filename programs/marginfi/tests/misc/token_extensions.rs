@@ -55,6 +55,7 @@ async fn marginfi_account_liquidation_success_with_extension(
                 },
             ],
             group_config: Some(GroupConfig { admin: None }),
+            protocol_fees: false,
         }),
         &extensions,
     )
