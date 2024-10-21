@@ -8,6 +8,7 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
+use marginfi::state::marginfi_account::TRANSFER_AUTHORITY_ALLOWED_FLAG;
 use marginfi::{
     prelude::*,
     state::{
@@ -85,6 +86,7 @@ pub enum Command {
     },
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Parser)]
 pub enum GroupCommand {
     Get {
@@ -132,9 +134,9 @@ pub enum GroupCommand {
         #[clap(long)]
         insurance_ir_fee: f64,
         #[clap(long)]
-        protocol_fixed_fee_apr: f64,
+        group_fixed_fee_apr: f64,
         #[clap(long)]
-        protocol_ir_fee: f64,
+        group_ir_fee: f64,
         #[clap(long, arg_enum)]
         risk_tier: RiskTierArg,
         #[clap(long, arg_enum)]
@@ -145,11 +147,17 @@ pub enum GroupCommand {
             default_value = "60"
         )]
         oracle_max_age: u16,
+        #[clap(long)]
+        global_fee_wallet: Pubkey,
     },
     HandleBankruptcy {
         accounts: Vec<Pubkey>,
     },
     UpdateLookupTable {
+        #[clap(short = 't', long)]
+        existing_token_lookup_tables: Vec<Pubkey>,
+    },
+    CheckLookupTable {
         #[clap(short = 't', long)]
         existing_token_lookup_tables: Vec<Pubkey>,
     },
@@ -407,6 +415,8 @@ pub enum AccountCommand {
         account_pk: Pubkey,
         #[clap(long)]
         flashloans_enabled: bool,
+        #[clap(long)]
+        account_migration_enabled: bool,
     },
 }
 
@@ -571,13 +581,14 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             max_interest_rate,
             insurance_fee_fixed_apr,
             insurance_ir_fee,
-            protocol_fixed_fee_apr,
-            protocol_ir_fee,
+            group_fixed_fee_apr,
+            group_ir_fee,
             deposit_limit_ui,
             borrow_limit_ui,
             risk_tier,
             oracle_type,
             oracle_max_age,
+            global_fee_wallet,
         } => processor::group_add_bank(
             config,
             profile,
@@ -597,16 +608,25 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             max_interest_rate,
             insurance_fee_fixed_apr,
             insurance_ir_fee,
-            protocol_fixed_fee_apr,
-            protocol_ir_fee,
+            group_fixed_fee_apr,
+            group_ir_fee,
             risk_tier,
             oracle_max_age,
             global_options.compute_unit_price,
+            global_fee_wallet,
         ),
 
         GroupCommand::HandleBankruptcy { accounts } => {
             processor::handle_bankruptcy_for_accounts(&config, &profile, accounts)
         }
+
+        GroupCommand::CheckLookupTable {
+            existing_token_lookup_tables,
+        } => processor::group::process_check_lookup_tables(
+            &config,
+            &profile,
+            existing_token_lookup_tables,
+        ),
 
         GroupCommand::UpdateLookupTable {
             existing_token_lookup_tables,
@@ -885,12 +905,18 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
         AccountCommand::SetFlag {
             flashloans_enabled: flashloan,
             account_pk,
+            account_migration_enabled,
         } => {
             let mut flag = 0;
 
             if flashloan {
                 println!("Setting flashloan flag");
                 flag |= FLASHLOAN_ENABLED_FLAG;
+            }
+
+            if account_migration_enabled {
+                println!("Setting account migration flag");
+                flag |= TRANSFER_AUTHORITY_ALLOWED_FLAG;
             }
 
             if flag == 0 {

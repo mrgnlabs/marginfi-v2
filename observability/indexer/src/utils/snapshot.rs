@@ -1,3 +1,4 @@
+use crate::common::get_multiple_accounts_chunked2;
 use anchor_client::anchor_lang::AccountDeserialize;
 use anchor_client::anchor_lang::Discriminator;
 use fixed::types::I80F48;
@@ -24,7 +25,7 @@ use std::{
 };
 use tracing::info;
 
-use crate::common::get_multiple_accounts_chunked2;
+use super::swb_pull::load_swb_pull_account;
 
 #[derive(Clone, Debug)]
 pub struct BankAccounts {
@@ -41,6 +42,7 @@ pub enum AccountRoutingType {
     Bank(Pubkey, BankUpdateRoutingType),
     PriceFeedPyth,
     PriceFeedSwitchboard,
+    PriceFeedSwitchboardPull,
     PriceFeedPythPushOracle,
 }
 
@@ -54,9 +56,10 @@ pub enum BankUpdateRoutingType {
 
 #[derive(Clone, Debug)]
 pub enum OracleData {
-    Pyth(PythEmaPriceFeed),
+    Pyth(PythLegacyPriceFeed),
     Switchboard(SwitchboardV2PriceFeed),
     PythPush(PythPushOraclePriceFeed),
+    SwitchboardPull(SwitchboardPullPriceFeed),
 }
 
 impl OracleData {
@@ -73,6 +76,9 @@ impl OracleData {
                 .get_price_of_type(oracle_price_type, bias)
                 .unwrap(),
             OracleData::PythPush(price_feed) => price_feed
+                .get_price_of_type(oracle_price_type, bias)
+                .unwrap(),
+            OracleData::SwitchboardPull(price_feed) => price_feed
                 .get_price_of_type(oracle_price_type, bias)
                 .unwrap(),
         }
@@ -219,7 +225,7 @@ impl Snapshot {
 
                 match bank.config.oracle_setup {
                     OracleSetup::None => (),
-                    OracleSetup::PythEma => {
+                    OracleSetup::PythLegacy => {
                         let oracle_address = bank.config.oracle_keys[0];
                         self.routing_lookup
                             .insert(oracle_address, AccountRoutingType::PriceFeedPyth);
@@ -252,6 +258,15 @@ impl Snapshot {
                             mfi_sponsored_oracle_address,
                             AccountRoutingType::PriceFeedPythPushOracle,
                         );
+
+                        accounts_to_fetch.push(pyth_sponsored_oracle_address);
+                        accounts_to_fetch.push(mfi_sponsored_oracle_address);
+                    }
+                    OracleSetup::SwitchboardPull => {
+                        let oracle_address = bank.config.oracle_keys[0];
+                        self.routing_lookup
+                            .insert(oracle_address, AccountRoutingType::PriceFeedSwitchboardPull);
+                        accounts_to_fetch.push(oracle_address);
                     }
                 }
 
@@ -307,7 +322,7 @@ impl Snapshot {
             AccountRoutingType::PriceFeedPyth => {
                 let mut account = account.clone();
                 let ai = (account_pubkey, &mut account).into_account_info();
-                let pf = PythEmaPriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
+                let pf = PythLegacyPriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
                 self.price_feeds
                     .insert(*account_pubkey, OracleData::Pyth(pf));
             }
@@ -361,6 +376,17 @@ impl Snapshot {
 
                 self.price_feeds
                     .insert(feed_id_pk, OracleData::PythPush(pf));
+            }
+            AccountRoutingType::PriceFeedSwitchboardPull => {
+                let mut account = account.clone();
+                let ai = (account_pubkey, &mut account).into_account_info();
+                let pf = load_swb_pull_account(&ai).unwrap();
+                self.price_feeds.insert(
+                    *account_pubkey,
+                    OracleData::SwitchboardPull(SwitchboardPullPriceFeed {
+                        feed: Box::new((&pf).into()),
+                    }),
+                );
             }
         }
     }

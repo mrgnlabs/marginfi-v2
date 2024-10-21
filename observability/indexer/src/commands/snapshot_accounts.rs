@@ -1,7 +1,9 @@
 use crate::utils::convert_account;
+use crate::utils::crossbar::{CrossbarCache, SwbPullFeedMeta};
 use crate::utils::metrics::{LendingPoolBankMetrics, MarginfiAccountMetrics, MarginfiGroupMetrics};
-use crate::utils::snapshot::Snapshot;
 use crate::utils::snapshot::{AccountRoutingType, BankUpdateRoutingType};
+use crate::utils::snapshot::{OracleData, Snapshot};
+use crate::utils::swb_pull::overwrite_price_from_sim;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use envconfig::Envconfig;
@@ -112,14 +114,16 @@ pub struct Context {
     account_updates_queue: Arc<Mutex<BTreeMap<u64, HashMap<Pubkey, AccountUpdate>>>>,
     latest_slots_with_commitment: Arc<Mutex<BTreeSet<u64>>>,
     account_snapshot: Arc<Mutex<Snapshot>>,
+    crossbar_store: Arc<CrossbarCache>,
     stream_disconnection_count: Arc<AtomicU64>,
     update_processing_error_count: Arc<AtomicU64>,
 }
 
 impl Context {
     pub async fn new(config: &SnapshotAccountsConfig) -> Self {
+        let rpc_endpoint = format!("{}/{}", config.rpc_endpoint, config.rpc_token);
         let rpc_client = Arc::new(RpcClient::new_with_commitment(
-            format!("{}/{}", config.rpc_endpoint, config.rpc_token),
+            rpc_endpoint,
             CommitmentConfig {
                 commitment: solana_sdk::commitment_config::CommitmentLevel::Finalized,
             },
@@ -132,6 +136,7 @@ impl Context {
             account_updates_queue: Arc::new(Mutex::new(BTreeMap::new())),
             latest_slots_with_commitment: Arc::new(Mutex::new(BTreeSet::new())),
             account_snapshot: Arc::new(Mutex::new(Snapshot::new(config.program_id, rpc_client))),
+            crossbar_store: Arc::new(CrossbarCache::new()),
             stream_disconnection_count: Arc::new(AtomicU64::new(0)),
             update_processing_error_count: Arc::new(AtomicU64::new(0)),
         }
@@ -188,6 +193,26 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
         snapshot.init().await.unwrap();
         info!("Summary: {snapshot}");
 
+        let swb_feed_accounts_and_hashes = snapshot
+            .price_feeds
+            .iter()
+            .filter_map(|(pk, od)| match od {
+                OracleData::SwitchboardPull(feed) => Some((*pk, hex::encode(feed.feed.feed_hash))),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        context.crossbar_store.track_feeds(
+            swb_feed_accounts_and_hashes
+                .into_iter()
+                .map(|(feed_address, feed_hash)| SwbPullFeedMeta {
+                    feed_hash,
+                    feed_address,
+                })
+                .collect::<Vec<_>>(),
+        );
+        context.crossbar_store.refresh_prices().await.unwrap();
+
         snapshot
             .routing_lookup
             .iter()
@@ -206,6 +231,39 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
 
     let geyser_subscription_config = compute_geyser_config(&config, &non_program_accounts).await;
     *context.geyser_subscription_config.lock().await = (false, geyser_subscription_config.clone());
+
+    let update_crossbar_cache_handle = tokio::spawn({
+        let context = context.clone();
+        async move {
+            loop {
+                let mut retry_count = 0;
+                while retry_count < 3 {
+                    match context.crossbar_store.refresh_prices().await {
+                        Ok(_) => break,
+                        Err(e) => {
+                            retry_count += 1;
+                            if retry_count == 3 {
+                                error!("Failed to refresh prices after 3 attempts: {:?}", e);
+                            } else {
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                            }
+                        }
+                    }
+                }
+                let mut snapshot = context.account_snapshot.lock().await;
+                let feeds_per_address: HashMap<Pubkey, crate::utils::crossbar::SimulatedPrice> =
+                    context.crossbar_store.get_prices_per_address();
+                for (address, price) in feeds_per_address {
+                    if let Some(od) = snapshot.price_feeds.get_mut(&address) {
+                        if let OracleData::SwitchboardPull(feed) = od {
+                            overwrite_price_from_sim(feed, &price);
+                        }
+                    }
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+            }
+        }
+    });
 
     let listen_to_updates_handle = tokio::spawn({
         let context = context.clone();
@@ -226,6 +284,7 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
     });
 
     join_all([
+        update_crossbar_cache_handle,
         listen_to_updates_handle,
         process_account_updates_handle,
         update_account_map_handle,
@@ -239,15 +298,14 @@ pub async fn snapshot_accounts(config: SnapshotAccountsConfig) -> Result<()> {
 async fn listen_to_updates(ctx: Arc<Context>) {
     loop {
         info!("Connecting geyser client");
-        let geyser_client_connection_result = GeyserGrpcClient::connect_with_timeout(
-            ctx.config.rpc_endpoint.to_string(),
-            Some(ctx.config.rpc_token.to_string()),
-            None,
-            Some(Duration::from_secs(10)),
-            Some(Duration::from_secs(10)),
-            false,
-        )
-        .await;
+        let geyser_client_connection_result =
+            GeyserGrpcClient::build_from_shared(ctx.config.rpc_endpoint.to_string())
+                .unwrap()
+                .x_token(Some(ctx.config.rpc_token.to_string()))
+                .unwrap()
+                .connect()
+                .await;
+
         info!("Connected");
 
         let mut geyser_client = match geyser_client_connection_result {

@@ -1,10 +1,10 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixtures::prelude::*;
-use marginfi::prelude::MarginfiGroup;
+use marginfi::{constants::FEE_STATE_SEED, prelude::MarginfiGroup};
 use pretty_assertions::assert_eq;
 use solana_program::{instruction::Instruction, system_program};
 use solana_program_test::*;
-use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
 
 #[tokio::test]
 async fn marginfi_group_create_success() -> anyhow::Result<()> {
@@ -13,9 +13,13 @@ async fn marginfi_group_create_success() -> anyhow::Result<()> {
     // Create & initialize marginfi group
     let marginfi_group_key = Keypair::new();
 
+    let (fee_state_key, _bump) =
+        Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
+
     let accounts = marginfi::accounts::MarginfiGroupInitialize {
         marginfi_group: marginfi_group_key.pubkey(),
         admin: test_f.payer(),
+        fee_state: fee_state_key,
         system_program: system_program::id(),
     };
     let init_marginfi_group_ix = Instruction {

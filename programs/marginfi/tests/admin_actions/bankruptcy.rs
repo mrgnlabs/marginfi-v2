@@ -870,6 +870,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
             },
         ],
         group_config: Some(GroupConfig { admin: None }),
+        protocol_fees: false,
     }))
     .await;
 

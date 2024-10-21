@@ -6,13 +6,13 @@ use chrono::{NaiveDateTime, Utc};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use itertools::Itertools;
-use marginfi::constants::ZERO_AMOUNT_THRESHOLD;
 use marginfi::prelude::MarginfiGroup;
 use marginfi::state::marginfi_account::{
     calc_value, MarginfiAccount, RequirementType, RiskRequirementType,
 };
 use marginfi::state::marginfi_group::BankOperationalState;
 use marginfi::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceBias};
+use marginfi::{constants::ZERO_AMOUNT_THRESHOLD, state::marginfi_group::ComputedInterestRates};
 use serde::Serialize;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
@@ -319,10 +319,29 @@ impl LendingPoolBankMetrics {
         } else {
             I80F48::ZERO
         };
-        let (lending_apr, borrowing_apr, group_fee_apr, insurance_fee_apr) = bank_accounts
+        let group = snapshot
+            .marginfi_groups
+            .get(&bank_accounts.bank.group)
+            .ok_or_else(|| {
+                anyhow!(
+                    "Group {} not found for bank {}",
+                    bank_accounts.bank.group,
+                    bank_pk
+                )
+            })?;
+        let ir_calc = bank_accounts
             .bank
             .config
             .interest_rate_config
+            .create_interest_rate_calculator(&group.get_group_bank_config());
+
+        let ComputedInterestRates {
+            lending_rate_apr,
+            borrowing_rate_apr,
+            group_fee_apr,
+            insurance_fee_apr,
+            protocol_fee_apr: _,
+        }: marginfi::state::marginfi_group::ComputedInterestRates = ir_calc
             .calc_interest_rate(utilization_rate)
             .ok_or_else(|| anyhow!("Bad math during IR calcs"))?;
 
@@ -345,8 +364,8 @@ impl LendingPoolBankMetrics {
             borrow_limit_in_usd: borrow_limit_usd,
             lenders_count,
             borrowers_count,
-            deposit_rate: lending_apr.to_num::<f64>(),
-            borrow_rate: borrowing_apr.to_num::<f64>(),
+            deposit_rate: lending_rate_apr.to_num::<f64>(),
+            borrow_rate: borrowing_rate_apr.to_num::<f64>(),
             group_fee: group_fee_apr.to_num::<f64>(),
             insurance_fee: insurance_fee_apr.to_num::<f64>(),
             total_assets_in_tokens: asset_amount.to_num::<f64>()
@@ -464,15 +483,20 @@ impl MarginfiAccountMetrics {
                 match oracle_data {
                     OracleData::Pyth(price_feed) => (
                         *oracle_pk,
-                        OraclePriceFeedAdapter::PythEma(price_feed.clone()),
+                        OraclePriceFeedAdapter::PythLegacy(price_feed.clone()),
                     ),
                     OracleData::Switchboard(pf) => (
                         *oracle_pk,
                         OraclePriceFeedAdapter::SwitchboardV2(pf.clone()),
                     ),
-                    OracleData::PythPush(pf) => {
-                        (*oracle_pk, OraclePriceFeedAdapter::PythPush(pf.clone()))
-                    }
+                    OracleData::PythPush(pf) => (
+                        *oracle_pk,
+                        OraclePriceFeedAdapter::PythPushOracle(pf.clone()),
+                    ),
+                    OracleData::SwitchboardPull(pf) => (
+                        *oracle_pk,
+                        OraclePriceFeedAdapter::SwitchboardPull(pf.clone()),
+                    ),
                 }
             }));
 
