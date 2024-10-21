@@ -2,6 +2,7 @@ use crate::{
     bank_signer, check,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
     events::{AccountEventHeader, LendingAccountBorrowEvent},
+    math_error,
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
@@ -56,10 +57,16 @@ pub fn lending_account_borrow<'info>(
         bank_loader.key(),
     )?;
 
+    let mut origination_fee: I80F48 = I80F48::ZERO;
     {
         let mut bank = bank_loader.load_mut()?;
 
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
+        let origination_fee_rate: I80F48 = bank
+            .config
+            .interest_rate_config
+            .protocol_origination_fee
+            .into();
 
         let mut bank_account = BankAccountWrapper::find_or_create(
             &bank_loader.key(),
@@ -80,7 +87,21 @@ pub fn lending_account_borrow<'info>(
             .transpose()?
             .unwrap_or(amount);
 
-        bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
+        let origination_fee_u64: u64;
+        if !origination_fee_rate.is_zero() {
+            origination_fee = I80F48::from_num(amount_pre_fee)
+                .checked_mul(origination_fee_rate)
+                .ok_or_else(math_error!())?;
+            origination_fee_u64 = origination_fee.checked_to_num().ok_or_else(math_error!())?;
+
+            // Incurs a borrow that includes the origination fee (but withdraws just the amt)
+            bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee)?;
+        } else {
+            // Incurs a borrow for the amount without any fee
+            origination_fee_u64 = 0;
+            bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
+        }
+
         bank_account.withdraw_spl_transfer(
             amount_pre_fee,
             bank_liquidity_vault.to_account_info(),
@@ -105,8 +126,16 @@ pub fn lending_account_borrow<'info>(
             },
             bank: bank_loader.key(),
             mint: bank.mint,
-            amount: amount_pre_fee,
+            amount: amount_pre_fee + origination_fee_u64,
         });
+    } // release mutable borrow of bank
+
+    // The bank fee account gains the origination fee
+    {
+        let mut bank = bank_loader.load_mut()?;
+        let bank_fees_before: I80F48 = bank.collected_group_fees_outstanding.into();
+        let bank_fees_after: I80F48 = bank_fees_before.saturating_add(origination_fee);
+        bank.collected_group_fees_outstanding = bank_fees_after.into();
     }
 
     // Check account health, if below threshold fail transaction

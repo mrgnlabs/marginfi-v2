@@ -76,14 +76,12 @@ use an x86 toolchain when compiling and running the tests.
 
 ## Rust Tests
 
-Run the full test suite with `.scripts/test-program.sh <program_to_test>`
-
-- e.g. `.scripts/test-program.sh all --sane`
+Run the full test suite with `./scripts/test-program.sh <program_to_test>`
+* e.g. `./scripts/test-program.sh all --sane`
 
 Run a single test:
-`.scripts/test-program.sh <program_to_test> <name_of_test>`
-
-- e.g. `.scripts/test-program.sh marginfi configure_bank_success --verbose`
+`./scripts/test-program.sh <program_to_test> <name_of_test>`
+* e.g. `./scripts/test-program.sh marginfi configure_bank_success --verbose`
 
 ## Localnet Anchor Tests
 
