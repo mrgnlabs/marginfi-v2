@@ -1,12 +1,16 @@
-import {
-  Program,
-  workspace,
-} from "@coral-xyz/anchor";
+import { Program, workspace } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
 import { groupInitialize } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
-import { groupAdmin, marginfiGroup, verbose } from "./rootHooks";
-import { assertKeysEqual } from "./utils/genericTests";
+import {
+  globalFeeWallet,
+  groupAdmin,
+  marginfiGroup,
+  PROGRAM_FEE_FIXED,
+  PROGRAM_FEE_RATE,
+  verbose,
+} from "./rootHooks";
+import { assertI80F48Approx, assertKeysEqual } from "./utils/genericTests";
 
 describe("Init group", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -29,9 +33,15 @@ describe("Init group", () => {
       marginfiGroup.publicKey
     );
     assertKeysEqual(group.admin, groupAdmin.wallet.publicKey);
-    if(verbose){
+    if (verbose) {
       console.log("*init group: " + marginfiGroup.publicKey);
       console.log(" group admin: " + group.admin);
     }
+
+    const feeCache = group.feeStateCache;
+    const tolerance = 0.00001;
+    assertI80F48Approx(feeCache.programFeeFixed, PROGRAM_FEE_FIXED, tolerance);
+    assertI80F48Approx(feeCache.programFeeRate, PROGRAM_FEE_RATE, tolerance);
+    assertKeysEqual(feeCache.globalFeeWallet, globalFeeWallet);
   });
 });

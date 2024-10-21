@@ -12,6 +12,7 @@ import {
 import { BankConfig, BankConfigOptWithAssetTag } from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { BankConfigOptRaw } from "@mrgnlabs/marginfi-client-v2";
+import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
 export const MAX_ORACLE_KEYS = 5;
 
@@ -63,6 +64,8 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
       feePayer: args.feePayer,
       bankMint: args.bankMint,
       bank: args.bank,
+      // globalFeeState: deriveGlobalFeeState(id),
+      // globalFeeWallet: args.globalFeeWallet,
       // liquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
       // liquidityVault = deriveLiquidityVault(id, bank);
       // insuranceVaultAuthority = deriveInsuranceVaultAuthority(id, bank);
@@ -117,6 +120,7 @@ export const groupInitialize = (
     .marginfiGroupInitialize()
     .accounts({
       marginfiGroup: args.marginfiGroup,
+      // feeState: deriveGlobalFeeState(id),
       admin: args.admin,
       // systemProgram: SystemProgram.programId,
     })
@@ -237,8 +241,70 @@ export const cacheSolExchangeRate = (
       lstMint: args.lstMint,
       solPool: args.solPool,
       stakePool: args.stakePool,
-      tokenProgram: TOKEN_PROGRAM_ID,
+      // tokenProgram: TOKEN_PROGRAM_ID,
     })
     .instruction();
+
+  return ix;
+};
+
+export type InitGlobalFeeStateArgs = {
+  payer: PublicKey;
+  admin: PublicKey;
+  wallet: PublicKey;
+  bankInitFlatSolFee: number;
+  programFeeFixed: WrappedI80F48;
+  programFeeRate: WrappedI80F48;
+};
+
+export const initGlobalFeeState = (
+  program: Program<Marginfi>,
+  args: InitGlobalFeeStateArgs
+) => {
+  const ix = program.methods
+    .initGlobalFeeState(
+      args.admin,
+      args.wallet,
+      args.bankInitFlatSolFee,
+      args.programFeeFixed,
+      args.programFeeRate
+    )
+    .accounts({
+      payer: args.payer,
+      // feeState = deriveGlobalFeeState(id),
+      // rent = SYSVAR_RENT_PUBKEY,
+      // systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type EditGlobalFeeStateArgs = {
+  admin: PublicKey;
+  wallet: PublicKey;
+  bankInitFlatSolFee: number;
+  programFeeFixed: WrappedI80F48;
+  programFeeRate: WrappedI80F48;
+};
+
+// TODO add test for this
+export const editGlobalFeeState = (
+  program: Program<Marginfi>,
+  args: EditGlobalFeeStateArgs
+) => {
+  const ix = program.methods
+    .editGlobalFeeState(
+      args.wallet,
+      args.bankInitFlatSolFee,
+      args.programFeeFixed,
+      args.programFeeRate
+    )
+    .accounts({
+      globalFeeAdmin: args.admin,
+      // feeState = deriveGlobalFeeState(id),
+    })
+    .instruction();
+
   return ix;
 };

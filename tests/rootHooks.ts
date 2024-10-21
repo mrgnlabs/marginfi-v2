@@ -13,6 +13,7 @@ import {
 import { Marginfi } from "../target/types/marginfi";
 import {
   Keypair,
+  LAMPORTS_PER_SOL,
   PublicKey,
   SystemProgram,
   SYSVAR_STAKE_HISTORY_PUBKEY,
@@ -35,6 +36,9 @@ import { SINGLE_POOL_PROGRAM_ID } from "./utils/types";
 import { assertKeysEqual } from "./utils/genericTests";
 import { assert } from "chai";
 import { decodeSinglePool } from "./utils/spl-staking-utils";
+import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
+import { initGlobalFeeState } from "./utils/group-instructions";
+import { deriveGlobalFeeState } from "./utils/pdas";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -53,6 +57,13 @@ export const numUsers = 3;
 
 export const validators: Validator[] = [];
 export const numValidators = 1;
+export let globalFeeWallet: PublicKey = undefined;
+
+/** Lamports charged when creating any pool */
+export const INIT_POOL_ORIGINATION_FEE = 1000;
+
+export const PROGRAM_FEE_FIXED = 0.01;
+export const PROGRAM_FEE_RATE = 0.02;
 
 /** Group used for all happy-path tests */
 export const marginfiGroup = Keypair.generate();
@@ -116,18 +127,54 @@ export const mochaHooks = {
       ecosystem.tokenBDecimals,
       ecosystem.tokenBMint
     );
-    const tx = new Transaction();
-    tx.add(...wsolIxes);
-    tx.add(...usdcIxes);
-    tx.add(...aIxes);
-    tx.add(...bIxes);
+    const initMintsTx = new Transaction();
+    initMintsTx.add(...wsolIxes);
+    initMintsTx.add(...usdcIxes);
+    initMintsTx.add(...aIxes);
+    initMintsTx.add(...bIxes);
 
-    await provider.sendAndConfirm(tx, [wsolMint, usdcMint, aMint, bMint]);
+    await provider.sendAndConfirm(initMintsTx, [
+      wsolMint,
+      usdcMint,
+      aMint,
+      bMint,
+    ]);
     copyKeys.push(
       wsolMint.publicKey,
       usdcMint.publicKey,
       aMint.publicKey,
       bMint.publicKey
+    );
+
+    let miscSetupTx = new Transaction();
+
+    let globalFeeKeypair = Keypair.generate();
+    globalFeeWallet = globalFeeKeypair.publicKey;
+    // Send some sol to the global fee wallet for rent
+    miscSetupTx.add(
+      SystemProgram.transfer({
+        fromPubkey: wallet.publicKey,
+        toPubkey: globalFeeWallet,
+        lamports: 10 * LAMPORTS_PER_SOL,
+      })
+    );
+
+    // Init the global fee state
+    miscSetupTx.add(
+      await initGlobalFeeState(mrgnProgram, {
+        payer: provider.publicKey,
+        admin: wallet.payer.publicKey,
+        wallet: globalFeeWallet,
+        bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
+        programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
+        programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
+      })
+    );
+
+    await provider.sendAndConfirm(miscSetupTx);
+    copyKeys.push(
+      globalFeeWallet,
+      deriveGlobalFeeState(mrgnProgram.programId)[0]
     );
 
     const setupUserOptions: SetupTestUserOptions = {

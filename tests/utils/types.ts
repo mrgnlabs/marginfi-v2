@@ -154,7 +154,10 @@ export const defaultBankConfigOptRaw = () => {
  * * optimalUtilizationRate = .5
  * * plateauInterestRate = .6
  * * maxInterestRate = 3
- * * All others values = 0
+ * * insuranceFeeFixedApr = .01
+ * * insuranceIrFee = .02
+ * * protocolFixedFeeApr = .03
+ * * protocolIrFee = .04
  * @returns
  */
 export const defaultInterestRateConfigRaw = () => {
@@ -162,10 +165,10 @@ export const defaultInterestRateConfigRaw = () => {
     optimalUtilizationRate: bigNumberToWrappedI80F48(0.5),
     plateauInterestRate: bigNumberToWrappedI80F48(0.6),
     maxInterestRate: bigNumberToWrappedI80F48(3),
-    insuranceFeeFixedApr: I80F48_ZERO,
-    insuranceIrFee: I80F48_ZERO,
-    protocolFixedFeeApr: I80F48_ZERO,
-    protocolIrFee: I80F48_ZERO,
+    insuranceFeeFixedApr: bigNumberToWrappedI80F48(0.01),
+    insuranceIrFee: bigNumberToWrappedI80F48(0.02),
+    protocolFixedFeeApr: bigNumberToWrappedI80F48(0.03),
+    protocolIrFee: bigNumberToWrappedI80F48(0.04),
   };
   return config;
 };

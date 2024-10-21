@@ -6,7 +6,9 @@ import {
   bankKeypairA,
   bankKeypairUsdc,
   ecosystem,
+  globalFeeWallet,
   groupAdmin,
+  INIT_POOL_ORIGINATION_FEE,
   marginfiGroup,
   oracles,
   printBuffers,
@@ -30,6 +32,7 @@ import {
 } from "./utils/pdas";
 import { assert } from "chai";
 import { printBufferGroups } from "./utils/tools";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("Lending pool add bank (add bank to group)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -39,6 +42,10 @@ describe("Lending pool add bank (add bank to group)", () => {
     let bankKey = bankKeypairUsdc.publicKey;
     const now = Date.now() / 1000;
 
+    const feeAccSolBefore = await program.provider.connection.getBalance(
+      globalFeeWallet
+    );
+
     await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await addBank(program, {
@@ -47,15 +54,25 @@ describe("Lending pool add bank (add bank to group)", () => {
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
           bank: bankKey,
+          // globalFeeWallet: globalFeeWallet,
           config: setConfig,
         })
       ),
       [bankKeypairUsdc]
     );
 
+    const feeAccSolAfter = await program.provider.connection.getBalance(
+      globalFeeWallet
+    );
+
     if (verbose) {
       console.log("*init USDC bank " + bankKey);
+      console.log(
+        " Origination fee collected: " + (feeAccSolAfter - feeAccSolBefore)
+      );
     }
+
+    assert.equal(feeAccSolAfter - feeAccSolBefore, INIT_POOL_ORIGINATION_FEE);
 
     let bankData = (
       await program.provider.connection.getAccountInfo(bankKey)
@@ -120,10 +137,11 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Approx(interest.optimalUtilizationRate, 0.5, tolerance);
     assertI80F48Approx(interest.plateauInterestRate, 0.6, tolerance);
     assertI80F48Approx(interest.maxInterestRate, 3, tolerance);
-    assertI80F48Equal(interest.insuranceFeeFixedApr, 0);
-    assertI80F48Equal(interest.insuranceIrFee, 0);
-    assertI80F48Equal(interest.protocolFixedFeeApr, 0);
-    assertI80F48Equal(interest.protocolIrFee, 0);
+
+    assertI80F48Approx(interest.insuranceFeeFixedApr, 0.01, tolerance);
+    assertI80F48Approx(interest.insuranceIrFee, 0.02, tolerance);
+    assertI80F48Approx(interest.protocolFixedFeeApr, 0.03, tolerance);
+    assertI80F48Approx(interest.protocolIrFee, 0.04, tolerance);
 
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { pythLegacy: {} });
@@ -132,6 +150,8 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.equal(config.assetTag, ASSET_TAG_DEFAULT);
     assertBNEqual(config.totalAssetValueInitLimit, 1_000_000_000_000);
     assert.equal(config.oracleMaxAge, 100);
+
+    assertI80F48Equal(bank.collectedProgramFeesOutstanding, 0);
   });
 
   it("(admin) Add bank (token A) - happy path", async () => {
@@ -146,6 +166,7 @@ describe("Lending pool add bank (add bank to group)", () => {
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
           bank: bankKey,
+          // globalFeeWallet: globalFeeWallet,
           config: config,
         })
       ),

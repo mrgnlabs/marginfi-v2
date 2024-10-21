@@ -2,7 +2,7 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
-    constants::PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
+    constants::{INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG},
     prelude::MarginfiError,
     state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
 };
@@ -15,6 +15,8 @@ use test_case::test_case;
 async fn add_bank_success() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
+
+    let fee_wallet = test_f.marginfi_group.fee_wallet;
 
     let mints = vec![
         (
@@ -38,6 +40,19 @@ async fn add_bank_success() -> anyhow::Result<()> {
     ];
 
     for (mint_f, bank_config) in mints {
+        // Load the fee state before the start of the test
+        let fee_balance_before: u64;
+        {
+            let mut ctx = test_f.context.borrow_mut();
+            fee_balance_before = ctx
+                .banks_client
+                .get_account(fee_wallet)
+                .await
+                .unwrap()
+                .unwrap()
+                .lamports;
+        }
+
         let res = test_f
             .marginfi_group
             .try_lending_pool_add_bank(&mint_f, bank_config)
@@ -71,6 +86,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             emissions_remaining,
             emissions_mint,
             sol_appreciation_rate,
+            collected_program_fees_outstanding,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -101,13 +117,30 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
             assert_eq!(sol_appreciation_rate, I80F48!(1.0).into());
+            assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
 
-            assert_eq!(_padding_0, <[[u64; 2]; 27] as Default>::default());
+            assert_eq!(_padding_0, <[[u64; 2]; 26] as Default>::default());
             assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
         };
+
+        // Load the fee state after the test
+        let fee_balance_after: u64;
+        {
+            let mut ctx = test_f.context.borrow_mut();
+            fee_balance_after = ctx
+                .banks_client
+                .get_account(fee_wallet)
+                .await
+                .unwrap()
+                .unwrap()
+                .lamports;
+        }
+        let expected_fee_delta = INIT_BANK_ORIGINATION_FEE_DEFAULT as u64;
+        let actual_fee_delta = fee_balance_after - fee_balance_before;
+        assert_eq!(expected_fee_delta, actual_fee_delta);
     }
 
     Ok(())
@@ -117,6 +150,8 @@ async fn add_bank_success() -> anyhow::Result<()> {
 async fn add_bank_with_seed_success() -> anyhow::Result<()> {
     // Setup test executor with non-admin payer
     let test_f = TestFixture::new(None).await;
+
+    let fee_wallet = test_f.marginfi_group.fee_wallet;
 
     let mints = vec![
         (
@@ -140,6 +175,18 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
     ];
 
     for (mint_f, bank_config) in mints {
+        let fee_balance_before: u64;
+        {
+            let mut ctx = test_f.context.borrow_mut();
+            fee_balance_before = ctx
+                .banks_client
+                .get_account(fee_wallet)
+                .await
+                .unwrap()
+                .unwrap()
+                .lamports;
+        }
+
         let bank_seed = 1200_u64;
 
         let res = test_f
@@ -176,6 +223,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             emissions_remaining,
             emissions_mint,
             sol_appreciation_rate,
+            collected_program_fees_outstanding,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -206,13 +254,29 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
             assert_eq!(sol_appreciation_rate, I80F48!(1.0).into());
+            assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
 
-            assert_eq!(_padding_0, <[[u64; 2]; 27] as Default>::default());
+            assert_eq!(_padding_0, <[[u64; 2]; 26] as Default>::default());
             assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
         };
+
+        let fee_balance_after: u64;
+        {
+            let mut ctx = test_f.context.borrow_mut();
+            fee_balance_after = ctx
+                .banks_client
+                .get_account(fee_wallet)
+                .await
+                .unwrap()
+                .unwrap()
+                .lamports;
+        }
+        let expected_fee_delta = INIT_BANK_ORIGINATION_FEE_DEFAULT as u64;
+        let actual_fee_delta = fee_balance_after - fee_balance_before;
+        assert_eq!(expected_fee_delta, actual_fee_delta);
     }
 
     Ok(())

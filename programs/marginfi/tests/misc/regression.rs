@@ -668,8 +668,13 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(bank.sol_appreciation_rate),
         I80F48::from_str("0").unwrap()
     );
+    // Legacy banks have no program fees
+    assert_eq!(
+        I80F48::from(bank.collected_program_fees_outstanding),
+        I80F48::from_str("0").unwrap()
+    );
 
-    assert_eq!(bank._padding_0, [[0, 0]; 27]);
+    assert_eq!(bank._padding_0, [[0, 0]; 26]);
     assert_eq!(bank._padding_1, [[0, 0]; 32]);
 
     Ok(())

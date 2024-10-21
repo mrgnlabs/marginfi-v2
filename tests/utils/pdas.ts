@@ -51,16 +51,39 @@ export const deriveFeeVault = (programId: PublicKey, bank: PublicKey) => {
   );
 };
 
-export const deriveEmissionsAuth = (programId: PublicKey, bank: PublicKey, mint: PublicKey) => {
+export const deriveEmissionsAuth = (
+  programId: PublicKey,
+  bank: PublicKey,
+  mint: PublicKey
+) => {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("emissions_auth_seed", "utf-8"), bank.toBuffer(), mint.toBuffer()],
+    [
+      Buffer.from("emissions_auth_seed", "utf-8"),
+      bank.toBuffer(),
+      mint.toBuffer(),
+    ],
     programId
   );
 };
 
-export const deriveEmissionsTokenAccount = (programId: PublicKey, bank: PublicKey, mint: PublicKey) => {
+export const deriveEmissionsTokenAccount = (
+  programId: PublicKey,
+  bank: PublicKey,
+  mint: PublicKey
+) => {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("emissions_token_account_seed", "utf-8"), bank.toBuffer(), mint.toBuffer()],
+    [
+      Buffer.from("emissions_token_account_seed", "utf-8"),
+      bank.toBuffer(),
+      mint.toBuffer(),
+    ],
+    programId
+  );
+};
+
+export const deriveGlobalFeeState = (programId: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("feestate", "utf-8")],
     programId
   );
 };

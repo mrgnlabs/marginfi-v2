@@ -100,6 +100,8 @@ pub enum MarginfiError {
     AssetTagMismatch,
     #[msg("Stake pool validation failed: check the stake pool, mint, or sol pool")] // 6048
     StakePoolValidationFailed,
+    #[msg("Invalid ATA for global fee account")] // 6049
+    InvalidFeeAta,
 }
 
 impl From<MarginfiError> for ProgramError {
