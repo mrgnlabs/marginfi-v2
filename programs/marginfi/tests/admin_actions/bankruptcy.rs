@@ -366,9 +366,6 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
     user_mfi_account.lending_account.balances[0].asset_shares = I80F48::ZERO.into();
     user_mfi_account_f.set_account(&user_mfi_account).await?;
 
-    // let liab: I80F48 = user_mfi_account.lending_account.balances[1].liability_shares.into();
-    // println!("debt actual: {:?}",liab.to_num::<u64>());
-
     {
         let (insurance_vault, _) = test_f
             .get_bank(&debt_mint)

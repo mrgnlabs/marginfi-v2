@@ -134,7 +134,11 @@ pub fn lending_account_borrow<'info>(
     {
         let mut bank = bank_loader.load_mut()?;
         let bank_fees_before: I80F48 = bank.collected_group_fees_outstanding.into();
-        let bank_fees_after: I80F48 = bank_fees_before.saturating_add(origination_fee);
+        let bank_fees_after: I80F48 = if origination_fee.is_zero() {
+            bank_fees_before
+        } else {
+            bank_fees_before.saturating_add(origination_fee)
+        };
         bank.collected_group_fees_outstanding = bank_fees_after.into();
     }
 
