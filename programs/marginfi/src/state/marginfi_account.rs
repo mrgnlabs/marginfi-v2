@@ -128,6 +128,7 @@ pub enum BalanceDecreaseType {
     WithdrawOnly,
     BorrowOnly,
     BypassBorrowLimit,
+    BypassBorrowAndDepositLimit,
 }
 
 #[derive(Copy, Clone)]
@@ -174,7 +175,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
 
         debug!("Expecting {} remaining accounts", active_balances.len() * 2);
         debug!("Got {} remaining accounts", remaining_ais.len());
-
+        
         check!(
             active_balances.len() * 2 <= remaining_ais.len(),
             MarginfiError::MissingPythOrBankAccount
@@ -469,6 +470,28 @@ impl<'info> RiskEngine<'_, 'info> {
 
         Self::new_no_flashloan_check(marginfi_account, remaining_ais)?
             .check_account_health(RiskRequirementType::Initial)?;
+
+        Ok(())
+    }
+
+    pub fn check_bank_deposit_borrow_limit<'a>(
+        remaining_ais: &'info [AccountInfo<'info>],
+    ) -> MarginfiResult<()> {
+        let bank_len = remaining_ais.len();
+        if bank_len == 0 {
+            return Ok(());
+        }
+
+        for index in 0..bank_len {
+            let bank_index = index * 2;
+            if bank_index >= remaining_ais.len() {
+                break;
+            }
+            let bank_ai = remaining_ais.get(bank_index).unwrap();
+            let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
+            let bank = bank_al.load()?;
+            bank.check_deposit_borrow_limits()?;
+        }
 
         Ok(())
     }
@@ -920,6 +943,11 @@ impl<'a> BankAccountWrapper<'a> {
         self.decrease_balance_internal(amount, BalanceDecreaseType::Any)
     }
 
+    /// Like borrow fn, but defer deposit/borrow limit checks to the end_flashloan ix.
+    pub fn borrow_skip_limit_checks(&mut self, amount: I80F48) -> MarginfiResult {
+        self.decrease_balance_internal(amount, BalanceDecreaseType::BypassBorrowAndDepositLimit)
+    }
+
     // ------------ Hybrid operations for seamless repay + deposit / withdraw + borrow
 
     /// Repay liability and deposit/increase asset depending on
@@ -1188,13 +1216,24 @@ impl<'a> BankAccountWrapper<'a> {
 
         let asset_shares_decrease = bank.get_asset_shares(asset_amount_decrease)?;
         balance.change_asset_shares(-asset_shares_decrease)?;
-        bank.change_asset_shares(-asset_shares_decrease, false)?;
+
+        bank.change_asset_shares(
+            -asset_shares_decrease,
+            matches!(
+                operation_type,
+                BalanceDecreaseType::BypassBorrowAndDepositLimit
+            ),
+        )?;
 
         let liability_shares_increase = bank.get_liability_shares(liability_amount_increase)?;
         balance.change_liability_shares(liability_shares_increase)?;
         bank.change_liability_shares(
             liability_shares_increase,
-            matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit),
+            matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit)
+                || matches!(
+                    operation_type,
+                    BalanceDecreaseType::BypassBorrowAndDepositLimit
+                ),
         )?;
 
         bank.check_utilization_ratio()?;
