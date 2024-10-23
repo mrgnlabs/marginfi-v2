@@ -12,7 +12,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
-use fixed::{traits::Fixed, types::I80F48};
+use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
@@ -144,7 +144,7 @@ pub fn lending_account_borrow<'info>(
                 let program_fee_amount: I80F48 = origination_fee
                     .checked_mul(program_fee_rate)
                     .ok_or_else(math_error!())?;
-                // The remainder of the origination fee go to group fees
+                // The remainder of the origination fee goes to group fees
                 bank_fees_after = bank_fees_after
                     .saturating_add(origination_fee.saturating_sub(program_fee_amount));
 
