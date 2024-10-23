@@ -154,29 +154,22 @@ pub struct InterestRateConfigCompact {
     pub insurance_ir_fee: WrappedI80F48,
     pub protocol_fixed_fee_apr: WrappedI80F48,
     pub protocol_ir_fee: WrappedI80F48,
+    pub protocol_origination_fee: WrappedI80F48,
 }
 
 impl From<InterestRateConfigCompact> for InterestRateConfig {
-    fn from(
-        InterestRateConfigCompact {
-            optimal_utilization_rate,
-            plateau_interest_rate,
-            max_interest_rate,
-            insurance_fee_fixed_apr,
-            insurance_ir_fee,
-            protocol_fixed_fee_apr,
-            protocol_ir_fee,
-        }: InterestRateConfigCompact,
-    ) -> Self {
-        Self {
-            optimal_utilization_rate,
-            plateau_interest_rate,
-            max_interest_rate,
-            insurance_fee_fixed_apr,
-            insurance_ir_fee,
-            protocol_fixed_fee_apr,
-            protocol_ir_fee,
-            _padding: [0; 32],
+    fn from(ir_config: InterestRateConfigCompact) -> Self {
+        InterestRateConfig {
+            optimal_utilization_rate: ir_config.optimal_utilization_rate,
+            plateau_interest_rate: ir_config.plateau_interest_rate,
+            max_interest_rate: ir_config.max_interest_rate,
+            insurance_fee_fixed_apr: ir_config.insurance_fee_fixed_apr,
+            insurance_ir_fee: ir_config.insurance_ir_fee,
+            protocol_fixed_fee_apr: ir_config.protocol_fixed_fee_apr,
+            protocol_ir_fee: ir_config.protocol_ir_fee,
+            protocol_origination_fee: ir_config.protocol_origination_fee,
+            _padding0: [0; 16],
+            _padding1: [[0; 32]; 3],
         }
     }
 }
@@ -191,6 +184,7 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
             insurance_ir_fee: ir_config.insurance_ir_fee,
             protocol_fixed_fee_apr: ir_config.protocol_fixed_fee_apr,
             protocol_ir_fee: ir_config.protocol_ir_fee,
+            protocol_origination_fee: ir_config.protocol_origination_fee,
         }
     }
 }
@@ -218,8 +212,10 @@ pub struct InterestRateConfig {
     pub protocol_fixed_fee_apr: WrappedI80F48,
     /// Earned by the group, goes to `collected_group_fees_outstanding`
     pub protocol_ir_fee: WrappedI80F48,
+    pub protocol_origination_fee: WrappedI80F48,
 
-    pub _padding: [u32; 32],
+    pub _padding0: [u8; 16],
+    pub _padding1: [[u8; 32]; 3],
 }
 
 impl InterestRateConfig {
@@ -421,6 +417,7 @@ pub struct InterestRateConfigOpt {
     pub insurance_ir_fee: Option<WrappedI80F48>,
     pub protocol_fixed_fee_apr: Option<WrappedI80F48>,
     pub protocol_ir_fee: Option<WrappedI80F48>,
+    pub protocol_origination_fee: Option<WrappedI80F48>,
 }
 
 /// Group level configuration to be used in bank accounts.

@@ -285,6 +285,7 @@ async fn marginfi_group_handle_bankruptcy_success(
 #[test_case(10_000., BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(10_000., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(10_000., BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(10_000., BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_success_fully_insured(
     borrow_amount: f64,
@@ -447,7 +448,18 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
         test_f.get_bank(&debt_mint).mint.mint.decimals,
         f64
     );
+    let origination_fee_rate: I80F48 = debt_bank
+        .config
+        .interest_rate_config
+        .protocol_origination_fee
+        .into();
+    let origination_fee: I80F48 = I80F48::from_num(borrow_amount_native)
+        .checked_mul(origination_fee_rate)
+        .unwrap()
+        .ceil(); // Round up when repaying
+    let origination_fee_u64: u64 = origination_fee.checked_to_num().expect("out of bounds");
     let actual_borrow_position = borrow_amount_native
+        + origination_fee_u64
         + debt_bank_mint_state
             .get_extension::<TransferFeeConfig>()
             .map(|tf| {
@@ -466,6 +478,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
                 })
                 .unwrap_or(0),
     );
+
     let expected_liquidity_vault_delta = I80F48::from(actual_borrow_position);
 
     let actual_liquidity_vault_delta = post_liquidity_vault_balance - pre_liquidity_vault_balance;

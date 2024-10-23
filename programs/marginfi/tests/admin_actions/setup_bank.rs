@@ -327,6 +327,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
             insurance_ir_fee: Some(I80F48::from_num(0.11).into()),
             protocol_fixed_fee_apr: Some(I80F48::from_num(0.51).into()),
             protocol_ir_fee: Some(I80F48::from_num(0.011).into()),
+            protocol_origination_fee: Some(I80F48::ZERO.into()),
         }),
         ..BankConfigOpt::default()
     };
