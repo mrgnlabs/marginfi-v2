@@ -79,6 +79,7 @@ async fn marginfi_account_borrow_success(
     // -------------------------------------------------------------------------
 
     let debt_bank_f = test_f.get_bank(&debt_mint);
+    let bank_before = debt_bank_f.load().await;
 
     let pre_vault_balance = debt_bank_f
         .get_vault_token_account(BankVaultType::Liquidity)
@@ -86,11 +87,8 @@ async fn marginfi_account_borrow_success(
         .balance()
         .await;
     let pre_user_debt_accounted = I80F48::ZERO;
-    let pre_fee_balance: I80F48 = debt_bank_f
-        .load()
-        .await
-        .collected_group_fees_outstanding
-        .into();
+    let pre_fee_group_fees: I80F48 = bank_before.collected_group_fees_outstanding.into();
+    let pre_fee_program_fees: I80F48 = bank_before.collected_program_fees_outstanding.into();
 
     let res = user_mfi_account_f
         .try_bank_borrow(user_debt_token_account_f.key, debt_bank_f, borrow_amount)
@@ -107,9 +105,7 @@ async fn marginfi_account_borrow_success(
         .lending_account
         .get_balance(&debt_bank_f.key)
         .unwrap();
-    let post_user_debt_accounted = debt_bank_f
-        .load()
-        .await
+    let post_user_debt_accounted = bank_before
         .get_asset_amount(balance.liability_shares.into())
         .unwrap();
 
@@ -125,16 +121,23 @@ async fn marginfi_account_borrow_success(
         })
         .unwrap_or(0);
     let borrow_amount_pre_fee = borrow_amount_native + borrow_fee;
-    let origination_fee_rate: I80F48 = debt_bank_f
-        .load() // ?? could optimize load calls in this test?
-        .await
+    let origination_fee_rate: I80F48 = bank_before
         .config
         .interest_rate_config
         .protocol_origination_fee
         .into();
+    let program_fee_rate: I80F48 = test_f
+        .marginfi_group
+        .load()
+        .await
+        .fee_state_cache
+        .program_fee_rate
+        .into();
     let origination_fee: I80F48 = I80F48::from_num(borrow_amount_native)
         .checked_mul(origination_fee_rate)
         .unwrap();
+    let program_origination_fee: I80F48 = origination_fee.checked_mul(program_fee_rate).unwrap();
+    let group_origination_fee: I80F48 = origination_fee.saturating_sub(program_origination_fee);
 
     let active_balance_count = marginfi_account
         .lending_account
@@ -157,12 +160,18 @@ async fn marginfi_account_borrow_success(
     );
 
     // The outstanding origination fee is recorded
-    let post_fee_balance: I80F48 = debt_bank_f
-        .load()
-        .await
-        .collected_group_fees_outstanding
-        .into();
-    assert_eq!(pre_fee_balance + origination_fee, post_fee_balance);
+    let bank_after = debt_bank_f.load().await;
+    let post_fee_program_fees: I80F48 = bank_after.collected_program_fees_outstanding.into();
+    assert_eq!(
+        pre_fee_program_fees + program_origination_fee,
+        post_fee_program_fees
+    );
+
+    let post_fee_group_fees: I80F48 = bank_after.collected_group_fees_outstanding.into();
+    assert_eq!(
+        pre_fee_group_fees + group_origination_fee,
+        post_fee_group_fees
+    );
 
     Ok(())
 }
