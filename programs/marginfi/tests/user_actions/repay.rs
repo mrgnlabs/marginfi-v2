@@ -16,6 +16,7 @@ use test_case::test_case;
 #[test_case(128932., 9834., BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 20., BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(200., 1.1, BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_account_repay_success(
     borrow_amount: f64,
@@ -142,6 +143,7 @@ async fn marginfi_account_repay_success(
 #[test_case(128932., BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(200., BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_account_repay_all_success(
     borrow_amount: f64,
@@ -261,8 +263,25 @@ async fn marginfi_account_repay_all_success(
         })
         .unwrap_or(0);
 
-    let expected_liquidity_delta =
-        I80F48::from(native!(borrow_amount, debt_bank.mint.mint.decimals, f64) + borrow_fee);
+    let origination_fee_rate: I80F48 = debt_bank
+        .load()
+        .await
+        .config
+        .interest_rate_config
+        .protocol_origination_fee
+        .into();
+    let origination_fee: I80F48 =
+        I80F48::from_num(native!(borrow_amount, debt_bank.mint.mint.decimals, f64))
+            .checked_mul(origination_fee_rate)
+            .unwrap()
+            .ceil(); // Round up when repaying
+    let origination_fee_u64: u64 = origination_fee.checked_to_num().expect("out of bounds");
+
+    let expected_liquidity_delta = I80F48::from(
+        native!(borrow_amount, debt_bank.mint.mint.decimals, f64)
+            + borrow_fee
+            + origination_fee_u64,
+    );
     let actual_liquidity_delta = I80F48::from(post_vault_balance) - I80F48::from(pre_vault_balance);
     let accounted_liquidity_delta = post_accounted_vault_balance - pre_accounted_vault_balance;
 

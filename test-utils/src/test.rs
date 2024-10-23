@@ -57,6 +57,10 @@ impl TestSettings {
                 ..TestBankSetting::default()
             },
             TestBankSetting {
+                mint: BankMint::SolSwbOrigFee,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
                 mint: BankMint::SolEquivalent,
                 ..TestBankSetting::default()
             },
@@ -188,6 +192,7 @@ pub enum BankMint {
     Sol,
     SolSwb,
     SolSwbPull,
+    SolSwbOrigFee,
     SolEquivalent,
     SolEquivalent1,
     SolEquivalent2,
@@ -275,6 +280,7 @@ lazy_static! {
             optimal_utilization_rate: I80F48!(0.5).into(),
             plateau_interest_rate: I80F48!(0.6).into(),
             max_interest_rate: I80F48!(3).into(),
+            protocol_origination_fee: I80F48!(0).into(),
             ..Default::default()
         };
     pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
@@ -296,6 +302,7 @@ lazy_static! {
             optimal_utilization_rate: I80F48!(0.5).into(),
             plateau_interest_rate: I80F48!(0.6).into(),
             max_interest_rate: I80F48!(3).into(),
+            protocol_origination_fee: I80F48!(0).into(),
             ..Default::default()
         },
         ..Default::default()
@@ -402,6 +409,17 @@ lazy_static! {
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(SWITCH_PULL_SOL_REAL_FEED),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    pub static ref DEFAULT_SB_PULL_WITH_ORIGINATION_FEE_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::SwitchboardPull,
+        deposit_limit: native!(1_000_000, "SOL"),
+        borrow_limit: native!(1_000_000, "SOL"),
+        oracle_keys: create_oracle_key_array(SWITCH_PULL_SOL_REAL_FEED),
+        interest_rate_config: InterestRateConfig {
+            protocol_origination_fee: I80F48!(0.018).into(),
+            ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
+        },
         ..*DEFAULT_TEST_BANK_CONFIG
     };
 }
@@ -644,6 +662,10 @@ impl TestFixture {
                     BankMint::SolSwbPull => {
                         (&sol_mint_f, *DEFAULT_SB_PULL_SOL_TEST_REAL_BANK_CONFIG)
                     }
+                    BankMint::SolSwbOrigFee => (
+                        &sol_mint_f,
+                        *DEFAULT_SB_PULL_WITH_ORIGINATION_FEE_BANK_CONFIG,
+                    ),
                     BankMint::SolEquivalent => (
                         &sol_equivalent_mint_f,
                         *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,

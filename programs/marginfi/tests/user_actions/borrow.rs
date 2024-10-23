@@ -19,6 +19,7 @@ use test_case::test_case;
 #[test_case(128932.0, 9834.0, BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 1.7, BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(200., 1.1, BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_account_borrow_success(
     deposit_amount: f64,
@@ -78,6 +79,7 @@ async fn marginfi_account_borrow_success(
     // -------------------------------------------------------------------------
 
     let debt_bank_f = test_f.get_bank(&debt_mint);
+    let bank_before = debt_bank_f.load().await;
 
     let pre_vault_balance = debt_bank_f
         .get_vault_token_account(BankVaultType::Liquidity)
@@ -85,6 +87,8 @@ async fn marginfi_account_borrow_success(
         .balance()
         .await;
     let pre_user_debt_accounted = I80F48::ZERO;
+    let pre_fee_group_fees: I80F48 = bank_before.collected_group_fees_outstanding.into();
+    let pre_fee_program_fees: I80F48 = bank_before.collected_program_fees_outstanding.into();
 
     let res = user_mfi_account_f
         .try_bank_borrow(user_debt_token_account_f.key, debt_bank_f, borrow_amount)
@@ -101,9 +105,7 @@ async fn marginfi_account_borrow_success(
         .lending_account
         .get_balance(&debt_bank_f.key)
         .unwrap();
-    let post_user_debt_accounted = debt_bank_f
-        .load()
-        .await
+    let post_user_debt_accounted = bank_before
         .get_asset_amount(balance.liability_shares.into())
         .unwrap();
 
@@ -119,6 +121,23 @@ async fn marginfi_account_borrow_success(
         })
         .unwrap_or(0);
     let borrow_amount_pre_fee = borrow_amount_native + borrow_fee;
+    let origination_fee_rate: I80F48 = bank_before
+        .config
+        .interest_rate_config
+        .protocol_origination_fee
+        .into();
+    let program_fee_rate: I80F48 = test_f
+        .marginfi_group
+        .load()
+        .await
+        .fee_state_cache
+        .program_fee_rate
+        .into();
+    let origination_fee: I80F48 = I80F48::from_num(borrow_amount_native)
+        .checked_mul(origination_fee_rate)
+        .unwrap();
+    let program_origination_fee: I80F48 = origination_fee.checked_mul(program_fee_rate).unwrap();
+    let group_origination_fee: I80F48 = origination_fee.saturating_sub(program_origination_fee);
 
     let active_balance_count = marginfi_account
         .lending_account
@@ -130,11 +149,28 @@ async fn marginfi_account_borrow_success(
     let actual_liquidity_vault_delta = post_vault_balance as i64 - pre_vault_balance as i64;
     let accounted_user_balance_delta = post_user_debt_accounted - pre_user_debt_accounted;
 
+    // The liquidity vault paid out just the pre-origination fee amount (e.g. what the user borrowed
+    // before accounting for the fee)
     assert_eq!(expected_liquidity_vault_delta, actual_liquidity_vault_delta);
     assert_eq_with_tolerance!(
-        I80F48::from(expected_liquidity_vault_delta),
+        // Note: the user still gains debt which includes the origination fee
+        I80F48::from(expected_liquidity_vault_delta) - origination_fee,
         -accounted_user_balance_delta,
         1
+    );
+
+    // The outstanding origination fee is recorded
+    let bank_after = debt_bank_f.load().await;
+    let post_fee_program_fees: I80F48 = bank_after.collected_program_fees_outstanding.into();
+    assert_eq!(
+        pre_fee_program_fees + program_origination_fee,
+        post_fee_program_fees
+    );
+
+    let post_fee_group_fees: I80F48 = bank_after.collected_group_fees_outstanding.into();
+    assert_eq!(
+        pre_fee_group_fees + group_origination_fee,
+        post_fee_group_fees
     );
 
     Ok(())
@@ -147,7 +183,7 @@ async fn marginfi_account_borrow_success(
 #[test_case(128_932., 10_000., 15_000.0, BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
-#[test_case(1., 100., 155.1, BankMint::SolSwbPull, BankMint::Usdc)] // Sol @ $155
+#[test_case(1., 100., 155.1, BankMint::SolSwbPull, BankMint::Usdc)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_account_borrow_failure_not_enough_collateral(
     deposit_amount: f64,
