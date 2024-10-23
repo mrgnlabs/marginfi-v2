@@ -143,6 +143,8 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Approx(interest.protocolFixedFeeApr, 0.03, tolerance);
     assertI80F48Approx(interest.protocolIrFee, 0.04, tolerance);
 
+    assertI80F48Approx(interest.protocolOriginationFee, 0.01, tolerance);
+
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { pythLegacy: {} });
     assertBNEqual(config.borrowLimit, 100_000_000_000);
@@ -265,6 +267,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     // assertI80F48Equal(interest.protocolFixedFeeApr, 0);
     // assertI80F48Equal(interest.protocolIrFee, 0);
 
+    // Bank added before this feature existed, should be zero
+    assertI80F48Equal(bonkInterest.protocolOriginationFee, 0);
+
     assert.deepEqual(bonkConfig.operationalState, { operational: {} });
     assert.deepEqual(bonkConfig.oracleSetup, { pythPushOracle: {} });
     // roughly 26.41 billion BONK with 5 decimals.
@@ -311,6 +316,9 @@ describe("Lending pool add bank (add bank to group)", () => {
 
     // 1 million CLOUD with 9 decimals (1_000_000_000_000_000)
     assertBNEqual(cloudConfig.depositLimit, 1_000_000_000_000_000);
+
+    // Bank added before this feature existed, should be zero
+    assertI80F48Equal(cloudInterest.protocolOriginationFee, 0);
 
     assert.deepEqual(cloudConfig.operationalState, { operational: {} });
     assert.deepEqual(cloudConfig.oracleSetup, { switchboardV2: {} });

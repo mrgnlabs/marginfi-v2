@@ -115,7 +115,6 @@ describe("Deposit funds", () => {
       console.log("vault A after:  " + vaultAAfter.toLocaleString());
     }
     assert.equal(userABefore - depositAmountA_native.toNumber(), userAAfter);
-    // TODO this will change when origination fees are implemented.
     assert.equal(vaultABefore + depositAmountA_native.toNumber(), vaultAAfter);
   });
 

@@ -158,10 +158,11 @@ export const defaultBankConfigOptRaw = () => {
  * * insuranceIrFee = .02
  * * protocolFixedFeeApr = .03
  * * protocolIrFee = .04
+ * * originationFee = .01
  * @returns
  */
 export const defaultInterestRateConfigRaw = () => {
-  let config: InterestRateConfigRaw = {
+  let config: InterestRateConfigRawWithOrigination = {
     optimalUtilizationRate: bigNumberToWrappedI80F48(0.5),
     plateauInterestRate: bigNumberToWrappedI80F48(0.6),
     maxInterestRate: bigNumberToWrappedI80F48(3),
@@ -169,6 +170,7 @@ export const defaultInterestRateConfigRaw = () => {
     insuranceIrFee: bigNumberToWrappedI80F48(0.02),
     protocolFixedFeeApr: bigNumberToWrappedI80F48(0.03),
     protocolIrFee: bigNumberToWrappedI80F48(0.04),
+    protocolOriginationFee: bigNumberToWrappedI80F48(0.01),
   };
   return config;
 };
@@ -178,7 +180,7 @@ export const defaultInterestRateConfigRaw = () => {
  * @returns
  */
 export const defaultInterestRateConfig = () => {
-  let config: InterestRateConfig = {
+  let config: InterestRateConfigWithOrigination = {
     optimalUtilizationRate: new BigNumber(0.5),
     plateauInterestRate: new BigNumber(0.6),
     maxInterestRate: new BigNumber(3),
@@ -186,6 +188,7 @@ export const defaultInterestRateConfig = () => {
     insuranceIrFee: new BigNumber(0),
     protocolFixedFeeApr: new BigNumber(0),
     protocolIrFee: new BigNumber(0),
+    protocolOriginationFee: new BigNumber(0.1),
   };
   return config;
 };
@@ -193,4 +196,14 @@ export const defaultInterestRateConfig = () => {
 // TODO remove when package updates
 export type BankConfigOptWithAssetTag = BankConfigOptRaw & {
   assetTag: number | null;
+};
+
+// TODO remove when package updates
+export type InterestRateConfigRawWithOrigination = InterestRateConfigRaw & {
+  protocolOriginationFee: WrappedI80F48;
+};
+
+// TODO remove when package updates
+export type InterestRateConfigWithOrigination = InterestRateConfig & {
+  protocolOriginationFee: BigNumber;
 };
