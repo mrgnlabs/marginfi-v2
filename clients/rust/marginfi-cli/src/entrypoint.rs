@@ -214,6 +214,7 @@ impl From<BankOperationalStateArg> for BankOperationalState {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Parser)]
 pub enum BankCommand {
     Get {
