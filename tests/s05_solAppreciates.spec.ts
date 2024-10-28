@@ -132,6 +132,10 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     await banksClient.processTransaction(tx);
   });
 
+  // Note: in rare instances the test will run too quickly and will fail with `This transaction has
+  // already been processed` because it is the same tx as the previous one (i.e. if they are signed
+  // for the same blockhash and end up in the same slot). You can add a small delay or simply rerun
+  // the test.
   it("(permissionless) validator 0 cache stake - 1 LST is now worth 2 SOL", async () => {
     let tx = new Transaction().add(
       await cacheSolExchangeRate(program, {

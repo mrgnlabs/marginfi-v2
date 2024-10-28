@@ -1167,15 +1167,18 @@ impl Display for BankOperationalState {
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum RiskTier {
-    Collateral,
+    Collateral = 0,
     /// ## Isolated Risk
     /// Assets in this trance can be borrowed only in isolation.
     /// They can't be borrowed together with other assets.
     ///
     /// For example, if users has USDC, and wants to borrow XYZ which is isolated,
     /// they can't borrow XYZ together with SOL, only XYZ alone.
-    Isolated,
+    Isolated = 1,
 }
+
+unsafe impl Zeroable for RiskTier {}
+unsafe impl Pod for RiskTier {}
 
 #[repr(C)]
 #[cfg_attr(

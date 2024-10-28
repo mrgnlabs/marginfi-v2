@@ -5,7 +5,7 @@ use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
-use switchboard_on_demand::{CurrentResult, PullFeedAccountData};
+use switchboard_on_demand::{CurrentResult, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID};
 use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
@@ -16,7 +16,8 @@ use crate::{
     check,
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL,
-        MIN_PYTH_PUSH_VERIFICATION_LEVEL, PYTH_ID, STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID,
+        MIN_PYTH_PUSH_VERIFICATION_LEVEL, PYTH_ID, SPL_SINGLE_POOL_ID, STD_DEV_MULTIPLE,
+        SWITCHBOARD_PULL_ID,
     },
     debug, math_error,
     prelude::*,
@@ -35,6 +36,7 @@ pub enum OracleSetup {
     SwitchboardV2,
     PythPushOracle,
     SwitchboardPull,
+    StakedWithPythPush,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -148,6 +150,9 @@ impl OraclePriceFeedAdapter {
                     SwitchboardPullPriceFeed::load_checked(&ais[0], clock.unix_timestamp, max_age)?,
                 ))
             }
+            OracleSetup::StakedWithPythPush => {
+                panic!("todo");
+            }
         }
     }
 
@@ -197,6 +202,27 @@ impl OraclePriceFeedAdapter {
                 );
 
                 SwitchboardPullPriceFeed::check_ais(&oracle_ais[0])?;
+
+                Ok(())
+            }
+            OracleSetup::StakedWithPythPush => {
+                check!(oracle_ais.len() == 3, MarginfiError::InvalidOracleAccount);
+                // TODO either mock this for localnet, or allow localnet to use Legacy
+                PythPushOraclePriceFeed::check_ai_and_feed_id(
+                    &oracle_ais[0],
+                    bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+                )?;
+                // The spl token mint (to obtain supply information)
+                // Note: spl-single-pool uses a classic Token, never Token22
+                check!(
+                    oracle_ais[1].owner == &SPL_TOKEN_PROGRAM_ID,
+                    MarginfiError::StakePoolValidationFailed
+                );
+                // The spl stake pool (to obtain the balance of staked SOL)
+                check!(
+                    oracle_ais[2].owner == &SPL_SINGLE_POOL_ID,
+                    MarginfiError::StakePoolValidationFailed
+                );
 
                 Ok(())
             }
