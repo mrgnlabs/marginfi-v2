@@ -13,7 +13,19 @@ use solana_sdk::{
     instruction::Instruction, message::Message, pubkey::Pubkey, transaction::Transaction,
 };
 
-pub fn process_collect_fees(config: Config, bank_pk: Pubkey) -> Result<()> {
+use super::load_all_banks;
+
+pub fn process_collect_all_fees(config: &Config, group_pk: &Pubkey) -> Result<()> {
+    let banks = load_all_banks(&config, Some(*group_pk))?;
+
+    for (bank_pk, _) in banks {
+        process_collect_fees(&config, bank_pk)?;
+    }
+
+    Ok(())
+}
+
+pub fn process_collect_fees(config: &Config, bank_pk: Pubkey) -> Result<()> {
     let bank = config.mfi_program.account::<Bank>(bank_pk)?;
     let rpc_client = config.mfi_program.rpc();
 
