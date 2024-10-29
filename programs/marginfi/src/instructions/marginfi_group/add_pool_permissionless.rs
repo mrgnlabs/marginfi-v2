@@ -1,26 +1,11 @@
 // Adds a ASSET_TAG_STAKED type bank to a group with sane defaults. Used by validators to add their
-// freshly-minted LST to a group so users can borrow SOL against it
-
-// TODO should we support this for riskTier::Isolated too?
-
-// TODO pick a hardcoded oracle
-
-// TODO pick a hardcoded interest regmine
-
-// TODO pick a hardcoded asset weight (~85%?) and `total_asset_value_init_limit`
-
-// TODO pick a hardcoded max oracle age (~30s?)
-
-// TODO pick a hardcoded initial deposit limit () //
-
-// TODO should the group admin need to opt in to this functionality (configure the group)? We could
-// also configure the key that assumes default admin here instead of using the group's admin
+// stake pool to a group so users can borrow SOL against it
 use crate::{
     check,
     constants::{
         ASSET_TAG_STAKED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        NATIVE_STAKE_ID, SPL_SINGLE_POOL_ID, STAKED_SETTINGS_SEED,
+        NATIVE_STAKE_ID, SPL_SINGLE_POOL_ID,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     state::{

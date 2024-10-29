@@ -1179,6 +1179,11 @@ pub enum RiskTier {
 
 unsafe impl Zeroable for RiskTier {}
 unsafe impl Pod for RiskTier {}
+impl Default for RiskTier {
+    fn default() -> Self {
+        RiskTier::Collateral
+    }
+}
 
 #[repr(C)]
 #[cfg_attr(

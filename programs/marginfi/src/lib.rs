@@ -271,6 +271,30 @@ pub mod marginfi {
     pub fn config_group_fee(ctx: Context<ConfigGroupFee>, flag: u64) -> MarginfiResult {
         marginfi_group::config_group_fee(ctx, flag)
     }
+
+    /// (group admin only) Init the Staked Settings account, which is used to create staked
+    /// collateral banks, and must run before any staked collateral bank can be created with
+    /// `add_pool_permissionless`. Running this ix effectively opts the group into the staked
+    /// collateral feature.
+    pub fn init_staked_settings(
+        ctx: Context<InitStakedSettings>,
+        settings: StakedSettingsConfig,
+    ) -> MarginfiResult {
+        marginfi_group::initialize_staked_settings(ctx, settings)
+    }
+
+    pub fn edit_staked_settings(
+        ctx: Context<EditStakedSettings>,
+        settings: StakedSettingsEditConfig,
+    ) -> MarginfiResult {
+        marginfi_group::edit_staked_settings(ctx, settings)
+    }
+
+    pub fn propagate_staked_settings(
+        ctx: Context<PropagateStakedSettings>,
+    ) -> MarginfiResult {
+        marginfi_group::propagate_staked_settings(ctx)
+    }
 }
 
 #[cfg(not(feature = "no-entrypoint"))]
