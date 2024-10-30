@@ -225,7 +225,7 @@ describe("User stakes some native and creates an account", () => {
 
     // The spl stake pool account is already infused with 1 SOL at init
     const splStakeInfoBefore = await bankRunProvider.connection.getAccountInfo(
-      validators[0].splStake
+      validators[0].splSolPool
     );
     const splStakePoolBefore = getStakeAccount(splStakeInfoBefore.data);
     const delegationSplPoolBefore = new BN(
@@ -264,7 +264,7 @@ describe("User stakes some native and creates an account", () => {
 
     const [lstAfter, splStakePoolInfo] = await Promise.all([
       getTokenBalance(bankRunProvider, lstAta),
-      bankRunProvider.connection.getAccountInfo(validators[0].splStake),
+      bankRunProvider.connection.getAccountInfo(validators[0].splSolPool),
     ]);
     if (verbose) {
       console.log("lst after: " + lstAfter.toLocaleString());

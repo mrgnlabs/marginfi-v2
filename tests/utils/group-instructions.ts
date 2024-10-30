@@ -2,6 +2,7 @@ import { BN, Program } from "@coral-xyz/anchor";
 import { AccountMeta, PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import {
+  deriveBankWithSeed,
   deriveFeeVault,
   deriveFeeVaultAuthority,
   deriveInsuranceVault,
@@ -13,6 +14,7 @@ import {
 import {
   BankConfig,
   BankConfigOptWithAssetTag,
+  SINGLE_POOL_PROGRAM_ID,
   StakedSettingsConfig,
   StakedSettingsEdit,
 } from "./types";
@@ -319,7 +321,6 @@ export const editGlobalFeeState = (
 
 export type InitStakedSettingsArgs = {
   group: PublicKey;
-  admin: PublicKey;
   feePayer: PublicKey;
   settings: StakedSettingsConfig;
 };
@@ -332,7 +333,7 @@ export const initStakedSettings = (
     .initStakedSettings(args.settings)
     .accounts({
       marginfiGroup: args.group,
-      admin: args.admin,
+      // admin: args.admin, // implied from group
       feePayer: args.feePayer,
       // staked_settings: deriveStakedSettings()
       // rent = SYSVAR_RENT_PUBKEY,
@@ -344,9 +345,7 @@ export const initStakedSettings = (
 };
 
 export type EditStakedSettingsArgs = {
-  group: PublicKey;
-  admin: PublicKey;
-  feePayer: PublicKey;
+  settingsKey: PublicKey;
   settings: StakedSettingsEdit;
 };
 
@@ -354,16 +353,85 @@ export const editStakedSettings = (
   program: Program<Marginfi>,
   args: EditStakedSettingsArgs
 ) => {
-  let [settingsKey] = deriveStakedSettings(program.programId, args.group);
   const ix = program.methods
     .editStakedSettings(args.settings)
     .accounts({
-      // marginfiGroup: args.group, // implied from settings
-      admin: args.admin,
-      stakedSettings: settingsKey,
+      // marginfiGroup: args.group, // implied from stakedSettings
+      // admin: args.admin, // implied from group
+      stakedSettings: args.settingsKey,
       // rent = SYSVAR_RENT_PUBKEY,
       // systemProgram: SystemProgram.programId,
     })
+    .instruction();
+
+  return ix;
+};
+
+export type AddBankPermissionlessArgs = {
+  marginfiGroup: PublicKey;
+  feePayer: PublicKey;
+  pythOracle: PublicKey;
+  stakePool: PublicKey;
+  seed: BN;
+};
+
+export const addBankPermissionless = (
+  program: Program<Marginfi>,
+  args: AddBankPermissionlessArgs
+) => {
+  const [settingsKey] = deriveStakedSettings(
+    program.programId,
+    args.marginfiGroup
+  );
+  const [lstMint] = PublicKey.findProgramAddressSync(
+    [Buffer.from("mint"), args.stakePool.toBuffer()],
+    SINGLE_POOL_PROGRAM_ID
+  );
+  const [solPool] = PublicKey.findProgramAddressSync(
+    [Buffer.from("stake"), args.stakePool.toBuffer()],
+    SINGLE_POOL_PROGRAM_ID
+  );
+
+  // Note: oracle and lst mint/pool are also passed in meta for validation
+  const oracleMeta: AccountMeta = {
+    pubkey: args.pythOracle,
+    isSigner: false,
+    isWritable: false,
+  };
+  const lstMeta: AccountMeta = {
+    pubkey: lstMint,
+    isSigner: false,
+    isWritable: false,
+  };
+  const solPoolMeta: AccountMeta = {
+    pubkey: solPool,
+    isSigner: false,
+    isWritable: false,
+  };
+
+  const ix = program.methods
+    .lendingPoolAddBankPermissionless(args.seed)
+    .accounts({
+      // marginfiGroup: args.marginfiGroup, // implied from stakedSettings
+      stakedSettings: settingsKey,
+      feePayer: args.feePayer,
+      bankMint: lstMint,
+      solPool: solPool,
+      stakePool: args.stakePool,
+      // bank: bankKey, // deriveBankWithSeed
+      // globalFeeState: deriveGlobalFeeState(id),
+      // globalFeeWallet: // implied from globalFeeState,
+      // liquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
+      // liquidityVault = deriveLiquidityVault(id, bank);
+      // insuranceVaultAuthority = deriveInsuranceVaultAuthority(id, bank);
+      // insuranceVault = deriveInsuranceVault(id, bank);
+      // feeVaultAuthority = deriveFeeVaultAuthority(id, bank);
+      // feeVault = deriveFeeVault(id, bank);
+      // rent = SYSVAR_RENT_PUBKEY
+      tokenProgram: TOKEN_PROGRAM_ID,
+      // systemProgram: SystemProgram.programId,
+    })
+    .remainingAccounts([oracleMeta, lstMeta, solPoolMeta])
     .instruction();
 
   return ix;

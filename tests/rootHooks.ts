@@ -343,7 +343,7 @@ export const createValidator = async (
     splPool: PublicKey.default,
     splMint: PublicKey.default,
     splAuthority: PublicKey.default,
-    splStake: PublicKey.default,
+    splSolPool: PublicKey.default,
     bank: PublicKey.default,
   };
 
@@ -395,7 +395,7 @@ export const createSplStakePool = async (
   copyKeys.push(poolMintKey);
 
   const poolStake = await findPoolStakeAddress(SINGLE_POOL_PROGRAM_ID, poolKey);
-  validator.splStake = poolStake;
+  validator.splSolPool = poolStake;
   copyKeys.push(poolStake);
 
   const poolAuthority = await findPoolStakeAuthorityAddress(

@@ -28,12 +28,11 @@ pub fn initialize_staked_settings(
 
 #[derive(Accounts)]
 pub struct InitStakedSettings<'info> {
+    #[account(
+        has_one = admin
+    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(
-        mut,
-        address = marginfi_group.load()?.admin,
-    )]
     pub admin: Signer<'info>,
 
     /// Pays the init fee
@@ -67,5 +66,8 @@ pub struct StakedSettingsConfig {
     pub total_asset_value_init_limit: u64,
 
     pub oracle_max_age: u16,
+    /// WARN: You almost certainly want "Collateral", using Isolated risk tier makes the asset
+    /// worthless as collateral, and is generally useful only when creating a staked collateral pool
+    /// for rewards purposes only.
     pub risk_tier: RiskTier,
 }

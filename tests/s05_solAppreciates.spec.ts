@@ -82,7 +82,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
       await cacheSolExchangeRate(program, {
         bank: validators[0].bank,
         lstMint: validators[0].splMint,
-        solPool: validators[0].splStake,
+        solPool: validators[0].splSolPool,
         stakePool: validators[0].splPool,
       })
     );
@@ -123,7 +123,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     tx.add(
       SystemProgram.transfer({
         fromPubkey: wallet.publicKey,
-        toPubkey: validators[0].splStake,
+        toPubkey: validators[0].splSolPool,
         lamports: appreciation * LAMPORTS_PER_SOL,
       })
     );
@@ -141,7 +141,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
       await cacheSolExchangeRate(program, {
         bank: validators[0].bank,
         lstMint: validators[0].splMint,
-        solPool: validators[0].splStake,
+        solPool: validators[0].splSolPool,
         stakePool: validators[0].splPool,
       })
     );

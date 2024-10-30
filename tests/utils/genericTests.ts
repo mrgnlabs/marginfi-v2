@@ -187,6 +187,7 @@ export const assertBankrunTxFailed = (
   result: BanksTransactionResultWithMeta,
   expectedErrorCode: string
 ) => {
+  expectedErrorCode = expectedErrorCode.toLocaleLowerCase();
   assert(result.meta.logMessages.length > 0);
   assert(result.result, "TX succeeded when it should have failed");
   const lastLog = result.meta.logMessages.pop();

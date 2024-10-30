@@ -58,6 +58,13 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config.into(), bank_seed)
     }
 
+    pub fn lending_pool_add_bank_permissionless(
+        ctx: Context<LendingPoolAddBankPermissionless>,
+        bank_seed: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_add_bank_permissionless(ctx, bank_seed)
+    }
+
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
         bank_config_opt: BankConfigOpt,

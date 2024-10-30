@@ -45,8 +45,16 @@ pub fn lending_pool_add_bank_permissionless(
     let fee_vault_bump = ctx.bumps.fee_vault;
     let fee_vault_authority_bump = ctx.bumps.fee_vault_authority;
 
-    // These are placeholder values: staked collateral positions do not support borrowing.
+    // These are placeholder values: staked collateral positions do not support borrowing and likely
+    // never will, thus they will earn no interest.
+
+    // Note: Some placeholder values are non-zero to handle downstream validation checks.
     let default_ir_config = InterestRateConfig {
+        optimal_utilization_rate: I80F48!(0.4).into(),
+        plateau_interest_rate: I80F48!(0.4).into(),
+        protocol_fixed_fee_apr: I80F48!(0.01).into(),
+        max_interest_rate: I80F48!(3).into(),
+        insurance_ir_fee: I80F48!(0.1).into(),
         ..Default::default()
     };
 
@@ -101,18 +109,20 @@ pub fn lending_pool_add_bank_permissionless(
             exp_pool == ctx.accounts.sol_pool.key(),
             MarginfiError::StakePoolValidationFailed
         );
-        // Sanity check these accounts exist and have the correct owning program
+        // Sanity check these accounts exist and have the correct owning program. Note: Mint's owner
+        // is already checked by the Mint anchor decorator
         check!(
-            ctx.accounts.stake_pool.owner == &NATIVE_STAKE_ID,
+            ctx.accounts.stake_pool.owner == program_id,
             MarginfiError::StakePoolValidationFailed
         );
         check!(
-            ctx.accounts.sol_pool.owner == program_id,
+            ctx.accounts.sol_pool.owner == &NATIVE_STAKE_ID,
             MarginfiError::StakePoolValidationFailed
         );
 
+        // The mint (for supply) and stake pool (for sol balance) are recorded for price calculation
         bank.config.oracle_keys[1] = mint_actual.key();
-        bank.config.oracle_keys[2] = ctx.accounts.stake_pool.key();
+        bank.config.oracle_keys[2] = ctx.accounts.sol_pool.key();
     }
 
     bank.config.validate()?;

@@ -361,13 +361,14 @@ export type Validator = {
   authorizedVoter: PublicKey;
   authorizedWithdrawer: PublicKey;
   voteAccount: PublicKey;
+  /** The spl stake pool itself, all PDAs derive from this key */
   splPool: PublicKey;
   /** spl pool's mint for the LST (a PDA automatically created on init) */
   splMint: PublicKey;
   /** spl pool's authority for LST management, a PDA with no data/lamports */
   splAuthority: PublicKey;
   /** spl pool's stake account (a PDA automatically created on init, contains the SOL held by the pool) */
-  splStake: PublicKey;
+  splSolPool: PublicKey;
   /** bank created for this validator's LST on the "main" group */
   bank: PublicKey;
 };

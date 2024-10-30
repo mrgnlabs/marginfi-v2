@@ -9,7 +9,9 @@ pub fn edit_staked_settings(
     ctx: Context<EditStakedSettings>,
     settings: StakedSettingsEditConfig,
 ) -> Result<()> {
+    // let group = ctx.accounts.marginfi_group.load()?;
     let mut staked_settings = ctx.accounts.staked_settings.load_mut()?;
+    // require_keys_eq!(group.admin, ctx.accounts.admin.key());
 
     set_if_some!(staked_settings.oracle, settings.oracle);
     set_if_some!(
@@ -33,11 +35,11 @@ pub fn edit_staked_settings(
 
 #[derive(Accounts)]
 pub struct EditStakedSettings<'info> {
+    #[account(
+        has_one = admin
+    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(
-        address = marginfi_group.load()?.admin,
-    )]
     pub admin: Signer<'info>,
 
     #[account(
@@ -58,5 +60,8 @@ pub struct StakedSettingsEditConfig {
     pub total_asset_value_init_limit: Option<u64>,
 
     pub oracle_max_age: Option<u16>,
+    /// WARN: You almost certainly want "Collateral", using Isolated risk tier makes the asset
+    /// worthless as collateral, making all outstanding accounts eligible to be liquidated, and is
+    /// generally useful only when creating a staked collateral pool for rewards purposes only.
     pub risk_tier: Option<RiskTier>,
 }

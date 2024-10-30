@@ -71,9 +71,8 @@ describe("Init group", () => {
     try {
       await users[0].userMarginProgram.provider.sendAndConfirm(
         new Transaction().add(
-          await initStakedSettings(program, {
+          await initStakedSettings(users[0].userMarginProgram, {
             group: marginfiGroup.publicKey,
-            admin: groupAdmin.wallet.publicKey,
             feePayer: groupAdmin.wallet.publicKey,
             settings: settings,
           })
@@ -93,9 +92,8 @@ describe("Init group", () => {
     );
     await groupAdmin.userMarginProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await initStakedSettings(program, {
+        await initStakedSettings(groupAdmin.userMarginProgram, {
           group: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           settings: settings,
         })
@@ -122,27 +120,37 @@ describe("Init group", () => {
   });
 
   it("(attacker) Tries to edit staked settings - should fail", async () => {
-    // TODO
-    // const settings = defaultStakedInterestSettings(
-    //   oracles.wsolOracle.publicKey
-    // );
-    // let failed = false;
-    // try {
-    //   await users[0].userMarginProgram.provider.sendAndConfirm(
-    //     new Transaction().add(
-    //       await initStakedSettings(program, {
-    //         group: marginfiGroup.publicKey,
-    //         admin: groupAdmin.wallet.publicKey,
-    //         feePayer: groupAdmin.wallet.publicKey,
-    //         settings: settings,
-    //       })
-    //     )
-    //   );
-    // } catch (err) {
-    //   // generic signature error
-    //   failed = true;
-    // }
-    // assert.ok(failed, "Transaction succeeded when it should have failed");
+    const settings: StakedSettingsEdit = {
+      oracle: PublicKey.default,
+      assetWeightInit: bigNumberToWrappedI80F48(0.2),
+      assetWeightMaint: bigNumberToWrappedI80F48(0.3),
+      depositLimit: new BN(42),
+      totalAssetValueInitLimit: new BN(43),
+      oracleMaxAge: 44,
+      riskTier: {
+        isolated: undefined,
+      },
+    };
+    let failed = false;
+    try {
+      const [settingsKey] = deriveStakedSettings(
+        program.programId,
+        marginfiGroup.publicKey
+      );
+
+      await users[0].userMarginProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          await editStakedSettings(users[0].userMarginProgram, {
+            settingsKey: settingsKey,
+            settings: settings,
+          })
+        )
+      );
+    } catch (err) {
+      // generic signature error
+      failed = true;
+    }
+    assert.ok(failed, "Transaction succeeded when it should have failed");
   });
 
   it("(admin) Edit staked settings for group", async () => {
@@ -157,21 +165,20 @@ describe("Init group", () => {
         isolated: undefined,
       },
     };
+    const [settingsKey] = deriveStakedSettings(
+      program.programId,
+      marginfiGroup.publicKey
+    );
+
     await groupAdmin.userMarginProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await editStakedSettings(program, {
-          group: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
-          feePayer: groupAdmin.wallet.publicKey,
+        await editStakedSettings(groupAdmin.userMarginProgram, {
+          settingsKey: settingsKey,
           settings: settings,
         })
       )
     );
 
-    const [settingsKey] = deriveStakedSettings(
-      program.programId,
-      marginfiGroup.publicKey
-    );
     if (verbose) {
       console.log("*edit staked settings: " + settingsKey);
     }
@@ -186,4 +193,44 @@ describe("Init group", () => {
     assert.equal(settingsAcc.oracleMaxAge, 44);
     assert.deepEqual(settingsAcc.riskTier, { isolated: {} });
   });
+
+  it("(admin) Partial settings update", async () => {
+    const settings: StakedSettingsEdit = {
+      oracle: null,
+      assetWeightInit: null,
+      assetWeightMaint: null,
+      depositLimit: null,
+      totalAssetValueInitLimit: null,
+      oracleMaxAge: 60,
+      riskTier: {
+        isolated: undefined,
+      },
+    };
+    const [settingsKey] = deriveStakedSettings(
+      program.programId,
+      marginfiGroup.publicKey
+    );
+
+    await groupAdmin.userMarginProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await editStakedSettings(groupAdmin.userMarginProgram, {
+          settingsKey: settingsKey,
+          settings: settings,
+        })
+      )
+    );
+
+    let settingsAcc = await program.account.stakedSettings.fetch(settingsKey);
+    // No change
+    assertKeysEqual(settingsAcc.key, settingsKey);
+    assertKeysEqual(settingsAcc.oracle, PublicKey.default);
+    assertI80F48Approx(settingsAcc.assetWeightInit, 0.2);
+    assertI80F48Approx(settingsAcc.assetWeightMaint, 0.3);
+    assertBNEqual(settingsAcc.depositLimit, 42);
+    assertBNEqual(settingsAcc.totalAssetValueInitLimit, 43);
+    assert.deepEqual(settingsAcc.riskTier, { isolated: {} });
+
+    assert.equal(settingsAcc.oracleMaxAge, 60);
+  });
+
 });

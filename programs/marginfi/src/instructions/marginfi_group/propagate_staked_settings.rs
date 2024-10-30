@@ -1,3 +1,4 @@
+use crate::constants::ASSET_TAG_STAKED;
 // Permissionless ix to propagate a group's staked collateral settings to any bank in that group
 use crate::state::marginfi_group::Bank;
 use crate::state::staked_settings::StakedSettings;
@@ -34,7 +35,11 @@ pub struct PropagateStakedSettings<'info> {
 
     #[account(
         mut,
-        constraint = bank.load() ?.group == marginfi_group.key(),
+        constraint = {
+            let bank = bank.load()?;
+            bank.group == marginfi_group.key() && 
+                bank.config.asset_tag == ASSET_TAG_STAKED
+        }
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

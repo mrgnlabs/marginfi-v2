@@ -16,7 +16,7 @@ use crate::{
     check,
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL,
-        MIN_PYTH_PUSH_VERIFICATION_LEVEL, PYTH_ID, SPL_SINGLE_POOL_ID, STD_DEV_MULTIPLE,
+        MIN_PYTH_PUSH_VERIFICATION_LEVEL, NATIVE_STAKE_ID, PYTH_ID, STD_DEV_MULTIPLE,
         SWITCHBOARD_PULL_ID,
     },
     debug, math_error,
@@ -207,20 +207,38 @@ impl OraclePriceFeedAdapter {
             }
             OracleSetup::StakedWithPythPush => {
                 check!(oracle_ais.len() == 3, MarginfiError::InvalidOracleAccount);
-                // TODO either mock this for localnet, or allow localnet to use Legacy
-                PythPushOraclePriceFeed::check_ai_and_feed_id(
-                    &oracle_ais[0],
-                    bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-                )?;
-                // The spl token mint (to obtain supply information)
-                // Note: spl-single-pool uses a classic Token, never Token22
+                // Note: mainnet/staging/devnet use push oracles, localnet uses legacy push
+                if cfg!(any(
+                    feature = "mainnet-beta",
+                    feature = "staging",
+                    feature = "devnet"
+                )) {
+                    PythPushOraclePriceFeed::check_ai_and_feed_id(
+                        &oracle_ais[0],
+                        bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+                    )?;
+                } else {
+                    // Localnet only
+                    check!(
+                        oracle_ais[0].key == &bank_config.oracle_keys[0],
+                        MarginfiError::InvalidOracleAccount
+                    );
+
+                    PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
+                }
+
+                // Sanity checks (PDA validation for these accounts happens once, at bank initialization)
+
+                // The spl token mint (to obtain supply information). Note: spl-single-pool uses a
+                // classic Token, never Token22
                 check!(
                     oracle_ais[1].owner == &SPL_TOKEN_PROGRAM_ID,
                     MarginfiError::StakePoolValidationFailed
                 );
-                // The spl stake pool (to obtain the balance of staked SOL)
+                // The spl stake pool (to obtain the balance of staked SOL). Note: the native
+                // staking program is written in vanilla Rust and has no Anchor discriminator.
                 check!(
-                    oracle_ais[2].owner == &SPL_SINGLE_POOL_ID,
+                    oracle_ais[2].owner == &NATIVE_STAKE_ID,
                     MarginfiError::StakePoolValidationFailed
                 );
 

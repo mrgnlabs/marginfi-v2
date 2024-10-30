@@ -1,14 +1,10 @@
 use crate::{
-    constants::{
-        FEE_STATE_SEED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-    },
-    events::{GroupEventHeader, LendingPoolBankCreateEvent},
-    state::{
+    check, constants::{
+        ASSET_TAG_STAKED, FEE_STATE_SEED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED
+    }, events::{GroupEventHeader, LendingPoolBankCreateEvent}, state::{
         fee_state::FeeState,
         marginfi_group::{Bank, BankConfig, BankConfigCompact, MarginfiGroup},
-    },
-    MarginfiResult,
+    }, MarginfiError, MarginfiResult
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
@@ -42,6 +38,10 @@ pub fn lending_pool_add_bank_with_seed(
     } = ctx.accounts;
 
     let mut bank = bank_loader.load_init()?;
+    check!(
+        !(bank_config.asset_tag == ASSET_TAG_STAKED),
+        MarginfiError::AddedStakedPoolManually
+    );
 
     let liquidity_vault_bump = ctx.bumps.liquidity_vault;
     let liquidity_vault_authority_bump = ctx.bumps.liquidity_vault_authority;

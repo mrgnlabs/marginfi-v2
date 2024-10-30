@@ -1,3 +1,4 @@
+import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
 export const deriveLiquidityVaultAuthority = (
@@ -77,6 +78,18 @@ export const deriveEmissionsTokenAccount = (
       bank.toBuffer(),
       mint.toBuffer(),
     ],
+    programId
+  );
+};
+
+export const deriveBankWithSeed = (
+  programId: PublicKey,
+  group: PublicKey,
+  bankMint: PublicKey,
+  seed: BN
+) => {
+  return PublicKey.findProgramAddressSync(
+    [group.toBuffer(), bankMint.toBuffer(), seed.toArrayLike(Buffer, "le", 8)],
     programId
   );
 };

@@ -102,6 +102,8 @@ pub enum MarginfiError {
     StakePoolValidationFailed,
     #[msg("Invalid ATA for global fee account")] // 6049
     InvalidFeeAta,
+    #[msg("Use add pool permissionless instead")] // 6050
+    AddedStakedPoolManually,
 }
 
 impl From<MarginfiError> for ProgramError {
