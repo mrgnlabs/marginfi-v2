@@ -16,6 +16,10 @@ pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> Resul
     bank.config.oracle_max_age = settings.oracle_max_age;
     bank.config.risk_tier = settings.risk_tier;
 
+    bank.config.validate()?;
+
+    // ...Possibly validate oracle or emit event.
+
     Ok(())
 }
 

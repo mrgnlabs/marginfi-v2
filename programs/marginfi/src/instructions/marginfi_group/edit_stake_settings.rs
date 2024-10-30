@@ -33,12 +33,11 @@ pub fn edit_staked_settings(
 
 #[derive(Accounts)]
 pub struct EditStakedSettings<'info> {
-    #[account(
-        has_one = admin
-    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(mut)]
+    #[account(
+        address = marginfi_group.load()?.admin,
+    )]
     pub admin: Signer<'info>,
 
     #[account(

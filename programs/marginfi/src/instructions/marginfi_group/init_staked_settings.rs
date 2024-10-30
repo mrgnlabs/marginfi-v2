@@ -28,12 +28,12 @@ pub fn initialize_staked_settings(
 
 #[derive(Accounts)]
 pub struct InitStakedSettings<'info> {
-    #[account(
-        has_one = admin
-    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        address = marginfi_group.load()?.admin,
+    )]
     pub admin: Signer<'info>,
 
     /// Pays the init fee
@@ -43,8 +43,8 @@ pub struct InitStakedSettings<'info> {
     #[account(
         init,
         seeds = [
-            marginfi_group.key().as_ref(),
-            STAKED_SETTINGS_SEED.as_bytes()
+            STAKED_SETTINGS_SEED.as_bytes(),
+            marginfi_group.key().as_ref()
         ],
         bump,
         payer = fee_payer,

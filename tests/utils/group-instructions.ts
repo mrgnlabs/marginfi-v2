@@ -8,8 +8,14 @@ import {
   deriveInsuranceVaultAuthority,
   deriveLiquidityVault,
   deriveLiquidityVaultAuthority,
+  deriveStakedSettings,
 } from "./pdas";
-import { BankConfig, BankConfigOptWithAssetTag } from "./types";
+import {
+  BankConfig,
+  BankConfigOptWithAssetTag,
+  StakedSettingsConfig,
+  StakedSettingsEdit,
+} from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { BankConfigOptRaw } from "@mrgnlabs/marginfi-client-v2";
 import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
@@ -223,6 +229,8 @@ export const updateEmissions = (
   return ix;
 };
 
+// ************* Below this line, not yet included in package ****************
+
 export type CacheSolExchangeRateArgs = {
   bank: PublicKey;
   lstMint: PublicKey;
@@ -303,6 +311,58 @@ export const editGlobalFeeState = (
     .accounts({
       globalFeeAdmin: args.admin,
       // feeState = deriveGlobalFeeState(id),
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type InitStakedSettingsArgs = {
+  group: PublicKey;
+  admin: PublicKey;
+  feePayer: PublicKey;
+  settings: StakedSettingsConfig;
+};
+
+export const initStakedSettings = (
+  program: Program<Marginfi>,
+  args: InitStakedSettingsArgs
+) => {
+  const ix = program.methods
+    .initStakedSettings(args.settings)
+    .accounts({
+      marginfiGroup: args.group,
+      admin: args.admin,
+      feePayer: args.feePayer,
+      // staked_settings: deriveStakedSettings()
+      // rent = SYSVAR_RENT_PUBKEY,
+      // systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type EditStakedSettingsArgs = {
+  group: PublicKey;
+  admin: PublicKey;
+  feePayer: PublicKey;
+  settings: StakedSettingsEdit;
+};
+
+export const editStakedSettings = (
+  program: Program<Marginfi>,
+  args: EditStakedSettingsArgs
+) => {
+  let [settingsKey] = deriveStakedSettings(program.programId, args.group);
+  const ix = program.methods
+    .editStakedSettings(args.settings)
+    .accounts({
+      // marginfiGroup: args.group, // implied from settings
+      admin: args.admin,
+      stakedSettings: settingsKey,
+      // rent = SYSVAR_RENT_PUBKEY,
+      // systemProgram: SystemProgram.programId,
     })
     .instruction();
 

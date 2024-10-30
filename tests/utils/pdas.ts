@@ -81,9 +81,21 @@ export const deriveEmissionsTokenAccount = (
   );
 };
 
+// ************* Below this line, not yet included in package ****************
+
 export const deriveGlobalFeeState = (programId: PublicKey) => {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("feestate", "utf-8")],
+    programId
+  );
+};
+
+export const deriveStakedSettings = (
+  programId: PublicKey,
+  group: PublicKey
+) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("staked_settings", "utf-8"), group.toBuffer()],
     programId
   );
 };

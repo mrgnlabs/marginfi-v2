@@ -30,36 +30,6 @@ export const ASSET_TAG_DEFAULT = 0;
 export const ASSET_TAG_SOL = 1;
 export const ASSET_TAG_STAKED = 2;
 
-type OperationalStateRaw =
-  | { paused: {} }
-  | { operational: {} }
-  | { reduceOnly: {} };
-
-export type BankConfig = {
-  assetWeightInit: WrappedI80F48;
-  assetWeightMaint: WrappedI80F48;
-
-  liabilityWeightInit: WrappedI80F48;
-  liabilityWeightMain: WrappedI80F48;
-
-  depositLimit: BN;
-  interestRateConfig: InterestRateConfigRaw;
-
-  /** Paused = 0, Operational = 1, ReduceOnly = 2 */
-  operationalState: OperationalStateRaw;
-
-  /** None = 0, PythLegacy = 1, SwitchboardV2 = 2, PythPushOracle =3 */
-  oracleSetup: OracleSetupRaw;
-  oracleKey: PublicKey;
-
-  borrowLimit: BN;
-  /** Collateral = 0, Isolated = 1 */
-  riskTier: RiskTierRaw;
-  assetTag: number;
-  totalAssetValueInitLimit: BN;
-  oracleMaxAge: number;
-};
-
 /**
  * The default bank config has
  * * all weights are 1
@@ -193,6 +163,21 @@ export const defaultInterestRateConfig = () => {
   return config;
 };
 
+export const defaultStakedInterestSettings = (oracle: PublicKey) => {
+  let settings: StakedSettingsConfig = {
+    oracle: oracle,
+    assetWeightInit: bigNumberToWrappedI80F48(0.8),
+    assetWeightMaint: bigNumberToWrappedI80F48(0.9),
+    depositLimit: new BN(1_000_000_000_000), // 1000 SOL
+    totalAssetValueInitLimit: new BN(150_000_000),
+    oracleMaxAge: 10,
+    riskTier: {
+      collateral: undefined,
+    },
+  };
+  return settings;
+};
+
 // TODO remove when package updates
 export type BankConfigOptWithAssetTag = BankConfigOptRaw & {
   assetTag: number | null;
@@ -207,3 +192,63 @@ export type InterestRateConfigRawWithOrigination = InterestRateConfigRaw & {
 export type InterestRateConfigWithOrigination = InterestRateConfig & {
   protocolOriginationFee: BigNumber;
 };
+
+// TODO remove when package updates
+type OperationalStateRaw =
+  | { paused: {} }
+  | { operational: {} }
+  | { reduceOnly: {} };
+
+// TODO remove when package updates
+export type BankConfig = {
+  assetWeightInit: WrappedI80F48;
+  assetWeightMaint: WrappedI80F48;
+
+  liabilityWeightInit: WrappedI80F48;
+  liabilityWeightMain: WrappedI80F48;
+
+  depositLimit: BN;
+  interestRateConfig: InterestRateConfigRaw;
+
+  /** Paused = 0, Operational = 1, ReduceOnly = 2 */
+  operationalState: OperationalStateRaw;
+
+  /** None = 0, PythLegacy = 1, SwitchboardV2 = 2, PythPushOracle =3 */
+  oracleSetup: OracleSetupRaw;
+  oracleKey: PublicKey;
+
+  borrowLimit: BN;
+  /** Collateral = 0, Isolated = 1 */
+  riskTier: RiskTierRaw;
+  assetTag: number;
+  totalAssetValueInitLimit: BN;
+  oracleMaxAge: number;
+};
+
+// TODO remove when package updates
+export type StakedSettingsConfig = {
+  oracle: PublicKey;
+
+  assetWeightInit: WrappedI80F48;
+  assetWeightMaint: WrappedI80F48;
+
+  depositLimit: BN;
+  totalAssetValueInitLimit: BN;
+
+  oracleMaxAge: number;
+  /** Collateral = 0, Isolated = 1 */
+  riskTier: RiskTierRaw;
+};
+
+export interface StakedSettingsEdit {
+  oracle: PublicKey | null;
+
+  assetWeightInit: WrappedI80F48 | null;
+  assetWeightMaint: WrappedI80F48 | null;
+
+  depositLimit: BN | null;
+  totalAssetValueInitLimit: BN | null;
+
+  oracleMaxAge: number | null;
+  riskTier: { collateral: {} } | { isolated: {} } | null;
+}
