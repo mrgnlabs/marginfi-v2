@@ -175,41 +175,58 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
             .filter(|balance| balance.active)
             .collect::<Vec<_>>();
 
-        debug!("Expecting {} remaining accounts", active_balances.len() * 2);
+        let expected_accounts = active_balances
+            .iter()
+            .map(|balance| {
+                if balance.bank_asset_tag == ASSET_TAG_STAKED {
+                    4
+                } else {
+                    2
+                }
+            })
+            .sum::<usize>();
+
+        debug!("Expecting {} remaining accounts", expected_accounts);
         debug!("Got {} remaining accounts", remaining_ais.len());
 
         check!(
-            active_balances.len() * 2 <= remaining_ais.len(),
+            expected_accounts <= remaining_ais.len(),
             MarginfiError::MissingPythOrBankAccount
         );
 
         let clock = Clock::get()?;
+        let mut account_index = 0;
 
         active_balances
             .iter()
-            .enumerate()
-            .map(|(i, balance)| {
-                let bank_index = i * 2;
-                let oracle_ai_idx = bank_index + 1;
+            .map(|balance| {
+                // Determine number of accounts to process for this balance
+                let num_accounts = if balance.bank_asset_tag == ASSET_TAG_STAKED {
+                    4
+                } else {
+                    2
+                };
 
-                let bank_ai = remaining_ais.get(bank_index).unwrap();
-
+                // Get the bank
+                let bank_ai = remaining_ais.get(account_index).unwrap();
                 check!(
                     balance.bank_pk.eq(bank_ai.key),
                     MarginfiError::InvalidBankAccount
                 );
+                let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
+                let bank = bank_al.load()?;
 
-                let price_adapter = {
-                    let oracle_ais = &remaining_ais[oracle_ai_idx..oracle_ai_idx + 1];
-                    let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
-                    let bank = bank_al.load()?;
+                // Get the oracle, and the LST mint and sol pool if applicable (staked only)
+                let oracle_ai_idx = account_index + 1;
+                let oracle_ais = &remaining_ais[oracle_ai_idx..oracle_ai_idx + num_accounts - 1];
 
-                    Box::new(OraclePriceFeedAdapter::try_from_bank_config(
-                        &bank.config,
-                        oracle_ais,
-                        &clock,
-                    ))
-                };
+                let price_adapter = Box::new(OraclePriceFeedAdapter::try_from_bank_config(
+                    &bank.config,
+                    oracle_ais,
+                    &clock,
+                ));
+
+                account_index += num_accounts;
 
                 Ok(BankAccountWithPriceFeed {
                     bank: bank_ai.clone(),
@@ -294,12 +311,6 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                             .checked_mul(discount)
                             .ok_or_else(math_error!())?;
                     }
-                }
-
-                if bank.config.asset_tag == ASSET_TAG_STAKED {
-                    asset_weight = asset_weight
-                        .checked_mul(bank.sol_appreciation_rate.into())
-                        .ok_or_else(math_error!())?;
                 }
 
                 calc_value(

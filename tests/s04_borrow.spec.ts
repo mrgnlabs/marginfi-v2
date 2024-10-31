@@ -98,6 +98,8 @@ describe("Deposit funds (included staked assets)", () => {
           oracles.wsolOracle.publicKey,
           validators[0].bank,
           oracles.wsolOracle.publicKey, // Note the Staked bank uses wsol oracle too
+          validators[0].splMint,
+          validators[0].splSolPool,
           bankKeypairUsdc.publicKey,
           oracles.usdcOracle.publicKey,
         ],

@@ -233,31 +233,6 @@ export const updateEmissions = (
 
 // ************* Below this line, not yet included in package ****************
 
-export type CacheSolExchangeRateArgs = {
-  bank: PublicKey;
-  lstMint: PublicKey;
-  solPool: PublicKey;
-  stakePool: PublicKey;
-};
-
-export const cacheSolExchangeRate = (
-  program: Program<Marginfi>,
-  args: CacheSolExchangeRateArgs
-) => {
-  const ix = program.methods
-    .cacheSolExRate()
-    .accounts({
-      bank: args.bank,
-      lstMint: args.lstMint,
-      solPool: args.solPool,
-      stakePool: args.stakePool,
-      // tokenProgram: TOKEN_PROGRAM_ID,
-    })
-    .instruction();
-
-  return ix;
-};
-
 export type InitGlobalFeeStateArgs = {
   payer: PublicKey;
   admin: PublicKey;

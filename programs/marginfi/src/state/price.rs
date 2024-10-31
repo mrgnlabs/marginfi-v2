@@ -1,6 +1,7 @@
 use std::{cell::Ref, cmp::min};
 
 use anchor_lang::prelude::*;
+use anchor_spl::token::Mint;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
@@ -73,9 +74,9 @@ pub enum OraclePriceFeedAdapter {
 }
 
 impl OraclePriceFeedAdapter {
-    pub fn try_from_bank_config(
+    pub fn try_from_bank_config<'info>(
         bank_config: &BankConfig,
-        ais: &[AccountInfo],
+        ais: &'info [AccountInfo<'info>],
         clock: &Clock,
     ) -> MarginfiResult<Self> {
         Self::try_from_bank_config_with_max_age(
@@ -86,9 +87,9 @@ impl OraclePriceFeedAdapter {
         )
     }
 
-    pub fn try_from_bank_config_with_max_age(
+    pub fn try_from_bank_config_with_max_age<'info>(
         bank_config: &BankConfig,
-        ais: &[AccountInfo],
+        ais: &'info [AccountInfo<'info>],
         clock: &Clock,
         max_age: u64,
     ) -> MarginfiResult<Self> {
@@ -151,7 +152,88 @@ impl OraclePriceFeedAdapter {
                 ))
             }
             OracleSetup::StakedWithPythPush => {
-                panic!("todo");
+                check!(ais.len() == 3, MarginfiError::InvalidOracleAccount);
+
+                check!(
+                    ais[1].key == &bank_config.oracle_keys[1]
+                        && ais[2].key == &bank_config.oracle_keys[2],
+                    MarginfiError::InvalidOracleAccount
+                );
+
+                let lst_mint = Account::<'info, Mint>::try_from(&ais[1]).unwrap();
+                let lst_supply = lst_mint.supply;
+                let sol_pool_balance = ais[2].lamports();
+                // Note: exchange rate is `sol_pool_balance / lst_supply`, but we will do the
+                // division last to avoid precision loss. Division does not need to be
+                // decimal-adjusted because both SOL and stake positions use 9 decimals
+
+                // Note: mainnet/staging/devnet use "push" oracles, localnet uses legacy
+                if cfg!(any(
+                    feature = "mainnet-beta",
+                    feature = "staging",
+                    feature = "devnet"
+                )) {
+                    let account_info = &ais[0];
+
+                    check!(
+                        account_info.owner == &pyth_solana_receiver_sdk::id(),
+                        MarginfiError::InvalidOracleAccount
+                    );
+
+                    let price_feed_id = bank_config.get_pyth_push_oracle_feed_id().unwrap();
+                    let mut feed = PythPushOraclePriceFeed::load_checked(
+                        account_info,
+                        price_feed_id,
+                        clock,
+                        max_age,
+                    )?;
+                    let adjusted_price = (feed.price.price as i128)
+                        .checked_mul(sol_pool_balance as i128)
+                        .ok_or_else(math_error!())?
+                        .checked_div(lst_supply as i128)
+                        .ok_or_else(math_error!())?;
+                    feed.price.price = adjusted_price.try_into().unwrap();
+
+                    let adjusted_ema_price = (feed.ema_price.price as i128)
+                        .checked_mul(sol_pool_balance as i128)
+                        .ok_or_else(math_error!())?
+                        .checked_div(lst_supply as i128)
+                        .ok_or_else(math_error!())?;
+                    feed.ema_price.price = adjusted_ema_price.try_into().unwrap();
+
+                    let price = OraclePriceFeedAdapter::PythPushOracle(feed);
+                    Ok(price)
+                } else {
+                    // Localnet only
+                    check!(
+                        ais[0].key == &bank_config.oracle_keys[0],
+                        MarginfiError::InvalidOracleAccount
+                    );
+
+                    let account_info = &ais[0];
+                    let mut feed = PythLegacyPriceFeed::load_checked(
+                        account_info,
+                        clock.unix_timestamp,
+                        max_age,
+                    )?;
+
+                    let adjusted_price = (feed.price.price as i128)
+                        .checked_mul(sol_pool_balance as i128)
+                        .ok_or_else(math_error!())?
+                        .checked_div(lst_supply as i128)
+                        .ok_or_else(math_error!())?;
+                    feed.price.price = adjusted_price.try_into().unwrap();
+
+                    let adjusted_ema_price = (feed.ema_price.price as i128)
+                        .checked_mul(sol_pool_balance as i128)
+                        .ok_or_else(math_error!())?
+                        .checked_div(lst_supply as i128)
+                        .ok_or_else(math_error!())?;
+                    feed.ema_price.price = adjusted_ema_price.try_into().unwrap();
+
+                    let price = OraclePriceFeedAdapter::PythLegacy(feed);
+                    Ok(price)
+                }
             }
         }
     }

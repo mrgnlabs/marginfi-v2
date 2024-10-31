@@ -29,8 +29,8 @@ import { assert } from "chai";
 import { borrowIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import { cacheSolExchangeRate } from "./utils/group-instructions";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { dumpBankrunLogs } from "./utils/tools";
 
 describe("Borrow power grows as v0 Staked SOL gains value from appreciation", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -56,6 +56,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
         remaining: [
           validators[0].bank,
           oracles.wsolOracle.publicKey,
+          validators[0].splMint,
+          validators[0].splSolPool,
           bankKeypairSol.publicKey,
           oracles.wsolOracle.publicKey,
         ],
@@ -65,6 +67,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
+
     // 6010 (Generic risk engine rejection)
     assertBankrunTxFailed(result, "0x177a");
 
@@ -75,47 +78,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     assert.equal(balances[1].active, false);
   });
 
-  // Note: there is some natural appreciation here because a few epochs have elapsed...
-  // TODO: Show math for expected appreciation due to epochs advancing
-  it("(permissionless) v0 cache stake - happy path (natural appreciation)", async () => {
-    let tx = new Transaction().add(
-      await cacheSolExchangeRate(program, {
-        bank: validators[0].bank,
-        lstMint: validators[0].splMint,
-        solPool: validators[0].splSolPool,
-        stakePool: validators[0].splPool,
-      })
-    );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(wallet.payer); // provider wallet pays the tx fee
-    await banksClient.processTransaction(tx);
-
-    const bank = await bankrunProgram.account.bank.fetch(validators[0].bank);
-    if (verbose) {
-      console.log(
-        "1 [validator 0 LST token] is now worth: " +
-          wrappedI80F48toBigNumber(bank.solAppreciationRate).toString() +
-          " SOL"
-      );
-    }
-    assertI80F48Approx(bank.solAppreciationRate, 1.033, 0.01);
-  });
-
-  it("(attacker) tries to sneak a bad spl pool - should fail", async () => {
-    let tx = new Transaction().add(
-      await cacheSolExchangeRate(program, {
-        bank: validators[0].bank,
-        lstMint: validators[0].splMint,
-        solPool: wallet.publicKey,
-        stakePool: validators[0].splPool,
-      })
-    );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(wallet.payer); // provider wallet pays the tx fee
-    let result = await banksClient.tryProcessTransaction(tx);
-    // 6048 (Stake pool validation failed)
-    assertBankrunTxFailed(result, "0x17a0");
-  });
+  // Note: there is also some natural appreciation here because a few epochs have elapsed...
 
   // Here we mock epoch rewards by simply minting SOL into the validator's pool without staking
   it("v0 stake grows by " + appreciation + " SOL", async () => {
@@ -132,32 +95,64 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     await banksClient.processTransaction(tx);
   });
 
-  // Note: in rare instances the test will run too quickly and will fail with `This transaction has
-  // already been processed` because it is the same tx as the previous one (i.e. if they are signed
-  // for the same blockhash and end up in the same slot). You can add a small delay or simply rerun
-  // the test.
-  it("(permissionless) validator 0 cache stake - 1 LST is now worth 2 SOL", async () => {
+  it("(user 2 - attacker) ties to sneak in bad lst mint - should fail", async () => {
+    const user = users[2];
+    const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
-      await cacheSolExchangeRate(program, {
-        bank: validators[0].bank,
-        lstMint: validators[0].splMint,
-        solPool: validators[0].splSolPool,
-        stakePool: validators[0].splPool,
+      await borrowIx(program, {
+        marginfiGroup: marginfiGroup.publicKey,
+        marginfiAccount: userAccount,
+        authority: user.wallet.publicKey,
+        bank: bankKeypairSol.publicKey,
+        tokenAccount: user.wsolAccount,
+        remaining: [
+          validators[0].bank,
+          oracles.wsolOracle.publicKey,
+          validators[1].splMint, // Bad mint
+          validators[0].splSolPool,
+          bankKeypairSol.publicKey,
+          oracles.wsolOracle.publicKey,
+        ],
+        amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(wallet.payer); // provider wallet pays the tx fee
-    await banksClient.processTransaction(tx);
+    tx.sign(user.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
 
-    const bank = await bankrunProgram.account.bank.fetch(validators[0].bank);
-    if (verbose) {
-      console.log(
-        "1 [validator 0 LST token] is now worth: " +
-          wrappedI80F48toBigNumber(bank.solAppreciationRate).toString() +
-          " SOL"
-      );
-    }
-    assertI80F48Approx(bank.solAppreciationRate, 2.033, 0.01);
+    // Throws 6007 (InvalidOracleAccount) first at `try_from_bank_config_with_max_age` which is
+    // converted to 6010 (Generic risk engine rejection) downstream
+    assertBankrunTxFailed(result, "0x177a");
+  });
+
+  it("(user 2 - attacker) ties to sneak in bad sol pool - should fail", async () => {
+    const user = users[2];
+    const userAccount = user.accounts.get(USER_ACCOUNT);
+    let tx = new Transaction().add(
+      await borrowIx(program, {
+        marginfiGroup: marginfiGroup.publicKey,
+        marginfiAccount: userAccount,
+        authority: user.wallet.publicKey,
+        bank: bankKeypairSol.publicKey,
+        tokenAccount: user.wsolAccount,
+        remaining: [
+          validators[0].bank,
+          oracles.wsolOracle.publicKey,
+          validators[0].splMint,
+          validators[1].splSolPool, // Bad pool
+          bankKeypairSol.publicKey,
+          oracles.wsolOracle.publicKey,
+        ],
+        amount: new BN(0.2 * 10 ** ecosystem.wsolDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
+
+    // Throws 6007 (InvalidOracleAccount) first at `try_from_bank_config_with_max_age` which is
+    // converted to 6010 (Generic risk engine rejection) downstream
+    assertBankrunTxFailed(result, "0x177a");
   });
 
   // The account is now worth enough for this borrow to succeed!
@@ -174,10 +169,16 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
         remaining: [
           validators[0].bank,
           oracles.wsolOracle.publicKey,
+          validators[0].splMint,
+          validators[0].splSolPool,
           bankKeypairSol.publicKey,
           oracles.wsolOracle.publicKey,
         ],
-        amount: new BN(1.1 * 10 ** ecosystem.wsolDecimals),
+        // Note: We use a different (slightly higher) amount, so Bankrun treats this as a different
+        // tx. Using the exact same values as above can cause the test to fail on faster machines
+        // because the same tx was already sent for this blockhash (i.e. "this transaction has
+        // already been processed")
+        amount: new BN(1.111 * 10 ** ecosystem.wsolDecimals),
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

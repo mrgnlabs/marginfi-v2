@@ -95,13 +95,6 @@ pub mod marginfi {
         )
     }
 
-    /// (permissionless) Used by Staked Sol banks (`bank.config.asset_tag == ASSET_TAG_STAKED`) to
-    /// cache the current exchange rate of SOL:LST for that validator. Should be called roughly once
-    /// per epoch.
-    pub fn cache_sol_ex_rate(ctx: Context<CacheSolExRate>) -> MarginfiResult {
-        marginfi_group::cache_sol_ex_rate(ctx)
-    }
-
     /// Handle bad debt of a bankrupt marginfi account for a given bank.
     pub fn lending_pool_handle_bankruptcy<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingPoolHandleBankruptcy<'info>>,
