@@ -26,6 +26,7 @@ import {
   assertBNEqual,
   assertI80F48Approx,
   assertI80F48Equal,
+  assertKeyDefault,
   assertKeysEqual,
 } from "./utils/genericTests";
 import {
@@ -39,7 +40,16 @@ import {
 } from "./utils/types";
 import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import { deriveBankWithSeed, deriveStakedSettings } from "./utils/pdas";
+import {
+  deriveBankWithSeed,
+  deriveFeeVault,
+  deriveFeeVaultAuthority,
+  deriveInsuranceVault,
+  deriveInsuranceVaultAuthority,
+  deriveLiquidityVault,
+  deriveLiquidityVaultAuthority,
+  deriveStakedSettings,
+} from "./utils/pdas";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 describe("Init group and add banks with asset category flags", () => {
@@ -398,9 +408,96 @@ describe("Init group and add banks with asset category flags", () => {
       console.log("*init LST bank " + validators[0].bank + " (validator 0)");
     }
     const bank = await bankrunProgram.account.bank.fetch(validators[0].bank);
+    const [settingsKey] = deriveStakedSettings(
+      program.programId,
+      marginfiGroup.publicKey
+    );
+    const settingsAcc = await bankrunProgram.account.stakedSettings.fetch(
+      settingsKey
+    );
+    // Noteworthy fields
     assert.equal(bank.config.assetTag, ASSET_TAG_STAKED);
-    // Note: This field is set for all banks, but only relevant for ASSET_TAG_STAKED banks.
     assertI80F48Equal(bank.solAppreciationRate, I80F48_ONE);
-    // TODO assert other relevant default values...
+
+    // Standard fields
+    const config = bank.config;
+    const interest = config.interestRateConfig;
+    const id = program.programId;
+
+    assertKeysEqual(bank.mint, validators[0].splMint);
+    // Note: stake accounts use SOL decimals
+    assert.equal(bank.mintDecimals, ecosystem.wsolDecimals);
+    assertKeysEqual(bank.group, marginfiGroup.publicKey);
+
+    // Keys and bumps...
+    const [_liqAuth, liqAuthBump] = deriveLiquidityVaultAuthority(id, bankKey);
+    const [liquidityVault, liqVaultBump] = deriveLiquidityVault(id, bankKey);
+    assertKeysEqual(bank.liquidityVault, liquidityVault);
+    assert.equal(bank.liquidityVaultBump, liqVaultBump);
+    assert.equal(bank.liquidityVaultAuthorityBump, liqAuthBump);
+
+    const [_insAuth, insAuthBump] = deriveInsuranceVaultAuthority(id, bankKey);
+    const [insuranceVault, insurVaultBump] = deriveInsuranceVault(id, bankKey);
+    assertKeysEqual(bank.insuranceVault, insuranceVault);
+    assert.equal(bank.insuranceVaultBump, insurVaultBump);
+    assert.equal(bank.insuranceVaultAuthorityBump, insAuthBump);
+
+    const [_feeVaultAuth, feeAuthBump] = deriveFeeVaultAuthority(id, bankKey);
+    const [feeVault, feeVaultBump] = deriveFeeVault(id, bankKey);
+    assertKeysEqual(bank.feeVault, feeVault);
+    assert.equal(bank.feeVaultBump, feeVaultBump);
+    assert.equal(bank.feeVaultAuthorityBump, feeAuthBump);
+
+    assertKeyDefault(bank.emissionsMint);
+
+    // Constants/Defaults...
+    assertI80F48Equal(bank.assetShareValue, 1);
+    assertI80F48Equal(bank.liabilityShareValue, 1);
+    assertI80F48Equal(bank.collectedInsuranceFeesOutstanding, 0);
+    assertI80F48Equal(bank.collectedGroupFeesOutstanding, 0);
+    assertI80F48Equal(bank.totalLiabilityShares, 0);
+    assertI80F48Equal(bank.totalAssetShares, 0);
+    assertBNEqual(bank.flags, 0);
+    assertBNEqual(bank.emissionsRate, 0);
+    assertI80F48Equal(bank.emissionsRemaining, 0);
+
+    // Settings and non-default values...
+    assertI80F48Approx(config.assetWeightInit, settingsAcc.assetWeightInit);
+    assertI80F48Approx(config.assetWeightMaint, settingsAcc.assetWeightMaint);
+    assertI80F48Approx(config.liabilityWeightInit, 1.5);
+    assertI80F48Approx(config.liabilityWeightMaint, 1.25);
+    assertBNEqual(config.depositLimit, settingsAcc.depositLimit);
+
+    assertI80F48Approx(interest.optimalUtilizationRate, 0.4);
+    assertI80F48Approx(interest.plateauInterestRate, 0.4);
+    assertI80F48Approx(interest.maxInterestRate, 3);
+
+    assertI80F48Equal(interest.insuranceFeeFixedApr, 0);
+    assertI80F48Approx(interest.insuranceIrFee, 0.1);
+    assertI80F48Approx(interest.protocolFixedFeeApr, 0.01);
+    assertI80F48Equal(interest.protocolIrFee, 0);
+
+    assertI80F48Equal(interest.protocolOriginationFee, 0);
+
+    assert.deepEqual(config.operationalState, { operational: {} });
+    assert.deepEqual(config.oracleSetup, { stakedWithPythPush: {} });
+    assertBNEqual(config.borrowLimit, 0);
+    assert.deepEqual(config.riskTier, settingsAcc.riskTier);
+    assert.equal(config.assetTag, ASSET_TAG_STAKED);
+    assertBNEqual(
+      config.totalAssetValueInitLimit,
+      settingsAcc.totalAssetValueInitLimit
+    );
+
+    // Oracle information....
+    assert.equal(config.oracleMaxAge, settingsAcc.oracleMaxAge);
+    assertKeysEqual(config.oracleKeys[0], settingsAcc.oracle);
+    assertKeysEqual(config.oracleKeys[1], validators[0].splMint);
+    assertKeysEqual(config.oracleKeys[2], validators[0].splSolPool);
+
+    assertI80F48Equal(bank.collectedProgramFeesOutstanding, 0);
+
+    // Timing is annoying to test in bankrun context due to clock warping
+    // assert.approximately(now, bank.lastUpdate.toNumber(), 2);
   });
 });

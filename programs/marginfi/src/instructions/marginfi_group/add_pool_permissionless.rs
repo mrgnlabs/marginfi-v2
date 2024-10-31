@@ -31,6 +31,8 @@ pub fn lending_pool_add_bank_permissionless(
         insurance_vault,
         fee_vault,
         bank: bank_loader,
+        stake_pool,
+        sol_pool,
         ..
     } = ctx.accounts;
 
@@ -96,14 +98,14 @@ pub fn lending_pool_add_bank_permissionless(
     bank.config.validate()?;
 
     check!(
-        ctx.accounts.stake_pool.owner == &SPL_SINGLE_POOL_ID,
+        stake_pool.owner == &SPL_SINGLE_POOL_ID,
         MarginfiError::StakePoolValidationFailed
     );
     let lst_mint = bank_mint.key();
-    let stake_pool = ctx.accounts.stake_pool.key();
-    let sol_pool = ctx.accounts.sol_pool.key();
+    let stake_pool = stake_pool.key();
+    let sol_pool = sol_pool.key();
     // The mint (for supply) and stake pool (for sol balance) are recorded for price calculation
-    bank.config.oracle_keys[1] = stake_pool;
+    bank.config.oracle_keys[1] = lst_mint;
     bank.config.oracle_keys[2] = sol_pool;
     bank.config.validate_oracle_setup(
         ctx.remaining_accounts,

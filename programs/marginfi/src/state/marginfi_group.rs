@@ -1460,9 +1460,10 @@ impl BankConfig {
         Ok(())
     }
 
-    /// Because the mint (and thus corresponding stake pool) of a staked collateral bank cannot update
-    /// after inception, this function validates just the oracle, ignoring the lst mint and sol pool,
-    /// for oracles configured as StakedWithPythPush, and otherwise errors
+    /// Because the mint (and thus corresponding stake pool) of a staked collateral bank cannot
+    /// update after inception, this function validates just the oracle, ignoring the lst mint and
+    /// sol pool. This function works only for banks configured as StakedWithPythPush, and otherwise
+    /// errors
     pub fn validate_staked_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
         OraclePriceFeedAdapter::validate_staked_bank_config_light(self, ais)?;
         Ok(())
