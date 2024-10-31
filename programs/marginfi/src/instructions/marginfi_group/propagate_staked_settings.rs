@@ -9,6 +9,12 @@ pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> Resul
     let settings = ctx.accounts.staked_settings.load()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
 
+    // Only validate the oracle if it has changed
+    if settings.oracle != bank.config.oracle_keys[0] {
+        bank.config
+            .validate_staked_oracle_setup(ctx.remaining_accounts)?;
+    }
+
     bank.config.oracle_keys[0] = settings.oracle;
     bank.config.asset_weight_init = settings.asset_weight_init;
     bank.config.asset_weight_maint = settings.asset_weight_maint;
@@ -18,7 +24,6 @@ pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> Resul
     bank.config.risk_tier = settings.risk_tier;
 
     bank.config.validate()?;
-    bank.config.validate_staked_oracle_setup(ctx.remaining_accounts)?;
     // ...Possibly emit event.
 
     Ok(())
@@ -37,7 +42,7 @@ pub struct PropagateStakedSettings<'info> {
         mut,
         constraint = {
             let bank = bank.load()?;
-            bank.group == marginfi_group.key() && 
+            bank.group == marginfi_group.key() &&
                 bank.config.asset_tag == ASSET_TAG_STAKED
         }
     )]

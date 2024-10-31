@@ -294,6 +294,8 @@ export const editGlobalFeeState = (
   return ix;
 };
 
+// TODO propagate fee state and test
+
 export type InitStakedSettingsArgs = {
   group: PublicKey;
   feePayer: PublicKey;
@@ -337,6 +339,42 @@ export const editStakedSettings = (
       // rent = SYSVAR_RENT_PUBKEY,
       // systemProgram: SystemProgram.programId,
     })
+    .instruction();
+
+  return ix;
+};
+
+/**
+ * oracle - required only if settings updates the oracle key
+ */
+export type PropagateStakedSettingsArgs = {
+  settings: PublicKey;
+  bank: PublicKey;
+  oracle?: PublicKey;
+};
+
+export const propagateStakedSettings = (
+  program: Program<Marginfi>,
+  args: PropagateStakedSettingsArgs
+) => {
+  const remainingAccounts = args.oracle
+    ? [
+        {
+          pubkey: args.oracle,
+          isSigner: false,
+          isWritable: false,
+        } as AccountMeta,
+      ]
+    : [];
+    
+  const ix = program.methods
+    .propagateStakedSettings()
+    .accounts({
+      // marginfiGroup: args.group, // implied from stakedSettings
+      stakedSettings: args.settings,
+      bank: args.bank,
+    })
+    .remainingAccounts(remainingAccounts)
     .instruction();
 
   return ix;

@@ -153,6 +153,10 @@ describe("Init group", () => {
     assert.ok(failed, "Transaction succeeded when it should have failed");
   });
 
+  // Note: there are no Staked Collateral positions in the end to end test suite (those are in the
+  // BankRun suite e.g. s01) so these settings do nothing. Many of the these settings as also wrong
+  // or don't make sense (e.g. weights > 0 with isolated risk teir) and would fail at propagation
+
   it("(admin) Edit staked settings for group", async () => {
     const settings: StakedSettingsEdit = {
       oracle: PublicKey.default,
@@ -232,5 +236,4 @@ describe("Init group", () => {
 
     assert.equal(settingsAcc.oracleMaxAge, 60);
   });
-
 });

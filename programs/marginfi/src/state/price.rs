@@ -365,11 +365,6 @@ impl OraclePriceFeedAdapter {
             _ => err!(MarginfiError::StakePoolValidationFailed),
         }?;
 
-        check!(
-            oracle_ais[0].key == &bank_config.oracle_keys[0],
-            MarginfiError::InvalidOracleAccount
-        );
-
         check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
         // Note: mainnet/staging/devnet use push oracles, localnet uses legacy push
         if cfg!(any(
