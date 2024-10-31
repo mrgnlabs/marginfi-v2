@@ -18,8 +18,8 @@ pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> Resul
     bank.config.risk_tier = settings.risk_tier;
 
     bank.config.validate()?;
-
-    // ...Possibly validate oracle or emit event.
+    bank.config.validate_staked_oracle_setup(ctx.remaining_accounts)?;
+    // ...Possibly emit event.
 
     Ok(())
 }

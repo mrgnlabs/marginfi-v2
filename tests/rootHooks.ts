@@ -56,7 +56,7 @@ export const users: MockUser[] = [];
 export const numUsers = 3;
 
 export const validators: Validator[] = [];
-export const numValidators = 1;
+export const numValidators = 2;
 export let globalFeeWallet: PublicKey = undefined;
 
 /** Lamports charged when creating any pool */

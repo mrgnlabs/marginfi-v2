@@ -1,5 +1,5 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { Keypair, Transaction } from "@solana/web3.js";
+import { AccountMeta, Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import {
   addBank,
   addBankPermissionless,
@@ -17,6 +17,7 @@ import {
   groupAdmin,
   marginfiGroup,
   oracles,
+  users,
   validators,
   verbose,
 } from "./rootHooks";
@@ -39,6 +40,7 @@ import {
 import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed, deriveStakedSettings } from "./utils/pdas";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 describe("Init group and add banks with asset category flags", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -184,7 +186,192 @@ describe("Init group and add banks with asset category flags", () => {
     assertBankrunTxFailed(result, "0x17a2");
   });
 
-  it("(admin) Add bank (validator 0) permissionless - is tagged as Staked", async () => {
+  it("(attacker) Add bank (validator 0) with bad accounts + metadata - should fail", async () => {
+    const [settingsKey] = deriveStakedSettings(
+      program.programId,
+      marginfiGroup.publicKey
+    );
+    const goodStakePool = validators[0].splPool;
+    const goodLstMint = validators[0].splMint;
+    const goodSolPool = validators[0].splSolPool;
+
+    // Attacker tries to sneak in the wrong validator's information
+    const badStakePool = validators[1].splPool;
+    const badLstMint = validators[1].splMint;
+    const badSolPool = validators[1].splSolPool;
+
+    const stakePools = [goodStakePool, badStakePool];
+    const lstMints = [goodLstMint, badLstMint];
+    const solPools = [goodSolPool, badSolPool];
+
+    for (const stakePool of stakePools) {
+      for (const lstMint of lstMints) {
+        for (const solPool of solPools) {
+          // Skip the "all good" combination
+          if (
+            stakePool.equals(goodStakePool) &&
+            lstMint.equals(goodLstMint) &&
+            solPool.equals(goodSolPool)
+          ) {
+            continue;
+          }
+
+          // Skip the "all bad" combination (equivalent to a valid init of validator 1)
+          if (
+            stakePool.equals(badStakePool) &&
+            lstMint.equals(badLstMint) &&
+            solPool.equals(badSolPool)
+          ) {
+            continue;
+          }
+
+          const oracleMeta: AccountMeta = {
+            pubkey: oracles.wsolOracle.publicKey,
+            isSigner: false,
+            isWritable: false,
+          };
+          const lstMeta: AccountMeta = {
+            pubkey: lstMint,
+            isSigner: false,
+            isWritable: false,
+          };
+          const solPoolMeta: AccountMeta = {
+            pubkey: solPool,
+            isSigner: false,
+            isWritable: false,
+          };
+
+          const ix = await program.methods
+            .lendingPoolAddBankPermissionless(new BN(0))
+            .accounts({
+              stakedSettings: settingsKey,
+              feePayer: users[0].wallet.publicKey,
+              bankMint: lstMint,
+              solPool: solPool,
+              stakePool: stakePool,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            })
+            .remainingAccounts([oracleMeta, lstMeta, solPoolMeta])
+            .instruction();
+
+          let tx = new Transaction();
+          tx.add(ix);
+          tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+          tx.sign(users[0].wallet);
+
+          let result = await banksClient.tryProcessTransaction(tx);
+          assertBankrunTxFailed(result, "0x17a0");
+        }
+      }
+    }
+  });
+
+  it("(attacker) Add bank (validator 0) with good accounts but bad metadata - should fail", async () => {
+    const [settingsKey] = deriveStakedSettings(
+      program.programId,
+      marginfiGroup.publicKey
+    );
+
+    const goodStakePool = validators[0].splPool;
+    const goodLstMint = validators[0].splMint;
+    const goodSolPool = validators[0].splSolPool;
+
+    // Note: StakePool is N/A because we do not pass StakePool in meta.
+    // const badStakePool = validators[1].splPool;
+    const badLstMint = validators[1].splMint;
+    const badSolPool = validators[1].splSolPool;
+
+    // Test all combinations of bad metadata keys
+    const lstMints = [goodLstMint, badLstMint];
+    const solPools = [goodSolPool, badSolPool];
+
+    for (const lstMint of lstMints) {
+      for (const solPool of solPools) {
+        // Skip the all-good metadata case
+        if (lstMint.equals(goodLstMint) && solPool.equals(goodSolPool)) {
+          continue;
+        }
+
+        const oracleMeta: AccountMeta = {
+          pubkey: oracles.wsolOracle.publicKey,
+          isSigner: false,
+          isWritable: false,
+        };
+        const lstMeta: AccountMeta = {
+          pubkey: lstMint,
+          isSigner: false,
+          isWritable: false,
+        };
+        const solPoolMeta: AccountMeta = {
+          pubkey: solPool,
+          isSigner: false,
+          isWritable: false,
+        };
+
+        const ix = await program.methods
+          .lendingPoolAddBankPermissionless(new BN(0))
+          .accounts({
+            stakedSettings: settingsKey,
+            feePayer: users[0].wallet.publicKey,
+            bankMint: goodLstMint, // Good key
+            solPool: goodSolPool, // Good key
+            stakePool: goodStakePool, // Good key
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .remainingAccounts([oracleMeta, lstMeta, solPoolMeta]) // Bad metadata keys
+          .instruction();
+
+        let tx = new Transaction();
+        tx.add(ix);
+        tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+        tx.sign(users[0].wallet);
+
+        let result = await banksClient.tryProcessTransaction(tx);
+        assertBankrunTxFailed(result, "0x17a0");
+      }
+    }
+
+    // Bad oracle meta
+    const oracleMeta: AccountMeta = {
+      pubkey: oracles.usdcOracle.publicKey, // Bad meta
+      isSigner: false,
+      isWritable: false,
+    };
+    const lstMeta: AccountMeta = {
+      pubkey: goodLstMint,
+      isSigner: false,
+      isWritable: false,
+    };
+    const solPoolMeta: AccountMeta = {
+      pubkey: goodSolPool,
+      isSigner: false,
+      isWritable: false,
+    };
+
+    const ix = await program.methods
+      .lendingPoolAddBankPermissionless(new BN(0))
+      .accounts({
+        stakedSettings: settingsKey,
+        feePayer: users[0].wallet.publicKey,
+        bankMint: goodLstMint, // Good key
+        solPool: goodSolPool, // Good key
+        stakePool: goodStakePool, // Good key
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .remainingAccounts([oracleMeta, lstMeta, solPoolMeta]) // Bad oracle meta
+      .instruction();
+
+    let tx = new Transaction();
+    tx.add(ix);
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(users[0].wallet);
+
+    let result = await banksClient.tryProcessTransaction(tx);
+    // Note: different error
+    assertBankrunTxFailed(result, "0x1777");
+  });
+
+  it("(permissionless) Add bank (validator 0) - is tagged as Staked", async () => {
     const [bankKey] = deriveBankWithSeed(
       program.programId,
       marginfiGroup.publicKey,

@@ -74,7 +74,8 @@ pub fn lending_pool_add_bank(
     );
 
     bank.config.validate()?;
-    bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
+    bank.config
+        .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {

@@ -1449,8 +1449,22 @@ impl BankConfig {
         self.borrow_limit != u64::MAX
     }
 
-    pub fn validate_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
-        OraclePriceFeedAdapter::validate_bank_config(self, ais)?;
+    pub fn validate_oracle_setup(
+        &self,
+        ais: &[AccountInfo],
+        lst_mint: Option<Pubkey>,
+        stake_pool: Option<Pubkey>,
+        sol_pool: Option<Pubkey>,
+    ) -> MarginfiResult {
+        OraclePriceFeedAdapter::validate_bank_config(self, ais, lst_mint, stake_pool, sol_pool)?;
+        Ok(())
+    }
+
+    /// Because the mint (and thus corresponding stake pool) of a staked collateral bank cannot update
+    /// after inception, this function validates just the oracle, ignoring the lst mint and sol pool,
+    /// for oracles configured as StakedWithPythPush, and otherwise errors
+    pub fn validate_staked_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
+        OraclePriceFeedAdapter::validate_staked_bank_config_light(self, ais)?;
         Ok(())
     }
 

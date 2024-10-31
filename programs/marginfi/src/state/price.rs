@@ -16,8 +16,8 @@ use crate::{
     check,
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL,
-        MIN_PYTH_PUSH_VERIFICATION_LEVEL, NATIVE_STAKE_ID, PYTH_ID, STD_DEV_MULTIPLE,
-        SWITCHBOARD_PULL_ID,
+        MIN_PYTH_PUSH_VERIFICATION_LEVEL, NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID,
+        STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID,
     },
     debug, math_error,
     prelude::*,
@@ -156,9 +156,13 @@ impl OraclePriceFeedAdapter {
         }
     }
 
+    /// * lst_mint, stake_pool, sol_pool - required only if configuring `OracleSetup::StakedWithPythPush`
     pub fn validate_bank_config(
         bank_config: &BankConfig,
         oracle_ais: &[AccountInfo],
+        lst_mint: Option<Pubkey>,
+        stake_pool: Option<Pubkey>,
+        sol_pool: Option<Pubkey>,
     ) -> MarginfiResult {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
@@ -187,6 +191,11 @@ impl OraclePriceFeedAdapter {
             OracleSetup::PythPushOracle => {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
 
+                check!(
+                    oracle_ais[0].key == &bank_config.oracle_keys[0],
+                    MarginfiError::InvalidOracleAccount
+                );
+
                 PythPushOraclePriceFeed::check_ai_and_feed_id(
                     &oracle_ais[0],
                     bank_config.get_pyth_push_oracle_feed_id().unwrap(),
@@ -207,6 +216,12 @@ impl OraclePriceFeedAdapter {
             }
             OracleSetup::StakedWithPythPush => {
                 check!(oracle_ais.len() == 3, MarginfiError::InvalidOracleAccount);
+
+                check!(
+                    oracle_ais[0].key == &bank_config.oracle_keys[0],
+                    MarginfiError::InvalidOracleAccount
+                );
+
                 // Note: mainnet/staging/devnet use push oracles, localnet uses legacy push
                 if cfg!(any(
                     feature = "mainnet-beta",
@@ -219,32 +234,82 @@ impl OraclePriceFeedAdapter {
                     )?;
                 } else {
                     // Localnet only
-                    check!(
-                        oracle_ais[0].key == &bank_config.oracle_keys[0],
-                        MarginfiError::InvalidOracleAccount
-                    );
-
                     PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
                 }
 
-                // Sanity checks (PDA validation for these accounts happens once, at bank initialization)
-
-                // The spl token mint (to obtain supply information). Note: spl-single-pool uses a
-                // classic Token, never Token22
                 check!(
-                    oracle_ais[1].owner == &SPL_TOKEN_PROGRAM_ID,
+                    lst_mint.is_some() && stake_pool.is_some() && sol_pool.is_some(),
                     MarginfiError::StakePoolValidationFailed
                 );
-                // The spl stake pool (to obtain the balance of staked SOL). Note: the native
-                // staking program is written in vanilla Rust and has no Anchor discriminator.
+                let lst_mint = lst_mint.unwrap();
+                let stake_pool = stake_pool.unwrap();
+                let sol_pool = sol_pool.unwrap();
+
+                let program_id = &SPL_SINGLE_POOL_ID;
+                let stake_pool_bytes = &stake_pool.to_bytes();
+                // Validate the given stake_pool derives the same lst_mint, proving stake_pool is correct
+                let (exp_mint, _) =
+                    Pubkey::find_program_address(&[b"mint", stake_pool_bytes], program_id);
                 check!(
-                    oracle_ais[2].owner == &NATIVE_STAKE_ID,
+                    exp_mint == lst_mint,
+                    MarginfiError::StakePoolValidationFailed
+                );
+                // Validate the now-proven stake_pool derives the given sol_pool
+                let (exp_pool, _) =
+                    Pubkey::find_program_address(&[b"stake", stake_pool_bytes], program_id);
+                check!(
+                    exp_pool == sol_pool.key(),
+                    MarginfiError::StakePoolValidationFailed
+                );
+
+                // Sanity check the mint. Note: spl-single-pool uses a classic Token, never Token22
+                check!(
+                    oracle_ais[1].owner == &SPL_TOKEN_PROGRAM_ID && oracle_ais[1].key() == lst_mint,
+                    MarginfiError::StakePoolValidationFailed
+                );
+                // Sanity check the pool is a native stake pool. Note: the native staking program is
+                // written in vanilla Solana and has no Anchor discriminator.
+                check!(
+                    oracle_ais[2].owner == &NATIVE_STAKE_ID && oracle_ais[2].key() == sol_pool,
                     MarginfiError::StakePoolValidationFailed
                 );
 
                 Ok(())
             }
         }
+    }
+
+    pub fn validate_staked_bank_config_light(
+        bank_config: &BankConfig,
+        oracle_ais: &[AccountInfo],
+    ) -> MarginfiResult {
+        match bank_config.oracle_setup {
+            OracleSetup::StakedWithPythPush => Ok(()),
+            _ => err!(MarginfiError::StakePoolValidationFailed),
+        }?;
+
+        check!(
+            oracle_ais[0].key == &bank_config.oracle_keys[0],
+            MarginfiError::InvalidOracleAccount
+        );
+
+        check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
+        // Note: mainnet/staging/devnet use push oracles, localnet uses legacy push
+        if cfg!(any(
+            feature = "mainnet-beta",
+            feature = "staging",
+            feature = "devnet"
+        )) {
+            PythPushOraclePriceFeed::check_ai_and_feed_id(
+                &oracle_ais[0],
+                bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+            )?;
+        } else {
+            // Localnet only
+            PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
+        }
+
+        Ok(())
     }
 }
 

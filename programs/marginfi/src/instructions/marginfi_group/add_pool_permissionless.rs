@@ -5,7 +5,7 @@ use crate::{
     constants::{
         ASSET_TAG_STAKED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        NATIVE_STAKE_ID, SPL_SINGLE_POOL_ID,
+        SPL_SINGLE_POOL_ID,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     state::{
@@ -67,7 +67,7 @@ pub fn lending_pool_add_bank_permissionless(
         interest_rate_config: default_ir_config.into(), // placeholder
         operational_state: BankOperationalState::Operational,
         oracle_setup: OracleSetup::StakedWithPythPush,
-        oracle_key: settings.oracle,
+        oracle_key: settings.oracle, // becomes config.oracle_keys[0]
         borrow_limit: 0,
         risk_tier: settings.risk_tier,
         asset_tag: ASSET_TAG_STAKED,
@@ -93,40 +93,24 @@ pub fn lending_pool_add_bank_permissionless(
         fee_vault_authority_bump,
     );
 
-    {
-        let program_id = &SPL_SINGLE_POOL_ID;
-        let mint_actual = bank_mint.key();
-        let stake_pool_bytes = &ctx.accounts.stake_pool.key().to_bytes();
-        // Validate the given stake_pool derives the same lst_mint, proving stake_pool is correct
-        let (exp_mint, _) = Pubkey::find_program_address(&[b"mint", stake_pool_bytes], program_id);
-        check!(
-            exp_mint == mint_actual,
-            MarginfiError::StakePoolValidationFailed
-        );
-        // Validate the now-proven stake_pool derives the given sol_pool
-        let (exp_pool, _) = Pubkey::find_program_address(&[b"stake", stake_pool_bytes], program_id);
-        check!(
-            exp_pool == ctx.accounts.sol_pool.key(),
-            MarginfiError::StakePoolValidationFailed
-        );
-        // Sanity check these accounts exist and have the correct owning program. Note: Mint's owner
-        // is already checked by the Mint anchor decorator
-        check!(
-            ctx.accounts.stake_pool.owner == program_id,
-            MarginfiError::StakePoolValidationFailed
-        );
-        check!(
-            ctx.accounts.sol_pool.owner == &NATIVE_STAKE_ID,
-            MarginfiError::StakePoolValidationFailed
-        );
-
-        // The mint (for supply) and stake pool (for sol balance) are recorded for price calculation
-        bank.config.oracle_keys[1] = mint_actual.key();
-        bank.config.oracle_keys[2] = ctx.accounts.sol_pool.key();
-    }
-
     bank.config.validate()?;
-    bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
+
+    check!(
+        ctx.accounts.stake_pool.owner == &SPL_SINGLE_POOL_ID,
+        MarginfiError::StakePoolValidationFailed
+    );
+    let lst_mint = bank_mint.key();
+    let stake_pool = ctx.accounts.stake_pool.key();
+    let sol_pool = ctx.accounts.sol_pool.key();
+    // The mint (for supply) and stake pool (for sol balance) are recorded for price calculation
+    bank.config.oracle_keys[1] = stake_pool;
+    bank.config.oracle_keys[2] = sol_pool;
+    bank.config.validate_oracle_setup(
+        ctx.remaining_accounts,
+        Some(lst_mint),
+        Some(stake_pool),
+        Some(sol_pool),
+    )?;
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {
@@ -155,7 +139,6 @@ pub struct LendingPoolAddBankPermissionless<'info> {
 
     /// Mint of the spl-single-pool LST (a PDA derived from `stake_pool`)
     ///
-    /// TODO test the below assumption
     /// CHECK: passing a mint here that is not actually a staked collateral LST is not possible
     /// because the sol_pool and stake_pool will not derive to a valid PDA which is also owned by
     /// the staking program and spl-single-pool program.
