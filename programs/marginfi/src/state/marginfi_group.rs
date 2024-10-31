@@ -1449,6 +1449,7 @@ impl BankConfig {
         self.borrow_limit != u64::MAX
     }
 
+    /// * lst_mint, stake_pool, sol_pool - required only if configuring `OracleSetup::StakedWithPythPush`
     pub fn validate_oracle_setup(
         &self,
         ais: &[AccountInfo],

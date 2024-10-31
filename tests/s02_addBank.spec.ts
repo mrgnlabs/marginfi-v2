@@ -196,7 +196,7 @@ describe("Init group and add banks with asset category flags", () => {
     assertBankrunTxFailed(result, "0x17a2");
   });
 
-  it("(attacker) Add bank (validator 0) with bad accounts + metadata - should fail", async () => {
+  it("(attacker) Add bank (validator 0) with bad accounts + bad metadata - should fail", async () => {
     const [settingsKey] = deriveStakedSettings(
       program.programId,
       marginfiGroup.publicKey
@@ -291,7 +291,6 @@ describe("Init group and add banks with asset category flags", () => {
     const badLstMint = validators[1].splMint;
     const badSolPool = validators[1].splSolPool;
 
-    // Test all combinations of bad metadata keys
     const lstMints = [goodLstMint, badLstMint];
     const solPools = [goodSolPool, badSolPool];
 
@@ -381,7 +380,7 @@ describe("Init group and add banks with asset category flags", () => {
     assertBankrunTxFailed(result, "0x1777");
   });
 
-  it("(permissionless) Add bank (validator 0) - is tagged as Staked", async () => {
+  it("(permissionless) Add staked collateral bank (validator 0) - happy path", async () => {
     const [bankKey] = deriveBankWithSeed(
       program.programId,
       marginfiGroup.publicKey,

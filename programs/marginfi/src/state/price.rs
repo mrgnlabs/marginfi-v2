@@ -191,11 +191,6 @@ impl OraclePriceFeedAdapter {
             OracleSetup::PythPushOracle => {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
 
-                check!(
-                    oracle_ais[0].key == &bank_config.oracle_keys[0],
-                    MarginfiError::InvalidOracleAccount
-                );
-
                 PythPushOraclePriceFeed::check_ai_and_feed_id(
                     &oracle_ais[0],
                     bank_config.get_pyth_push_oracle_feed_id().unwrap(),
@@ -217,12 +212,7 @@ impl OraclePriceFeedAdapter {
             OracleSetup::StakedWithPythPush => {
                 check!(oracle_ais.len() == 3, MarginfiError::InvalidOracleAccount);
 
-                check!(
-                    oracle_ais[0].key == &bank_config.oracle_keys[0],
-                    MarginfiError::InvalidOracleAccount
-                );
-
-                // Note: mainnet/staging/devnet use push oracles, localnet uses legacy push
+                // Note: mainnet/staging/devnet use "push" oracles, localnet uses legacy
                 if cfg!(any(
                     feature = "mainnet-beta",
                     feature = "staging",
@@ -234,6 +224,11 @@ impl OraclePriceFeedAdapter {
                     )?;
                 } else {
                     // Localnet only
+                    check!(
+                        oracle_ais[0].key == &bank_config.oracle_keys[0],
+                        MarginfiError::InvalidOracleAccount
+                    );
+
                     PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
                 }
 
