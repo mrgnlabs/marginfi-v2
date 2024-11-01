@@ -45,7 +45,7 @@ pub fn lending_pool_add_bank_with_seed(
 
     let mut bank = bank_loader.load_init()?;
     check!(
-        !(bank_config.asset_tag == ASSET_TAG_STAKED),
+        bank_config.asset_tag != ASSET_TAG_STAKED,
         MarginfiError::AddedStakedPoolManually
     );
 

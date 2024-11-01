@@ -1165,8 +1165,9 @@ impl Display for BankOperationalState {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq, Default)]
 pub enum RiskTier {
+    #[default]
     Collateral = 0,
     /// ## Isolated Risk
     /// Assets in this trance can be borrowed only in isolation.
@@ -1179,11 +1180,6 @@ pub enum RiskTier {
 
 unsafe impl Zeroable for RiskTier {}
 unsafe impl Pod for RiskTier {}
-impl Default for RiskTier {
-    fn default() -> Self {
-        RiskTier::Collateral
-    }
-}
 
 #[repr(C)]
 #[cfg_attr(
