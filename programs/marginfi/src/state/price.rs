@@ -20,7 +20,7 @@ use crate::{
         MIN_PYTH_PUSH_VERIFICATION_LEVEL, NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID,
         STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID,
     },
-    debug, math_error,
+    debug, live, math_error,
     prelude::*,
 };
 
@@ -298,11 +298,7 @@ impl OraclePriceFeedAdapter {
                     check!(oracle_ais.len() == 3, MarginfiError::InvalidOracleAccount);
 
                     // Note: mainnet/staging/devnet use "push" oracles, localnet uses legacy
-                    if cfg!(any(
-                        feature = "mainnet-beta",
-                        feature = "staging",
-                        feature = "devnet"
-                    )) {
+                    if live!() {
                         PythPushOraclePriceFeed::check_ai_and_feed_id(
                             &oracle_ais[0],
                             bank_config.get_pyth_push_oracle_feed_id().unwrap(),
@@ -356,11 +352,7 @@ impl OraclePriceFeedAdapter {
                     // light validation (after initial setup, only the Pyth oracle needs to be validated)
                     check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
                     // Note: mainnet/staging/devnet use push oracles, localnet uses legacy push
-                    if cfg!(any(
-                        feature = "mainnet-beta",
-                        feature = "staging",
-                        feature = "devnet"
-                    )) {
+                    if live!() {
                         PythPushOraclePriceFeed::check_ai_and_feed_id(
                             &oracle_ais[0],
                             bank_config.get_pyth_push_oracle_feed_id().unwrap(),
@@ -388,11 +380,7 @@ impl PythLegacyPriceFeed {
         let price_feed = load_pyth_price_feed(ai)?;
 
         // Note: mainnet/staging/devnet use oracle age, localnet ignores oracle age
-        let ema_price = if cfg!(any(
-            feature = "mainnet-beta",
-            feature = "staging",
-            feature = "devnet"
-        )) {
+        let ema_price = if live!() {
             price_feed
                 .get_ema_price_no_older_than(current_time, max_age)
                 .ok_or(MarginfiError::StaleOracle)?
@@ -400,11 +388,7 @@ impl PythLegacyPriceFeed {
             price_feed.get_ema_price_unchecked()
         };
 
-        let price = if cfg!(any(
-            feature = "mainnet-beta",
-            feature = "staging",
-            feature = "devnet"
-        )) {
+        let price = if live!() {
             price_feed
                 .get_price_no_older_than(current_time, max_age)
                 .ok_or(MarginfiError::StaleOracle)?
