@@ -416,7 +416,6 @@ describe("Init group and add banks with asset category flags", () => {
     );
     // Noteworthy fields
     assert.equal(bank.config.assetTag, ASSET_TAG_STAKED);
-    assertI80F48Equal(bank.solAppreciationRate, I80F48_ONE);
 
     // Standard fields
     const config = bank.config;

@@ -490,19 +490,10 @@ pub struct Bank {
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
-    /// For banks where `config.asset_tag == ASSET_TAG_STAKED`, this defines the last-cached
-    /// exchange rate of LST to SOL, i.e. the price appreciation of the LST. For example, if this is
-    /// 1, then the LST trades 1:1 for SOL. If this is 1.1, then 1 LST can be exchange for 1.1 SOL.
-    ///
-    /// Currently, this cannot be less than 1 (but this may change if slashing is implemented)
-    ///
-    /// For banks where `config.asset_tag != ASSET_TAG_STAKED` this field does nothing and may be 0,
-    /// 1, or any other value.
-    pub sol_appreciation_rate: WrappedI80F48,
     /// Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s cannonical ATA for `mint`
     pub collected_program_fees_outstanding: WrappedI80F48,
 
-    pub _padding_0: [[u64; 2]; 26],
+    pub _padding_0: [[u64; 2]; 27],
     pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
 }
 
@@ -549,7 +540,7 @@ impl Bank {
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
-            sol_appreciation_rate: I80F48::ONE.into(),
+            collected_program_fees_outstanding: I80F48::ZERO.into(),
             ..Default::default()
         }
     }
@@ -1445,7 +1436,9 @@ impl BankConfig {
         self.borrow_limit != u64::MAX
     }
 
-    /// * lst_mint, stake_pool, sol_pool - required only if configuring `OracleSetup::StakedWithPythPush`
+    /// * lst_mint, stake_pool, sol_pool - required only if configuring
+    ///   `OracleSetup::StakedWithPythPush` on initial setup. If configuring a staked bank after
+    ///   initial setup, can be omitted
     pub fn validate_oracle_setup(
         &self,
         ais: &[AccountInfo],
@@ -1454,15 +1447,6 @@ impl BankConfig {
         sol_pool: Option<Pubkey>,
     ) -> MarginfiResult {
         OraclePriceFeedAdapter::validate_bank_config(self, ais, lst_mint, stake_pool, sol_pool)?;
-        Ok(())
-    }
-
-    /// Because the mint (and thus corresponding stake pool) of a staked collateral bank cannot
-    /// update after inception, this function validates just the oracle, ignoring the lst mint and
-    /// sol pool. This function works only for banks configured as StakedWithPythPush, and otherwise
-    /// errors
-    pub fn validate_staked_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
-        OraclePriceFeedAdapter::validate_staked_bank_config_light(self, ais)?;
         Ok(())
     }
 

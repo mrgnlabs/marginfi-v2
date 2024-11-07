@@ -238,7 +238,9 @@ impl OraclePriceFeedAdapter {
         }
     }
 
-    /// * lst_mint, stake_pool, sol_pool - required only if configuring `OracleSetup::StakedWithPythPush`
+    /// * lst_mint, stake_pool, sol_pool - required only if configuring
+    ///   `OracleSetup::StakedWithPythPush` initially. (subsequent validations of staked banks can
+    ///   omit these)
     pub fn validate_bank_config(
         bank_config: &BankConfig,
         oracle_ais: &[AccountInfo],
@@ -292,96 +294,86 @@ impl OraclePriceFeedAdapter {
                 Ok(())
             }
             OracleSetup::StakedWithPythPush => {
-                check!(oracle_ais.len() == 3, MarginfiError::InvalidOracleAccount);
+                if lst_mint.is_some() && stake_pool.is_some() && sol_pool.is_some() {
+                    check!(oracle_ais.len() == 3, MarginfiError::InvalidOracleAccount);
 
-                // Note: mainnet/staging/devnet use "push" oracles, localnet uses legacy
-                if cfg!(any(
-                    feature = "mainnet-beta",
-                    feature = "staging",
-                    feature = "devnet"
-                )) {
-                    PythPushOraclePriceFeed::check_ai_and_feed_id(
-                        &oracle_ais[0],
-                        bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-                    )?;
-                } else {
-                    // Localnet only
+                    // Note: mainnet/staging/devnet use "push" oracles, localnet uses legacy
+                    if cfg!(any(
+                        feature = "mainnet-beta",
+                        feature = "staging",
+                        feature = "devnet"
+                    )) {
+                        PythPushOraclePriceFeed::check_ai_and_feed_id(
+                            &oracle_ais[0],
+                            bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+                        )?;
+                    } else {
+                        // Localnet only
+                        check!(
+                            oracle_ais[0].key == &bank_config.oracle_keys[0],
+                            MarginfiError::InvalidOracleAccount
+                        );
+
+                        PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
+                    }
+
+                    let lst_mint = lst_mint.unwrap();
+                    let stake_pool = stake_pool.unwrap();
+                    let sol_pool = sol_pool.unwrap();
+
+                    let program_id = &SPL_SINGLE_POOL_ID;
+                    let stake_pool_bytes = &stake_pool.to_bytes();
+                    // Validate the given stake_pool derives the same lst_mint, proving stake_pool is correct
+                    let (exp_mint, _) =
+                        Pubkey::find_program_address(&[b"mint", stake_pool_bytes], program_id);
                     check!(
-                        oracle_ais[0].key == &bank_config.oracle_keys[0],
-                        MarginfiError::InvalidOracleAccount
+                        exp_mint == lst_mint,
+                        MarginfiError::StakePoolValidationFailed
+                    );
+                    // Validate the now-proven stake_pool derives the given sol_pool
+                    let (exp_pool, _) =
+                        Pubkey::find_program_address(&[b"stake", stake_pool_bytes], program_id);
+                    check!(
+                        exp_pool == sol_pool.key(),
+                        MarginfiError::StakePoolValidationFailed
                     );
 
-                    PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
+                    // Sanity check the mint. Note: spl-single-pool uses a classic Token, never Token22
+                    check!(
+                        oracle_ais[1].owner == &SPL_TOKEN_PROGRAM_ID
+                            && oracle_ais[1].key() == lst_mint,
+                        MarginfiError::StakePoolValidationFailed
+                    );
+                    // Sanity check the pool is a native stake pool. Note: the native staking program is
+                    // written in vanilla Solana and has no Anchor discriminator.
+                    check!(
+                        oracle_ais[2].owner == &NATIVE_STAKE_ID && oracle_ais[2].key() == sol_pool,
+                        MarginfiError::StakePoolValidationFailed
+                    );
+
+                    Ok(())
+                } else {
+                    // light validation (after initial setup, only the Pyth oracle needs to be validated)
+                    check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
+                    // Note: mainnet/staging/devnet use push oracles, localnet uses legacy push
+                    if cfg!(any(
+                        feature = "mainnet-beta",
+                        feature = "staging",
+                        feature = "devnet"
+                    )) {
+                        PythPushOraclePriceFeed::check_ai_and_feed_id(
+                            &oracle_ais[0],
+                            bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+                        )?;
+                    } else {
+                        // Localnet only
+                        PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
+                    }
+
+                    Ok(())
                 }
-
-                check!(
-                    lst_mint.is_some() && stake_pool.is_some() && sol_pool.is_some(),
-                    MarginfiError::StakePoolValidationFailed
-                );
-                let lst_mint = lst_mint.unwrap();
-                let stake_pool = stake_pool.unwrap();
-                let sol_pool = sol_pool.unwrap();
-
-                let program_id = &SPL_SINGLE_POOL_ID;
-                let stake_pool_bytes = &stake_pool.to_bytes();
-                // Validate the given stake_pool derives the same lst_mint, proving stake_pool is correct
-                let (exp_mint, _) =
-                    Pubkey::find_program_address(&[b"mint", stake_pool_bytes], program_id);
-                check!(
-                    exp_mint == lst_mint,
-                    MarginfiError::StakePoolValidationFailed
-                );
-                // Validate the now-proven stake_pool derives the given sol_pool
-                let (exp_pool, _) =
-                    Pubkey::find_program_address(&[b"stake", stake_pool_bytes], program_id);
-                check!(
-                    exp_pool == sol_pool.key(),
-                    MarginfiError::StakePoolValidationFailed
-                );
-
-                // Sanity check the mint. Note: spl-single-pool uses a classic Token, never Token22
-                check!(
-                    oracle_ais[1].owner == &SPL_TOKEN_PROGRAM_ID && oracle_ais[1].key() == lst_mint,
-                    MarginfiError::StakePoolValidationFailed
-                );
-                // Sanity check the pool is a native stake pool. Note: the native staking program is
-                // written in vanilla Solana and has no Anchor discriminator.
-                check!(
-                    oracle_ais[2].owner == &NATIVE_STAKE_ID && oracle_ais[2].key() == sol_pool,
-                    MarginfiError::StakePoolValidationFailed
-                );
-
-                Ok(())
             }
         }
-    }
-
-    pub fn validate_staked_bank_config_light(
-        bank_config: &BankConfig,
-        oracle_ais: &[AccountInfo],
-    ) -> MarginfiResult {
-        match bank_config.oracle_setup {
-            OracleSetup::StakedWithPythPush => Ok(()),
-            _ => err!(MarginfiError::StakePoolValidationFailed),
-        }?;
-
-        check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
-        // Note: mainnet/staging/devnet use push oracles, localnet uses legacy push
-        if cfg!(any(
-            feature = "mainnet-beta",
-            feature = "staging",
-            feature = "devnet"
-        )) {
-            PythPushOraclePriceFeed::check_ai_and_feed_id(
-                &oracle_ais[0],
-                bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-            )?;
-        } else {
-            // Localnet only
-            PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
-        }
-
-        Ok(())
     }
 }
 

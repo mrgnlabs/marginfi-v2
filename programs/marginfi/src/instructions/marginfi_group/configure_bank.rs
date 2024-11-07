@@ -1,4 +1,4 @@
-use crate::constants::{ASSET_TAG_STAKED, EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED};
+use crate::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED};
 use crate::events::{GroupEventHeader, LendingPoolBankConfigureEvent};
 use crate::prelude::MarginfiError;
 use crate::{check, math_error, utils};
@@ -20,13 +20,8 @@ pub fn lending_pool_configure_bank(
     bank.configure(&bank_config)?;
 
     if bank_config.oracle.is_some() {
-        if bank.config.asset_tag == ASSET_TAG_STAKED {
-            bank.config
-                .validate_staked_oracle_setup(ctx.remaining_accounts)?;
-        } else {
-            bank.config
-                .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
-        }
+        bank.config
+            .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
     }
 
     emit!(LendingPoolBankConfigureEvent {
@@ -144,9 +139,11 @@ pub struct LendingPoolSetupEmissions<'info> {
     )]
     pub emissions_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
+    /// NOTE: This is a TokenAccount, spl transfer will validate it.
+    ///
     /// CHECK: Account provided only for funding rewards
     #[account(mut)]
-    pub emissions_funding_account: AccountInfo<'info>, // TODO why isn't this TokenAccount?
+    pub emissions_funding_account: AccountInfo<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,

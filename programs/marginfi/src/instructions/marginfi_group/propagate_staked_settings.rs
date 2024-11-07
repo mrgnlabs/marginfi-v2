@@ -12,7 +12,7 @@ pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> Resul
     // Only validate the oracle if it has changed
     if settings.oracle != bank.config.oracle_keys[0] {
         bank.config
-            .validate_staked_oracle_setup(ctx.remaining_accounts)?;
+            .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
     }
 
     bank.config.oracle_keys[0] = settings.oracle;
