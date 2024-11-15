@@ -24,7 +24,6 @@ pub struct LiquidInsuranceFund {
     pub bank_mint: Pubkey,
     pub vault_authority: Pubkey,
     pub min_withdraw_period: i64,
-    pub last_update: i64,
 
     pub total_shares: WrappedI80F48,
     /// This value is only updated at the beginning of relevant LIF instructions and
@@ -63,7 +62,6 @@ impl LiquidInsuranceFund {
             total_shares: admin_shares.into(),
             lazy_share_value: I80F48::ONE.into(),
             admin_shares: admin_shares.into(),
-            last_update: i64::MIN,
             vault_authority,
             lif_vault_bump,
             lif_authority_bump,
