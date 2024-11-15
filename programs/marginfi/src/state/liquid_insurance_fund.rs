@@ -58,7 +58,7 @@ impl LiquidInsuranceFund {
             min_withdraw_period,
             total_shares: admin_shares.into(),
             lazy_share_value: I80F48::ONE.into(),
-            admin_shares: self.admin_shares.into(),
+            admin_shares: admin_shares.into(),
             last_update: i64::MIN,
             vault_authority,
             lif_vault_bump,
