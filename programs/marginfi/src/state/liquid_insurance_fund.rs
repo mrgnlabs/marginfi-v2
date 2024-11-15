@@ -50,7 +50,11 @@ impl LiquidInsuranceFund {
         lif_vault_bump: u8,
         lif_authority_bump: u8,
         balance: u64,
-    ) {
+    ) -> MarginfiResult<()> {
+        check!(
+            min_withdraw_period > 0,
+            MarginfiError::InsuranceFundInvalidWithdrawPeriod
+        );
         let admin_shares = I80F48::from(balance);
         *self = LiquidInsuranceFund {
             bank,
@@ -65,6 +69,7 @@ impl LiquidInsuranceFund {
             lif_authority_bump,
             _padding: [[0; 2]; 28],
         };
+        Ok(())
     }
 
     pub fn process_withdrawal(

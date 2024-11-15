@@ -102,6 +102,8 @@ pub enum MarginfiError {
     InsuranceFundAccountBalanceSlotsFull,
     #[msg("Insurance fund account withdraw slots are full")] // 6050
     InsuranceFundAccountWithdrawSlotsFull,
+    #[msg("Insurance fund withdraw period must be greater than zero")] // 6050
+    InsuranceFundInvalidWithdrawPeriod,
 }
 
 impl From<MarginfiError> for ProgramError {

@@ -84,7 +84,7 @@ pub fn create_liquid_insurance_fund(
         lif_vault_bump,
         lif_authority_bump,
         lif_vault.amount,
-    );
+    )?;
 
     emit!(MarginfiCreateNewLiquidInsuranceFundEvent {
         header: LiquidInsuranceFundEventHeader { bank: lif.bank },
