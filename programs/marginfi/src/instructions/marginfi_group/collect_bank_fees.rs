@@ -338,18 +338,13 @@ pub fn lending_pool_deposit_insurance<'a, 'info>(
         post_fee_amount,
     )?;
 
-    bank.withdraw_spl_transfer(
+    bank.deposit_insurance_spl_transfer(
         amount,
         admin_token_account.to_account_info(),
         insurance_vault.to_account_info(),
         admin.to_account_info(),
         maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
-        bank_signer!(
-            BankVaultType::Insurance,
-            bank_loader.key(),
-            bank.insurance_vault_authority_bump
-        ),
         ctx.remaining_accounts,
     )?;
 
