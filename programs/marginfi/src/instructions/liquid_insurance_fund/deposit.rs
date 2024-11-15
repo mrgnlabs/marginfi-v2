@@ -119,7 +119,7 @@ pub fn deposit_into_liquid_insurance_fund<'info>(
         header: LiquidInsuranceFundEventHeader {
             bank: liquid_insurance_fund.bank,
         },
-        amount: deposit_amount,
+        amount: postfee_deposit_amount,
         signer_token_address: signer_token_account.key(),
     });
 
