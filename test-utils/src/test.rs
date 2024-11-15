@@ -820,4 +820,26 @@ impl TestFixture {
 
         get_max_deposit_amount_pre_fee(collateral_amount)
     }
+    pub fn get_mint_fixture(&self, bank_mint: &BankMint) -> &MintFixture {
+        match bank_mint {
+            BankMint::Usdc => &self.usdc_mint,
+            BankMint::UsdcSwb => &self.usdc_mint,
+            BankMint::Sol => &self.sol_mint,
+            BankMint::SolSwb => &self.sol_mint,
+            BankMint::SolEquivalent => &self.sol_equivalent_mint,
+            BankMint::SolEquivalent1 => &self.sol_equivalent_mint,
+            BankMint::SolEquivalent2 => &self.sol_equivalent_mint,
+            BankMint::SolEquivalent3 => &self.sol_equivalent_mint,
+            BankMint::SolEquivalent4 => &self.sol_equivalent_mint,
+            BankMint::SolEquivalent5 => &self.sol_equivalent_mint,
+            BankMint::SolEquivalent6 => &self.sol_equivalent_mint,
+            BankMint::SolEquivalent7 => &self.sol_equivalent_mint,
+            BankMint::SolEquivalent8 => &self.sol_equivalent_mint,
+            BankMint::SolEquivalent9 => &self.sol_equivalent_mint,
+            BankMint::UsdcT22 => &self.usdc_t22_mint,
+            BankMint::T22WithFee => &self.usdc_t22_mint,
+            BankMint::PyUSD => &self.pyusd_mint,
+            BankMint::SolEqIsolated => &self.sol_equivalent_mint,
+        }
+    }
 }

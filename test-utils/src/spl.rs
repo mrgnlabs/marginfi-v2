@@ -585,6 +585,63 @@ impl TokenAccountFixture {
 
         token_account.amount
     }
+
+    pub async fn transfer(
+        &self,
+        keypair: &Keypair,
+        mint_fixture: &MintFixture,
+        to: &Pubkey,
+        amount: u64,
+    ) -> Result<()> {
+        let transfer_ix = if self.token_program == spl_token::ID {
+            spl_token::instruction::transfer(
+                &self.token_program,
+                &self.key,
+                to,
+                &keypair.pubkey(),
+                &[&keypair.pubkey()],
+                amount,
+            )
+            .unwrap()
+        } else {
+            spl_token_2022::offchain::create_transfer_checked_instruction_with_extra_metas(
+                &self.token_program,
+                &self.key,
+                &self.token.mint,
+                to,
+                &keypair.pubkey(),
+                &[&keypair.pubkey()],
+                amount,
+                mint_fixture.mint.decimals,
+                |key| async move {
+                    if let Ok(Some(account)) =
+                        self.ctx.borrow_mut().banks_client.get_account(key).await
+                    {
+                        Ok(Some(account.data))
+                    } else {
+                        Err("failed to fetch".to_string().into())
+                    }
+                },
+            )
+            .await
+            .unwrap()
+        };
+
+        let mut ctx = self.ctx.borrow_mut();
+
+        let transfer_tx = Transaction::new_signed_with_payer(
+            &[transfer_ix],
+            Some(&keypair.pubkey()),
+            &[keypair],
+            ctx.last_blockhash,
+        );
+
+        Ok(ctx
+            .banks_client
+            .process_transaction(transfer_tx)
+            .await
+            .expect("TODO"))
+    }
 }
 
 pub async fn get_and_deserialize<T: AccountDeserialize>(

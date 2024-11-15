@@ -133,6 +133,106 @@ async fn marginfi_liquid_insurance_fund_admin_deposit_withdraw_success(
 #[test_case(BankMint::PyUSD)]
 #[test_case(BankMint::T22WithFee)]
 #[tokio::test]
+async fn marginfi_liquid_convert_insurance_fund_admin_deposit_withdraw_success(
+    bank_mint: BankMint,
+) -> anyhow::Result<()> {
+    // first create bank
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let mint_f = test_f.get_mint_fixture(&bank_mint);
+    let bank_f = test_f.get_bank(&bank_mint);
+    let insurance_vault_key = bank_f.get_vault(BankVaultType::Insurance).0;
+
+    // Transfer to insurance fund vault
+    let deposit_amount_ui = 100_f64;
+    let deposit_amount: u64 =
+        (deposit_amount_ui as u64) * 10_u64.pow(bank_f.mint.mint.decimals as u32);
+    let min_withdraw_period = 60_u64 * 60_u64 * 24_u64 * 14_u64; // 2 weeks
+    let source_account = bank_f
+        .mint
+        .create_token_account_with_owner_and_mint_to(&test_f.payer_keypair(), deposit_amount_ui)
+        .await;
+    source_account
+        .transfer(
+            &test_f.payer_keypair(),
+            mint_f,
+            &insurance_vault_key,
+            deposit_amount,
+        )
+        .await
+        .unwrap();
+
+    let mut lif_f = test_f
+        .marginfi_group
+        .try_create_liquid_insurance_fund(bank_f, min_withdraw_period)
+        .await?;
+
+    let first_transfer_fee = bank_f
+        .mint
+        .load_state()
+        .await
+        .get_extension::<TransferFeeConfig>()
+        .map(|tf| tf.calculate_epoch_fee(0, deposit_amount).unwrap_or(0))
+        .unwrap_or(0);
+    let postfee_deposit_amount = deposit_amount - first_transfer_fee;
+
+    // Check shares
+    let lif = lif_f.load().await;
+    let admin_shares = lif.get_admin_shares();
+    let total_shares = lif.get_total_shares();
+    assert_eq!(total_shares, admin_shares);
+    assert_eq!(total_shares, I80F48::from(postfee_deposit_amount));
+
+    // Check balance
+    let insurance_vault = TokenAccountFixture::fetch(
+        test_f.context.clone(),
+        bank_f.get_vault(BankVaultType::Insurance).0,
+    )
+    .await;
+    assert_eq!(insurance_vault.balance().await, postfee_deposit_amount);
+    assert_eq!(source_account.balance().await, 0);
+
+    // Withdraw
+    bank_f
+        .try_admin_withdraw_insurance(&source_account, admin_shares)
+        .await
+        .unwrap();
+
+    let second_transfer_fee = bank_f
+        .mint
+        .load_state()
+        .await
+        .get_extension::<TransferFeeConfig>()
+        .map(|tf| {
+            tf.calculate_epoch_fee(0, deposit_amount - first_transfer_fee)
+                .unwrap_or(0)
+        })
+        .unwrap_or(0);
+    let postfee_withdraw_amount = deposit_amount - first_transfer_fee - second_transfer_fee;
+
+    // Check shares
+    let lif = lif_f.load().await;
+    let admin_shares = lif.get_admin_shares();
+    let total_shares = lif.get_total_shares();
+    assert_eq!(total_shares, admin_shares);
+    assert_eq!(total_shares, I80F48!(0.0));
+
+    // Check balance
+    let insurance_vault = TokenAccountFixture::fetch(
+        test_f.context.clone(),
+        bank_f.get_vault(BankVaultType::Insurance).0,
+    )
+    .await;
+    assert_eq!(insurance_vault.balance().await, 0);
+    assert_eq!(source_account.balance().await, postfee_withdraw_amount);
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::Sol)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::T22WithFee)]
+#[tokio::test]
 async fn marginfi_liquid_insurance_fund_user_deposit_withdraw_success(
     bank_mint: BankMint,
 ) -> anyhow::Result<()> {
