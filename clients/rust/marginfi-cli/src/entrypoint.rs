@@ -161,6 +161,36 @@ pub enum GroupCommand {
         #[clap(short = 't', long)]
         existing_token_lookup_tables: Vec<Pubkey>,
     },
+    InitFeeState {
+        #[clap(long)]
+        admin: Pubkey,
+        #[clap(long)]
+        fee_wallet: Pubkey,
+        #[clap(long)]
+        bank_init_flat_sol_fee: u32,
+        #[clap(long)]
+        program_fee_fixed: f64,
+        #[clap(long)]
+        program_fee_rate: f64,
+    },
+    EditFeeState {
+        #[clap(long)]
+        fee_wallet: Pubkey,
+        #[clap(long)]
+        bank_init_flat_sol_fee: u32,
+        #[clap(long)]
+        program_fee_fixed: f64,
+        #[clap(long)]
+        program_fee_rate: f64,
+    },
+    ConfigGroupFee {
+        #[clap(long)]
+        flag: u64,
+    },
+    PropagateFee {
+        #[clap(long)]
+        marginfi_group: Pubkey,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Parser, ArgEnum)]
@@ -309,6 +339,8 @@ pub enum BankCommand {
     },
     CollectFees {
         bank: Pubkey,
+        #[clap(help = "The ATA for fee_state.global_fee_wallet and the bank's mint")]
+        fee_ata: Pubkey,
     },
     WithdrawFees {
         bank: Pubkey,
@@ -635,6 +667,36 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             &profile,
             existing_token_lookup_tables,
         ),
+        GroupCommand::InitFeeState {
+            admin,
+            fee_wallet,
+            bank_init_flat_sol_fee,
+            program_fee_fixed,
+            program_fee_rate,
+        } => processor::initialize_fee_state(
+            config,
+            admin,
+            fee_wallet,
+            bank_init_flat_sol_fee,
+            program_fee_fixed,
+            program_fee_rate,
+        ),
+        GroupCommand::EditFeeState {
+            fee_wallet,
+            bank_init_flat_sol_fee,
+            program_fee_fixed,
+            program_fee_rate,
+        } => processor::edit_fee_state(
+            config,
+            fee_wallet,
+            bank_init_flat_sol_fee,
+            program_fee_fixed,
+            program_fee_rate,
+        ),
+        GroupCommand::ConfigGroupFee { flag } => processor::config_group_fee(config, profile, flag),
+        GroupCommand::PropagateFee { marginfi_group } => {
+            processor::propagate_fee(config, marginfi_group)
+        }
     }
 }
 
@@ -763,7 +825,9 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         BankCommand::SettleAllEmissions { bank } => {
             processor::emissions::claim_all_emissions_for_bank(&config, &profile, bank)
         }
-        BankCommand::CollectFees { bank } => processor::admin::process_collect_fees(config, bank),
+        BankCommand::CollectFees { bank, fee_ata } => {
+            processor::admin::process_collect_fees(config, bank, fee_ata)
+        }
         BankCommand::WithdrawFees {
             bank,
             amount,
