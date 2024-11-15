@@ -1,5 +1,3 @@
-use std::cmp::min;
-
 use anchor_lang::prelude::*;
 use anchor_spl::{
     token::{transfer, Transfer},
@@ -194,13 +192,6 @@ impl LiquidInsuranceFund {
         Ok(())
     }
 
-    pub(crate) fn withdraw_shares(&mut self, amount: I80F48) -> MarginfiResult {
-        // Update the internal count of shares
-        self.decrease_balance_internal(amount)?;
-
-        Ok(())
-    }
-
     /// Internal arithmetic for increase the balance of the liquid insurance fund
     pub(crate) fn increase_balance_internal(&mut self, shares: I80F48) -> MarginfiResult {
         check!(shares > I80F48::ZERO, MarginfiError::InvalidTransfer);
@@ -258,28 +249,13 @@ impl LiquidInsuranceFund {
         self.admin_shares = shares.into();
     }
 
-    /// Internal arithmetic for decreasing the balance of the liquid insurance fund
-    pub(crate) fn decrease_balance_internal(&mut self, amount: I80F48) -> MarginfiResult {
-        check!(amount > I80F48::ZERO, MarginfiError::InvalidTransfer);
-
-        let current_amount = self.get_value(self.total_shares.into())?;
-        let delta_decrease = min(current_amount, amount);
-
-        let share_decrease = self.get_shares(delta_decrease)?;
-
-        // Remove shares from existing collection of shares
-        self.remove_shares(share_decrease)?;
-
-        Ok(())
-    }
-
     pub(crate) fn get_value(&self, shares: I80F48) -> MarginfiResult<I80F48> {
         Ok(shares
             .checked_mul(self.lazy_share_value.into())
             .ok_or_else(math_error!())?)
     }
 
-    pub(crate) fn remove_shares(&mut self, delta: I80F48) -> MarginfiResult {
+    pub(crate) fn withdraw_shares(&mut self, delta: I80F48) -> MarginfiResult {
         let total_shares: I80F48 = self.total_shares.into();
         let new_shares = total_shares.checked_sub(delta).ok_or_else(math_error!())?;
         check!(new_shares >= 0, MarginfiError::MathError);
@@ -341,7 +317,7 @@ impl LiquidInsuranceFund {
             }
 
             let token_amount = lif.get_value(amount)?;
-            lif.remove_shares(amount)?;
+            lif.withdraw_shares(amount)?;
             lif.set_admin_shares(admin_shares - amount);
 
             token_amount.to_num::<u64>()
