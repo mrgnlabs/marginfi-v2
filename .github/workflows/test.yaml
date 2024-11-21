@@ -115,45 +115,71 @@ jobs:
       - name: Pass after fuzzing
         run: echo "Fuzzing completed"
 
-  # localnet-test-marginfi:
-  #   name: Anchor localnet tests marginfi
-  #   runs-on: ubuntu-latest
+  localnet-test-marginfi:
+    name: Anchor localnet tests marginfi
+    runs-on: ubuntu-latest
 
-  #   steps:
-  #     - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-  #     - uses: ./.github/actions/setup-common/
-  #     - uses: ./.github/actions/setup-anchor-cli/
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20.10.0"
 
-  #     - uses: ./.github/actions/build-workspace/
+      - uses: ./.github/actions/setup-common/
+      - uses: ./.github/actions/setup-anchor-cli/
 
-  #     - name: Install Node.js dependencies
-  #       run: yarn install
+      - uses: ./.github/actions/build-workspace/
 
-  #     - name: Build marginfi program
-  #       run: anchor build -p marginfi -- --no-default-features
+      - name: Install Node.js dependencies
+        run: yarn install
 
-  #     - name: Build liquidity incentive program
-  #       run: anchor build -p liquidity_incentive_program -- --no-default-features
+      - name: Build marginfi program
+        run: anchor build -p marginfi -- --no-default-features
 
-  #     - name: Build mocks program
-  #       run: anchor build -p mocks
+      - name: Build mocks program
+        run: anchor build -p mocks
 
-  #     - name: Start Solana Test Validator
-  #       run: |
-  #         solana-test-validator --reset --limit-ledger-size 1000 \
+      # Handles extraneous (os error 2) that appears during testing in some versions of solana. See:
+      # https://solana.stackexchange.com/questions/1648/error-no-such-file-or-directory-os-error-2-error-from-anchor-test
+      - name: Run Anchor tests
+        run: |
+          set +e
+          anchor test --skip-build 2>&1 | tee test_output.log
+          ANCHOR_EXIT_CODE=$?
+          set -e
 
-  #     - name: Wait for Validator to Start
-  #       run: sleep 60
+          if grep -q "failing" test_output.log; then
+            echo "Real test failure detected."
+            exit 1
+          fi
 
-  #     - name: Deploy Liquidity Incentive Program
-  #       run: solana program deploy --program-id Lip1111111111111111111111111111111111111111 target/deploy/liquidity_incentive_program.so
+          if grep -q "No such file or directory (os error 2)" test_output.log; then
+            echo "Extraneous error detected, ignoring it..."
+            exit 0
+          fi
 
-  #     - name: Deploy Marginfi Program
-  #       run: solana program deploy --program-id 2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr target/deploy/marginfi.so
+          if [ $ANCHOR_EXIT_CODE -ne 0 ]; then
+            echo "Anchor test exited with code $ANCHOR_EXIT_CODE due to an unexpected error."
+            exit 1
+          else
+            echo "Test run completed successfully without extraneous errors."
+            exit 0
+          fi
 
-  #     - name: Deploy Mocks Program
-  #       run: solana program deploy --program-id 5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C target/deploy/mocks.so
+      # - name: Start Solana Test Validator
+      #   run: |
+      #     solana-test-validator --reset --limit-ledger-size 1000 \
 
-  #     - name: Run tests
-  #       run: anchor test --skip-build --skip-local-validator
+      # - name: Wait for Validator to Start
+      #   run: sleep 60
+
+      # - name: Deploy Liquidity Incentive Program
+      #   run: solana program deploy --program-id Lip1111111111111111111111111111111111111111 target/deploy/liquidity_incentive_program.so
+
+      # - name: Deploy Marginfi Program
+      #   run: solana program deploy --program-id 2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr target/deploy/marginfi.so
+
+      # - name: Deploy Mocks Program
+      #   run: solana program deploy --program-id 5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C target/deploy/mocks.so
