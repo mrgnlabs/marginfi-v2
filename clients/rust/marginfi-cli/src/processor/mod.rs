@@ -991,6 +991,170 @@ pub fn process_set_user_flag(
     Ok(())
 }
 
+pub fn initialize_fee_state(
+    config: Config,
+    admin: Pubkey,
+    fee_wallet: Pubkey,
+    bank_init_flat_sol_fee: u32,
+    program_fee_fixed: f64,
+    program_fee_rate: f64,
+) -> Result<()> {
+    let program_fee_fixed: WrappedI80F48 = I80F48::from_num(program_fee_fixed).into();
+    let program_fee_rate: WrappedI80F48 = I80F48::from_num(program_fee_rate).into();
+
+    let rpc_client = config.mfi_program.rpc();
+
+    let fee_state_pubkey = find_fee_state_pda(&config.program_id).0;
+
+    let initialize_fee_state_ixs_builder = config.mfi_program.request();
+
+    let initialize_fee_state_ixs = initialize_fee_state_ixs_builder
+        .accounts(marginfi::accounts::InitFeeState {
+            payer: config.authority(),
+            fee_state: fee_state_pubkey,
+            rent: sysvar::rent::id(),
+            system_program: system_program::id(),
+        })
+        .args(marginfi::instruction::InitGlobalFeeState {
+            admin,
+            fee_wallet,
+            bank_init_flat_sol_fee,
+            program_fee_fixed,
+            program_fee_rate,
+        })
+        .instructions()?;
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let message = Message::new(&initialize_fee_state_ixs, Some(&config.authority()));
+    let mut transaction = Transaction::new_unsigned(message);
+    transaction.partial_sign(&config.get_signers(false), recent_blockhash);
+
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
+        Ok(sig) => println!("Fee state initialized (sig: {})", sig),
+        Err(err) => {
+            println!("Error during fee state initialization:\n{:#?}", err);
+            return Err(anyhow!("Error during fee state initialization"));
+        }
+    };
+
+    Ok(())
+}
+
+pub fn edit_fee_state(
+    config: Config,
+    fee_wallet: Pubkey,
+    bank_init_flat_sol_fee: u32,
+    program_fee_fixed: f64,
+    program_fee_rate: f64,
+) -> Result<()> {
+    let program_fee_fixed: WrappedI80F48 = I80F48::from_num(program_fee_fixed).into();
+    let program_fee_rate: WrappedI80F48 = I80F48::from_num(program_fee_rate).into();
+
+    let rpc_client = config.mfi_program.rpc();
+
+    let fee_state_pubkey = find_fee_state_pda(&config.program_id).0;
+
+    let edit_fee_state_ixs_builder = config.mfi_program.request();
+
+    let edit_fee_state_ixs = edit_fee_state_ixs_builder
+        .accounts(marginfi::accounts::EditFeeState {
+            global_fee_admin: config.authority(),
+            fee_state: fee_state_pubkey,
+        })
+        .args(marginfi::instruction::EditGlobalFeeState {
+            fee_wallet,
+            bank_init_flat_sol_fee,
+            program_fee_fixed,
+            program_fee_rate,
+        })
+        .instructions()?;
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let message = Message::new(&edit_fee_state_ixs, Some(&config.authority()));
+    let mut transaction = Transaction::new_unsigned(message);
+    transaction.partial_sign(&config.get_signers(false), recent_blockhash);
+
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
+        Ok(sig) => println!("Fee state edited (sig: {})", sig),
+        Err(err) => {
+            println!("Error during fee state edit:\n{:#?}", err);
+            return Err(anyhow!("Error during fee state edit"));
+        }
+    };
+
+    Ok(())
+}
+
+pub fn config_group_fee(config: Config, profile: Profile, flag: u64) -> Result<()> {
+    let rpc_client = config.mfi_program.rpc();
+    let marginfi_group_pubkey = profile.marginfi_group.ok_or_else(|| {
+        anyhow!(
+            "Marginfi group does not exist for profile [{}]",
+            profile.name
+        )
+    })?;
+
+    let fee_state_pubkey = find_fee_state_pda(&profile.program_id.unwrap()).0;
+
+    let config_group_fee_ixs_builder = config.mfi_program.request();
+
+    let config_group_fee_ixs = config_group_fee_ixs_builder
+        .accounts(marginfi::accounts::ConfigGroupFee {
+            marginfi_group: marginfi_group_pubkey,
+            global_fee_admin: config.authority(),
+            fee_state: fee_state_pubkey,
+        })
+        .args(marginfi::instruction::ConfigGroupFee { flag })
+        .instructions()?;
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let message = Message::new(&config_group_fee_ixs, Some(&config.authority()));
+    let mut transaction = Transaction::new_unsigned(message);
+    transaction.partial_sign(&config.get_signers(false), recent_blockhash);
+
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
+        Ok(sig) => println!("Config group fee updated (sig: {})", sig),
+        Err(err) => {
+            println!("Error during config group fee update:\n{:#?}", err);
+            return Err(anyhow!("Error during config group fee update"));
+        }
+    };
+
+    Ok(())
+}
+
+/// Note: doing this one group at a time is tedious, consider running the script instead.
+pub fn propagate_fee(config: Config, marginfi_group: Pubkey) -> Result<()> {
+    let rpc_client = config.mfi_program.rpc();
+
+    let fee_state_pubkey = find_fee_state_pda(&config.program_id).0;
+
+    let propagate_fee_ixs_builder = config.mfi_program.request();
+
+    let propagate_fee_ixs = propagate_fee_ixs_builder
+        .accounts(marginfi::accounts::PropagateFee {
+            fee_state: fee_state_pubkey,
+            marginfi_group,
+        })
+        .args(marginfi::instruction::PropagateFeeState {})
+        .instructions()?;
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let message = Message::new(&propagate_fee_ixs, None);
+    let mut transaction = Transaction::new_unsigned(message);
+    transaction.partial_sign(&config.get_signers(false), recent_blockhash);
+
+    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
+        Ok(sig) => println!("Fee propagated (sig: {})", sig),
+        Err(err) => {
+            println!("Error during fee propagation:\n{:#?}", err);
+            return Err(anyhow!("Error during fee propagation"));
+        }
+    };
+
+    Ok(())
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 // bank
 // --------------------------------------------------------------------------------------------------------------------
