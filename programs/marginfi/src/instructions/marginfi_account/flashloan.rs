@@ -55,17 +55,32 @@ pub fn check_flashloan_can_start(
 ) -> MarginfiResult<()> {
     // Note: FLASHLOAN_ENABLED_FLAG is now deprecated.
     // Any non-disabled account can initiate a flash loan.
-    check!(
-        !marginfi_account.load()?.get_flag(DISABLED_FLAG),
-        MarginfiError::AccountDisabled
-    );
-
+    let marginfi_account_data = marginfi_account.load()?;
+    check_account_status(&marginfi_account_data)?;
+    
     let current_ix_idx: usize = instructions::load_current_index_checked(sysvar_ixs)?.into();
-
     check!(current_ix_idx < end_fl_idx, MarginfiError::IllegalFlashloan);
 
     // Check current ix is not a CPI
-    let current_ix = instructions::load_instruction_at_checked(current_ix_idx, sysvar_ixs)?;
+    check_current_instruction(sysvar_ixs, current_ix_idx)?;
+
+    // Will error if ix doesn't exist
+    check_end_flashloan_instruction(sysvar_ixs, end_fl_idx, marginfi_account.key())?;
+
+    Ok(())
+}
+
+fn check_account_status(marginfi_account: &MarginfiAccount) -> MarginfiResult<()> {
+    check!(!marginfi_account.get_flag(DISABLED_FLAG), MarginfiError::AccountDisabled);
+    check!(!marginfi_account.get_flag(IN_FLASHLOAN_FLAG), MarginfiError::IllegalFlashloan);
+    Ok(())
+}
+
+fn check_current_instruction(sysvar_ixs: &AccountInfo, current_ix_idx: usize) -> MarginfiResult<()> {
+    let current_ix = instructions::load_instruction_at_checked(
+        current_ix_idx, 
+        sysvar_ixs
+    )?;
 
     check!(
         get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,
@@ -79,21 +94,25 @@ pub fn check_flashloan_can_start(
         "Start flashloan ix should not be in CPI"
     );
 
-    // Will error if ix doesn't exist
-    let unchecked_end_fl_ix = instructions::load_instruction_at_checked(end_fl_idx, sysvar_ixs)?;
+    Ok(())
+}
+
+fn check_end_flashloan_instruction(
+    sysvar_ixs: &AccountInfo, 
+    end_fl_idx: usize, 
+    marginfi_account_key: Pubkey
+) -> MarginfiResult<()> {
+    let end_fl_ix = instructions::load_instruction_at_checked(end_fl_idx, sysvar_ixs)?;
 
     check!(
-        unchecked_end_fl_ix.data[..8]
-            .eq(&crate::instruction::LendingAccountEndFlashloan::DISCRIMINATOR),
+        end_fl_ix.data[..8].eq(&crate::instruction::LendingAccountEndFlashloan::DISCRIMINATOR),
         MarginfiError::IllegalFlashloan
     );
 
     check!(
-        unchecked_end_fl_ix.program_id.eq(&crate::id()),
+        end_fl_ix.program_id.eq(&crate::id()),
         MarginfiError::IllegalFlashloan
     );
-
-    let end_fl_ix = unchecked_end_fl_ix;
 
     let end_fl_marginfi_account = end_fl_ix
         .accounts
@@ -101,19 +120,7 @@ pub fn check_flashloan_can_start(
         .ok_or(MarginfiError::IllegalFlashloan)?;
 
     check!(
-        end_fl_marginfi_account.pubkey.eq(&marginfi_account.key()),
-        MarginfiError::IllegalFlashloan
-    );
-
-    let marginf_account = marginfi_account.load()?;
-
-    check!(
-        !marginf_account.get_flag(DISABLED_FLAG),
-        MarginfiError::AccountDisabled
-    );
-
-    check!(
-        !marginf_account.get_flag(IN_FLASHLOAN_FLAG),
+        end_fl_marginfi_account.pubkey.eq(&marginfi_account_key),
         MarginfiError::IllegalFlashloan
     );
 
