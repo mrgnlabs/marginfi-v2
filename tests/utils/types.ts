@@ -24,6 +24,8 @@ export const SINGLE_POOL_PROGRAM_ID = new PublicKey(
 export const EMISSIONS_FLAG_NONE = 0;
 export const EMISSIONS_FLAG_BORROW_ACTIVE = 1;
 export const EMISSIONS_FLAG_LENDING_ACTIVE = 2;
+export const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG = 4;
+export const FREEZE_SETTINGS = 8;
 
 export const ASSET_TAG_DEFAULT = 0;
 export const ASSET_TAG_SOL = 1;
@@ -94,7 +96,7 @@ export const defaultBankConfigOpt = () => {
  * @returns
  */
 export const defaultBankConfigOptRaw = () => {
-  let bankConfigOpt: BankConfigOptWithAssetTag = {
+  let bankConfigOpt: BankConfigOptRaw = {
     assetWeightInit: I80F48_ONE,
     assetWeightMaint: I80F48_ONE,
     liabilityWeightInit: I80F48_ONE,
@@ -104,7 +106,6 @@ export const defaultBankConfigOptRaw = () => {
     riskTier: {
       collateral: undefined,
     },
-    assetTag: ASSET_TAG_DEFAULT,
     totalAssetValueInitLimit: new BN(100_000_000_000),
     interestRateConfig: defaultInterestRateConfigRaw(),
     operationalState: {
@@ -113,6 +114,7 @@ export const defaultBankConfigOptRaw = () => {
     oracle: null,
     oracleMaxAge: 100,
     permissionlessBadDebtSettlement: null,
+    freezeSettings: null
   };
 
   return bankConfigOpt;
@@ -225,6 +227,7 @@ export type BankConfig = {
 };
 
 // TODO remove when package updates
+/** Adds origination fee to interestRateConfig and freezeSettings */
 export type BankConfigOptRaw = {
   assetWeightInit: WrappedI80F48 | null;
   assetWeightMaint: WrappedI80F48 | null;
@@ -256,6 +259,7 @@ export type BankConfigOptRaw = {
 
   oracleMaxAge: number | null;
   permissionlessBadDebtSettlement: boolean | null;
+  freezeSettings: boolean | null;
 }
 
 // TODO remove when package updates

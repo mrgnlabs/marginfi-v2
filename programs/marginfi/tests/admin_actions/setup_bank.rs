@@ -2,7 +2,7 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
-    constants::{INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG},
+    constants::{FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG},
     prelude::MarginfiError,
     state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
 };
@@ -344,6 +344,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         total_asset_value_init_limit,
         oracle_max_age,
         permissionless_bad_debt_settlement,
+        freeze_settings
     } = &config_bank_opt;
     // Compare bank field to opt field if Some, otherwise compare to old bank field
     macro_rules! check_bank_field {
@@ -374,6 +375,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         check_bank_field!(interest_rate_config, insurance_ir_fee);
         check_bank_field!(interest_rate_config, protocol_fixed_fee_apr);
         check_bank_field!(interest_rate_config, protocol_ir_fee);
+        check_bank_field!(interest_rate_config, protocol_origination_fee);
 
         check_bank_field!(asset_weight_init);
         check_bank_field!(asset_weight_maint);
@@ -393,6 +395,13 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
             .map(|set| set == bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG))
             // If None check flag is unchanged
             .unwrap_or( bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG) == old_bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG))
+        );
+
+        assert!(freeze_settings
+            // If Some(...) check flag set properly
+            .map(|set| set == bank.get_flag(FREEZE_SETTINGS))
+            // If None check flag is unchanged
+            .unwrap_or( bank.get_flag(FREEZE_SETTINGS) == old_bank.get_flag(FREEZE_SETTINGS))
         );
 
         assert_eq!(

@@ -9,7 +9,11 @@ import {
   deriveLiquidityVault,
   deriveLiquidityVaultAuthority,
 } from "./pdas";
-import { BankConfig, BankConfigOptWithAssetTag } from "./types";
+import {
+  BankConfig,
+  BankConfigOptRaw,
+  BankConfigOptWithAssetTag,
+} from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
@@ -192,7 +196,7 @@ export type ConfigureBankArgs = {
   marginfiGroup: PublicKey;
   admin: PublicKey;
   bank: PublicKey;
-  bankConfigOpt: BankConfigOptRaw; // BankConfigOptRaw with origination fee
+  bankConfigOpt: BankConfigOptRaw; // BankConfigOptRaw with origination fee + freeze
 };
 
 export const configureBank = (

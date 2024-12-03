@@ -2,7 +2,7 @@ use super::{
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
-use crate::borsh::{BorshDeserialize, BorshSerialize};
+use crate::{borsh::{BorshDeserialize, BorshSerialize}, constants::FREEZE_SETTINGS};
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
@@ -708,6 +708,10 @@ impl Bank {
 
         if let Some(flag) = config.permissionless_bad_debt_settlement {
             self.update_flag(flag, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG);
+        }
+
+        if let Some(flag) = config.freeze_settings {
+            self.update_flag(flag, FREEZE_SETTINGS);
         }
 
         self.config.validate()?;
@@ -1498,6 +1502,8 @@ pub struct BankConfigOpt {
     pub oracle_max_age: Option<u16>,
 
     pub permissionless_bad_debt_settlement: Option<bool>,
+
+    pub freeze_settings: Option<bool>,
 }
 
 #[cfg_attr(

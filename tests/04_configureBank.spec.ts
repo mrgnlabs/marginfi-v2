@@ -10,6 +10,7 @@ import {
   ASSET_TAG_SOL,
   BankConfigOptWithAssetTag,
   defaultBankConfigOptRaw,
+  FREEZE_SETTINGS,
   InterestRateConfigRawWithOrigination,
 } from "./utils/types";
 
@@ -46,6 +47,7 @@ describe("Lending pool configure bank", () => {
       oracle: null,
       oracleMaxAge: 50,
       permissionlessBadDebtSettlement: null,
+      freezeSettings: null,
     };
 
     await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
@@ -98,5 +100,45 @@ describe("Lending pool configure bank", () => {
         })
       )
     );
+  });
+
+  it("(admin) Freeze USDC settings so they cannot be changed again (USDC)", async () => {
+    let config = defaultBankConfigOptRaw();
+    config.freezeSettings = true;
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+      new Transaction().add(
+        await configureBank(program, {
+          marginfiGroup: marginfiGroup.publicKey,
+          admin: groupAdmin.wallet.publicKey,
+          bank: bankKeypairUsdc.publicKey,
+          bankConfigOpt: config,
+        })
+      )
+    );
+    const bank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
+    assertBNEqual(bank.flags, FREEZE_SETTINGS);
+
+    // Attempting to config again should fail...
+    let failed = false;
+    try {
+      await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+        new Transaction().add(
+          await configureBank(program, {
+            marginfiGroup: marginfiGroup.publicKey,
+            admin: groupAdmin.wallet.publicKey,
+            bank: bankKeypairUsdc.publicKey,
+            bankConfigOpt: defaultBankConfigOptRaw(),
+          })
+        )
+      );
+    } catch (err) {
+      assert.ok(
+        err.logs.some((log: string) =>
+          log.includes("Error Code: BankSettingsFrozen")
+        )
+      );
+      failed = true;
+    }
+    assert.ok(failed, "Transaction succeeded when it should have failed");
   });
 });
