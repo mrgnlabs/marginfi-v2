@@ -304,6 +304,11 @@ pub enum BankCommand {
             help = "Permissionless bad debt settlement, if true the group admin is not required to settle bad debt"
         )]
         permissionless_bad_debt_settlement: Option<bool>,
+        #[clap(
+            long,
+            help = "If enabled, will prevent this Update ix from ever running against after this invokation"
+        )]
+        freeze_settings: Option<bool>,
     },
     InspectPriceOracle {
         bank_pk: Pubkey,
@@ -740,6 +745,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             usd_init_limit,
             oracle_max_age,
             permissionless_bad_debt_settlement,
+            freeze_settings
         } => {
             let bank = config
                 .mfi_program
@@ -789,6 +795,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     total_asset_value_init_limit: usd_init_limit,
                     oracle_max_age,
                     permissionless_bad_debt_settlement,
+                    freeze_settings
                 },
             )
         }
