@@ -2,7 +2,6 @@ use super::{
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
-use crate::{borsh::{BorshDeserialize, BorshSerialize}, constants::FREEZE_SETTINGS};
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
@@ -19,6 +18,10 @@ use crate::{
     set_if_some,
     state::marginfi_account::calc_value,
     MarginfiResult,
+};
+use crate::{
+    borsh::{BorshDeserialize, BorshSerialize},
+    constants::FREEZE_SETTINGS,
 };
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::*;

@@ -2,7 +2,9 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
-    constants::{FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG},
+    constants::{
+        FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
+    },
     prelude::MarginfiError,
     state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
 };
@@ -344,7 +346,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         total_asset_value_init_limit,
         oracle_max_age,
         permissionless_bad_debt_settlement,
-        freeze_settings
+        freeze_settings,
     } = &config_bank_opt;
     // Compare bank field to opt field if Some, otherwise compare to old bank field
     macro_rules! check_bank_field {

@@ -745,7 +745,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             usd_init_limit,
             oracle_max_age,
             permissionless_bad_debt_settlement,
-            freeze_settings
+            freeze_settings,
         } => {
             let bank = config
                 .mfi_program
@@ -795,7 +795,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     total_asset_value_init_limit: usd_init_limit,
                     oracle_max_age,
                     permissionless_bad_debt_settlement,
-                    freeze_settings
+                    freeze_settings,
                 },
             )
         }
