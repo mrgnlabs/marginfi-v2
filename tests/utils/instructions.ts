@@ -9,7 +9,7 @@ import {
   deriveLiquidityVault,
   deriveLiquidityVaultAuthority,
 } from "./pdas";
-import { BankConfig } from "./types";
+import { BankConfig, BankConfigOptWithAssetTag } from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
@@ -185,5 +185,27 @@ export const editGlobalFeeState = (
     })
     .instruction();
 
+  return ix;
+};
+
+export type ConfigureBankArgs = {
+  marginfiGroup: PublicKey;
+  admin: PublicKey;
+  bank: PublicKey;
+  bankConfigOpt: BankConfigOptRaw; // BankConfigOptRaw with origination fee
+};
+
+export const configureBank = (
+  program: Program<Marginfi>,
+  args: ConfigureBankArgs
+) => {
+  const ix = program.methods
+    .lendingPoolConfigureBank(args.bankConfigOpt)
+    .accounts({
+      marginfiGroup: args.marginfiGroup,
+      admin: args.admin,
+      bank: args.bank,
+    })
+    .instruction();
   return ix;
 };

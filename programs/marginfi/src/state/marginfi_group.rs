@@ -269,6 +269,10 @@ impl InterestRateConfig {
             ir_config.protocol_fixed_fee_apr
         );
         set_if_some!(self.protocol_ir_fee, ir_config.protocol_ir_fee);
+        set_if_some!(
+            self.protocol_origination_fee,
+            ir_config.protocol_origination_fee
+        );
     }
 }
 
