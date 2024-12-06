@@ -10,6 +10,15 @@ use crate::{
     state::marginfi_account::{MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG},
 };
 
+/// Whitelisted programs that are allowed to initiate flashloans via CPI
+pub const WHITELIST_FLASHLOAN_CPI_CALLERS: [Pubkey; 1] = [Pubkey::new_from_array([
+    117,   8, 215, 183,  17, 231, 198, 245,
+     53,  47, 112, 222, 159, 118,  12, 232,
+    164, 135,   3,  24, 106, 225, 104,  19,
+    90,  91,  42, 129, 232,  77, 214,  88,
+])];
+
+
 pub fn lending_account_start_flashloan(
     ctx: Context<LendingAccountStartFlashloan>,
     end_index: u64,
@@ -46,8 +55,8 @@ const END_FL_IX_MARGINFI_ACCOUNT_AI_IDX: usize = 0;
 /// 3. `end_flashloan` ix is for the same marginfi account
 /// 4. Account is not disabled
 /// 5. Account is not already in a flashloan
-/// 6. Start flashloan ix is not in CPI
-/// 7. End flashloan ix is not in CPI
+/// 6. Start flashloan ix is not in CPI, unless it is a CPI call to a whitelisted program
+/// 7. End flashloan ix is not in CPI, unless it is a CPI call to a whitelisted program
 pub fn check_flashloan_can_start(
     marginfi_account: &AccountLoader<MarginfiAccount>,
     sysvar_ixs: &AccountInfo,
@@ -66,18 +75,19 @@ pub fn check_flashloan_can_start(
 
     // Check current ix is not a CPI
     let current_ix = instructions::load_instruction_at_checked(current_ix_idx, sysvar_ixs)?;
+    if !WHITELIST_FLASHLOAN_CPI_CALLERS.contains(&current_ix.program_id) {
+        check!(
+            get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,
+            MarginfiError::IllegalFlashloan,
+            "Start flashloan ix should not be in CPI"
+        );
 
-    check!(
-        get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,
-        MarginfiError::IllegalFlashloan,
-        "Start flashloan ix should not be in CPI"
-    );
-
-    check!(
-        current_ix.program_id.eq(&crate::id()),
-        MarginfiError::IllegalFlashloan,
-        "Start flashloan ix should not be in CPI"
-    );
+        check!(
+            current_ix.program_id.eq(&crate::id()),
+            MarginfiError::IllegalFlashloan,
+            "Start flashloan ix should not be in CPI"
+        );
+    }
 
     // Will error if ix doesn't exist
     let unchecked_end_fl_ix = instructions::load_instruction_at_checked(end_fl_idx, sysvar_ixs)?;
@@ -123,11 +133,13 @@ pub fn check_flashloan_can_start(
 pub fn lending_account_end_flashloan<'info>(
     ctx: Context<'_, '_, 'info, 'info, LendingAccountEndFlashloan<'info>>,
 ) -> MarginfiResult<()> {
-    check!(
-        get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,
+    if !WHITELIST_FLASHLOAN_CPI_CALLERS.contains(&current_ix.program_id) {
+        check!(
+            get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,
         MarginfiError::IllegalFlashloan,
-        "End flashloan ix should not be in CPI"
-    );
+            "End flashloan ix should not be in CPI"
+        );
+    }
 
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
