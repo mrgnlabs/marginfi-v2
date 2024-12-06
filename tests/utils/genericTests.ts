@@ -72,7 +72,7 @@ export const assertI80F48Equal = (
 export const assertI80F48Approx = (
   a: WrappedI80F48,
   b: WrappedI80F48 | BN | number,
-  tolerance: number
+  tolerance: number = 0.000001
 ) => {
   const bigA = wrappedI80F48toBigNumber(a);
   let bigB: BigNumber;

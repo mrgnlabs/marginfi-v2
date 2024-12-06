@@ -1,4 +1,4 @@
-use crate::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED};
+use crate::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FREEZE_SETTINGS};
 use crate::events::{GroupEventHeader, LendingPoolBankConfigureEvent};
 use crate::prelude::MarginfiError;
 use crate::{check, math_error, utils};
@@ -16,6 +16,11 @@ pub fn lending_pool_configure_bank(
     bank_config: BankConfigOpt,
 ) -> MarginfiResult {
     let mut bank = ctx.accounts.bank.load_mut()?;
+
+    check!(
+        !bank.get_flag(FREEZE_SETTINGS),
+        MarginfiError::BankSettingsFrozen
+    );
 
     bank.configure(&bank_config)?;
 

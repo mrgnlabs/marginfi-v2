@@ -24,7 +24,7 @@ describe("Init group", () => {
       })
     );
 
-    await groupAdmin.userMarginProgram.provider.sendAndConfirm(tx, [
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm(tx, [
       marginfiGroup,
     ]);
 

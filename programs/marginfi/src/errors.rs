@@ -98,6 +98,8 @@ pub enum MarginfiError {
     T22MintRequired,
     #[msg("Invalid ATA for global fee account")] // 6048
     InvalidFeeAta,
+    #[msg("Bank settings are frozen and cannot be updated")] // 6049
+    BankSettingsFrozen,
 }
 
 impl From<MarginfiError> for ProgramError {

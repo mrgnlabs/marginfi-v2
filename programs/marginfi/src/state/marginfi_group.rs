@@ -2,7 +2,6 @@ use super::{
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
-use crate::borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
@@ -19,6 +18,10 @@ use crate::{
     set_if_some,
     state::marginfi_account::calc_value,
     MarginfiResult,
+};
+use crate::{
+    borsh::{BorshDeserialize, BorshSerialize},
+    constants::FREEZE_SETTINGS,
 };
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::*;
@@ -269,6 +272,10 @@ impl InterestRateConfig {
             ir_config.protocol_fixed_fee_apr
         );
         set_if_some!(self.protocol_ir_fee, ir_config.protocol_ir_fee);
+        set_if_some!(
+            self.protocol_origination_fee,
+            ir_config.protocol_origination_fee
+        );
     }
 }
 
@@ -704,6 +711,10 @@ impl Bank {
 
         if let Some(flag) = config.permissionless_bad_debt_settlement {
             self.update_flag(flag, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG);
+        }
+
+        if let Some(flag) = config.freeze_settings {
+            self.update_flag(flag, FREEZE_SETTINGS);
         }
 
         self.config.validate()?;
@@ -1494,6 +1505,8 @@ pub struct BankConfigOpt {
     pub oracle_max_age: Option<u16>,
 
     pub permissionless_bad_debt_settlement: Option<bool>,
+
+    pub freeze_settings: Option<bool>,
 }
 
 #[cfg_attr(

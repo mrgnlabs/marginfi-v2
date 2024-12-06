@@ -18,5 +18,8 @@ runs:
         components: rustfmt, clippy
         default: true
 
-    - run: (cargo install cargo-nextest || true)
+    - run: cargo install cargo-nextest --locked
+      shell: bash
+
+    - run: cargo nextest --version
       shell: bash
