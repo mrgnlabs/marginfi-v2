@@ -154,8 +154,7 @@ describe("Init group", () => {
   });
 
   // Note: there are no Staked Collateral positions in the end to end test suite (those are in the
-  // BankRun suite e.g. s01) so these settings do nothing. Many of the these settings as also wrong
-  // or don't make sense (e.g. weights > 0 with isolated risk teir) and would fail at propagation
+  // BankRun suite e.g. s01) so these settings do nothing.
 
   it("(admin) Edit staked settings for group", async () => {
     const settings: StakedSettingsEdit = {
@@ -166,7 +165,7 @@ describe("Init group", () => {
       totalAssetValueInitLimit: new BN(43),
       oracleMaxAge: 44,
       riskTier: {
-        isolated: undefined,
+        collateral: undefined,
       },
     };
     const [settingsKey] = deriveStakedSettings(
@@ -195,7 +194,7 @@ describe("Init group", () => {
     assertBNEqual(settingsAcc.depositLimit, 42);
     assertBNEqual(settingsAcc.totalAssetValueInitLimit, 43);
     assert.equal(settingsAcc.oracleMaxAge, 44);
-    assert.deepEqual(settingsAcc.riskTier, { isolated: {} });
+    assert.deepEqual(settingsAcc.riskTier, { collateral: {} }); // no change
   });
 
   it("(admin) Partial settings update", async () => {
@@ -206,9 +205,7 @@ describe("Init group", () => {
       depositLimit: null,
       totalAssetValueInitLimit: null,
       oracleMaxAge: 60,
-      riskTier: {
-        isolated: undefined,
-      },
+      riskTier: null,
     };
     const [settingsKey] = deriveStakedSettings(
       program.programId,
@@ -232,8 +229,48 @@ describe("Init group", () => {
     assertI80F48Approx(settingsAcc.assetWeightMaint, 0.3);
     assertBNEqual(settingsAcc.depositLimit, 42);
     assertBNEqual(settingsAcc.totalAssetValueInitLimit, 43);
-    assert.deepEqual(settingsAcc.riskTier, { isolated: {} });
+    assert.deepEqual(settingsAcc.riskTier, { collateral: {} });
 
     assert.equal(settingsAcc.oracleMaxAge, 60);
+  });
+
+  // Note: Isolated riskTier requires the weights to be zero, so this is invalid...
+  it("(admin) Bad settings update - should fail", async () => {
+    const settings: StakedSettingsEdit = {
+      oracle: null,
+      assetWeightInit: null,
+      assetWeightMaint: null,
+      depositLimit: null,
+      totalAssetValueInitLimit: null,
+      oracleMaxAge: 60,
+      riskTier: {
+        isolated: undefined,
+      },
+    };
+    const [settingsKey] = deriveStakedSettings(
+      program.programId,
+      marginfiGroup.publicKey
+    );
+
+    let failed = false;
+    try {
+      await groupAdmin.userMarginProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          await editStakedSettings(groupAdmin.userMarginProgram, {
+            settingsKey: settingsKey,
+            settings: settings,
+          })
+        )
+      );
+    } catch (err) {
+      // TODO create a util for this that fails with more detail
+      assert.ok(
+        err.logs.some((log: string) =>
+          log.includes("Error Code: InvalidConfig")
+        )
+      );
+      failed = true;
+    }
+    assert.ok(failed, "Transaction succeeded when it should have failed");
   });
 });
