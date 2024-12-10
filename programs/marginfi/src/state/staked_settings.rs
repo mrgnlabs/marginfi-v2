@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
+use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 
-use crate::{assert_struct_align, assert_struct_size};
+use crate::{assert_struct_align, assert_struct_size, check, MarginfiError, MarginfiResult};
 
 use super::marginfi_group::{RiskTier, WrappedI80F48};
 
@@ -46,9 +47,7 @@ pub struct StakedSettings {
 
 impl StakedSettings {
     pub const LEN: usize = std::mem::size_of::<StakedSettings>();
-}
 
-impl StakedSettings {
     pub fn new(
         key: Pubkey,
         marginfi_group: Pubkey,
@@ -72,6 +71,27 @@ impl StakedSettings {
             risk_tier,
             ..Default::default()
         }
+    }
+
+    /// Same as `bank.validate()`, except that liability rates and interest rates do not exist in
+    /// this context (since Staked Collateral accounts cannot be borrowed against and such Banks
+    /// will use placeholders for those values)
+    pub fn validate(&self) -> MarginfiResult {
+        let asset_init_w = I80F48::from(self.asset_weight_init);
+        let asset_maint_w = I80F48::from(self.asset_weight_maint);
+
+        check!(
+            asset_init_w >= I80F48::ZERO && asset_init_w <= I80F48::ONE,
+            MarginfiError::InvalidConfig
+        );
+        check!(asset_maint_w >= asset_init_w, MarginfiError::InvalidConfig);
+
+        if self.risk_tier == RiskTier::Isolated {
+            check!(asset_init_w == I80F48::ZERO, MarginfiError::InvalidConfig);
+            check!(asset_maint_w == I80F48::ZERO, MarginfiError::InvalidConfig);
+        }
+
+        Ok(())
     }
 }
 

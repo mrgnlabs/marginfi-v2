@@ -23,6 +23,8 @@ pub fn initialize_staked_settings(
         settings.risk_tier,
     );
 
+    staked_settings.validate()?;
+
     Ok(())
 }
 

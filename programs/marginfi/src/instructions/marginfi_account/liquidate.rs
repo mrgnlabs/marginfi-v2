@@ -5,6 +5,7 @@ use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, Liquidatio
 use crate::state::marginfi_account::{calc_amount, calc_value, RiskEngine};
 use crate::state::marginfi_group::{Bank, BankVaultType};
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
+use crate::utils::{validate_asset_tags, validate_bank_asset_tags};
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
@@ -90,6 +91,25 @@ pub fn lending_account_liquidate<'info>(
         MarginfiError::IllegalLiquidation,
         "Asset and liability bank cannot be the same"
     );
+
+    // Liquidators must repay debts in allowed asset types. A SOL debt can be repaid in any asset. A
+    // Staked Collateral debt must be repaid in SOL or staked collateral. A Default asset debt can
+    // be repaid in any Default asset or SOL.
+    {
+        let asset_bank = ctx.accounts.asset_bank.load()?;
+        let liab_bank = ctx.accounts.liab_bank.load()?;
+        validate_bank_asset_tags(&asset_bank, &liab_bank)?;
+
+        // Sanity check user/liquidator accounts will not contain positions with mismatching tags
+        // after liquidation.
+        // * Note: user will be repaid in liab_bank
+        let user_acc = ctx.accounts.liquidatee_marginfi_account.load()?;
+        validate_asset_tags(&liab_bank, &user_acc)?;
+        // * Note: Liquidator repays liab bank, and is paid in asset_bank.
+        let liquidator_acc = ctx.accounts.liquidator_marginfi_account.load()?;
+        validate_asset_tags(&liab_bank, &liquidator_acc)?;
+        validate_asset_tags(&asset_bank, &liquidator_acc)?;
+    } // release immutable borrow of asset_bank/liab_bank + liquidatee/liquidator user accounts
 
     let LendingAccountLiquidate {
         liquidator_marginfi_account: liquidator_marginfi_account_loader,
