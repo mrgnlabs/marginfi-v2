@@ -11,6 +11,6 @@ if [ -z "$program_lib_name" ] || [ -z "$rpc_url" ] || [ -z "$keypair" ]; then
     exit 1
 fi
 
-cmd="solana --url $rpc_url program write-buffer "$ROOT/target/deploy/$program_lib_name.so" -k $keypair"
+cmd="solana --url $rpc_url program write-buffer --use-rpc "$ROOT/target/deploy/$program_lib_name.so" -k $keypair"
 echo "Running: $cmd"
 eval "$cmd"
