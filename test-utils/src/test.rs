@@ -305,6 +305,7 @@ lazy_static! {
             protocol_origination_fee: I80F48!(0).into(),
             ..Default::default()
         },
+        oracle_max_age: 100,
         ..Default::default()
     };
     pub static ref DEFAULT_USDC_TEST_BANK_CONFIG: BankConfig = BankConfig {

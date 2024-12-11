@@ -299,6 +299,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     } else {
                         marginfi::state::marginfi_group::RiskTier::Isolated
                     },
+                    oracle_max_age: 100,
                     ..Default::default()
                 },
             )
