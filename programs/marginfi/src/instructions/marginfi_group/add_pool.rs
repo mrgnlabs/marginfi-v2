@@ -44,7 +44,7 @@ pub fn lending_pool_add_bank(
     let mut bank = bank_loader.load_init()?;
 
     let liquidity_vault_bump = ctx.bumps.liquidity_vault;
-    let liquidity_vault_authority_bump = ctx.bumps.liquidity_vault_authority;
+    let liquidity_vault_authority_bump: u8 = ctx.bumps.liquidity_vault_authority;
     let insurance_vault_bump = ctx.bumps.insurance_vault;
     let insurance_vault_authority_bump = ctx.bumps.insurance_vault_authority;
     let fee_vault_bump = ctx.bumps.fee_vault;

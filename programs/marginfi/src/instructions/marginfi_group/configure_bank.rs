@@ -1,5 +1,7 @@
 use crate::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FREEZE_SETTINGS};
-use crate::events::{GroupEventHeader, LendingPoolBankConfigureEvent};
+use crate::events::{
+    GroupEventHeader, LendingPoolBankConfigureEvent, LendingPoolBankConfigureFrozenEvent,
+};
 use crate::prelude::MarginfiError;
 use crate::{check, math_error, utils};
 use crate::{
@@ -17,26 +19,38 @@ pub fn lending_pool_configure_bank(
 ) -> MarginfiResult {
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    check!(
-        !bank.get_flag(FREEZE_SETTINGS),
-        MarginfiError::BankSettingsFrozen
-    );
+    // If settings are frozen, you can only update the deposit and borrow limits, everything else is ignored.
+    if bank.get_flag(FREEZE_SETTINGS) {
+        bank.configure_unfrozen_fields_only(&bank_config)?;
 
-    bank.configure(&bank_config)?;
+        emit!(LendingPoolBankConfigureFrozenEvent {
+            header: GroupEventHeader {
+                marginfi_group: ctx.accounts.marginfi_group.key(),
+                signer: Some(*ctx.accounts.admin.key)
+            },
+            bank: ctx.accounts.bank.key(),
+            mint: bank.mint,
+            deposit_limit: bank.config.deposit_limit,
+            borrow_limit: bank.config.borrow_limit,
+        });
+    } else {
+        // Settings are not frozen, everything updates
+        bank.configure(&bank_config)?;
 
-    if bank_config.oracle.is_some() {
-        bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
+        if bank_config.oracle.is_some() {
+            bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
+        }
+
+        emit!(LendingPoolBankConfigureEvent {
+            header: GroupEventHeader {
+                marginfi_group: ctx.accounts.marginfi_group.key(),
+                signer: Some(*ctx.accounts.admin.key)
+            },
+            bank: ctx.accounts.bank.key(),
+            mint: bank.mint,
+            config: bank_config,
+        });
     }
-
-    emit!(LendingPoolBankConfigureEvent {
-        header: GroupEventHeader {
-            marginfi_group: ctx.accounts.marginfi_group.key(),
-            signer: Some(*ctx.accounts.admin.key)
-        },
-        bank: ctx.accounts.bank.key(),
-        mint: bank.mint,
-        config: bank_config,
-    });
 
     Ok(())
 }

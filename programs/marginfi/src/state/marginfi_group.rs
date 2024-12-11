@@ -10,7 +10,7 @@ use crate::{
         EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, MAX_SWB_ORACLE_AGE,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_ID, SECONDS_PER_YEAR,
+        ORACLE_MIN_AGE, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_ID, SECONDS_PER_YEAR,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
@@ -722,6 +722,14 @@ impl Bank {
         Ok(())
     }
 
+    /// Configures just the borrow and deposit limits, ignoring all other values
+    pub fn configure_unfrozen_fields_only(&mut self, config: &BankConfigOpt) -> MarginfiResult {
+        set_if_some!(self.config.deposit_limit, config.deposit_limit);
+        set_if_some!(self.config.borrow_limit, config.borrow_limit);
+        // weights didn't change so no validation is needed
+        Ok(())
+    }
+
     /// Calculate the interest rate accrual state changes for a given time period
     ///
     /// Collected protocol and insurance fees are stored in state.
@@ -1414,6 +1422,10 @@ impl BankConfig {
     }
 
     pub fn validate_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
+        check!(
+            self.oracle_max_age >= ORACLE_MIN_AGE,
+            MarginfiError::InvalidOracleSetup
+        );
         OraclePriceFeedAdapter::validate_bank_config(self, ais)?;
         Ok(())
     }

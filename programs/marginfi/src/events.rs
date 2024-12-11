@@ -46,6 +46,15 @@ pub struct LendingPoolBankConfigureEvent {
 }
 
 #[event]
+pub struct LendingPoolBankConfigureFrozenEvent {
+    pub header: GroupEventHeader,
+    pub bank: Pubkey,
+    pub mint: Pubkey,
+    pub deposit_limit: u64,
+    pub borrow_limit: u64,
+}
+
+#[event]
 pub struct LendingPoolBankAccrueInterestEvent {
     pub header: GroupEventHeader,
     pub bank: Pubkey,
