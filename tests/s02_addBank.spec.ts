@@ -87,7 +87,7 @@ describe("Init group and add banks with asset category flags", () => {
     let tx = new Transaction();
 
     tx.add(
-      await initStakedSettings(groupAdmin.userMarginProgram, {
+      await initStakedSettings(groupAdmin.mrgnProgram, {
         group: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         settings: settings,
@@ -181,7 +181,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBank(groupAdmin.userMarginProgram, {
+      await addBank(groupAdmin.mrgnProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,

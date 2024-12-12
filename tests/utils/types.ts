@@ -1,6 +1,5 @@
 import {
   BankConfigOpt,
-  BankConfigOptRaw,
   InterestRateConfig,
   InterestRateConfigRaw,
   OperationalState,
@@ -25,6 +24,8 @@ export const SINGLE_POOL_PROGRAM_ID = new PublicKey(
 export const EMISSIONS_FLAG_NONE = 0;
 export const EMISSIONS_FLAG_BORROW_ACTIVE = 1;
 export const EMISSIONS_FLAG_LENDING_ACTIVE = 2;
+export const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG = 4;
+export const FREEZE_SETTINGS = 8;
 
 export const ASSET_TAG_DEFAULT = 0;
 export const ASSET_TAG_SOL = 1;
@@ -95,7 +96,7 @@ export const defaultBankConfigOpt = () => {
  * @returns
  */
 export const defaultBankConfigOptRaw = () => {
-  let bankConfigOpt: BankConfigOptWithAssetTag = {
+  let bankConfigOpt: BankConfigOptRaw = {
     assetWeightInit: I80F48_ONE,
     assetWeightMaint: I80F48_ONE,
     liabilityWeightInit: I80F48_ONE,
@@ -114,6 +115,7 @@ export const defaultBankConfigOptRaw = () => {
     oracle: null,
     oracleMaxAge: 100,
     permissionlessBadDebtSettlement: null,
+    freezeSettings: null
   };
 
   return bankConfigOpt;
@@ -208,7 +210,7 @@ export type BankConfig = {
   liabilityWeightMain: WrappedI80F48;
 
   depositLimit: BN;
-  interestRateConfig: InterestRateConfigRaw;
+  interestRateConfig: InterestRateConfigRawWithOrigination;
 
   /** Paused = 0, Operational = 1, ReduceOnly = 2 */
   operationalState: OperationalStateRaw;
@@ -224,6 +226,43 @@ export type BankConfig = {
   totalAssetValueInitLimit: BN;
   oracleMaxAge: number;
 };
+
+// TODO remove when package updates
+/** Adds origination fee to interestRateConfig and freezeSettings */
+export type BankConfigOptRaw = {
+  assetWeightInit: WrappedI80F48 | null;
+  assetWeightMaint: WrappedI80F48 | null;
+
+  liabilityWeightInit: WrappedI80F48 | null;
+  liabilityWeightMaint: WrappedI80F48 | null;
+
+  depositLimit: BN | null;
+  borrowLimit: BN | null;
+  riskTier: { collateral: {} } | { isolated: {} } | null;
+  assetTag: number,
+  totalAssetValueInitLimit: BN | null;
+
+  interestRateConfig: InterestRateConfigRawWithOrigination | null;
+  operationalState:
+    | { paused: {} }
+    | { operational: {} }
+    | { reduceOnly: {} }
+    | null;
+
+  oracle: {
+    setup:
+      | { none: {} }
+      | { pythLegacy: {} }
+      | { switchboardV2: {} }
+      | { pythPushOracle: {} }
+      | { switchboardPull: {} };
+    keys: PublicKey[];
+  } | null;
+
+  oracleMaxAge: number | null;
+  permissionlessBadDebtSettlement: boolean | null;
+  freezeSettings: boolean | null;
+}
 
 // TODO remove when package updates
 export type StakedSettingsConfig = {

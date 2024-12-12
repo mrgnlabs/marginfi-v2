@@ -43,7 +43,7 @@ describe("Init group", () => {
       })
     );
 
-    await groupAdmin.userMarginProgram.provider.sendAndConfirm(tx, [
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm(tx, [
       marginfiGroup,
     ]);
 
@@ -69,9 +69,9 @@ describe("Init group", () => {
     );
     let failed = false;
     try {
-      await users[0].userMarginProgram.provider.sendAndConfirm(
+      await users[0].mrgnProgram.provider.sendAndConfirm(
         new Transaction().add(
-          await initStakedSettings(users[0].userMarginProgram, {
+          await initStakedSettings(users[0].mrgnProgram, {
             group: marginfiGroup.publicKey,
             feePayer: groupAdmin.wallet.publicKey,
             settings: settings,
@@ -90,9 +90,9 @@ describe("Init group", () => {
     const settings = defaultStakedInterestSettings(
       oracles.wsolOracle.publicKey
     );
-    await groupAdmin.userMarginProgram.provider.sendAndConfirm(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await initStakedSettings(groupAdmin.userMarginProgram, {
+        await initStakedSettings(groupAdmin.mrgnProgram, {
           group: marginfiGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           settings: settings,
@@ -138,9 +138,9 @@ describe("Init group", () => {
         marginfiGroup.publicKey
       );
 
-      await users[0].userMarginProgram.provider.sendAndConfirm(
+      await users[0].mrgnProgram.provider.sendAndConfirm(
         new Transaction().add(
-          await editStakedSettings(users[0].userMarginProgram, {
+          await editStakedSettings(users[0].mrgnProgram, {
             settingsKey: settingsKey,
             settings: settings,
           })
@@ -173,9 +173,9 @@ describe("Init group", () => {
       marginfiGroup.publicKey
     );
 
-    await groupAdmin.userMarginProgram.provider.sendAndConfirm(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await editStakedSettings(groupAdmin.userMarginProgram, {
+        await editStakedSettings(groupAdmin.mrgnProgram, {
           settingsKey: settingsKey,
           settings: settings,
         })
@@ -212,9 +212,9 @@ describe("Init group", () => {
       marginfiGroup.publicKey
     );
 
-    await groupAdmin.userMarginProgram.provider.sendAndConfirm(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await editStakedSettings(groupAdmin.userMarginProgram, {
+        await editStakedSettings(groupAdmin.mrgnProgram, {
           settingsKey: settingsKey,
           settings: settings,
         })
@@ -254,9 +254,9 @@ describe("Init group", () => {
 
     let failed = false;
     try {
-      await groupAdmin.userMarginProgram.provider.sendAndConfirm(
+      await groupAdmin.mrgnProgram.provider.sendAndConfirm(
         new Transaction().add(
-          await editStakedSettings(groupAdmin.userMarginProgram, {
+          await editStakedSettings(groupAdmin.mrgnProgram, {
             settingsKey: settingsKey,
             settings: settings,
           })

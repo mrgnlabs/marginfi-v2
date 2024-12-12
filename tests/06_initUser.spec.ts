@@ -29,7 +29,7 @@ describe("Initialize user account", () => {
         feePayer: users[0].wallet.publicKey,
       })
     );
-    await users[0].userMarginProgram.provider.sendAndConfirm(tx, [
+    await users[0].mrgnProgram.provider.sendAndConfirm(tx, [
       accountKeypair,
     ]);
 
@@ -62,7 +62,7 @@ describe("Initialize user account", () => {
         feePayer: users[1].wallet.publicKey,
       })
     );
-    await users[1].userMarginProgram.provider.sendAndConfirm(tx, [
+    await users[1].mrgnProgram.provider.sendAndConfirm(tx, [
       accountKeypair,
     ]);
   });

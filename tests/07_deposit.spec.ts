@@ -82,7 +82,7 @@ describe("Deposit funds", () => {
 
     const user0Account = user.accounts.get(USER_ACCOUNT);
 
-    await users[0].userMarginProgram.provider.sendAndConfirm(
+    await users[0].mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
         await depositIx(program, {
           marginfiGroup: marginfiGroup.publicKey,
@@ -127,7 +127,7 @@ describe("Deposit funds", () => {
 
     const user1Account = user.accounts.get(USER_ACCOUNT);
 
-    await users[1].userMarginProgram.provider.sendAndConfirm(
+    await users[1].mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
         await depositIx(program, {
           marginfiGroup: marginfiGroup.publicKey,

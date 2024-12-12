@@ -13,7 +13,7 @@ use solana_sdk::{
     instruction::Instruction, message::Message, pubkey::Pubkey, transaction::Transaction,
 };
 
-pub fn process_collect_fees(config: Config, bank_pk: Pubkey) -> Result<()> {
+pub fn process_collect_fees(config: Config, bank_pk: Pubkey, fee_ata: Pubkey) -> Result<()> {
     let bank = config.mfi_program.account::<Bank>(bank_pk)?;
     let rpc_client = config.mfi_program.rpc();
 
@@ -33,7 +33,7 @@ pub fn process_collect_fees(config: Config, bank_pk: Pubkey) -> Result<()> {
             liquidity_vault: bank.liquidity_vault,
             insurance_vault: bank.insurance_vault,
             fee_state: find_fee_state_pda(&marginfi::id()).0,
-            fee_ata: find_fee_state_pda(&marginfi::id()).0, // TODO
+            fee_ata,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),

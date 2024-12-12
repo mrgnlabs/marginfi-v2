@@ -95,8 +95,8 @@ export type MockUser = {
   tokenBAccount: PublicKey;
   /** Users's ATA for USDC */
   usdcAccount: PublicKey;
-  /** A marginfi program that uses the user's wallet */
-  userMarginProgram: Program<Marginfi> | undefined;
+  /** A program that uses the user's wallet */
+  mrgnProgram: Program<Marginfi> | undefined;
   /** A map to store arbitrary accounts related to the user using a string key */
   accounts: Map<string, PublicKey>;
 };
@@ -216,7 +216,7 @@ export const setupTestUser = async (
     tokenBAccount: tokenBAccount,
     usdcAccount: usdcAccount,
 
-    userMarginProgram: options.marginProgram
+    mrgnProgram: options.marginProgram
       ? getUserMarginfiProgram(options.marginProgram, userWalletKeypair)
       : undefined,
     accounts: new Map<string, PublicKey>(),

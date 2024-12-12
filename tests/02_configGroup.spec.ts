@@ -15,7 +15,7 @@ describe("Config group", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
 
   it("(admin) Config group - no change", async () => {
-    await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await groupConfigure(program, {
           newAdmin: null,
@@ -33,7 +33,7 @@ describe("Config group", () => {
 
   it("(admin) Config group - set new admin", async () => {
     let newAdmin = Keypair.generate();
-    await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await groupConfigure(program, {
           newAdmin: newAdmin.publicKey,
@@ -49,7 +49,7 @@ describe("Config group", () => {
     assertKeysEqual(group.admin, newAdmin.publicKey);
 
     // Restore original
-    await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await groupConfigure(program, {
           newAdmin: groupAdmin.wallet.publicKey,

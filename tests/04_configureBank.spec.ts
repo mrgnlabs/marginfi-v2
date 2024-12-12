@@ -11,6 +11,8 @@ import {
   ASSET_TAG_SOL,
   BankConfigOptWithAssetTag,
   defaultBankConfigOptRaw,
+  FREEZE_SETTINGS,
+  InterestRateConfigRawWithOrigination,
 } from "./utils/types";
 
 describe("Lending pool configure bank", () => {
@@ -18,7 +20,7 @@ describe("Lending pool configure bank", () => {
 
   it("(admin) Configure bank (USDC) - happy path", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
-    let interestRateConfig: InterestRateConfigRaw = {
+    let interestRateConfig: InterestRateConfigRawWithOrigination = {
       optimalUtilizationRate: bigNumberToWrappedI80F48(0.1),
       plateauInterestRate: bigNumberToWrappedI80F48(0.2),
       maxInterestRate: bigNumberToWrappedI80F48(4),
@@ -26,6 +28,7 @@ describe("Lending pool configure bank", () => {
       insuranceIrFee: bigNumberToWrappedI80F48(0.4),
       protocolFixedFeeApr: bigNumberToWrappedI80F48(0.5),
       protocolIrFee: bigNumberToWrappedI80F48(0.6),
+      protocolOriginationFee: bigNumberToWrappedI80F48(0.7),
     };
 
     let bankConfigOpt: BankConfigOptWithAssetTag = {
@@ -45,9 +48,10 @@ describe("Lending pool configure bank", () => {
       oracle: null,
       oracleMaxAge: 50,
       permissionlessBadDebtSettlement: null,
+      freezeSettings: null,
     };
 
-    await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await configureBank(program, {
           marginfiGroup: marginfiGroup.publicKey,
@@ -75,6 +79,7 @@ describe("Lending pool configure bank", () => {
     assertI80F48Approx(interest.insuranceIrFee, 0.4);
     assertI80F48Approx(interest.protocolFixedFeeApr, 0.5);
     assertI80F48Approx(interest.protocolIrFee, 0.6);
+    assertI80F48Approx(interest.protocolOriginationFee, 0.7);
 
     assert.deepEqual(config.operationalState, { paused: {} });
     assert.deepEqual(config.oracleSetup, { pythLegacy: {} }); // no change
@@ -86,7 +91,7 @@ describe("Lending pool configure bank", () => {
   });
 
   it("(admin) Restore default settings to bank (USDC)", async () => {
-    await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await configureBank(program, {
           marginfiGroup: marginfiGroup.publicKey,
@@ -96,5 +101,45 @@ describe("Lending pool configure bank", () => {
         })
       )
     );
+  });
+
+  it("(admin) Freeze USDC settings so they cannot be changed again (USDC)", async () => {
+    let config = defaultBankConfigOptRaw();
+    config.freezeSettings = true;
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+      new Transaction().add(
+        await configureBank(program, {
+          marginfiGroup: marginfiGroup.publicKey,
+          admin: groupAdmin.wallet.publicKey,
+          bank: bankKeypairUsdc.publicKey,
+          bankConfigOpt: config,
+        })
+      )
+    );
+    const bank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
+    assertBNEqual(bank.flags, FREEZE_SETTINGS);
+
+    // Attempting to config again should fail...
+    let failed = false;
+    try {
+      await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+        new Transaction().add(
+          await configureBank(program, {
+            marginfiGroup: marginfiGroup.publicKey,
+            admin: groupAdmin.wallet.publicKey,
+            bank: bankKeypairUsdc.publicKey,
+            bankConfigOpt: defaultBankConfigOptRaw(),
+          })
+        )
+      );
+    } catch (err) {
+      assert.ok(
+        err.logs.some((log: string) =>
+          log.includes("Error Code: BankSettingsFrozen")
+        )
+      );
+      failed = true;
+    }
+    assert.ok(failed, "Transaction succeeded when it should have failed");
   });
 });

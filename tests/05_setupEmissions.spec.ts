@@ -68,7 +68,7 @@ describe("Lending pool set up emissions", () => {
       ecosystem.tokenBMint.publicKey
     );
 
-    await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await setupEmissions(program, {
           marginfiGroup: marginfiGroup.publicKey,
@@ -117,7 +117,7 @@ describe("Lending pool set up emissions", () => {
       getTokenBalance(provider, emissionsAccKey),
     ]);
 
-    await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await updateEmissions(program, {
           marginfiGroup: marginfiGroup.publicKey,

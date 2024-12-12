@@ -1,6 +1,7 @@
 [toolchain]
 anchor_version = "0.30.1"
-solana_version = "1.18.11"
+solana_version = "1.18.17"
+# Getting "thread 'main' panicked at cli/src/lib.rs:545:18:"? Check your toolchain matches the above.
 
 [features]
 resolution = true
@@ -10,7 +11,7 @@ skip-lint = false
 # liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
 marginfi = "2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr"
 mocks = "5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C"
-spl_single_pool = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE"  # cloned from solana-labs repo (see below)
+spl_single_pool = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE" # cloned from solana-labs repo (see below)
 
 [programs.mainnet]
 liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"

@@ -62,7 +62,7 @@ describe("Edit and propagate staked settings", () => {
       },
     };
     let tx = new Transaction().add(
-      await editStakedSettings(groupAdmin.userMarginProgram, {
+      await editStakedSettings(groupAdmin.mrgnProgram, {
         settingsKey: settingsKey,
         settings: settings,
       })
@@ -119,7 +119,7 @@ describe("Edit and propagate staked settings", () => {
       riskTier: null,
     };
     let tx = new Transaction().add(
-      await editStakedSettings(groupAdmin.userMarginProgram, {
+      await editStakedSettings(groupAdmin.mrgnProgram, {
         settingsKey: settingsKey,
         settings: settings,
       })
@@ -165,7 +165,7 @@ describe("Edit and propagate staked settings", () => {
     // Note you can pack propagates into the edit tx, so with a LUT you can easily propagate
     // hundreds of banks in the same ts as edit
     let tx = new Transaction().add(
-      await editStakedSettings(groupAdmin.userMarginProgram, {
+      await editStakedSettings(groupAdmin.mrgnProgram, {
         settingsKey: settingsKey,
         settings: settings,
       }),

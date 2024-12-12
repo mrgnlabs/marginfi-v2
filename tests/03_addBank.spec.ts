@@ -32,7 +32,6 @@ import {
 } from "./utils/pdas";
 import { assert } from "chai";
 import { printBufferGroups } from "./utils/tools";
-import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("Lending pool add bank (add bank to group)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -46,7 +45,7 @@ describe("Lending pool add bank (add bank to group)", () => {
       globalFeeWallet
     );
 
-    await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await addBank(program, {
           marginfiGroup: marginfiGroup.publicKey,
@@ -142,6 +141,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Approx(interest.insuranceIrFee, 0.02, tolerance);
     assertI80F48Approx(interest.protocolFixedFeeApr, 0.03, tolerance);
     assertI80F48Approx(interest.protocolIrFee, 0.04, tolerance);
+    assertI80F48Approx(interest.protocolOriginationFee, 0.01, tolerance);
 
     assertI80F48Approx(interest.protocolOriginationFee, 0.01, tolerance);
 
@@ -160,7 +160,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     let config = defaultBankConfig(oracles.tokenAOracle.publicKey);
     let bankKey = bankKeypairA.publicKey;
 
-    await groupAdmin.userMarginProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
       new Transaction().add(
         await addBank(program, {
           marginfiGroup: marginfiGroup.publicKey,
@@ -183,7 +183,6 @@ describe("Lending pool add bank (add bank to group)", () => {
   it("Decodes a mainnet bank configured before manual padding", async () => {
     // mainnet program ID
     const id = new PublicKey("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
-    const tolerance = 0.000001;
     const group = new PublicKey("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8");
 
     let bonkBankKey = new PublicKey(
