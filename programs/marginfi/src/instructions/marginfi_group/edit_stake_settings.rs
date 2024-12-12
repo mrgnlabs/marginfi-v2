@@ -30,6 +30,8 @@ pub fn edit_staked_settings(
     set_if_some!(staked_settings.oracle_max_age, settings.oracle_max_age);
     set_if_some!(staked_settings.risk_tier, settings.risk_tier);
 
+    staked_settings.validate()?;
+
     Ok(())
 }
 

@@ -226,3 +226,33 @@ pub fn validate_asset_tags(bank: &Bank, marginfi_account: &MarginfiAccount) -> M
 
     Ok(())
 }
+
+/// Validate that two banks are compatible based on their asset tags. See the following combinations
+/// (* is wildcard, e.g. any tag):
+///
+/// Allowed:
+/// 1) Default/Default
+/// 2) Sol/*
+/// 3) Staked/Staked
+///
+/// Forbidden:
+/// 1) Default/Staked
+///
+/// Returns an error if the two banks have mismatching asset tags according to the above.
+pub fn validate_bank_asset_tags(bank_a: &Bank, bank_b: &Bank) -> MarginfiResult {
+    let is_bank_a_default = bank_a.config.asset_tag == ASSET_TAG_DEFAULT;
+    let is_bank_a_staked = bank_a.config.asset_tag == ASSET_TAG_STAKED;
+    let is_bank_b_default = bank_b.config.asset_tag == ASSET_TAG_DEFAULT;
+    let is_bank_b_staked = bank_b.config.asset_tag == ASSET_TAG_STAKED;
+    // Note: Sol is compatible with all other tags and doesn't matter...
+
+    // 1. Default assets cannot mix with Staked assets
+    if is_bank_a_default && is_bank_b_staked {
+        return err!(MarginfiError::AssetTagMismatch);
+    }
+    if is_bank_a_staked && is_bank_b_default {
+        return err!(MarginfiError::AssetTagMismatch);
+    }
+
+    Ok(())
+}

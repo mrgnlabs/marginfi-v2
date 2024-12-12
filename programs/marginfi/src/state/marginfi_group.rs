@@ -1464,7 +1464,10 @@ impl BankConfig {
     }
 
     pub fn get_pyth_push_oracle_feed_id(&self) -> Option<&FeedId> {
-        if matches!(self.oracle_setup, OracleSetup::PythPushOracle) {
+        if matches!(
+            self.oracle_setup,
+            OracleSetup::PythPushOracle | OracleSetup::StakedWithPythPush
+        ) {
             let bytes: &[u8; 32] = self.oracle_keys[0].as_ref().try_into().unwrap();
             Some(bytes)
         } else {
