@@ -87,6 +87,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             emissions_rate,
             emissions_remaining,
             emissions_mint,
+            collected_program_fees_outstanding,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -116,6 +117,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(emissions_rate, 0);
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
+            assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
 
             assert_eq!(_padding_0, <[[u64; 2]; 27] as Default>::default());
             assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
@@ -220,6 +222,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             emissions_rate,
             emissions_remaining,
             emissions_mint,
+            collected_program_fees_outstanding,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -249,6 +252,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(emissions_rate, 0);
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
+            assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
 
             assert_eq!(_padding_0, <[[u64; 2]; 27] as Default>::default());
             assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
@@ -343,6 +347,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         operational_state,
         oracle,
         risk_tier,
+        asset_tag,
         total_asset_value_init_limit,
         oracle_max_age,
         permissionless_bad_debt_settlement,
@@ -387,6 +392,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         check_bank_field!(borrow_limit);
         check_bank_field!(operational_state);
         check_bank_field!(risk_tier);
+        check_bank_field!(asset_tag);
         check_bank_field!(total_asset_value_init_limit);
         check_bank_field!(oracle_max_age);
 

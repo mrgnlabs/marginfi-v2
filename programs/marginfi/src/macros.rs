@@ -107,3 +107,14 @@ macro_rules! assert_struct_align {
         static_assertions::const_assert_eq!(std::mem::align_of::<$struct>(), $align);
     };
 }
+
+#[macro_export]
+macro_rules! live {
+    () => {
+        cfg!(any(
+            feature = "mainnet-beta",
+            feature = "staging",
+            feature = "devnet"
+        ))
+    };
+}

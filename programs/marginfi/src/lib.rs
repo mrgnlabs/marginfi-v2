@@ -58,6 +58,13 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config.into(), bank_seed)
     }
 
+    pub fn lending_pool_add_bank_permissionless(
+        ctx: Context<LendingPoolAddBankPermissionless>,
+        bank_seed: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_add_bank_permissionless(ctx, bank_seed)
+    }
+
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
         bank_config_opt: BankConfigOpt,
@@ -263,6 +270,28 @@ pub mod marginfi {
     /// group
     pub fn config_group_fee(ctx: Context<ConfigGroupFee>, flag: u64) -> MarginfiResult {
         marginfi_group::config_group_fee(ctx, flag)
+    }
+
+    /// (group admin only) Init the Staked Settings account, which is used to create staked
+    /// collateral banks, and must run before any staked collateral bank can be created with
+    /// `add_pool_permissionless`. Running this ix effectively opts the group into the staked
+    /// collateral feature.
+    pub fn init_staked_settings(
+        ctx: Context<InitStakedSettings>,
+        settings: StakedSettingsConfig,
+    ) -> MarginfiResult {
+        marginfi_group::initialize_staked_settings(ctx, settings)
+    }
+
+    pub fn edit_staked_settings(
+        ctx: Context<EditStakedSettings>,
+        settings: StakedSettingsEditConfig,
+    ) -> MarginfiResult {
+        marginfi_group::edit_staked_settings(ctx, settings)
+    }
+
+    pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> MarginfiResult {
+        marginfi_group::propagate_staked_settings(ctx)
     }
 }
 

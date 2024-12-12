@@ -85,7 +85,7 @@ export const echoEcosystemInfo = (
 /**
  *  A typical user, with a wallet, ATAs for mock tokens, and a program to sign/send txes with.
  */
-export type mockUser = {
+export type MockUser = {
   wallet: Keypair;
   /** Users's ATA for wsol*/
   wsolAccount: PublicKey;
@@ -97,7 +97,16 @@ export type mockUser = {
   usdcAccount: PublicKey;
   /** A program that uses the user's wallet */
   mrgnProgram: Program<Marginfi> | undefined;
+  /** A map to store arbitrary accounts related to the user using a string key */
+  accounts: Map<string, PublicKey>;
 };
+
+/** in mockUser.accounts, key used to get/set the users's account for group 0 */
+export const USER_ACCOUNT: string = "g0_acc";
+/** in mockUser.accounts, key used to get/set the users's LST ATA for validator 0 */
+export const LST_ATA = "v0_lstAta";
+/** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */
+export const STAKE_ACC = "v0_stakeAcc";
 
 /**
  * Options to skip various parts of mock user setup
@@ -200,7 +209,7 @@ export const setupTestUser = async (
 
   await provider.sendAndConfirm(tx, [wallet]);
 
-  const user: mockUser = {
+  const user: MockUser = {
     wallet: userWalletKeypair,
     wsolAccount: wsolAccount,
     tokenAAccount: tokenAAccount,
@@ -210,6 +219,7 @@ export const setupTestUser = async (
     mrgnProgram: options.marginProgram
       ? getUserMarginfiProgram(options.marginProgram, userWalletKeypair)
       : undefined,
+    accounts: new Map<string, PublicKey>(),
   };
   return user;
 };
@@ -276,19 +286,19 @@ export const createSimpleMint = async (
 };
 
 export type Oracles = {
-  wsolOracle: Keypair,
-  wsolPrice: number,
-  wsolDecimals: number,
-  usdcOracle: Keypair,
-  usdcPrice: number,
-  usdcDecimals: number,
-  tokenAOracle: Keypair,
-  tokenAPrice: number,
-  tokenADecimals: number,
-  tokenBOracle: Keypair,
-  tokenBPrice: number,
-  tokenBDecimals:number,
-}
+  wsolOracle: Keypair;
+  wsolPrice: number;
+  wsolDecimals: number;
+  usdcOracle: Keypair;
+  usdcPrice: number;
+  usdcDecimals: number;
+  tokenAOracle: Keypair;
+  tokenAPrice: number;
+  tokenADecimals: number;
+  tokenBOracle: Keypair;
+  tokenBPrice: number;
+  tokenBDecimals: number;
+};
 
 /**
  * Creates an account to store data arbitrary data.
@@ -344,4 +354,21 @@ export const storeMockAccount = async (
       .instruction()
   );
   await program.provider.sendAndConfirm(tx, [wallet.payer, account]);
+};
+
+export type Validator = {
+  node: PublicKey;
+  authorizedVoter: PublicKey;
+  authorizedWithdrawer: PublicKey;
+  voteAccount: PublicKey;
+  /** The spl stake pool itself, all PDAs derive from this key */
+  splPool: PublicKey;
+  /** spl pool's mint for the LST (a PDA automatically created on init) */
+  splMint: PublicKey;
+  /** spl pool's authority for LST management, a PDA with no data/lamports */
+  splAuthority: PublicKey;
+  /** spl pool's stake account (a PDA automatically created on init, contains the SOL held by the pool) */
+  splSolPool: PublicKey;
+  /** bank created for this validator's LST on the "main" group */
+  bank: PublicKey;
 };

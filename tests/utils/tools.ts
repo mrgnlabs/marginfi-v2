@@ -1,3 +1,5 @@
+import { BanksTransactionResultWithMeta } from "solana-bankrun";
+
 /**
  * Function to print bytes from a Buffer in groups with column labels and color highlighting for non-zero values
  * @param buffer - The Buffer to process
@@ -26,9 +28,11 @@ export const printBufferGroups = (
   // Function to calculate RGB color based on row index
   const calculateGradientColor = (startIndex) => {
     const maxIndex = 255 * 3;
-    const normalizedIndex = (startIndex % maxIndex);
+    const normalizedIndex = startIndex % maxIndex;
 
-    let r = 0, g = 0, b = 0;
+    let r = 0,
+      g = 0,
+      b = 0;
 
     if (normalizedIndex < 255) {
       b = 255;
@@ -70,9 +74,13 @@ export const printBufferGroups = (
       const label = `${i.toString().padStart(3, " ")}-${(i + groupLength - 1)
         .toString()
         .padStart(3, " ")}`;
-      console.log(
-        `${color}${label}\x1b[0m | ${group.join(" | ")}`
-      );
+      console.log(`${color}${label}\x1b[0m | ${group.join(" | ")}`);
     }
+  }
+};
+
+export const dumpBankrunLogs = (result: BanksTransactionResultWithMeta) => {
+  for (let i = 0; i < result.meta.logMessages.length; i++) {
+    console.log(i + " " + result.meta.logMessages[i]);
   }
 };

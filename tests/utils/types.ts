@@ -106,6 +106,7 @@ export const defaultBankConfigOptRaw = () => {
     riskTier: {
       collateral: undefined,
     },
+    assetTag: ASSET_TAG_DEFAULT,
     totalAssetValueInitLimit: new BN(100_000_000_000),
     interestRateConfig: defaultInterestRateConfigRaw(),
     operationalState: {
@@ -238,6 +239,7 @@ export type BankConfigOptRaw = {
   depositLimit: BN | null;
   borrowLimit: BN | null;
   riskTier: { collateral: {} } | { isolated: {} } | null;
+  assetTag: number,
   totalAssetValueInitLimit: BN | null;
 
   interestRateConfig: InterestRateConfigRawWithOrigination | null;
