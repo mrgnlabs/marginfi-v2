@@ -56,7 +56,7 @@ use {
         signature::Keypair,
         signer::Signer,
         system_program,
-        sysvar::{self, Sysvar},
+        sysvar::{self},
         transaction::Transaction,
     },
     spl_associated_token_account::{
@@ -1166,7 +1166,11 @@ pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
         let mut bank: Bank = config.mfi_program.account(address)?;
         let group: MarginfiGroup = config.mfi_program.account(bank.group)?;
 
-        bank.accrue_interest(Clock::get()?.unix_timestamp, &group)?;
+        let current_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+
+        bank.accrue_interest(current_timestamp.as_secs() as i64, &group)?;
 
         print_bank(&address, &bank);
 
