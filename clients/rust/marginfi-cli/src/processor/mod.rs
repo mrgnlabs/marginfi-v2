@@ -1169,8 +1169,10 @@ pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
         let current_timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards");
+        let current_timestamp = current_timestamp.as_secs() as i64;
 
-        bank.accrue_interest(current_timestamp.as_secs() as i64, &group)?;
+        bank.accrue_interest(current_timestamp, &group)?;
+        println!(" Cranking interest at: {:?}", current_timestamp);
 
         print_bank(&address, &bank);
 
