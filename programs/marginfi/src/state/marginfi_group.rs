@@ -744,7 +744,6 @@ impl Bank {
         solana_program::log::sol_log_compute_units();
 
         let time_delta: u64 = (current_timestamp - self.last_update).try_into().unwrap();
-
         if time_delta == 0 {
             return Ok(());
         }
