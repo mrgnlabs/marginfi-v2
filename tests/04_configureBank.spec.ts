@@ -1,6 +1,6 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { Transaction } from "@solana/web3.js";
 import { configureBank } from "./utils/group-instructions";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import { bankKeypairUsdc, groupAdmin, marginfiGroup } from "./rootHooks";
 import { assertBNEqual, assertI80F48Approx } from "./utils/genericTests";
@@ -118,28 +118,36 @@ describe("Lending pool configure bank", () => {
     );
     const bank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
     assertBNEqual(bank.flags, FREEZE_SETTINGS);
+  });
 
-    // Attempting to config again should fail...
-    let failed = false;
-    try {
-      await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
-        new Transaction().add(
-          await configureBank(program, {
-            marginfiGroup: marginfiGroup.publicKey,
-            admin: groupAdmin.wallet.publicKey,
-            bank: bankKeypairUsdc.publicKey,
-            bankConfigOpt: defaultBankConfigOptRaw(),
-          })
-        )
-      );
-    } catch (err) {
-      assert.ok(
-        err.logs.some((log: string) =>
-          log.includes("Error Code: BankSettingsFrozen")
-        )
-      );
-      failed = true;
-    }
-    assert.ok(failed, "Transaction succeeded when it should have failed");
+  it("(admin) Update settings after a freeze - only deposit/borrow caps update", async () => {
+    let configNew = defaultBankConfigOptRaw();
+    const newDepositLimit = new BN(2_000_000_000);
+    const newBorrowLimit = new BN(3_000_000_000);
+    configNew.depositLimit = newDepositLimit;
+    configNew.borrowLimit = newBorrowLimit;
+
+    // These will be ignored...
+    configNew.oracleMaxAge = 42;
+    configNew.freezeSettings = false;
+
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+      new Transaction().add(
+        await configureBank(program, {
+          marginfiGroup: marginfiGroup.publicKey,
+          admin: groupAdmin.wallet.publicKey,
+          bank: bankKeypairUsdc.publicKey,
+          bankConfigOpt: configNew,
+        })
+      )
+    );
+    const bank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
+    const config = bank.config;
+    assertBNEqual(config.depositLimit, newDepositLimit);
+    assertBNEqual(config.borrowLimit, newBorrowLimit);
+
+    // Ignored fields didn't change..
+    assert.equal(config.oracleMaxAge, 100);
+    assertBNEqual(bank.flags, FREEZE_SETTINGS); // still frozen
   });
 });

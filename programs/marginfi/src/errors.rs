@@ -104,8 +104,6 @@ pub enum MarginfiError {
     InvalidFeeAta,
     #[msg("Use add pool permissionless instead")] // 6050
     AddedStakedPoolManually,
-    #[msg("Bank settings are frozen and cannot be updated")] // 6051
-    BankSettingsFrozen,
 }
 
 impl From<MarginfiError> for ProgramError {

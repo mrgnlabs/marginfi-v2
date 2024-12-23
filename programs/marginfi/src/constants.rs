@@ -59,6 +59,9 @@ pub const INIT_BANK_ORIGINATION_FEE_DEFAULT: u32 = 10000;
 
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 
+/// Due to real-world constraints, oracles using an age less than this value are typically too
+/// unreliable, and we want to restrict pools from picking an oracle that is effectively unusable
+pub const ORACLE_MIN_AGE: u16 = 30;
 pub const MAX_PYTH_ORACLE_AGE: u64 = 60;
 pub const MAX_SWB_ORACLE_AGE: u64 = 3 * 60;
 
