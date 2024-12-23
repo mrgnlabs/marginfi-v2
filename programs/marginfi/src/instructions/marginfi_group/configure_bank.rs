@@ -38,7 +38,8 @@ pub fn lending_pool_configure_bank(
         bank.configure(&bank_config)?;
 
         if bank_config.oracle.is_some() {
-            bank.config.validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
+            bank.config
+                .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
         }
 
         emit!(LendingPoolBankConfigureEvent {

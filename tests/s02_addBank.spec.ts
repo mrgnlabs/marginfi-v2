@@ -114,7 +114,7 @@ describe("Init group and add banks with asset category flags", () => {
     assertI80F48Approx(settingsAcc.assetWeightMaint, 0.9);
     assertBNEqual(settingsAcc.depositLimit, 1_000_000_000_000);
     assertBNEqual(settingsAcc.totalAssetValueInitLimit, 150_000_000);
-    assert.equal(settingsAcc.oracleMaxAge, 10);
+    assert.equal(settingsAcc.oracleMaxAge, 60);
     assert.deepEqual(settingsAcc.riskTier, { collateral: {} });
   });
 
@@ -193,7 +193,8 @@ describe("Init group and add banks with asset category flags", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet, bankKeypair);
     let result = await banksClient.tryProcessTransaction(tx);
-    assertBankrunTxFailed(result, "0x17a2");
+    // AddedStakedPoolManually
+    assertBankrunTxFailed(result, "0x17a0");
   });
 
   it("(attacker) Add bank (validator 0) with bad accounts + bad metadata - should fail", async () => {
@@ -270,7 +271,8 @@ describe("Init group and add banks with asset category flags", () => {
           tx.sign(users[0].wallet);
 
           let result = await banksClient.tryProcessTransaction(tx);
-          assertBankrunTxFailed(result, "0x17a0");
+          // StakePoolValidationFailed
+          assertBankrunTxFailed(result, "0x17a2");
         }
       }
     }
@@ -336,7 +338,8 @@ describe("Init group and add banks with asset category flags", () => {
         tx.sign(users[0].wallet);
 
         let result = await banksClient.tryProcessTransaction(tx);
-        assertBankrunTxFailed(result, "0x17a0");
+        // StakePoolValidationFailed
+        assertBankrunTxFailed(result, "0x17a2");
       }
     }
 

@@ -172,7 +172,7 @@ export const defaultStakedInterestSettings = (oracle: PublicKey) => {
     assetWeightMaint: bigNumberToWrappedI80F48(0.9),
     depositLimit: new BN(1_000_000_000_000), // 1000 SOL
     totalAssetValueInitLimit: new BN(150_000_000),
-    oracleMaxAge: 10,
+    oracleMaxAge: 60,
     riskTier: {
       collateral: undefined,
     },

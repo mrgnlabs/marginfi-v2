@@ -109,7 +109,8 @@ describe("Deposit funds (included staked assets)", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
-    assertBankrunTxFailed(result, "0x179f");
+    // AssetTagMismatch
+    assertBankrunTxFailed(result, "0x17a1");
 
     // Verify the deposit worked and the entry does not exist
     const userAcc = await bankrunProgram.account.marginfiAccount.fetch(

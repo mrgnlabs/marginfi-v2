@@ -19,10 +19,7 @@ import {
   users,
   validators,
 } from "./rootHooks";
-import {
-  assertBankrunTxFailed,
-  assertKeysEqual,
-} from "./utils/genericTests";
+import { assertBankrunTxFailed, assertKeysEqual } from "./utils/genericTests";
 import { assert } from "chai";
 import { accountInit, depositIx } from "./utils/user-instructions";
 import { LST_ATA, USER_ACCOUNT } from "./utils/mocks";
@@ -129,7 +126,8 @@ describe("Deposit funds (included staked assets)", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
-    assertBankrunTxFailed(result, "0x179f");
+    // AssetTagMismatch
+    assertBankrunTxFailed(result, "0x17a1");
 
     // Verify the deposit failed and the entry does not exist
     const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
@@ -214,7 +212,8 @@ describe("Deposit funds (included staked assets)", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
-    assertBankrunTxFailed(result, "0x179f");
+    // AssetTagMismatch
+    assertBankrunTxFailed(result, "0x17a1");
 
     // Verify the deposit failed and the entry does not exist
     const userAcc = await bankrunProgram.account.marginfiAccount.fetch(

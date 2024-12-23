@@ -96,14 +96,14 @@ pub enum MarginfiError {
     IllegalAction,
     #[msg("Token22 Banks require mint account as first remaining account")] // 6046
     T22MintRequired,
-    #[msg("Staked SOL accounts can only deposit staked assets and borrow SOL")] // 6047
-    AssetTagMismatch,
-    #[msg("Stake pool validation failed: check the stake pool, mint, or sol pool")] // 6048
-    StakePoolValidationFailed,
-    #[msg("Invalid ATA for global fee account")] // 6049
+    #[msg("Invalid ATA for global fee account")] // 6047
     InvalidFeeAta,
-    #[msg("Use add pool permissionless instead")] // 6050
+    #[msg("Use add pool permissionless instead")] // 6048
     AddedStakedPoolManually,
+    #[msg("Staked SOL accounts can only deposit staked assets and borrow SOL")] // 6049
+    AssetTagMismatch,
+    #[msg("Stake pool validation failed: check the stake pool, mint, or sol pool")] // 6050
+    StakePoolValidationFailed,
 }
 
 impl From<MarginfiError> for ProgramError {

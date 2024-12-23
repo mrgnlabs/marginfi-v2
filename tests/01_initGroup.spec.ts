@@ -115,7 +115,7 @@ describe("Init group", () => {
     assertI80F48Approx(settingsAcc.assetWeightMaint, 0.9);
     assertBNEqual(settingsAcc.depositLimit, 1_000_000_000_000);
     assertBNEqual(settingsAcc.totalAssetValueInitLimit, 150_000_000);
-    assert.equal(settingsAcc.oracleMaxAge, 10);
+    assert.equal(settingsAcc.oracleMaxAge, 60);
     assert.deepEqual(settingsAcc.riskTier, { collateral: {} });
   });
 
