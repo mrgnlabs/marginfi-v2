@@ -106,6 +106,7 @@ export const defaultBankConfigOptRaw = () => {
     riskTier: {
       collateral: undefined,
     },
+    assetTag: ASSET_TAG_DEFAULT,
     totalAssetValueInitLimit: new BN(100_000_000_000),
     interestRateConfig: defaultInterestRateConfigRaw(),
     operationalState: {
@@ -171,7 +172,7 @@ export const defaultStakedInterestSettings = (oracle: PublicKey) => {
     assetWeightMaint: bigNumberToWrappedI80F48(0.9),
     depositLimit: new BN(1_000_000_000_000), // 1000 SOL
     totalAssetValueInitLimit: new BN(150_000_000),
-    oracleMaxAge: 10,
+    oracleMaxAge: 60,
     riskTier: {
       collateral: undefined,
     },
@@ -238,6 +239,7 @@ export type BankConfigOptRaw = {
   depositLimit: BN | null;
   borrowLimit: BN | null;
   riskTier: { collateral: {} } | { isolated: {} } | null;
+  assetTag: number,
   totalAssetValueInitLimit: BN | null;
 
   interestRateConfig: InterestRateConfigRawWithOrigination | null;

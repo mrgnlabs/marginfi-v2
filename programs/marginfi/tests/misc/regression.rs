@@ -4,10 +4,13 @@ use anchor_lang::AccountDeserialize;
 use anyhow::bail;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use fixed::types::I80F48;
-use marginfi::state::{
-    marginfi_account::MarginfiAccount,
-    marginfi_group::{Bank, BankOperationalState, RiskTier},
-    price::OracleSetup,
+use marginfi::{
+    constants::ASSET_TAG_DEFAULT,
+    state::{
+        marginfi_account::MarginfiAccount,
+        marginfi_group::{Bank, BankOperationalState, RiskTier},
+        price::OracleSetup,
+    },
 };
 use solana_account_decoder::UiAccountData;
 use solana_cli_output::CliAccount;
@@ -50,7 +53,8 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         balance_1.bank_pk,
         pubkey!("2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB")
     );
-    assert_eq!(balance_1._pad0, [0; 7]);
+    assert_eq!(balance_1.bank_asset_tag, ASSET_TAG_DEFAULT);
+    assert_eq!(balance_1._pad0, [0; 6]);
     assert_eq!(
         I80F48::from(balance_1.asset_shares),
         I80F48::from_str("1650216221.466876226897366").unwrap()
@@ -75,7 +79,8 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         balance_2.bank_pk,
         pubkey!("CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh")
     );
-    assert_eq!(balance_2._pad0, [0; 7]);
+    assert_eq!(balance_2.bank_asset_tag, ASSET_TAG_DEFAULT);
+    assert_eq!(balance_2._pad0, [0; 6]);
     assert_eq!(
         I80F48::from(balance_2.asset_shares),
         I80F48::from_str("0").unwrap()
@@ -125,7 +130,8 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         balance_1.bank_pk,
         pubkey!("6hS9i46WyTq1KXcoa2Chas2Txh9TJAVr6n1t3tnrE23K")
     );
-    assert_eq!(balance_1._pad0, [0; 7]);
+    assert_eq!(balance_1.bank_asset_tag, ASSET_TAG_DEFAULT);
+    assert_eq!(balance_1._pad0, [0; 6]);
     assert_eq!(
         I80F48::from(balance_1.asset_shares),
         I80F48::from_str("470.952530958931234").unwrap()
@@ -150,7 +156,8 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         balance_2.bank_pk,
         pubkey!("11111111111111111111111111111111")
     );
-    assert_eq!(balance_2._pad0, [0; 7]);
+    assert_eq!(balance_2.bank_asset_tag, ASSET_TAG_DEFAULT);
+    assert_eq!(balance_2._pad0, [0; 6]);
     assert_eq!(
         I80F48::from(balance_2.asset_shares),
         I80F48::from_str("0").unwrap()
@@ -200,7 +207,8 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         balance_1.bank_pk,
         pubkey!("11111111111111111111111111111111")
     );
-    assert_eq!(balance_1._pad0, [0; 7]);
+    assert_eq!(balance_1.bank_asset_tag, ASSET_TAG_DEFAULT);
+    assert_eq!(balance_1._pad0, [0; 6]);
     assert_eq!(
         I80F48::from(balance_1.asset_shares),
         I80F48::from_str("0").unwrap()
@@ -635,7 +643,8 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank.config._pad0, [0; 6]);
     assert_eq!(bank.config.borrow_limit, 2000000000000);
     assert_eq!(bank.config.risk_tier, RiskTier::Collateral);
-    assert_eq!(bank.config._pad1, [0; 7]);
+    assert_eq!(bank.config.asset_tag, ASSET_TAG_DEFAULT);
+    assert_eq!(bank.config._pad1, [0; 6]);
     assert_eq!(bank.config.total_asset_value_init_limit, 0);
     assert_eq!(bank.config.oracle_max_age, 300);
     assert_eq!(bank.config._padding, [0; 38]);
@@ -653,6 +662,11 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(
         bank.emissions_mint,
         pubkey!("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo")
+    );
+    // Legacy banks have no program fees
+    assert_eq!(
+        I80F48::from(bank.collected_program_fees_outstanding),
+        I80F48::from_str("0").unwrap()
     );
 
     assert_eq!(bank._padding_0, [[0, 0]; 27]);

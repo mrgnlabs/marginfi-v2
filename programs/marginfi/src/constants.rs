@@ -13,6 +13,7 @@ pub const INSURANCE_VAULT_SEED: &str = "insurance_vault";
 pub const FEE_VAULT_SEED: &str = "fee_vault";
 
 pub const FEE_STATE_SEED: &str = "feestate";
+pub const STAKED_SETTINGS_SEED: &str = "staked_settings";
 
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
@@ -28,6 +29,17 @@ cfg_if::cfg_if! {
     }
 }
 
+// TODO update to the actual deployment key on mainnet/devnet/staging
+cfg_if::cfg_if! {
+    if #[cfg(feature = "devnet")] {
+        pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
+    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging"))] {
+        pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
+    } else {
+        pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
+    }
+}
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
         pub const SWITCHBOARD_PULL_ID: Pubkey = pubkey!("Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2");
@@ -35,6 +47,8 @@ cfg_if::cfg_if! {
         pub const SWITCHBOARD_PULL_ID: Pubkey = pubkey!("SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv");
     }
 }
+
+pub const NATIVE_STAKE_ID: Pubkey = pubkey!("Stake11111111111111111111111111111111111111");
 
 /// TODO: Make these variable per bank
 pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);
@@ -153,3 +167,12 @@ pub const PROTOCOL_FEE_FIXED_DEFAULT: I80F48 = I80F48!(0.01);
 pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
 pub const PYTH_PUSH_PYTH_SPONSORED_SHARD_ID: u16 = 0;
 pub const PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
+
+/// A regular asset that can be comingled with any other regular asset or with `ASSET_TAG_SOL`
+pub const ASSET_TAG_DEFAULT: u8 = 0;
+/// Accounts with a SOL position can comingle with **either** `ASSET_TAG_DEFAULT` or
+/// `ASSET_TAG_STAKED` positions, but not both
+pub const ASSET_TAG_SOL: u8 = 1;
+/// Staked SOL assets. Accounts with a STAKED position can only deposit other STAKED assets or SOL
+/// (`ASSET_TAG_SOL`) and can only borrow SOL (`ASSET_TAG_SOL`)
+pub const ASSET_TAG_STAKED: u8 = 2;

@@ -38,7 +38,8 @@ pub fn lending_pool_configure_bank(
         bank.configure(&bank_config)?;
 
         if bank_config.oracle.is_some() {
-            bank.config.validate_oracle_setup(ctx.remaining_accounts)?;
+            bank.config
+                .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
         }
 
         emit!(LendingPoolBankConfigureEvent {
@@ -157,6 +158,8 @@ pub struct LendingPoolSetupEmissions<'info> {
     )]
     pub emissions_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
+    /// NOTE: This is a TokenAccount, spl transfer will validate it.
+    ///
     /// CHECK: Account provided only for funding rewards
     #[account(mut)]
     pub emissions_funding_account: AccountInfo<'info>,

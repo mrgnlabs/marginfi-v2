@@ -21,6 +21,7 @@ use crate::{
 };
 use crate::{
     borsh::{BorshDeserialize, BorshSerialize},
+    constants::ASSET_TAG_DEFAULT,
     constants::FREEZE_SETTINGS,
 };
 use anchor_lang::prelude::borsh;
@@ -544,6 +545,7 @@ impl Bank {
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
+            collected_program_fees_outstanding: I80F48::ZERO.into(),
             ..Default::default()
         }
     }
@@ -701,6 +703,8 @@ impl Bank {
         }
 
         set_if_some!(self.config.risk_tier, config.risk_tier);
+
+        set_if_some!(self.config.asset_tag, config.asset_tag);
 
         set_if_some!(
             self.config.total_asset_value_init_limit,
@@ -1168,17 +1172,21 @@ impl Display for BankOperationalState {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq, Default)]
 pub enum RiskTier {
-    Collateral,
+    #[default]
+    Collateral = 0,
     /// ## Isolated Risk
     /// Assets in this trance can be borrowed only in isolation.
     /// They can't be borrowed together with other assets.
     ///
     /// For example, if users has USDC, and wants to borrow XYZ which is isolated,
     /// they can't borrow XYZ together with SOL, only XYZ alone.
-    Isolated,
+    Isolated = 1,
 }
+
+unsafe impl Zeroable for RiskTier {}
+unsafe impl Pod for RiskTier {}
 
 #[repr(C)]
 #[cfg_attr(
@@ -1206,7 +1214,17 @@ pub struct BankConfigCompact {
 
     pub risk_tier: RiskTier,
 
-    pub _pad0: [u8; 7],
+    /// Determines what kinds of assets users of this bank can interact with.
+    /// Options:
+    /// * ASSET_TAG_DEFAULT (0) - A regular asset that can be comingled with any other regular asset
+    ///   or with `ASSET_TAG_SOL`
+    /// * ASSET_TAG_SOL (1) - Accounts with a SOL position can comingle with **either**
+    /// `ASSET_TAG_DEFAULT` or `ASSET_TAG_STAKED` positions, but not both
+    /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
+    /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
+    pub asset_tag: u8,
+
+    pub _pad0: [u8; 6],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1244,7 +1262,8 @@ impl From<BankConfigCompact> for BankConfig {
             _pad0: [0; 6],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
-            _pad1: [0; 7],
+            asset_tag: config.asset_tag,
+            _pad1: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
             _padding: [0; 38],
@@ -1266,7 +1285,8 @@ impl From<BankConfig> for BankConfigCompact {
             oracle_key: config.oracle_keys[0],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
-            _pad0: [0; 7],
+            asset_tag: config.asset_tag,
+            _pad0: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
         }
@@ -1305,7 +1325,17 @@ pub struct BankConfig {
 
     pub risk_tier: RiskTier,
 
-    pub _pad1: [u8; 7],
+    /// Determines what kinds of assets users of this bank can interact with.
+    /// Options:
+    /// * ASSET_TAG_DEFAULT (0) - A regular asset that can be comingled with any other regular asset
+    ///   or with `ASSET_TAG_SOL`
+    /// * ASSET_TAG_SOL (1) - Accounts with a SOL position can comingle with **either**
+    /// `ASSET_TAG_DEFAULT` or `ASSET_TAG_STAKED` positions, but not both
+    /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
+    /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
+    pub asset_tag: u8,
+
+    pub _pad1: [u8; 6],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1320,6 +1350,7 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
 
+    // Note: 6 bytes of padding to next 8 byte alignment, then end padding
     pub _padding: [u8; 38],
 }
 
@@ -1338,7 +1369,8 @@ impl Default for BankConfig {
             oracle_keys: [Pubkey::default(); MAX_ORACLE_KEYS],
             _pad0: [0; 6],
             risk_tier: RiskTier::Isolated,
-            _pad1: [0; 7],
+            asset_tag: ASSET_TAG_DEFAULT,
+            _pad1: [0; 6],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
             _padding: [0; 38],
@@ -1420,12 +1452,21 @@ impl BankConfig {
         self.borrow_limit != u64::MAX
     }
 
-    pub fn validate_oracle_setup(&self, ais: &[AccountInfo]) -> MarginfiResult {
+    /// * lst_mint, stake_pool, sol_pool - required only if configuring
+    ///   `OracleSetup::StakedWithPythPush` on initial setup. If configuring a staked bank after
+    ///   initial setup, can be omitted
+    pub fn validate_oracle_setup(
+        &self,
+        ais: &[AccountInfo],
+        lst_mint: Option<Pubkey>,
+        stake_pool: Option<Pubkey>,
+        sol_pool: Option<Pubkey>,
+    ) -> MarginfiResult {
         check!(
             self.oracle_max_age >= ORACLE_MIN_AGE,
             MarginfiError::InvalidOracleSetup
         );
-        OraclePriceFeedAdapter::validate_bank_config(self, ais)?;
+        OraclePriceFeedAdapter::validate_bank_config(self, ais, lst_mint, stake_pool, sol_pool)?;
         Ok(())
     }
 
@@ -1443,7 +1484,10 @@ impl BankConfig {
     }
 
     pub fn get_pyth_push_oracle_feed_id(&self) -> Option<&FeedId> {
-        if matches!(self.oracle_setup, OracleSetup::PythPushOracle) {
+        if matches!(
+            self.oracle_setup,
+            OracleSetup::PythPushOracle | OracleSetup::StakedWithPythPush
+        ) {
             let bytes: &[u8; 32] = self.oracle_keys[0].as_ref().try_into().unwrap();
             Some(bytes)
         } else {
@@ -1510,6 +1554,8 @@ pub struct BankConfigOpt {
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
     pub risk_tier: Option<RiskTier>,
+
+    pub asset_tag: Option<u8>,
 
     pub total_asset_value_init_limit: Option<u64>,
 

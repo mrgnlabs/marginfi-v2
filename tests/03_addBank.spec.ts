@@ -1,6 +1,6 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
 import { PublicKey, Transaction } from "@solana/web3.js";
-import { addBank } from "./utils/instructions";
+import { addBank } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
@@ -11,6 +11,7 @@ import {
   INIT_POOL_ORIGINATION_FEE,
   marginfiGroup,
   oracles,
+  printBuffers,
   verbose,
 } from "./rootHooks";
 import {
@@ -20,7 +21,7 @@ import {
   assertKeyDefault,
   assertKeysEqual,
 } from "./utils/genericTests";
-import { defaultBankConfig } from "./utils/types";
+import { ASSET_TAG_DEFAULT, defaultBankConfig } from "./utils/types";
 import {
   deriveLiquidityVaultAuthority,
   deriveLiquidityVault,
@@ -75,7 +76,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     let bankData = (
       await program.provider.connection.getAccountInfo(bankKey)
     ).data.subarray(8);
-    printBufferGroups(bankData, 16, 896);
+    if (printBuffers) {
+      printBufferGroups(bankData, 16, 896);
+    }
 
     const bank = await program.account.bank.fetch(bankKey);
     const config = bank.config;
@@ -126,6 +129,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Equal(config.assetWeightInit, 1);
     assertI80F48Equal(config.assetWeightMaint, 1);
     assertI80F48Equal(config.liabilityWeightInit, 1);
+    assertI80F48Equal(config.liabilityWeightMaint, 1);
     assertBNEqual(config.depositLimit, 100_000_000_000);
 
     const tolerance = 0.000001;
@@ -139,10 +143,13 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Approx(interest.protocolIrFee, 0.04, tolerance);
     assertI80F48Approx(interest.protocolOriginationFee, 0.01, tolerance);
 
+    assertI80F48Approx(interest.protocolOriginationFee, 0.01, tolerance);
+
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { pythLegacy: {} });
     assertBNEqual(config.borrowLimit, 100_000_000_000);
     assert.deepEqual(config.riskTier, { collateral: {} });
+    assert.equal(config.assetTag, ASSET_TAG_DEFAULT);
     assertBNEqual(config.totalAssetValueInitLimit, 1_000_000_000_000);
     assert.equal(config.oracleMaxAge, 100);
 
@@ -184,7 +191,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     let bonkBankData = (
       await program.provider.connection.getAccountInfo(bonkBankKey)
     ).data.subarray(8);
-    printBufferGroups(bonkBankData, 16, 896);
+    if (printBuffers) {
+      printBufferGroups(bonkBankData, 16, 896);
+    }
 
     let cloudBankKey = new PublicKey(
       "4kNXetv8hSv9PzvzPZzEs1CTH6ARRRi2b8h6jk1ad1nP"
@@ -192,7 +201,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     let cloudBankData = (
       await program.provider.connection.getAccountInfo(cloudBankKey)
     ).data.subarray(8);
-    printBufferGroups(cloudBankData, 16, 896);
+    if (printBuffers) {
+      printBufferGroups(cloudBankData, 16, 896);
+    }
 
     const bbk = bonkBankKey;
     const bb = await program.account.bank.fetch(bonkBankKey);
@@ -255,6 +266,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     // assertI80F48Equal(interest.protocolFixedFeeApr, 0);
     // assertI80F48Equal(interest.protocolIrFee, 0);
 
+    // Bank added before this feature existed, should be zero
+    assertI80F48Equal(bonkInterest.protocolOriginationFee, 0);
+
     assert.deepEqual(bonkConfig.operationalState, { operational: {} });
     assert.deepEqual(bonkConfig.oracleSetup, { pythPushOracle: {} });
     // roughly 26.41 billion BONK with 5 decimals.
@@ -302,6 +316,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     // 1 million CLOUD with 9 decimals (1_000_000_000_000_000)
     assertBNEqual(cloudConfig.depositLimit, 1_000_000_000_000_000);
 
+    // Bank added before this feature existed, should be zero
+    assertI80F48Equal(cloudInterest.protocolOriginationFee, 0);
+
     assert.deepEqual(cloudConfig.operationalState, { operational: {} });
     assert.deepEqual(cloudConfig.oracleSetup, { switchboardV2: {} });
     // 50,000 CLOUD with 9 decimals (50_000_000_000_000)
@@ -309,5 +326,24 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.deepEqual(cloudConfig.riskTier, { isolated: {} });
     assertBNEqual(cloudConfig.totalAssetValueInitLimit, 0);
     assert.equal(cloudConfig.oracleMaxAge, 60);
+
+    // Assert emissions mint (one of the last fields) is also aligned correctly.
+    let pyUsdcBankKey = new PublicKey(
+      "Fe5QkKPVAh629UPP5aJ8sDZu8HTfe6M26jDQkKyXVhoA"
+    );
+    let pyUsdcBankData = (
+      await program.provider.connection.getAccountInfo(pyUsdcBankKey)
+    ).data.subarray(8);
+    if (printBuffers) {
+      printBufferGroups(pyUsdcBankData, 16, 896);
+    }
+
+    const pb = await program.account.bank.fetch(pyUsdcBankKey);
+    assertKeysEqual(
+      pb.emissionsMint,
+      new PublicKey("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo")
+    );
   });
 });
+
+// TODO add bank with seed

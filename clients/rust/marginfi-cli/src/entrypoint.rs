@@ -244,6 +244,7 @@ impl From<BankOperationalStateArg> for BankOperationalState {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Parser)]
 pub enum BankCommand {
     Get {
@@ -291,6 +292,8 @@ pub enum BankCommand {
         pf_or: Option<f64>,
         #[clap(long, arg_enum, help = "Bank risk tier")]
         risk_tier: Option<RiskTierArg>,
+        #[clap(long, help = "0 = default, 1 = SOL, 2 = Staked SOL LST")]
+        asset_tag: Option<u8>,
         #[clap(long, arg_enum, help = "Bank oracle type")]
         oracle_type: Option<OracleTypeArg>,
         #[clap(long, help = "Bank oracle account")]
@@ -740,6 +743,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             pf_ir,
             pf_or,
             risk_tier,
+            asset_tag,
             oracle_type,
             oracle_key,
             usd_init_limit,
@@ -792,6 +796,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                         protocol_origination_fee: pf_or.map(|x| I80F48::from_num(x).into()),
                     }),
                     risk_tier: risk_tier.map(|x| x.into()),
+                    asset_tag,
                     total_asset_value_init_limit: usd_init_limit,
                     oracle_max_age,
                     permissionless_bad_debt_settlement,

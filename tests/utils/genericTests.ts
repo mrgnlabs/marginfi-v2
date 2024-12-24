@@ -3,9 +3,11 @@ import { WrappedI80F48, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import type { RawAccount } from "@solana/spl-token";
 import { AccountLayout } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
+import { BankrunProvider } from "anchor-bankrun";
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
 import { assert } from "chai";
+import { BanksTransactionResultWithMeta } from "solana-bankrun";
 
 /**
  * Shorthand for `assert.equal(a.toString(), b.toString())`
@@ -64,10 +66,10 @@ export const assertI80F48Equal = (
 };
 
 /**
- * Shorthand to convert I80F48 to a string and compare against a BN, number, or other WrappedI80F48 within a given tolerance
+ * Shorthand to convert I80F48 to a BigNumber and compare against a BN, number, or other WrappedI80F48 within a given tolerance
  * @param a
  * @param b
- * @param tolerance - the allowed difference between the two values
+ * @param tolerance - the allowed difference between the two values (default .000001)
  */
 export const assertI80F48Approx = (
   a: WrappedI80F48,
@@ -92,7 +94,8 @@ export const assertI80F48Approx = (
 
   if (diff.isGreaterThan(allowedDifference)) {
     throw new Error(
-      `Values are not approximately equal. Difference: ${diff.toString()}, Allowed Tolerance: ${tolerance}`
+      `Values are not approximately equal. A: ${bigA.toString()} B: ${bigB.toString()} 
+      Difference: ${diff.toString()}, Allowed Tolerance: ${tolerance}`
     );
   }
 };
@@ -131,7 +134,7 @@ export const assertBNApproximately = (
  * @returns
  */
 export const getTokenBalance = async (
-  provider: AnchorProvider,
+  provider: AnchorProvider | BankrunProvider,
   account: PublicKey
 ) => {
   const accountInfo = await provider.connection.getAccountInfo(account);
@@ -172,4 +175,24 @@ export const waitUntil = async (
   }
   const toWait = Math.ceil(time - now) * 1000;
   await new Promise((r) => setTimeout(r, toWait));
+};
+
+/**
+ * Assert a bankrun Tx executed with `tryProcessTransaction` failed with the expected error code.
+ * Throws an error if the tx succeeded or a different error was found.
+ * @param result
+ * @param expectedErrorCode - In hex, as you see in Anchor logs, e.g. for error 6047 pass `0x179f`
+ */
+export const assertBankrunTxFailed = (
+  result: BanksTransactionResultWithMeta,
+  expectedErrorCode: string
+) => {
+  expectedErrorCode = expectedErrorCode.toLocaleLowerCase();
+  assert(result.meta.logMessages.length > 0);
+  assert(result.result, "TX succeeded when it should have failed");
+  const lastLog = result.meta.logMessages.pop();
+  assert(
+    lastLog.includes(expectedErrorCode),
+    "\nExpected code " + expectedErrorCode + " but got: " + lastLog
+  );
 };

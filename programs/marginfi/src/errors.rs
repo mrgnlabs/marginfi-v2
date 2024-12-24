@@ -12,7 +12,7 @@ pub enum MarginfiError {
     BankAssetCapacityExceeded,
     #[msg("Invalid transfer")] // 6004
     InvalidTransfer,
-    #[msg("Missing Pyth or Bank account")] // 6005
+    #[msg("Missing Oracle, Bank, LST mint, or Sol Pool")] // 6005
     MissingPythOrBankAccount,
     #[msg("Missing Pyth account")] // 6006
     MissingPythAccount,
@@ -86,18 +86,24 @@ pub enum MarginfiError {
     IllegalFlashloan,
     #[msg("Illegal flag")] // 6041
     IllegalFlag,
-    #[msg("Illegal balance state")] // 6043
+    #[msg("Illegal balance state")] // 6042
     IllegalBalanceState,
-    #[msg("Illegal account authority transfer")] // 6044
+    #[msg("Illegal account authority transfer")] // 6043
     IllegalAccountAuthorityTransfer,
-    #[msg("Unauthorized")] // 6045
+    #[msg("Unauthorized")] // 6044
     Unauthorized,
-    #[msg("Invalid account authority")] // 6046
+    #[msg("Invalid account authority")] // 6045
     IllegalAction,
-    #[msg("Token22 Banks require mint account as first remaining account")] // 6047
+    #[msg("Token22 Banks require mint account as first remaining account")] // 6046
     T22MintRequired,
-    #[msg("Invalid ATA for global fee account")] // 6048
+    #[msg("Invalid ATA for global fee account")] // 6047
     InvalidFeeAta,
+    #[msg("Use add pool permissionless instead")] // 6048
+    AddedStakedPoolManually,
+    #[msg("Staked SOL accounts can only deposit staked assets and borrow SOL")] // 6049
+    AssetTagMismatch,
+    #[msg("Stake pool validation failed: check the stake pool, mint, or sol pool")] // 6050
+    StakePoolValidationFailed,
 }
 
 impl From<MarginfiError> for ProgramError {
