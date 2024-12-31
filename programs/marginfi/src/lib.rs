@@ -72,6 +72,27 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank(ctx, bank_config_opt)
     }
 
+    pub fn lending_pool_configure_bank_delegate(
+        ctx: Context<LendingPoolConfigureBankDelegate>,
+        delegate_admin: Pubkey,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_configure_bank_delegate(ctx, delegate_admin)
+    }
+
+    pub fn lending_pool_increase_deposit_limit(
+        ctx: Context<LendingPoolDelegateOperation>,
+        new_deposit_limit: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_increase_deposit_limit(ctx, new_deposit_limit)
+    }
+
+    pub fn lending_pool_increase_emissions_rate(
+        ctx: Context<LendingPoolDelegateOperation>,
+        new_emissions_rate: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_increase_emissions_rate(ctx, new_emissions_rate)
+    }
+
     pub fn lending_pool_setup_emissions(
         ctx: Context<LendingPoolSetupEmissions>,
         flags: u64,
@@ -293,6 +314,7 @@ pub mod marginfi {
     pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> MarginfiResult {
         marginfi_group::propagate_staked_settings(ctx)
     }
+
 }
 
 #[cfg(not(feature = "no-entrypoint"))]

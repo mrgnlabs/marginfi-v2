@@ -50,22 +50,24 @@ pub enum MarginfiError {
     OperationWithdrawOnly,
     #[msg("Operation is borrow-only")] // 6023
     OperationBorrowOnly,
-    #[msg("Operation is repay-only")] // 6024
+    #[msg("Invalid delegate operation")] // 6024
+    InvalidDelegateOperation,
+    #[msg("Operation is repay-only")] // 6025
     OperationRepayOnly,
-    #[msg("No asset found")] // 6025
+    #[msg("No asset found")] // 6026
     NoAssetFound,
-    #[msg("No liability found")] // 6026
+    #[msg("No liability found")] // 6027
     NoLiabilityFound,
-    #[msg("Invalid oracle setup")] // 6027
+    #[msg("Invalid oracle setup")] // 6028
     InvalidOracleSetup,
-    #[msg("Invalid bank utilization ratio")] // 6028
+    #[msg("Invalid bank utilization ratio")] // 6029
     IllegalUtilizationRatio,
-    #[msg("Bank borrow cap exceeded")] // 6029
+    #[msg("Bank borrow cap exceeded")] // 6030
     BankLiabilityCapacityExceeded,
-    #[msg("Invalid Price")] // 6030
+    #[msg("Invalid Price")] // 6031
     InvalidPrice,
-    #[msg("Account can have only one liability when account is under isolated risk")] // 6031
-    IsolatedAccountIllegalState, // 6032
+    #[msg("Account can have only one liability when account is under isolated risk")] // 6032
+    IsolatedAccountIllegalState, 
     #[msg("Emissions already setup")]
     EmissionsAlreadySetup,
     #[msg("Oracle is not set")] // 6033

@@ -976,7 +976,7 @@ impl From<Ref<'_, PullFeedAccountData>> for LitePullFeedAccountData {
 /// A slimmed down version of the AggregatorAccountData struct copied from the switchboard-v2/src/aggregator.rs
 #[cfg_attr(feature = "client", derive(Clone, Debug))]
 struct LiteAggregatorAccountData {
-    /// Use sliding windoe or round based resolution
+    /// Use sliding window or round based resolution
     /// NOTE: This changes result propagation in latest_round_result
     pub resolution_mode: AggregatorResolutionMode,
     /// Latest confirmed update request result that has been accepted as valid.

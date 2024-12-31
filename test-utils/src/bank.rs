@@ -410,6 +410,104 @@ impl BankFixture {
             .borrow_mut()
             .set_account(&self.key, &bank_ai.into());
     }
+
+    pub async fn try_increase_deposit_limit(
+        &self,
+        delegate: &Keypair,
+        new_deposit_limit: u64,
+    ) -> Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolDelegateOperation {
+                marginfi_group: self.load().await.group,
+                delegate_admin: delegate.pubkey(),
+                bank: self.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolIncreaseDepositLimit {
+                new_deposit_limit,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey()),
+            &[&self.ctx.borrow().payer, delegate],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await
+    }
+
+    pub async fn try_increase_emissions_rate(
+        &self,
+        delegate: &Keypair,
+        new_emissions_rate: u64,
+    ) -> Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolDelegateOperation {
+                marginfi_group: self.load().await.group,
+                delegate_admin: delegate.pubkey(),
+                bank: self.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolIncreaseEmissionsRate {
+                new_emissions_rate,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey()),
+            &[&self.ctx.borrow().payer, delegate],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await
+    }
+
+    pub async fn try_configure_delegate(
+        &self,
+        delegate_admin: Pubkey,
+    ) -> Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::LendingPoolConfigureBankDelegate {
+                marginfi_group: self.load().await.group,
+                admin: self.ctx.borrow().payer.pubkey(),
+                bank: self.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolConfigureBankDelegate {
+                delegate_admin,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await
+    }
 }
 
 impl Debug for BankFixture {
