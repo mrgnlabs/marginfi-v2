@@ -7,6 +7,7 @@ mod flash_loan;
 mod liquidate;
 mod repay;
 mod withdraw;
+mod delegate_admin;
 
 use anchor_lang::prelude::Clock;
 use fixed::types::I80F48;

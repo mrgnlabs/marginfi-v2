@@ -431,7 +431,7 @@ pub struct GroupBankConfig {
     pub program_fees: bool,
 }
 
-assert_struct_size!(Bank, 1856);
+assert_struct_size!(Bank, 1888);
 assert_struct_align!(Bank, 8);
 #[account(zero_copy(unsafe))]
 #[repr(C)]
@@ -445,6 +445,7 @@ pub struct Bank {
     pub mint_decimals: u8,
 
     pub group: Pubkey,
+    pub delegate_admin: Pubkey,  // Added delegate admin key
 
     // Note: The padding is here, not after mint_decimals. Pubkey has alignment 1, so those 32
     // bytes can cross the alignment 8 threshold, but WrappedI80F48 has alignment 8 and cannot
@@ -524,6 +525,7 @@ impl Bank {
             mint,
             mint_decimals,
             group: marginfi_group_pk,
+            delegate_admin: Pubkey::default(),
             asset_share_value: I80F48::ONE.into(),
             liability_share_value: I80F48::ONE.into(),
             liquidity_vault,
