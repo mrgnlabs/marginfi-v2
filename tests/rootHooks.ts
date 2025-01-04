@@ -81,6 +81,15 @@ export let banksClient: BanksClient;
 /** keys copied into the bankrun instance */
 let copyKeys: PublicKey[] = [];
 
+/** A mainnet Pyth pull feed (Jup's Sol feed) */
+export const PYTH_ORACLE_FEED_SAMPLE = new PublicKey(
+  "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE"
+);
+/** A mainnet Pyth pull oracle (Jup's Sol feed) */
+export const PYTH_ORACLE_SAMPLE = new PublicKey(
+  "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"
+);
+
 export const mochaHooks = {
   beforeAll: async () => {
     // If this is false, you are in the wrong environment to run this test suite, try polyfill.
@@ -252,6 +261,8 @@ export const mochaHooks = {
 
     // copyKeys.push(StakeProgram.programId);
     copyKeys.push(SYSVAR_STAKE_HISTORY_PUBKEY);
+    copyKeys.push(PYTH_ORACLE_FEED_SAMPLE);
+    copyKeys.push(PYTH_ORACLE_SAMPLE);
 
     const accountKeys = copyKeys;
 
