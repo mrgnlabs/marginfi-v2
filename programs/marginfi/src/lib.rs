@@ -230,6 +230,7 @@ pub mod marginfi {
         admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
+        flashloan_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
         program_fee_rate: WrappedI80F48,
     ) -> MarginfiResult {
@@ -238,6 +239,7 @@ pub mod marginfi {
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            flashloan_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         )
@@ -248,6 +250,7 @@ pub mod marginfi {
         ctx: Context<EditFeeState>,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
+        flashloan_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
         program_fee_rate: WrappedI80F48,
     ) -> MarginfiResult {
@@ -255,6 +258,7 @@ pub mod marginfi {
             ctx,
             fee_wallet,
             bank_init_flat_sol_fee,
+            flashloan_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         )

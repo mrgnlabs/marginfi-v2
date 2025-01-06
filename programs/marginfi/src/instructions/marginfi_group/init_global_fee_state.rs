@@ -11,6 +11,7 @@ pub fn initialize_fee_state(
     admin_key: Pubkey,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
+    flashloan_flat_sol_fee: u32,
     program_fee_fixed: WrappedI80F48,
     program_fee_rate: WrappedI80F48,
 ) -> Result<()> {
@@ -26,6 +27,7 @@ pub fn initialize_fee_state(
     fee_state.global_fee_wallet = fee_wallet;
     fee_state.key = ctx.accounts.fee_state.key();
     fee_state.bank_init_flat_sol_fee = bank_init_flat_sol_fee;
+    fee_state.flashloan_flat_sol_fee = flashloan_flat_sol_fee;
     fee_state.bump_seed = ctx.bumps.fee_state;
     fee_state.program_fee_fixed = program_fee_fixed;
     fee_state.program_fee_rate = program_fee_rate;

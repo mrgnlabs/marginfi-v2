@@ -996,6 +996,7 @@ pub fn initialize_fee_state(
     admin: Pubkey,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
+    flashloan_flat_sol_fee: u32,
     program_fee_fixed: f64,
     program_fee_rate: f64,
 ) -> Result<()> {
@@ -1019,6 +1020,7 @@ pub fn initialize_fee_state(
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            flashloan_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         })
@@ -1044,6 +1046,7 @@ pub fn edit_fee_state(
     config: Config,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
+    flashloan_flat_sol_fee: u32,
     program_fee_fixed: f64,
     program_fee_rate: f64,
 ) -> Result<()> {
@@ -1064,6 +1067,7 @@ pub fn edit_fee_state(
         .args(marginfi::instruction::EditGlobalFeeState {
             fee_wallet,
             bank_init_flat_sol_fee,
+            flashloan_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         })

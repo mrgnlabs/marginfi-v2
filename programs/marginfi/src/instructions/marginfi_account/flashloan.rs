@@ -6,7 +6,9 @@ use solana_program::{
 
 use crate::{
     check,
+    constants::FEE_STATE_SEED,
     prelude::*,
+    state::fee_state::FeeState,
     state::marginfi_account::{MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG},
 };
 
@@ -129,6 +131,16 @@ pub fn lending_account_end_flashloan<'info>(
         "End flashloan ix should not be in CPI"
     );
 
+    // Transfer the flat sol flashloan fee to the global fee wallet
+    let fee_state = ctx.accounts.fee_state.load()?;
+    let flashloan_flat_sol_fee = fee_state.flashloan_flat_sol_fee;
+    if flashloan_flat_sol_fee > 0 {
+        anchor_lang::system_program::transfer(
+            ctx.accounts.transfer_flat_fee(),
+            flashloan_flat_sol_fee as u64,
+        )?;
+    }
+
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
     marginfi_account.unset_flag(IN_FLASHLOAN_FLAG);
@@ -144,4 +156,29 @@ pub struct LendingAccountEndFlashloan<'info> {
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
     #[account(address = marginfi_account.load()?.authority)]
     pub signer: Signer<'info>,
+    // Note: there is just one FeeState per program, so no further check is required.
+    #[account(
+        seeds = [FEE_STATE_SEED.as_bytes()],
+        bump,
+        has_one = global_fee_wallet
+    )]
+    pub fee_state: AccountLoader<'info, FeeState>,
+    /// CHECK: The fee admin's native SOL wallet, validated against fee state
+    #[account(mut)]
+    pub global_fee_wallet: AccountInfo<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+impl<'info> LendingAccountEndFlashloan<'info> {
+    fn transfer_flat_fee(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, anchor_lang::system_program::Transfer<'info>> {
+        CpiContext::new(
+            self.system_program.to_account_info(),
+            anchor_lang::system_program::Transfer {
+                from: self.signer.to_account_info(),
+                to: self.global_fee_wallet.to_account_info(),
+            },
+        )
+    }
 }

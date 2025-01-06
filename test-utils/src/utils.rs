@@ -11,6 +11,7 @@ use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use pyth_solana_receiver_sdk::price_update::VerificationLevel;
 use solana_program::{instruction::Instruction, pubkey};
 use solana_program_test::*;
+use solana_sdk::system_transaction;
 use solana_sdk::{account::Account, signature::Keypair};
 use std::mem::size_of;
 use std::{cell::RefCell, rc::Rc};
@@ -710,4 +711,10 @@ pub mod lip {
             &liquidity_incentive_program::id(),
         )
     }
+}
+
+pub async fn airdrop_sol(context: &mut ProgramTestContext, key: &Pubkey, amount: u64) {
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    let tx = system_transaction::transfer(&context.payer, key, amount, recent_blockhash);
+    context.banks_client.process_transaction(tx).await.unwrap();
 }

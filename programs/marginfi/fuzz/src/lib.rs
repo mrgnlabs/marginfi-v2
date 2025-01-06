@@ -1002,6 +1002,7 @@ fn initialize_fee_state<'a>(
         // WARN: tests will fail at add_bank::system_program::transfer if this is non-zero because
         // the fuzz suite does not yet support the system program.
         0,
+        0,
         I80F48!(0).into(),
         I80F48!(0).into(),
     )

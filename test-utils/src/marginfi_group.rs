@@ -7,8 +7,8 @@ use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use anyhow::Result;
 use bytemuck::bytes_of;
 use marginfi::constants::{
-    FEE_STATE_SEED, INIT_BANK_ORIGINATION_FEE_DEFAULT, PROTOCOL_FEE_FIXED_DEFAULT,
-    PROTOCOL_FEE_RATE_DEFAULT,
+    FEE_STATE_SEED, FLASHLOAN_FEE_DEFAULT, INIT_BANK_ORIGINATION_FEE_DEFAULT,
+    PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT,
 };
 use marginfi::state::fee_state::FeeState;
 use marginfi::{
@@ -17,18 +17,11 @@ use marginfi::{
 };
 use solana_program::sysvar;
 use solana_program_test::*;
-use solana_sdk::system_transaction;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, instruction::Instruction, signature::Keypair,
     signer::Signer, transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
-
-async fn airdrop_sol(context: &mut ProgramTestContext, key: &Pubkey, amount: u64) {
-    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
-    let tx = system_transaction::transfer(&context.payer, key, amount, recent_blockhash);
-    context.banks_client.process_transaction(tx).await.unwrap();
-}
 
 pub struct MarginfiGroupFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
@@ -115,6 +108,7 @@ impl MarginfiGroupFixture {
                         admin: ctx.payer.pubkey(),
                         fee_wallet: fee_wallet.pubkey(),
                         bank_init_flat_sol_fee: INIT_BANK_ORIGINATION_FEE_DEFAULT,
+                        flashloan_flat_sol_fee: FLASHLOAN_FEE_DEFAULT,
                         program_fee_fixed: PROTOCOL_FEE_FIXED_DEFAULT.into(),
                         program_fee_rate: PROTOCOL_FEE_RATE_DEFAULT.into(),
                     }

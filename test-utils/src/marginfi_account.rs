@@ -1,8 +1,14 @@
 use super::{bank::BankFixture, prelude::*};
 use crate::ui_to_native;
+use crate::utils::airdrop_sol;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 
+use marginfi::constants::{
+    FEE_STATE_SEED, FLASHLOAN_FEE_DEFAULT, INIT_BANK_ORIGINATION_FEE_DEFAULT,
+    PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT,
+};
 use marginfi::state::{
+    fee_state::FeeState,
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankVaultType},
     price::OracleSetup,
@@ -21,6 +27,8 @@ pub struct MarginfiAccountConfig {}
 pub struct MarginfiAccountFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
+    pub fee_state: Pubkey,
+    pub fee_wallet: Pubkey,
 }
 
 impl MarginfiAccountFixture {
@@ -30,6 +38,9 @@ impl MarginfiAccountFixture {
     ) -> MarginfiAccountFixture {
         let ctx_ref = ctx.clone();
         let account_key = Keypair::new();
+        let fee_wallet_key: Pubkey;
+        let (fee_state_key, _bump) =
+            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
 
         {
             let mut ctx = ctx.borrow_mut();
@@ -47,18 +58,69 @@ impl MarginfiAccountFixture {
                 data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
             };
 
-            let tx = Transaction::new_signed_with_payer(
-                &[init_marginfi_account_ix],
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer, &account_key],
-                ctx.last_blockhash,
-            );
-            ctx.banks_client.process_transaction(tx).await.unwrap();
+            // Check if the fee state account already exists
+            let fee_state_account = ctx.banks_client.get_account(fee_state_key).await.unwrap();
+
+            // Account exists, read it and proceed with account initialization
+            if let Some(account) = fee_state_account {
+                if !account.data.is_empty() {
+                    // Deserialize the account data to extract the fee_wallet public key
+                    let fee_state_data: FeeState =
+                        FeeState::try_deserialize(&mut &account.data[..]).unwrap();
+                    fee_wallet_key = fee_state_data.global_fee_wallet;
+
+                    let tx = Transaction::new_signed_with_payer(
+                        &[init_marginfi_account_ix],
+                        Some(&ctx.payer.pubkey().clone()),
+                        &[&ctx.payer, &account_key],
+                        ctx.last_blockhash,
+                    );
+                    ctx.banks_client.process_transaction(tx).await.unwrap();
+                } else {
+                    panic!("Fee state exists but is empty")
+                }
+            } else {
+                // Account does not exist, proceed with account and fee state initialization
+                let fee_wallet = Keypair::new();
+                // The wallet needs some sol to be rent exempt
+                airdrop_sol(&mut ctx, &fee_wallet.pubkey(), 1_000_000).await;
+                fee_wallet_key = fee_wallet.pubkey();
+
+                let init_fee_state_ix = Instruction {
+                    program_id: marginfi::id(),
+                    accounts: marginfi::accounts::InitFeeState {
+                        payer: ctx.payer.pubkey(),
+                        fee_state: fee_state_key,
+                        rent: sysvar::rent::id(),
+                        system_program: system_program::ID,
+                    }
+                    .to_account_metas(Some(true)),
+                    data: marginfi::instruction::InitGlobalFeeState {
+                        admin: ctx.payer.pubkey(),
+                        fee_wallet: fee_wallet.pubkey(),
+                        bank_init_flat_sol_fee: INIT_BANK_ORIGINATION_FEE_DEFAULT,
+                        flashloan_flat_sol_fee: FLASHLOAN_FEE_DEFAULT,
+                        program_fee_fixed: PROTOCOL_FEE_FIXED_DEFAULT.into(),
+                        program_fee_rate: PROTOCOL_FEE_RATE_DEFAULT.into(),
+                    }
+                    .data(),
+                };
+
+                let tx = Transaction::new_signed_with_payer(
+                    &[init_fee_state_ix, init_marginfi_account_ix],
+                    Some(&ctx.payer.pubkey().clone()),
+                    &[&ctx.payer, &account_key],
+                    ctx.last_blockhash,
+                );
+                ctx.banks_client.process_transaction(tx).await.unwrap();
+            }
         }
 
         MarginfiAccountFixture {
             ctx: ctx_ref,
             key: account_key.pubkey(),
+            fee_state: fee_state_key,
+            fee_wallet: fee_wallet_key,
         }
     }
 
@@ -634,6 +696,9 @@ impl MarginfiAccountFixture {
         let mut account_metas = marginfi::accounts::LendingAccountEndFlashloan {
             marginfi_account: self.key,
             signer: self.ctx.borrow().payer.pubkey(),
+            fee_state: self.fee_state,
+            global_fee_wallet: self.fee_wallet,
+            system_program: system_program::ID,
         }
         .to_account_metas(Some(true));
 
