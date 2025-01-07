@@ -23,20 +23,20 @@ pub struct FeeState {
     /// Flat fee assessed when a new bank is initialized, in lamports.
     /// * In SOL, in native decimals.
     pub bank_init_flat_sol_fee: u32,
-    /// Flat fee assessed at flashloan end, in lamports.
-    /// * In SOL, in native decimals.
-    pub flashloan_flat_sol_fee: u32,
     pub bump_seed: u8,
     // Pad to next 8-byte multiple
     _padding0: [u8; 4],
     // Pad to 128 bytes
-    _padding1: [u8; 11],
+    _padding1: [u8; 15],
     /// Fee collected by the program owner from all groups
     pub program_fee_fixed: WrappedI80F48,
     /// Fee collected by the program owner from all groups
     pub program_fee_rate: WrappedI80F48,
+    /// Flat fee assessed at flashloan end, in lamports.
+    /// * In SOL, in native decimals.
+    pub flashloan_flat_sol_fee: u32,
     // Reserved for future use
-    _reserved0: [u8; 32],
+    _reserved0: [u8; 28],
     _reserved1: [u8; 64],
 }
 

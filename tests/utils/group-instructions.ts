@@ -238,6 +238,7 @@ export type InitGlobalFeeStateArgs = {
   admin: PublicKey;
   wallet: PublicKey;
   bankInitFlatSolFee: number;
+  flashloanFlatSolFee: number;
   programFeeFixed: WrappedI80F48;
   programFeeRate: WrappedI80F48;
 };
@@ -251,6 +252,7 @@ export const initGlobalFeeState = (
       args.admin,
       args.wallet,
       args.bankInitFlatSolFee,
+      args.flashloanFlatSolFee,
       args.programFeeFixed,
       args.programFeeRate
     )
@@ -269,6 +271,7 @@ export type EditGlobalFeeStateArgs = {
   admin: PublicKey;
   wallet: PublicKey;
   bankInitFlatSolFee: number;
+  flashloanFlatSolFee: number;
   programFeeFixed: WrappedI80F48;
   programFeeRate: WrappedI80F48;
 };
@@ -282,6 +285,7 @@ export const editGlobalFeeState = (
     .editGlobalFeeState(
       args.wallet,
       args.bankInitFlatSolFee,
+      args.flashloanFlatSolFee,
       args.programFeeFixed,
       args.programFeeRate
     )
@@ -359,14 +363,14 @@ export const propagateStakedSettings = (
 ) => {
   const remainingAccounts = args.oracle
     ? [
-        {
-          pubkey: args.oracle,
-          isSigner: false,
-          isWritable: false,
-        } as AccountMeta,
-      ]
+      {
+        pubkey: args.oracle,
+        isSigner: false,
+        isWritable: false,
+      } as AccountMeta,
+    ]
     : [];
-    
+
   const ix = program.methods
     .propagateStakedSettings()
     .accounts({
