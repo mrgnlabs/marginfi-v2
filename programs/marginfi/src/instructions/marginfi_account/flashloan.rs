@@ -6,7 +6,6 @@ use solana_program::{
 
 use crate::{
     check,
-    constants::FEE_STATE_SEED,
     prelude::*,
     state::fee_state::FeeState,
     state::marginfi_account::{MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG},
@@ -156,12 +155,7 @@ pub struct LendingAccountEndFlashloan<'info> {
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
     #[account(address = marginfi_account.load()?.authority)]
     pub signer: Signer<'info>,
-    // Note: there is just one FeeState per program, so no further check is required.
-    #[account(
-        seeds = [FEE_STATE_SEED.as_bytes()],
-        bump,
-        has_one = global_fee_wallet
-    )]
+    #[account(has_one = global_fee_wallet)]
     pub fee_state: AccountLoader<'info, FeeState>,
     /// CHECK: The fee admin's native SOL wallet, validated against fee state
     #[account(mut)]
