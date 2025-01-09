@@ -89,10 +89,12 @@ Build the program with:
 
 `anchor build -p marginfi -- --no-default-features`
 
-You may also need to build the liquidity incentive program and mock program:
+You may also need to build the liquidity incentive program, mock program, test_transfer_hook program, and brick program:
 
-- `anchor build -p mocks`
 - `anchor build -p liquidity_incentive_program -- --no-default-features`
+- `anchor build -p mocks`
+- `anchor build -p test_transfer_hook`
+- `anchor build -p brick`
 
 Remember to `yarn install`
 
