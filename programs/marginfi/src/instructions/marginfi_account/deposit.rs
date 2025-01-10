@@ -66,15 +66,13 @@ pub fn lending_account_deposit<'info>(
                 .checked_sub(current_asset_amount)
                 .ok_or_else(math_error!())?
                 .checked_sub(I80F48::ONE) // Subtract 1 to ensure we stay under limit: total_deposits_amount < deposit_limit
-                .ok_or_else(math_error!())?;
-
-            let max_deposit = remaining_capacity
+                .ok_or_else(math_error!())?
                 .checked_floor()
                 .ok_or_else(math_error!())?
                 .checked_to_num::<u64>()
                 .ok_or_else(math_error!())?;
 
-            std::cmp::min(amount, max_deposit)
+            std::cmp::min(amount, remaining_capacity)
         }
     } else {
         amount
