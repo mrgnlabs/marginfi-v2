@@ -100,7 +100,7 @@ pub fn process<'info>(
         return Err(ProgramError::InvalidAccountData.into());
     }
 
-    marginfi::cpi::lending_account_deposit(cpi_ctx, amount)?;
+    marginfi::cpi::lending_account_deposit(cpi_ctx, amount, None)?;
 
     close_account(CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),

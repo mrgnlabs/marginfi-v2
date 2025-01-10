@@ -45,6 +45,7 @@ async fn marginfi_account_repay_success(
             lp_collateral_token_account.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -70,6 +71,7 @@ async fn marginfi_account_repay_success(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             sufficient_collateral_amount,
+            None,
         )
         .await?;
 
@@ -171,6 +173,7 @@ async fn marginfi_account_repay_all_success(
             lp_collateral_token_account.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -196,6 +199,7 @@ async fn marginfi_account_repay_all_success(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             sufficient_collateral_amount,
+            None,
         )
         .await?;
 
@@ -326,6 +330,7 @@ async fn marginfi_account_repay_failure_repaying_too_much(
             lp_collateral_token_account.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -351,6 +356,7 @@ async fn marginfi_account_repay_failure_repaying_too_much(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             sufficient_collateral_amount,
+            None,
         )
         .await?;
 

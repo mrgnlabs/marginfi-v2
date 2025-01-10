@@ -67,6 +67,7 @@ impl MarginfiAccountFixture {
         funding_account: Pubkey,
         bank: &BankFixture,
         ui_amount: T,
+        deposit_up_to_limit: Option<bool>,
     ) -> Instruction {
         let marginfi_account = self.load().await;
         let ctx = self.ctx.borrow_mut();
@@ -90,6 +91,7 @@ impl MarginfiAccountFixture {
             accounts,
             data: marginfi::instruction::LendingAccountDeposit {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+                deposit_up_to_limit,
             }
             .data(),
         }
@@ -100,9 +102,10 @@ impl MarginfiAccountFixture {
         funding_account: Pubkey,
         bank: &BankFixture,
         ui_amount: T,
+        deposit_up_to_limit: Option<bool>,
     ) -> anyhow::Result<(), BanksClientError> {
         let mut ix = self
-            .make_bank_deposit_ix(funding_account, bank, ui_amount)
+            .make_bank_deposit_ix(funding_account, bank, ui_amount, deposit_up_to_limit)
             .await;
 
         // If t22 with transfer hook, add remaining accounts

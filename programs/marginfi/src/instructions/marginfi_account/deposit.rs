@@ -2,6 +2,7 @@ use crate::{
     check,
     constants::LIQUIDITY_VAULT_SEED,
     events::{AccountEventHeader, LendingAccountDepositEvent},
+    math_error,
     prelude::*,
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
@@ -24,6 +25,7 @@ use solana_program::sysvar::Sysvar;
 pub fn lending_account_deposit<'info>(
     mut ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
     amount: u64,
+    deposit_up_to_limit: Option<bool>,
 ) -> MarginfiResult {
     let LendingAccountDeposit {
         marginfi_account: marginfi_account_loader,
@@ -41,6 +43,7 @@ pub fn lending_account_deposit<'info>(
         &*bank_loader.load()?,
         token_program.key,
     )?;
+    let deposit_up_to_limit = deposit_up_to_limit.unwrap_or(false);
 
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
@@ -51,6 +54,31 @@ pub fn lending_account_deposit<'info>(
         !marginfi_account.get_flag(DISABLED_FLAG),
         MarginfiError::AccountDisabled
     );
+
+    let deposit_amount = if deposit_up_to_limit && bank.config.is_deposit_limit_active() {
+        let current_asset_amount = bank.get_asset_amount(bank.total_asset_shares.into())?;
+        let deposit_limit = I80F48::from_num(bank.config.deposit_limit);
+
+        if current_asset_amount >= deposit_limit {
+            0
+        } else {
+            let remaining_capacity = deposit_limit
+                .checked_sub(current_asset_amount)
+                .ok_or_else(math_error!())?
+                .checked_sub(I80F48::ONE) // Subtract 1 to ensure we stay under limit: total_deposits_amount < deposit_limit
+                .ok_or_else(math_error!())?;
+
+            let max_deposit = remaining_capacity
+                .checked_floor()
+                .ok_or_else(math_error!())?
+                .checked_to_num::<u64>()
+                .ok_or_else(math_error!())?;
+
+            std::cmp::min(amount, max_deposit)
+        }
+    } else {
+        amount
+    };
 
     bank.accrue_interest(
         clock.unix_timestamp,
@@ -65,15 +93,19 @@ pub fn lending_account_deposit<'info>(
         &mut marginfi_account.lending_account,
     )?;
 
-    bank_account.deposit(I80F48::from_num(amount))?;
+    bank_account.deposit(I80F48::from_num(deposit_amount))?;
 
     let amount_pre_fee = maybe_bank_mint
         .as_ref()
         .map(|mint| {
-            utils::calculate_pre_fee_spl_deposit_amount(mint.to_account_info(), amount, clock.epoch)
+            utils::calculate_pre_fee_spl_deposit_amount(
+                mint.to_account_info(),
+                deposit_amount,
+                clock.epoch,
+            )
         })
         .transpose()?
-        .unwrap_or(amount);
+        .unwrap_or(deposit_amount);
 
     bank_account.deposit_spl_transfer(
         amount_pre_fee,
@@ -94,7 +126,7 @@ pub fn lending_account_deposit<'info>(
         },
         bank: bank_loader.key(),
         mint: bank.mint,
-        amount,
+        amount: deposit_amount,
     });
 
     Ok(())

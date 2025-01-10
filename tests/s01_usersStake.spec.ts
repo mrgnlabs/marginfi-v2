@@ -55,10 +55,10 @@ describe("User stakes some native and creates an account", () => {
       console.log("Create stake account: " + user0StakeAccount);
       console.log(
         " Stake: " +
-          stake +
-          " SOL (" +
-          (stake * LAMPORTS_PER_SOL).toLocaleString() +
-          " in native)"
+        stake +
+        " SOL (" +
+        (stake * LAMPORTS_PER_SOL).toLocaleString() +
+        " in native)"
       );
     }
     users[0].accounts.set("v0_stakeAcc", user0StakeAccount);
@@ -102,11 +102,11 @@ describe("User stakes some native and creates an account", () => {
       console.log("It is now epoch: " + epoch + " slot " + slot);
       console.log(
         "Stake active: " +
-          stakeStatusBefore.active.toLocaleString() +
-          " inactive " +
-          stakeStatusBefore.inactive.toLocaleString() +
-          " status: " +
-          stakeStatusBefore.status
+        stakeStatusBefore.active.toLocaleString() +
+        " inactive " +
+        stakeStatusBefore.inactive.toLocaleString() +
+        " status: " +
+        stakeStatusBefore.status
       );
     }
   });
@@ -161,11 +161,11 @@ describe("User stakes some native and creates an account", () => {
     if (verbose) {
       console.log(
         "Stake active: " +
-          stakeStatusAfter.active.toLocaleString() +
-          " inactive " +
-          stakeStatusAfter.inactive.toLocaleString() +
-          " status: " +
-          stakeStatusAfter.status
+        stakeStatusAfter.active.toLocaleString() +
+        " inactive " +
+        stakeStatusAfter.inactive.toLocaleString() +
+        " status: " +
+        stakeStatusAfter.status
       );
       console.log("");
     }

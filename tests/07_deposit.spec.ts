@@ -91,6 +91,7 @@ describe("Deposit funds", () => {
           bank: bankKeypairA.publicKey,
           tokenAccount: user.tokenAAccount,
           amount: depositAmountA_native,
+          depositUpToLimit: false,
         })
       )
     );
@@ -136,6 +137,7 @@ describe("Deposit funds", () => {
           bank: bankKeypairUsdc.publicKey,
           tokenAccount: user.usdcAccount,
           amount: depositAmountUsdc_native,
+          depositUpToLimit: false,
         })
       )
     );
