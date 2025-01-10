@@ -135,6 +135,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                             * 10_u64
                                 .pow(marginfi_state.banks[bank_idx as usize].mint_decimals.into()),
                     ),
+                    None,
                 )
                 .unwrap();
         }
@@ -373,6 +374,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         account_idx: &AccountIdx,
         bank_idx: &BankIdx,
         asset_amount: &AssetAmount,
+        deposit_up_to_limit: Option<bool>,
     ) -> anyhow::Result<()> {
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
         sort_balances(airls(&marginfi_account.margin_account));
@@ -411,6 +413,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                 Default::default(),
             ),
             asset_amount.0,
+            deposit_up_to_limit,
         );
 
         let success = if res.is_err() {
@@ -1031,7 +1034,7 @@ mod tests {
 
         assert_eq!(al.load().unwrap().admin, a.owner.key());
 
-        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000), None)
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
@@ -1052,9 +1055,9 @@ mod tests {
         let account_state = AccountsState::new();
         let a = MarginfiFuzzContext::setup(&account_state, &[BankAndOracleConfig::dummy(); 2], 2);
 
-        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000), None)
             .unwrap();
-        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000), None)
             .unwrap();
         a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(100))
             .unwrap();
@@ -1094,9 +1097,9 @@ mod tests {
         let account_state = AccountsState::new();
         let a = MarginfiFuzzContext::setup(&account_state, &[BankAndOracleConfig::dummy(); 2], 3);
 
-        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000), None)
             .unwrap();
-        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000), None)
             .unwrap();
         a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(500))
             .unwrap();
@@ -1132,7 +1135,7 @@ mod tests {
             println!("Health {health}");
         }
 
-        a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000), None)
             .unwrap();
 
         a.process_liquidate_account(&AccountIdx(2), &AccountIdx(0), &AssetAmount(50))
@@ -1158,9 +1161,9 @@ mod tests {
 
         let a = MarginfiFuzzContext::setup(&account_state, &[BankAndOracleConfig::dummy(); 2], 3);
 
-        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000), None)
             .unwrap();
-        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000), None)
             .unwrap();
         a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(500))
             .unwrap();
@@ -1192,7 +1195,7 @@ mod tests {
             println!("Health {health}");
         }
 
-        a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000), None)
             .unwrap();
 
         a.process_liquidate_account(&AccountIdx(2), &AccountIdx(0), &AssetAmount(1000))
