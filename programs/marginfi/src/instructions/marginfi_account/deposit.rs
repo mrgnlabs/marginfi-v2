@@ -78,6 +78,10 @@ pub fn lending_account_deposit<'info>(
         amount
     };
 
+    if deposit_amount == 0 {
+        return Ok(());
+    }
+
     bank.accrue_interest(
         clock.unix_timestamp,
         &*marginfi_group_loader.load()?,

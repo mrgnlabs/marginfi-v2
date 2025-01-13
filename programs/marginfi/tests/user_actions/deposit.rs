@@ -69,32 +69,34 @@ async fn marginfi_account_deposit_success(
         .balance()
         .await;
 
-    let marginfi_account = user_mfi_account_f.load().await;
-    let active_balance_count = marginfi_account
-        .lending_account
-        .get_active_balances_iter()
-        .count();
-    assert_eq!(1, active_balance_count);
-
-    let maybe_balance = marginfi_account.lending_account.get_balance(&bank_f.key);
-    assert!(maybe_balance.is_some());
-
-    let balance = maybe_balance.unwrap();
-
     let expected_liquidity_vault_delta =
         I80F48::from(native!(deposit_amount, bank_f.mint.mint.decimals, f64));
     let actual_liquidity_vault_delta = I80F48::from(post_vault_balance - pre_vault_balance);
-    let accounted_user_balance_delta = bank_f
-        .load()
-        .await
-        .get_asset_amount(balance.asset_shares.into())
-        .unwrap();
     assert_eq!(expected_liquidity_vault_delta, actual_liquidity_vault_delta);
-    assert_eq_with_tolerance!(
-        expected_liquidity_vault_delta,
-        accounted_user_balance_delta,
-        1
-    );
+
+    // If deposit_amount == 0, bank account doesn't get created -- no need to check balances
+    if deposit_amount > 0. {
+        let marginfi_account = user_mfi_account_f.load().await;
+        let active_balance_count = marginfi_account
+            .lending_account
+            .get_active_balances_iter()
+            .count();
+        assert_eq!(1, active_balance_count);
+        let maybe_balance = marginfi_account.lending_account.get_balance(&bank_f.key);
+        assert!(maybe_balance.is_some());
+
+        let balance = maybe_balance.unwrap();
+        let accounted_user_balance_delta = bank_f
+            .load()
+            .await
+            .get_asset_amount(balance.asset_shares.into())
+            .unwrap();
+        assert_eq_with_tolerance!(
+            expected_liquidity_vault_delta,
+            accounted_user_balance_delta,
+            1
+        );
+    }
 
     Ok(())
 }
