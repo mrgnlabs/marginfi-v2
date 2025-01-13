@@ -17,8 +17,9 @@ use marginfi::{
         EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, MIN_EMISSIONS_START_TIME,
     },
     prelude::*,
-    state::marginfi_account::{
-        BankAccountWrapper, DISABLED_FLAG, FLASHLOAN_ENABLED_FLAG, IN_FLASHLOAN_FLAG,
+    state::{
+        marginfi_account::{BankAccountWrapper, DISABLED_FLAG, FLASHLOAN_ENABLED_FLAG},
+        risk_engine::IN_FLASHLOAN_FLAG,
     },
 };
 use pretty_assertions::assert_eq;

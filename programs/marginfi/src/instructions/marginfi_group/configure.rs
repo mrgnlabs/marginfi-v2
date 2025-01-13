@@ -107,8 +107,11 @@ pub struct UnsetAccountFlag<'info> {
 
 #[cfg(test)]
 mod tests {
-    use crate::state::marginfi_account::{
-        DISABLED_FLAG, FLASHLOAN_ENABLED_FLAG, IN_FLASHLOAN_FLAG, TRANSFER_AUTHORITY_ALLOWED_FLAG,
+    use crate::state::{
+        marginfi_account::{
+            DISABLED_FLAG, FLASHLOAN_ENABLED_FLAG, TRANSFER_AUTHORITY_ALLOWED_FLAG,
+        },
+        risk_engine::IN_FLASHLOAN_FLAG,
     };
 
     #[test]

@@ -2,9 +2,12 @@ use crate::constants::{
     INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
-use crate::state::marginfi_account::{calc_amount, calc_value, RiskEngine};
-use crate::state::marginfi_group::{Bank, BankVaultType};
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
+use crate::state::{
+    marginfi_account::{calc_amount, calc_value},
+    marginfi_group::{Bank, BankVaultType},
+    risk_engine::RiskEngine,
+};
 use crate::utils::{validate_asset_tags, validate_bank_asset_tags};
 use crate::{
     bank_signer,

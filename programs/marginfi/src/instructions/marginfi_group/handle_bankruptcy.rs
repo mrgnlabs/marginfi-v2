@@ -9,8 +9,9 @@ use crate::{
     math_error,
     prelude::MarginfiError,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
         marginfi_group::{Bank, BankVaultType, MarginfiGroup},
+        risk_engine::RiskEngine,
     },
     utils, MarginfiResult,
 };
