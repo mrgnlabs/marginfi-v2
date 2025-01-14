@@ -111,3 +111,60 @@ export const borrowIx = (program: Program<Marginfi>, args: BorrowIxArgs) => {
 
   return ix;
 };
+
+export type LiquidateIxArgs = {
+  marginfiGroup: PublicKey;
+  assetBankKey: PublicKey;
+  liabilityBankKey: PublicKey;
+  liquidatorMarginfiAccount: PublicKey;
+  liquidatorMarginfiAccountAuthority: PublicKey;
+  liquidateeMarginfiAccount: PublicKey;
+  bankLiquidityVault: PublicKey;
+  bankLiquidityVaultAuthority: PublicKey;
+  bankInsuranceVault: PublicKey;
+  remaining: PublicKey[];
+  amount: BN;
+};
+
+/**
+ * Creates a Liquidate instruction.
+ * `remaining`:
+ *     liab_mint_ai (if token2022 mint),
+ *     asset_oracle_ai,
+ *     liab_oracle_ai,
+ *     liquidator_observation_ais...,
+ *     liquidatee_observation_ais...,
+ *
+ * @param program - The marginfi program instance.
+ * @param args - The arguments required to create the instruction.
+ * @returns The TransactionInstruction object.
+ */
+export const liquidateIx = (
+  program: Program<Marginfi>,
+  args: LiquidateIxArgs
+) => {
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
+
+  // Return the instruction
+  return program.methods
+    .lendingAccountLiquidate(args.amount)
+    .accounts({
+      marginfiGroup: args.marginfiGroup,
+      assetBank: args.assetBankKey,
+      liabBank: args.liabilityBankKey,
+      liquidatorMarginfiAccount: args.liquidatorMarginfiAccount,
+      signer: args.liquidatorMarginfiAccountAuthority,
+      liquidateeMarginfiAccount: args.liquidateeMarginfiAccount,
+      bankLiquidityVaultAuthority: args.liabilityBankKey,
+      bankLiquidityVault: args.bankLiquidityVault,
+      bankInsuranceVault: args.bankInsuranceVault,
+      remaining: args.remaining,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+};
