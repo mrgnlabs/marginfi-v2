@@ -1,5 +1,5 @@
 use crate::{
-    state::marginfi_group::{Bank, MarginfiGroup},
+    state::{bank::Bank, marginfi_group::MarginfiGroup},
     MarginfiResult,
 };
 use anchor_lang::prelude::*;

@@ -3,8 +3,7 @@ use crate::ui_to_native;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 
 use marginfi::state::{
-    marginfi_account::MarginfiAccount,
-    marginfi_group::{Bank, BankVaultType},
+    bank::Bank, marginfi_account::MarginfiAccount, marginfi_group::BankVaultType,
     price::OracleSetup,
 };
 use solana_program::{instruction::Instruction, sysvar};

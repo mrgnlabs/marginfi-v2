@@ -6,7 +6,7 @@ use fixtures::{assert_custom_error, native, prelude::*, ui_to_native};
 use marginfi::{
     assert_eq_with_tolerance,
     prelude::*,
-    state::marginfi_group::{BankConfigOpt, BankVaultType},
+    state::{bank::BankConfigOpt, marginfi_group::BankVaultType},
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;

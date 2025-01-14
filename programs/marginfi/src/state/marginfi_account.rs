@@ -1,5 +1,6 @@
 use super::{
-    marginfi_group::{Bank, RiskTier, WrappedI80F48},
+    bank::Bank,
+    marginfi_group::{RiskTier, WrappedI80F48},
     price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
 };
 use crate::{

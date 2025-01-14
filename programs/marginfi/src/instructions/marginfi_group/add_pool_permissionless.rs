@@ -9,9 +9,9 @@ use crate::{
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     state::{
-        marginfi_group::{
-            Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiGroup,
-        },
+        bank::{Bank, BankConfigCompact},
+        interest_rate::InterestRateConfig,
+        marginfi_group::{BankOperationalState, MarginfiGroup},
         price::OracleSetup,
         staked_settings::StakedSettings,
     },

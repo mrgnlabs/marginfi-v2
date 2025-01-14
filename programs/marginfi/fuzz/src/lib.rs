@@ -24,8 +24,10 @@ use marginfi::{
     instructions::LendingPoolAddBankBumps,
     prelude::MarginfiGroup,
     state::{
+        bank::{Bank, BankConfig},
+        interest_rate::InterestRateConfig,
         marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig},
+        marginfi_group::BankVaultType,
     },
 };
 use metrics::{MetricAction, Metrics};

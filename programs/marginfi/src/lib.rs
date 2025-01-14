@@ -10,8 +10,10 @@ pub mod utils;
 use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
-use state::marginfi_group::WrappedI80F48;
-use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
+use state::{
+    bank::{BankConfigCompact, BankConfigOpt},
+    marginfi_group::WrappedI80F48,
+};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet-beta")] {

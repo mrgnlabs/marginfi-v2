@@ -1,4 +1,4 @@
-use crate::{prelude::*, state::marginfi_group::BankConfigOpt};
+use crate::{prelude::*, state::bank::BankConfigOpt};
 use anchor_lang::prelude::*;
 
 // Event headers

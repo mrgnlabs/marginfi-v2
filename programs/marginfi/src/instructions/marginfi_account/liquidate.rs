@@ -4,8 +4,9 @@ use crate::constants::{
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::state::{
+    bank::Bank,
     marginfi_account::{calc_amount, calc_value},
-    marginfi_group::{Bank, BankVaultType},
+    marginfi_group::BankVaultType,
     risk_engine::RiskEngine,
 };
 use crate::utils::{validate_asset_tags, validate_bank_asset_tags};

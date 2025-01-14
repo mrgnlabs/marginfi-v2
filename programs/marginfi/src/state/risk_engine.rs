@@ -1,7 +1,8 @@
-use super::marginfi_account::{
-    BalanceSide, BankAccountWithPriceFeed, MarginfiAccount, RequirementType,
+use super::{
+    bank::Bank,
+    marginfi_account::{BalanceSide, BankAccountWithPriceFeed, MarginfiAccount, RequirementType},
+    marginfi_group::RiskTier,
 };
-use super::marginfi_group::{Bank, RiskTier};
 use crate::{
     check,
     constants::{BANKRUPT_THRESHOLD, ZERO_AMOUNT_THRESHOLD},

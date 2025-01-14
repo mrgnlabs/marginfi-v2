@@ -1,4 +1,6 @@
+pub mod bank;
 pub mod fee_state;
+pub mod interest_rate;
 pub mod marginfi_account;
 pub mod marginfi_group;
 pub mod price;

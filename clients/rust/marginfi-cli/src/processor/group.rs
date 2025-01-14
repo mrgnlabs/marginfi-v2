@@ -1,7 +1,7 @@
 use crate::{config::Config, profile::Profile, utils};
 use anyhow::Result;
 use log::{debug, info, warn};
-use marginfi::state::marginfi_group::Bank;
+use marginfi::state::bank::Bank;
 use solana_address_lookup_table_program::{
     instruction::{create_lookup_table, extend_lookup_table},
     state::AddressLookupTable,

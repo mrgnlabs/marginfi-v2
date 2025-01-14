@@ -13,7 +13,10 @@ use marginfi::constants::{
 use marginfi::state::fee_state::FeeState;
 use marginfi::{
     prelude::MarginfiGroup,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    state::{
+        bank::{BankConfig, BankConfigOpt},
+        marginfi_group::{BankVaultType, GroupConfig},
+    },
 };
 use solana_program::sysvar;
 use solana_program_test::*;

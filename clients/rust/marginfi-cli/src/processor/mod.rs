@@ -29,11 +29,10 @@ use {
         },
         prelude::*,
         state::{
+            bank::{Bank, BankConfig, BankConfigOpt},
+            interest_rate::InterestRateConfig,
             marginfi_account::{BankAccountWrapper, MarginfiAccount},
-            marginfi_group::{
-                Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
-                InterestRateConfig, WrappedI80F48,
-            },
+            marginfi_group::{BankOperationalState, BankVaultType, WrappedI80F48},
             price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter, PythPushOraclePriceFeed},
         },
         utils::NumTraitsWithTolerance,

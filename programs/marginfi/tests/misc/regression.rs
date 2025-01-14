@@ -7,8 +7,9 @@ use fixed::types::I80F48;
 use marginfi::{
     constants::ASSET_TAG_DEFAULT,
     state::{
+        bank::Bank,
         marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankOperationalState, RiskTier},
+        marginfi_group::{BankOperationalState, RiskTier},
         price::OracleSetup,
     },
 };

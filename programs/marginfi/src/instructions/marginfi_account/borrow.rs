@@ -5,8 +5,9 @@ use crate::{
     math_error,
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
+        bank::Bank,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
-        marginfi_group::{Bank, BankVaultType},
+        marginfi_group::BankVaultType,
         risk_engine::RiskEngine,
     },
     utils::{self, validate_asset_tags},

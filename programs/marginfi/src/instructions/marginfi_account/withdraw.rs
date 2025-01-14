@@ -4,8 +4,9 @@ use crate::{
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
     prelude::*,
     state::{
+        bank::Bank,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
-        marginfi_group::{Bank, BankVaultType},
+        marginfi_group::BankVaultType,
         risk_engine::RiskEngine,
     },
     utils,

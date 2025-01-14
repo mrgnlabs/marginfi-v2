@@ -9,8 +9,9 @@ use fixtures::{
     test::{BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG},
     ui_to_native,
 };
-use marginfi::state::marginfi_group::{
-    Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig,
+use marginfi::state::{
+    bank::{Bank, BankConfig, BankConfigOpt},
+    marginfi_group::{BankVaultType, GroupConfig},
 };
 use solana_program_test::tokio;
 use test_case::test_case;

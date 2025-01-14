@@ -1,7 +1,6 @@
 use crate::constants::ASSET_TAG_STAKED;
 // Permissionless ix to propagate a group's staked collateral settings to any bank in that group
-use crate::state::marginfi_group::Bank;
-use crate::state::staked_settings::StakedSettings;
+use crate::state::{bank::Bank, staked_settings::StakedSettings};
 use crate::MarginfiGroup;
 use anchor_lang::prelude::*;
 
