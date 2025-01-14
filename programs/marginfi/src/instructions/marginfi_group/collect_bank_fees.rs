@@ -7,7 +7,10 @@ use crate::{
         FEE_VAULT_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     math_error,
-    state::marginfi_group::{Bank, BankVaultType, MarginfiGroup},
+    state::{
+        bank::Bank,
+        marginfi_group::{BankVaultType, MarginfiGroup},
+    },
     MarginfiResult,
 };
 use crate::{check, utils, MarginfiError};

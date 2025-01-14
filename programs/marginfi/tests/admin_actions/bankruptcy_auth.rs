@@ -6,8 +6,9 @@ use fixtures::{
 use marginfi::{
     errors::MarginfiError,
     state::{
+        bank::{BankConfig, BankConfigOpt},
         marginfi_account::DISABLED_FLAG,
-        marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+        marginfi_group::{BankVaultType, GroupConfig},
     },
 };
 use solana_program_test::tokio;

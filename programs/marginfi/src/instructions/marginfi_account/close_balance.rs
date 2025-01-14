@@ -4,8 +4,8 @@ use crate::{
     check,
     prelude::*,
     state::{
+        bank::Bank,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
-        marginfi_group::Bank,
     },
 };
 

@@ -6,7 +6,10 @@ use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, assert_eq_noise, native, prelude::*};
 use marginfi::{
     prelude::*,
-    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
+    state::{
+        bank::{Bank, BankConfig, BankConfigOpt},
+        marginfi_group::BankVaultType,
+    },
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;

@@ -12,11 +12,10 @@ use marginfi::state::marginfi_account::TRANSFER_AUTHORITY_ALLOWED_FLAG;
 use marginfi::{
     prelude::*,
     state::{
+        bank::{Bank, BankConfig, BankConfigOpt},
+        interest_rate::{InterestRateConfig, InterestRateConfigOpt},
         marginfi_account::{Balance, LendingAccount, MarginfiAccount, FLASHLOAN_ENABLED_FLAG},
-        marginfi_group::{
-            Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
-            InterestRateConfigOpt, OracleConfig, RiskTier, WrappedI80F48,
-        },
+        marginfi_group::{BankOperationalState, OracleConfig, RiskTier, WrappedI80F48},
         price::OracleSetup,
     },
 };
@@ -753,7 +752,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
         } => {
             let bank = config
                 .mfi_program
-                .account::<marginfi::state::marginfi_group::Bank>(bank_pk)
+                .account::<marginfi::state::bank::Bank>(bank_pk)
                 .unwrap();
             processor::bank_configure(
                 config,
@@ -859,10 +858,7 @@ fn inspect_padding() -> Result<()> {
     println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
     println!("GroupConfig: {}", GroupConfig::type_layout());
     println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
-    println!(
-        "Bank: {}",
-        marginfi::state::marginfi_group::Bank::type_layout()
-    );
+    println!("Bank: {}", marginfi::state::bank::Bank::type_layout());
     println!("BankConfig: {}", BankConfig::type_layout());
     println!("OracleConfig: {}", OracleConfig::type_layout());
     println!("BankConfigOpt: {}", BankConfigOpt::type_layout());
@@ -881,10 +877,7 @@ fn inspect_size() -> Result<()> {
     println!("MarginfiGroup: {}", size_of::<MarginfiGroup>());
     println!("GroupConfig: {}", size_of::<GroupConfig>());
     println!("InterestRateConfig: {}", size_of::<InterestRateConfig>());
-    println!(
-        "Bank: {}",
-        size_of::<marginfi::state::marginfi_group::Bank>()
-    );
+    println!("Bank: {}", size_of::<marginfi::state::bank::Bank>());
     println!("BankConfig: {}", size_of::<BankConfig>());
     println!("OracleConfig: {}", size_of::<OracleConfig>());
     println!("BankConfigOpt: {}", size_of::<BankConfigOpt>());

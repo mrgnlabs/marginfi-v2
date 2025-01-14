@@ -5,7 +5,7 @@ use fixtures::{
         PYTH_USDC_FEED,
     },
 };
-use marginfi::{prelude::MarginfiError, state::marginfi_group::BankConfigOpt};
+use marginfi::{prelude::MarginfiError, state::bank::BankConfigOpt};
 use solana_program_test::tokio;
 
 #[tokio::test]

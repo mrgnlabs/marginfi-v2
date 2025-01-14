@@ -7,7 +7,10 @@ use solana_program::{
 use crate::{
     check,
     prelude::*,
-    state::marginfi_account::{MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG},
+    state::{
+        marginfi_account::{MarginfiAccount, DISABLED_FLAG},
+        risk_engine::{RiskEngine, IN_FLASHLOAN_FLAG},
+    },
 };
 
 pub fn lending_account_start_flashloan(

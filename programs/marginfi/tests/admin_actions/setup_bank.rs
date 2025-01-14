@@ -6,7 +6,10 @@ use marginfi::{
         FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
     prelude::MarginfiError,
-    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
+    state::{
+        bank::{Bank, BankConfig, BankConfigOpt},
+        marginfi_group::BankVaultType,
+    },
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
@@ -317,7 +320,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
     let old_bank = bank.load().await;
 
     let config_bank_opt = BankConfigOpt {
-        interest_rate_config: Some(marginfi::state::marginfi_group::InterestRateConfigOpt {
+        interest_rate_config: Some(marginfi::state::interest_rate::InterestRateConfigOpt {
             optimal_utilization_rate: Some(I80F48::from_num(0.91).into()),
             plateau_interest_rate: Some(I80F48::from_num(0.44).into()),
             max_interest_rate: Some(I80F48::from_num(1.44).into()),

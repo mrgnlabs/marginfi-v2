@@ -5,7 +5,10 @@ use crate::events::{
 use crate::prelude::MarginfiError;
 use crate::{check, math_error, utils};
 use crate::{
-    state::marginfi_group::{Bank, BankConfigOpt, MarginfiGroup},
+    state::{
+        bank::{Bank, BankConfigOpt},
+        marginfi_group::MarginfiGroup,
+    },
     MarginfiResult,
 };
 use anchor_lang::prelude::*;

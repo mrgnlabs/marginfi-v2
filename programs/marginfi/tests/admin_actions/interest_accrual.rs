@@ -5,7 +5,11 @@ use fixed_macro::types::I80F48;
 use fixtures::{assert_eq_noise, native, prelude::*};
 use marginfi::{
     prelude::GroupConfig,
-    state::marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig},
+    state::{
+        bank::{Bank, BankConfig},
+        interest_rate::InterestRateConfig,
+        marginfi_group::BankVaultType,
+    },
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
