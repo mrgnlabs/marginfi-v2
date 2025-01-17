@@ -119,8 +119,8 @@ export type LiquidateIxArgs = {
   liquidatorMarginfiAccount: PublicKey;
   liquidatorMarginfiAccountAuthority: PublicKey;
   liquidateeMarginfiAccount: PublicKey;
-  bankLiquidityVault: PublicKey;
   bankLiquidityVaultAuthority: PublicKey;
+  bankLiquidityVault: PublicKey;
   bankInsuranceVault: PublicKey;
   remaining: PublicKey[];
   amount: BN;
@@ -143,11 +143,14 @@ export const liquidateIx = (
   program: Program<Marginfi>,
   args: LiquidateIxArgs
 ) => {
-  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => ({
-    pubkey,
-    isSigner: false,
-    isWritable: false,
-  }));
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
+    if (!(pubkey instanceof PublicKey)) {
+      console.error("Invalid remaining key:", pubkey);
+      throw new Error("remaining contains invalid keys");
+    }
+
+    return { pubkey, isSigner: false, isWritable: false };
+  });
 
   // Return the instruction
   return program.methods
@@ -159,7 +162,7 @@ export const liquidateIx = (
       liquidatorMarginfiAccount: args.liquidatorMarginfiAccount,
       signer: args.liquidatorMarginfiAccountAuthority,
       liquidateeMarginfiAccount: args.liquidateeMarginfiAccount,
-      bankLiquidityVaultAuthority: args.liabilityBankKey,
+      bankLiquidityVaultAuthority: args.bankLiquidityVaultAuthority,
       bankLiquidityVault: args.bankLiquidityVault,
       bankInsuranceVault: args.bankInsuranceVault,
       remaining: args.remaining,

@@ -144,15 +144,12 @@ pub fn lending_account_liquidate<'info>(
         )?;
     }
     let init_liquidatee_remaining_len = liquidatee_marginfi_account.get_remaining_accounts_len();
-    let pre_liquidation_health = {
-        let liquidatee_accounts_starting_pos =
-            ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
-        let liquidatee_remaining_accounts =
-            &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
+    let liquidatee_accounts_starting_pos = ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
+    let liquidatee_remaining_accounts = &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
 
+    let pre_liquidation_health = 
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
-            .check_pre_liquidation_condition_and_get_account_health(&ctx.accounts.liab_bank.key())?
-    };
+            .check_pre_liquidation_condition_and_get_account_health(&ctx.accounts.liab_bank.key())?;
 
     // ##Accounting changes##
 
@@ -364,12 +361,7 @@ pub fn lending_account_liquidate<'info>(
 
     // ## Risk checks ##
 
-    let liquidatee_accounts_starting_pos =
-        ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
-    let liquidator_accounts_starting_pos =
-        liquidatee_accounts_starting_pos - liquidator_marginfi_account.get_remaining_accounts_len();
-
-    let liquidatee_remaining_accounts = &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
+    let liquidator_accounts_starting_pos = liquidatee_accounts_starting_pos - liquidator_marginfi_account.get_remaining_accounts_len();
     let liquidator_remaining_accounts =
         &ctx.remaining_accounts[liquidator_accounts_starting_pos..liquidatee_accounts_starting_pos];
 

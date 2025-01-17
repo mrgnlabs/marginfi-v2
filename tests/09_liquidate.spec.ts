@@ -12,6 +12,7 @@ import {
   bankKeypairA,
   bankKeypairUsdc,
   ecosystem,
+  groupAdmin,
   marginfiGroup,
   oracles,
   users,
@@ -19,26 +20,29 @@ import {
 } from "./rootHooks";
 import {
   assertBNApproximately,
+  assertBNEqual,
   assertI80F48Approx,
   assertI80F48Equal,
+  assertKeysEqual,
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
 import { liquidateIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { updatePriceAccount } from "./utils/pyth_mocks";
-import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { deriveLiquidityVaultAuthority } from "./utils/pdas";
+import { configureBank } from "./utils/instructions";
+import { defaultBankConfigOptRaw } from "./utils/types";
 
-describe("Liquidate funds", () => {
+describe("Liquidate user", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
   const provider = getProvider() as AnchorProvider;
   const wallet = provider.wallet as Wallet;
 
-  // Bank has 100 USDC available to borrow
-  // User has 2 Token A (worth $20) deposited
-  const borrowAmountUsdc = 5;
-  const borrowAmountUsdc_native = new BN(
-    borrowAmountUsdc * 10 ** ecosystem.usdcDecimals
+  const liquidateAmountUsdc = 20;
+  const liquidateAmountUsdc_native = new BN(
+    liquidateAmountUsdc * 10 ** ecosystem.usdcDecimals
   );
 
   it("Oracle data refreshes", async () => {
@@ -79,136 +83,111 @@ describe("Liquidate funds", () => {
     );
   });
 
-  it("(user 0) borrows USDC against their token A position - liquidation path", async () => {
-    const user = users[0];
+  it("(user 1) Liquidate user 0 who borrowed USDC against their token A position - happy path", async () => {
+    const liquidatee = users[0];
     const liquidator = users[1];
-    const assetBankKey = bankKeypairA.publicKey;
-    const liabilityBankKey = bankKeypairUsdc.publicKey;
-    const userUsdcBefore = await getTokenBalance(provider, user.usdcAccount);
-    const userTokenABefore = await getTokenBalance(provider, user.tokenAAccount);
-    const liabilityBank = await program.account.bank.fetch(liabilityBankKey);
-    const assetBank = await program.account.bank.fetch(assetBankKey);
 
-    if (verbose) {
-      console.log("user 0 USDC before: " + userUsdcBefore.toLocaleString());
-      console.log("user 0 Token A before: " + userTokenABefore.toLocaleString());
-      console.log(
-        "usdc fees owed to debt bank: " +
-          wrappedI80F48toBigNumber(
-            liabilityBank.collectedGroupFeesOutstanding
-          ).toString()
-      );
-      console.log(
-        "usdc fees owed to debt bank program: " +
-          wrappedI80F48toBigNumber(
-            liabilityBank.collectedProgramFeesOutstanding
-          ).toString()
-      );
-      console.log(
-        "usdc fees owed to collateral bank: " +
-          wrappedI80F48toBigNumber(
-            assetBank.collectedGroupFeesOutstanding
-          ).toString()
-      );
-      console.log(
-        "usdc fees owed to collateral bank program: " +
-          wrappedI80F48toBigNumber(
-            assetBank.collectedProgramFeesOutstanding
-          ).toString()
-      );
-      console.log(
-        "asset weight init of collateral bank: " +
-          wrappedI80F48toBigNumber(
-            assetBank.config.assetWeightInit
-          ).toString()
-      );
-      console.log(
-        "asset weight maint of collateral bank: " +
-          wrappedI80F48toBigNumber(
-            assetBank.config.assetWeightMaint
-          ).toString()
-      );
-    }
+    const assetBankKey = bankKeypairA.publicKey;
+    const assetBank = await program.account.bank.fetch(assetBankKey);
+    const liabilityBankKey = bankKeypairUsdc.publicKey;
+    const liabilityBank = await program.account.bank.fetch(liabilityBankKey);
+
+    const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT);
+    const liquidateeMarginfiAccount = await program.account.marginfiAccount.fetch(liquidateeAccount);
 
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT);
     const liquidatorMarginfiAccount = await program.account.marginfiAccount.fetch(liquidatorAccount);
 
-    const userAccount = user.accounts.get(USER_ACCOUNT);
-    const liquidateeMarginfiAccount = await program.account.marginfiAccount.fetch(userAccount);
+    const liquidateeBalances = liquidateeMarginfiAccount.lendingAccount.balances;
+    const liquidatorBalances = liquidatorMarginfiAccount.lendingAccount.balances;
+    const liabilitySharesBefore = liquidateeBalances[1].liabilityShares;
+    assertI80F48Equal(liquidatorBalances[1].assetShares, 0);
+    
+    const insuranceVaultBalance = await getTokenBalance(provider, liabilityBank.insuranceVault);
+    assert.equal(insuranceVaultBalance, 0);
 
-    await user.mrgnProgram.provider.sendAndConfirm(
+    if (verbose) {
+      console.log("BEFORE");
+      console.log("liability bank insurance vault before: " + insuranceVaultBalance.toLocaleString());
+      console.log("user 0 (liquidatee) Token A asset shares: " + wrappedI80F48toBigNumber(liquidateeBalances[0].assetShares).toString());
+      console.log("user 0 (liquidatee) USDC liability shares: " + wrappedI80F48toBigNumber(liabilitySharesBefore).toString());
+      console.log("user 1 (liquidator) USDC asset shares: " + wrappedI80F48toBigNumber(liquidatorBalances[0].assetShares).toString());
+      console.log("user 1 (liquidator) USDC liability shares: " + wrappedI80F48toBigNumber(liquidatorBalances[0].liabilityShares).toString());
+    }
+
+    let config = defaultBankConfigOptRaw();
+    config.assetWeightInit = bigNumberToWrappedI80F48(0.05);
+    config.assetWeightMaint = bigNumberToWrappedI80F48(0.1);
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+      new Transaction().add(
+        await configureBank(program, {
+          marginfiGroup: marginfiGroup.publicKey,
+          admin: groupAdmin.wallet.publicKey,
+          bank: assetBankKey,
+          bankConfigOpt: config,
+        })
+      )
+    );
+
+    await liquidator.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
         await liquidateIx(program, {
           marginfiGroup: marginfiGroup.publicKey,
           assetBankKey,
           liabilityBankKey,
-          liquidatorMarginfiAccount,
+          liquidatorMarginfiAccount: liquidatorAccount,
           liquidatorMarginfiAccountAuthority: liquidatorMarginfiAccount.authority,
-          liquidateeMarginfiAccount,
+          liquidateeMarginfiAccount: liquidateeAccount,
           bankLiquidityVault: liabilityBank.liquidityVault,
+          bankLiquidityVaultAuthority: deriveLiquidityVaultAuthority(program.programId, liabilityBankKey)[0],
           bankInsuranceVault: liabilityBank.insuranceVault,
           remaining: [
-            liabilityBank.mint,
             oracles.tokenAOracle.publicKey,
             oracles.usdcOracle.publicKey,
             liabilityBankKey,
+            oracles.usdcOracle.publicKey,
             assetBankKey,
+            oracles.tokenAOracle.publicKey,
+            assetBankKey,
+            oracles.tokenAOracle.publicKey,
+            liabilityBankKey,
+            oracles.usdcOracle.publicKey,
           ],
-          amount: borrowAmountUsdc_native,
+          amount: liquidateAmountUsdc_native,
         })
       )
     );
 
-    const userAcc = await program.account.marginfiAccount.fetch(userAccount);
-    const debtBankAfter = await program.account.bank.fetch(liabilityBankKey);
-    const balances = userAcc.lendingAccount.balances;
-    const userUsdcAfter = await getTokenBalance(provider, user.usdcAccount);
+    const liquidateeMarginfiAccountAfter = await program.account.marginfiAccount.fetch(liquidateeAccount);
+    const liquidatorMarginfiAccountAfter = await program.account.marginfiAccount.fetch(liquidatorAccount);
+
+    const liquidateeBalancesAfter = liquidateeMarginfiAccountAfter.lendingAccount.balances;
+    const liquidatorBalancesAfter = liquidatorMarginfiAccountAfter.lendingAccount.balances;
+    assertI80F48Equal(liquidateeBalancesAfter[0].assetShares, wrappedI80F48toBigNumber(liquidateeBalances[0].assetShares).toNumber() - liquidateAmountUsdc_native.toNumber());
+    assertI80F48Equal(liquidateeBalancesAfter[0].liabilityShares, 0);
+    assertI80F48Equal(liquidatorBalancesAfter[1].assetShares, liquidateAmountUsdc_native);
+
+    const insuranceVaultBalanceAfter = await getTokenBalance(provider, liabilityBank.insuranceVault);
+    //assert.equal(insuranceVaultBalanceAfter, 0);
+
     if (verbose) {
-      console.log("user 0 USDC after: " + userUsdcAfter.toLocaleString());
-      console.log(
-        "usdc fees owed to debt bank: " +
-          wrappedI80F48toBigNumber(
-            debtBankAfter.collectedGroupFeesOutstanding
-          ).toString()
-      );
-      console.log(
-        "usdc fees owed to debt bank program: " +
-          wrappedI80F48toBigNumber(
-            debtBankAfter.collectedProgramFeesOutstanding
-          ).toString()
-      );
+      console.log("AFTER");
+      console.log("liability bank insurance vault after: " + insuranceVaultBalanceAfter.toLocaleString());
+      console.log("user 0 (liquidatee) Token A asset shares after: " + wrappedI80F48toBigNumber(liquidateeBalancesAfter[0].assetShares).toString());
+      console.log("user 0 (liquidatee) USDC liability shares after: " + wrappedI80F48toBigNumber(liquidateeBalancesAfter[1].liabilityShares).toString());
+      console.log("user 1 (liquidator) USDC asset shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[0].assetShares).toString());
+      console.log("user 1 (liquidator) USDC liability shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[0].liabilityShares).toString());
+      console.log("user 1 (liquidator) Token A asset shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[1].assetShares).toString());
+      console.log("user 1 (liquidator) Token A liability shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[1].liabilityShares).toString());
     }
 
-    assert.equal(balances[1].active, true);
-    assertI80F48Equal(balances[1].assetShares, 0);
-    // Note: The first borrow issues shares 1:1 and the shares use the same decimals
-    // Note: An origination fee of 0.01 is also incurred here (configured during addBank)
-    const originationFee_native = borrowAmountUsdc_native.toNumber() * 0.01;
-    const amtUsdcWithFee_native = new BN(
-      borrowAmountUsdc_native.toNumber() + originationFee_native
-    );
-    assertI80F48Approx(balances[1].liabilityShares, amtUsdcWithFee_native);
-    assertI80F48Equal(balances[1].emissionsOutstanding, 0);
+    assert.equal(liquidatorBalancesAfter[1].active, true);
+    assertKeysEqual(liquidatorBalancesAfter[1].bankPk, assetBankKey);
 
     let now = Math.floor(Date.now() / 1000);
-    assertBNApproximately(balances[1].lastUpdate, now, 2);
-
-    assert.equal(
-      userUsdcAfter - borrowAmountUsdc_native.toNumber(),
-      userUsdcBefore
-    );
-
-    // The origination fee is recorded on the bank. The group gets 98%, the program gets the
-    // remaining 2% (see PROGRAM_FEE_RATE)
-    const origination_fee_group = originationFee_native * 0.98;
-    const origination_fee_program = originationFee_native * 0.02;
-    assertI80F48Approx(
-      debtBankAfter.collectedGroupFeesOutstanding,
-      origination_fee_group
-    );
-    assertI80F48Approx(
-      debtBankAfter.collectedProgramFeesOutstanding,
-      origination_fee_program
-    );
+    assertBNApproximately(liquidatorBalancesAfter[0].lastUpdate, now, 2);
+    assertBNApproximately(liquidatorBalancesAfter[1].lastUpdate, now, 2);
+    assertBNApproximately(liquidateeBalancesAfter[0].lastUpdate, now, 2);
+    assertBNApproximately(liquidateeBalancesAfter[1].lastUpdate, now, 2);
   });
 });
