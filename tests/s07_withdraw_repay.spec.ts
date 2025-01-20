@@ -99,21 +99,28 @@ describe("Withdraw staked asset", () => {
     const userLstAta = user.accounts.get(LST_ATA);
 
     let tx = new Transaction().add(
-      await withdrawIx(user.mrgnProgram, {
+      await withdrawIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
-        remaining: [],
-        bankRunAddons: {
-          group: marginfiGroup.publicKey,
-          authority: user.wallet.publicKey,
-        },
+        remaining: [
+          validators[0].bank,
+          oracles.wsolOracle.publicKey,
+          validators[0].splMint,
+          validators[0].splSolPool,
+          bankKeypairSol.publicKey,
+          oracles.wsolOracle.publicKey,
+        ],
       })
     );
 
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     await banksClient.tryProcessTransaction(tx);
+
+    // TODO assert balances changes as expected...
   });
+
+  // TODO repay, withdraw all 
 });

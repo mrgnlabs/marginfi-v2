@@ -123,8 +123,14 @@ export const assertBNApproximately = (
   const aB = BigInt(a.toString());
   const bB = BigInt(b.toString());
   const toleranceB = BigInt(tolerance.toString());
-  assert.ok(aB >= bB - toleranceB);
-  assert.ok(aB <= bB + toleranceB);
+  const diff = aB >= bB ? aB - bB : bB - aB;
+
+  if (diff > toleranceB) {
+    throw new Error(
+      `Values are not approximately equal. A: ${aB.toString()}, B: ${bB.toString()}, ` +
+        `Difference: ${diff.toString()}, Allowed Tolerance: ${toleranceB.toString()}`
+    );
+  }
 };
 
 /**
@@ -196,3 +202,41 @@ export const assertBankrunTxFailed = (
     "\nExpected code " + expectedErrorCode + " but got: " + lastLog
   );
 };
+
+/**
+ * Typically used when catching the result of a tx sendAndConfirm. Asserts that the logs contain the
+ * given error code.
+ * @param logs
+ * @param errorCode
+ * @returns
+ */
+export function logContainsError(logs: string[], errorCode: string): boolean {
+  if (!logs || !Array.isArray(logs)) {
+    throw new Error("Invalid logs provided for verification.");
+  }
+
+  return logs.some((log) => log.includes(`Error Code: ${errorCode}`));
+}
+
+/**
+ * Asserts that the contained transaction failed with the given error code. Fails if the tx did not
+ * fail or fails with the wrong error code.
+ * @param transactionFn
+ * @param errorCode
+ */
+export async function expectFailedTxWithError(
+  transactionFn: () => Promise<void>,
+  errorCode: string
+): Promise<void> {
+  let failed = false;
+  try {
+    await transactionFn();
+  } catch (err) {
+    assert.ok(
+      logContainsError(err.logs, errorCode),
+      `Expected error code '${errorCode}' was not found in logs`
+    );
+    failed = true;
+  }
+  assert.ok(failed, "Transaction succeeded when it should have failed");
+}

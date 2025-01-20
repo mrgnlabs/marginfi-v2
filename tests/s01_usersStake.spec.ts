@@ -111,9 +111,10 @@ describe("User stakes some native and creates an account", () => {
     }
   });
 
-  it("(user 1/2) Stakes and delegates too", async () => {
+  it("(user 1/2/3) Stakes and delegates too", async () => {
     await stakeAndDelegateForUser(1, stake);
     await stakeAndDelegateForUser(2, stake);
+    await stakeAndDelegateForUser(3, stake);
   });
 
   const stakeAndDelegateForUser = async (
@@ -287,10 +288,14 @@ describe("User stakes some native and creates an account", () => {
     );
   });
 
-  it("(user 1/2) deposits " + stake + " to the v0 stake pool too", async () => {
-    await depositForUser(1);
-    await depositForUser(2);
-  });
+  it(
+    "(user 1/2/3) deposits " + stake + " to the v0 stake pool too",
+    async () => {
+      await depositForUser(1);
+      await depositForUser(2);
+      await depositForUser(3);
+    }
+  );
 
   const depositForUser = async (userIndex: number) => {
     const user = users[userIndex];
