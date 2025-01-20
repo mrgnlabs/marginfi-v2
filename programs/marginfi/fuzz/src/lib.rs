@@ -395,16 +395,18 @@ impl<'state> MarginfiFuzzContext<'state> {
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountDeposit {
-                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     marginfi_account: AccountLoader::try_from(airls(
                         &marginfi_account.margin_account,
                     ))?,
-                    signer: Signer::try_from(airls(&self.owner))?,
+                    authority: Signer::try_from(airls(&self.owner))?,
                     bank: AccountLoader::try_from(airls(&bank.bank))?,
                     signer_token_account: ails(
                         marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
                     ),
-                    bank_liquidity_vault: ails(bank.liquidity_vault.clone()),
+                    liquidity_vault: InterfaceAccount::try_from(airls(
+                        &bank.liquidity_vault.clone(),
+                    ))?,
                     token_program: Interface::try_from(airls(&bank.token_program))?,
                 },
                 &remaining_accounts,
@@ -466,16 +468,18 @@ impl<'state> MarginfiFuzzContext<'state> {
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountRepay {
-                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     marginfi_account: AccountLoader::try_from(airls(
                         &marginfi_account.margin_account,
                     ))?,
-                    signer: Signer::try_from(airls(&self.owner))?,
+                    authority: Signer::try_from(airls(&self.owner))?,
                     bank: AccountLoader::try_from(airls(&bank.bank))?,
                     signer_token_account: ails(
                         marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
                     ),
-                    bank_liquidity_vault: ails(bank.liquidity_vault.clone()),
+                    liquidity_vault: InterfaceAccount::try_from(airls(
+                        &bank.liquidity_vault.clone(),
+                    ))?,
                     token_program: Interface::try_from(airls(&bank.token_program))?,
                 },
                 &remaining_accounts,
@@ -561,18 +565,18 @@ impl<'state> MarginfiFuzzContext<'state> {
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountWithdraw {
-                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     marginfi_account: AccountLoader::try_from(airls(
                         &marginfi_account.margin_account,
                     ))?,
-                    signer: Signer::try_from(airls(&self.owner))?,
+                    authority: Signer::try_from(airls(&self.owner))?,
                     bank: AccountLoader::try_from(airls(&bank.bank))?,
                     token_program: Interface::try_from(airls(&bank.token_program))?,
                     destination_token_account: InterfaceAccount::try_from(airls(
                         &marginfi_account.token_accounts[bank_idx.0 as usize],
                     ))?,
                     bank_liquidity_vault_authority: ails(bank.liquidity_vault_authority.clone()),
-                    bank_liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
+                    liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
                 },
                 aisls(&remaining_accounts),
                 Default::default(),
@@ -646,18 +650,18 @@ impl<'state> MarginfiFuzzContext<'state> {
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountBorrow {
-                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     marginfi_account: AccountLoader::try_from(airls(
                         &marginfi_account.margin_account,
                     ))?,
-                    signer: Signer::try_from(airls(&self.owner))?,
+                    authority: Signer::try_from(airls(&self.owner))?,
                     bank: AccountLoader::try_from(airls(&bank.bank))?,
                     token_program: Interface::try_from(airls(&bank.token_program))?,
                     destination_token_account: InterfaceAccount::try_from(airls(
                         &marginfi_account.token_accounts[bank_idx.0 as usize],
                     ))?,
                     bank_liquidity_vault_authority: ails(bank.liquidity_vault_authority.clone()),
-                    bank_liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
+                    liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
                 },
                 aisls(&remaining_accounts),
                 Default::default(),
