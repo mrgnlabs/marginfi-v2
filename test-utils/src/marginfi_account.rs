@@ -72,12 +72,12 @@ impl MarginfiAccountFixture {
         let ctx = self.ctx.borrow_mut();
 
         let mut accounts = marginfi::accounts::LendingAccountDeposit {
-            marginfi_group: marginfi_account.group,
+            group: marginfi_account.group,
             marginfi_account: self.key,
-            signer: ctx.payer.pubkey(),
+            authority: ctx.payer.pubkey(),
             bank: bank.key,
             signer_token_account: funding_account,
-            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
@@ -158,12 +158,12 @@ impl MarginfiAccountFixture {
         let marginfi_account = self.load().await;
 
         let mut accounts = marginfi::accounts::LendingAccountWithdraw {
-            marginfi_group: marginfi_account.group,
+            group: marginfi_account.group,
             marginfi_account: self.key,
-            signer: self.ctx.borrow().payer.pubkey(),
+            authority: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
             destination_token_account: destination_account,
-            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             bank_liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
             token_program: bank.get_token_program(),
         }
@@ -228,12 +228,12 @@ impl MarginfiAccountFixture {
         let marginfi_account = self.load().await;
 
         let mut accounts = marginfi::accounts::LendingAccountBorrow {
-            marginfi_group: marginfi_account.group,
+            group: marginfi_account.group,
             marginfi_account: self.key,
-            signer: self.ctx.borrow().payer.pubkey(),
+            authority: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
             destination_token_account: destination_account,
-            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             bank_liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
             token_program: bank.get_token_program(),
         }

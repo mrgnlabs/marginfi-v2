@@ -53,9 +53,7 @@ describe("Deposit funds (included staked assets)", () => {
 
     let tx = new Transaction().add(
       await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -65,6 +63,10 @@ describe("Deposit funds (included staked assets)", () => {
           oracles.wsolOracle.publicKey,
         ],
         amount: new BN(0.01 * 10 ** ecosystem.wsolDecimals),
+        bankRunAddons: {
+          group: marginfiGroup.publicKey,
+          authority: user.wallet.publicKey,
+        },
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -88,9 +90,7 @@ describe("Deposit funds (included staked assets)", () => {
 
     let tx = new Transaction().add(
       await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         remaining: [
@@ -104,6 +104,10 @@ describe("Deposit funds (included staked assets)", () => {
           oracles.usdcOracle.publicKey,
         ],
         amount: new BN(0.1 * 10 ** ecosystem.usdcDecimals),
+        bankRunAddons: {
+          group: marginfiGroup.publicKey,
+          authority: user.wallet.publicKey,
+        },
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

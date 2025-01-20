@@ -181,12 +181,12 @@ async fn marginfi_account_deposit_failure_wrong_token_program() -> anyhow::Resul
     let marginfi_account = user_mfi_account_f.load().await;
 
     let accounts = marginfi::accounts::LendingAccountDeposit {
-        marginfi_group: marginfi_account.group,
+        group: marginfi_account.group,
         marginfi_account: user_mfi_account_f.key,
-        signer: test_f.context.borrow().payer.pubkey(),
+        authority: test_f.context.borrow().payer.pubkey(),
         bank: bank_f.key,
         signer_token_account: user_token_account.key,
-        bank_liquidity_vault: bank_f.get_vault(BankVaultType::Liquidity).0,
+        liquidity_vault: bank_f.get_vault(BankVaultType::Liquidity).0,
         token_program: spl_token::ID,
     }
     .to_account_metas(Some(true));

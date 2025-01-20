@@ -48,9 +48,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
 
     let tx = new Transaction().add(
       await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -62,6 +60,10 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
           oracles.wsolOracle.publicKey,
         ],
         amount: new BN(1.1 * 10 ** ecosystem.wsolDecimals),
+        bankRunAddons: {
+          group: marginfiGroup.publicKey,
+          authority: user.wallet.publicKey,
+        },
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -100,9 +102,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
       await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -114,6 +114,10 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
           oracles.wsolOracle.publicKey,
         ],
         amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
+        bankRunAddons: {
+          group: marginfiGroup.publicKey,
+          authority: user.wallet.publicKey,
+        },
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -130,9 +134,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
       await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -144,6 +146,10 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
           oracles.wsolOracle.publicKey,
         ],
         amount: new BN(0.2 * 10 ** ecosystem.wsolDecimals),
+        bankRunAddons: {
+          group: marginfiGroup.publicKey,
+          authority: user.wallet.publicKey,
+        },
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -161,9 +167,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
       await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -179,6 +183,10 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
         // because the same tx was already sent for this blockhash (i.e. "this transaction has
         // already been processed")
         amount: new BN(1.111 * 10 ** ecosystem.wsolDecimals),
+        bankRunAddons: {
+          group: marginfiGroup.publicKey,
+          authority: user.wallet.publicKey,
+        },
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

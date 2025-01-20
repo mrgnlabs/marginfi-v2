@@ -103,12 +103,10 @@ describe("Borrow funds", () => {
 
     const user0Account = user.accounts.get(USER_ACCOUNT);
 
-    await users[0].mrgnProgram.provider.sendAndConfirm(
+    await user.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await borrowIx(program, {
-          marginfiGroup: marginfiGroup.publicKey,
+        await borrowIx(user.mrgnProgram, {
           marginfiAccount: user0Account,
-          authority: user.wallet.publicKey,
           bank: bank,
           tokenAccount: user.usdcAccount,
           remaining: [
