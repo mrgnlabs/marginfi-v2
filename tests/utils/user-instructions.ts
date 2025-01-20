@@ -42,10 +42,6 @@ export type DepositArgs = {
   bank: PublicKey;
   tokenAccount: PublicKey;
   amount: BN;
-  bankRunAddons?: {
-    group: PublicKey;
-    authority: PublicKey;
-  };
 };
 
 /**
@@ -56,35 +52,20 @@ export type DepositArgs = {
  * @returns
  */
 export const depositIx = (program: Program<Marginfi>, args: DepositArgs) => {
-  if (args.bankRunAddons) {
-    const ix = program.methods
-      .lendingAccountDeposit(args.amount)
-      .accountsPartial({
-        group: args.bankRunAddons.group,
-        marginfiAccount: args.marginfiAccount,
-        authority: args.bankRunAddons.authority,
-        bank: args.bank,
-        signerTokenAccount: args.tokenAccount,
-        liquidityVault: deriveLiquidityVault(program.programId, args.bank)[0],
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .instruction();
-    return ix;
-  } else {
-    const ix = program.methods
-      .lendingAccountDeposit(args.amount)
-      .accounts({
-        // marginfiGroup: args.marginfiGroup, // implied from bank
-        marginfiAccount: args.marginfiAccount,
-        // authority: args.authority, // implied from marginfiAccount
-        bank: args.bank,
-        signerTokenAccount: args.tokenAccount,
-        // bankLiquidityVault:  deriveLiquidityVault(id, bank)
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .instruction();
-    return ix;
-  }
+  const ix = program.methods
+    .lendingAccountDeposit(args.amount)
+    .accounts({
+      // marginfiGroup: args.marginfiGroup, // implied from bank
+      marginfiAccount: args.marginfiAccount,
+      // authority: args.authority, // implied from marginfiAccount
+      bank: args.bank,
+      signerTokenAccount: args.tokenAccount,
+      // bankLiquidityVault:  deriveLiquidityVault(id, bank)
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .instruction();
+
+  return ix;
 };
 
 export type BorrowIxArgs = {
@@ -93,10 +74,6 @@ export type BorrowIxArgs = {
   tokenAccount: PublicKey;
   remaining: PublicKey[];
   amount: BN;
-  bankRunAddons?: {
-    group: PublicKey;
-    authority: PublicKey;
-  };
 };
 
 /**
@@ -115,39 +92,22 @@ export const borrowIx = (program: Program<Marginfi>, args: BorrowIxArgs) => {
     isSigner: false,
     isWritable: false,
   }));
-  if (args.bankRunAddons) {
-    const ix = program.methods
-      .lendingAccountBorrow(args.amount)
-      .accountsPartial({
-        group: args.bankRunAddons.group,
-        marginfiAccount: args.marginfiAccount,
-        authority: args.bankRunAddons.authority,
-        bank: args.bank,
-        destinationTokenAccount: args.tokenAccount,
-        liquidityVault: deriveLiquidityVault(program.programId, args.bank)[0],
-        // bankLiquidityVault = deriveLiquidityVault(id, bank)
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .remainingAccounts(oracleMeta)
-      .instruction();
-    return ix;
-  } else {
-    const ix = program.methods
-      .lendingAccountBorrow(args.amount)
-      .accounts({
-        // marginfiGroup: args.marginfiGroup, // implied from bank
-        marginfiAccount: args.marginfiAccount,
-        // authority: args.authority, // implied from account
-        bank: args.bank,
-        destinationTokenAccount: args.tokenAccount,
-        // bankLiquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
-        // bankLiquidityVault = deriveLiquidityVault(id, bank)
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .remainingAccounts(oracleMeta)
-      .instruction();
-    return ix;
-  }
+  const ix = program.methods
+    .lendingAccountBorrow(args.amount)
+    .accounts({
+      // marginfiGroup: args.marginfiGroup, // implied from bank
+      marginfiAccount: args.marginfiAccount,
+      // authority: args.authority, // implied from account
+      bank: args.bank,
+      destinationTokenAccount: args.tokenAccount,
+      // bankLiquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
+      // bankLiquidityVault = deriveLiquidityVault(id, bank)
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+
+  return ix;
 };
 
 export type WithdrawIxArgs = {
@@ -156,10 +116,6 @@ export type WithdrawIxArgs = {
   tokenAccount: PublicKey;
   remaining: PublicKey[];
   amount: BN;
-  bankRunAddons?: {
-    group: PublicKey;
-    authority: PublicKey;
-  };
 };
 
 /**
@@ -181,37 +137,20 @@ export const withdrawIx = (
     isSigner: false,
     isWritable: false,
   }));
-  if (args.bankRunAddons) {
-    const ix = program.methods
-      .lendingAccountWithdraw(args.amount, null)
-      .accountsPartial({
-        group: args.bankRunAddons.group,
-        marginfiAccount: args.marginfiAccount,
-        authority: args.bankRunAddons.authority,
-        bank: args.bank,
-        destinationTokenAccount: args.tokenAccount,
-        // bankLiquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
-        liquidityVault: deriveLiquidityVault(program.programId, args.bank)[0],
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .remainingAccounts(oracleMeta)
-      .instruction();
-    return ix;
-  } else {
-    const ix = program.methods
-      .lendingAccountWithdraw(args.amount, null)
-      .accounts({
-        // marginfiGroup: args.marginfiGroup, // implied from bank
-        marginfiAccount: args.marginfiAccount,
-        // authority: args.authority, // implied from account
-        bank: args.bank,
-        destinationTokenAccount: args.tokenAccount,
-        // bankLiquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
-        // bankLiquidityVault = deriveLiquidityVault(id, bank)
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .remainingAccounts(oracleMeta)
-      .instruction();
-    return ix;
-  }
+  const ix = program.methods
+    .lendingAccountWithdraw(args.amount, null)
+    .accounts({
+      // marginfiGroup: args.marginfiGroup, // implied from bank
+      marginfiAccount: args.marginfiAccount,
+      // authority: args.authority, // implied from account
+      bank: args.bank,
+      destinationTokenAccount: args.tokenAccount,
+      // bankLiquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
+      // bankLiquidityVault = deriveLiquidityVault(id, bank)
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+
+  return ix;
 };

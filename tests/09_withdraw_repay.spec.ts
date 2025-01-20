@@ -121,7 +121,7 @@ describe("Withdraw funds", () => {
     const bankAfter = await program.account.bank.fetch(bank);
     const vaultUsdcAfter = await getTokenBalance(
       provider,
-      bankBefore.liquidityVault
+      bankAfter.liquidityVault
     );
     const balancesAfter = userAccAfter.lendingAccount.balances;
     const userTokenAAfter = await getTokenBalance(provider, user.tokenAAccount);
@@ -150,6 +150,15 @@ describe("Withdraw funds", () => {
       balancesAfter[0].assetShares
     ).toNumber();
     assert.equal(sharesAfter, sharesBefore - withdrawExpected);
+
+    // The bank has also lost the same amount of shares...
+    const bankSharesBefore = wrappedI80F48toBigNumber(
+      bankBefore.totalAssetShares
+    ).toNumber();
+    const bankSharesAfter = wrappedI80F48toBigNumber(
+      bankAfter.totalAssetShares
+    ).toNumber();
+    assert.equal(bankSharesAfter, bankSharesBefore - withdrawExpected);
   });
 
   // TODO repay, withdraw all, then restore the original balances via deposit/borrow
