@@ -1,11 +1,10 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
 import { configureBank } from "./utils/group-instructions";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import { bankKeypairUsdc, groupAdmin, marginfiGroup } from "./rootHooks";
 import { assertBNEqual, assertI80F48Approx } from "./utils/genericTests";
 import { assert } from "chai";
-import { InterestRateConfigRaw } from "@mrgnlabs/marginfi-client-v2";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
   ASSET_TAG_SOL,

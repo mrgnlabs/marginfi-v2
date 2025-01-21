@@ -18,19 +18,15 @@ import {
   oracles,
   users,
   validators,
-  verbose,
 } from "./rootHooks";
 import {
   assertBankrunTxFailed,
-  assertI80F48Approx,
   assertKeysEqual,
 } from "./utils/genericTests";
 import { assert } from "chai";
 import { borrowIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
-import { dumpBankrunLogs } from "./utils/tools";
 
 describe("Borrow power grows as v0 Staked SOL gains value from appreciation", () => {
   const program = workspace.Marginfi as Program<Marginfi>;

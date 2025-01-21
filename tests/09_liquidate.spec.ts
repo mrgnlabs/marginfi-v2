@@ -20,8 +20,6 @@ import {
 } from "./rootHooks";
 import {
   assertBNApproximately,
-  assertBNEqual,
-  assertI80F48Approx,
   assertI80F48Equal,
   assertKeysEqual,
   getTokenBalance,
@@ -138,9 +136,6 @@ describe("Liquidate user", () => {
           liquidatorMarginfiAccount: liquidatorAccount,
           liquidatorMarginfiAccountAuthority: liquidatorMarginfiAccount.authority,
           liquidateeMarginfiAccount: liquidateeAccount,
-          bankLiquidityVault: liabilityBank.liquidityVault,
-          bankLiquidityVaultAuthority: deriveLiquidityVaultAuthority(program.programId, liabilityBankKey)[0],
-          bankInsuranceVault: liabilityBank.insuranceVault,
           remaining: [
             oracles.tokenAOracle.publicKey,
             oracles.usdcOracle.publicKey,

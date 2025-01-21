@@ -1,8 +1,5 @@
 import {
-  AnchorProvider,
-  getProvider,
   Program,
-  Wallet,
   workspace,
 } from "@coral-xyz/anchor";
 import { Keypair, Transaction } from "@solana/web3.js";
