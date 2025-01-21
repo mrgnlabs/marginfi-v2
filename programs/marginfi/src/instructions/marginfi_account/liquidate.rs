@@ -114,7 +114,7 @@ pub fn lending_account_liquidate<'info>(
     let LendingAccountLiquidate {
         liquidator_marginfi_account: liquidator_marginfi_account_loader,
         liquidatee_marginfi_account: liquidatee_marginfi_account_loader,
-        marginfi_group: marginfi_group_loader,
+        group: marginfi_group_loader,
         ..
     } = ctx.accounts;
 
@@ -388,7 +388,7 @@ pub fn lending_account_liquidate<'info>(
             signer: Some(ctx.accounts.signer.key()),
             marginfi_account: liquidator_marginfi_account_loader.key(),
             marginfi_account_authority: liquidator_marginfi_account.authority,
-            marginfi_group: ctx.accounts.marginfi_group.key(),
+            marginfi_group: ctx.accounts.group.key(),
         },
         liquidatee_marginfi_account: liquidatee_marginfi_account_loader.key(),
         liquidatee_marginfi_account_authority: liquidatee_marginfi_account.authority,
@@ -407,23 +407,23 @@ pub fn lending_account_liquidate<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountLiquidate<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
-        constraint = asset_bank.load()?.group == marginfi_group.key()
+        has_one = group
     )]
     pub asset_bank: AccountLoader<'info, Bank>,
 
     #[account(
         mut,
-        constraint = liab_bank.load()?.group == marginfi_group.key()
+        has_one = group
     )]
     pub liab_bank: AccountLoader<'info, Bank>,
 
     #[account(
         mut,
-        constraint = liquidator_marginfi_account.load()?.group == marginfi_group.key()
+        has_one = group
     )]
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -434,7 +434,7 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        constraint = liquidatee_marginfi_account.load()?.group == marginfi_group.key()
+        has_one = group
     )]
     pub liquidatee_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

@@ -20,8 +20,6 @@ import {
 } from "./rootHooks";
 import {
   assertBNApproximately,
-  assertBNEqual,
-  assertI80F48Approx,
   assertI80F48Equal,
   assertKeysEqual,
   getTokenBalance,
@@ -148,8 +146,6 @@ describe("Liquidate user", () => {
     assertI80F48Equal(liquidatorBalances[1].assetShares, 0);
     
     const insuranceVaultBalance = await getTokenBalance(provider, liabilityBankBefore.insuranceVault);
-    const liquidatorABefore = await getTokenBalance(provider, liquidator.tokenAAccount);
-    const liquidatorUsdcBefore = await getTokenBalance(provider, liquidator.usdcAccount);
     assert.equal(insuranceVaultBalance, 0);
 
     const sharesA = wrappedI80F48toBigNumber(liquidateeBalances[0].assetShares).toNumber();
@@ -186,15 +182,15 @@ describe("Liquidate user", () => {
     await liquidator.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
         await liquidateIx(program, {
-          marginfiGroup: marginfiGroup.publicKey,
+          // marginfiGroup: marginfiGroup.publicKey,
           assetBankKey,
           liabilityBankKey,
           liquidatorMarginfiAccount: liquidatorAccount,
           liquidatorMarginfiAccountAuthority: liquidatorMarginfiAccount.authority,
           liquidateeMarginfiAccount: liquidateeAccount,
-          bankLiquidityVault: liabilityBankBefore.liquidityVault,
-          bankLiquidityVaultAuthority: deriveLiquidityVaultAuthority(program.programId, liabilityBankKey)[0],
-          bankInsuranceVault: liabilityBankBefore.insuranceVault,
+          // bankLiquidityVault: liabilityBankBefore.liquidityVault,
+          // bankLiquidityVaultAuthority: deriveLiquidityVaultAuthority(program.programId, liabilityBankKey)[0],
+          // bankInsuranceVault: liabilityBankBefore.insuranceVault,
           remaining: [
             oracles.tokenAOracle.publicKey,
             oracles.usdcOracle.publicKey,

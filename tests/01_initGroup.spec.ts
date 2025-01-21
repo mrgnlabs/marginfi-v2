@@ -7,7 +7,6 @@ import {
 } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
 import {
-  ecosystem,
   globalFeeWallet,
   groupAdmin,
   marginfiGroup,

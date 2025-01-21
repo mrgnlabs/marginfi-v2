@@ -2,6 +2,7 @@ import { BN, Program } from "@coral-xyz/anchor";
 import { AccountMeta, PublicKey } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { deriveInsuranceVault, deriveLiquidityVault, deriveLiquidityVaultAuthority } from "./pdas";
 
 export type AccountInitArgs = {
   marginfiGroup: PublicKey;
@@ -113,15 +114,12 @@ export const borrowIx = (program: Program<Marginfi>, args: BorrowIxArgs) => {
 };
 
 export type LiquidateIxArgs = {
-  marginfiGroup: PublicKey;
+  // marginfiGroup: PublicKey;
   assetBankKey: PublicKey;
   liabilityBankKey: PublicKey;
   liquidatorMarginfiAccount: PublicKey;
   liquidatorMarginfiAccountAuthority: PublicKey;
   liquidateeMarginfiAccount: PublicKey;
-  bankLiquidityVaultAuthority: PublicKey;
-  bankLiquidityVault: PublicKey;
-  bankInsuranceVault: PublicKey;
   remaining: PublicKey[];
   amount: BN;
 };
@@ -156,16 +154,16 @@ export const liquidateIx = (
   return program.methods
     .lendingAccountLiquidate(args.amount)
     .accounts({
-      marginfiGroup: args.marginfiGroup,
+      // group: args.marginfiGroup,
       assetBank: args.assetBankKey,
       liabBank: args.liabilityBankKey,
       liquidatorMarginfiAccount: args.liquidatorMarginfiAccount,
       signer: args.liquidatorMarginfiAccountAuthority,
       liquidateeMarginfiAccount: args.liquidateeMarginfiAccount,
-      bankLiquidityVaultAuthority: args.bankLiquidityVaultAuthority,
-      bankLiquidityVault: args.bankLiquidityVault,
-      bankInsuranceVault: args.bankInsuranceVault,
-      remaining: args.remaining,
+      // bankLiquidityVaultAuthority: deriveLiquidityVaultAuthority(program.programId, args.liabilityBankKey)[0],
+      // bankLiquidityVault: deriveLiquidityVault(program.programId, args.liabilityBankKey),
+      // bankInsuranceVault: deriveInsuranceVault(program.programId, args.liabilityBankKey),
+      // remaining: args.remaining,
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .remainingAccounts(oracleMeta)
