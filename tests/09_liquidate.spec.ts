@@ -20,6 +20,7 @@ import {
 } from "./rootHooks";
 import {
   assertBNApproximately,
+  assertI80F48Approx,
   assertI80F48Equal,
   assertKeysEqual,
   getTokenBalance,
@@ -29,7 +30,6 @@ import { liquidateIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { updatePriceAccount } from "./utils/pyth_mocks";
 import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
-import { deriveLiquidityVaultAuthority } from "./utils/pdas";
 import { configureBank } from "./utils/instructions";
 import { defaultBankConfigOptRaw } from "./utils/types";
 
@@ -93,17 +93,19 @@ describe("Liquidate user", () => {
    * ASSETS
    *    [index 0] 200,000,000 (2) Token A (worth $20)
    * DEBTS
-   *    [index 1] 5,050,000 (5.5) USDC (worth $5.50)
-   * Note: $5.5 is 27.5% of $20, which is more than 10%, so liquidation is allowed
+   *    [index 1] 5,050,000 (5.05) USDC (worth $5.05)
+   * Note: $5.05 is 25.25% of $20, which is more than 10%, so liquidation is allowed
+   *
+   * Liquidator tries to repay .2 token A (worth $2) of liquidatee's debt, so liquidator's assets
+   * increase by this value, while liquidatee's assets decrease by this value. Which also means that:
    * 
-   * Liquidator tries to repay .2 token A (worth $2)
-   * Liquidator must pay 
-   *  value of A minus fee (low bias): .2 * (1 - 0.025) * 9.9 = $1.9305
-   *  USDC equivalent (high bias): 1.9305 / 1.01 = $1.91138613861 (1,911,386 native)
-   * 
+   * Liquidator must pay
+   *  value of A minus liquidator fee (double low bias): .2 * (1 - 0.025) * 9.801 = $1.9305
+   *  USDC equivalent (double high bias): 1.9305 / 1.0201 = $1.91138613861 (1,911,386 native)
+   *
    * Liquidatee receives
-   *  value of A minus fee + insurance (low bias): .2 * (1 - 0.025 - 0.025) * 9.9 = $1.881
-   *  USDC equivalent (high bias): 1.881 / 1.01 = $1.86237623762 (1,862,376 native)
+   *  value of A minus (liquidator fee + insurance) (double low bias): .2 * (1 - 0.025 - 0.025) * 9.801 = $1.881
+   *  USDC equivalent (double high bias): 1.881 / 1.0201 = $1.86237623762 (1,862,376 native)
    * 
    * Insurance fund collects the difference
    *  USDC diff 1,911,386  - 1,862,376 = 49,010
@@ -179,18 +181,18 @@ describe("Liquidate user", () => {
       )
     );
 
+    const tokenALowPrice = 9.788; // see top of test
+    const usdcHighPrice = 1.021; // see top of test
+    const insuranceToBeCollected = (liquidateAmountA * 0.025 * shareValueA * tokenALowPrice / (shareValueUsdc * usdcHighPrice)) * 10 ** (oracles.usdcDecimals);
+
     await liquidator.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
         await liquidateIx(program, {
-          // marginfiGroup: marginfiGroup.publicKey,
           assetBankKey,
           liabilityBankKey,
           liquidatorMarginfiAccount: liquidatorAccount,
           liquidatorMarginfiAccountAuthority: liquidatorMarginfiAccount.authority,
           liquidateeMarginfiAccount: liquidateeAccount,
-          // bankLiquidityVault: liabilityBankBefore.liquidityVault,
-          // bankLiquidityVaultAuthority: deriveLiquidityVaultAuthority(program.programId, liabilityBankKey)[0],
-          // bankInsuranceVault: liabilityBankBefore.insuranceVault,
           remaining: [
             oracles.tokenAOracle.publicKey,
             oracles.usdcOracle.publicKey,
@@ -210,33 +212,34 @@ describe("Liquidate user", () => {
 
     const liquidateeMarginfiAccountAfter = await program.account.marginfiAccount.fetch(liquidateeAccount);
     const liquidatorMarginfiAccountAfter = await program.account.marginfiAccount.fetch(liquidatorAccount);
-    const assetBankAfter = await program.account.bank.fetch(assetBankKey);
-    const liabilityBankAfter = await program.account.bank.fetch(liabilityBankKey);
 
     const liquidateeBalancesAfter = liquidateeMarginfiAccountAfter.lendingAccount.balances;
     const liquidatorBalancesAfter = liquidatorMarginfiAccountAfter.lendingAccount.balances;
 
     const sharesAAfter = wrappedI80F48toBigNumber(liquidateeBalancesAfter[0].assetShares).toNumber();
-    const shareValueAAfter = wrappedI80F48toBigNumber(assetBankAfter.assetShareValue).toNumber();
     const sharesUsdcAfter = wrappedI80F48toBigNumber(liquidateeBalancesAfter[1].liabilityShares).toNumber();
-    const shareValueUsdcAfter = wrappedI80F48toBigNumber(liabilityBankAfter.liabilityShareValue).toNumber();
 
     assertI80F48Equal(liquidateeBalancesAfter[0].assetShares, wrappedI80F48toBigNumber(liquidateeBalances[0].assetShares).toNumber() - liquidateAmountA_native.toNumber());
     assertI80F48Equal(liquidateeBalancesAfter[0].liabilityShares, 0);
+    assertI80F48Equal(liquidateeBalancesAfter[1].assetShares, 0);
+
+    assertI80F48Equal(liquidatorBalancesAfter[0].liabilityShares, 0);
     assertI80F48Equal(liquidatorBalancesAfter[1].assetShares, liquidateAmountA_native);
+    assertI80F48Equal(liquidatorBalancesAfter[1].liabilityShares, 0);
 
     const insuranceVaultBalanceAfter = await getTokenBalance(provider, liabilityBankBefore.insuranceVault);
-    assert.approximately(insuranceVaultBalanceAfter, 49010, (49010 * .1)); // see top of test
+
+    assert.approximately(insuranceVaultBalanceAfter, insuranceToBeCollected, (insuranceToBeCollected * .1)); // see top of test
 
     if (verbose) {
       console.log("AFTER");
       console.log("liability bank insurance vault after (usdc): " + insuranceVaultBalanceAfter.toLocaleString());
       console.log("user 0 (liquidatee) Token A asset shares after: " + sharesAAfter.toString());
-      console.log("  value (in Token A native): " + (sharesAAfter * shareValueAAfter).toLocaleString());
-      console.log("  value (in dollars): $" + (sharesAAfter * shareValueAAfter * oracles.tokenAPrice / 10 ** (oracles.tokenADecimals)).toLocaleString());
+      console.log("  value (in Token A native): " + (sharesAAfter * shareValueA).toLocaleString());
+      console.log("  value (in dollars): $" + (sharesAAfter * shareValueA * oracles.tokenAPrice / 10 ** (oracles.tokenADecimals)).toLocaleString());
       console.log("user 0 (liquidatee) USDC liability shares after: " + sharesUsdcAfter.toString());
-      console.log("  debt (in USDC native): " + (sharesUsdcAfter * shareValueUsdcAfter).toLocaleString());
-      console.log("  debt (in dollars): $" + (sharesUsdcAfter * shareValueUsdcAfter * oracles.usdcPrice / 10 ** (oracles.usdcDecimals)).toLocaleString());
+      console.log("  debt (in USDC native): " + (sharesUsdcAfter * shareValueUsdc).toLocaleString());
+      console.log("  debt (in dollars): $" + (sharesUsdcAfter * shareValueUsdc * oracles.usdcPrice / 10 ** (oracles.usdcDecimals)).toLocaleString());
       console.log("user 1 (liquidator) USDC asset shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[0].assetShares).toString());
       console.log("user 1 (liquidator) USDC liability shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[0].liabilityShares).toString());
       console.log("user 1 (liquidator) Token A asset shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[1].assetShares).toString());
