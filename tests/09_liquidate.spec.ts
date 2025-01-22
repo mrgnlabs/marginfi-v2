@@ -38,6 +38,7 @@ describe("Liquidate user", () => {
   const provider = getProvider() as AnchorProvider;
   const wallet = provider.wallet as Wallet;
 
+  const confidenceInterval = 0.0212; // see CONF_INTERVAL_MULTIPLE
   const liquidateAmountA = .2;
   const liquidateAmountA_native = new BN(
     liquidateAmountA * 10 ** ecosystem.tokenADecimals
@@ -85,9 +86,10 @@ describe("Liquidate user", () => {
    * Maintenance ratio allowed = 10%
    * Liquidator fee = 2.5%
    * Insurance fee = 2.5%
+   * Confidence interval = 2.12%
    * 
-   * Token A is worth $10 with conf $0.1 (worth $9.9 low, $10.1 high)
-   * USDC is worth $1 with conf $0.01 (worth $0.99 low, $1.01 high)
+   * Token A is worth $10 with conf $0.1 (worth $9.788 low, $10.212 high)
+   * USDC is worth $1 with conf $0.01 (worth $0.9788 low, $1.0212 high)
    * 
    * User has:
    * ASSETS
@@ -100,31 +102,15 @@ describe("Liquidate user", () => {
    * increase by this value, while liquidatee's assets decrease by this value. Which also means that:
    * 
    * Liquidator must pay
-   *  value of A minus liquidator fee (double low bias): .2 * (1 - 0.025) * 9.801 = $1.9305
-   *  USDC equivalent (double high bias): 1.9305 / 1.0201 = $1.91138613861 (1,911,386 native)
+   *  value of A minus liquidator fee (low bias within the confidence interval): .2 * (1 - 0.025) * 9.788 = $1.90866
+   *  USDC equivalent (high bias): 1.90866 / 1.0212 = $1.869036 (1,869,036 native)
    *
    * Liquidatee receives
-   *  value of A minus (liquidator fee + insurance) (double low bias): .2 * (1 - 0.025 - 0.025) * 9.801 = $1.881
-   *  USDC equivalent (double high bias): 1.881 / 1.0201 = $1.86237623762 (1,862,376 native)
+   *  value of A minus (liquidator fee + insurance) (low bias): .2 * (1 - 0.025 - 0.025) * 9.788 = $1.8608
+   *  USDC equivalent (high bias): 1.8608 / 1.0212 = $1.822457 (1,822,457 native)
    * 
    * Insurance fund collects the difference
-   *  USDC diff 1,911,386  - 1,862,376 = 49,010
-   */
-
-  /**
-   * Due to on-chain rounding, we really have:
-   * Low bias A price: 9.788
-   * High bias USDC price: 1.021
-   * Actual calculated liquidator liability: 1,869,036
-   *  value of A minus fee (low bias): .2 * (1 - 0.025) * 9.788 = $1.90866
-   *  USDC equivalent (high bias): 1.90866 / 1.021 = $1.86940254652
-   * 
-   * Calc recieved based on above pricing:
-   *  value of A minus fee + insurance (low bias): .2 * (1 - 0.025 - 0.025) * 9.788 = $1.85972
-   *  USDC equivalent (high bias): 1.85972 / 1.021 = $1.82146914789
-   * 
-   * calc insurance:
-   *  1.86940254652 - 1.82146914789 = 0.04793339863 (47,933 native)
+   *  USDC diff 1,869,036  - 1,822,457 = 46,579
    */
 
   it("(user 1) Liquidate user 0 who borrowed USDC against their token A position - happy path", async () => {
@@ -181,8 +167,8 @@ describe("Liquidate user", () => {
       )
     );
 
-    const tokenALowPrice = 9.788; // see top of test
-    const usdcHighPrice = 1.021; // see top of test
+    const tokenALowPrice = oracles.tokenAPrice * (1 - confidenceInterval); // see top of test
+    const usdcHighPrice = oracles.usdcPrice * (1 + confidenceInterval); // see top of test
     const insuranceToBeCollected = (liquidateAmountA * 0.025 * shareValueA * tokenALowPrice / (shareValueUsdc * usdcHighPrice)) * 10 ** (oracles.usdcDecimals);
 
     await liquidator.mrgnProgram.provider.sendAndConfirm(
