@@ -37,7 +37,7 @@ import {
 import { USER_ACCOUNT } from "./utils/mocks";
 import { createMintToInstruction } from "@solana/spl-token";
 import { updatePriceAccount } from "./utils/pyth_mocks";
-import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { createAssociatedTokenAccountIdempotentInstruction, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { u64MAX_BN } from "./utils/types";
 
 describe("Withdraw funds", () => {
@@ -49,6 +49,7 @@ describe("Withdraw funds", () => {
   const withdrawAmountTokenA_native = new BN(
     withdrawAmountTokenA * 10 ** ecosystem.tokenADecimals
   );
+  createAssociatedTokenAccountIdempotentInstruction
 
   const repayAmountUsdc = 0.1;
   const repayAmountUsdc_native = new BN(
@@ -218,7 +219,7 @@ describe("Withdraw funds", () => {
       );
     }
 
-    // user gains loses the USDC, the liquidity vault loses it....
+    // user loses the USDC, the liquidity vault gains it....
     assert.equal(userUsdcAfter, userUsdcBefore - repayExpected);
     assert.equal(vaultUsdcAfter, vaultUsdcBefore + repayExpected);
 
@@ -354,7 +355,7 @@ describe("Withdraw funds", () => {
 
     // USDC has some borrows, so there is trivial interest here that affects accounting
 
-    // user gains loses the USDC, the liquidity vault loses it....
+    // user loses the USDC, the liquidity vault gains it....
     assert.approximately(userUsdcAfter, userUsdcBefore - actualOwed, 2);
     assert.approximately(vaultUsdcAfter, vaultUsdcBefore + actualOwed, 2);
 
