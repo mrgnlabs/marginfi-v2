@@ -72,6 +72,14 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank(ctx, bank_config_opt)
     }
 
+    pub fn lending_pool_configure_bank_oracle(
+        ctx: Context<LendingPoolConfigureBankOracle>,
+        setup: u8,
+        oracle: Pubkey,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
+    }
+
     pub fn lending_pool_setup_emissions(
         ctx: Context<LendingPoolSetupEmissions>,
         flags: u64,
