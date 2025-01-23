@@ -255,7 +255,8 @@ export type BankConfigOptRaw = {
       | { pythLegacy: {} }
       | { switchboardV2: {} }
       | { pythPushOracle: {} }
-      | { switchboardPull: {} };
+      | { switchboardPull: {} }
+      | { stakedWithPythPush: {} };
     keys: PublicKey[];
   } | null;
 

@@ -38,13 +38,13 @@ describe("Liquidate user", () => {
   const provider = getProvider() as AnchorProvider;
   const wallet = provider.wallet as Wallet;
 
-  const confidenceInterval = 0.0212; // see CONF_INTERVAL_MULTIPLE
+  const confidenceInterval = 0.0212; // 1% confidence * CONF_INTERVAL_MULTIPLE
   const liquidateAmountA = .2;
   const liquidateAmountA_native = new BN(
     liquidateAmountA * 10 ** ecosystem.tokenADecimals
   );
 
-  it("Oracle data refreshes", async () => {
+  it("oracle data refreshes", async () => {
     const usdcPrice = BigInt(oracles.usdcPrice * 10 ** oracles.usdcDecimals);
     await updatePriceAccount(
       oracles.usdcOracle,
@@ -86,7 +86,7 @@ describe("Liquidate user", () => {
    * Maintenance ratio allowed = 10%
    * Liquidator fee = 2.5%
    * Insurance fee = 2.5%
-   * Confidence interval = 2.12%
+   * Confidence interval = 2.12% (1% confidence * 2.12 = 2.12%)
    * 
    * Token A is worth $10 with conf $0.1 (worth $9.788 low, $10.212 high)
    * USDC is worth $1 with conf $0.01 (worth $0.9788 low, $1.0212 high)
@@ -113,7 +113,7 @@ describe("Liquidate user", () => {
    *  USDC diff 1,869,036  - 1,822,457 = 46,579
    */
 
-  it("(user 1) Liquidate user 0 who borrowed USDC against their token A position - happy path", async () => {
+  it("(user 1) liquidate user 0 who borrowed USDC against their token A position - happy path", async () => {
     const liquidatee = users[0];
     const liquidator = users[1];
 

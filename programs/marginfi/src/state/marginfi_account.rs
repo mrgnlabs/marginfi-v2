@@ -1,11 +1,11 @@
 use super::{
     marginfi_group::{Bank, RiskTier, WrappedI80F48},
-    price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
+    price::{OraclePriceFeedAdapter, OraclePriceType, OracleSetup, PriceAdapter, PriceBias},
 };
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        ASSET_TAG_DEFAULT, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE,
+        ASSET_TAG_DEFAULT, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE,
         EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48,
         MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
@@ -17,8 +17,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use fixed::types::I80F48;
 use std::{
-    cmp::{max, min},
-    ops::Not,
+    cell::Ref, cmp::{max, min}, ops::{Deref, Not}
 };
 #[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
@@ -53,6 +52,33 @@ pub const IN_FLASHLOAN_FLAG: u64 = 1 << 1;
 pub const FLASHLOAN_ENABLED_FLAG: u64 = 1 << 2;
 pub const TRANSFER_AUTHORITY_ALLOWED_FLAG: u64 = 1 << 3;
 
+pub fn get_remaining_accounts_per_oracle(
+    bank: &Bank
+) -> MarginfiResult<usize> {
+    match bank.config.oracle_setup {
+        OracleSetup::None                => Err(MarginfiError::InvalidOracleAccount.into()), // This should never happen
+        OracleSetup::PythLegacy          |
+        OracleSetup::SwitchboardV2       |
+        OracleSetup::PythPushOracle      |
+        OracleSetup::SwitchboardPull     => Ok(1),
+        OracleSetup::StakedWithPythPush  => Ok(3),
+    }
+}
+
+fn get_remaining_accounts_len_per_balance<'info>(
+    balance: &Balance,
+    bank_als: &'_ [AccountLoader<'info, Bank>]
+) -> MarginfiResult<usize> {
+    let bank_al: &AccountLoader<'info, Bank> = match bank_als.iter().find(|&al| al.key() == balance.bank_pk)
+    {
+        Some(ai) => ai,
+        None => return Err(MarginfiError::InvalidBankAccount.into()),
+    };
+
+    let bank = bank_al.load()?;
+    get_remaining_accounts_per_oracle(bank.deref()).map(|c| c + 1) // + 1 for the bank account
+}
+
 impl MarginfiAccount {
     /// Set the initial data for the marginfi account.
     pub fn initialize(&mut self, group: Pubkey, authority: Pubkey) {
@@ -60,13 +86,15 @@ impl MarginfiAccount {
         self.group = group;
     }
 
-    pub fn get_remaining_accounts_len(&self) -> usize {
-        self.lending_account
-            .balances
-            .iter()
-            .filter(|b| b.active)
-            .count()
-            * 2 // TODO: Make account count oracle setup specific
+    pub fn get_remaining_accounts_len<'info>(&self, 
+        bank_als: &'_ [AccountLoader<'info, Bank>]) -> MarginfiResult<usize> {
+        let mut total = 0usize;
+        for balance in self.lending_account.balances.iter().filter(|b| b.active)
+        {
+            let num_accounts = get_remaining_accounts_len_per_balance(balance, bank_als)?;
+            total += num_accounts;
+        }
+        Ok(total)
     }
 
     pub fn set_flag(&mut self, flag: u64) {
@@ -169,51 +197,23 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         lending_account: &'a LendingAccount,
         remaining_ais: &'info [AccountInfo<'info>],
     ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a, 'info>>> {
-        let active_balances = lending_account
-            .balances
-            .iter()
-            .filter(|balance| balance.active)
-            .collect::<Vec<_>>();
-
-        let expected_accounts = active_balances
-            .iter()
-            .map(|balance| {
-                if balance.bank_asset_tag == ASSET_TAG_STAKED {
-                    4
-                } else {
-                    2
-                }
-            })
-            .sum::<usize>();
-
-        debug!("Expecting {} remaining accounts", expected_accounts);
-        debug!("Got {} remaining accounts", remaining_ais.len());
-
-        check!(
-            expected_accounts <= remaining_ais.len(),
-            MarginfiError::MissingPythOrBankAccount
-        );
-
         let clock = Clock::get()?;
         let mut account_index = 0;
 
-        active_balances
+        lending_account.balances
             .iter()
+            .filter(|balance| balance.active)
             .map(|balance| {
-                // Determine number of accounts to process for this balance
-                let num_accounts = if balance.bank_asset_tag == ASSET_TAG_STAKED {
-                    4
-                } else {
-                    2
-                };
-
                 // Get the bank
                 let bank_ai = remaining_ais.get(account_index).unwrap();
+                let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
+
+                // Determine number of accounts to process for this balance
+                let num_accounts = get_remaining_accounts_len_per_balance(balance, &[bank_al.clone()])?;
                 check!(
                     balance.bank_pk.eq(bank_ai.key),
                     MarginfiError::InvalidBankAccount
                 );
-                let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
                 let bank = bank_al.load()?;
 
                 // Get the oracle, and the LST mint and sol pool if applicable (staked only)

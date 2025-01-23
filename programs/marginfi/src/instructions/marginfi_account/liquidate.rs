@@ -1,8 +1,10 @@
+use std::ops::Deref;
+
 use crate::constants::{
     INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
-use crate::state::marginfi_account::{calc_amount, calc_value, RiskEngine};
+use crate::state::marginfi_account::{calc_amount, calc_value, get_remaining_accounts_per_oracle, RiskEngine};
 use crate::state::marginfi_group::{Bank, BankVaultType};
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::utils::{validate_asset_tags, validate_bank_asset_tags};
@@ -143,10 +145,12 @@ pub fn lending_account_liquidate<'info>(
             ctx.accounts.liab_bank.key(),
         )?;
     }
-    let init_liquidatee_remaining_len = liquidatee_marginfi_account.get_remaining_accounts_len();
+    let bank_als = [ctx.accounts.asset_bank.clone(), ctx.accounts.liab_bank.clone()];
+    let init_liquidatee_remaining_len = liquidatee_marginfi_account.get_remaining_accounts_len(&bank_als)?;
+
     let liquidatee_accounts_starting_pos =
         ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
-    let liquidatee_remaining_accounts = &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
+        let liquidatee_remaining_accounts = &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
 
     let pre_liquidation_health =
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
@@ -160,8 +164,10 @@ pub fn lending_account_liquidate<'info>(
         let asset_amount = I80F48::from_num(asset_amount);
 
         let mut asset_bank = ctx.accounts.asset_bank.load_mut()?;
+        let asset_bank_remaining_accounts_len = get_remaining_accounts_per_oracle(asset_bank.deref())?;
+        
         let asset_price = {
-            let oracle_ais = &ctx.remaining_accounts[0..1];
+            let oracle_ais = &ctx.remaining_accounts[0..asset_bank_remaining_accounts_len];
             let asset_pf = OraclePriceFeedAdapter::try_from_bank_config(
                 &asset_bank.config,
                 oracle_ais,
@@ -171,8 +177,9 @@ pub fn lending_account_liquidate<'info>(
         };
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
+        let liab_bank_remaining_accounts_len = get_remaining_accounts_per_oracle(liab_bank.deref())?;
         let liab_price = {
-            let oracle_ais = &ctx.remaining_accounts[1..2];
+            let oracle_ais = &ctx.remaining_accounts[asset_bank_remaining_accounts_len..(asset_bank_remaining_accounts_len + liab_bank_remaining_accounts_len)];
             let liab_pf = OraclePriceFeedAdapter::try_from_bank_config(
                 &liab_bank.config,
                 oracle_ais,
@@ -365,7 +372,8 @@ pub fn lending_account_liquidate<'info>(
     // ## Risk checks ##
 
     let liquidator_accounts_starting_pos =
-        liquidatee_accounts_starting_pos - liquidator_marginfi_account.get_remaining_accounts_len();
+        liquidatee_accounts_starting_pos - liquidator_marginfi_account.get_remaining_accounts_len(&bank_als)?;
+
     let liquidator_remaining_accounts =
         &ctx.remaining_accounts[liquidator_accounts_starting_pos..liquidatee_accounts_starting_pos];
 
