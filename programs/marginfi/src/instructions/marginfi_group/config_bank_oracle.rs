@@ -36,6 +36,8 @@ pub fn lending_pool_configure_bank_oracle(
             }
         };
         bank.config.oracle_keys[0] = oracle;
+        bank.config.deposit_limit = 0;
+        bank.config.total_asset_value_init_limit = 1;
     }
 
     Ok(())
