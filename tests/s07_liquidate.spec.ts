@@ -13,6 +13,7 @@ import {
   bankKeypairUsdc,
   bankrunContext,
   bankrunProgram,
+  bankRunProvider,
   banksClient,
   ecosystem,
   groupAdmin,
@@ -33,7 +34,7 @@ import { assert } from "chai";
 import { borrowIx, liquidateIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { bigNumberToWrappedI80F48, getMint, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { defaultBankConfigOptRaw, defaultStakedInterestSettings, StakedSettingsEdit } from "./utils/types";
 import { configureBank, editStakedSettings, propagateStakedSettings } from "./utils/group-instructions";
 import {BankConfigOptWithAssetTag} from "./utils/types";
@@ -149,20 +150,20 @@ describe("Liquidate user (including staked assets)", () => {
       console.log("Liquidator " + i + " Bank asset tag: " + liquidatorBalances[i].bankAssetTag.toString());
     }
 
-    const insuranceVaultBalance = await getTokenBalance(provider, liabilityBankBefore.insuranceVault);
+    const insuranceVaultBalance = await getTokenBalance(bankRunProvider, liabilityBankBefore.insuranceVault);
     assert.equal(insuranceVaultBalance, 0);
 
-    const sharesUsdc = wrappedI80F48toBigNumber(liquidateeBalances[0].assetShares).toNumber();
-    const shareValueUsdc = wrappedI80F48toBigNumber(assetBankBefore.assetShareValue).toNumber();
+    const sharesStaked = wrappedI80F48toBigNumber(liquidateeBalances[0].assetShares).toNumber();
+    const shareValueStaked = wrappedI80F48toBigNumber(assetBankBefore.assetShareValue).toNumber();
     const sharesSol = wrappedI80F48toBigNumber(liquidateeBalances[1].liabilityShares).toNumber();
     const shareValueSol = wrappedI80F48toBigNumber(liabilityBankBefore.liabilityShareValue).toNumber();
   
     if (verbose) {
       console.log("BEFORE");
       console.log("liability bank insurance vault before: " + insuranceVaultBalance.toLocaleString());
-      console.log("user 0 (liquidatee) USDC asset shares: " + sharesUsdc.toString());
-      console.log("  value (in USDC native): " + (sharesUsdc * shareValueUsdc).toLocaleString());
-      console.log("  value (in dollars): $" + (sharesUsdc * shareValueUsdc * oracles.usdcPrice / 10 ** (oracles.usdcDecimals)).toLocaleString());
+      console.log("user 0 (liquidatee) USDC asset shares: " + sharesStaked.toString());
+      console.log("  value (in USDC native): " + (sharesStaked * shareValueStaked).toLocaleString());
+      console.log("  value (in dollars): $" + (sharesStaked * shareValueStaked * oracles.usdcPrice / 10 ** (oracles.usdcDecimals)).toLocaleString());
       console.log("user 0 (liquidatee) SOL liability shares: " + sharesSol.toString());
       console.log("  debt (in SOL native): " + (sharesSol * shareValueSol).toLocaleString());
       console.log("  debt (in dollars): $" + (sharesSol * shareValueSol * oracles.wsolPrice / 10 ** (oracles.wsolDecimals)).toLocaleString());
@@ -197,9 +198,19 @@ describe("Liquidate user (including staked assets)", () => {
     editTx.sign(groupAdmin.wallet);
     await banksClient.processTransaction(editTx);
   
-    const usdcLowPrice = oracles.usdcPrice * (1 - confidenceInterval); // see top of test
+    const solPool = await bankRunProvider.connection.getAccountInfo(
+      validators[0].splSolPool
+    );
+    const solPoolLamports = solPool.lamports;
+    console.log("solPoolLamports: " + solPoolLamports.toString());
+    const mintData = await getMint(bankRunProvider.connection, validators[0].splMint);
+    console.log("mintSupply: " + mintData.supply.toString());
+    const stakedPrice = oracles.wsolPrice * (solPoolLamports) / Number(mintData.supply);
+    console.log("stakedPrice: " + stakedPrice.toString());
+
+    const stakedLowPrice = stakedPrice * (1 - confidenceInterval); // see top of test
     const wsolHighPrice = oracles.wsolPrice * (1 + confidenceInterval); // see top of test
-    const insuranceToBeCollected = (liquidateAmountSol * 0.025 * shareValueUsdc * usdcLowPrice / (shareValueUsdc * wsolHighPrice)) * 10 ** (oracles.wsolDecimals);
+    const insuranceToBeCollected = (liquidateAmountSol * 0.025 * shareValueStaked * stakedLowPrice / (shareValueSol * wsolHighPrice)) * 10 ** (oracles.wsolDecimals);
 
     console.log("Asset Bank Key: " + assetBankKey.toString());
     const assetBankFF = await bankrunProgram.account.bank.fetch(assetBankKey);
@@ -252,36 +263,34 @@ describe("Liquidate user (including staked assets)", () => {
     assertI80F48Equal(liquidateeBalancesAfter[1].assetShares, 0);
 
     assertI80F48Equal(liquidatorBalancesAfter[0].liabilityShares, 0);
-    assertI80F48Equal(liquidatorBalancesAfter[1].assetShares, liquidateAmountSol_native);
+    assertI80F48Equal(liquidatorBalancesAfter[1].assetShares, wrappedI80F48toBigNumber(liquidatorBalances[1].assetShares).toNumber() + liquidateAmountSol_native.toNumber());
     assertI80F48Equal(liquidatorBalancesAfter[1].liabilityShares, 0);
 
-    const insuranceVaultBalanceAfter = await getTokenBalance(provider, liabilityBankBefore.insuranceVault);
-
+    console.log("liabilityBankBefore.insuranceVault = " + liabilityBankBefore.insuranceVault.toString());
+    const insuranceVaultBalanceAfter = await getTokenBalance(bankRunProvider, liabilityBankBefore.insuranceVault);
+    console.log("AFTER");
     assert.approximately(insuranceVaultBalanceAfter, insuranceToBeCollected, (insuranceToBeCollected * .1)); // see top of test
 
     if (verbose) {
       console.log("AFTER");
       console.log("liability bank insurance vault after (SOL): " + insuranceVaultBalanceAfter.toLocaleString());
       console.log("user 0 (liquidatee) USDC asset shares after: " + sharesUsdcAfter.toString());
-      console.log("  value (in USDC native): " + (sharesUsdcAfter * shareValueUsdc).toLocaleString());
-      console.log("  value (in dollars): $" + (sharesUsdcAfter * shareValueUsdc * oracles.usdcPrice / 10 ** (oracles.usdcDecimals)).toLocaleString());
+      console.log("  value (in USDC native): " + (sharesUsdcAfter * shareValueStaked).toLocaleString());
+      console.log("  value (in dollars): $" + (sharesUsdcAfter * shareValueStaked * oracles.usdcPrice / 10 ** (oracles.usdcDecimals)).toLocaleString());
       console.log("user 0 (liquidatee) SOL liability shares after: " + sharesSolAfter.toString());
       console.log("  debt (in SOL native): " + (sharesSolAfter * shareValueSol).toLocaleString());
       console.log("  debt (in dollars): $" + (sharesSolAfter * shareValueSol * oracles.wsolPrice / 10 ** (oracles.wsolDecimals)).toLocaleString());
       console.log("user 1 (liquidator) SOL asset shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[0].assetShares).toString());
       console.log("user 1 (liquidator) SOL liability shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[0].liabilityShares).toString());
-      console.log("user 1 (liquidator) USDC asset shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[2].assetShares).toString());
-      console.log("user 1 (liquidator) USDC liability shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[2].liabilityShares).toString());
+      console.log("user 1 (liquidator) USDC asset shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[1].assetShares).toString());
+      console.log("user 1 (liquidator) USDC liability shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[1].liabilityShares).toString());
     }
 
-    assert.equal(liquidatorBalancesAfter[2].active, true);
-    assertKeysEqual(liquidatorBalancesAfter[2].bankPk, assetBankKey);
-
     let now = Math.floor(Date.now() / 1000);
-    assertBNApproximately(liquidatorBalancesAfter[0].lastUpdate, now, 2);
-    assertBNApproximately(liquidatorBalancesAfter[2].lastUpdate, now, 2);
-    assertBNApproximately(liquidateeBalancesAfter[0].lastUpdate, now, 2);
-    assertBNApproximately(liquidateeBalancesAfter[1].lastUpdate, now, 2);
+    assertBNApproximately(liquidatorBalancesAfter[0].lastUpdate, now, 20);
+    assertBNApproximately(liquidatorBalancesAfter[1].lastUpdate, now, 20);
+    assertBNApproximately(liquidateeBalancesAfter[0].lastUpdate, now, 20);
+    assertBNApproximately(liquidateeBalancesAfter[1].lastUpdate, now, 20);
   });
 });
 

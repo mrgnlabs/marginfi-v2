@@ -214,6 +214,7 @@ pub fn lending_account_liquidate<'info>(
             liab_price,
             liab_bank.mint_decimals,
         )?;
+        msg!("asset price: {}, liab price: {}", asset_price, liab_price);
 
         // Insurance fund fee
         let insurance_fund_fee = liab_amount_liquidator - liab_amount_final;
@@ -299,6 +300,7 @@ pub fn lending_account_liquidate<'info>(
                 .ok_or(MarginfiError::MathError)?,
             insurance_fund_fee.frac(),
         );
+        msg!("insurance_fee_to_transfer: {} -> {}", insurance_fee_to_transfer, ctx.accounts.bank_insurance_vault.key());
 
         let (liquidatee_liability_pre_balance, liquidatee_liability_post_balance) = {
             // Liquidatee receives liability payment
