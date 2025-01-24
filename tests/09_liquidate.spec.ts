@@ -88,8 +88,8 @@ describe("Liquidate user", () => {
    * Insurance fee = 2.5%
    * Confidence interval = 2.12% (1% confidence * 2.12 = 2.12%)
    * 
-   * Token A is worth $10 with conf $0.1 (worth $9.788 low, $10.212 high)
-   * USDC is worth $1 with conf $0.01 (worth $0.9788 low, $1.0212 high)
+   * Token A is worth $10 with conf $0.212 (worth $9.788 low, $10.212 high)
+   * USDC is worth $1 with conf $0.0212 (worth $0.9788 low, $1.0212 high)
    * 
    * User has:
    * ASSETS
