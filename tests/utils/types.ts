@@ -62,7 +62,7 @@ export const defaultBankConfig = (oracleKey: PublicKey) => {
     },
     assetTag: ASSET_TAG_DEFAULT,
     totalAssetValueInitLimit: new BN(1_000_000_000_000),
-    oracleMaxAge: 100,
+    oracleMaxAge: 240,
   };
   return config;
 };
@@ -84,7 +84,7 @@ export const defaultBankConfigOpt = () => {
     interestRateConfig: defaultInterestRateConfig(),
     operationalState: OperationalState.Operational,
     oracle: null,
-    oracleMaxAge: 100,
+    oracleMaxAge: 240,
     permissionlessBadDebtSettlement: null,
   };
 
@@ -92,7 +92,7 @@ export const defaultBankConfigOpt = () => {
 };
 
 /**
- * The same parameters as `defaultBankConfig`, and no change to oracle
+ * The same parameters as `defaultBankConfig`
  * @returns
  */
 export const defaultBankConfigOptRaw = () => {
@@ -112,8 +112,7 @@ export const defaultBankConfigOptRaw = () => {
     operationalState: {
       operational: undefined,
     },
-    oracle: null,
-    oracleMaxAge: 100,
+    oracleMaxAge: 240,
     permissionlessBadDebtSettlement: null,
     freezeSettings: null
   };
@@ -248,16 +247,6 @@ export type BankConfigOptRaw = {
     | { operational: {} }
     | { reduceOnly: {} }
     | null;
-
-  oracle: {
-    setup:
-      | { none: {} }
-      | { pythLegacy: {} }
-      | { switchboardV2: {} }
-      | { pythPushOracle: {} }
-      | { switchboardPull: {} };
-    keys: PublicKey[];
-  } | null;
 
   oracleMaxAge: number | null;
   permissionlessBadDebtSettlement: boolean | null;

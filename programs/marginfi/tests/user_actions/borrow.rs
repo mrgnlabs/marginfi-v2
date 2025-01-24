@@ -339,10 +339,13 @@ async fn marginfi_account_borrow_failure_borrow_limit(
     let debt_mint_decimals = test_f.get_bank(&debt_mint).mint.mint.decimals;
     test_f
         .get_bank_mut(&debt_mint)
-        .update_config(BankConfigOpt {
-            borrow_limit: Some(native!(borrow_cap, debt_mint_decimals, f64)),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                borrow_limit: Some(native!(borrow_cap, debt_mint_decimals, f64)),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     let debt_bank_f = test_f.get_bank(&debt_mint);

@@ -106,11 +106,14 @@ async fn marginfi_account_liquidation_success_with_extension(
 
     // Synthetically bring down the borrower account health by reducing the asset weights of the SOL bank
     sol_bank_f
-        .update_config(BankConfigOpt {
-            asset_weight_init: Some(I80F48!(0.25).into()),
-            asset_weight_maint: Some(I80F48!(0.5).into()),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.5).into()),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     lender_mfi_account_f

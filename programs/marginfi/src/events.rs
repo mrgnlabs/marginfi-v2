@@ -46,6 +46,14 @@ pub struct LendingPoolBankConfigureEvent {
 }
 
 #[event]
+pub struct LendingPoolBankConfigureOracleEvent {
+    pub header: GroupEventHeader,
+    pub bank: Pubkey,
+    pub oracle_setup: u8,
+    pub oracle: Pubkey,
+}
+
+#[event]
 pub struct LendingPoolBankConfigureFrozenEvent {
     pub header: GroupEventHeader,
     pub bank: Pubkey,

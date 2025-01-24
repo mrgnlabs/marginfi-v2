@@ -285,6 +285,26 @@ impl MarginfiGroupFixture {
         bank: &BankFixture,
         bank_config_opt: BankConfigOpt,
     ) -> Instruction {
+        let accounts = marginfi::accounts::LendingPoolConfigureBank {
+            bank: bank.key,
+            marginfi_group: self.key,
+            admin: self.ctx.borrow().payer.pubkey(),
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolConfigureBank { bank_config_opt }.data(),
+        }
+    }
+
+    pub fn make_lending_pool_configure_bank_oracle_ix(
+        &self,
+        bank: &BankFixture,
+        setup: u8,
+        oracle: Pubkey,
+    ) -> Instruction {
         let mut accounts = marginfi::accounts::LendingPoolConfigureBank {
             bank: bank.key,
             marginfi_group: self.key,
@@ -292,19 +312,12 @@ impl MarginfiGroupFixture {
         }
         .to_account_metas(Some(true));
 
-        if let Some(oracle_config) = bank_config_opt.oracle {
-            accounts.extend(
-                oracle_config
-                    .keys
-                    .iter()
-                    .map(|k| AccountMeta::new_readonly(*k, false)),
-            );
-        }
+        accounts.push(AccountMeta::new_readonly(oracle, false));
 
         Instruction {
             program_id: marginfi::id(),
             accounts,
-            data: marginfi::instruction::LendingPoolConfigureBank { bank_config_opt }.data(),
+            data: marginfi::instruction::LendingPoolConfigureBankOracle { setup, oracle }.data(),
         }
     }
 

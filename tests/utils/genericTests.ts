@@ -196,3 +196,43 @@ export const assertBankrunTxFailed = (
     "\nExpected code " + expectedErrorCode + " but got: " + lastLog
   );
 };
+
+/**
+ * Typically used when catching the result of a tx sendAndConfirm. Asserts that the logs contain the
+ * given error code.
+ * @param logs
+ * @param errorCode
+ * @returns
+ */
+export function logContainsError(logs: string[], errorCode: string): boolean {
+  if (!logs || !Array.isArray(logs)) {
+    throw new Error("Invalid logs provided for verification.");
+  }
+
+  return logs.some((log) => log.includes(`Error Code: ${errorCode}`));
+}
+
+/**
+ * Asserts that the contained transaction failed with the given error code. Fails if the tx did not
+ * fail or fails with the wrong error code.
+ * 
+ * Invalid if not awaited. MAKE SURE TO CALL WITH AWAIT.
+ * @param transactionFn
+ * @param errorCode
+ */
+export async function expectFailedTxWithError(
+  transactionFn: () => Promise<void>,
+  errorCode: string
+): Promise<void> {
+  let failed = false;
+  try {
+    await transactionFn();
+  } catch (err) {
+    assert.ok(
+      logContainsError(err.logs, errorCode),
+      `Expected error code '${errorCode}' was not found in logs. Log dump: ${err.logs}`
+    );
+    failed = true;
+  }
+  assert.ok(failed, "Transaction succeeded when it should have failed");
+}

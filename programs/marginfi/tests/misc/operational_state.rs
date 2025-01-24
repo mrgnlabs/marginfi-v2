@@ -71,10 +71,13 @@ async fn marginfi_group_bank_reduce_only_withdraw_success() -> anyhow::Result<()
         .await?;
 
     usdc_bank_f
-        .update_config(BankConfigOpt {
-            operational_state: Some(BankOperationalState::ReduceOnly),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                operational_state: Some(BankOperationalState::ReduceOnly),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     let res = lender_mfi_account_f
@@ -131,10 +134,13 @@ async fn marginfi_group_bank_reduce_only_deposit_success() -> anyhow::Result<()>
         .await?;
 
     usdc_bank_f
-        .update_config(BankConfigOpt {
-            operational_state: Some(BankOperationalState::ReduceOnly),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                operational_state: Some(BankOperationalState::ReduceOnly),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     let res = lender_2_mfi_account
@@ -186,10 +192,13 @@ async fn marginfi_group_bank_reduce_only_borrow_failure() -> anyhow::Result<()> 
         .await?;
 
     sol_bank_f
-        .update_config(BankConfigOpt {
-            operational_state: Some(BankOperationalState::ReduceOnly),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                operational_state: Some(BankOperationalState::ReduceOnly),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     let borrower_token_account_sol = test_f.sol_mint.create_empty_token_account().await;
@@ -218,10 +227,13 @@ async fn marginfi_group_bank_reduce_only_deposit_failure() -> anyhow::Result<()>
     let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     usdc_bank_f
-        .update_config(BankConfigOpt {
-            operational_state: Some(BankOperationalState::ReduceOnly),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                operational_state: Some(BankOperationalState::ReduceOnly),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;

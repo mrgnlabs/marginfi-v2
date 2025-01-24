@@ -151,7 +151,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.deepEqual(config.riskTier, { collateral: {} });
     assert.equal(config.assetTag, ASSET_TAG_DEFAULT);
     assertBNEqual(config.totalAssetValueInitLimit, 1_000_000_000_000);
-    assert.equal(config.oracleMaxAge, 100);
+    assert.equal(config.oracleMaxAge, 240);
 
     assertI80F48Equal(bank.collectedProgramFeesOutstanding, 0);
   });

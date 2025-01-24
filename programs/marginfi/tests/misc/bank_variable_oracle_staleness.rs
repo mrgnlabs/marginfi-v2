@@ -68,22 +68,31 @@ async fn bank_oracle_staleness_test() -> anyhow::Result<()> {
 
     // Make SOL feed non-stale
     usdc_bank
-        .update_config(BankConfigOpt {
-            oracle_max_age: Some(200),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                oracle_max_age: Some(200),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
     sol_bank
-        .update_config(BankConfigOpt {
-            oracle_max_age: Some(200),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                oracle_max_age: Some(200),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
     sol_eq_bank
-        .update_config(BankConfigOpt {
-            oracle_max_age: Some(200),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                oracle_max_age: Some(200),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     // Borrow SOL

@@ -1683,31 +1683,14 @@ pub fn bank_configure(
     config: Config,
     profile: Profile,
     bank_pk: Pubkey,
-    mut bank_config_opt: BankConfigOpt,
+    bank_config_opt: BankConfigOpt,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
     let configure_bank_ixs_builder = config.mfi_program.request();
     let signing_keypairs = config.get_signers(false);
 
-    let mut extra_accounts = vec![];
-
-    if let Some(oracle) = &mut bank_config_opt.oracle {
-        extra_accounts.push(AccountMeta::new_readonly(oracle.keys[0], false));
-
-        if oracle.setup == OracleSetup::PythPushOracle {
-            let oracle_address = oracle.keys[0];
-            let mut account = rpc_client.get_account(&oracle_address)?;
-            let ai = (&oracle_address, &mut account).into_account_info();
-            let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai)?;
-
-            let feed_id_as_pubkey = Pubkey::new_from_array(feed_id);
-
-            oracle.keys[0] = feed_id_as_pubkey;
-        }
-    }
-
-    let mut configure_bank_ixs = configure_bank_ixs_builder
+    let configure_bank_ixs = configure_bank_ixs_builder
         .accounts(marginfi::accounts::LendingPoolConfigureBank {
             marginfi_group: profile.marginfi_group.unwrap(),
             admin: config.authority(),
@@ -1715,6 +1698,62 @@ pub fn bank_configure(
         })
         .args(marginfi::instruction::LendingPoolConfigureBank {
             bank_config_opt: bank_config_opt.clone(),
+        })
+        .instructions()?;
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let message = Message::new(&configure_bank_ixs, Some(&config.authority()));
+    let mut transaction = Transaction::new_unsigned(message);
+    transaction.partial_sign(&signing_keypairs, recent_blockhash);
+
+    let sig = process_transaction(&transaction, &rpc_client, config.get_tx_mode())?;
+
+    println!("Transaction signature: {}", sig);
+
+    Ok(())
+}
+
+pub fn bank_configure_oracle(
+    config: Config,
+    profile: Profile,
+    bank_pk: Pubkey,
+    setup: u8,
+    oracle: Pubkey,
+) -> Result<()> {
+    let rpc_client = config.mfi_program.rpc();
+
+    let configure_bank_ixs_builder = config.mfi_program.request();
+    let signing_keypairs = config.get_signers(false);
+
+    let mut extra_accounts = vec![];
+    // Pyth pull oracles pass the feed instead, all other kinds pass the key itself
+    let mut passed_oracle = oracle;
+
+    extra_accounts.push(AccountMeta::new_readonly(oracle, false));
+
+    let setup_type =
+        OracleSetup::from_u8(setup).unwrap_or_else(|| panic!("unsupported oracle type"));
+
+    if setup_type == OracleSetup::PythPushOracle || setup_type == OracleSetup::StakedWithPythPush {
+        let oracle_address = oracle;
+        let mut account = rpc_client.get_account(&oracle_address)?;
+        let ai = (&oracle_address, &mut account).into_account_info();
+        let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai)?;
+
+        let feed_id_as_pubkey = Pubkey::new_from_array(feed_id);
+
+        passed_oracle = feed_id_as_pubkey;
+    }
+
+    let mut configure_bank_ixs = configure_bank_ixs_builder
+        .accounts(marginfi::accounts::LendingPoolConfigureBankOracle {
+            group: profile.marginfi_group.unwrap(),
+            admin: config.authority(),
+            bank: bank_pk,
+        })
+        .args(marginfi::instruction::LendingPoolConfigureBankOracle {
+            setup,
+            oracle: passed_oracle,
         })
         .instructions()?;
 

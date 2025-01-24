@@ -1,9 +1,20 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { configureBank } from "./utils/group-instructions";
+import { configureBank, configureBankOracle } from "./utils/group-instructions";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
-import { bankKeypairUsdc, groupAdmin, marginfiGroup } from "./rootHooks";
-import { assertBNEqual, assertI80F48Approx } from "./utils/genericTests";
+import {
+  bankKeypairUsdc,
+  groupAdmin,
+  marginfiGroup,
+  oracles,
+  users,
+} from "./rootHooks";
+import {
+  assertBNEqual,
+  assertI80F48Approx,
+  assertKeysEqual,
+  expectFailedTxWithError,
+} from "./utils/genericTests";
 import { assert } from "chai";
 import { InterestRateConfigRaw } from "@mrgnlabs/marginfi-client-v2";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
@@ -45,8 +56,7 @@ describe("Lending pool configure bank", () => {
       operationalState: {
         paused: undefined,
       },
-      oracle: null,
-      oracleMaxAge: 50,
+      oracleMaxAge: 150,
       permissionlessBadDebtSettlement: null,
       freezeSettings: null,
     };
@@ -87,7 +97,7 @@ describe("Lending pool configure bank", () => {
     assert.deepEqual(config.riskTier, { collateral: {} }); // no change
     assert.equal(config.assetTag, ASSET_TAG_SOL);
     assertBNEqual(config.totalAssetValueInitLimit, 15000);
-    assert.equal(config.oracleMaxAge, 50);
+    assert.equal(config.oracleMaxAge, 150);
   });
 
   it("(admin) Restore default settings to bank (USDC)", async () => {
@@ -101,6 +111,76 @@ describe("Lending pool configure bank", () => {
         })
       )
     );
+  });
+
+  it("(admin) update oracle (USDC)", async () => {
+    const bankKey = bankKeypairUsdc.publicKey;
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+      new Transaction().add(
+        await configureBankOracle(groupAdmin.mrgnProgram, {
+          bank: bankKey,
+          type: 1, // pyth legacy
+          oracle: oracles.tokenAOracle.publicKey,
+        })
+      )
+    );
+    const bank = await program.account.bank.fetch(bankKey);
+    const config = bank.config;
+    assert.deepEqual(config.oracleSetup, { pythLegacy: {} }); // no change
+    assertKeysEqual(config.oracleKeys[0], oracles.tokenAOracle.publicKey);
+  });
+
+  it("(admin) restore to valid oracle (USDC)", async () => {
+    const bankKey = bankKeypairUsdc.publicKey;
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+      new Transaction().add(
+        await configureBankOracle(groupAdmin.mrgnProgram, {
+          bank: bankKey,
+          type: 1,
+          oracle: oracles.usdcOracle.publicKey,
+        })
+      )
+    );
+    const bank = await program.account.bank.fetch(bankKey);
+    const config = bank.config;
+    assert.deepEqual(config.oracleSetup, { pythLegacy: {} }); // no change
+    assertKeysEqual(config.oracleKeys[0], oracles.usdcOracle.publicKey);
+  });
+
+  it("(admin) update oracle to invalid state - should fail", async () => {
+    const bankKey = bankKeypairUsdc.publicKey;
+    await expectFailedTxWithError(async () => {
+      await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+        new Transaction().add(
+          await configureBankOracle(groupAdmin.mrgnProgram, {
+            bank: bankKey,
+            type: 2,
+            oracle: oracles.tokenAOracle.publicKey,
+          })
+        )
+      );
+    }, "InvalidOracleAccount");
+  });
+
+  // TODO try await with expectFailed...
+  it("(attacker) tries to change oracle  - should fail with generic signature failure", async () => {
+    const bankKey = bankKeypairUsdc.publicKey;
+
+    let failed = false;
+    try {
+      await users[0].mrgnProgram!.provider.sendAndConfirm!(
+        new Transaction().add(
+          await configureBankOracle(users[0].mrgnProgram, {
+            bank: bankKey,
+            type: 1,
+            oracle: oracles.wsolOracle.publicKey,
+          })
+        )
+      );
+    } catch (err) {
+      failed = true;
+    }
+    assert.ok(failed, "Transaction succeeded when it should have failed");
   });
 
   it("(admin) Freeze USDC settings so they cannot be changed again (USDC)", async () => {
@@ -118,6 +198,26 @@ describe("Lending pool configure bank", () => {
     );
     const bank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
     assertBNEqual(bank.flags, FREEZE_SETTINGS);
+  });
+
+  it("(admin) attempt to update oracle after freeze - fails with generic panic", async () => {
+    const bankKey = bankKeypairUsdc.publicKey;
+
+    let failed = false;
+    try {
+      await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+        new Transaction().add(
+          await configureBankOracle(groupAdmin.mrgnProgram, {
+            bank: bankKey,
+            type: 1,
+            oracle: oracles.wsolOracle.publicKey,
+          })
+        )
+      );
+    } catch (err) {
+      failed = true;
+    }
+    assert.ok(failed, "Transaction succeeded when it should have failed");
   });
 
   it("(admin) Update settings after a freeze - only deposit/borrow caps update", async () => {
@@ -147,7 +247,7 @@ describe("Lending pool configure bank", () => {
     assertBNEqual(config.borrowLimit, newBorrowLimit);
 
     // Ignored fields didn't change..
-    assert.equal(config.oracleMaxAge, 100);
+    assert.equal(config.oracleMaxAge, 240);
     assertBNEqual(bank.flags, FREEZE_SETTINGS); // still frozen
   });
 });

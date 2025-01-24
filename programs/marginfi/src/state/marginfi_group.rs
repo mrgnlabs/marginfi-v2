@@ -694,10 +694,6 @@ impl Bank {
 
         set_if_some!(self.config.operational_state, config.operational_state);
 
-        set_if_some!(self.config.oracle_setup, config.oracle.map(|o| o.setup));
-
-        set_if_some!(self.config.oracle_keys, config.oracle.map(|o| o.keys));
-
         if let Some(ir_config) = &config.interest_rate_config {
             self.config.interest_rate_config.update(ir_config);
         }
@@ -1549,8 +1545,6 @@ pub struct BankConfigOpt {
 
     pub operational_state: Option<BankOperationalState>,
 
-    pub oracle: Option<OracleConfig>,
-
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
     pub risk_tier: Option<RiskTier>,
@@ -1564,16 +1558,6 @@ pub struct BankConfigOpt {
     pub permissionless_bad_debt_settlement: Option<bool>,
 
     pub freeze_settings: Option<bool>,
-}
-
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
-)]
-#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize, Debug)]
-pub struct OracleConfig {
-    pub setup: OracleSetup,
-    pub keys: [Pubkey; MAX_ORACLE_KEYS],
 }
 
 #[derive(Debug, Clone)]

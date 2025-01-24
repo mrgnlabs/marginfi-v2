@@ -1,4 +1,5 @@
 use crate::constants::FREEZE_SETTINGS;
+use crate::events::{GroupEventHeader, LendingPoolBankConfigureOracleEvent};
 use crate::state::price::OracleSetup;
 use crate::{
     state::marginfi_group::{Bank, MarginfiGroup},
@@ -11,33 +12,30 @@ pub fn lending_pool_configure_bank_oracle(
     setup: u8,
     oracle: Pubkey,
 ) -> MarginfiResult {
-    let group = ctx.accounts.group.load()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    let ms = pubkey!("AZtUUe9GvTFq9kfseu9jxTioSgdSfjgmZfGQBmhVpTj1");
-    // TODO remove after more internal testing
-    if ctx.accounts.admin.key() != ms || group.admin != ms {
-        panic!("Multisig only.");
-    }
-
-    // If settings are frozen, you can only update the deposit and borrow limits, everything else is ignored.
+    // If settings are frozen, you can only update the deposit and borrow limits, so this ix will fail
     if bank.get_flag(FREEZE_SETTINGS) {
-        panic!("can't change oracle settings on frozen banks")
+        panic!("can't change oracle settings on frozen banks");
     } else {
-        bank.config.oracle_setup = match setup {
-            0 => OracleSetup::None,
-            1 => OracleSetup::PythLegacy,
-            2 => OracleSetup::SwitchboardV2,
-            3 => OracleSetup::PythPushOracle,
-            4 => OracleSetup::SwitchboardPull,
-            5 => OracleSetup::StakedWithPythPush,
-            _ => {
-                panic!("unsupported")
-            }
-        };
+        let setup_type =
+            OracleSetup::from_u8(setup).unwrap_or_else(|| panic!("unsupported oracle type"));
+
+        bank.config.oracle_setup = setup_type;
         bank.config.oracle_keys[0] = oracle;
-        bank.config.deposit_limit = 0;
-        bank.config.total_asset_value_init_limit = 1;
+
+        bank.config
+            .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
+
+        emit!(LendingPoolBankConfigureOracleEvent {
+            header: GroupEventHeader {
+                marginfi_group: ctx.accounts.group.key(),
+                signer: Some(*ctx.accounts.admin.key)
+            },
+            bank: ctx.accounts.bank.key(),
+            oracle_setup: setup,
+            oracle: oracle,
+        });
     }
 
     Ok(())

@@ -15,7 +15,7 @@ use marginfi::{
         marginfi_account::{Balance, LendingAccount, MarginfiAccount, FLASHLOAN_ENABLED_FLAG},
         marginfi_group::{
             Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
-            InterestRateConfigOpt, OracleConfig, RiskTier, WrappedI80F48,
+            InterestRateConfigOpt, RiskTier, WrappedI80F48,
         },
         price::OracleSetup,
     },
@@ -294,10 +294,6 @@ pub enum BankCommand {
         risk_tier: Option<RiskTierArg>,
         #[clap(long, help = "0 = default, 1 = SOL, 2 = Staked SOL LST")]
         asset_tag: Option<u8>,
-        #[clap(long, arg_enum, help = "Bank oracle type")]
-        oracle_type: Option<OracleTypeArg>,
-        #[clap(long, help = "Bank oracle account")]
-        oracle_key: Option<Pubkey>,
         #[clap(long, help = "Soft USD init limit")]
         usd_init_limit: Option<u64>,
         #[clap(long, help = "Oracle max age in seconds, 0 to use default value (60s)")]
@@ -312,6 +308,16 @@ pub enum BankCommand {
             help = "If enabled, will prevent this Update ix from ever running against after this invokation"
         )]
         freeze_settings: Option<bool>,
+    },
+    UpdateOracle {
+        bank_pk: Pubkey,
+        #[clap(
+            long,
+            help = "Bank oracle type (0 = Pyth Legacy, 1 = Switchboardv2, 3 = Pyth Pull, 4 = Switchboard Pull, 5 = Staked Pyth Pull"
+        )]
+        oracle_type: u8,
+        #[clap(long, help = "Bank oracle account (or feed if using Pyth Pull")]
+        oracle_key: Pubkey,
     },
     InspectPriceOracle {
         bank_pk: Pubkey,
@@ -744,8 +750,6 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             pf_or,
             risk_tier,
             asset_tag,
-            oracle_type,
-            oracle_key,
             usd_init_limit,
             oracle_max_age,
             permissionless_bad_debt_settlement,
@@ -773,18 +777,6 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                         spl_token::ui_amount_to_amount(ui_amount, bank.mint_decimals)
                     }),
                     operational_state: operational_state.map(|x| x.into()),
-                    oracle: oracle_key.map(|x| marginfi::state::marginfi_group::OracleConfig {
-                        setup: oracle_type
-                            .expect("Orcale type must be provided with oracle_key")
-                            .into(),
-                        keys: [
-                            x,
-                            Pubkey::default(),
-                            Pubkey::default(),
-                            Pubkey::default(),
-                            Pubkey::default(),
-                        ],
-                    }),
                     interest_rate_config: Some(InterestRateConfigOpt {
                         optimal_utilization_rate: opr_ur.map(|x| I80F48::from_num(x).into()),
                         plateau_interest_rate: p_ir.map(|x| I80F48::from_num(x).into()),
@@ -803,6 +795,17 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     freeze_settings,
                 },
             )
+        }
+        BankCommand::UpdateOracle {
+            bank_pk,
+            oracle_type,
+            oracle_key,
+        } => {
+            let bank = config
+                .mfi_program
+                .account::<marginfi::state::marginfi_group::Bank>(bank_pk)
+                .unwrap();
+            processor::bank_configure_oracle(config, profile, bank_pk, oracle_type, oracle_key)
         }
         BankCommand::InspectPriceOracle { bank_pk } => {
             processor::bank_inspect_price_oracle(config, bank_pk)
@@ -864,7 +867,6 @@ fn inspect_padding() -> Result<()> {
         marginfi::state::marginfi_group::Bank::type_layout()
     );
     println!("BankConfig: {}", BankConfig::type_layout());
-    println!("OracleConfig: {}", OracleConfig::type_layout());
     println!("BankConfigOpt: {}", BankConfigOpt::type_layout());
     println!("WrappedI80F48: {}", WrappedI80F48::type_layout());
 
@@ -886,7 +888,6 @@ fn inspect_size() -> Result<()> {
         size_of::<marginfi::state::marginfi_group::Bank>()
     );
     println!("BankConfig: {}", size_of::<BankConfig>());
-    println!("OracleConfig: {}", size_of::<OracleConfig>());
     println!("BankConfigOpt: {}", size_of::<BankConfigOpt>());
     println!("WrappedI80F48: {}", size_of::<WrappedI80F48>());
 

@@ -159,6 +159,35 @@ export const configureBank = (
   return ix;
 };
 
+export type ConfigureBankOracleArgs = {
+  bank: PublicKey;
+  type: number;
+  oracle: PublicKey;
+  /** For Pyth Pull, pass the feed. For all others, ignore */
+  feed?: PublicKey;
+};
+
+export const configureBankOracle = (
+  program: Program<Marginfi>,
+  args: ConfigureBankOracleArgs
+) => {
+  const metaKey = args.feed ?? args.oracle;
+  const oracleMeta: AccountMeta = {
+    pubkey: metaKey,
+    isSigner: false,
+    isWritable: false,
+  };
+
+  const ix = program.methods
+    .lendingPoolConfigureBankOracle(args.type, args.oracle)
+    .accounts({
+      bank: args.bank,
+    })
+    .remainingAccounts([oracleMeta])
+    .instruction();
+  return ix;
+};
+
 export type SetupEmissionsArgs = {
   marginfiGroup: PublicKey;
   admin: PublicKey;
@@ -366,7 +395,7 @@ export const propagateStakedSettings = (
         } as AccountMeta,
       ]
     : [];
-    
+
   const ix = program.methods
     .propagateStakedSettings()
     .accounts({
