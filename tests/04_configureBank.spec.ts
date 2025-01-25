@@ -14,6 +14,7 @@ import {
   assertI80F48Approx,
   assertKeysEqual,
   expectFailedTxWithError,
+  expectFailedTxWithMessage,
 } from "./utils/genericTests";
 import { assert } from "chai";
 import { InterestRateConfigRaw } from "@mrgnlabs/marginfi-client-v2";
@@ -160,14 +161,24 @@ describe("Lending pool configure bank", () => {
         )
       );
     }, "InvalidOracleAccount");
+
+    await expectFailedTxWithMessage(async () => {
+      await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+        new Transaction().add(
+          await configureBankOracle(groupAdmin.mrgnProgram, {
+            bank: bankKey,
+            type: 42,
+            oracle: oracles.tokenAOracle.publicKey,
+          })
+        )
+      );
+    }, "unsupported oracle type");
   });
 
-  // TODO try await with expectFailed...
   it("(attacker) tries to change oracle  - should fail with generic signature failure", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
 
-    let failed = false;
-    try {
+    await expectFailedTxWithError(async () => {
       await users[0].mrgnProgram!.provider.sendAndConfirm!(
         new Transaction().add(
           await configureBankOracle(users[0].mrgnProgram, {
@@ -177,10 +188,19 @@ describe("Lending pool configure bank", () => {
           })
         )
       );
-    } catch (err) {
-      failed = true;
-    }
-    assert.ok(failed, "Transaction succeeded when it should have failed");
+    }, "ConstraintHasOne");
+
+    await expectFailedTxWithMessage(async () => {
+      await users[0].mrgnProgram!.provider.sendAndConfirm!(
+        new Transaction().add(
+          await configureBankOracle(groupAdmin.mrgnProgram, {
+            bank: bankKey,
+            type: 1,
+            oracle: oracles.wsolOracle.publicKey,
+          })
+        )
+      );
+    }, "Missing signature for");
   });
 
   it("(admin) Freeze USDC settings so they cannot be changed again (USDC)", async () => {
@@ -203,8 +223,7 @@ describe("Lending pool configure bank", () => {
   it("(admin) attempt to update oracle after freeze - fails with generic panic", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
 
-    let failed = false;
-    try {
+    await expectFailedTxWithMessage(async () => {
       await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
         new Transaction().add(
           await configureBankOracle(groupAdmin.mrgnProgram, {
@@ -214,10 +233,7 @@ describe("Lending pool configure bank", () => {
           })
         )
       );
-    } catch (err) {
-      failed = true;
-    }
-    assert.ok(failed, "Transaction succeeded when it should have failed");
+    }, "change oracle settings on frozen banks");
   });
 
   it("(admin) Update settings after a freeze - only deposit/borrow caps update", async () => {

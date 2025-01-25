@@ -16,7 +16,7 @@ pub fn lending_pool_configure_bank_oracle(
 
     // If settings are frozen, you can only update the deposit and borrow limits, so this ix will fail
     if bank.get_flag(FREEZE_SETTINGS) {
-        panic!("can't change oracle settings on frozen banks");
+        panic!("cannot change oracle settings on frozen banks");
     } else {
         let setup_type =
             OracleSetup::from_u8(setup).unwrap_or_else(|| panic!("unsupported oracle type"));
