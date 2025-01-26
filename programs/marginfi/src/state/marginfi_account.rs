@@ -85,9 +85,9 @@ impl MarginfiAccount {
         self.group = group;
     }
 
-    pub fn get_remaining_accounts_len<'info>(
+    pub fn get_remaining_accounts_len(
         &self,
-        bank_als: &'_ [AccountLoader<'info, Bank>],
+        bank_als: &'_ [AccountLoader<'_, Bank>],
     ) -> MarginfiResult<usize> {
         let mut total = 0usize;
         for balance in self.lending_account.balances.iter().filter(|b| b.active) {
