@@ -147,10 +147,12 @@ pub fn lending_account_liquidate<'info>(
             ctx.accounts.liab_bank.key(),
         )?;
     }
-    let bank_als = [
-        ctx.accounts.asset_bank.clone(),
-        ctx.accounts.liab_bank.clone(),
-    ];
+
+    let bank_als = ctx
+        .remaining_accounts
+        .iter()
+        .filter_map(|ai| AccountLoader::<Bank>::try_from(ai).ok())
+        .collect::<Vec<_>>();
     let init_liquidatee_remaining_len =
         liquidatee_marginfi_account.get_remaining_accounts_len(&bank_als)?;
 
