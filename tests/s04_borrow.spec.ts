@@ -1,45 +1,30 @@
 import {
-  AnchorProvider,
   BN,
-  getProvider,
   Program,
-  Wallet,
   workspace,
 } from "@coral-xyz/anchor";
-import { Keypair, Transaction } from "@solana/web3.js";
+import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
-  bankKeypairA,
   bankKeypairSol,
   bankKeypairUsdc,
   bankrunContext,
   bankrunProgram,
-  bankRunProvider,
   banksClient,
   ecosystem,
-  groupAdmin,
   marginfiGroup,
-  numUsers,
   oracles,
   users,
   validators,
-  verbose,
 } from "./rootHooks";
 import {
   assertBankrunTxFailed,
-  assertBNApproximately,
-  assertI80F48Approx,
-  assertI80F48Equal,
   assertKeysEqual,
-  getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { accountInit, borrowIx, depositIx } from "./utils/user-instructions";
+import { borrowIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { createMintToInstruction } from "@solana/spl-token";
-import { deriveLiquidityVault } from "./utils/pdas";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import { BanksTransactionResultWithMeta } from "solana-bankrun";
 
 describe("Deposit funds (included staked assets)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;

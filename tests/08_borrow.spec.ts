@@ -24,9 +24,8 @@ import {
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { borrowIx, depositIx } from "./utils/user-instructions";
+import { borrowIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { createMintToInstruction } from "@solana/spl-token";
 import { updatePriceAccount } from "./utils/pyth_mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 

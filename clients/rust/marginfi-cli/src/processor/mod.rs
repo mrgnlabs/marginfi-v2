@@ -2380,7 +2380,7 @@ pub fn marginfi_account_liquidate(
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountLiquidate {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             asset_bank: asset_bank_pk,
             liab_bank: liability_bank_pk,
             liquidator_marginfi_account: marginfi_account_pk,

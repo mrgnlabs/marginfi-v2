@@ -1,5 +1,5 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { AccountMeta, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { AccountMeta, Keypair, Transaction } from "@solana/web3.js";
 import {
   addBank,
   addBankPermissionless,

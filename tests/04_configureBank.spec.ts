@@ -17,7 +17,6 @@ import {
   expectFailedTxWithMessage,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { InterestRateConfigRaw } from "@mrgnlabs/marginfi-client-v2";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
   ASSET_TAG_SOL,
