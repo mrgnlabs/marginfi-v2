@@ -30,7 +30,6 @@ export const accountInit = (
       marginfiAccount: args.marginfiAccount,
       authority: args.authority,
       feePayer: args.feePayer,
-      // systemProgram
     })
     .instruction();
 
@@ -164,8 +163,6 @@ export const borrowIx = (program: Program<Marginfi>, args: BorrowIxArgs) => {
       // authority: args.authority, // implied from account
       bank: args.bank,
       destinationTokenAccount: args.tokenAccount,
-      // bankLiquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
-      // bankLiquidityVault = deriveLiquidityVault(id, bank)
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .remainingAccounts(oracleMeta)
@@ -259,10 +256,60 @@ export const repayIx = (program: Program<Marginfi>, args: RepayIxArgs) => {
       signerTokenAccount: args.tokenAccount,
       // bankLiquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
       // bankLiquidityVault = deriveLiquidityVault(id, bank)
+            tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+    return ix;
+};
+
+export type LiquidateIxArgs = {
+  assetBankKey: PublicKey;
+  liabilityBankKey: PublicKey;
+  liquidatorMarginfiAccount: PublicKey;
+  liquidatorMarginfiAccountAuthority: PublicKey;
+  liquidateeMarginfiAccount: PublicKey;
+  remaining: PublicKey[];
+  amount: BN;
+};
+
+/**
+ * Creates a Liquidate instruction.
+ * `remaining`:
+ *     liab_mint_ai (if token2022 mint),
+ *     asset_oracle_ai,
+ *     liab_oracle_ai,
+ *     liquidator_observation_ais...,
+ *     liquidatee_observation_ais...,
+ *
+ * @param program - The marginfi program instance.
+ * @param args - The arguments required to create the instruction.
+ * @returns The TransactionInstruction object.
+ */
+export const liquidateIx = (
+  program: Program<Marginfi>,
+  args: LiquidateIxArgs
+) => {
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
+    if (!(pubkey instanceof PublicKey)) {
+      console.error("Invalid remaining key:", pubkey);
+      throw new Error("remaining contains invalid keys");
+    }
+
+    return { pubkey, isSigner: false, isWritable: false };
+  });
+
+  // Return the instruction
+  return program.methods
+    .lendingAccountLiquidate(args.amount)
+    .accounts({
+      assetBank: args.assetBankKey,
+      liabBank: args.liabilityBankKey,
+      liquidatorMarginfiAccount: args.liquidatorMarginfiAccount,
+      signer: args.liquidatorMarginfiAccountAuthority,
+      liquidateeMarginfiAccount: args.liquidateeMarginfiAccount,
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .remainingAccounts(oracleMeta)
     .instruction();
-
-  return ix;
 };

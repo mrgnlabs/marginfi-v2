@@ -424,7 +424,7 @@ impl MarginfiAccountFixture {
         let liab_bank = liab_bank_fixture.load().await;
 
         let mut accounts = marginfi::accounts::LendingAccountLiquidate {
-            marginfi_group: marginfi_account.group,
+            group: marginfi_account.group,
             asset_bank: asset_bank_fixture.key,
             liab_bank: liab_bank_fixture.key,
             liquidator_marginfi_account: self.key,

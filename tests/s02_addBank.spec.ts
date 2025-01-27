@@ -1,5 +1,5 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { AccountMeta, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { AccountMeta, Keypair, Transaction } from "@solana/web3.js";
 import {
   addBank,
   addBankPermissionless,
@@ -35,8 +35,6 @@ import {
   ASSET_TAG_STAKED,
   defaultBankConfig,
   defaultStakedInterestSettings,
-  I80F48_ONE,
-  SINGLE_POOL_PROGRAM_ID,
 } from "./utils/types";
 import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
