@@ -1203,9 +1203,6 @@ pub struct BankConfigCompact {
     pub interest_rate_config: InterestRateConfigCompact,
     pub operational_state: BankOperationalState,
 
-    pub oracle_setup: OracleSetup,
-    pub oracle_key: Pubkey,
-
     pub borrow_limit: u64,
 
     pub risk_tier: RiskTier,
@@ -1239,7 +1236,7 @@ pub struct BankConfigCompact {
 impl From<BankConfigCompact> for BankConfig {
     fn from(config: BankConfigCompact) -> Self {
         let keys = [
-            config.oracle_key,
+            Pubkey::default(),
             Pubkey::default(),
             Pubkey::default(),
             Pubkey::default(),
@@ -1253,7 +1250,7 @@ impl From<BankConfigCompact> for BankConfig {
             deposit_limit: config.deposit_limit,
             interest_rate_config: config.interest_rate_config.into(),
             operational_state: config.operational_state,
-            oracle_setup: config.oracle_setup,
+            oracle_setup: OracleSetup::None,
             oracle_keys: keys,
             _pad0: [0; 6],
             borrow_limit: config.borrow_limit,
@@ -1277,8 +1274,6 @@ impl From<BankConfig> for BankConfigCompact {
             deposit_limit: config.deposit_limit,
             interest_rate_config: config.interest_rate_config.into(),
             operational_state: config.operational_state,
-            oracle_setup: config.oracle_setup,
-            oracle_key: config.oracle_keys[0],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             asset_tag: config.asset_tag,
