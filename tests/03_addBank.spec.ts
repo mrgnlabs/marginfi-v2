@@ -1,6 +1,6 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import { addBank } from "./utils/group-instructions";
+import { AccountMeta, PublicKey, Transaction } from "@solana/web3.js";
+import { addBank, configureBankOracle } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
@@ -21,7 +21,11 @@ import {
   assertKeyDefault,
   assertKeysEqual,
 } from "./utils/genericTests";
-import { ASSET_TAG_DEFAULT, defaultBankConfig } from "./utils/types";
+import {
+  ASSET_TAG_DEFAULT,
+  defaultBankConfig,
+  ORACLE_SETUP_PYTH_LEGACY,
+} from "./utils/types";
 import {
   deriveLiquidityVaultAuthority,
   deriveLiquidityVault,
@@ -37,7 +41,7 @@ describe("Lending pool add bank (add bank to group)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
 
   it("(admin) Add bank (USDC) - happy path", async () => {
-    let setConfig = defaultBankConfig(oracles.usdcOracle.publicKey);
+    let setConfig = defaultBankConfig();
     let bankKey = bankKeypairUsdc.publicKey;
     const now = Date.now() / 1000;
 
@@ -45,9 +49,9 @@ describe("Lending pool add bank (add bank to group)", () => {
       globalFeeWallet
     );
 
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await addBank(program, {
+        await addBank(groupAdmin.mrgnProgram, {
           marginfiGroup: marginfiGroup.publicKey,
           admin: groupAdmin.wallet.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
@@ -58,6 +62,18 @@ describe("Lending pool add bank (add bank to group)", () => {
         })
       ),
       [bankKeypairUsdc]
+    );
+
+    // Note: you can pack this in the same tx if you use partial accounts. See test below for an
+    // example. Anchor account inference won't work if the bank doesn't exist yet.
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await configureBankOracle(groupAdmin.mrgnProgram, {
+          bank: bankKey,
+          type: ORACLE_SETUP_PYTH_LEGACY,
+          oracle: oracles.usdcOracle.publicKey,
+        })
+      )
     );
 
     const feeAccSolAfter = await program.provider.connection.getBalance(
@@ -157,12 +173,31 @@ describe("Lending pool add bank (add bank to group)", () => {
   });
 
   it("(admin) Add bank (token A) - happy path", async () => {
-    let config = defaultBankConfig(oracles.tokenAOracle.publicKey);
+    let config = defaultBankConfig();
     let bankKey = bankKeypairA.publicKey;
 
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    // Example: packing the oracle config in the same tx as the bank init
+    const oracleMeta: AccountMeta = {
+      pubkey: oracles.tokenAOracle.publicKey,
+      isSigner: false,
+      isWritable: false,
+    };
+    const config_ix = await program.methods
+      .lendingPoolConfigureBankOracle(
+        ORACLE_SETUP_PYTH_LEGACY,
+        oracles.tokenAOracle.publicKey
+      )
+      .accountsPartial({
+        group: marginfiGroup.publicKey,
+        bank: bankKey,
+        admin: groupAdmin.wallet.publicKey,
+      })
+      .remainingAccounts([oracleMeta])
+      .instruction();
+
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await addBank(program, {
+        await addBank(groupAdmin.mrgnProgram, {
           marginfiGroup: marginfiGroup.publicKey,
           admin: groupAdmin.wallet.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
@@ -170,7 +205,8 @@ describe("Lending pool add bank (add bank to group)", () => {
           bank: bankKey,
           // globalFeeWallet: globalFeeWallet,
           config: config,
-        })
+        }),
+        config_ix
       ),
       [bankKeypairA]
     );

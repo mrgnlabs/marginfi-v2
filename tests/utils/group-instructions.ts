@@ -38,16 +38,6 @@ export type AddBankArgs = {
 };
 
 export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
-  // const id = program.programId;
-  // const bank = args.bank;
-
-  // Note: oracle is passed as a key in config AND as an acc in remaining accs
-  const oracleMeta: AccountMeta = {
-    pubkey: args.config.oracleKey,
-    isSigner: false,
-    isWritable: false,
-  };
-
   const ix = program.methods
     .lendingPoolAddBank({
       assetWeightInit: args.config.assetWeightInit,
@@ -57,8 +47,6 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
       depositLimit: args.config.depositLimit,
       interestRateConfig: args.config.interestRateConfig,
       operationalState: args.config.operationalState,
-      oracleSetup: args.config.oracleSetup,
-      oracleKey: args.config.oracleKey,
       borrowLimit: args.config.borrowLimit,
       riskTier: args.config.riskTier,
       assetTag: args.config.assetTag,
@@ -84,7 +72,6 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
       tokenProgram: TOKEN_PROGRAM_ID,
       // systemProgram: SystemProgram.programId,
     })
-    .remainingAccounts([oracleMeta])
     .instruction();
 
   return ix;

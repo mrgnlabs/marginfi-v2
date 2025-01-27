@@ -1233,6 +1233,26 @@ pub struct BankConfigCompact {
     pub oracle_max_age: u16,
 }
 
+impl Default for BankConfigCompact {
+    fn default() -> Self {
+        Self {
+            asset_weight_init: I80F48::ZERO.into(),
+            asset_weight_maint: I80F48::ZERO.into(),
+            liability_weight_init: I80F48::ONE.into(),
+            liability_weight_maint: I80F48::ONE.into(),
+            deposit_limit: 0,
+            borrow_limit: 0,
+            interest_rate_config: InterestRateConfigCompact::default(),
+            operational_state: BankOperationalState::Paused,
+            _pad0: [0; 6],
+            risk_tier: RiskTier::Isolated,
+            asset_tag: ASSET_TAG_DEFAULT,
+            total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
+            oracle_max_age: 0,
+        }
+    }
+}
+
 impl From<BankConfigCompact> for BankConfig {
     fn from(config: BankConfigCompact) -> Self {
         let keys = [

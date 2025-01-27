@@ -17,7 +17,6 @@ use marginfi::{
             Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
             InterestRateConfigOpt, RiskTier, WrappedI80F48,
         },
-        price::OracleSetup,
     },
 };
 use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
@@ -120,10 +119,6 @@ pub enum GroupCommand {
         #[clap(long)]
         borrow_limit_ui: u64,
         #[clap(long)]
-        oracle_key: Pubkey,
-        #[clap(long)]
-        feed_id: Option<Pubkey>,
-        #[clap(long)]
         optimal_utilization_rate: f64,
         #[clap(long)]
         plateau_interest_rate: f64,
@@ -139,8 +134,6 @@ pub enum GroupCommand {
         group_ir_fee: f64,
         #[clap(long, arg_enum)]
         risk_tier: RiskTierArg,
-        #[clap(long, arg_enum)]
-        oracle_type: OracleTypeArg,
         #[clap(
             long,
             help = "Max oracle age in seconds, 0 for default (60s)",
@@ -204,25 +197,6 @@ impl From<RiskTierArg> for RiskTier {
         match value {
             RiskTierArg::Collateral => RiskTier::Collateral,
             RiskTierArg::Isolated => RiskTier::Isolated,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Parser, ArgEnum)]
-pub enum OracleTypeArg {
-    PythLegacy,
-    SwitchboardLegacy,
-    PythPushOracle,
-    SwitchboardPull,
-}
-
-impl From<OracleTypeArg> for OracleSetup {
-    fn from(value: OracleTypeArg) -> Self {
-        match value {
-            OracleTypeArg::PythLegacy => OracleSetup::PythLegacy,
-            OracleTypeArg::SwitchboardLegacy => OracleSetup::SwitchboardV2,
-            OracleTypeArg::PythPushOracle => OracleSetup::PythPushOracle,
-            OracleTypeArg::SwitchboardPull => OracleSetup::SwitchboardPull,
         }
     }
 }
@@ -620,8 +594,6 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            oracle_key,
-            feed_id,
             optimal_utilization_rate,
             plateau_interest_rate,
             max_interest_rate,
@@ -632,7 +604,6 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             deposit_limit_ui,
             borrow_limit_ui,
             risk_tier,
-            oracle_type,
             oracle_max_age,
             global_fee_wallet,
         } => processor::group_add_bank(
@@ -640,9 +611,6 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             profile,
             bank_mint,
             seed,
-            oracle_key,
-            feed_id,
-            oracle_type,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,

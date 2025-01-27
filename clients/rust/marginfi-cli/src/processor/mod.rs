@@ -8,10 +8,10 @@ use {
         config::Config,
         profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
         utils::{
-            bank_to_oracle_key, calc_emissions_rate, create_oracle_key_array,
-            find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
-            find_bank_vault_authority_pda, find_bank_vault_pda, find_fee_state_pda,
-            load_observation_account_metas, process_transaction, EXP_10_I80F48,
+            bank_to_oracle_key, calc_emissions_rate, find_bank_emssions_auth_pda,
+            find_bank_emssions_token_account_pda, find_bank_vault_authority_pda,
+            find_bank_vault_pda, find_fee_state_pda, load_observation_account_metas,
+            process_transaction, EXP_10_I80F48,
         },
     },
     anchor_client::{
@@ -31,8 +31,8 @@ use {
         state::{
             marginfi_account::{BankAccountWrapper, MarginfiAccount},
             marginfi_group::{
-                Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
-                InterestRateConfig, WrappedI80F48,
+                Bank, BankConfig, BankConfigCompact, BankConfigOpt, BankOperationalState,
+                BankVaultType, InterestRateConfig, WrappedI80F48,
             },
             price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter, PythPushOraclePriceFeed},
         },
@@ -299,9 +299,6 @@ pub fn group_add_bank(
     profile: Profile,
     bank_mint: Pubkey,
     seed: bool,
-    oracle_key: Pubkey,
-    feed_id: Option<Pubkey>,
-    oracle_setup: crate::OracleTypeArg,
     asset_weight_init: f64,
     asset_weight_maint: f64,
     liability_weight_init: f64,
@@ -375,8 +372,6 @@ pub fn group_add_bank(
             &rpc_client,
             bank_mint,
             token_program,
-            oracle_key,
-            feed_id,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,
@@ -384,7 +379,6 @@ pub fn group_add_bank(
             deposit_limit,
             borrow_limit,
             interest_rate_config,
-            oracle_setup,
             risk_tier,
             oracle_max_age,
             global_fee_wallet,
@@ -396,8 +390,6 @@ pub fn group_add_bank(
             bank_mint,
             token_program,
             &bank_keypair,
-            oracle_key,
-            feed_id,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,
@@ -405,7 +397,6 @@ pub fn group_add_bank(
             deposit_limit,
             borrow_limit,
             interest_rate_config,
-            oracle_setup,
             risk_tier,
             oracle_max_age,
             global_fee_wallet,
@@ -438,8 +429,6 @@ fn create_bank_ix_with_seed(
     rpc_client: &RpcClient,
     bank_mint: Pubkey,
     token_program: Pubkey,
-    oracle_key: Pubkey,
-    feed_id: Option<Pubkey>,
     asset_weight_init: WrappedI80F48,
     asset_weight_maint: WrappedI80F48,
     liability_weight_init: WrappedI80F48,
@@ -447,7 +436,6 @@ fn create_bank_ix_with_seed(
     deposit_limit: u64,
     borrow_limit: u64,
     interest_rate_config: InterestRateConfig,
-    oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
     global_fee_wallet: Pubkey,
@@ -523,22 +511,19 @@ fn create_bank_ix_with_seed(
             fee_state: find_fee_state_pda(&config.program_id).0,
             global_fee_wallet,
         })
-        .accounts(AccountMeta::new_readonly(oracle_key, false))
         .args(marginfi::instruction::LendingPoolAddBankWithSeed {
-            bank_config: BankConfig {
+            bank_config: BankConfigCompact {
                 asset_weight_init,
                 asset_weight_maint,
                 liability_weight_init,
                 liability_weight_maint,
                 deposit_limit,
                 borrow_limit,
-                interest_rate_config,
+                interest_rate_config: interest_rate_config.into(),
                 operational_state: BankOperationalState::Operational,
-                oracle_setup: oracle_setup.into(),
-                oracle_keys: create_oracle_key_array(feed_id.unwrap_or(oracle_key)),
                 risk_tier: risk_tier.into(),
                 oracle_max_age,
-                ..BankConfig::default()
+                ..BankConfigCompact::default()
             }
             .into(),
             bank_seed,
@@ -558,8 +543,6 @@ fn create_bank_ix(
     bank_mint: Pubkey,
     token_program: Pubkey,
     bank_keypair: &Keypair,
-    oracle_key: Pubkey,
-    feed_id: Option<Pubkey>,
     asset_weight_init: WrappedI80F48,
     asset_weight_maint: WrappedI80F48,
     liability_weight_init: WrappedI80F48,
@@ -567,7 +550,6 @@ fn create_bank_ix(
     deposit_limit: u64,
     borrow_limit: u64,
     interest_rate_config: InterestRateConfig,
-    oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
     global_fee_wallet: Pubkey,
@@ -622,22 +604,19 @@ fn create_bank_ix(
             fee_state: find_fee_state_pda(&config.program_id).0,
             global_fee_wallet,
         })
-        .accounts(AccountMeta::new_readonly(oracle_key, false))
         .args(marginfi::instruction::LendingPoolAddBank {
-            bank_config: BankConfig {
+            bank_config: BankConfigCompact {
                 asset_weight_init,
                 asset_weight_maint,
                 liability_weight_init,
                 liability_weight_maint,
                 deposit_limit,
                 borrow_limit,
-                interest_rate_config,
+                interest_rate_config: interest_rate_config.into(),
                 operational_state: BankOperationalState::Operational,
-                oracle_setup: oracle_setup.into(),
-                oracle_keys: create_oracle_key_array(feed_id.unwrap_or(oracle_key)),
                 risk_tier: risk_tier.into(),
                 oracle_max_age,
-                ..BankConfig::default()
+                ..BankConfigCompact::default()
             }
             .into(),
         })
