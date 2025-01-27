@@ -59,7 +59,7 @@ pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
 }
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
-fn get_remaining_accounts_per_balance<'info>(balance: &Balance) -> MarginfiResult<usize> {
+fn get_remaining_accounts_per_balance(balance: &Balance) -> MarginfiResult<usize> {
     get_remaining_accounts_per_asset_tag(balance.bank_asset_tag)
 }
 
