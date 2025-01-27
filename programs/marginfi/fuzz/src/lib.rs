@@ -773,7 +773,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             Context::new(
                 &marginfi::id(),
                 &mut marginfi::instructions::LendingAccountLiquidate {
-                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     asset_bank: AccountLoader::try_from(airls(&asset_bank.bank))?,
                     liab_bank: AccountLoader::try_from(airls(&liab_bank.bank))?,
                     liquidator_marginfi_account: AccountLoader::try_from(airls(
