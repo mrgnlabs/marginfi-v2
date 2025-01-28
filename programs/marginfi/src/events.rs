@@ -1,4 +1,4 @@
-use crate::{prelude::*, state::marginfi_group::BankConfigOpt};
+use crate::{prelude::*, state::marginfi_group::BankConfigOpt, StakedSettingsEditConfig};
 use anchor_lang::prelude::*;
 
 // Event headers
@@ -52,6 +52,12 @@ pub struct LendingPoolBankConfigureFrozenEvent {
     pub mint: Pubkey,
     pub deposit_limit: u64,
     pub borrow_limit: u64,
+}
+
+#[event]
+pub struct EditStakedSettingEvent {
+    pub group: Pubkey,
+    pub settings: StakedSettingsEditConfig,
 }
 
 #[event]

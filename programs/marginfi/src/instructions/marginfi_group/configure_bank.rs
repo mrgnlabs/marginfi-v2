@@ -41,6 +41,9 @@ pub fn lending_pool_configure_bank(
             bank.config
                 .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
         }
+        if bank_config.oracle_max_age.is_some() {
+            bank.config.validate_oracle_age()?;
+        }
 
         emit!(LendingPoolBankConfigureEvent {
             header: GroupEventHeader {
