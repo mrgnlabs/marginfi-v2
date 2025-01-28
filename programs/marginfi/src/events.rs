@@ -55,7 +55,7 @@ pub struct LendingPoolBankConfigureFrozenEvent {
 }
 
 #[event]
-pub struct EditStakedSettingEvent {
+pub struct EditStakedSettingsEvent {
     pub group: Pubkey,
     pub settings: StakedSettingsEditConfig,
 }
