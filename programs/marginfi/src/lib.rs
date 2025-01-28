@@ -102,6 +102,10 @@ pub mod marginfi {
         marginfi_group::lending_pool_handle_bankruptcy(ctx)
     }
 
+    pub fn close_bank(ctx: Context<BankClose>) -> MarginfiResult {
+        marginfi_group::close_bank(ctx)
+    }
+
     // User instructions
 
     /// Initialize a marginfi account for a given group

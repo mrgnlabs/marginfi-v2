@@ -7,11 +7,11 @@ use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
-        LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, MAX_SWB_ORACLE_AGE,
-        ORACLE_MIN_AGE, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_ID, SECONDS_PER_YEAR,
-        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
+        EMISSION_FLAGS, EMPTY_BALANCE_THRESHOLD, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
+        GROUP_FLAGS, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
+        LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE,
+        MAX_SWB_ORACLE_AGE, ORACLE_MIN_AGE, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_ID,
+        SECONDS_PER_YEAR, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
     prelude::MarginfiError,
@@ -1008,6 +1008,15 @@ impl Bank {
         } else {
             self.flags &= !flag;
         }
+    }
+
+    pub fn can_be_closed(&self) -> bool {
+        I80F48::from(self.total_liability_shares) < EMPTY_BALANCE_THRESHOLD
+            && I80F48::from(self.total_asset_shares) < EMPTY_BALANCE_THRESHOLD
+            && I80F48::from(self.collected_insurance_fees_outstanding) == I80F48::ZERO
+            && I80F48::from(self.collected_group_fees_outstanding) == I80F48::ZERO
+            && I80F48::from(self.collected_program_fees_outstanding) == I80F48::ZERO
+            && I80F48::from(self.emissions_remaining) == I80F48::ZERO
     }
 
     const fn verify_emissions_flags(flags: u64) -> bool {

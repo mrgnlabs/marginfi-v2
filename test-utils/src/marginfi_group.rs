@@ -511,4 +511,31 @@ impl MarginfiGroupFixture {
 
         ctx.set_account(&self.key, &account.into())
     }
+
+    pub async fn try_close_bank(&self, bank: &BankFixture) -> Result<()> {
+        let mut ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts: marginfi::accounts::BankClose {
+                marginfi_group: self.key,
+                bank: bank.key,
+                admin: ctx.payer.pubkey(),
+                fee_payer: ctx.payer.pubkey(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::BankClose {}.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
 }
