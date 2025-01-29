@@ -189,7 +189,7 @@ impl MarginfiGroupFixture {
             .data(),
         };
 
-        let feed_id = {
+        let feed_oracle = {
             if bank_config.oracle_setup == OracleSetup::PythPushOracle
                 || bank_config.oracle_setup == OracleSetup::StakedWithPythPush
             {
@@ -203,7 +203,7 @@ impl MarginfiGroupFixture {
             &bank_fixture,
             bank_config.oracle_setup as u8,
             bank_config.oracle_keys[0],
-            feed_id,
+            feed_oracle,
         );
 
         let tx = Transaction::new_signed_with_payer(
@@ -279,11 +279,15 @@ impl MarginfiGroupFixture {
             .data(),
         };
 
-        let feed_id = {
+        let feed_oracle = {
             if bank_config.oracle_setup == OracleSetup::PythPushOracle
                 || bank_config.oracle_setup == OracleSetup::StakedWithPythPush
             {
-                Some(get_oracle_id_from_feed_id(bank_config.oracle_keys[0]).unwrap())
+                let id = get_oracle_id_from_feed_id(bank_config.oracle_keys[0]);
+                if id.is_none() {
+                    panic!("Unsupported Pyth feed ID, this should never happen");
+                }
+                id
             } else {
                 None
             }
@@ -293,7 +297,7 @@ impl MarginfiGroupFixture {
             &bank_fixture,
             bank_config.oracle_setup as u8,
             bank_config.oracle_keys[0],
-            feed_id,
+            feed_oracle,
         );
 
         let tx = Transaction::new_signed_with_payer(
@@ -336,7 +340,7 @@ impl MarginfiGroupFixture {
         bank: &BankFixture,
         setup: u8,
         oracle: Pubkey,
-        feed_id: Option<Pubkey>,
+        feed_oracle: Option<Pubkey>,
     ) -> Instruction {
         let mut accounts = marginfi::accounts::LendingPoolConfigureBankOracle {
             bank: bank.key,
@@ -345,11 +349,10 @@ impl MarginfiGroupFixture {
         }
         .to_account_metas(Some(true));
 
-        if feed_id.is_some() {
-            accounts.push(AccountMeta::new_readonly(feed_id.unwrap(), false));
-        } else {
-            accounts.push(AccountMeta::new_readonly(oracle, false));
-        }
+        accounts.push(AccountMeta::new_readonly(
+            feed_oracle.unwrap_or(oracle),
+            false,
+        ));
 
         Instruction {
             program_id: marginfi::id(),
