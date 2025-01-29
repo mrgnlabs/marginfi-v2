@@ -7,7 +7,7 @@ use marginfi::errors::MarginfiError;
 use solana_program_test::tokio;
 
 #[tokio::test]
-async fn close_marginfi_bank() -> anyhow::Result<()> {
+async fn close_bank() -> anyhow::Result<()> {
     let mut test_f: TestFixture =
         TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
