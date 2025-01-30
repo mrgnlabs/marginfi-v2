@@ -40,6 +40,20 @@ pub enum OracleSetup {
     StakedWithPythPush,
 }
 
+impl OracleSetup {
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::None),
+            1 => Some(Self::PythLegacy),
+            2 => Some(Self::SwitchboardV2),
+            3 => Some(Self::PythPushOracle),
+            4 => Some(Self::SwitchboardPull),
+            5 => Some(Self::StakedWithPythPush),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 pub enum PriceBias {
     Low,

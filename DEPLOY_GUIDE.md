@@ -24,6 +24,12 @@ solana program set-buffer-authority <BUFFER> --new-buffer-authority <MULTISIG> -
 * Click the pending upgrade to start a vote.
 * Execute after the vote passes.
 
+## RECENT DEPLOY HASHES
+
+Here we list recent deployments to staging/mainnet. The hash is always the first 6 chars of the hash generated with the mainnet verified build guide above (even for staging, this is the mainnet hash, not the hash on staging. Staging does not get a verified build.).
+
+Staging deploy on Jan 30, 2025 ~2:35ET-- Hash: a4dd3e7
+
 ## DEPLOYING STAKED COLLATERAL TO STAGING
 
 The Staked Collateral feature uses spl-single-pool, developed by the Solana Foundation (https://github.com/solana-labs/solana-program-library/tree/master/single-pool). This guide will show you how to deploy that program.
@@ -45,5 +51,4 @@ solana program deploy \
   --keypair ~/keys/staging-deploy.json \
   --fee-payer ~/keys/staging-deploy.json \
   --url <your_rpc_url (optional, omit this line to use api.mainnet-beta)>
-
 ```

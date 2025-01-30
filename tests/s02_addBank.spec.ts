@@ -35,6 +35,9 @@ import {
   ASSET_TAG_STAKED,
   defaultBankConfig,
   defaultStakedInterestSettings,
+  I80F48_ONE,
+  ORACLE_SETUP_PYTH_LEGACY,
+  SINGLE_POOL_PROGRAM_ID,
 } from "./utils/types";
 import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
@@ -117,19 +120,35 @@ describe("Init group and add banks with asset category flags", () => {
   });
 
   it("(admin) Add bank (USDC) - is neither SOL nor staked LST", async () => {
-    let setConfig = defaultBankConfig(oracles.usdcOracle.publicKey);
-    let bankKey = bankKeypairUsdc.publicKey;
+    let setConfig = defaultBankConfig();
+    const bankKey = bankKeypairUsdc.publicKey;
+    const oracle = oracles.usdcOracle.publicKey;
+    const oracleMeta: AccountMeta = {
+      pubkey: oracle,
+      isSigner: false,
+      isWritable: false,
+    };
+    const config_ix = await groupAdmin.mrgnProgram.methods
+      .lendingPoolConfigureBankOracle(ORACLE_SETUP_PYTH_LEGACY, oracle)
+      .accountsPartial({
+        group: marginfiGroup.publicKey,
+        bank: bankKey,
+        admin: groupAdmin.wallet.publicKey,
+      })
+      .remainingAccounts([oracleMeta])
+      .instruction();
 
     let tx = new Transaction();
     tx.add(
-      await addBank(program, {
+      await addBank(groupAdmin.mrgnProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.usdcMint.publicKey,
         bank: bankKey,
         config: setConfig,
-      })
+      }),
+      config_ix
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet, bankKeypairUsdc);
@@ -144,9 +163,24 @@ describe("Init group and add banks with asset category flags", () => {
   });
 
   it("(admin) Add bank (SOL) - is tagged as SOL", async () => {
-    let setConfig = defaultBankConfig(oracles.wsolOracle.publicKey);
+    let setConfig = defaultBankConfig();
     setConfig.assetTag = ASSET_TAG_SOL;
     let bankKey = bankKeypairSol.publicKey;
+    const oracle = oracles.wsolOracle.publicKey;
+    const oracleMeta: AccountMeta = {
+      pubkey: oracle,
+      isSigner: false,
+      isWritable: false,
+    };
+    const config_ix = await groupAdmin.mrgnProgram.methods
+      .lendingPoolConfigureBankOracle(ORACLE_SETUP_PYTH_LEGACY, oracle)
+      .accountsPartial({
+        group: marginfiGroup.publicKey,
+        bank: bankKey,
+        admin: groupAdmin.wallet.publicKey,
+      })
+      .remainingAccounts([oracleMeta])
+      .instruction();
 
     let tx = new Transaction();
     tx.add(
@@ -157,7 +191,8 @@ describe("Init group and add banks with asset category flags", () => {
         bankMint: ecosystem.wsolMint.publicKey,
         bank: bankKey,
         config: setConfig,
-      })
+      }),
+      config_ix
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet, bankKeypairSol);
@@ -172,7 +207,7 @@ describe("Init group and add banks with asset category flags", () => {
   });
 
   it("(admin) Tries to add staked bank WITH permission - should fail", async () => {
-    let setConfig = defaultBankConfig(oracles.wsolOracle.publicKey);
+    let setConfig = defaultBankConfig();
     setConfig.assetTag = ASSET_TAG_STAKED;
     setConfig.borrowLimit = new BN(0);
     let bankKeypair = Keypair.generate();

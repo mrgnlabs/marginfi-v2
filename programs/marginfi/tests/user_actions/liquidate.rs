@@ -122,11 +122,14 @@ async fn marginfi_account_liquidation_success(
     // Synthetically bring down the borrower account health by reducing the asset weights of the collateral bank
     test_f
         .get_bank_mut(&collateral_mint)
-        .update_config(BankConfigOpt {
-            asset_weight_init: Some(I80F48!(0.25).into()),
-            asset_weight_maint: Some(I80F48!(0.5).into()),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.5).into()),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     let collateral_bank_f = test_f.get_bank(&collateral_mint);
@@ -314,11 +317,14 @@ async fn marginfi_account_liquidation_success_many_balances() -> anyhow::Result<
 
     // Synthetically bring down the borrower account health by reducing the asset weights of the SOL bank
     sol_bank_f
-        .update_config(BankConfigOpt {
-            asset_weight_init: Some(I80F48!(0.25).into()),
-            asset_weight_maint: Some(I80F48!(0.5).into()),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.5).into()),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     lender_mfi_account_f
@@ -434,11 +440,14 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
 
     // Synthetically bring down the borrower account health by reducing the asset weights of the SOL bank
     sol_bank_f
-        .update_config(BankConfigOpt {
-            asset_weight_init: Some(I80F48!(0.25).into()),
-            asset_weight_maint: Some(I80F48!(0.5).into()),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.5).into()),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     lender_mfi_account_f
@@ -585,11 +594,14 @@ async fn marginfi_account_liquidation_failure_liquidation_too_severe() -> anyhow
         .await?;
 
     sol_bank_f
-        .update_config(BankConfigOpt {
-            asset_weight_init: Some(I80F48!(0.25).into()),
-            asset_weight_maint: Some(I80F48!(0.5).into()),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.5).into()),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     let res = lender_mfi_account_f
@@ -661,11 +673,14 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
         .await?;
 
     sol_bank_f
-        .update_config(BankConfigOpt {
-            asset_weight_init: Some(I80F48!(0.25).into()),
-            asset_weight_maint: Some(I80F48!(0.3).into()),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.3).into()),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     let res = lender_mfi_account_f
@@ -715,11 +730,14 @@ async fn marginfi_account_liquidation_failure_bank_not_liquidatable() -> anyhow:
         .await?;
 
     sol_bank_f
-        .update_config(BankConfigOpt {
-            asset_weight_init: Some(I80F48!(0.25).into()),
-            asset_weight_maint: Some(I80F48!(0.4).into()),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.4).into()),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     let res = lender_mfi_account_f
