@@ -1,3 +1,4 @@
+use crate::events::EditStakedSettingsEvent;
 // Used by the group admin to edit the default features of staked collateral banks. Remember to
 // propagate afterwards.
 use crate::state::marginfi_group::{RiskTier, WrappedI80F48};
@@ -31,6 +32,11 @@ pub fn edit_staked_settings(
     set_if_some!(staked_settings.risk_tier, settings.risk_tier);
 
     staked_settings.validate()?;
+
+    emit!(EditStakedSettingsEvent {
+        group: ctx.accounts.marginfi_group.key(),
+        settings
+    });
 
     Ok(())
 }
