@@ -2496,6 +2496,41 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
 
     Ok(())
 }
+
+pub fn marginfi_account_close(profile: &Profile, config: &Config) -> Result<()> {
+    let signer = config.get_non_ms_authority_keypair()?;
+
+    let rpc_client = config.mfi_program.rpc();
+
+    let marginfi_account_pk = profile.get_marginfi_account();
+    println!("Closing marginfi account {}", marginfi_account_pk);
+
+    let ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::MarginfiAccountClose {
+            marginfi_account: marginfi_account_pk,
+            authority: signer.pubkey(),
+            fee_payer: signer.pubkey(),
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::MarginfiAccountClose.data(),
+    };
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&signer.pubkey()),
+        &[signer],
+        recent_blockhash,
+    );
+
+    match process_transaction(&tx, &config.mfi_program.rpc(), config.get_tx_mode()) {
+        Ok(sig) => println!("Marginfi account closed successfully (sig: {})", sig),
+        Err(err) => println!("Error during marginfi account closure:\n{:#?}", err),
+    };
+
+    Ok(())
+}
 /// LIP
 ///
 
