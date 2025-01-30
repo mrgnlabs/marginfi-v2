@@ -617,8 +617,7 @@ fn create_bank_ix(
                 risk_tier: risk_tier.into(),
                 oracle_max_age,
                 ..BankConfigCompact::default()
-            }
-            .into(),
+            },
         })
         .instructions()?;
 
