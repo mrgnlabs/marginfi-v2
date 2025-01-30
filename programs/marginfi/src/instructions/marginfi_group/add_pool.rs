@@ -74,6 +74,7 @@ pub fn lending_pool_add_bank(
     );
 
     bank.config.validate()?;
+    bank.config.validate_oracle_age()?;
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {

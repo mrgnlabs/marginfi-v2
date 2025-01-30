@@ -37,6 +37,10 @@ pub fn lending_pool_configure_bank(
         // Settings are not frozen, everything updates
         bank.configure(&bank_config)?;
 
+        if bank_config.oracle_max_age.is_some() {
+            bank.config.validate_oracle_age()?;
+        }
+
         emit!(LendingPoolBankConfigureEvent {
             header: GroupEventHeader {
                 marginfi_group: ctx.accounts.marginfi_group.key(),

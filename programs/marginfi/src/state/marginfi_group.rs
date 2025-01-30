@@ -1473,11 +1473,15 @@ impl BankConfig {
         stake_pool: Option<Pubkey>,
         sol_pool: Option<Pubkey>,
     ) -> MarginfiResult {
+        OraclePriceFeedAdapter::validate_bank_config(self, ais, lst_mint, stake_pool, sol_pool)?;
+        Ok(())
+    }
+
+    pub fn validate_oracle_age(&self) -> MarginfiResult {
         check!(
             self.oracle_max_age >= ORACLE_MIN_AGE,
             MarginfiError::InvalidOracleSetup
         );
-        OraclePriceFeedAdapter::validate_bank_config(self, ais, lst_mint, stake_pool, sol_pool)?;
         Ok(())
     }
 
