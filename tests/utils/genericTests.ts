@@ -221,6 +221,8 @@ export function logContainsError(logs: string[], errorCode: string): boolean {
 /**
  * Asserts that the contained transaction failed with the given error code. Fails if the tx did not
  * fail or fails with the wrong error code.
+ *
+ * Invalid if not awaited. MAKE SURE TO CALL WITH AWAIT.
  * @param transactionFn
  * @param errorCode
  */
@@ -234,8 +236,39 @@ export async function expectFailedTxWithError(
   } catch (err) {
     assert.ok(
       logContainsError(err.logs, errorCode),
-      `Expected error code '${errorCode}' was not found in logs`
+      `Expected error code '${errorCode}' was not found in logs. Log dump: ${err.logs}`
     );
+    failed = true;
+  }
+  assert.ok(failed, "Transaction succeeded when it should have failed");
+}
+
+/**
+ * Asserts that the contained transaction failed with the given error code. Fails if the tx did not
+ * fail or fails without containing the given string
+ *
+ * Invalid if not awaited. MAKE SURE TO CALL WITH AWAIT.
+ *
+ * Generally, use `expectFailedTxWithError` unless catching a generic error like a panic or
+ * signature violations.
+ * @param transactionFn
+ * @param expectedString
+ */
+export async function expectFailedTxWithMessage(
+  transactionFn: () => Promise<void>,
+  expectedString: string
+): Promise<void> {
+  let failed = false;
+  try {
+    await transactionFn();
+    console.log("tx exec");
+  } catch (err) {
+    let errString = err.toString();
+    assert.ok(
+      errString.includes(expectedString),
+      `Expected error code '${expectedString}' was not found in logs. Log dump: ${err} or ${err.logs}`
+    );
+
     failed = true;
   }
   assert.ok(failed, "Transaction succeeded when it should have failed");

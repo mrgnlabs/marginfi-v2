@@ -694,10 +694,6 @@ impl Bank {
 
         set_if_some!(self.config.operational_state, config.operational_state);
 
-        set_if_some!(self.config.oracle_setup, config.oracle.map(|o| o.setup));
-
-        set_if_some!(self.config.oracle_keys, config.oracle.map(|o| o.keys));
-
         if let Some(ir_config) = &config.interest_rate_config {
             self.config.interest_rate_config.update(ir_config);
         }
@@ -1207,9 +1203,6 @@ pub struct BankConfigCompact {
     pub interest_rate_config: InterestRateConfigCompact,
     pub operational_state: BankOperationalState,
 
-    pub oracle_setup: OracleSetup,
-    pub oracle_key: Pubkey,
-
     pub borrow_limit: u64,
 
     pub risk_tier: RiskTier,
@@ -1240,10 +1233,30 @@ pub struct BankConfigCompact {
     pub oracle_max_age: u16,
 }
 
+impl Default for BankConfigCompact {
+    fn default() -> Self {
+        Self {
+            asset_weight_init: I80F48::ZERO.into(),
+            asset_weight_maint: I80F48::ZERO.into(),
+            liability_weight_init: I80F48::ONE.into(),
+            liability_weight_maint: I80F48::ONE.into(),
+            deposit_limit: 0,
+            borrow_limit: 0,
+            interest_rate_config: InterestRateConfigCompact::default(),
+            operational_state: BankOperationalState::Paused,
+            _pad0: [0; 6],
+            risk_tier: RiskTier::Isolated,
+            asset_tag: ASSET_TAG_DEFAULT,
+            total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
+            oracle_max_age: 0,
+        }
+    }
+}
+
 impl From<BankConfigCompact> for BankConfig {
     fn from(config: BankConfigCompact) -> Self {
         let keys = [
-            config.oracle_key,
+            Pubkey::default(),
             Pubkey::default(),
             Pubkey::default(),
             Pubkey::default(),
@@ -1257,7 +1270,7 @@ impl From<BankConfigCompact> for BankConfig {
             deposit_limit: config.deposit_limit,
             interest_rate_config: config.interest_rate_config.into(),
             operational_state: config.operational_state,
-            oracle_setup: config.oracle_setup,
+            oracle_setup: OracleSetup::None,
             oracle_keys: keys,
             _pad0: [0; 6],
             borrow_limit: config.borrow_limit,
@@ -1281,8 +1294,6 @@ impl From<BankConfig> for BankConfigCompact {
             deposit_limit: config.deposit_limit,
             interest_rate_config: config.interest_rate_config.into(),
             operational_state: config.operational_state,
-            oracle_setup: config.oracle_setup,
-            oracle_key: config.oracle_keys[0],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             asset_tag: config.asset_tag,
@@ -1462,11 +1473,15 @@ impl BankConfig {
         stake_pool: Option<Pubkey>,
         sol_pool: Option<Pubkey>,
     ) -> MarginfiResult {
+        OraclePriceFeedAdapter::validate_bank_config(self, ais, lst_mint, stake_pool, sol_pool)?;
+        Ok(())
+    }
+
+    pub fn validate_oracle_age(&self) -> MarginfiResult {
         check!(
             self.oracle_max_age >= ORACLE_MIN_AGE,
             MarginfiError::InvalidOracleSetup
         );
-        OraclePriceFeedAdapter::validate_bank_config(self, ais, lst_mint, stake_pool, sol_pool)?;
         Ok(())
     }
 
@@ -1549,8 +1564,6 @@ pub struct BankConfigOpt {
 
     pub operational_state: Option<BankOperationalState>,
 
-    pub oracle: Option<OracleConfig>,
-
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
     pub risk_tier: Option<RiskTier>,
@@ -1564,16 +1577,6 @@ pub struct BankConfigOpt {
     pub permissionless_bad_debt_settlement: Option<bool>,
 
     pub freeze_settings: Option<bool>,
-}
-
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
-)]
-#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize, Debug)]
-pub struct OracleConfig {
-    pub setup: OracleSetup,
-    pub keys: [Pubkey; MAX_ORACLE_KEYS],
 }
 
 #[derive(Debug, Clone)]

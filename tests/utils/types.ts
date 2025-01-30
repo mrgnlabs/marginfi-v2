@@ -31,17 +31,23 @@ export const ASSET_TAG_DEFAULT = 0;
 export const ASSET_TAG_SOL = 1;
 export const ASSET_TAG_STAKED = 2;
 
+export const ORACLE_SETUP_NONE = 0;
+export const ORACLE_SETUP_PYTH_LEGACY = 1;
+export const ORACLE_SETUP_SWITCHBOARD_v2 = 2;
+export const ORACLE_SETUP_PYTH_PUSH = 3;
+export const ORACLE_SETUP_SWITCHBOARD_PULL = 4;
+export const ORACLE_SETUP_STAKED_WITH_PYTH_PUSH = 5;
+
 /**
  * The default bank config has
  * * all weights are 1
  * * state = operational, risk tier = collateral
- * * uses the given oracle, assumes it's = pythLegacy
  * * 100_000_000_000 deposit/borrow limit
  * * 1_000_000_000_000 total asset value limit
  * * asset tag default (`ASSET_TAG_DEFAULT`)
  * @returns
  */
-export const defaultBankConfig = (oracleKey: PublicKey) => {
+export const defaultBankConfig = () => {
   let config: BankConfig = {
     assetWeightInit: I80F48_ONE,
     assetWeightMaint: I80F48_ONE,
@@ -52,17 +58,13 @@ export const defaultBankConfig = (oracleKey: PublicKey) => {
     operationalState: {
       operational: undefined,
     },
-    oracleSetup: {
-      pythLegacy: undefined,
-    },
-    oracleKey: oracleKey,
     borrowLimit: new BN(100_000_000_000),
     riskTier: {
       collateral: undefined,
     },
     assetTag: ASSET_TAG_DEFAULT,
     totalAssetValueInitLimit: new BN(1_000_000_000_000),
-    oracleMaxAge: 100,
+    oracleMaxAge: 240,
   };
   return config;
 };
@@ -84,7 +86,7 @@ export const defaultBankConfigOpt = () => {
     interestRateConfig: defaultInterestRateConfig(),
     operationalState: OperationalState.Operational,
     oracle: null,
-    oracleMaxAge: 100,
+    oracleMaxAge: 240,
     permissionlessBadDebtSettlement: null,
   };
 
@@ -92,7 +94,7 @@ export const defaultBankConfigOpt = () => {
 };
 
 /**
- * The same parameters as `defaultBankConfig`, and no change to oracle
+ * The same parameters as `defaultBankConfig`
  * @returns
  */
 export const defaultBankConfigOptRaw = () => {
@@ -112,10 +114,9 @@ export const defaultBankConfigOptRaw = () => {
     operationalState: {
       operational: undefined,
     },
-    oracle: null,
-    oracleMaxAge: 100,
+    oracleMaxAge: 240,
     permissionlessBadDebtSettlement: null,
-    freezeSettings: null
+    freezeSettings: null,
   };
 
   return bankConfigOpt;
@@ -215,10 +216,6 @@ export type BankConfig = {
   /** Paused = 0, Operational = 1, ReduceOnly = 2 */
   operationalState: OperationalStateRaw;
 
-  /** None = 0, PythLegacy = 1, SwitchboardV2 = 2, PythPushOracle =3 */
-  oracleSetup: OracleSetupRaw;
-  oracleKey: PublicKey;
-
   borrowLimit: BN;
   /** Collateral = 0, Isolated = 1 */
   riskTier: RiskTierRaw;
@@ -239,7 +236,7 @@ export type BankConfigOptRaw = {
   depositLimit: BN | null;
   borrowLimit: BN | null;
   riskTier: { collateral: {} } | { isolated: {} } | null;
-  assetTag: number,
+  assetTag: number;
   totalAssetValueInitLimit: BN | null;
 
   interestRateConfig: InterestRateConfigRawWithOrigination | null;
@@ -249,21 +246,10 @@ export type BankConfigOptRaw = {
     | { reduceOnly: {} }
     | null;
 
-  oracle: {
-    setup:
-      | { none: {} }
-      | { pythLegacy: {} }
-      | { switchboardV2: {} }
-      | { pythPushOracle: {} }
-      | { switchboardPull: {} }
-      | { stakedWithPythPush: {} };
-    keys: PublicKey[];
-  } | null;
-
   oracleMaxAge: number | null;
   permissionlessBadDebtSettlement: boolean | null;
   freezeSettings: boolean | null;
-}
+};
 
 // TODO remove when package updates
 export type StakedSettingsConfig = {

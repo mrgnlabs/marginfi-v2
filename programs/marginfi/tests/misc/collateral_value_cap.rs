@@ -14,10 +14,13 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
     let sol_bank = test_f.get_bank(&BankMint::Sol);
 
     usdc_bank
-        .update_config(BankConfigOpt {
-            total_asset_value_init_limit: Some(101),
-            ..BankConfigOpt::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                total_asset_value_init_limit: Some(101),
+                ..BankConfigOpt::default()
+            },
+            None,
+        )
         .await?;
 
     let sol_depositor = test_f.create_marginfi_account().await;
@@ -61,10 +64,13 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
         .await;
 
     usdc_bank
-        .update_config(BankConfigOpt {
-            total_asset_value_init_limit: Some(TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE),
-            ..BankConfigOpt::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                total_asset_value_init_limit: Some(TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE),
+                ..BankConfigOpt::default()
+            },
+            None,
+        )
         .await?;
 
     assert!(res.is_ok());

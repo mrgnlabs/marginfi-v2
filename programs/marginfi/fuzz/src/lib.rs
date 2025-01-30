@@ -18,14 +18,18 @@ use arbitrary_helpers::{
 };
 use bank_accounts::{get_bank_map, BankAccounts};
 use fixed_macro::types::I80F48;
-use marginfi::{constants::FEE_STATE_SEED, state::fee_state::FeeState};
+use marginfi::{
+    constants::FEE_STATE_SEED,
+    instructions::LendingPoolConfigureBankOracleBumps,
+    state::{fee_state::FeeState, marginfi_group::BankConfigCompact},
+};
 use marginfi::{
     errors::MarginfiError,
     instructions::LendingPoolAddBankBumps,
     prelude::MarginfiGroup,
     state::{
         marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig},
+        marginfi_group::{Bank, BankVaultType, InterestRateConfig},
     },
 };
 use metrics::{MetricAction, Metrics};
@@ -228,6 +232,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             fee_vault: fee_vault_bump,
             fee_state: fee_state_bump,
         };
+        let configure_bumps = LendingPoolConfigureBankOracleBumps {};
 
         let token_program = match initial_bank_config.token_type {
             TokenType::Tokenkeg => state.new_program(spl_token::id()),
@@ -264,10 +269,10 @@ impl<'state> MarginfiFuzzContext<'state> {
                         token_program: Interface::try_from(airls(&token_program)).unwrap(),
                         system_program: Program::try_from(airls(&self.system_program)).unwrap(),
                     },
-                    &[ails(oracle.clone())],
+                    &[],
                     add_bank_bumps,
                 ),
-                BankConfig {
+                BankConfigCompact {
                     asset_weight_init: initial_bank_config.asset_weight_init,
                     asset_weight_maint: initial_bank_config.asset_weight_maint,
                     liability_weight_init: initial_bank_config.liability_weight_init,
@@ -283,15 +288,8 @@ impl<'state> MarginfiFuzzContext<'state> {
                         protocol_fixed_fee_apr: I80F48!(0.01).into(),
                         protocol_ir_fee: I80F48!(0.1).into(),
                         ..Default::default()
-                    },
-                    oracle_setup: marginfi::state::price::OracleSetup::PythLegacy,
-                    oracle_keys: [
-                        oracle.key(),
-                        Pubkey::default(),
-                        Pubkey::default(),
-                        Pubkey::default(),
-                        Pubkey::default(),
-                    ],
+                    }
+                    .into(),
                     operational_state:
                         marginfi::state::marginfi_group::BankOperationalState::Operational,
                     risk_tier: if !initial_bank_config.risk_tier_isolated {
@@ -307,6 +305,25 @@ impl<'state> MarginfiFuzzContext<'state> {
         }
 
         set_discriminator::<Bank>(bank.clone());
+
+        {
+            marginfi::instructions::marginfi_group::lending_pool_configure_bank_oracle(
+                Context::new(
+                    &marginfi::ID,
+                    &mut marginfi::instructions::LendingPoolConfigureBankOracle {
+                        group: AccountLoader::try_from(airls(&self.marginfi_group)).unwrap(),
+                        admin: Signer::try_from(airls(&self.owner)).unwrap(),
+                        bank: AccountLoader::try_from_unchecked(&marginfi::ID, airls(&bank))
+                            .unwrap(),
+                    },
+                    &[ails(oracle.clone())],
+                    configure_bumps,
+                ),
+                1,
+                oracle.key(),
+            )
+            .unwrap();
+        }
 
         self.banks.push(BankAccounts {
             bank,

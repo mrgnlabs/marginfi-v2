@@ -329,7 +329,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         }),
         ..BankConfigOpt::default()
     };
-    let res = bank.update_config(config_bank_opt.clone()).await;
+    let res = bank.update_config(config_bank_opt.clone(), None).await;
     assert!(res.is_ok());
 
     // Load bank and check each property in config matches
@@ -345,7 +345,6 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         deposit_limit,
         borrow_limit,
         operational_state,
-        oracle,
         risk_tier,
         asset_tag,
         total_asset_value_init_limit,
@@ -373,7 +372,6 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         };
     }
 
-    #[rustfmt::skip]
     let _ = {
         check_bank_field!(interest_rate_config, optimal_utilization_rate);
         check_bank_field!(interest_rate_config, plateau_interest_rate);
@@ -396,32 +394,29 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         check_bank_field!(total_asset_value_init_limit);
         check_bank_field!(oracle_max_age);
 
-
-
         assert!(permissionless_bad_debt_settlement
             // If Some(...) check flag set properly
             .map(|set| set == bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG))
             // If None check flag is unchanged
-            .unwrap_or( bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG) == old_bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG))
-        );
+            .unwrap_or(
+                bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG)
+                    == old_bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG)
+            ));
 
         assert!(freeze_settings
             // If Some(...) check flag set properly
             .map(|set| set == bank.get_flag(FREEZE_SETTINGS))
             // If None check flag is unchanged
-            .unwrap_or( bank.get_flag(FREEZE_SETTINGS) == old_bank.get_flag(FREEZE_SETTINGS))
-        );
+            .unwrap_or(bank.get_flag(FREEZE_SETTINGS) == old_bank.get_flag(FREEZE_SETTINGS)));
 
+        // Oracles no longer update in the standard config instruction
         assert_eq!(
-            bank.config.oracle_keys,
-            // If Some(...) check keys set properly
-            // If None check keys unchanged
-            oracle.map(|o| o.keys).unwrap_or(old_bank.config.oracle_keys));
+            bank.config.oracle_keys, old_bank.config.oracle_keys,
+            "The config does not update oracles, try config_oracle"
+        );
         assert_eq!(
-            bank.config.oracle_setup,
-            // If Some(...) check setup set properly
-            // If None check setup unchanged
-            oracle.map(|o| o.setup).unwrap_or(old_bank.config.oracle_setup)
+            bank.config.oracle_setup, old_bank.config.oracle_setup,
+            "The config does not update oracles, try config_oracle"
         );
     };
 
