@@ -14,26 +14,32 @@
 ## Usage
 
 ```
-$ mfi
+~> mfi
 marginfi-v2-cli 0.1.0
 
 USAGE:
     mfi [OPTIONS] <SUBCOMMAND>
 
 OPTIONS:
-        --dry-run              Dry run for any transactions involved
-    -h, --help                 Print help information
-    -V, --version              Print version information
+        --compute-unit-price <COMPUTE_UNIT_PRICE>
+        --dry-run                                    Dry run for any transactions involved
+    -h, --help                                       Print help information
+    -V, --version                                    Print version information
     -y, --skip-confirmation
 
 SUBCOMMANDS:
     account
     bank
+    find-pyth-pull
     group
-    help                        Print this message or the help of the given subcommand(s)
+    help                             Print this message or the help of the given subcommand(s)
     inspect-padding
+    inspect-pyth-push-oracle-feed
     inspect-size
-    inspect-switchboard-feed
+    inspect-swb-pull-feed
     lip
+    make-test-i80f48
+    patch-idl
     profile
+    show-oracle-ages
 ```
