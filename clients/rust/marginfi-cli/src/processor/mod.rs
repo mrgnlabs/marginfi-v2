@@ -31,8 +31,8 @@ use {
         state::{
             marginfi_account::{BankAccountWrapper, MarginfiAccount},
             marginfi_group::{
-                Bank, BankConfig, BankConfigCompact, BankConfigOpt, BankOperationalState,
-                BankVaultType, InterestRateConfig, WrappedI80F48,
+                Bank, BankConfigCompact, BankConfigOpt, BankOperationalState, BankVaultType,
+                InterestRateConfig, WrappedI80F48,
             },
             price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter, PythPushOraclePriceFeed},
         },

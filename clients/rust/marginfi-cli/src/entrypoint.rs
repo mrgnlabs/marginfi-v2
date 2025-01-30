@@ -768,13 +768,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             bank_pk,
             oracle_type,
             oracle_key,
-        } => {
-            let bank = config
-                .mfi_program
-                .account::<marginfi::state::marginfi_group::Bank>(bank_pk)
-                .unwrap();
-            processor::bank_configure_oracle(config, profile, bank_pk, oracle_type, oracle_key)
-        }
+        } => processor::bank_configure_oracle(config, profile, bank_pk, oracle_type, oracle_key),
         BankCommand::InspectPriceOracle { bank_pk } => {
             processor::bank_inspect_price_oracle(config, bank_pk)
         }
