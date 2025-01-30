@@ -524,8 +524,7 @@ fn create_bank_ix_with_seed(
                 risk_tier: risk_tier.into(),
                 oracle_max_age,
                 ..BankConfigCompact::default()
-            }
-            .into(),
+            },
             bank_seed,
         })
         .instructions()?;
