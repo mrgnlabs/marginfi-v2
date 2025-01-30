@@ -185,10 +185,13 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
 
     let bank = test_f.get_bank(&BankMint::Usdc);
 
-    bank.update_config(BankConfigOpt {
-        permissionless_bad_debt_settlement: Some(true),
-        ..Default::default()
-    })
+    bank.update_config(
+        BankConfigOpt {
+            permissionless_bad_debt_settlement: Some(true),
+            ..Default::default()
+        },
+        None,
+    )
     .await?;
 
     test_f

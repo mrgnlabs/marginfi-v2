@@ -37,10 +37,6 @@ pub fn lending_pool_configure_bank(
         // Settings are not frozen, everything updates
         bank.configure(&bank_config)?;
 
-        if bank_config.oracle.is_some() {
-            bank.config
-                .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
-        }
         if bank_config.oracle_max_age.is_some() {
             bank.config.validate_oracle_age()?;
         }

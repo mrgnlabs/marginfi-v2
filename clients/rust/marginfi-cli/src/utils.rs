@@ -7,7 +7,7 @@ use {
     marginfi::{
         bank_authority_seed, bank_seed,
         constants::{
-            EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED, MAX_ORACLE_KEYS,
+            EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED,
             PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
         },
         state::{
@@ -128,12 +128,6 @@ pub fn find_bank_emssions_token_account_pda(
 
 pub fn find_fee_state_pda(program_id: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], program_id)
-}
-
-pub fn create_oracle_key_array(oracle_key: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
-    let mut oracle_keys = [Pubkey::default(); MAX_ORACLE_KEYS];
-    oracle_keys[0] = oracle_key;
-    oracle_keys
 }
 
 pub const EXP_10_I80F48: [I80F48; 15] = [

@@ -65,24 +65,33 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::RiskEngineInitRejected);
 
-    // Make SOLE feed not stale
+    // Make SOL feed not stale
     usdc_bank
-        .update_config(BankConfigOpt {
-            oracle_max_age: Some(200),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                oracle_max_age: Some(200),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
     sol_bank
-        .update_config(BankConfigOpt {
-            oracle_max_age: Some(200),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                oracle_max_age: Some(200),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
     sol_eq_bank
-        .update_config(BankConfigOpt {
-            oracle_max_age: Some(200),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                oracle_max_age: Some(200),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     // Borrow SOL
@@ -282,11 +291,14 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
 
     // Synthetically bring down the borrower account health by reducing the asset weights of the SOL bank
     sol_bank_f
-        .update_config(BankConfigOpt {
-            asset_weight_init: Some(I80F48!(0.25).into()),
-            asset_weight_maint: Some(I80F48!(0.5).into()),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.5).into()),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     // Make borrower asset bank stale
