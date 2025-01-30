@@ -304,6 +304,8 @@ impl<'state> MarginfiFuzzContext<'state> {
             .unwrap();
         }
 
+        set_discriminator::<Bank>(bank.clone());
+
         {
             marginfi::instructions::marginfi_group::lending_pool_configure_bank_oracle(
                 Context::new(
@@ -322,8 +324,6 @@ impl<'state> MarginfiFuzzContext<'state> {
             )
             .unwrap();
         }
-
-        set_discriminator::<Bank>(bank.clone());
 
         self.banks.push(BankAccounts {
             bank,

@@ -34,7 +34,7 @@ pub fn lending_pool_configure_bank_oracle(
             },
             bank: ctx.accounts.bank.key(),
             oracle_setup: setup,
-            oracle: oracle,
+            oracle
         });
     }
 
