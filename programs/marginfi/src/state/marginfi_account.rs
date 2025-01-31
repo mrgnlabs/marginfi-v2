@@ -23,7 +23,7 @@ use std::{
 #[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
 
-assert_struct_size!(MarginfiAccount, 2304);
+assert_struct_size!(MarginfiAccount, 2344); //2337 + 7(Padding added to align)
 assert_struct_align!(MarginfiAccount, 8);
 #[account(zero_copy(unsafe))]
 #[repr(C)]
@@ -38,13 +38,15 @@ pub struct MarginfiAccount {
     /// The flags that indicate the state of the account.
     /// This is u64 bitfield, where each bit represents a flag.
     ///
-    /// Flags:
+    /// Flags:MarginfiAccount
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
     /// - IN_FLASHLOAN_FLAG (1 << 1)
     /// - FLASHLOAN_ENABLED_FLAG (1 << 2)
     /// - TRANSFER_AUTHORITY_ALLOWED_FLAG (1 << 3)
     pub account_flags: u64, // 8
+    /// emissions rewards will be withdrawn to the emissions_destination_account
+    pub emissions_destination_account: Option<Pubkey>, // 33 (1-byte tag + 32-byte Pubkey)
     pub _padding: [u64; 63],             // 504
 }
 
@@ -58,6 +60,7 @@ impl MarginfiAccount {
     pub fn initialize(&mut self, group: Pubkey, authority: Pubkey) {
         self.authority = authority;
         self.group = group;
+        self.emissions_destination_account = None;
     }
 
     pub fn get_remaining_accounts_len(&self) -> usize {
@@ -102,6 +105,14 @@ impl MarginfiAccount {
             self.authority,
             self.group,
         );
+        Ok(())
+    }
+
+    pub fn update_emissions_destination_account(
+        &mut self,
+        destination_account: Pubkey,
+    ) -> MarginfiResult {
+        self.emissions_destination_account = Some(destination_account);
         Ok(())
     }
 
@@ -1435,6 +1446,7 @@ mod test {
         let mut acc = MarginfiAccount {
             group: group.into(),
             authority: authority.into(),
+            emissions_destination_account: None,
             lending_account: LendingAccount {
                 balances: [Balance {
                     active: true,
