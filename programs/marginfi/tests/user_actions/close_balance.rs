@@ -21,7 +21,7 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_eq_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_eq_bank, 1_000, None)
         .await?;
 
     let lender_token_account_sol = test_f
@@ -29,7 +29,7 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     let res = lender_mfi_account_f.try_balance_close(sol_bank).await;
@@ -52,7 +52,7 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000, None)
         .await?;
 
     // Borrow SOL EQ

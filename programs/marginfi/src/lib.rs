@@ -120,8 +120,9 @@ pub mod marginfi {
     pub fn lending_account_deposit<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
         amount: u64,
+        deposit_up_to_limit: Option<bool>,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_deposit(ctx, amount)
+        marginfi_account::lending_account_deposit(ctx, amount, deposit_up_to_limit)
     }
 
     pub fn lending_account_repay<'info>(

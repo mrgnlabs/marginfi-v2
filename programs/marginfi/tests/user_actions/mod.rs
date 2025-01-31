@@ -40,7 +40,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000, None)
         .await?;
 
     // Create borrower user accounts and deposit USDC asset
@@ -50,7 +50,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_usdc.key, usdc_bank_f, 1_000)
+        .try_bank_deposit(borrower_token_account_usdc.key, usdc_bank_f, 1_000, None)
         .await?;
 
     // Borrow SOL from borrower mfi account
@@ -120,14 +120,14 @@ async fn marginfi_account_correct_balance_selection_after_closing_position() -> 
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000, None)
         .await?;
     let lender_token_account_usdc = test_f
         .usdc_mint
         .create_token_account_and_mint_to(2_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000, None)
         .await?;
 
     lender_mfi_account_f
@@ -226,7 +226,7 @@ async fn emissions_test() -> anyhow::Result<()> {
     let sol_lender_token_account = test_f.sol_mint.create_token_account_and_mint_to(100).await;
 
     sol_lender_account
-        .try_bank_deposit(sol_lender_token_account.key, sol_bank, 100)
+        .try_bank_deposit(sol_lender_token_account.key, sol_bank, 100, None)
         .await?;
 
     // Create account and setup positions
@@ -242,7 +242,7 @@ async fn emissions_test() -> anyhow::Result<()> {
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(50).await;
 
     mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank, 50)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank, 50, None)
         .await?;
 
     let sol_account = test_f.sol_mint.create_empty_token_account().await;

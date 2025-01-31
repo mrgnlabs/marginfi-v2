@@ -35,7 +35,7 @@ async fn stale_bank_should_error() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -51,11 +51,11 @@ async fn stale_bank_should_error() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500, None)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 100)
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 100, None)
         .await?;
 
     // Borrow SOL
@@ -94,7 +94,7 @@ async fn non_stale_bank_should_error() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -110,11 +110,11 @@ async fn non_stale_bank_should_error() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 15)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 15, None)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 100)
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 100, None)
         .await?;
 
     // Borrow SOL
@@ -148,7 +148,7 @@ async fn isolated_stale_should_not_error() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -164,11 +164,16 @@ async fn isolated_stale_should_not_error() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000, None)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_iso_bank, 1_000)
+        .try_bank_deposit(
+            borrower_token_account_f_sol_eq.key,
+            sol_eq_iso_bank,
+            1_000,
+            None,
+        )
         .await?;
 
     // Borrow SOL
