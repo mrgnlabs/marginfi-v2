@@ -177,8 +177,8 @@ pub mod marginfi {
     ) -> MarginfiResult {
         marginfi_account::lending_account_end_flashloan(ctx)
     }
-	
-	pub fn marginfi_account_update_emissions_destination_account<'info>(
+
+    pub fn marginfi_account_update_emissions_destination_account<'info>(
         ctx: Context<'_, '_, 'info, 'info, MarginfiAccountUpdateEmissionsDestinationAccount<'info>>,
     ) -> MarginfiResult {
         marginfi_account::marginfi_account_update_emissions_destination_account(ctx)
@@ -228,8 +228,8 @@ pub mod marginfi {
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
         marginfi_account::close_account(ctx)
     }
-	
-	pub fn lending_account_withdraw_emissions_permissionless<'info>(
+
+    pub fn lending_account_withdraw_emissions_permissionless<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdrawEmissionsPermissionless<'info>>,
     ) -> MarginfiResult {
         marginfi_account::lending_account_withdraw_emissions_permissionless(ctx)
