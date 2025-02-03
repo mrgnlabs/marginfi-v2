@@ -1462,7 +1462,7 @@ mod test {
                 _padding: [0; 8],
             },
             account_flags: TRANSFER_AUTHORITY_ALLOWED_FLAG,
-            _padding: [0; 63],
+            _padding: [0; 59],
         };
 
         assert!(acc.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
