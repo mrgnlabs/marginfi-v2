@@ -12,21 +12,21 @@ import {
   bankKeypairSol,
   bankrunContext,
   bankrunProgram,
+  bankRunProvider,
   banksClient,
   ecosystem,
   marginfiGroup,
   oracles,
   users,
   validators,
+  verbose,
 } from "./rootHooks";
-import {
-  assertBankrunTxFailed,
-  assertKeysEqual,
-} from "./utils/genericTests";
+import { assertBankrunTxFailed, assertKeysEqual } from "./utils/genericTests";
 import { assert } from "chai";
 import { borrowIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
+import { getEpochAndSlot, getStakeActivation } from "./utils/stake-utils";
 
 describe("Borrow power grows as v0 Staked SOL gains value from appreciation", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -76,8 +76,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
 
   // Note: there is also some natural appreciation here because a few epochs have elapsed...
 
-  // Here we mock epoch rewards by simply minting SOL into the validator's pool without staking
-  it("v0 stake grows by " + appreciation + " SOL", async () => {
+  // Here we try to a troll exploit by sending SOL directly to the stake pool's sol balance.
+  it("v0 stake sol pool grows by " + appreciation + " SOL", async () => {
     let tx = new Transaction();
     tx.add(
       SystemProgram.transfer({
@@ -151,8 +151,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     assertBankrunTxFailed(result, "0x177a");
   });
 
-  // The account is now worth enough for this borrow to succeed!
-  it("(user 2) borrows 1.1 SOL against their STAKED position - succeeds", async () => {
+  // The stake hasn't changed (even though the SOL balance did) so this should still fail
+  it("(user 2) borrows 1.1 SOL against their STAKED position - fails", async () => {
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
@@ -174,7 +174,45 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
         // tx. Using the exact same values as above can cause the test to fail on faster machines
         // because the same tx was already sent for this blockhash (i.e. "this transaction has
         // already been processed")
-        amount: new BN(1.111 * 10 ** ecosystem.wsolDecimals),
+        amount: new BN(1.112 * 10 ** ecosystem.wsolDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
+
+    // 6010 (Generic risk engine rejection)
+    assertBankrunTxFailed(result, "0x177a");
+  });
+
+  it("Generate stake income....", async () => {
+    // TODO how?
+  });
+
+  // Now the stake is worth enough and the user can borrow
+  it("(user 2) borrows 1.1 SOL against their STAKED position - succceds", async () => {
+    const user = users[2];
+    const userAccount = user.accounts.get(USER_ACCOUNT);
+    let tx = new Transaction().add(
+      await borrowIx(program, {
+        marginfiGroup: marginfiGroup.publicKey,
+        marginfiAccount: userAccount,
+        authority: user.wallet.publicKey,
+        bank: bankKeypairSol.publicKey,
+        tokenAccount: user.wsolAccount,
+        remaining: [
+          validators[0].bank,
+          oracles.wsolOracle.publicKey,
+          validators[0].splMint,
+          validators[0].splSolPool,
+          bankKeypairSol.publicKey,
+          oracles.wsolOracle.publicKey,
+        ],
+        // Note: We use a different (slightly higher) amount, so Bankrun treats this as a different
+        // tx. Using the exact same values as above can cause the test to fail on faster machines
+        // because the same tx was already sent for this blockhash (i.e. "this transaction has
+        // already been processed")
+        amount: new BN(1.113 * 10 ** ecosystem.wsolDecimals),
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
