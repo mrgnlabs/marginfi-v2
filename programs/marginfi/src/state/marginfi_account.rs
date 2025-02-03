@@ -23,7 +23,7 @@ use std::{
 #[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
 
-assert_struct_size!(MarginfiAccount, 2344); //2337 + 7(Padding added to align)
+assert_struct_size!(MarginfiAccount, 2304);
 assert_struct_align!(MarginfiAccount, 8);
 #[account(zero_copy(unsafe))]
 #[repr(C)]
@@ -46,8 +46,8 @@ pub struct MarginfiAccount {
     /// - TRANSFER_AUTHORITY_ALLOWED_FLAG (1 << 3)
     pub account_flags: u64, // 8
     /// emissions rewards will be withdrawn to the emissions_destination_account
-    pub emissions_destination_account: Option<Pubkey>, // 33 (1-byte tag + 32-byte Pubkey)
-    pub _padding: [u64; 63],             // 504
+    pub emissions_destination_account: Pubkey, // 32
+    pub _padding: [u64; 59],             // 472
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
@@ -60,7 +60,7 @@ impl MarginfiAccount {
     pub fn initialize(&mut self, group: Pubkey, authority: Pubkey) {
         self.authority = authority;
         self.group = group;
-        self.emissions_destination_account = None;
+        self.emissions_destination_account = Pubkey::default();
     }
 
     pub fn get_remaining_accounts_len(&self) -> usize {
@@ -112,7 +112,7 @@ impl MarginfiAccount {
         &mut self,
         destination_account: Pubkey,
     ) -> MarginfiResult {
-        self.emissions_destination_account = Some(destination_account);
+        self.emissions_destination_account = destination_account;
         Ok(())
     }
 
@@ -1446,7 +1446,7 @@ mod test {
         let mut acc = MarginfiAccount {
             group: group.into(),
             authority: authority.into(),
-            emissions_destination_account: None,
+            emissions_destination_account: Pubkey::default(),
             lending_account: LendingAccount {
                 balances: [Balance {
                     active: true,

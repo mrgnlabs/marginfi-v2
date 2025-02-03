@@ -158,10 +158,11 @@ pub fn marginfi_account_update_emissions_destination_account<'info>(
         MarginfiError::AccountDisabled
     );
 
-    let emissions_destination_account_opts = &marginfi_account.emissions_destination_account;
+    let emissions_destination_account = &marginfi_account.emissions_destination_account;
 
+    // Ensure that the emissions_destination_account was not previously set by the user
     check!(
-        emissions_destination_account_opts.is_none(),
+        emissions_destination_account.eq(&Pubkey::default()),
         MarginfiError::EmissionsDestinationAccountAlreadySet
     );
 
@@ -201,7 +202,7 @@ pub struct MarginfiAccountUpdateEmissionsDestinationAccount<'info> {
     pub destination_account: Box<InterfaceAccount<'info, TokenAccount>>,
 }
 
-/// Permissionlessly withdraw emissions to a users emissions_destination_account
+/// Permissionlessly withdraw emissions to user emissions_destination_account
 pub fn lending_account_withdraw_emissions_permissionless<'info>(
     ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdrawEmissionsPermissionless<'info>>,
 ) -> MarginfiResult {
@@ -212,12 +213,15 @@ pub fn lending_account_withdraw_emissions_permissionless<'info>(
         MarginfiError::AccountDisabled
     );
 
-    let emissions_destination_account_opts = &marginfi_account.emissions_destination_account;
+    let emissions_destination_account = &marginfi_account.emissions_destination_account;
 
-    let emissions_destination_account = emissions_destination_account_opts
-        .ok_or(MarginfiError::InvalidEmissionsDestinationAccount)?;
+    // Ensure that the emissions_destination_account was previously set by the user
+    check!(
+        !emissions_destination_account.eq(&Pubkey::default()),
+        MarginfiError::InvalidEmissionsDestinationAccount
+    );
 
-    // Ensure the destination_account matches the stored one in MarginfiAccount
+    // Ensure that the destination_account matches the stored one in MarginfiAccount
     check!(
         ctx.accounts
             .destination_account
