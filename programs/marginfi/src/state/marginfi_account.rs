@@ -38,14 +38,16 @@ pub struct MarginfiAccount {
     /// The flags that indicate the state of the account.
     /// This is u64 bitfield, where each bit represents a flag.
     ///
-    /// Flags:
+    /// Flags:MarginfiAccount
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
     /// - IN_FLASHLOAN_FLAG (1 << 1)
     /// - FLASHLOAN_ENABLED_FLAG (1 << 2)
     /// - TRANSFER_AUTHORITY_ALLOWED_FLAG (1 << 3)
     pub account_flags: u64, // 8
-    pub _padding: [u64; 63],             // 504
+    /// emissions rewards will be withdrawn to the emissions_destination_account
+    pub emissions_destination_account: Pubkey, // 32
+    pub _padding: [u64; 59],             // 472
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
@@ -77,6 +79,7 @@ impl MarginfiAccount {
     pub fn initialize(&mut self, group: Pubkey, authority: Pubkey) {
         self.authority = authority;
         self.group = group;
+        self.emissions_destination_account = Pubkey::default();
     }
 
     /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
@@ -123,6 +126,14 @@ impl MarginfiAccount {
             self.authority,
             self.group,
         );
+        Ok(())
+    }
+
+    pub fn update_emissions_destination_account(
+        &mut self,
+        destination_account: Pubkey,
+    ) -> MarginfiResult {
+        self.emissions_destination_account = destination_account;
         Ok(())
     }
 
@@ -1429,6 +1440,7 @@ mod test {
         let mut acc = MarginfiAccount {
             group: group.into(),
             authority: authority.into(),
+            emissions_destination_account: Pubkey::default(),
             lending_account: LendingAccount {
                 balances: [Balance {
                     active: true,
@@ -1444,7 +1456,7 @@ mod test {
                 _padding: [0; 8],
             },
             account_flags: TRANSFER_AUTHORITY_ALLOWED_FLAG,
-            _padding: [0; 63],
+            _padding: [0; 59],
         };
 
         assert!(acc.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));

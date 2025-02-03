@@ -45,7 +45,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("Dq7wypbedtaqQK9QqEFvfrxc4ppfRGXCeTVd7ee7n2jw")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding, [0; 63]);
+    assert_eq!(account._padding, [0; 59]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.active);
@@ -122,7 +122,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("3T1kGHp7CrdeW9Qj1t8NMc2Ks233RyvzVhoaUPWoBEFK")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding, [0; 63]);
+    assert_eq!(account._padding, [0; 59]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.active);
@@ -199,7 +199,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("7hmfVTuXc7HeX3YQjpiCXGVQuTeXonzjp795jorZukVR")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding, [0; 63]);
+    assert_eq!(account._padding, [0; 59]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(!balance_1.active);
