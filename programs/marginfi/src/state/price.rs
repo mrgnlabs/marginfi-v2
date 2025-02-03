@@ -6,6 +6,7 @@ use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
+use solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
 use switchboard_on_demand::{CurrentResult, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID};
 use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
@@ -176,7 +177,12 @@ impl OraclePriceFeedAdapter {
 
                 let lst_mint = Account::<'info, Mint>::try_from(&ais[1]).unwrap();
                 let lst_supply = lst_mint.supply;
-                let sol_pool_balance = ais[2].lamports();
+                let stake_state = try_from_slice_unchecked::<StakeStateV2>(&ais[2].data.borrow())?;
+                let (_, stake) = match stake_state {
+                    StakeStateV2::Stake(meta, stake, _) => (meta, stake),
+                    _ => panic!("unsupported stake state"), // TODO emit more specific error
+                };
+                let sol_pool_balance = stake.delegation.stake;
                 // Note: When the pool is fresh, it has 1 SOL in it (an initial and non-refundable
                 // balance that will stay in the pool forever). We don't want to include that
                 // balance when reading the quantity of SOL that has been staked from actual
