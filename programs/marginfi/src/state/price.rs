@@ -177,6 +177,14 @@ impl OraclePriceFeedAdapter {
                 let lst_mint = Account::<'info, Mint>::try_from(&ais[1]).unwrap();
                 let lst_supply = lst_mint.supply;
                 let sol_pool_balance = ais[2].lamports();
+                // Note: When the pool is fresh, it has 1 SOL in it (an initial and non-refundable
+                // balance that will stay in the pool forever). We don't want to include that
+                // balance when reading the quantity of SOL that has been staked from actual
+                // depositors (i.e. the amount that can actually be redeemed again).
+                let lamports_per_sol: u64 = 1_000_000_000;
+                let sol_pool_adjusted_balance = sol_pool_balance
+                    .checked_sub(lamports_per_sol)
+                    .ok_or_else(math_error!())?;
                 // Note: exchange rate is `sol_pool_balance / lst_supply`, but we will do the
                 // division last to avoid precision loss. Division does not need to be
                 // decimal-adjusted because both SOL and stake positions use 9 decimals
@@ -202,14 +210,14 @@ impl OraclePriceFeedAdapter {
                         max_age,
                     )?;
                     let adjusted_price = (feed.price.price as i128)
-                        .checked_mul(sol_pool_balance as i128)
+                        .checked_mul(sol_pool_adjusted_balance as i128)
                         .ok_or_else(math_error!())?
                         .checked_div(lst_supply as i128)
                         .ok_or_else(math_error!())?;
                     feed.price.price = adjusted_price.try_into().unwrap();
 
                     let adjusted_ema_price = (feed.ema_price.price as i128)
-                        .checked_mul(sol_pool_balance as i128)
+                        .checked_mul(sol_pool_adjusted_balance as i128)
                         .ok_or_else(math_error!())?
                         .checked_div(lst_supply as i128)
                         .ok_or_else(math_error!())?;
@@ -232,14 +240,14 @@ impl OraclePriceFeedAdapter {
                     )?;
 
                     let adjusted_price = (feed.price.price as i128)
-                        .checked_mul(sol_pool_balance as i128)
+                        .checked_mul(sol_pool_adjusted_balance as i128)
                         .ok_or_else(math_error!())?
                         .checked_div(lst_supply as i128)
                         .ok_or_else(math_error!())?;
                     feed.price.price = adjusted_price.try_into().unwrap();
 
                     let adjusted_ema_price = (feed.ema_price.price as i128)
-                        .checked_mul(sol_pool_balance as i128)
+                        .checked_mul(sol_pool_adjusted_balance as i128)
                         .ok_or_else(math_error!())?
                         .checked_div(lst_supply as i128)
                         .ok_or_else(math_error!())?;
