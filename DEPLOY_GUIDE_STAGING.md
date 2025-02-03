@@ -55,3 +55,29 @@ solana program extend \
   stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct 10000
 ```
 * If you changed your wallet config, make sure to remove the staging wallet from your Solana config to avoid sausage fingers errors in the future: `solana config set --keypair ~/.config/solana/id.json`
+
+## DEPLOYING STAKED COLLATERAL TO STAGING
+
+Note: Generally, don't bother doing this. Just use the actual mainnet deployment of the program at `SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE`, maintained by the Solana Foundation. If for some reason you don't want to, read on.
+
+The Staked Collateral feature uses spl-single-pool, developed by the Solana Foundation (https://github.com/solana-labs/solana-program-library/tree/master/single-pool). This guide will show you how to deploy that program.
+
+First you will need: 
+* Agave tools 2.1.0 or later (`sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"`) and possibly `agave-install init 2.1.0`
+* A wallet with at least 2 SOL (this guide will assume your wallet is at `~/keys/staging-deploy.json`). Verify the pubkey of your wallet with `solana-keygen pubkey ~/keys/staging-deploy.json` and verify you have at least 2 SOL with `solana balance -k ~/keys/staging-deploy.json`
+* An RPC provider connected to mainnet (`solana config set --url https://api.mainnet-beta.solana.com`). The solana public api is usually fine.
+
+Steps:
+* Clone https://github.com/solana-labs/solana-program-library/tree/master/single-pool and pull latest
+* Navigate to programs/single-pool and run `cargo build-sbf`
+* Navigate back up to root, then navigate to target. Verify that `solana-keygen pubkey deploy/spl_single_pool-keypair.json` matches the program's declared id. If you want to generate a new id, delete this file and build again to generate a new program keypair. Don't forget to update the declare_id in lib.rs as needed.
+* Deploy the program with:
+```
+solana program deploy \                                                  
+  deploy/spl_single_pool.so \
+  --program-id deploy/spl_single_pool-keypair.json \
+  --keypair ~/keys/staging-deploy.json \
+  --fee-payer ~/keys/staging-deploy.json \
+  --url <your_rpc_url (optional, omit this line to use api.mainnet-beta)>
+
+```
