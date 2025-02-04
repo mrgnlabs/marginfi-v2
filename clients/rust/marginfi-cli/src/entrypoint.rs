@@ -162,6 +162,8 @@ pub enum GroupCommand {
         #[clap(long)]
         bank_init_flat_sol_fee: u32,
         #[clap(long)]
+        flashloan_flat_sol_fee: u32,
+        #[clap(long)]
         program_fee_fixed: f64,
         #[clap(long)]
         program_fee_rate: f64,
@@ -171,6 +173,8 @@ pub enum GroupCommand {
         fee_wallet: Pubkey,
         #[clap(long)]
         bank_init_flat_sol_fee: u32,
+        #[clap(long)]
+        flashloan_flat_sol_fee: u32,
         #[clap(long)]
         program_fee_fixed: f64,
         #[clap(long)]
@@ -653,6 +657,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            flashloan_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         } => processor::initialize_fee_state(
@@ -660,18 +665,21 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            flashloan_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         ),
         GroupCommand::EditFeeState {
             fee_wallet,
             bank_init_flat_sol_fee,
+            flashloan_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         } => processor::edit_fee_state(
             config,
             fee_wallet,
             bank_init_flat_sol_fee,
+            flashloan_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         ),

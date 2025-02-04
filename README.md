@@ -80,8 +80,8 @@ Run the full test suite with `./scripts/test-program.sh <program_to_test>`
 * e.g. `./scripts/test-program.sh all --sane`
 
 Run a single test:
-`./scripts/test-program.sh <program_to_test> <name_of_test>`
-* e.g. `./scripts/test-program.sh marginfi configure_bank_success --verbose`
+`./scripts/single-test.sh <program_to_test> <name_of_test>`
+* e.g. `./scripts/single-test.sh marginfi flashloan_success_1op --verbose`
 
 ## Localnet Anchor Tests
 
@@ -89,10 +89,12 @@ Build the program with:
 
 `anchor build -p marginfi -- --no-default-features`
 
-You may also need to build the liquidity incentive program and mock program:
+You may also need to build the liquidity incentive program, mock program, test_transfer_hook program, and brick program:
 
-- `anchor build -p mocks`
 - `anchor build -p liquidity_incentive_program -- --no-default-features`
+- `anchor build -p mocks`
+- `anchor build -p test_transfer_hook`
+- `anchor build -p brick`
 
 Remember to `yarn install`
 
