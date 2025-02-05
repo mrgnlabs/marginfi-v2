@@ -121,6 +121,10 @@ impl OraclePriceFeedAdapter {
             }
             OracleSetup::PythPushOracle => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
+                check!(
+                    ais[0].key == &bank_config.oracle_keys[0],
+                    MarginfiError::InvalidOracleAccount
+                );
 
                 let account_info = &ais[0];
 
