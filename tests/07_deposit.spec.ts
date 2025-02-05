@@ -82,12 +82,10 @@ describe("Deposit funds", () => {
 
     const user0Account = user.accounts.get(USER_ACCOUNT);
 
-    await users[0].mrgnProgram.provider.sendAndConfirm(
+    await user.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await depositIx(program, {
-          marginfiGroup: marginfiGroup.publicKey,
+        await depositIx(user.mrgnProgram, {
           marginfiAccount: user0Account,
-          authority: user.wallet.publicKey,
           bank: bankKeypairA.publicKey,
           tokenAccount: user.tokenAAccount,
           amount: depositAmountA_native,
@@ -127,12 +125,10 @@ describe("Deposit funds", () => {
 
     const user1Account = user.accounts.get(USER_ACCOUNT);
 
-    await users[1].mrgnProgram.provider.sendAndConfirm(
+    await user.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await depositIx(program, {
-          marginfiGroup: marginfiGroup.publicKey,
+        await depositIx(user.mrgnProgram, {
           marginfiAccount: user1Account,
-          authority: user.wallet.publicKey,
           bank: bankKeypairUsdc.publicKey,
           tokenAccount: user.usdcAccount,
           amount: depositAmountUsdc_native,

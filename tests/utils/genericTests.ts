@@ -123,8 +123,14 @@ export const assertBNApproximately = (
   const aB = BigInt(a.toString());
   const bB = BigInt(b.toString());
   const toleranceB = BigInt(tolerance.toString());
-  assert.ok(aB >= bB - toleranceB);
-  assert.ok(aB <= bB + toleranceB);
+  const diff = aB >= bB ? aB - bB : bB - aB;
+
+  if (diff > toleranceB) {
+    throw new Error(
+      `Values are not approximately equal. A: ${aB.toString()}, B: ${bB.toString()}, ` +
+        `Difference: ${diff.toString()}, Allowed Tolerance: ${toleranceB.toString()}`
+    );
+  }
 };
 
 /**

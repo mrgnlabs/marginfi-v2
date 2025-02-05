@@ -1,6 +1,5 @@
 use crate::{
     check,
-    constants::LIQUIDITY_VAULT_SEED,
     events::{AccountEventHeader, LendingAccountDepositEvent},
     prelude::*,
     state::{
@@ -10,7 +9,7 @@ use crate::{
     utils::{self, validate_asset_tags},
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::TokenInterface;
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
@@ -27,12 +26,12 @@ pub fn lending_account_deposit<'info>(
 ) -> MarginfiResult {
     let LendingAccountDeposit {
         marginfi_account: marginfi_account_loader,
-        signer,
+        authority: signer,
         signer_token_account,
-        bank_liquidity_vault,
+        liquidity_vault: bank_liquidity_vault,
         token_program,
         bank: bank_loader,
-        marginfi_group: marginfi_group_loader,
+        group: marginfi_group_loader,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
@@ -102,22 +101,21 @@ pub fn lending_account_deposit<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountDeposit<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
+        has_one = group,
+        has_one = authority
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    #[account(
-        address = marginfi_account.load()?.authority,
-    )]
-    pub signer: Signer<'info>,
+    pub authority: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group,
+        has_one = liquidity_vault
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -125,16 +123,8 @@ pub struct LendingAccountDeposit<'info> {
     #[account(mut)]
     pub signer_token_account: AccountInfo<'info>,
 
-    /// CHECK: Seed constraint check
-    #[account(
-        mut,
-        seeds = [
-            LIQUIDITY_VAULT_SEED.as_bytes(),
-            bank.key().as_ref(),
-        ],
-        bump = bank.load()?.liquidity_vault_bump,
-    )]
-    pub bank_liquidity_vault: AccountInfo<'info>,
+    #[account(mut)]
+    pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }

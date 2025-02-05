@@ -43,10 +43,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -95,10 +93,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -125,10 +121,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -156,10 +150,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [

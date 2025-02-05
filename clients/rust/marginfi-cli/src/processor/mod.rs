@@ -2101,12 +2101,12 @@ pub fn marginfi_account_deposit(
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountDeposit {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             marginfi_account: marginfi_account_pk,
-            signer: signer.pubkey(),
+            authority: signer.pubkey(),
             bank: bank_pk,
             signer_token_account: deposit_ata,
-            bank_liquidity_vault: bank.liquidity_vault,
+            liquidity_vault: bank.liquidity_vault,
             token_program,
         }
         .to_account_metas(Some(true)),
@@ -2177,11 +2177,11 @@ pub fn marginfi_account_withdraw(
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountWithdraw {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             marginfi_account: marginfi_account_pk,
-            signer: signer.pubkey(),
+            authority: signer.pubkey(),
             bank: bank_pk,
-            bank_liquidity_vault: bank.liquidity_vault,
+            liquidity_vault: bank.liquidity_vault,
             token_program,
             destination_token_account: withdraw_ata,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
@@ -2276,11 +2276,11 @@ pub fn marginfi_account_borrow(
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountBorrow {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             marginfi_account: marginfi_account_pk,
-            signer: signer.pubkey(),
+            authority: signer.pubkey(),
             bank: bank_pk,
-            bank_liquidity_vault: bank.liquidity_vault,
+            liquidity_vault: bank.liquidity_vault,
             token_program,
             destination_token_account: borrow_ata,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
