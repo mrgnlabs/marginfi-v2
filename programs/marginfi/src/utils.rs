@@ -204,7 +204,7 @@ pub fn validate_asset_tags(bank: &Bank, marginfi_account: &MarginfiAccount) -> M
     let mut has_staked_asset = false;
 
     for balance in marginfi_account.lending_account.balances.iter() {
-        if balance.active {
+        if balance.is_active() {
             match balance.bank_asset_tag {
                 ASSET_TAG_DEFAULT => has_default_asset = true,
                 ASSET_TAG_SOL => { /* Do nothing, SOL can mix with any asset type */ }

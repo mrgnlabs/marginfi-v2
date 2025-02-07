@@ -139,7 +139,7 @@ describe("Borrow funds", () => {
       );
     }
 
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertI80F48Equal(balances[1].assetShares, 0);
     // Note: The first borrow issues shares 1:1 and the shares use the same decimals
     // Note: An origination fee of 0.01 is also incurred here (configured during addBank)

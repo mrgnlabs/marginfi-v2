@@ -37,7 +37,7 @@ pub fn claim_all_emissions_for_bank(
                 .lending_account
                 .balances
                 .iter()
-                .any(|balance| balance.active && balance.bank_pk == bank_pk)
+                .any(|balance| balance.is_active() && balance.bank_pk == bank_pk)
             {
                 Some(address)
             } else {

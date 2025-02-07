@@ -2,6 +2,7 @@ use std::{cell::Ref, cmp::min};
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::Mint;
+use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
@@ -30,8 +31,7 @@ use anchor_lang::prelude::borsh;
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 
 #[repr(u8)]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum OracleSetup {
     None,
     PythLegacy,
@@ -40,6 +40,8 @@ pub enum OracleSetup {
     SwitchboardPull,
     StakedWithPythPush,
 }
+unsafe impl Zeroable for OracleSetup {}
+unsafe impl Pod for OracleSetup {}
 
 impl OracleSetup {
     pub fn from_u8(value: u8) -> Option<Self> {
