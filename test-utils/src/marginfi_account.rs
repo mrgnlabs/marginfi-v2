@@ -390,9 +390,9 @@ impl MarginfiAccountFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountCloseBalance {
-                marginfi_group: marginfi_account.group,
+                group: marginfi_account.group,
                 marginfi_account: self.key,
-                signer: ctx.payer.pubkey(),
+                authority: ctx.payer.pubkey(),
                 bank: bank.key,
             }
             .to_account_metas(Some(true)),
@@ -428,7 +428,7 @@ impl MarginfiAccountFixture {
             asset_bank: asset_bank_fixture.key,
             liab_bank: liab_bank_fixture.key,
             liquidator_marginfi_account: self.key,
-            signer: self.ctx.borrow().payer.pubkey(),
+            authority: self.ctx.borrow().payer.pubkey(),
             liquidatee_marginfi_account: liquidatee.key,
             bank_liquidity_vault_authority: liab_bank_fixture
                 .get_vault_authority(BankVaultType::Liquidity)
@@ -618,7 +618,7 @@ impl MarginfiAccountFixture {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountStartFlashloan {
                 marginfi_account: self.key,
-                signer: self.ctx.borrow().payer.pubkey(),
+                authority: self.ctx.borrow().payer.pubkey(),
                 ixs_sysvar: sysvar::instructions::id(),
             }
             .to_account_metas(Some(true)),
@@ -633,7 +633,7 @@ impl MarginfiAccountFixture {
     ) -> Instruction {
         let mut account_metas = marginfi::accounts::LendingAccountEndFlashloan {
             marginfi_account: self.key,
-            signer: self.ctx.borrow().payer.pubkey(),
+            authority: self.ctx.borrow().payer.pubkey(),
         }
         .to_account_metas(Some(true));
 
@@ -790,10 +790,10 @@ impl MarginfiAccountFixture {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::MarginfiAccountSetAccountAuthority {
                 marginfi_account: self.key,
-                signer: signer.pubkey(),
+                authority: signer.pubkey(),
                 new_authority,
                 fee_payer: signer.pubkey(),
-                marginfi_group: marginfi_account.group,
+                group: marginfi_account.group,
             }
             .to_account_metas(None),
             data: marginfi::instruction::SetNewAccountAuthority {}.data(),

@@ -322,7 +322,7 @@ async fn flashloan_fail_missing_invalid_sysvar_ixs() -> anyhow::Result<()> {
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingAccountStartFlashloan {
             marginfi_account: borrower_mfi_account_f.key,
-            signer: test_f.context.borrow().payer.pubkey(),
+            authority: test_f.context.borrow().payer.pubkey(),
             ixs_sysvar: Pubkey::default(),
         }
         .to_account_metas(Some(true)),
