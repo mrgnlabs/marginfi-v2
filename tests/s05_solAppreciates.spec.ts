@@ -180,6 +180,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
 
   it("Generate stake income....", async () => {
     // TODO how?
+    //
   });
 
   // Now the stake is worth enough and the user can borrow
