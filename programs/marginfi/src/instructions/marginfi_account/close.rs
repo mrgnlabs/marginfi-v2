@@ -17,7 +17,7 @@ pub fn close_account(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
 #[derive(Accounts)]
 pub struct MarginfiAccountClose<'info> {
     #[account(
-        mut, 
+        mut,
         has_one = authority,
         close = fee_payer
     )]

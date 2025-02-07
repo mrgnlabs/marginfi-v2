@@ -2382,7 +2382,7 @@ pub fn marginfi_account_liquidate(
             asset_bank: asset_bank_pk,
             liab_bank: liability_bank_pk,
             liquidator_marginfi_account: marginfi_account_pk,
-            signer: signer.pubkey(),
+            authority: signer.pubkey(),
             liquidatee_marginfi_account: liquidatee_marginfi_account_pk,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
                 &liability_bank_pk,
