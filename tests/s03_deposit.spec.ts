@@ -103,7 +103,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[0].active, true);
+    assert.equal(balances[0].active, 1);
     assertKeysEqual(balances[0].bankPk, bankKeypairUsdc.publicKey);
   });
 
@@ -134,7 +134,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, false);
+    assert.equal(balances[1].active, 0);
   });
 
   it("(user 1) deposits SOL to SOL bank - happy path", async () => {
@@ -161,7 +161,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[0].active, true);
+    assert.equal(balances[0].active, 1);
     assertKeysEqual(balances[0].bankPk, bankKeypairSol.publicKey);
   });
 
@@ -190,7 +190,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertKeysEqual(balances[1].bankPk, validators[0].bank);
   });
 
@@ -220,7 +220,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[2].active, false);
+    assert.equal(balances[2].active, 0);
   });
 
   it("(user 2) deposits to staked bank - should succeed", async () => {
@@ -248,7 +248,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[0].active, true);
+    assert.equal(balances[0].active, 1);
     assertKeysEqual(balances[0].bankPk, validators[0].bank);
   });
 });

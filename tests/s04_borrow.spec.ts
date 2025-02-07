@@ -60,7 +60,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertKeysEqual(balances[1].bankPk, bankKeypairSol.publicKey);
   });
 
@@ -102,7 +102,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[2].active, false);
+    assert.equal(balances[2].active, 0);
   });
 
   // TODO withdraw user 1's SOL collateral and verify they can borrow SOL

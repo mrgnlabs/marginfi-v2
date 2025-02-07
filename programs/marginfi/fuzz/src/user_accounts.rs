@@ -86,7 +86,7 @@ impl<'info> UserAccount<'info> {
             .lending_account
             .balances
             .iter()
-            .filter(|a| a.active && !exclude_banks.contains(&a.bank_pk))
+            .filter(|a| a.is_active() && !exclude_banks.contains(&a.bank_pk))
             .flat_map(|balance| {
                 let bank_accounts = bank_map.get(&balance.bank_pk).unwrap();
                 assert_eq!(balance.bank_pk, bank_accounts.bank.key());

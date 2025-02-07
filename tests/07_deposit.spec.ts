@@ -97,7 +97,7 @@ describe("Deposit funds", () => {
 
     const userAcc = await program.account.marginfiAccount.fetch(user0Account);
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[0].active, true);
+    assert.equal(balances[0].active, 1);
     // Note: The first deposit issues shares 1:1 and the shares use the same decimals
     assertI80F48Approx(balances[0].assetShares, depositAmountA_native);
     assertI80F48Equal(balances[0].liabilityShares, 0);
@@ -142,7 +142,7 @@ describe("Deposit funds", () => {
 
     const userAcc = await program.account.marginfiAccount.fetch(user1Account);
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[0].active, true);
+    assert.equal(balances[0].active, 1);
     // Note: The first deposit issues shares 1:1 and the shares use the same decimals
     assertI80F48Approx(balances[0].assetShares, depositAmountUsdc_native);
     assertI80F48Equal(balances[0].liabilityShares, 0);

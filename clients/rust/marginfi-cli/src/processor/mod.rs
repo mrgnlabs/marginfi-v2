@@ -686,7 +686,7 @@ pub fn group_auto_handle_bankruptcy_for_an_account(
         .balances
         .iter()
         .filter(|b| {
-            b.active
+            b.is_active()
                 && banks
                     .get(&b.bank_pk)
                     .unwrap()
@@ -816,7 +816,7 @@ pub fn handle_bankruptcy_for_accounts(
             .balances
             .iter()
             .filter(|b| {
-                b.active
+                b.is_active()
                     && banks
                         .get(&b.bank_pk)
                         .unwrap()

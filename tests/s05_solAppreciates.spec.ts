@@ -72,7 +72,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, false);
+    assert.equal(balances[1].active, 0);
   });
 
   // Note: there is also some natural appreciation here because a few epochs have elapsed...
@@ -230,7 +230,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertKeysEqual(balances[1].bankPk, bankKeypairSol.publicKey);
   });
 });
