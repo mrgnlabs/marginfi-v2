@@ -62,10 +62,14 @@ describe("Edit and propagate staked settings", () => {
       },
     };
     let tx = new Transaction().add(
-      await editStakedSettings(groupAdmin.mrgnProgram, {
-        settingsKey: settingsKey,
-        settings: settings,
-      })
+      await bankrunProgram.methods
+        .editStakedSettings(settings)
+        .accountsPartial({
+          marginfiGroup: marginfiGroup.publicKey,
+          admin: groupAdmin.wallet.publicKey,
+          stakedSettings: settingsKey,
+        })
+        .instruction()
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet);
@@ -87,7 +91,7 @@ describe("Edit and propagate staked settings", () => {
   it("(permissionless) Propagate staked settings to a bank - happy path", async () => {
     let tx = new Transaction();
     tx.add(
-      await propagateStakedSettings(program, {
+      await propagateStakedSettings(bankrunProgram, {
         settings: settingsKey,
         bank: bankKey,
         oracle: oracles.usdcOracle.publicKey,
@@ -119,10 +123,14 @@ describe("Edit and propagate staked settings", () => {
       riskTier: null,
     };
     let tx = new Transaction().add(
-      await editStakedSettings(groupAdmin.mrgnProgram, {
-        settingsKey: settingsKey,
-        settings: settings,
-      })
+      await bankrunProgram.methods
+        .editStakedSettings(settings)
+        .accountsPartial({
+          marginfiGroup: marginfiGroup.publicKey,
+          admin: groupAdmin.wallet.publicKey,
+          stakedSettings: settingsKey,
+        })
+        .instruction()
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet);
@@ -135,7 +143,7 @@ describe("Edit and propagate staked settings", () => {
 
     tx = new Transaction();
     tx.add(
-      await propagateStakedSettings(program, {
+      await propagateStakedSettings(bankrunProgram, {
         settings: settingsKey,
         bank: bankKey,
         oracle: PublicKey.default,
@@ -165,11 +173,15 @@ describe("Edit and propagate staked settings", () => {
     // Note you can pack propagates into the edit tx, so with a LUT you can easily propagate
     // hundreds of banks in the same ts as edit
     let tx = new Transaction().add(
-      await editStakedSettings(groupAdmin.mrgnProgram, {
-        settingsKey: settingsKey,
-        settings: settings,
-      }),
-      await propagateStakedSettings(program, {
+      await bankrunProgram.methods
+        .editStakedSettings(settings)
+        .accountsPartial({
+          marginfiGroup: marginfiGroup.publicKey,
+          admin: groupAdmin.wallet.publicKey,
+          stakedSettings: settingsKey,
+        })
+        .instruction(),
+      await propagateStakedSettings(bankrunProgram, {
         settings: settingsKey,
         bank: bankKey,
         oracle: defaultSettings.oracle,

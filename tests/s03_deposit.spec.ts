@@ -84,10 +84,8 @@ describe("Deposit funds (included staked assets)", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         amount: new BN(10 * 10 ** ecosystem.usdcDecimals),
@@ -113,10 +111,8 @@ describe("Deposit funds (included staked assets)", () => {
     const userLstAta = user.accounts.get(LST_ATA);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
@@ -142,10 +138,8 @@ describe("Deposit funds (included staked assets)", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         amount: new BN(2 * 10 ** ecosystem.wsolDecimals),
@@ -171,10 +165,8 @@ describe("Deposit funds (included staked assets)", () => {
     const userLstAta = user.accounts.get(LST_ATA);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
@@ -199,10 +191,8 @@ describe("Deposit funds (included staked assets)", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         amount: new BN(1 * 10 ** ecosystem.usdcDecimals),
@@ -229,10 +219,8 @@ describe("Deposit funds (included staked assets)", () => {
     const userLstAta = user.accounts.get(LST_ATA);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),

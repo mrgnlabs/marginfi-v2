@@ -140,7 +140,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBank(groupAdmin.mrgnProgram, {
+      await addBank(bankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
@@ -184,7 +184,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBank(program, {
+      await addBank(bankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
@@ -285,7 +285,7 @@ describe("Init group and add banks with asset category flags", () => {
             isWritable: false,
           };
 
-          const ix = await program.methods
+          const ix = await bankrunProgram.methods
             .lendingPoolAddBankPermissionless(new BN(0))
             .accounts({
               stakedSettings: settingsKey,
@@ -352,7 +352,7 @@ describe("Init group and add banks with asset category flags", () => {
           isWritable: false,
         };
 
-        const ix = await program.methods
+        const ix = await bankrunProgram.methods
           .lendingPoolAddBankPermissionless(new BN(0))
           .accounts({
             stakedSettings: settingsKey,
@@ -393,7 +393,7 @@ describe("Init group and add banks with asset category flags", () => {
       isWritable: false,
     };
 
-    const ix = await program.methods
+    const ix = await bankrunProgram.methods
       .lendingPoolAddBankPermissionless(new BN(0))
       .accounts({
         stakedSettings: settingsKey,
@@ -427,7 +427,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBankPermissionless(program, {
+      await addBankPermissionless(bankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         pythOracle: oracles.wsolOracle.publicKey,

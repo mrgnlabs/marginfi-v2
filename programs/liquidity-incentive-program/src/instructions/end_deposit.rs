@@ -51,12 +51,12 @@ pub fn process<'info>(ctx: Context<'_, '_, '_, 'info, EndDeposit<'info>>) -> Res
     let mut cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.marginfi_program.to_account_info(),
         marginfi::cpi::accounts::LendingAccountWithdraw {
-            marginfi_group: ctx.accounts.marginfi_group.to_account_info(),
+            group: ctx.accounts.marginfi_group.to_account_info(),
             marginfi_account: ctx.accounts.marginfi_account.to_account_info(),
-            signer: ctx.accounts.mfi_pda_signer.to_account_info(),
+            authority: ctx.accounts.mfi_pda_signer.to_account_info(),
             bank: ctx.accounts.marginfi_bank.to_account_info(),
             destination_token_account: ctx.accounts.temp_token_account.to_account_info(),
-            bank_liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
+            liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
             bank_liquidity_vault_authority: ctx
                 .accounts
                 .marginfi_bank_vault_authority
