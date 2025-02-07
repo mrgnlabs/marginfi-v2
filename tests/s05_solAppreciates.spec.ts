@@ -183,24 +183,20 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
   });
 
   // Now the stake is worth enough and the user can borrow
-  it("(user 2) borrows 1.1 SOL against their STAKED position - succceds", async () => {
+  it("(user 2) borrows 1.1 SOL against their STAKED position - succeeds", async () => {
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     const userLstAta = user.accounts.get(LST_ATA);
     let tx = new Transaction().add(
       // TODO if we find a way to make stake appreciate on localnet, remove...
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
       }),
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
