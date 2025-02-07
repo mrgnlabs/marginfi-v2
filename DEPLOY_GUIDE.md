@@ -34,5 +34,11 @@ Voters:
 
 Here we list recent deployments to staging/mainnet. The hash is always the first 6 chars of the hash generated with the mainnet verified build guide above (even for staging, this is the mainnet hash, not the hash on staging. Staging does not get a verified build.).
 
-Staging deploy on Jan 30, 2025 ~2:35ET -- Hash: a4dd3e7
-0.1.0-alpha mainnet on Fev 3, 2024 ~2:45ET -- Hash: ea5d15
+### STAGING
+
+* 0.1.0: Jan 30, 2025 ~2:35pm ET -- Hash: a4dd3e7
+* 0.1.1: Feb 7, 2025 ~8:15am ET -- Hash: 03455c
+
+### MAINNET
+
+* 0.1.0-alpha mainnet on Fev 3, 2024 ~2:45ET -- Hash: ea5d15
