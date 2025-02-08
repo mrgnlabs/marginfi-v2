@@ -267,7 +267,6 @@ export type LiquidateIxArgs = {
   assetBankKey: PublicKey;
   liabilityBankKey: PublicKey;
   liquidatorMarginfiAccount: PublicKey;
-  liquidatorMarginfiAccountAuthority: PublicKey;
   liquidateeMarginfiAccount: PublicKey;
   remaining: PublicKey[];
   amount: BN;
@@ -306,7 +305,6 @@ export const liquidateIx = (
       assetBank: args.assetBankKey,
       liabBank: args.liabilityBankKey,
       liquidatorMarginfiAccount: args.liquidatorMarginfiAccount,
-      signer: args.liquidatorMarginfiAccountAuthority,
       liquidateeMarginfiAccount: args.liquidateeMarginfiAccount,
       tokenProgram: TOKEN_PROGRAM_ID,
     })

@@ -173,11 +173,10 @@ describe("Liquidate user", () => {
 
     await liquidator.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await liquidateIx(program, {
+        await liquidateIx(liquidator.mrgnProgram, {
           assetBankKey,
           liabilityBankKey,
           liquidatorMarginfiAccount: liquidatorAccount,
-          liquidatorMarginfiAccountAuthority: liquidatorMarginfiAccount.authority,
           liquidateeMarginfiAccount: liquidateeAccount,
           remaining: [
             oracles.tokenAOracle.publicKey,

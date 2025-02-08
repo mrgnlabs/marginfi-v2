@@ -269,9 +269,9 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 let bank_data: &[u8] = &bank_data[8..];
                 let bank = *bytemuck::from_bytes(bank_data);
 
-                // Our alternative is this transmute, which is probably fine because are shortening
-                // 'info to 'a, but better not to tempt fate with transmute in case Anchor messes
-                // with lifetimes in a later version.
+                // Our alternative is this transmute, which is probably fine because we are
+                // shortening 'info to 'a, but better not to tempt fate with transmute in case
+                // Anchor messes with lifetimes in a later version.
 
                 // let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&self.bank) };
                 // let bank_al = AccountLoader::<Bank>::try_from(&self.bank)?;

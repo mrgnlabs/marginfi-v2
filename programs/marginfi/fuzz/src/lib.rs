@@ -800,7 +800,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     liquidator_marginfi_account: AccountLoader::try_from(airls(
                         &liquidator_account.margin_account,
                     ))?,
-                    signer: Signer::try_from(airls(&self.owner))?,
+                    authority: Signer::try_from(airls(&self.owner))?,
                     liquidatee_marginfi_account: AccountLoader::try_from(airls(
                         &liquidatee_account.margin_account,
                     ))?,
