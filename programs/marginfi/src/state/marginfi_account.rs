@@ -252,30 +252,30 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
     {
         match self.balance.get_side() {
             Some(side) => {
-                // // We want lifetime <'a> but we have <'info> and it's a pain to modify everything...
-                // // To avoid an unsafe transmuation we just interpret the bank from bytes. Here we
-                // // repeat some of the sanity checks from AccountLoader
-                // if self.bank.owner != &Bank::owner() {
-                //     panic!("bank owned by wrong program, this should never happen");
-                // }
-                // let bank_data = &self.bank.try_borrow_data()?;
-                // if bank_data.len() < Bank::LEN + 8 {
-                //     panic!("bank too short, this should never happen");
-                // }
-                // let bank_discrim: &[u8] = &bank_data[0..8];
-                // if bank_discrim != Bank::DISCRIMINATOR {
-                //     panic!("bad bank discriminator, this should never happen");
-                // }
-                // let bank_data: &[u8] = &bank_data[8..];
-                // let bank = *bytemuck::from_bytes(bank_data);
+                // We want lifetime <'a> but we have <'info> and it's a pain to modify everything...
+                // To avoid an unsafe transmuation we just interpret the bank from bytes. Here we
+                // repeat some of the sanity checks from AccountLoader
+                if self.bank.owner != &Bank::owner() {
+                    panic!("bank owned by wrong program, this should never happen");
+                }
+                let bank_data = &self.bank.try_borrow_data()?;
+                if bank_data.len() < Bank::LEN + 8 {
+                    panic!("bank too short, this should never happen");
+                }
+                let bank_discrim: &[u8] = &bank_data[0..8];
+                if bank_discrim != Bank::DISCRIMINATOR {
+                    panic!("bad bank discriminator, this should never happen");
+                }
+                let bank_data: &[u8] = &bank_data[8..];
+                let bank = *bytemuck::from_bytes(bank_data);
 
                 // Our alternative is this transmute, which is probably fine because we are
                 // shortening 'info to 'a, but better not to tempt fate with transmute in case
                 // Anchor messes with lifetimes in a later version.
 
-                let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&self.bank) };
-                let bank_al = AccountLoader::<Bank>::try_from(&shorter_bank)?;
-                let bank = bank_al.load()?;
+                // let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&self.bank) };
+                // let bank_al = AccountLoader::<Bank>::try_from(&shorter_bank)?;
+                // let bank = bank_al.load()?;
 
                 match side {
                     BalanceSide::Assets => Ok((
