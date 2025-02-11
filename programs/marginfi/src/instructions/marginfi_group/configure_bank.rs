@@ -3,9 +3,11 @@ use crate::events::{
     GroupEventHeader, LendingPoolBankConfigureEvent, LendingPoolBankConfigureFrozenEvent,
 };
 use crate::prelude::MarginfiError;
+use crate::state::bank::Bank;
+use crate::state::bank_configuration::BankConfigOpt;
 use crate::{check, math_error, utils};
 use crate::{
-    state::marginfi_group::{Bank, BankConfigOpt, MarginfiGroup},
+    state::marginfi_group::MarginfiGroup,
     MarginfiResult,
 };
 use anchor_lang::prelude::*;

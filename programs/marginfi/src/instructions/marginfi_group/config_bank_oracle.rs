@@ -1,8 +1,9 @@
 use crate::constants::FREEZE_SETTINGS;
 use crate::events::{GroupEventHeader, LendingPoolBankConfigureOracleEvent};
+use crate::state::bank::Bank;
 use crate::state::price::OracleSetup;
 use crate::{
-    state::marginfi_group::{Bank, MarginfiGroup},
+    state::marginfi_group::MarginfiGroup,
     MarginfiResult,
 };
 use anchor_lang::prelude::*;

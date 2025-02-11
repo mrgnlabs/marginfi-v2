@@ -10,12 +10,14 @@ use marginfi::constants::{
     FEE_STATE_SEED, INIT_BANK_ORIGINATION_FEE_DEFAULT, PROTOCOL_FEE_FIXED_DEFAULT,
     PROTOCOL_FEE_RATE_DEFAULT,
 };
-use marginfi::state::fee_state::FeeState;
-use marginfi::state::marginfi_group::BankConfigCompact;
-use marginfi::state::price::OracleSetup;
 use marginfi::{
     prelude::MarginfiGroup,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    state::{
+        bank_configuration::{BankConfig, BankConfigCompact, BankConfigOpt, BankVaultType},
+        fee_state::FeeState,
+        marginfi_group::GroupConfig,
+        price::OracleSetup,
+    },
 };
 use solana_program::sysvar;
 use solana_program_test::*;

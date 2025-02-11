@@ -1,17 +1,12 @@
 use super::{
-    marginfi_group::{Bank, RiskTier, WrappedI80F48},
-    price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
+    bank_configuration::RiskTier, marginfi_group::WrappedI80F48, price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias}
 };
 use crate::{
-    assert_struct_align, assert_struct_size, check,
-    constants::{
+    assert_struct_align, assert_struct_size, check, constants::{
         ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
         EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD,
         EXP_10_I80F48, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
-    },
-    debug, math_error,
-    prelude::{MarginfiError, MarginfiResult},
-    utils::NumTraitsWithTolerance,
+    }, debug, math_error, prelude::{MarginfiError, MarginfiResult}, state::bank::Bank, utils::NumTraitsWithTolerance
 };
 use anchor_lang::{prelude::*, Discriminator};
 use anchor_spl::token_interface::Mint;

@@ -105,7 +105,9 @@ impl LipCampaignFixture {
                 marginfi_bank_vault: bank.liquidity_vault,
                 marginfi_bank_vault_authority: self
                     .bank_f
-                    .get_vault_authority(marginfi::state::marginfi_group::BankVaultType::Liquidity)
+                    .get_vault_authority(
+                        marginfi::state::bank_configuration::BankVaultType::Liquidity,
+                    )
                     .0,
                 marginfi_program: marginfi::id(),
                 token_program: self.bank_f.get_token_program(),

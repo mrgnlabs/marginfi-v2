@@ -7,8 +7,7 @@ use crate::{
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     state::{
-        fee_state::FeeState,
-        marginfi_group::{Bank, BankConfigCompact, MarginfiGroup},
+        bank::Bank, bank_configuration::BankConfigCompact, fee_state::FeeState, marginfi_group::MarginfiGroup
     },
     MarginfiError, MarginfiResult,
 };

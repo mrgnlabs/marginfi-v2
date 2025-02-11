@@ -12,7 +12,8 @@ use fixed::types::I80F48;
 use marginfi::{
     bank_authority_seed,
     state::{
-        marginfi_group::{Bank, BankConfigOpt, BankVaultType},
+        bank::Bank,
+        bank_configuration::{BankConfigOpt, BankVaultType},
         price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter},
     },
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},

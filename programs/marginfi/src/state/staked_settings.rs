@@ -4,7 +4,7 @@ use fixed_macro::types::I80F48;
 
 use crate::{assert_struct_align, assert_struct_size, check, MarginfiError, MarginfiResult};
 
-use super::marginfi_group::{RiskTier, WrappedI80F48};
+use super::{bank_configuration::RiskTier, marginfi_group::WrappedI80F48};
 
 assert_struct_size!(StakedSettings, 256);
 assert_struct_align!(StakedSettings, 8);

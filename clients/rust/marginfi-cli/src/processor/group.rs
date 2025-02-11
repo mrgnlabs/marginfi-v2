@@ -1,7 +1,7 @@
 use crate::{config::Config, profile::Profile, utils};
 use anyhow::Result;
 use log::{debug, info, warn};
-use marginfi::state::marginfi_group::Bank;
+use marginfi::state::bank::Bank;
 use solana_address_lookup_table_program::{
     instruction::{create_lookup_table, extend_lookup_table},
     state::AddressLookupTable,
@@ -97,7 +97,7 @@ pub fn process_check_lookup_tables(
         keys.push(bank.liquidity_vault);
         let (vault_auth, _) = utils::find_bank_vault_authority_pda(
             bank_pk,
-            marginfi::state::marginfi_group::BankVaultType::Liquidity,
+            marginfi::state::bank_configuration::BankVaultType::Liquidity,
             &marginfi::ID,
         );
 
@@ -221,7 +221,7 @@ pub fn process_update_lookup_tables(
         keys.push(bank.liquidity_vault);
         let (vault_auth, _) = utils::find_bank_vault_authority_pda(
             bank_pk,
-            marginfi::state::marginfi_group::BankVaultType::Liquidity,
+            marginfi::state::bank_configuration::BankVaultType::Liquidity,
             &marginfi::ID,
         );
 

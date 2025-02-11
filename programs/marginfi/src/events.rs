@@ -1,4 +1,4 @@
-use crate::{prelude::*, state::marginfi_group::BankConfigOpt, StakedSettingsEditConfig};
+use crate::{prelude::*, state::bank_configuration::BankConfigOpt, StakedSettingsEditConfig};
 use anchor_lang::prelude::*;
 
 // Event headers

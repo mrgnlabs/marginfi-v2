@@ -14,9 +14,9 @@ use lazy_static::lazy_static;
 use marginfi::{
     constants::MAX_ORACLE_KEYS,
     state::{
-        marginfi_group::{
-            BankConfig, BankOperationalState, GroupConfig, InterestRateConfig, RiskTier,
-        },
+        bank_configuration::{BankConfig, BankOperationalState, RiskTier},
+        bank_interest::InterestRateConfig,
+        marginfi_group::GroupConfig,
         price::OracleSetup,
     },
 };

@@ -7,7 +7,7 @@ use anchor_spl::associated_token;
 use anyhow::Result;
 use marginfi::{
     bank_authority_seed,
-    state::marginfi_group::{Bank, BankVaultType},
+    state::{bank::Bank, bank_configuration::BankVaultType},
 };
 use solana_sdk::{
     instruction::Instruction, message::Message, pubkey::Pubkey, transaction::Transaction,

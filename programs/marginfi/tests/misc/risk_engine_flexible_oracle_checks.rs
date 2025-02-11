@@ -8,7 +8,10 @@ use fixtures::{
 };
 use marginfi::{
     prelude::MarginfiError,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    state::{
+        bank_configuration::{BankConfig, BankConfigOpt, BankVaultType},
+        marginfi_group::GroupConfig,
+    },
 };
 use solana_program_test::tokio;
 
