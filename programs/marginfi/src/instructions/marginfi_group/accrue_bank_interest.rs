@@ -25,6 +25,7 @@ pub struct LendingPoolAccrueBankInterest<'info> {
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
+        mut,
         has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,

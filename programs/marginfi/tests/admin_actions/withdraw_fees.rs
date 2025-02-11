@@ -118,7 +118,7 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
         .await;
 
     // Unable to withdraw 1000 USDC from the insurance vault, because the signer is not the admin
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintAddress);
+    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
 
     // Mint `fee_vault_balance` USDC to the fee vault
     bank_f
@@ -133,7 +133,7 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
         .await;
 
     // Unable to withdraw `fee_vault_balance` USDC from the fee vault, because the signer is not the admin
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintAddress);
+    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
 
     Ok(())
 }
