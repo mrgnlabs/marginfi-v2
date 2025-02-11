@@ -25,7 +25,7 @@ pub fn lending_pool_configure_bank(
 
         emit!(LendingPoolBankConfigureFrozenEvent {
             header: GroupEventHeader {
-                marginfi_group: ctx.accounts.marginfi_group.key(),
+                marginfi_group: ctx.accounts.group.key(),
                 signer: Some(*ctx.accounts.admin.key)
             },
             bank: ctx.accounts.bank.key(),
@@ -43,7 +43,7 @@ pub fn lending_pool_configure_bank(
 
         emit!(LendingPoolBankConfigureEvent {
             header: GroupEventHeader {
-                marginfi_group: ctx.accounts.marginfi_group.key(),
+                marginfi_group: ctx.accounts.group.key(),
                 signer: Some(*ctx.accounts.admin.key)
             },
             bank: ctx.accounts.bank.key(),
@@ -57,16 +57,17 @@ pub fn lending_pool_configure_bank(
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBank<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
-        address = marginfi_group.load()?.admin,
+        mut,
+        has_one = admin,
     )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
     pub admin: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group,
     )]
     pub bank: AccountLoader<'info, Bank>,
 }
@@ -116,22 +117,24 @@ pub fn lending_pool_setup_emissions(
 
 #[derive(Accounts)]
 pub struct LendingPoolSetupEmissions<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
         mut,
-        address = marginfi_group.load()?.admin,
+        has_one = admin,
     )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group,
     )]
     pub bank: AccountLoader<'info, Bank>,
 
     pub emissions_mint: InterfaceAccount<'info, Mint>,
 
+    /// CHECK: Asserted by PDA constraints
     #[account(
         seeds = [
             EMISSIONS_AUTH_SEED.as_bytes(),
@@ -140,7 +143,6 @@ pub struct LendingPoolSetupEmissions<'info> {
         ],
         bump
     )]
-    /// CHECK: Asserted by PDA constraints
     pub emissions_auth: AccountInfo<'info>,
 
     #[account(
@@ -233,17 +235,18 @@ pub fn lending_pool_update_emissions_parameters(
 
 #[derive(Accounts)]
 pub struct LendingPoolUpdateEmissionsParameters<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
         mut,
-        address = marginfi_group.load()?.admin,
+        has_one = admin
     )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
 

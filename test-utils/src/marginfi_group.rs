@@ -323,7 +323,7 @@ impl MarginfiGroupFixture {
     ) -> Instruction {
         let accounts = marginfi::accounts::LendingPoolConfigureBank {
             bank: bank.key,
-            marginfi_group: self.key,
+            group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
         }
         .to_account_metas(Some(true));
@@ -389,7 +389,7 @@ impl MarginfiGroupFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolAccrueBankInterest {
-                marginfi_group: self.key,
+                group: self.key,
                 bank: bank.key,
             }
             .to_account_metas(Some(true)),
@@ -445,7 +445,7 @@ impl MarginfiGroupFixture {
         );
 
         let mut accounts = marginfi::accounts::LendingPoolCollectBankFees {
-            marginfi_group: self.key,
+            group: self.key,
             bank: bank.key,
             liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
             liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
@@ -494,7 +494,7 @@ impl MarginfiGroupFixture {
         nonce: u64,
     ) -> Result<(), BanksClientError> {
         let mut accounts = marginfi::accounts::LendingPoolHandleBankruptcy {
-            marginfi_group: self.key,
+            group: self.key,
             signer: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
             marginfi_account: marginfi_account.key,

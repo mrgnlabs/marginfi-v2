@@ -732,7 +732,7 @@ fn handle_bankruptcy_for_an_account(
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             signer: config.authority(),
             bank: bank_pk,
             marginfi_account: marginfi_account_pk,
@@ -886,7 +886,7 @@ fn make_bankruptcy_ix(
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             signer: config.fee_payer.pubkey(),
             bank: bank_pk,
             marginfi_account: marginfi_account_pk,
@@ -1501,7 +1501,7 @@ pub fn bank_setup_emissions(
     let ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolSetupEmissions {
-            marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
+            group: profile.marginfi_group.expect("marginfi group not set"),
             admin: config.authority(),
             bank,
             emissions_mint: mint,
@@ -1619,7 +1619,7 @@ pub fn bank_update_emissions(
     let ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
-            marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
+            group: profile.marginfi_group.expect("marginfi group not set"),
             admin: config.authority(),
             bank: bank_pk,
             emissions_mint: emission_mint,
@@ -1669,7 +1669,7 @@ pub fn bank_configure(
 
     let configure_bank_ixs = configure_bank_ixs_builder
         .accounts(marginfi::accounts::LendingPoolConfigureBank {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             admin: config.authority(),
             bank: bank_pk,
         })

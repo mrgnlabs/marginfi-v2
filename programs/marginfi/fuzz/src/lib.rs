@@ -884,7 +884,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         let res = marginfi::instructions::lending_pool_handle_bankruptcy(Context::new(
             &marginfi::ID,
             &mut marginfi::instructions::LendingPoolHandleBankruptcy {
-                marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                 signer: Signer::try_from(airls(&self.owner))?,
                 bank: AccountLoader::try_from(airls(&bank.bank))?,
                 marginfi_account: AccountLoader::try_from(airls(&marginfi_account.margin_account))?,

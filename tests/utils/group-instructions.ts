@@ -125,8 +125,6 @@ export const groupInitialize = (
 };
 
 export type ConfigureBankArgs = {
-  marginfiGroup: PublicKey;
-  admin: PublicKey;
   bank: PublicKey;
   bankConfigOpt: BankConfigOptWithAssetTag; // BankConfigOptRaw + assetTag
 };
@@ -138,8 +136,6 @@ export const configureBank = (
   const ix = program.methods
     .lendingPoolConfigureBank(args.bankConfigOpt)
     .accounts({
-      marginfiGroup: args.marginfiGroup,
-      admin: args.admin,
       bank: args.bank,
     })
     .instruction();
@@ -176,8 +172,6 @@ export const configureBankOracle = (
 };
 
 export type SetupEmissionsArgs = {
-  marginfiGroup: PublicKey;
-  admin: PublicKey;
   bank: PublicKey;
   emissionsMint: PublicKey;
   fundingAccount: PublicKey;
@@ -197,8 +191,6 @@ export const setupEmissions = (
       args.totalEmissions
     )
     .accounts({
-      marginfiGroup: args.marginfiGroup,
-      admin: args.admin,
       bank: args.bank,
       emissionsMint: args.emissionsMint,
       // emissionsAuth: deriveEmissionsAuth()
@@ -212,8 +204,6 @@ export const setupEmissions = (
 };
 
 export type UpdateEmissionsArgs = {
-  marginfiGroup: PublicKey;
-  admin: PublicKey;
   bank: PublicKey;
   emissionsMint: PublicKey;
   fundingAccount: PublicKey;
@@ -233,8 +223,6 @@ export const updateEmissions = (
       args.additionalEmissions
     )
     .accounts({
-      marginfiGroup: args.marginfiGroup,
-      admin: args.admin,
       bank: args.bank,
       emissionsMint: args.emissionsMint,
       // emissionsAuth: deriveEmissionsAuth()

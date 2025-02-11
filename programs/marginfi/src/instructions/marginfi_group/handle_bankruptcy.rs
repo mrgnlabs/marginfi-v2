@@ -33,7 +33,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         insurance_vault,
         token_program,
         bank: bank_loader,
-        marginfi_group: marginfi_group_loader,
+        group: marginfi_group_loader,
         ..
     } = ctx.accounts;
     let bank = bank_loader.load()?;
@@ -175,20 +175,20 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 
 #[derive(Accounts)]
 pub struct LendingPoolHandleBankruptcy<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     // #[account(address = marginfi_group.load()?.admin)]
     pub signer: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
 
     #[account(
         mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

@@ -12,7 +12,7 @@ pub fn lending_pool_accrue_bank_interest(
 
     bank.accrue_interest(
         clock.unix_timestamp,
-        &*ctx.accounts.marginfi_group.load()?,
+        &*ctx.accounts.group.load()?,
         #[cfg(not(feature = "client"))]
         ctx.accounts.bank.key(),
     )?;
@@ -22,11 +22,10 @@ pub fn lending_pool_accrue_bank_interest(
 
 #[derive(Accounts)]
 pub struct LendingPoolAccrueBankInterest<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
 }
