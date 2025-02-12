@@ -34,7 +34,7 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -50,11 +50,11 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500, None)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 500, None)
         .await?;
 
     // Borrow SOL
@@ -126,7 +126,7 @@ async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -142,11 +142,11 @@ async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500, None)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 500, None)
         .await?;
 
     // Borrow SOL
@@ -184,7 +184,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -194,7 +194,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500, None)
         .await?;
 
     // Make SOL oracle stale
@@ -265,14 +265,14 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(2_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000, None)
         .await?;
     let lender_token_account_sole = test_f
         .sol_equivalent_mint
         .create_token_account_and_mint_to(100)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sole.key, sole_bank_f, 100)
+        .try_bank_deposit(lender_token_account_sole.key, sole_bank_f, 100, None)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -281,7 +281,7 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
 
     // Borrower deposits 100 SOL worth $1000
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100, None)
         .await?;
 
     // Borrower borrows $999
@@ -366,6 +366,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
             lender_token_account_usdc.key,
             test_f.get_bank(&BankMint::Usdc),
             100_000,
+            None,
         )
         .await?;
 
@@ -380,6 +381,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
             borrower_deposit_account.key,
             test_f.get_bank(&BankMint::Sol),
             1_001,
+            None,
         )
         .await?;
 

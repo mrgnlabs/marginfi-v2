@@ -29,7 +29,7 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
     let sol_token_account = test_f.sol_mint.create_token_account_and_mint_to(100).await;
 
     sol_depositor
-        .try_bank_deposit(sol_token_account.key, sol_bank, 100)
+        .try_bank_deposit(sol_token_account.key, sol_bank, 100, None)
         .await?;
 
     let usdc_token_account = test_f
@@ -38,11 +38,11 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
         .await;
 
     sol_depositor
-        .try_bank_deposit(usdc_token_account.key, usdc_bank, 1900)
+        .try_bank_deposit(usdc_token_account.key, usdc_bank, 1900, None)
         .await?;
 
     usdc_depositor
-        .try_bank_deposit(usdc_token_account.key, usdc_bank, 100)
+        .try_bank_deposit(usdc_token_account.key, usdc_bank, 100, None)
         .await?;
 
     // Borrowing 10 SOL should fail bc of init limit
@@ -76,11 +76,11 @@ async fn marginfi_group_init_limit_0() -> anyhow::Result<()> {
     assert!(res.is_ok());
 
     sol_depositor
-        .try_bank_deposit(usdc_token_account.key, usdc_bank, 1901)
+        .try_bank_deposit(usdc_token_account.key, usdc_bank, 1901, None)
         .await?;
 
     usdc_depositor
-        .try_bank_deposit(usdc_token_account.key, usdc_bank, 100)
+        .try_bank_deposit(usdc_token_account.key, usdc_bank, 100, None)
         .await?;
 
     // Borrowing 10 SOL should succeed now

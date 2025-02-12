@@ -39,7 +39,7 @@ async fn real_oracle_marginfi_account_borrow_success() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -50,7 +50,7 @@ async fn real_oracle_marginfi_account_borrow_success() -> anyhow::Result<()> {
         .await;
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000, None)
         .await?;
 
     // Borrow SOL
@@ -114,7 +114,7 @@ async fn real_oracle_pyth_push_marginfi_account_borrow_success() -> anyhow::Resu
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -125,7 +125,7 @@ async fn real_oracle_pyth_push_marginfi_account_borrow_success() -> anyhow::Resu
         .await;
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000, None)
         .await?;
 
     // Borrow SOL

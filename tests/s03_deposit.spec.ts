@@ -89,6 +89,7 @@ describe("Deposit funds (included staked assets)", () => {
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         amount: new BN(10 * 10 ** ecosystem.usdcDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -116,6 +117,7 @@ describe("Deposit funds (included staked assets)", () => {
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -143,6 +145,7 @@ describe("Deposit funds (included staked assets)", () => {
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         amount: new BN(2 * 10 ** ecosystem.wsolDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -170,6 +173,7 @@ describe("Deposit funds (included staked assets)", () => {
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -196,6 +200,7 @@ describe("Deposit funds (included staked assets)", () => {
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         amount: new BN(1 * 10 ** ecosystem.usdcDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -224,6 +229,7 @@ describe("Deposit funds (included staked assets)", () => {
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
+        depositUpToLimit: false,
       })
     );
 

@@ -88,15 +88,15 @@ describe("Borrow funds", () => {
       console.log("user 0 USDC before: " + userUsdcBefore.toLocaleString());
       console.log(
         "usdc fees owed to bank: " +
-          wrappedI80F48toBigNumber(
-            bankBefore.collectedGroupFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankBefore.collectedGroupFeesOutstanding
+        ).toString()
       );
       console.log(
         "usdc fees owed to program: " +
-          wrappedI80F48toBigNumber(
-            bankBefore.collectedProgramFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankBefore.collectedProgramFeesOutstanding
+        ).toString()
       );
     }
 
@@ -127,15 +127,15 @@ describe("Borrow funds", () => {
       console.log("user 0 USDC after: " + userUsdcAfter.toLocaleString());
       console.log(
         "usdc fees owed to bank: " +
-          wrappedI80F48toBigNumber(
-            bankAfter.collectedGroupFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankAfter.collectedGroupFeesOutstanding
+        ).toString()
       );
       console.log(
         "usdc fees owed to program: " +
-          wrappedI80F48toBigNumber(
-            bankAfter.collectedProgramFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankAfter.collectedProgramFeesOutstanding
+        ).toString()
       );
     }
 

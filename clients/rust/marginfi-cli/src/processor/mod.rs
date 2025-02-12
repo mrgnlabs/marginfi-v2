@@ -2073,6 +2073,7 @@ pub fn marginfi_account_deposit(
     config: &Config,
     bank_pk: Pubkey,
     ui_amount: f64,
+    deposit_up_to_limit: Option<bool>,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
     let signer = config.get_non_ms_authority_keypair()?;
@@ -2110,7 +2111,11 @@ pub fn marginfi_account_deposit(
             token_program,
         }
         .to_account_metas(Some(true)),
-        data: marginfi::instruction::LendingAccountDeposit { amount }.data(),
+        data: marginfi::instruction::LendingAccountDeposit {
+            amount,
+            deposit_up_to_limit,
+        }
+        .data(),
     };
     if token_program == spl_token_2022::ID {
         ix.accounts
