@@ -177,7 +177,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 pub struct LendingPoolHandleBankruptcy<'info> {
     pub group: AccountLoader<'info, MarginfiGroup>,
 
-    // #[account(address = marginfi_group.load()?.admin)]
+    /// CHECK: The admin signer constraint is only validated (in handler) if bank
+    /// PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG is not set
     pub signer: Signer<'info>,
 
     #[account(

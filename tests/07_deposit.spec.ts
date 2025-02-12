@@ -158,4 +158,50 @@ describe("Deposit funds", () => {
       userUsdcAfter
     );
   });
+
+  it("(user 1) deposit up to limit - happy path", async () => {
+    const user = users[1];
+
+    // TODO make bank, give user funds, etc....
+
+
+    // const userUsdcBefore = await getTokenBalance(provider, user.usdcAccount);
+    // if (verbose) {
+    //   console.log("user 1 USDC before: " + userUsdcBefore.toLocaleString());
+    // }
+
+    // const user1Account = user.accounts.get(USER_ACCOUNT);
+
+    // await user.mrgnProgram.provider.sendAndConfirm(
+    //   new Transaction().add(
+    //     await depositIx(user.mrgnProgram, {
+    //       marginfiAccount: user1Account,
+    //       bank: bankKeypairUsdc.publicKey,
+    //       tokenAccount: user.usdcAccount,
+    //       amount: depositAmountUsdc_native,
+    //       depositUpToLimit: false,
+    //     })
+    //   )
+    // );
+
+    // const userAcc = await program.account.marginfiAccount.fetch(user1Account);
+    // const balances = userAcc.lendingAccount.balances;
+    // assert.equal(balances[0].active, 1);
+    // // Note: The first deposit issues shares 1:1 and the shares use the same decimals
+    // assertI80F48Approx(balances[0].assetShares, depositAmountUsdc_native);
+    // assertI80F48Equal(balances[0].liabilityShares, 0);
+    // assertI80F48Equal(balances[0].emissionsOutstanding, 0);
+
+    // let now = Math.floor(Date.now() / 1000);
+    // assertBNApproximately(balances[0].lastUpdate, now, 2);
+
+    // const userUsdcAfter = await getTokenBalance(provider, user.usdcAccount);
+    // if (verbose) {
+    //   console.log("user 1 USDC after: " + userUsdcAfter.toLocaleString());
+    // }
+    // assert.equal(
+    //   userUsdcBefore - depositAmountUsdc_native.toNumber(),
+    //   userUsdcAfter
+    // );
+  });
 });

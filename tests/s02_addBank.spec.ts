@@ -60,7 +60,7 @@ describe("Init group and add banks with asset category flags", () => {
     let tx = new Transaction();
 
     tx.add(
-      await groupInitialize(program, {
+      await groupInitialize(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         admin: groupAdmin.wallet.publicKey,
       })
@@ -140,9 +140,8 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBank(bankrunProgram, {
+      await addBank(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
-        admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.usdcMint.publicKey,
         bank: bankKey,
@@ -184,9 +183,8 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBank(bankrunProgram, {
+      await addBank(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
-        admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.wsolMint.publicKey,
         bank: bankKey,
@@ -216,7 +214,6 @@ describe("Init group and add banks with asset category flags", () => {
     tx.add(
       await addBank(groupAdmin.mrgnProgram, {
         marginfiGroup: marginfiGroup.publicKey,
-        admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: validators[0].splMint,
         bank: bankKeypair.publicKey,
@@ -427,7 +424,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBankPermissionless(bankrunProgram, {
+      await addBankPermissionless(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         pythOracle: oracles.wsolOracle.publicKey,

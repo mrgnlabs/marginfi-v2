@@ -273,6 +273,26 @@ export const mochaHooks = {
     }
     banksClient = bankrunContext.banksClient;
 
+    groupAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(groupAdmin.wallet),
+        {}
+      )
+    );
+
+    validatorAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(validatorAdmin.wallet),
+        {}
+      )
+    );
+
+    banksClient = bankrunContext.banksClient;
+
     if (verbose) {
       console.log("---End ecosystem setup---");
       console.log("");

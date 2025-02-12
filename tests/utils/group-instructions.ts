@@ -30,7 +30,6 @@ export const MAX_ORACLE_KEYS = 5;
  */
 export type AddBankArgs = {
   marginfiGroup: PublicKey;
-  admin: PublicKey;
   feePayer: PublicKey;
   bankMint: PublicKey;
   bank: PublicKey;
@@ -56,7 +55,7 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
     })
     .accounts({
       marginfiGroup: args.marginfiGroup,
-      admin: args.admin,
+      // admin: args.admin, // implied from group
       feePayer: args.feePayer,
       bankMint: args.bankMint,
       bank: args.bank,
@@ -78,13 +77,70 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
 };
 
 /**
+ * * admin/feePayer - must sign
+ * * bank - use a fresh keypair, must sign
+ */
+export type AddBankWithSeedArgs = {
+  marginfiGroup: PublicKey;
+  feePayer: PublicKey;
+  bankMint: PublicKey;
+  bank: PublicKey;
+  config: BankConfig;
+};
+
+export const addBankWithSeed = (
+  program: Program<Marginfi>,
+  args: AddBankArgs
+) => {
+  const ix = program.methods
+    .lendingPoolAddBankWithSeed(
+      {
+        assetWeightInit: args.config.assetWeightInit,
+        assetWeightMaint: args.config.assetWeightMaint,
+        liabilityWeightInit: args.config.liabilityWeightInit,
+        liabilityWeightMaint: args.config.liabilityWeightMain,
+        depositLimit: args.config.depositLimit,
+        interestRateConfig: args.config.interestRateConfig,
+        operationalState: args.config.operationalState,
+        borrowLimit: args.config.borrowLimit,
+        riskTier: args.config.riskTier,
+        assetTag: args.config.assetTag,
+        pad0: [0, 0, 0, 0, 0, 0],
+        totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
+        oracleMaxAge: args.config.oracleMaxAge,
+      },
+      new BN(0)
+    )
+    .accounts({
+      marginfiGroup: args.marginfiGroup,
+      // admin: args.admin, // implied from group
+      feePayer: args.feePayer,
+      bankMint: args.bankMint,
+      // bank: args.bank, // derived from seed
+      // globalFeeState: deriveGlobalFeeState(id),
+      // globalFeeWallet: args.globalFeeWallet,
+      // liquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
+      // liquidityVault = deriveLiquidityVault(id, bank);
+      // insuranceVaultAuthority = deriveInsuranceVaultAuthority(id, bank);
+      // insuranceVault = deriveInsuranceVault(id, bank);
+      // feeVaultAuthority = deriveFeeVaultAuthority(id, bank);
+      // feeVault = deriveFeeVault(id, bank);
+      // rent = SYSVAR_RENT_PUBKEY
+      tokenProgram: TOKEN_PROGRAM_ID,
+      // systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+
+  return ix;
+};
+
+/**
  * newAdmin - (Optional) pass null to keep current admin
- * admin - must sign, must be current admin of marginfiGroup
+ * marginfiGroup's admin - must sign
  */
 export type GroupConfigureArgs = {
   newAdmin: PublicKey | null;
   marginfiGroup: PublicKey;
-  admin: PublicKey;
 };
 
 export const groupConfigure = (
@@ -95,7 +151,7 @@ export const groupConfigure = (
     .marginfiGroupConfigure({ admin: args.newAdmin })
     .accounts({
       marginfiGroup: args.marginfiGroup,
-      admin: args.admin,
+      // admin: // implied from group
     })
     .instruction();
 

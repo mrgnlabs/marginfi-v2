@@ -571,7 +571,7 @@ impl MarginfiAccountFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::SetAccountFlag {
-                marginfi_group: self.load().await.group,
+                group: self.load().await.group,
                 marginfi_account: self.key,
                 admin: self.ctx.borrow().payer.pubkey(),
             }
@@ -597,7 +597,7 @@ impl MarginfiAccountFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::UnsetAccountFlag {
-                marginfi_group: self.load().await.group,
+                group: self.load().await.group,
                 marginfi_account: self.key,
                 admin: self.ctx.borrow().payer.pubkey(),
             }

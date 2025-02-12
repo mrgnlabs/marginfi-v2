@@ -95,12 +95,12 @@ pub fn lending_pool_add_bank(
 #[derive(Accounts)]
 #[instruction(bank_config: BankConfigCompact)]
 pub struct LendingPoolAddBank<'info> {
+    #[account(
+        has_one = admin
+    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(
-        mut,
-        address = marginfi_group.load()?.admin,
-    )]
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     /// Pays to init accounts and pays `fee_state.bank_init_flat_sol_fee` lamports to the protocol
