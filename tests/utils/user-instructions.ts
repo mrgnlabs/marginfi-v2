@@ -41,7 +41,7 @@ export type DepositArgs = {
   bank: PublicKey;
   tokenAccount: PublicKey;
   amount: BN;
-  depositUpToLimit: boolean;
+  depositUpToLimit?: boolean;
 };
 
 /**
@@ -53,7 +53,7 @@ export type DepositArgs = {
  */
 export const depositIx = (program: Program<Marginfi>, args: DepositArgs) => {
   const ix = program.methods
-    .lendingAccountDeposit(args.amount, args.depositUpToLimit)
+    .lendingAccountDeposit(args.amount, args.depositUpToLimit ?? false)
     .accounts({
       // marginfiGroup: args.marginfiGroup, // implied from bank
       marginfiAccount: args.marginfiAccount,

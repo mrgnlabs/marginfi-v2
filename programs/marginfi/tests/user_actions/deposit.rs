@@ -256,10 +256,13 @@ async fn marginfi_account_deposit_up_to_limit_success(
     // -------------------------------------------------------------------------
 
     bank_f
-        .update_config(BankConfigOpt {
-            deposit_limit: Some(native!(deposit_cap, bank_f.mint.mint.decimals, f64)),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                deposit_limit: Some(native!(deposit_cap, bank_f.mint.mint.decimals, f64)),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     // First deposit stays under limit
