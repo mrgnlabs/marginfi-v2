@@ -942,7 +942,7 @@ pub fn process_set_user_flag(
     let ix = Instruction {
         accounts: marginfi::accounts::SetAccountFlag {
             marginfi_account: marginfi_account_pk,
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             admin: config.authority(),
         }
         .to_account_metas(Some(true)),
