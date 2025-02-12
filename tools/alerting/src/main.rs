@@ -1,17 +1,7 @@
-use std::{
-    collections::HashMap,
-    mem::size_of,
-    str::FromStr,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
 use log::{error, info, warn};
 use marginfi::{
     constants::{PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID},
-    state::{
-        bank::Bank,
-        price::OracleSetup
-    },
+    state::{bank::Bank, price::OracleSetup},
 };
 use pagerduty_rs::{
     eventsv2sync::EventsV2,
@@ -26,6 +16,12 @@ use solana_client::{
     rpc_filter::{Memcmp, RpcFilterType},
 };
 use solana_sdk::pubkey::Pubkey;
+use std::{
+    collections::HashMap,
+    mem::size_of,
+    str::FromStr,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use structopt::StructOpt;
 use switchboard_on_demand::PullFeedAccountData;
 use switchboard_solana::{AggregatorAccountData, AnchorDeserialize};
