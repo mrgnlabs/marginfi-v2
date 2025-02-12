@@ -1,7 +1,7 @@
 use crate::{
     bank_authority_seed, bank_seed,
     constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
-    state::{bank::Bank, marginfi_account::MarginfiAccount, bank_configuration::BankVaultType},
+    state::{bank::Bank, bank_configuration::BankVaultType, marginfi_account::MarginfiAccount},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;

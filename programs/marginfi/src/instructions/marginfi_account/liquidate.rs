@@ -3,10 +3,10 @@ use crate::constants::{
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::state::bank::Bank;
+use crate::state::bank_configuration::BankVaultType;
 use crate::state::marginfi_account::{
     calc_amount, calc_value, get_remaining_accounts_per_bank, RiskEngine,
 };
-use crate::state::bank_configuration::BankVaultType;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::utils::{validate_asset_tags, validate_bank_asset_tags};
 use crate::{

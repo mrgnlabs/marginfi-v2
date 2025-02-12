@@ -21,15 +21,15 @@ use fixed_macro::types::I80F48;
 use marginfi::{
     constants::FEE_STATE_SEED,
     instructions::LendingPoolConfigureBankOracleBumps,
-    state::{fee_state::FeeState, marginfi_group::BankConfigCompact},
+    state::{bank_configuration::BankConfigCompact, fee_state::FeeState},
 };
 use marginfi::{
     errors::MarginfiError,
     instructions::LendingPoolAddBankBumps,
     prelude::MarginfiGroup,
     state::{
+        bank::Bank, bank_configuration::BankVaultType, bank_interest::InterestRateConfig,
         marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType, InterestRateConfig},
     },
 };
 use metrics::{MetricAction, Metrics};
@@ -291,11 +291,11 @@ impl<'state> MarginfiFuzzContext<'state> {
                     }
                     .into(),
                     operational_state:
-                        marginfi::state::marginfi_group::BankOperationalState::Operational,
+                        marginfi::state::bank_configuration::BankOperationalState::Operational,
                     risk_tier: if !initial_bank_config.risk_tier_isolated {
-                        marginfi::state::marginfi_group::RiskTier::Collateral
+                        marginfi::state::bank_configuration::RiskTier::Collateral
                     } else {
-                        marginfi::state::marginfi_group::RiskTier::Isolated
+                        marginfi::state::bank_configuration::RiskTier::Isolated
                     },
                     oracle_max_age: 100,
                     ..Default::default()

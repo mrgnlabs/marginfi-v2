@@ -445,7 +445,10 @@ macro_rules! assert_eq_with_tolerance {
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::{constants::{PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT}, state::{bank::Bank, bank_configuration::BankConfig}};
+    use crate::{
+        constants::{PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT},
+        state::{bank::Bank, bank_configuration::BankConfig},
+    };
 
     use super::*;
     use fixed::types::I80F48;

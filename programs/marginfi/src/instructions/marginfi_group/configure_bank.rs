@@ -6,10 +6,7 @@ use crate::prelude::MarginfiError;
 use crate::state::bank::Bank;
 use crate::state::bank_configuration::BankConfigOpt;
 use crate::{check, math_error, utils};
-use crate::{
-    state::marginfi_group::MarginfiGroup,
-    MarginfiResult,
-};
+use crate::{state::marginfi_group::MarginfiGroup, MarginfiResult};
 use anchor_lang::prelude::*;
 use anchor_spl::token_2022::{transfer_checked, TransferChecked};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
