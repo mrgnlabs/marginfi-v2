@@ -86,11 +86,12 @@ export type AddBankWithSeedArgs = {
   bankMint: PublicKey;
   bank: PublicKey;
   config: BankConfig;
+  seed?: BN;
 };
 
 export const addBankWithSeed = (
   program: Program<Marginfi>,
-  args: AddBankArgs
+  args: AddBankWithSeedArgs
 ) => {
   const ix = program.methods
     .lendingPoolAddBankWithSeed(
@@ -109,7 +110,7 @@ export const addBankWithSeed = (
         totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
         oracleMaxAge: args.config.oracleMaxAge,
       },
-      new BN(0)
+      args.seed ?? new BN(0)
     )
     .accounts({
       marginfiGroup: args.marginfiGroup,

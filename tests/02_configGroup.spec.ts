@@ -41,9 +41,9 @@ describe("Config group", () => {
     assertKeysEqual(group.admin, newAdmin.publicKey);
 
     // Restore original
-    await program.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await program.methods
+        await groupAdmin.mrgnProgram.methods
           .marginfiGroupConfigure({ admin: groupAdmin.wallet.publicKey })
           .accountsPartial({
             marginfiGroup: marginfiGroup.publicKey,
@@ -52,7 +52,7 @@ describe("Config group", () => {
           .instruction()
 
         // Note: Fails because admin is incorrectly implied, TODO figure out why...
-        // await groupConfigure(program, {
+        // await groupConfigure(groupAdmin.mrgnProgram, {
         //   newAdmin: groupAdmin.wallet.publicKey,
         //   marginfiGroup: marginfiGroup.publicKey,
         // })
