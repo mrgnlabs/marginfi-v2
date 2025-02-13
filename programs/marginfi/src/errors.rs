@@ -104,6 +104,10 @@ pub enum MarginfiError {
     AssetTagMismatch,
     #[msg("Stake pool validation failed: check the stake pool, mint, or sol pool")] // 6050
     StakePoolValidationFailed,
+    #[msg("Invalid emissions destination account")] // 6051
+    InvalidEmissionsDestinationAccount,
+    #[msg("Emissions destination account is already set")] // 6052
+    EmissionsDestinationAccountAlreadySet,
 }
 
 impl From<MarginfiError> for ProgramError {

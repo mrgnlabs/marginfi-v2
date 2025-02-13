@@ -187,6 +187,12 @@ pub mod marginfi {
         marginfi_account::lending_account_end_flashloan(ctx)
     }
 
+    pub fn marginfi_account_update_emissions_destination_account<'info>(
+        ctx: Context<'_, '_, 'info, 'info, MarginfiAccountUpdateEmissionsDestinationAccount<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::marginfi_account_update_emissions_destination_account(ctx)
+    }
+
     // Operational instructions
     pub fn lending_pool_accrue_bank_interest(
         ctx: Context<LendingPoolAccrueBankInterest>,
@@ -230,6 +236,12 @@ pub mod marginfi {
 
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
         marginfi_account::close_account(ctx)
+    }
+
+    pub fn lending_account_withdraw_emissions_permissionless<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdrawEmissionsPermissionless<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_withdraw_emissions_permissionless(ctx)
     }
 
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees
