@@ -12,16 +12,11 @@ import {
   bankKeypairA,
   bankKeypairUsdc,
   ecosystem,
-  marginfiGroup,
   oracles,
   users,
   verbose,
 } from "./rootHooks";
 import {
-  assertBNApproximately,
-  assertBNEqual,
-  assertI80F48Approx,
-  assertI80F48Equal,
   assertKeysEqual,
   expectFailedTxWithError,
   getTokenBalance,
@@ -35,7 +30,6 @@ import {
   withdrawIx,
 } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { createMintToInstruction } from "@solana/spl-token";
 import { updatePriceAccount } from "./utils/pyth_mocks";
 import { createAssociatedTokenAccountIdempotentInstruction, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { u64MAX_BN } from "./utils/types";
@@ -368,7 +362,7 @@ describe("Withdraw funds", () => {
     ).toNumber();
     assert.approximately(sharesAfter, sharesBefore - actualOwed, 2);
     // This balance is now inactive
-    assert.equal(balancesAfter[1].active, false);
+    assert.equal(balancesAfter[1].active, 0);
 
     // The bank has also lost the same amount of shares...
     const bankSharesBefore = wrappedI80F48toBigNumber(
@@ -446,7 +440,7 @@ describe("Withdraw funds", () => {
     ).toNumber();
     assert.equal(sharesAfter, sharesBefore - withdrawExpected);
     // This balance is now inactive
-    assert.equal(balancesAfter[0].active, false);
+    assert.equal(balancesAfter[0].active, 0);
 
     // The bank has also lost the same amount of shares...
     const bankSharesBefore = wrappedI80F48toBigNumber(
@@ -502,9 +496,9 @@ describe("Withdraw funds", () => {
 
     const userAccAfter = await program.account.marginfiAccount.fetch(userAcc);
     let balances = userAccAfter.lendingAccount.balances;
-    assert.equal(balances[0].active, true);
+    assert.equal(balances[0].active, 1);
     assertKeysEqual(balances[0].bankPk, bankKeypairA.publicKey);
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertKeysEqual(balances[1].bankPk, bankKeypairUsdc.publicKey);
   });
 });
