@@ -8,7 +8,7 @@ use crate::{
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     state::{
         fee_state::FeeState,
-        marginfi_group::{Bank, BankConfig, BankConfigCompact, MarginfiGroup},
+        marginfi_group::{Bank, BankConfigCompact, MarginfiGroup},
     },
     MarginfiError, MarginfiResult,
 };
@@ -22,7 +22,7 @@ use anchor_spl::token_interface::*;
 /// TODO: Allow for different oracle configurations
 pub fn lending_pool_add_bank(
     ctx: Context<LendingPoolAddBank>,
-    bank_config: BankConfig,
+    bank_config: BankConfigCompact,
 ) -> MarginfiResult {
     // Transfer the flat sol init fee to the global fee wallet
     let fee_state = ctx.accounts.fee_state.load()?;
@@ -58,7 +58,7 @@ pub fn lending_pool_add_bank(
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
-        bank_config,
+        bank_config.into(),
         bank_mint.key(),
         bank_mint.decimals,
         liquidity_vault.key(),
@@ -74,8 +74,7 @@ pub fn lending_pool_add_bank(
     );
 
     bank.config.validate()?;
-    bank.config
-        .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
+    bank.config.validate_oracle_age()?;
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {
@@ -96,12 +95,12 @@ pub fn lending_pool_add_bank(
 #[derive(Accounts)]
 #[instruction(bank_config: BankConfigCompact)]
 pub struct LendingPoolAddBank<'info> {
+    #[account(
+        has_one = admin
+    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(
-        mut,
-        address = marginfi_group.load()?.admin,
-    )]
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     /// Pays to init accounts and pays `fee_state.bank_init_flat_sol_fee` lamports to the protocol

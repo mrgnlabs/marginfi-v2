@@ -68,8 +68,6 @@ pub fn lending_pool_add_bank_permissionless(
         deposit_limit: settings.deposit_limit,
         interest_rate_config: default_ir_config.into(), // placeholder
         operational_state: BankOperationalState::Operational,
-        oracle_setup: OracleSetup::StakedWithPythPush,
-        oracle_key: settings.oracle, // becomes config.oracle_keys[0]
         borrow_limit: 0,
         risk_tier: settings.risk_tier,
         asset_tag: ASSET_TAG_STAKED,
@@ -94,6 +92,8 @@ pub fn lending_pool_add_bank_permissionless(
         fee_vault_bump,
         fee_vault_authority_bump,
     );
+    bank.config.oracle_setup = OracleSetup::StakedWithPythPush;
+    bank.config.oracle_keys[0] = settings.oracle;
 
     bank.config.validate()?;
 
@@ -113,6 +113,7 @@ pub fn lending_pool_add_bank_permissionless(
         Some(stake_pool),
         Some(sol_pool),
     )?;
+    bank.config.validate_oracle_age()?;
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {

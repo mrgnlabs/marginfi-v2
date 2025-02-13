@@ -2,10 +2,12 @@ use std::{cell::Ref, cmp::min};
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::Mint;
+use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
+use solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
 use switchboard_on_demand::{CurrentResult, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID};
 use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
@@ -29,8 +31,7 @@ use anchor_lang::prelude::borsh;
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 
 #[repr(u8)]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
+#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum OracleSetup {
     None,
     PythLegacy,
@@ -38,6 +39,22 @@ pub enum OracleSetup {
     PythPushOracle,
     SwitchboardPull,
     StakedWithPythPush,
+}
+unsafe impl Zeroable for OracleSetup {}
+unsafe impl Pod for OracleSetup {}
+
+impl OracleSetup {
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::None),
+            1 => Some(Self::PythLegacy),
+            2 => Some(Self::SwitchboardV2),
+            3 => Some(Self::PythPushOracle),
+            4 => Some(Self::SwitchboardPull),
+            5 => Some(Self::StakedWithPythPush),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -162,7 +179,20 @@ impl OraclePriceFeedAdapter {
 
                 let lst_mint = Account::<'info, Mint>::try_from(&ais[1]).unwrap();
                 let lst_supply = lst_mint.supply;
-                let sol_pool_balance = ais[2].lamports();
+                let stake_state = try_from_slice_unchecked::<StakeStateV2>(&ais[2].data.borrow())?;
+                let (_, stake) = match stake_state {
+                    StakeStateV2::Stake(meta, stake, _) => (meta, stake),
+                    _ => panic!("unsupported stake state"), // TODO emit more specific error
+                };
+                let sol_pool_balance = stake.delegation.stake;
+                // Note: When the pool is fresh, it has 1 SOL in it (an initial and non-refundable
+                // balance that will stay in the pool forever). We don't want to include that
+                // balance when reading the quantity of SOL that has been staked from actual
+                // depositors (i.e. the amount that can actually be redeemed again).
+                let lamports_per_sol: u64 = 1_000_000_000;
+                let sol_pool_adjusted_balance = sol_pool_balance
+                    .checked_sub(lamports_per_sol)
+                    .ok_or_else(math_error!())?;
                 // Note: exchange rate is `sol_pool_balance / lst_supply`, but we will do the
                 // division last to avoid precision loss. Division does not need to be
                 // decimal-adjusted because both SOL and stake positions use 9 decimals
@@ -188,14 +218,14 @@ impl OraclePriceFeedAdapter {
                         max_age,
                     )?;
                     let adjusted_price = (feed.price.price as i128)
-                        .checked_mul(sol_pool_balance as i128)
+                        .checked_mul(sol_pool_adjusted_balance as i128)
                         .ok_or_else(math_error!())?
                         .checked_div(lst_supply as i128)
                         .ok_or_else(math_error!())?;
                     feed.price.price = adjusted_price.try_into().unwrap();
 
                     let adjusted_ema_price = (feed.ema_price.price as i128)
-                        .checked_mul(sol_pool_balance as i128)
+                        .checked_mul(sol_pool_adjusted_balance as i128)
                         .ok_or_else(math_error!())?
                         .checked_div(lst_supply as i128)
                         .ok_or_else(math_error!())?;
@@ -218,14 +248,14 @@ impl OraclePriceFeedAdapter {
                     )?;
 
                     let adjusted_price = (feed.price.price as i128)
-                        .checked_mul(sol_pool_balance as i128)
+                        .checked_mul(sol_pool_adjusted_balance as i128)
                         .ok_or_else(math_error!())?
                         .checked_div(lst_supply as i128)
                         .ok_or_else(math_error!())?;
                     feed.price.price = adjusted_price.try_into().unwrap();
 
                     let adjusted_ema_price = (feed.ema_price.price as i128)
-                        .checked_mul(sol_pool_balance as i128)
+                        .checked_mul(sol_pool_adjusted_balance as i128)
                         .ok_or_else(math_error!())?
                         .checked_div(lst_supply as i128)
                         .ok_or_else(math_error!())?;

@@ -66,30 +66,27 @@ pub fn lending_account_withdraw_emissions<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountWithdrawEmissions<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
+        has_one = group,
+        has_one = authority
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    #[account(
-        address = marginfi_account.load()?.authority,
-    )]
-    pub signer: Signer<'info>,
+    pub authority: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group,
+        has_one = emissions_mint
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    #[account(
-        address = bank.load()?.emissions_mint
-    )]
     pub emissions_mint: InterfaceAccount<'info, Mint>,
 
+    /// CHECK: PDA seeds validated
     #[account(
         seeds = [
             EMISSIONS_AUTH_SEED.as_bytes(),
@@ -98,7 +95,6 @@ pub struct LendingAccountWithdrawEmissions<'info> {
         ],
         bump
     )]
-    /// CHECK: Asserted by PDA
     pub emissions_auth: AccountInfo<'info>,
 
     #[account(

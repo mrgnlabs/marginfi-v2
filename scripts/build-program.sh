@@ -21,6 +21,6 @@ else
     exit 1
 fi
 
-cmd="anchor build -p $program_lib_name -- $features ignore-fee-deploy"
+cmd="anchor build -p $program_lib_name -- $features"
 echo "Running: $cmd"
 eval "$cmd"

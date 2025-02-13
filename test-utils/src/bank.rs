@@ -85,24 +85,21 @@ impl BankFixture {
         load_and_deserialize::<Bank>(self.ctx.clone(), &self.key).await
     }
 
-    pub async fn update_config(&self, config: BankConfigOpt) -> anyhow::Result<()> {
-        let mut accounts = marginfi::accounts::LendingPoolConfigureBank {
-            marginfi_group: self.load().await.group,
+    pub async fn update_config(
+        &self,
+        config: BankConfigOpt,
+        oracle_update: Option<(u8, Pubkey)>,
+    ) -> anyhow::Result<()> {
+        let mut instructions = Vec::new();
+
+        let accounts = marginfi::accounts::LendingPoolConfigureBank {
+            group: self.load().await.group,
             admin: self.ctx.borrow().payer.pubkey(),
             bank: self.key,
         }
         .to_account_metas(Some(true));
 
-        if let Some(oracle_config) = config.oracle {
-            accounts.extend(
-                oracle_config
-                    .keys
-                    .iter()
-                    .map(|k| AccountMeta::new_readonly(*k, false)),
-            );
-        }
-
-        let ix = Instruction {
+        let config_ix = Instruction {
             program_id: marginfi::id(),
             accounts,
             data: marginfi::instruction::LendingPoolConfigureBank {
@@ -111,8 +108,30 @@ impl BankFixture {
             .data(),
         };
 
+        instructions.push(config_ix);
+
+        if let Some((setup, oracle)) = oracle_update {
+            let mut oracle_accounts = marginfi::accounts::LendingPoolConfigureBank {
+                group: self.load().await.group,
+                admin: self.ctx.borrow().payer.pubkey(),
+                bank: self.key,
+            }
+            .to_account_metas(Some(true));
+
+            oracle_accounts.push(AccountMeta::new_readonly(oracle, false));
+
+            let oracle_ix = Instruction {
+                program_id: marginfi::id(),
+                accounts: oracle_accounts,
+                data: marginfi::instruction::LendingPoolConfigureBankOracle { setup, oracle }
+                    .data(),
+            };
+
+            instructions.push(oracle_ix);
+        }
+
         let tx = Transaction::new_signed_with_payer(
-            &[ix],
+            &instructions,
             Some(&self.ctx.borrow().payer.pubkey()),
             &[&self.ctx.borrow().payer],
             self.ctx.borrow().last_blockhash,
@@ -201,7 +220,7 @@ impl BankFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolSetupEmissions {
-                marginfi_group: self.load().await.group,
+                group: self.load().await.group,
                 admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
                 emissions_mint,
@@ -256,7 +275,7 @@ impl BankFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
-                marginfi_group: self.load().await.group,
+                group: self.load().await.group,
                 admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
                 emissions_mint: bank.emissions_mint,
@@ -311,7 +330,7 @@ impl BankFixture {
         );
 
         let mut accounts = marginfi::accounts::LendingPoolWithdrawFees {
-            marginfi_group: bank.group,
+            group: bank.group,
             token_program: receiving_account.token_program,
             bank: self.key,
             admin: signer_pk,
@@ -356,7 +375,7 @@ impl BankFixture {
         );
 
         let mut accounts = marginfi::accounts::LendingPoolWithdrawInsurance {
-            marginfi_group: bank.group,
+            group: bank.group,
             token_program: receiving_account.token_program,
             bank: self.key,
             admin: signer_pk,

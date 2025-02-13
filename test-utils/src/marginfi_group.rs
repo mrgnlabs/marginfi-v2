@@ -11,6 +11,8 @@ use marginfi::constants::{
     PROTOCOL_FEE_RATE_DEFAULT,
 };
 use marginfi::state::fee_state::FeeState;
+use marginfi::state::marginfi_group::BankConfigCompact;
+use marginfi::state::price::OracleSetup;
 use marginfi::{
     prelude::MarginfiGroup,
     state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
@@ -143,6 +145,10 @@ impl MarginfiGroupFixture {
         }
     }
 
+    /// Adds bank and configures the oracle.
+    ///
+    /// Note: AddBank and LendingPoolConfigureBankOracle were seperated to handle a tx size issue in
+    /// squads. This test fixture packs both ixes into one tx as is typical outside of squads.
     pub async fn try_lending_pool_add_bank(
         &self,
         bank_asset_mint_fixture: &MintFixture,
@@ -152,8 +158,9 @@ impl MarginfiGroupFixture {
         let bank_mint = bank_asset_mint_fixture.key;
         let bank_fixture =
             BankFixture::new(self.ctx.clone(), bank_key.pubkey(), bank_asset_mint_fixture);
+        let config_compact: BankConfigCompact = bank_config.into();
 
-        let mut accounts = marginfi::accounts::LendingPoolAddBank {
+        let accounts = marginfi::accounts::LendingPoolAddBank {
             marginfi_group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
             fee_payer: self.ctx.borrow().payer.pubkey(),
@@ -173,29 +180,34 @@ impl MarginfiGroupFixture {
         }
         .to_account_metas(Some(true));
 
-        let oracle_key = {
-            let oracle_key_or_feed_id = bank_config.oracle_keys[0];
-            match bank_config.oracle_setup {
-                marginfi::state::price::OracleSetup::PythPushOracle => {
-                    get_oracle_id_from_feed_id(oracle_key_or_feed_id).unwrap()
-                }
-                _ => oracle_key_or_feed_id,
-            }
-        };
-
-        accounts.push(AccountMeta::new_readonly(oracle_key, false));
-
-        let ix = Instruction {
+        let init_ix = Instruction {
             program_id: marginfi::id(),
             accounts,
             data: marginfi::instruction::LendingPoolAddBank {
-                bank_config: bank_config.into(),
+                bank_config: config_compact,
             }
             .data(),
         };
 
+        let feed_oracle = {
+            if bank_config.oracle_setup == OracleSetup::PythPushOracle
+                || bank_config.oracle_setup == OracleSetup::StakedWithPythPush
+            {
+                Some(get_oracle_id_from_feed_id(bank_config.oracle_keys[0]).unwrap())
+            } else {
+                None
+            }
+        };
+
+        let config_oracle_ix = self.make_lending_pool_configure_bank_oracle_ix(
+            &bank_fixture,
+            bank_config.oracle_setup as u8,
+            bank_config.oracle_keys[0],
+            feed_oracle,
+        );
+
         let tx = Transaction::new_signed_with_payer(
-            &[ix],
+            &[init_ix, config_oracle_ix],
             Some(&self.ctx.borrow().payer.pubkey().clone()),
             &[&self.ctx.borrow().payer, &bank_key],
             self.ctx.borrow().last_blockhash,
@@ -210,6 +222,10 @@ impl MarginfiGroupFixture {
         Ok(bank_fixture)
     }
 
+    /// Adds bank and configures the oracle.
+    ///
+    /// Note: AddBank and LendingPoolConfigureBankOracle were seperated to handle a tx size issue in
+    /// squads. This test fixture packs both ixes into one tx as is typical outside of squads.
     pub async fn try_lending_pool_add_bank_with_seed(
         &self,
         bank_asset_mint_fixture: &MintFixture,
@@ -231,8 +247,9 @@ impl MarginfiGroupFixture {
 
         let bank_mint = bank_asset_mint_fixture.key;
         let bank_fixture = BankFixture::new(self.ctx.clone(), pda, bank_asset_mint_fixture);
+        let config_compact: BankConfigCompact = bank_config.into();
 
-        let mut accounts = marginfi::accounts::LendingPoolAddBankWithSeed {
+        let accounts = marginfi::accounts::LendingPoolAddBankWithSeed {
             marginfi_group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
             fee_payer: self.ctx.borrow().payer.pubkey(),
@@ -252,20 +269,39 @@ impl MarginfiGroupFixture {
         }
         .to_account_metas(Some(true));
 
-        accounts.push(AccountMeta::new_readonly(bank_config.oracle_keys[0], false));
-
-        let ix = Instruction {
+        let init_ix = Instruction {
             program_id: marginfi::id(),
             accounts,
             data: marginfi::instruction::LendingPoolAddBankWithSeed {
-                bank_config: bank_config.into(),
+                bank_config: config_compact,
                 bank_seed,
             }
             .data(),
         };
 
+        let feed_oracle = {
+            if bank_config.oracle_setup == OracleSetup::PythPushOracle
+                || bank_config.oracle_setup == OracleSetup::StakedWithPythPush
+            {
+                let id = get_oracle_id_from_feed_id(bank_config.oracle_keys[0]);
+                if id.is_none() {
+                    panic!("Unsupported Pyth feed ID, this should never happen");
+                }
+                id
+            } else {
+                None
+            }
+        };
+
+        let config_oracle_ix = self.make_lending_pool_configure_bank_oracle_ix(
+            &bank_fixture,
+            bank_config.oracle_setup as u8,
+            bank_config.oracle_keys[0],
+            feed_oracle,
+        );
+
         let tx = Transaction::new_signed_with_payer(
-            &[ix],
+            &[init_ix, config_oracle_ix],
             Some(&self.ctx.borrow().payer.pubkey().clone()),
             &[&self.ctx.borrow().payer],
             self.ctx.borrow().last_blockhash,
@@ -285,26 +321,43 @@ impl MarginfiGroupFixture {
         bank: &BankFixture,
         bank_config_opt: BankConfigOpt,
     ) -> Instruction {
-        let mut accounts = marginfi::accounts::LendingPoolConfigureBank {
+        let accounts = marginfi::accounts::LendingPoolConfigureBank {
             bank: bank.key,
-            marginfi_group: self.key,
+            group: self.key,
             admin: self.ctx.borrow().payer.pubkey(),
         }
         .to_account_metas(Some(true));
-
-        if let Some(oracle_config) = bank_config_opt.oracle {
-            accounts.extend(
-                oracle_config
-                    .keys
-                    .iter()
-                    .map(|k| AccountMeta::new_readonly(*k, false)),
-            );
-        }
 
         Instruction {
             program_id: marginfi::id(),
             accounts,
             data: marginfi::instruction::LendingPoolConfigureBank { bank_config_opt }.data(),
+        }
+    }
+
+    pub fn make_lending_pool_configure_bank_oracle_ix(
+        &self,
+        bank: &BankFixture,
+        setup: u8,
+        oracle: Pubkey,
+        feed_oracle: Option<Pubkey>,
+    ) -> Instruction {
+        let mut accounts = marginfi::accounts::LendingPoolConfigureBankOracle {
+            bank: bank.key,
+            group: self.key,
+            admin: self.ctx.borrow().payer.pubkey(),
+        }
+        .to_account_metas(Some(true));
+
+        accounts.push(AccountMeta::new_readonly(
+            feed_oracle.unwrap_or(oracle),
+            false,
+        ));
+
+        Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolConfigureBankOracle { setup, oracle }.data(),
         }
     }
 
@@ -336,7 +389,7 @@ impl MarginfiGroupFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolAccrueBankInterest {
-                marginfi_group: self.key,
+                group: self.key,
                 bank: bank.key,
             }
             .to_account_metas(Some(true)),
@@ -392,7 +445,7 @@ impl MarginfiGroupFixture {
         );
 
         let mut accounts = marginfi::accounts::LendingPoolCollectBankFees {
-            marginfi_group: self.key,
+            group: self.key,
             bank: bank.key,
             liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
             liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
@@ -441,7 +494,7 @@ impl MarginfiGroupFixture {
         nonce: u64,
     ) -> Result<(), BanksClientError> {
         let mut accounts = marginfi::accounts::LendingPoolHandleBankruptcy {
-            marginfi_group: self.key,
+            group: self.key,
             signer: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
             marginfi_account: marginfi_account.key,

@@ -19,7 +19,6 @@ devnet = ["marginfi/devnet"]
 mainnet-beta = ["marginfi/mainnet-beta"]
 test = []
 test-bpf = []
-ignore-fee-deploy = []
 
 [dependencies]
 anchor-lang = { workspace = true }

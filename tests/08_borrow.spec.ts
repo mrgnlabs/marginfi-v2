@@ -24,9 +24,8 @@ import {
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { borrowIx, depositIx } from "./utils/user-instructions";
+import { borrowIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { createMintToInstruction } from "@solana/spl-token";
 import { updatePriceAccount } from "./utils/pyth_mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
@@ -89,26 +88,24 @@ describe("Borrow funds", () => {
       console.log("user 0 USDC before: " + userUsdcBefore.toLocaleString());
       console.log(
         "usdc fees owed to bank: " +
-          wrappedI80F48toBigNumber(
-            bankBefore.collectedGroupFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankBefore.collectedGroupFeesOutstanding
+        ).toString()
       );
       console.log(
         "usdc fees owed to program: " +
-          wrappedI80F48toBigNumber(
-            bankBefore.collectedProgramFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankBefore.collectedProgramFeesOutstanding
+        ).toString()
       );
     }
 
     const user0Account = user.accounts.get(USER_ACCOUNT);
 
-    await users[0].mrgnProgram.provider.sendAndConfirm(
+    await user.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await borrowIx(program, {
-          marginfiGroup: marginfiGroup.publicKey,
+        await borrowIx(user.mrgnProgram, {
           marginfiAccount: user0Account,
-          authority: user.wallet.publicKey,
           bank: bank,
           tokenAccount: user.usdcAccount,
           remaining: [
@@ -130,19 +127,19 @@ describe("Borrow funds", () => {
       console.log("user 0 USDC after: " + userUsdcAfter.toLocaleString());
       console.log(
         "usdc fees owed to bank: " +
-          wrappedI80F48toBigNumber(
-            bankAfter.collectedGroupFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankAfter.collectedGroupFeesOutstanding
+        ).toString()
       );
       console.log(
         "usdc fees owed to program: " +
-          wrappedI80F48toBigNumber(
-            bankAfter.collectedProgramFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankAfter.collectedProgramFeesOutstanding
+        ).toString()
       );
     }
 
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertI80F48Equal(balances[1].assetShares, 0);
     // Note: The first borrow issues shares 1:1 and the shares use the same decimals
     // Note: An origination fee of 0.01 is also incurred here (configured during addBank)

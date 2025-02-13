@@ -42,7 +42,7 @@ async fn pyth_push_fullv_borrow() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -53,7 +53,7 @@ async fn pyth_push_fullv_borrow() -> anyhow::Result<()> {
         .await;
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000, None)
         .await?;
 
     let res = borrower_mfi_account_f
@@ -111,7 +111,7 @@ async fn pyth_push_partv_borrow() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -122,7 +122,7 @@ async fn pyth_push_partv_borrow() -> anyhow::Result<()> {
         .await;
     let borrower_token_account_f_sol = test_f.sol_mint.create_token_account_and_mint_to(0).await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000, None)
         .await?;
 
     let res = borrower_mfi_account_f
@@ -174,7 +174,7 @@ async fn pyth_push_fullv_liquidate() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(2_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000, None)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -183,7 +183,7 @@ async fn pyth_push_fullv_liquidate() -> anyhow::Result<()> {
 
     // Borrower deposits 100 SOL worth of $1000
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100, None)
         .await?;
 
     // Borrower borrows $999
@@ -193,11 +193,14 @@ async fn pyth_push_fullv_liquidate() -> anyhow::Result<()> {
 
     // Synthetically bring down the borrower account health by reducing the asset weights of the SOL bank
     sol_bank_f
-        .update_config(BankConfigOpt {
-            asset_weight_init: Some(I80F48!(0.25).into()),
-            asset_weight_maint: Some(I80F48!(0.5).into()),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.5).into()),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     lender_mfi_account_f

@@ -33,7 +33,7 @@ async fn bank_oracle_staleness_test() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -49,11 +49,11 @@ async fn bank_oracle_staleness_test() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500, None)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 50)
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 50, None)
         .await?;
 
     // Borrow SOL
@@ -68,22 +68,31 @@ async fn bank_oracle_staleness_test() -> anyhow::Result<()> {
 
     // Make SOL feed non-stale
     usdc_bank
-        .update_config(BankConfigOpt {
-            oracle_max_age: Some(200),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                oracle_max_age: Some(200),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
     sol_bank
-        .update_config(BankConfigOpt {
-            oracle_max_age: Some(200),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                oracle_max_age: Some(200),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
     sol_eq_bank
-        .update_config(BankConfigOpt {
-            oracle_max_age: Some(200),
-            ..Default::default()
-        })
+        .update_config(
+            BankConfigOpt {
+                oracle_max_age: Some(200),
+                ..Default::default()
+            },
+            None,
+        )
         .await?;
 
     // Borrow SOL

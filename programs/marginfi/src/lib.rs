@@ -44,7 +44,7 @@ pub mod marginfi {
         ctx: Context<LendingPoolAddBank>,
         bank_config: BankConfigCompact,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank(ctx, bank_config.into())
+        marginfi_group::lending_pool_add_bank(ctx, bank_config)
     }
 
     /// A copy of lending_pool_add_bank with an additional bank seed.
@@ -55,7 +55,7 @@ pub mod marginfi {
         bank_config: BankConfigCompact,
         bank_seed: u64,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config.into(), bank_seed)
+        marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config, bank_seed)
     }
 
     pub fn lending_pool_add_bank_permissionless(
@@ -70,6 +70,14 @@ pub mod marginfi {
         bank_config_opt: BankConfigOpt,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_configure_bank(ctx, bank_config_opt)
+    }
+
+    pub fn lending_pool_configure_bank_oracle(
+        ctx: Context<LendingPoolConfigureBankOracle>,
+        setup: u8,
+        oracle: Pubkey,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
     }
 
     pub fn lending_pool_setup_emissions(
@@ -112,8 +120,9 @@ pub mod marginfi {
     pub fn lending_account_deposit<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
         amount: u64,
+        deposit_up_to_limit: Option<bool>,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_deposit(ctx, amount)
+        marginfi_account::lending_account_deposit(ctx, amount, deposit_up_to_limit)
     }
 
     pub fn lending_account_repay<'info>(

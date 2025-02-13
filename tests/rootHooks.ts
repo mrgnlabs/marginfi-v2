@@ -53,7 +53,7 @@ export let groupAdmin: MockUser = undefined;
 /** Administers valiator votes and withdraws */
 export let validatorAdmin: MockUser = undefined;
 export const users: MockUser[] = [];
-export const numUsers = 3;
+export const numUsers = 4;
 
 export const validators: Validator[] = [];
 export const numValidators = 2;
@@ -266,6 +266,31 @@ export const mochaHooks = {
     bankrunContext = await startAnchor(path.resolve(), [], addedAccounts);
     bankRunProvider = new BankrunProvider(bankrunContext);
     bankrunProgram = new Program(mrgnProgram.idl, bankRunProvider);
+    for (let i = 0; i < numUsers; i++) {
+      const wal = new Wallet(users[i].wallet);
+      const prov = new AnchorProvider(bankRunProvider.connection, wal, {});
+      users[i].mrgnBankrunProgram = new Program(mrgnProgram.idl, prov);
+    }
+    banksClient = bankrunContext.banksClient;
+
+    groupAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(groupAdmin.wallet),
+        {}
+      )
+    );
+
+    validatorAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(validatorAdmin.wallet),
+        {}
+      )
+    );
+
     banksClient = bankrunContext.banksClient;
 
     if (verbose) {

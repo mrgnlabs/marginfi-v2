@@ -84,13 +84,12 @@ describe("Deposit funds (included staked assets)", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         amount: new BN(10 * 10 ** ecosystem.usdcDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -103,7 +102,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[0].active, true);
+    assert.equal(balances[0].active, 1);
     assertKeysEqual(balances[0].bankPk, bankKeypairUsdc.publicKey);
   });
 
@@ -113,13 +112,12 @@ describe("Deposit funds (included staked assets)", () => {
     const userLstAta = user.accounts.get(LST_ATA);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -134,7 +132,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, false);
+    assert.equal(balances[1].active, 0);
   });
 
   it("(user 1) deposits SOL to SOL bank - happy path", async () => {
@@ -142,13 +140,12 @@ describe("Deposit funds (included staked assets)", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         amount: new BN(2 * 10 ** ecosystem.wsolDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -161,7 +158,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[0].active, true);
+    assert.equal(balances[0].active, 1);
     assertKeysEqual(balances[0].bankPk, bankKeypairSol.publicKey);
   });
 
@@ -171,13 +168,12 @@ describe("Deposit funds (included staked assets)", () => {
     const userLstAta = user.accounts.get(LST_ATA);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -190,7 +186,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertKeysEqual(balances[1].bankPk, validators[0].bank);
   });
 
@@ -199,13 +195,12 @@ describe("Deposit funds (included staked assets)", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         amount: new BN(1 * 10 ** ecosystem.usdcDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -220,7 +215,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[2].active, false);
+    assert.equal(balances[2].active, 0);
   });
 
   it("(user 2) deposits to staked bank - should succeed", async () => {
@@ -229,13 +224,12 @@ describe("Deposit funds (included staked assets)", () => {
     const userLstAta = user.accounts.get(LST_ATA);
 
     let tx = new Transaction().add(
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
+        depositUpToLimit: false,
       })
     );
 
@@ -248,7 +242,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[0].active, true);
+    assert.equal(balances[0].active, 1);
     assertKeysEqual(balances[0].bankPk, validators[0].bank);
   });
 });

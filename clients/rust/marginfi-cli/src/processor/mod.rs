@@ -8,10 +8,10 @@ use {
         config::Config,
         profile::{self, get_cli_config_dir, load_profile, CliConfig, Profile},
         utils::{
-            bank_to_oracle_key, calc_emissions_rate, create_oracle_key_array,
-            find_bank_emssions_auth_pda, find_bank_emssions_token_account_pda,
-            find_bank_vault_authority_pda, find_bank_vault_pda, find_fee_state_pda,
-            load_observation_account_metas, process_transaction, EXP_10_I80F48,
+            bank_to_oracle_key, calc_emissions_rate, find_bank_emssions_auth_pda,
+            find_bank_emssions_token_account_pda, find_bank_vault_authority_pda,
+            find_bank_vault_pda, find_fee_state_pda, load_observation_account_metas,
+            process_transaction, EXP_10_I80F48,
         },
     },
     anchor_client::{
@@ -31,7 +31,7 @@ use {
         state::{
             marginfi_account::{BankAccountWrapper, MarginfiAccount},
             marginfi_group::{
-                Bank, BankConfig, BankConfigOpt, BankOperationalState, BankVaultType,
+                Bank, BankConfigCompact, BankConfigOpt, BankOperationalState, BankVaultType,
                 InterestRateConfig, WrappedI80F48,
             },
             price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter, PythPushOraclePriceFeed},
@@ -299,9 +299,6 @@ pub fn group_add_bank(
     profile: Profile,
     bank_mint: Pubkey,
     seed: bool,
-    oracle_key: Pubkey,
-    feed_id: Option<Pubkey>,
-    oracle_setup: crate::OracleTypeArg,
     asset_weight_init: f64,
     asset_weight_maint: f64,
     liability_weight_init: f64,
@@ -375,8 +372,6 @@ pub fn group_add_bank(
             &rpc_client,
             bank_mint,
             token_program,
-            oracle_key,
-            feed_id,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,
@@ -384,7 +379,6 @@ pub fn group_add_bank(
             deposit_limit,
             borrow_limit,
             interest_rate_config,
-            oracle_setup,
             risk_tier,
             oracle_max_age,
             global_fee_wallet,
@@ -396,8 +390,6 @@ pub fn group_add_bank(
             bank_mint,
             token_program,
             &bank_keypair,
-            oracle_key,
-            feed_id,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,
@@ -405,7 +397,6 @@ pub fn group_add_bank(
             deposit_limit,
             borrow_limit,
             interest_rate_config,
-            oracle_setup,
             risk_tier,
             oracle_max_age,
             global_fee_wallet,
@@ -438,8 +429,6 @@ fn create_bank_ix_with_seed(
     rpc_client: &RpcClient,
     bank_mint: Pubkey,
     token_program: Pubkey,
-    oracle_key: Pubkey,
-    feed_id: Option<Pubkey>,
     asset_weight_init: WrappedI80F48,
     asset_weight_maint: WrappedI80F48,
     liability_weight_init: WrappedI80F48,
@@ -447,7 +436,6 @@ fn create_bank_ix_with_seed(
     deposit_limit: u64,
     borrow_limit: u64,
     interest_rate_config: InterestRateConfig,
-    oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
     global_fee_wallet: Pubkey,
@@ -523,24 +511,20 @@ fn create_bank_ix_with_seed(
             fee_state: find_fee_state_pda(&config.program_id).0,
             global_fee_wallet,
         })
-        .accounts(AccountMeta::new_readonly(oracle_key, false))
         .args(marginfi::instruction::LendingPoolAddBankWithSeed {
-            bank_config: BankConfig {
+            bank_config: BankConfigCompact {
                 asset_weight_init,
                 asset_weight_maint,
                 liability_weight_init,
                 liability_weight_maint,
                 deposit_limit,
                 borrow_limit,
-                interest_rate_config,
+                interest_rate_config: interest_rate_config.into(),
                 operational_state: BankOperationalState::Operational,
-                oracle_setup: oracle_setup.into(),
-                oracle_keys: create_oracle_key_array(feed_id.unwrap_or(oracle_key)),
                 risk_tier: risk_tier.into(),
                 oracle_max_age,
-                ..BankConfig::default()
-            }
-            .into(),
+                ..BankConfigCompact::default()
+            },
             bank_seed,
         })
         .instructions()?;
@@ -558,8 +542,6 @@ fn create_bank_ix(
     bank_mint: Pubkey,
     token_program: Pubkey,
     bank_keypair: &Keypair,
-    oracle_key: Pubkey,
-    feed_id: Option<Pubkey>,
     asset_weight_init: WrappedI80F48,
     asset_weight_maint: WrappedI80F48,
     liability_weight_init: WrappedI80F48,
@@ -567,7 +549,6 @@ fn create_bank_ix(
     deposit_limit: u64,
     borrow_limit: u64,
     interest_rate_config: InterestRateConfig,
-    oracle_setup: crate::OracleTypeArg,
     risk_tier: crate::RiskTierArg,
     oracle_max_age: u16,
     global_fee_wallet: Pubkey,
@@ -622,24 +603,20 @@ fn create_bank_ix(
             fee_state: find_fee_state_pda(&config.program_id).0,
             global_fee_wallet,
         })
-        .accounts(AccountMeta::new_readonly(oracle_key, false))
         .args(marginfi::instruction::LendingPoolAddBank {
-            bank_config: BankConfig {
+            bank_config: BankConfigCompact {
                 asset_weight_init,
                 asset_weight_maint,
                 liability_weight_init,
                 liability_weight_maint,
                 deposit_limit,
                 borrow_limit,
-                interest_rate_config,
+                interest_rate_config: interest_rate_config.into(),
                 operational_state: BankOperationalState::Operational,
-                oracle_setup: oracle_setup.into(),
-                oracle_keys: create_oracle_key_array(feed_id.unwrap_or(oracle_key)),
                 risk_tier: risk_tier.into(),
                 oracle_max_age,
-                ..BankConfig::default()
-            }
-            .into(),
+                ..BankConfigCompact::default()
+            },
         })
         .instructions()?;
 
@@ -709,7 +686,7 @@ pub fn group_auto_handle_bankruptcy_for_an_account(
         .balances
         .iter()
         .filter(|b| {
-            b.active
+            b.is_active()
                 && banks
                     .get(&b.bank_pk)
                     .unwrap()
@@ -755,7 +732,7 @@ fn handle_bankruptcy_for_an_account(
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             signer: config.authority(),
             bank: bank_pk,
             marginfi_account: marginfi_account_pk,
@@ -839,7 +816,7 @@ pub fn handle_bankruptcy_for_accounts(
             .balances
             .iter()
             .filter(|b| {
-                b.active
+                b.is_active()
                     && banks
                         .get(&b.bank_pk)
                         .unwrap()
@@ -909,7 +886,7 @@ fn make_bankruptcy_ix(
     let mut handle_bankruptcy_ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolHandleBankruptcy {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             signer: config.fee_payer.pubkey(),
             bank: bank_pk,
             marginfi_account: marginfi_account_pk,
@@ -965,7 +942,7 @@ pub fn process_set_user_flag(
     let ix = Instruction {
         accounts: marginfi::accounts::SetAccountFlag {
             marginfi_account: marginfi_account_pk,
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             admin: config.authority(),
         }
         .to_account_metas(Some(true)),
@@ -1524,7 +1501,7 @@ pub fn bank_setup_emissions(
     let ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolSetupEmissions {
-            marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
+            group: profile.marginfi_group.expect("marginfi group not set"),
             admin: config.authority(),
             bank,
             emissions_mint: mint,
@@ -1642,7 +1619,7 @@ pub fn bank_update_emissions(
     let ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
-            marginfi_group: profile.marginfi_group.expect("marginfi group not set"),
+            group: profile.marginfi_group.expect("marginfi group not set"),
             admin: config.authority(),
             bank: bank_pk,
             emissions_mint: emission_mint,
@@ -1683,7 +1660,42 @@ pub fn bank_configure(
     config: Config,
     profile: Profile,
     bank_pk: Pubkey,
-    mut bank_config_opt: BankConfigOpt,
+    bank_config_opt: BankConfigOpt,
+) -> Result<()> {
+    let rpc_client = config.mfi_program.rpc();
+
+    let configure_bank_ixs_builder = config.mfi_program.request();
+    let signing_keypairs = config.get_signers(false);
+
+    let configure_bank_ixs = configure_bank_ixs_builder
+        .accounts(marginfi::accounts::LendingPoolConfigureBank {
+            group: profile.marginfi_group.unwrap(),
+            admin: config.authority(),
+            bank: bank_pk,
+        })
+        .args(marginfi::instruction::LendingPoolConfigureBank {
+            bank_config_opt: bank_config_opt.clone(),
+        })
+        .instructions()?;
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let message = Message::new(&configure_bank_ixs, Some(&config.authority()));
+    let mut transaction = Transaction::new_unsigned(message);
+    transaction.partial_sign(&signing_keypairs, recent_blockhash);
+
+    let sig = process_transaction(&transaction, &rpc_client, config.get_tx_mode())?;
+
+    println!("Transaction signature: {}", sig);
+
+    Ok(())
+}
+
+pub fn bank_configure_oracle(
+    config: Config,
+    profile: Profile,
+    bank_pk: Pubkey,
+    setup: u8,
+    oracle: Pubkey,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
@@ -1691,30 +1703,34 @@ pub fn bank_configure(
     let signing_keypairs = config.get_signers(false);
 
     let mut extra_accounts = vec![];
+    // Pyth pull oracles pass the feed instead, all other kinds pass the key itself
+    let mut passed_oracle = oracle;
 
-    if let Some(oracle) = &mut bank_config_opt.oracle {
-        extra_accounts.push(AccountMeta::new_readonly(oracle.keys[0], false));
+    extra_accounts.push(AccountMeta::new_readonly(oracle, false));
 
-        if oracle.setup == OracleSetup::PythPushOracle {
-            let oracle_address = oracle.keys[0];
-            let mut account = rpc_client.get_account(&oracle_address)?;
-            let ai = (&oracle_address, &mut account).into_account_info();
-            let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai)?;
+    let setup_type =
+        OracleSetup::from_u8(setup).unwrap_or_else(|| panic!("unsupported oracle type"));
 
-            let feed_id_as_pubkey = Pubkey::new_from_array(feed_id);
+    if setup_type == OracleSetup::PythPushOracle || setup_type == OracleSetup::StakedWithPythPush {
+        let oracle_address = oracle;
+        let mut account = rpc_client.get_account(&oracle_address)?;
+        let ai = (&oracle_address, &mut account).into_account_info();
+        let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai)?;
 
-            oracle.keys[0] = feed_id_as_pubkey;
-        }
+        let feed_id_as_pubkey = Pubkey::new_from_array(feed_id);
+
+        passed_oracle = feed_id_as_pubkey;
     }
 
     let mut configure_bank_ixs = configure_bank_ixs_builder
-        .accounts(marginfi::accounts::LendingPoolConfigureBank {
-            marginfi_group: profile.marginfi_group.unwrap(),
+        .accounts(marginfi::accounts::LendingPoolConfigureBankOracle {
+            group: profile.marginfi_group.unwrap(),
             admin: config.authority(),
             bank: bank_pk,
         })
-        .args(marginfi::instruction::LendingPoolConfigureBank {
-            bank_config_opt: bank_config_opt.clone(),
+        .args(marginfi::instruction::LendingPoolConfigureBankOracle {
+            setup,
+            oracle: passed_oracle,
         })
         .instructions()?;
 
@@ -2057,6 +2073,7 @@ pub fn marginfi_account_deposit(
     config: &Config,
     bank_pk: Pubkey,
     ui_amount: f64,
+    deposit_up_to_limit: Option<bool>,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
     let signer = config.get_non_ms_authority_keypair()?;
@@ -2085,16 +2102,20 @@ pub fn marginfi_account_deposit(
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountDeposit {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             marginfi_account: marginfi_account_pk,
-            signer: signer.pubkey(),
+            authority: signer.pubkey(),
             bank: bank_pk,
             signer_token_account: deposit_ata,
-            bank_liquidity_vault: bank.liquidity_vault,
+            liquidity_vault: bank.liquidity_vault,
             token_program,
         }
         .to_account_metas(Some(true)),
-        data: marginfi::instruction::LendingAccountDeposit { amount }.data(),
+        data: marginfi::instruction::LendingAccountDeposit {
+            amount,
+            deposit_up_to_limit,
+        }
+        .data(),
     };
     if token_program == spl_token_2022::ID {
         ix.accounts
@@ -2161,11 +2182,11 @@ pub fn marginfi_account_withdraw(
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountWithdraw {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             marginfi_account: marginfi_account_pk,
-            signer: signer.pubkey(),
+            authority: signer.pubkey(),
             bank: bank_pk,
-            bank_liquidity_vault: bank.liquidity_vault,
+            liquidity_vault: bank.liquidity_vault,
             token_program,
             destination_token_account: withdraw_ata,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
@@ -2260,11 +2281,11 @@ pub fn marginfi_account_borrow(
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountBorrow {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             marginfi_account: marginfi_account_pk,
-            signer: signer.pubkey(),
+            authority: signer.pubkey(),
             bank: bank_pk,
-            bank_liquidity_vault: bank.liquidity_vault,
+            liquidity_vault: bank.liquidity_vault,
             token_program,
             destination_token_account: borrow_ata,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
@@ -2362,11 +2383,11 @@ pub fn marginfi_account_liquidate(
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountLiquidate {
-            marginfi_group: profile.marginfi_group.unwrap(),
+            group: profile.marginfi_group.unwrap(),
             asset_bank: asset_bank_pk,
             liab_bank: liability_bank_pk,
             liquidator_marginfi_account: marginfi_account_pk,
-            signer: signer.pubkey(),
+            authority: signer.pubkey(),
             liquidatee_marginfi_account: liquidatee_marginfi_account_pk,
             bank_liquidity_vault_authority: find_bank_vault_authority_pda(
                 &liability_bank_pk,
@@ -2493,6 +2514,41 @@ pub fn marginfi_account_create(profile: &Profile, config: &Config) -> Result<()>
         None,
         Some(marginfi_account_key.pubkey()),
     )?;
+
+    Ok(())
+}
+
+pub fn marginfi_account_close(profile: &Profile, config: &Config) -> Result<()> {
+    let signer = config.get_non_ms_authority_keypair()?;
+
+    let rpc_client = config.mfi_program.rpc();
+
+    let marginfi_account_pk = profile.get_marginfi_account();
+    println!("Closing marginfi account {}", marginfi_account_pk);
+
+    let ix = Instruction {
+        program_id: config.program_id,
+        accounts: marginfi::accounts::MarginfiAccountClose {
+            marginfi_account: marginfi_account_pk,
+            authority: signer.pubkey(),
+            fee_payer: signer.pubkey(),
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::MarginfiAccountClose.data(),
+    };
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&signer.pubkey()),
+        &[signer],
+        recent_blockhash,
+    );
+
+    match process_transaction(&tx, &config.mfi_program.rpc(), config.get_tx_mode()) {
+        Ok(sig) => println!("Marginfi account closed successfully (sig: {})", sig),
+        Err(err) => println!("Error during marginfi account closure:\n{:#?}", err),
+    };
 
     Ok(())
 }

@@ -44,6 +44,7 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
             lender_token_account_usdc.key,
             test_f.get_bank(&BankMint::Usdc),
             100_000,
+            None,
         )
         .await?;
 
@@ -58,6 +59,7 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
             borrower_deposit_account.key,
             test_f.get_bank(&BankMint::Sol),
             1_001,
+            None,
         )
         .await?;
 
@@ -139,6 +141,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
             lender_token_account_usdc.key,
             test_f.get_bank(&BankMint::Usdc),
             100_000,
+            None,
         )
         .await?;
 
@@ -153,6 +156,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
             borrower_deposit_account.key,
             test_f.get_bank(&BankMint::Sol),
             1_001,
+            None,
         )
         .await?;
 
@@ -185,10 +189,13 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
 
     let bank = test_f.get_bank(&BankMint::Usdc);
 
-    bank.update_config(BankConfigOpt {
-        permissionless_bad_debt_settlement: Some(true),
-        ..Default::default()
-    })
+    bank.update_config(
+        BankConfigOpt {
+            permissionless_bad_debt_settlement: Some(true),
+            ..Default::default()
+        },
+        None,
+    )
     .await?;
 
     test_f
