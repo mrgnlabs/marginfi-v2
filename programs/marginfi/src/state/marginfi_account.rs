@@ -42,7 +42,10 @@ pub struct MarginfiAccount {
     /// - FLASHLOAN_ENABLED_FLAG (1 << 2)
     /// - TRANSFER_AUTHORITY_ALLOWED_FLAG (1 << 3)
     pub account_flags: u64, // 8
-    /// emissions rewards will be withdrawn to the emissions_destination_account
+    /// Set with `update_emissions_destination_account`. Emissions rewards can be withdrawn to the
+    /// cannonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).
+    /// If pubkey default, the user has not opted into this feature, and must claim emissions
+    /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
     pub _padding0: [u64; 32],            // 504
     pub _padding1: [u64; 27],
@@ -129,14 +132,6 @@ impl MarginfiAccount {
             self.authority,
             self.group,
         );
-        Ok(())
-    }
-
-    pub fn update_emissions_destination_account(
-        &mut self,
-        destination_account: Pubkey,
-    ) -> MarginfiResult {
-        self.emissions_destination_account = destination_account;
         Ok(())
     }
 

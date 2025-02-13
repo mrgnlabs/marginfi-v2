@@ -1,6 +1,7 @@
 use anchor_lang::{prelude::*, Accounts, ToAccountInfo};
-use anchor_spl::token_interface::{
-    transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
+use anchor_spl::{
+    associated_token::get_associated_token_address_with_program_id,
+    token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
 
 use crate::{
@@ -154,48 +155,25 @@ pub fn marginfi_account_update_emissions_destination_account<'info>(
         MarginfiError::AccountDisabled
     );
 
-    let emissions_destination_account = &marginfi_account.emissions_destination_account;
-
-    // Ensure that the emissions_destination_account was not previously set by the user
-    check!(
-        emissions_destination_account.eq(&Pubkey::default()),
-        MarginfiError::EmissionsDestinationAccountAlreadySet
-    );
-
-    let _ = marginfi_account
-        .update_emissions_destination_account(ctx.accounts.destination_account.key());
+    marginfi_account.emissions_destination_account = ctx.accounts.destination_account.key();
 
     Ok(())
 }
 
 #[derive(Accounts)]
 pub struct MarginfiAccountUpdateEmissionsDestinationAccount<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
         mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
+        has_one = authority
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    #[account(
-        address = marginfi_account.load()?.authority,
-    )]
-    pub signer: Signer<'info>,
+    pub authority: Signer<'info>,
 
-    #[account(
-        mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
-    )]
-    pub bank: AccountLoader<'info, Bank>,
-
-    #[account(
-        address = bank.load()?.emissions_mint
-    )]
-    pub emissions_mint: InterfaceAccount<'info, Mint>,
-
-    #[account(mut)]
-    pub destination_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// User's earned emissions will be sent to the cannonical ATA of this wallet.
+    ///
+    /// CHECK: Completely unchecked, user picks a destination without restrictions
+    pub destination_account: AccountInfo<'info>,
 }
 
 /// Permissionlessly withdraw emissions to user emissions_destination_account
@@ -209,20 +187,24 @@ pub fn lending_account_withdraw_emissions_permissionless<'info>(
         MarginfiError::AccountDisabled
     );
 
-    let emissions_destination_account = &marginfi_account.emissions_destination_account;
+    let emissions_dest_wallet = &marginfi_account.emissions_destination_account;
+    let emissions_mint = &ctx.accounts.emissions_mint.key();
+    let emissions_token_program = &ctx.accounts.token_program.key();
 
     // Ensure that the emissions_destination_account was previously set by the user
     check!(
-        !emissions_destination_account.eq(&Pubkey::default()),
+        !emissions_dest_wallet.eq(&Pubkey::default()),
         MarginfiError::InvalidEmissionsDestinationAccount
     );
 
-    // Ensure that the destination_account matches the stored one in MarginfiAccount
+    // Ensure the destination is the cannonical ATA of the user-specified wallet
+    let ata_expected = get_associated_token_address_with_program_id(
+        emissions_dest_wallet,
+        emissions_mint,
+        emissions_token_program,
+    );
     check!(
-        ctx.accounts
-            .destination_account
-            .key()
-            .eq(&emissions_destination_account),
+        ata_expected == ctx.accounts.destination_account.key(),
         MarginfiError::InvalidEmissionsDestinationAccount
     );
 
@@ -268,28 +250,21 @@ pub fn lending_account_withdraw_emissions_permissionless<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountWithdrawEmissionsPermissionless<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
-        address = marginfi_group.load()?.admin,
-    )]
-    pub admin: Signer<'info>,
-
-    #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group,
+        has_one = emissions_mint
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    #[account(
-        address = bank.load()?.emissions_mint
-    )]
     pub emissions_mint: InterfaceAccount<'info, Mint>,
 
     #[account(
@@ -313,7 +288,9 @@ pub struct LendingAccountWithdrawEmissionsPermissionless<'info> {
         bump,
     )]
     pub emissions_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
     #[account(mut)]
     pub destination_account: Box<InterfaceAccount<'info, TokenAccount>>,
+
     pub token_program: Interface<'info, TokenInterface>,
 }
