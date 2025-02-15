@@ -219,11 +219,11 @@ describe("Liquidate user (including staked assets)", () => {
       riskTier: defaultSettings.riskTier,
     };
     let editTx = new Transaction().add(
-      await editStakedSettings(groupAdmin.mrgnProgram, {
+      await editStakedSettings(groupAdmin.mrgnBankrunProgram, {
         settingsKey: settingsKey,
         settings: settings,
       }),
-      await propagateStakedSettings(program, {
+      await propagateStakedSettings(bankrunProgram, {
         settings: settingsKey,
         bank: assetBankKey,
         oracle: defaultSettings.oracle,

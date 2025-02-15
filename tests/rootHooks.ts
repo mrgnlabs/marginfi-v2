@@ -194,6 +194,7 @@ export const mochaHooks = {
       setupUserOptions
     );
     copyKeys.push(groupAdmin.usdcAccount);
+    copyKeys.push(groupAdmin.tokenBAccount);
     copyKeys.push(groupAdmin.wallet.publicKey);
 
     for (let i = 0; i < numUsers; i++) {

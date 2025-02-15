@@ -36,6 +36,12 @@ anchor build -p marginfi
 ./scripts/test-program.sh marginfi mainnet-beta
 ```
 
+### Customize Your Rust testing experience:
+
+```
+./scripts/test-program-remix.sh -p marginfi -l warn -c mainnet-beta -f mainnet-beta
+```
+
 ### To just one Rust test:
 
 ```
