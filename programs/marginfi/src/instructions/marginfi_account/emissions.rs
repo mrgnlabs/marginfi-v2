@@ -289,6 +289,8 @@ pub struct LendingAccountWithdrawEmissionsPermissionless<'info> {
     )]
     pub emissions_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
+    /// CHECK: Handler will validate this is cannonical ATA of the `emissions_destination_account`
+    /// registered on `marginfi_account`
     #[account(mut)]
     pub destination_account: Box<InterfaceAccount<'info, TokenAccount>>,
 

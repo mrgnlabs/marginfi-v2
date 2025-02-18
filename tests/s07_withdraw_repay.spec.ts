@@ -139,7 +139,7 @@ describe("Withdraw staked asset", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[0].active, true);
+    assert.equal(balances[0].active, 1);
 
     // TODO assert other balances changes as expected...
   });
@@ -179,7 +179,7 @@ describe("Withdraw staked asset", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
 
     // TODO assert other balances changes as expected...
   });
@@ -231,7 +231,7 @@ describe("Withdraw staked asset", () => {
     );
     const balances = userAcc.lendingAccount.balances;
     assertI80F48Equal(balances[1].liabilityShares, 0);
-    assert.equal(balances[1].active, false);
+    assert.equal(balances[1].active, 0);
 
     // TODO assert other balances changes as expected...
   });
@@ -284,7 +284,7 @@ describe("Withdraw staked asset", () => {
     );
     const balances = userAcc.lendingAccount.balances;
     assertI80F48Equal(balances[0].assetShares, 0);
-    assert.equal(balances[0].active, false);
+    assert.equal(balances[0].active, 0);
 
     // TODO assert other balances changes as expected...
   });

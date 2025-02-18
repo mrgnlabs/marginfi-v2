@@ -312,7 +312,7 @@ const addValidator = (validator: Validator) => {
 const addUser = (user: MockUser) => {
   users.push(user);
   copyKeys.push(user.tokenAAccount);
-  // copyKeys.push(user.tokenBAccount);
+  copyKeys.push(user.tokenBAccount);
   copyKeys.push(user.usdcAccount);
   copyKeys.push(user.wallet.publicKey);
   copyKeys.push(user.wsolAccount);
