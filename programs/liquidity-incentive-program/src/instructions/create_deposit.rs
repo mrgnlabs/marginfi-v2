@@ -8,7 +8,7 @@ use anchor_spl::{
     token_2022::{close_account, CloseAccount},
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use marginfi::{program::Marginfi, state::marginfi_group::Bank};
+use marginfi::{program::Marginfi, state::bank::Bank};
 use std::mem::size_of;
 
 /// Creates a new deposit in an active liquidity incentive campaign (LIP).

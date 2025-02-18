@@ -3,7 +3,7 @@ use anchor_spl::token_2022::spl_token_2022::extension::{
 };
 use fixed::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*, ui_to_native};
-use marginfi::{assert_eq_with_tolerance, prelude::*, state::marginfi_group::BankVaultType};
+use marginfi::{assert_eq_with_tolerance, prelude::*, state::bank_configuration::BankVaultType};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 use test_case::test_case;

@@ -15,7 +15,7 @@ use anchor_spl::token_2022::spl_token_2022::{
 use bumpalo::Bump;
 use marginfi::{
     constants::{FEE_STATE_SEED, PYTH_ID},
-    state::marginfi_group::BankVaultType,
+    state::bank_configuration::BankVaultType,
 };
 use pyth_sdk_solana::state::{
     AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,

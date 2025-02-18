@@ -26,9 +26,10 @@ use crate::{
     prelude::*,
 };
 
-use super::marginfi_group::BankConfig;
 use anchor_lang::prelude::borsh;
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
+
+use super::bank_configuration::BankConfig;
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]

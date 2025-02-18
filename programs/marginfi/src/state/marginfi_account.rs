@@ -1,5 +1,6 @@
 use super::{
-    marginfi_group::{Bank, RiskTier, WrappedI80F48},
+    bank_configuration::RiskTier,
+    marginfi_group::WrappedI80F48,
     price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
 };
 use crate::{
@@ -11,6 +12,7 @@ use crate::{
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
+    state::bank::Bank,
     utils::NumTraitsWithTolerance,
 };
 use anchor_lang::{prelude::*, Discriminator};

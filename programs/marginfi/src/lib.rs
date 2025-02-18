@@ -10,8 +10,8 @@ pub mod utils;
 use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
+use state::bank_configuration::{BankConfigCompact, BankConfigOpt};
 use state::marginfi_group::WrappedI80F48;
-use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet-beta")] {
@@ -27,6 +27,7 @@ cfg_if::cfg_if! {
 
 #[program]
 pub mod marginfi {
+
     use super::*;
 
     pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {

@@ -4,7 +4,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-use marginfi::state::marginfi_group::Bank;
+use marginfi::state::bank::Bank;
 use std::mem::size_of;
 
 pub fn process<'info>(

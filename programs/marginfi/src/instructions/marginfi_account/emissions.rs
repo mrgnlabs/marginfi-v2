@@ -10,8 +10,9 @@ use crate::{
     debug,
     prelude::{MarginfiError, MarginfiResult},
     state::{
+        bank::Bank,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
-        marginfi_group::{Bank, MarginfiGroup},
+        marginfi_group::MarginfiGroup,
     },
 };
 

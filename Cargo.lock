@@ -1127,14 +1127,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "brick"
-version = "0.1.0"
-dependencies = [
- "anchor-lang 0.30.1",
- "solana-program",
-]
-
-[[package]]
 name = "brotli"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

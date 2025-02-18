@@ -11,8 +11,9 @@ use {
             PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
         },
         state::{
+            bank::Bank,
+            bank_configuration::{BankConfig, BankVaultType},
             marginfi_account::MarginfiAccount,
-            marginfi_group::{Bank, BankConfig, BankVaultType},
             price::PythPushOraclePriceFeed,
         },
     },

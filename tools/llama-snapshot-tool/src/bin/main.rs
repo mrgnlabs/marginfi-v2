@@ -8,7 +8,9 @@ use futures::future::join_all;
 use lazy_static::lazy_static;
 use marginfi::{
     constants::{EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, SECONDS_PER_YEAR},
-    state::marginfi_group::{Bank, ComputedInterestRates, MarginfiGroup},
+    state::bank::Bank,
+    state::bank_interest::ComputedInterestRates,
+    state::marginfi_group::MarginfiGroup,
 };
 use reqwest::header::CONTENT_TYPE;
 use s3::{creds::Credentials, Bucket, Region};

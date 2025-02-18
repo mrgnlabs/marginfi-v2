@@ -1,6 +1,7 @@
 // Used by the group admin to enable staked collateral banks and configure their default features
 use crate::constants::STAKED_SETTINGS_SEED;
-use crate::state::marginfi_group::{RiskTier, WrappedI80F48};
+use crate::state::bank_configuration::RiskTier;
+use crate::state::marginfi_group::WrappedI80F48;
 use crate::state::staked_settings::StakedSettings;
 use crate::MarginfiGroup;
 use anchor_lang::prelude::*;

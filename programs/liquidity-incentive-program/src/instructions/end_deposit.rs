@@ -4,7 +4,7 @@ use anchor_spl::{
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
 use fixed::types::I80F48;
-use marginfi::{program::Marginfi, state::marginfi_group::Bank};
+use marginfi::{program::Marginfi, state::bank::Bank};
 
 use crate::{
     constants::{
