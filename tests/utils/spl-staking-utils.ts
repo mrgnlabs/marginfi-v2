@@ -10,8 +10,13 @@ import {
 import {
   Connection,
   PublicKey,
+  STAKE_CONFIG_ID,
   StakeAuthorizationLayout,
   StakeProgram,
+  SystemProgram,
+  SYSVAR_CLOCK_PUBKEY,
+  SYSVAR_RENT_PUBKEY,
+  SYSVAR_SLOT_HISTORY_PUBKEY,
   TransactionInstruction,
 } from "@solana/web3.js";
 import { SINGLE_POOL_PROGRAM_ID } from "./types";
@@ -149,3 +154,57 @@ export const getBankrunBlockhash = async (
 ) => {
   return (await bankrunContext.banksClient.getLatestBlockhash())[0];
 };
+
+/**
+ * Spl Single Pool's InitializeTempStake instruction.
+ *
+ * Accounts (in order):
+ *
+ *   0. [] Pool account
+ *   1. [w] Temp stake account
+ *   2. [] Pool stake authority
+ *   3. [] Vote account
+ *   4. [] Rent sysvar
+ *   5. [] Clock sysvar
+ *   6. [] Stake history sysvar
+ *   7. [] Stake config sysvar
+ *   8. [] System program
+ *   9. [] Stake program
+ *
+ * @param poolAccount - The pool account public key.
+ * @param tempStakeAccount - The temporary stake account public key (writable).
+ * @param poolStakeAuthority - The pool stake authority public key.
+ * @param voteAccount - The vote account public key.
+ * @param programId - The program ID for svsp (typically `SINGLE_POOL_PROGRAM_ID`)
+ *
+ * @returns A TransactionInstruction that can be added to a transaction.
+ */
+export function createInitializeTempStakeInstruction(
+  poolAccount: PublicKey,
+  tempStakeAccount: PublicKey,
+  poolStakeAuthority: PublicKey,
+  voteAccount: PublicKey,
+  programId: PublicKey
+): TransactionInstruction {
+  const keys = [
+    { pubkey: poolAccount, isSigner: false, isWritable: false },
+    { pubkey: tempStakeAccount, isSigner: false, isWritable: true },
+    { pubkey: poolStakeAuthority, isSigner: false, isWritable: false },
+    { pubkey: voteAccount, isSigner: false, isWritable: false },
+    { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+    { pubkey: SYSVAR_CLOCK_PUBKEY, isSigner: false, isWritable: false },
+    { pubkey: SYSVAR_SLOT_HISTORY_PUBKEY, isSigner: false, isWritable: false },
+    { pubkey: STAKE_CONFIG_ID, isSigner: false, isWritable: false },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    { pubkey: StakeProgram.programId, isSigner: false, isWritable: false },
+  ];
+
+  // TODO don't hard code the instruction index? (or why not, it's not gna change is it?)
+  const data = Buffer.from(Uint8Array.of(6));
+
+  return new TransactionInstruction({
+    keys,
+    programId,
+    data,
+  });
+}

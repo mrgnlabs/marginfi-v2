@@ -1,5 +1,6 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { SINGLE_POOL_PROGRAM_ID } from "./types";
 
 export const deriveLiquidityVaultAuthority = (
   programId: PublicKey,
@@ -110,5 +111,14 @@ export const deriveStakedSettings = (
   return PublicKey.findProgramAddressSync(
     [Buffer.from("staked_settings", "utf-8"), group.toBuffer()],
     programId
+  );
+};
+
+// *************** Below this line, spl-single-token **************
+
+export const deriveTempStakePool = (stakePool: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("temp_stake"), stakePool.toBuffer()],
+    SINGLE_POOL_PROGRAM_ID
   );
 };

@@ -6,7 +6,15 @@ import {
   Wallet,
   workspace,
 } from "@coral-xyz/anchor";
-import { LAMPORTS_PER_SOL, SystemProgram, Transaction } from "@solana/web3.js";
+import {
+  LAMPORTS_PER_SOL,
+  STAKE_CONFIG_ID,
+  SystemProgram,
+  SYSVAR_CLOCK_PUBKEY,
+  SYSVAR_RENT_PUBKEY,
+  SYSVAR_STAKE_HISTORY_PUBKEY,
+  Transaction,
+} from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairSol,
@@ -25,8 +33,14 @@ import { assertBankrunTxFailed, assertKeysEqual } from "./utils/genericTests";
 import { assert } from "chai";
 import { borrowIx, depositIx } from "./utils/user-instructions";
 import { LST_ATA, USER_ACCOUNT } from "./utils/mocks";
-import { getBankrunBlockhash } from "./utils/spl-staking-utils";
+import {
+  createInitializeTempStakeInstruction,
+  getBankrunBlockhash,
+} from "./utils/spl-staking-utils";
 import { getEpochAndSlot, getStakeActivation } from "./utils/stake-utils";
+import { deriveTempStakePool } from "./utils/pdas";
+import { SINGLE_POOL_PROGRAM_ID } from "./utils/types";
+import { dumpBankrunLogs } from "./utils/tools";
 
 describe("Borrow power grows as v0 Staked SOL gains value from appreciation", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -36,7 +50,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
   // User 2 has a validator 0 staked depost [0] position - net value = 1 LST token Users 0/1/2
   // deposited 10 SOL each, so a total of 30 is staked with validator 0 (minus the 1 SOL staked to
   // start the pool, which is non-refundable and doesn't function as collateral)
-  /** SOL to add to the validator as pretend-earned epoch rewards */
+
+  /** SOL to add to the validator as pretend-earned mev rewards */
   const appreciation = 30;
 
   it("(user 2) tries to borrow 1.1 SOL against 1 v0 STAKED - fails, not enough funds", async () => {
@@ -75,7 +90,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
 
   // Note: there is also some natural appreciation here because a few epochs have elapsed...
 
-  // Here we try to a troll exploit by sending SOL directly to the stake pool's sol balance.
+  // Here we try to do a troll exploit by sending SOL directly to the stake pool's sol balance.
+  // TODO make sure initTempStakeIx also handles orphaned SOL like this....
   it("v0 stake sol pool grows by " + appreciation + " SOL", async () => {
     let tx = new Transaction();
     tx.add(
@@ -178,8 +194,38 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     assertBankrunTxFailed(result, "0x177a");
   });
 
+  it("v0 stake sol pool earns " + appreciation + " in MEV rewards as SOL", async () => {
+    let tx = new Transaction();
+    tx.add(
+      SystemProgram.transfer({
+        fromPubkey: wallet.publicKey,
+        toPubkey: validators[0].splPool,
+        lamports: appreciation * LAMPORTS_PER_SOL,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(wallet.payer);
+    await banksClient.processTransaction(tx);
+  });
+
   it("Generate stake income....", async () => {
-    // TODO how?
+    const [tempStakeAccount] = deriveTempStakePool(validators[0].splPool);
+
+    // TODO pay rent to temp account....
+    const ix = createInitializeTempStakeInstruction(
+      validators[0].splPool,
+      tempStakeAccount,
+      validators[0].splAuthority,
+      validators[0].voteAccount,
+      SINGLE_POOL_PROGRAM_ID
+    );
+
+    let tx = new Transaction().add(ix);
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(wallet.payer); // pays the tx fee and rent
+    let result = await banksClient.tryProcessTransaction(tx);
+    dumpBankrunLogs(result);
+
     //
   });
 
