@@ -194,33 +194,45 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     assertBankrunTxFailed(result, "0x177a");
   });
 
-  it("v0 stake sol pool earns " + appreciation + " in MEV rewards as SOL", async () => {
-    let tx = new Transaction();
-    tx.add(
-      SystemProgram.transfer({
-        fromPubkey: wallet.publicKey,
-        toPubkey: validators[0].splPool,
-        lamports: appreciation * LAMPORTS_PER_SOL,
-      })
-    );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(wallet.payer);
-    await banksClient.processTransaction(tx);
-  });
+  it(
+    "v0 stake sol pool earns " + appreciation + " in MEV rewards as SOL",
+    async () => {
+      let tx = new Transaction();
+      tx.add(
+        SystemProgram.transfer({
+          fromPubkey: wallet.publicKey,
+          toPubkey: validators[0].splPool,
+          lamports: appreciation * LAMPORTS_PER_SOL,
+        })
+      );
+      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+      tx.sign(wallet.payer);
+      await banksClient.processTransaction(tx);
+    }
+  );
 
   it("Generate stake income....", async () => {
     const [tempStakeAccount] = deriveTempStakePool(validators[0].splPool);
 
-    // TODO pay rent to temp account....
+    console.log("stake: " + validators[0].splPool);
+    console.log("pool: " + validators[0].splSolPool);
+    console.log("auth: " + validators[0].splAuthority);
+
+    const rentIx = SystemProgram.transfer({
+      fromPubkey: wallet.payer.publicKey,
+      toPubkey: tempStakeAccount,
+      lamports: 50000000, // TODO calc rent exempt
+    });
     const ix = createInitializeTempStakeInstruction(
       validators[0].splPool,
+      validators[0].splSolPool,
       tempStakeAccount,
       validators[0].splAuthority,
       validators[0].voteAccount,
       SINGLE_POOL_PROGRAM_ID
     );
 
-    let tx = new Transaction().add(ix);
+    let tx = new Transaction().add(rentIx, ix);
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(wallet.payer); // pays the tx fee and rent
     let result = await banksClient.tryProcessTransaction(tx);

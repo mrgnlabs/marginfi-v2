@@ -17,6 +17,7 @@ import {
   SYSVAR_CLOCK_PUBKEY,
   SYSVAR_RENT_PUBKEY,
   SYSVAR_SLOT_HISTORY_PUBKEY,
+  SYSVAR_STAKE_HISTORY_PUBKEY,
   TransactionInstruction,
 } from "@solana/web3.js";
 import { SINGLE_POOL_PROGRAM_ID } from "./types";
@@ -161,15 +162,16 @@ export const getBankrunBlockhash = async (
  * Accounts (in order):
  *
  *   0. [] Pool account
- *   1. [w] Temp stake account
- *   2. [] Pool stake authority
- *   3. [] Vote account
- *   4. [] Rent sysvar
- *   5. [] Clock sysvar
- *   6. [] Stake history sysvar
- *   7. [] Stake config sysvar
- *   8. [] System program
- *   9. [] Stake program
+ *   1. [w] Pool stake account
+ *   2. [w] Temp stake account
+ *   3. [] Pool stake authority
+ *   4. [] Vote account
+ *   5. [] Rent sysvar
+ *   6. [] Clock sysvar
+ *   7. [] Stake history sysvar
+ *   8. [] Stake config sysvar
+ *   9. [] System program
+ *  10. [] Stake program
  *
  * @param poolAccount - The pool account public key.
  * @param tempStakeAccount - The temporary stake account public key (writable).
@@ -181,6 +183,7 @@ export const getBankrunBlockhash = async (
  */
 export function createInitializeTempStakeInstruction(
   poolAccount: PublicKey,
+  poolStakeAccount: PublicKey,
   tempStakeAccount: PublicKey,
   poolStakeAuthority: PublicKey,
   voteAccount: PublicKey,
@@ -188,12 +191,13 @@ export function createInitializeTempStakeInstruction(
 ): TransactionInstruction {
   const keys = [
     { pubkey: poolAccount, isSigner: false, isWritable: false },
+    { pubkey: poolStakeAccount, isSigner: false, isWritable: true },
     { pubkey: tempStakeAccount, isSigner: false, isWritable: true },
     { pubkey: poolStakeAuthority, isSigner: false, isWritable: false },
     { pubkey: voteAccount, isSigner: false, isWritable: false },
     { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
     { pubkey: SYSVAR_CLOCK_PUBKEY, isSigner: false, isWritable: false },
-    { pubkey: SYSVAR_SLOT_HISTORY_PUBKEY, isSigner: false, isWritable: false },
+    { pubkey: SYSVAR_STAKE_HISTORY_PUBKEY, isSigner: false, isWritable: false },
     { pubkey: STAKE_CONFIG_ID, isSigner: false, isWritable: false },
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     { pubkey: StakeProgram.programId, isSigner: false, isWritable: false },
