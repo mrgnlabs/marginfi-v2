@@ -14,6 +14,7 @@ use lazy_static::lazy_static;
 use marginfi::{
     constants::MAX_ORACLE_KEYS,
     state::{
+        fee_state::FeeState,
         marginfi_group::{
             BankConfig, BankOperationalState, GroupConfig, InterestRateConfig, RiskTier,
         },
@@ -903,5 +904,27 @@ impl TestFixture {
             ((collateral_amount * decimal_scaling).round() + 1.) / decimal_scaling;
 
         get_max_deposit_amount_pre_fee(collateral_amount)
+    }
+
+    pub async fn get_fee_state(&self) -> FeeState {
+        self.context
+            .borrow_mut()
+            .banks_client
+            .get_account(self.marginfi_group.fee_state)
+            .await
+            .unwrap()
+            .map(|acc| FeeState::try_deserialize(&mut acc.data.as_slice()).unwrap())
+            .unwrap()
+    }
+
+    pub async fn get_sol_balance(&self, address: Pubkey) -> u64 {
+        self.context
+            .borrow_mut()
+            .banks_client
+            .get_account(address)
+            .await
+            .unwrap()
+            .map(|acc| acc.lamports)
+            .unwrap()
     }
 }

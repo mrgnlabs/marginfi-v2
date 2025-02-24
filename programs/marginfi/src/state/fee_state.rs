@@ -32,8 +32,11 @@ pub struct FeeState {
     pub program_fee_fixed: WrappedI80F48,
     /// Fee collected by the program owner from all groups
     pub program_fee_rate: WrappedI80F48,
+    /// Flat fee assessed at flashloan end, in lamports.
+    /// * In SOL, in native decimals.
+    pub flashloan_flat_sol_fee: u32,
     // Reserved for future use
-    _reserved0: [u8; 32],
+    _reserved0: [u8; 28],
     _reserved1: [u8; 64],
 }
 

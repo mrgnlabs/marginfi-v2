@@ -5,19 +5,21 @@ use pretty_assertions::assert_eq;
 use solana_program::{instruction::Instruction, pubkey::Pubkey};
 use solana_program_test::*;
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, signer::Signer, transaction::Transaction,
+    compute_budget::ComputeBudgetInstruction, signer::keypair::Keypair, signer::Signer,
+    system_instruction, transaction::Transaction,
 };
 
 // Flashloan tests
-// 1. Flashloan success (1 action)
-// 2. Flashloan success (3 actions)
-// 3. Flashloan fails because of bad account health
-// 4. Flashloan fails because of non whitelisted account
-// 5. Flashloan fails because of missing `end_flashloan` ix
-// 6. Flashloan fails because of invalid instructions sysvar
-// 7. Flashloan fails because of invalid `end_flashloan` ix order
-// 8. Flashloan fails because `end_flashloan` ix is for another account
-// 9. Flashloan fails because account is already in a flashloan
+// 1.  Flashloan success (1 action)
+// 2.  Flashloan success (3 actions)
+// 3.  Flashloan fails because of bad account health
+// 4.  Flashloan fails because of non whitelisted account
+// 5.  Flashloan fails because of missing `end_flashloan` ix
+// 6.  Flashloan fails because of invalid instructions sysvar
+// 7.  Flashloan fails because of invalid `end_flashloan` ix order
+// 8.  Flashloan fails because `end_flashloan` ix is for another account
+// 9.  Flashloan fails because account is already in a flashloan
+// 10. Flashloan fails because payer has insufficient balance for flashloan fee
 
 #[tokio::test]
 async fn flashloan_success_1op() -> anyhow::Result<()> {
@@ -44,8 +46,13 @@ async fn flashloan_success_1op() -> anyhow::Result<()> {
         .await?;
 
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
-    // Borrow SOL
 
+    // Get initial fee wallet balance
+    let fee_state = test_f.get_fee_state().await;
+    let fee_wallet = fee_state.global_fee_wallet;
+    let initial_fee_wallet_balance = test_f.get_sol_balance(fee_wallet).await;
+
+    // Borrow SOL
     let borrow_ix = borrower_mfi_account_f
         .make_bank_borrow_ix(borrower_token_account_f_sol.key, sol_bank, 1_000)
         .await;
@@ -64,6 +71,12 @@ async fn flashloan_success_1op() -> anyhow::Result<()> {
         .await;
 
     assert!(flash_loan_result.is_ok());
+
+    // Verify flashloan fee was paid
+    assert_eq!(
+        test_f.get_sol_balance(fee_wallet).await - initial_fee_wallet_balance,
+        fee_state.flashloan_flat_sol_fee as u64,
+    );
 
     Ok(())
 }
@@ -94,6 +107,11 @@ async fn flashloan_success_3op() -> anyhow::Result<()> {
 
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
+    // Get initial fee wallet balance
+    let fee_state = test_f.get_fee_state().await;
+    let fee_wallet = fee_state.global_fee_wallet;
+    let initial_fee_wallet_balance = test_f.get_sol_balance(fee_wallet).await;
+
     // Create borrow and repay instructions
     let mut ixs = Vec::new();
     for _ in 0..3 {
@@ -120,6 +138,12 @@ async fn flashloan_success_3op() -> anyhow::Result<()> {
         .await;
 
     assert!(flash_loan_result.is_ok());
+
+    // Verify flashloan fee was paid
+    assert_eq!(
+        test_f.get_sol_balance(fee_wallet).await - initial_fee_wallet_balance,
+        fee_state.flashloan_flat_sol_fee as u64,
+    );
 
     Ok(())
 }
@@ -532,6 +556,98 @@ async fn flashloan_fail_already_in_flashloan() -> anyhow::Result<()> {
     let res = ctx.banks_client.process_transaction(tx).await;
 
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlashloan);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn flashloan_fail_insufficient_balance_for_fee() -> anyhow::Result<()> {
+    // Setup test executor with non-admin payer
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
+
+    // Fund SOL lender
+    let lender_mfi_account_f = test_f.create_marginfi_account().await;
+    let lender_token_account_f_sol = test_f
+        .sol_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    lender_mfi_account_f
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .await?;
+
+    // Create borrower
+    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
+
+    // Increase the flashloan fee to be sure it causes the issue (and not the transaction fee)
+    let payer = test_f.payer();
+    let payer_keypair = test_f.payer_keypair();
+    let fee_state = test_f.get_fee_state().await;
+    let blockhash = test_f.get_latest_blockhash().await;
+    let new_flashloan_fee = 10_000_000;
+
+    let edit_fee_state_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: marginfi::accounts::EditFeeState {
+            global_fee_admin: payer,
+            fee_state: fee_state.key,
+        }
+        .to_account_metas(Some(true)),
+        data: marginfi::instruction::EditGlobalFeeState {
+            fee_wallet: fee_state.global_fee_wallet,
+            bank_init_flat_sol_fee: fee_state.bank_init_flat_sol_fee,
+            flashloan_flat_sol_fee: new_flashloan_fee,
+            program_fee_fixed: fee_state.program_fee_fixed,
+            program_fee_rate: fee_state.program_fee_rate,
+        }
+        .data(),
+    };
+    {
+        let mut ctx = test_f.context.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[edit_fee_state_ix],
+            Some(&payer),
+            &[&payer_keypair],
+            blockhash,
+        );
+        ctx.banks_client.process_transaction(tx).await?;
+    }
+
+    let fee_state = test_f.get_fee_state().await;
+    assert_eq!(fee_state.flashloan_flat_sol_fee, new_flashloan_fee);
+
+    // Drain the payer to have enough for the transaction fee but not enough left for the flashloan fee
+    let payer_keypair = test_f.payer_keypair();
+    let current_balance = test_f.get_sol_balance(payer).await;
+    {
+        let mut ctx = test_f.context.borrow_mut();
+        let drain_amount = current_balance - 1_000_000;
+        let drain_account = Keypair::new().pubkey();
+        let transfer_ix = system_instruction::transfer(&payer, &drain_account, drain_amount);
+        let tx = Transaction::new_signed_with_payer(
+            &[transfer_ix],
+            Some(&payer),
+            &[&payer_keypair],
+            ctx.last_blockhash,
+        );
+        ctx.banks_client.process_transaction(tx).await?;
+    }
+
+    // Try flashloan which should fail since payer doesn't have enough for flashloan fee
+    let borrow_ix = borrower_mfi_account_f
+        .make_bank_borrow_ix(borrower_token_account_f_sol.key, sol_bank, 500)
+        .await;
+
+    let repay_ix = borrower_mfi_account_f
+        .make_bank_repay_ix(borrower_token_account_f_sol.key, sol_bank, 500, Some(true))
+        .await;
+
+    let res = borrower_mfi_account_f
+        .try_flashloan(vec![borrow_ix, repay_ix], vec![], vec![])
+        .await;
+
+    assert!(res.is_err());
 
     Ok(())
 }

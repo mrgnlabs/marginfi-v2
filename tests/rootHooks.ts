@@ -62,6 +62,7 @@ export let globalFeeWallet: PublicKey = undefined;
 /** Lamports charged when creating any pool */
 export const INIT_POOL_ORIGINATION_FEE = 1000;
 
+export const FLASHLOAN_FEE = 100;
 export const PROGRAM_FEE_FIXED = 0.01;
 export const PROGRAM_FEE_RATE = 0.02;
 
@@ -166,6 +167,7 @@ export const mochaHooks = {
         admin: wallet.payer.publicKey,
         wallet: globalFeeWallet,
         bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
+        flashloanFlatSolFee: FLASHLOAN_FEE,
         programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
         programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
       })
