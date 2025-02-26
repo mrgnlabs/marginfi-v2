@@ -34,6 +34,45 @@ macro_rules! check {
 }
 
 #[macro_export]
+/// Checks if two values are equal, emits the error, line number, file name, and the contents of the
+/// two values being compared on error.
+macro_rules! check_eq {
+    ($left:expr, $right:expr, $err:expr) => {
+        if $left != $right {
+            let err_code: $crate::errors::MarginfiError = $err;
+            #[cfg(not(feature = "test-bpf"))]
+            anchor_lang::prelude::msg!(
+                "Error \"{}\" thrown at {}:{}: left = {:?}, right = {:?}",
+                err_code,
+                file!(),
+                line!(),
+                $left,
+                $right
+            );
+            return Err(err_code.into());
+        }
+    };
+
+    ($left:expr, $right:expr, $err:expr, $($arg:tt)+) => {
+        if $left != $right {
+            let err_code: $crate::errors::MarginfiError = $err;
+            #[cfg(not(feature = "test-bpf"))]
+            anchor_lang::prelude::msg!(
+                "Error \"{}\" thrown at {}:{}: left = {:?}, right = {:?}",
+                err_code,
+                file!(),
+                line!(),
+                $left,
+                $right
+            );
+            #[cfg(not(feature = "test-bpf"))]
+            anchor_lang::prelude::msg!($($arg)+);
+            return Err(err_code.into());
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! math_error {
     () => {{
         || {
