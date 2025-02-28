@@ -1,4 +1,5 @@
 use super::{
+    health_cache::HealthCache,
     marginfi_group::{Bank, RiskTier, WrappedI80F48},
     price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
 };
@@ -47,7 +48,8 @@ pub struct MarginfiAccount {
     /// If pubkey default, the user has not opted into this feature, and must claim emissions
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
-    pub _padding0: [u64; 32],            // 504
+    pub health_cache: HealthCache,
+    pub _padding0: [u8; 48],
     pub _padding1: [u64; 27],
 }
 
@@ -284,26 +286,28 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 // let bank = bank_al.load()?;
 
                 match side {
-                    BalanceSide::Assets => Ok((
-                        self.calc_weighted_assets(requirement_type, &bank)?,
-                        I80F48::ZERO,
-                    )),
-                    BalanceSide::Liabilities => Ok((
-                        I80F48::ZERO,
-                        self.calc_weighted_liabs(requirement_type, &bank)?,
-                    )),
+                    BalanceSide::Assets => {
+                        let (value, _) = self.calc_weighted_assets(requirement_type, &bank)?;
+                        Ok((value, I80F48::ZERO))
+                    }
+
+                    BalanceSide::Liabilities => {
+                        let (value, _) = self.calc_weighted_liabs(requirement_type, &bank)?;
+                        Ok((I80F48::ZERO, value))
+                    }
                 }
             }
             None => Ok((I80F48::ZERO, I80F48::ZERO)),
         }
     }
 
+    /// Return the net asset value of user deposit into the bank and oracle price used.
     #[inline(always)]
     fn calc_weighted_assets<'a>(
         &'a self,
         requirement_type: RequirementType,
         bank: &'a Bank,
-    ) -> MarginfiResult<I80F48> {
+    ) -> MarginfiResult<(I80F48, I80F48)> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
                 let price_feed = self.try_get_price_feed();
@@ -313,7 +317,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                     (&Err(PriceFeedError::StaleOracle), RequirementType::Initial)
                 ) {
                     debug!("Skipping stale oracle");
-                    return Ok(I80F48::ZERO);
+                    return Ok((I80F48::ZERO, I80F48::ZERO));
                 }
 
                 let price_feed = price_feed?;
@@ -337,23 +341,26 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                     }
                 }
 
-                calc_value(
+                let value = calc_value(
                     bank.get_asset_amount(self.balance.asset_shares.into())?,
                     lower_price,
                     bank.mint_decimals,
                     Some(asset_weight),
-                )
+                )?;
+
+                Ok((value, lower_price))
             }
-            RiskTier::Isolated => Ok(I80F48::ZERO),
+            RiskTier::Isolated => Ok((I80F48::ZERO, I80F48::ZERO)),
         }
     }
 
+    /// Return the net liability value of user debt in the bank and oracle price used.
     #[inline(always)]
     fn calc_weighted_liabs(
         &self,
         requirement_type: RequirementType,
         bank: &Bank,
-    ) -> MarginfiResult<I80F48> {
+    ) -> MarginfiResult<(I80F48, I80F48)> {
         let price_feed = self.try_get_price_feed()?;
         let liability_weight = bank
             .config
@@ -366,12 +373,14 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
 
         // If `ASSET_TAG_STAKED` assets can ever be borrowed, accomodate for that here...
 
-        calc_value(
+        let value = calc_value(
             bank.get_liability_amount(self.balance.liability_shares.into())?,
             higher_price,
             bank.mint_decimals,
             Some(liability_weight),
-        )
+        )?;
+
+        Ok((value, higher_price))
     }
 
     fn try_get_price_feed(&self) -> std::result::Result<&OraclePriceFeedAdapter, PriceFeedError> {
@@ -751,7 +760,7 @@ impl<'info> RiskEngine<'_, 'info> {
     }
 }
 
-const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
+pub const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 assert_struct_size!(LendingAccount, 1728);
 assert_struct_align!(LendingAccount, 8);
@@ -1479,7 +1488,8 @@ mod test {
                 _padding: [0; 8],
             },
             account_flags: TRANSFER_AUTHORITY_ALLOWED_FLAG,
-            _padding0: [0; 32],
+            health_cache: HealthCache::zeroed(),
+            _padding0: [0; 48],
             _padding1: [0; 27],
         };
 

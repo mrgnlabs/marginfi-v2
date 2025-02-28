@@ -45,7 +45,8 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("Dq7wypbedtaqQK9QqEFvfrxc4ppfRGXCeTVd7ee7n2jw")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 32]);
+    // health cache doesn't exist on these old accounts, but it also doesn't matter since it's read-only
+    assert_eq!(account._padding0, [0; 48]);
     assert_eq!(account._padding1, [0; 27]);
 
     let balance_1 = account.lending_account.balances[0];
@@ -123,7 +124,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("3T1kGHp7CrdeW9Qj1t8NMc2Ks233RyvzVhoaUPWoBEFK")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 32]);
+    assert_eq!(account._padding0, [0; 48]);
     assert_eq!(account._padding1, [0; 27]);
 
     let balance_1 = account.lending_account.balances[0];
@@ -201,7 +202,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("7hmfVTuXc7HeX3YQjpiCXGVQuTeXonzjp795jorZukVR")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 32]);
+    assert_eq!(account._padding0, [0; 48]);
     assert_eq!(account._padding1, [0; 27]);
 
     let balance_1 = account.lending_account.balances[0];
