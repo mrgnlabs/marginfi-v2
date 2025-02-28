@@ -29,7 +29,7 @@ pub fn log_pool_info(bank: &Bank) {
         "op state: {:?} risk tier: {:?} asset tag: {:?}",
         conf.operational_state as u8,
         conf.risk_tier as u8,
-        conf.asset_tag as u8
+        conf.asset_tag
     );
     msg!(
         "oracle age: {:?} flags: {:?}",
