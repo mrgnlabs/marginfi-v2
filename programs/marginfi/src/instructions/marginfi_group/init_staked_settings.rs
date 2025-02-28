@@ -23,6 +23,21 @@ pub fn initialize_staked_settings(
         settings.risk_tier,
     );
 
+    msg!(
+        "oracle: {:?} max age: {:?}",
+        staked_settings.oracle,
+        staked_settings.oracle_max_age
+    );
+    let init = u128::from_le_bytes(staked_settings.asset_weight_init.value);
+    let maint = u128::from_le_bytes(staked_settings.asset_weight_maint.value);
+    msg!("asset weight init: {:?} maint: {:?}", init, maint);
+    msg!(
+        "deposit limit: {:?} value limit: {:?} risk tier: {:?}",
+        staked_settings.deposit_limit,
+        staked_settings.total_asset_value_init_limit,
+        staked_settings.risk_tier as u8
+    );
+
     staked_settings.validate()?;
 
     Ok(())

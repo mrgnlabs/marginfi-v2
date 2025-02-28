@@ -19,6 +19,16 @@ pub fn edit_fee_state(
     fee_state.program_fee_fixed = program_fee_fixed;
     fee_state.program_fee_rate = program_fee_rate;
 
+    let fixed = u128::from_le_bytes(fee_state.program_fee_fixed.value);
+    let rate = u128::from_le_bytes(fee_state.program_fee_rate.value);
+    msg!("fee wallet set to: {:?}", fee_wallet);
+    msg!(
+        "flat sol: {:?} fixed: {:?} rate: {:?}",
+        fee_state.bank_init_flat_sol_fee,
+        fixed,
+        rate
+    );
+
     Ok(())
 }
 
