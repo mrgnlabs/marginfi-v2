@@ -8,12 +8,14 @@ use fee_state::FeeState;
 
 pub fn edit_fee_state(
     ctx: Context<EditFeeState>,
+    admin: Pubkey,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
     program_fee_fixed: WrappedI80F48,
     program_fee_rate: WrappedI80F48,
 ) -> Result<()> {
     let mut fee_state = ctx.accounts.fee_state.load_mut()?;
+    fee_state.global_fee_admin = admin;
     fee_state.global_fee_wallet = fee_wallet;
     fee_state.bank_init_flat_sol_fee = bank_init_flat_sol_fee;
     fee_state.program_fee_fixed = program_fee_fixed;
@@ -21,7 +23,7 @@ pub fn edit_fee_state(
 
     let fixed = u128::from_le_bytes(fee_state.program_fee_fixed.value);
     let rate = u128::from_le_bytes(fee_state.program_fee_rate.value);
-    msg!("fee wallet set to: {:?}", fee_wallet);
+    msg!("admin set to: {:?} fee wallet: {:?}", admin, fee_wallet);
     msg!(
         "flat sol: {:?} fixed: {:?} rate: {:?}",
         fee_state.bank_init_flat_sol_fee,

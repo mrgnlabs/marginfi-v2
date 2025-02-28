@@ -2,9 +2,7 @@ use crate::state::marginfi_group::Bank;
 use anchor_lang::prelude::*;
 
 /// Echo the information used to create banks to the log output. Useful for at-a-glance debugging
-/// bank creation txes in explorer.
-/// 
-/// Note: costs a lot of CU
+/// bank creation txes in explorer. Note: costs a lot of CU
 pub fn log_pool_info(bank: &Bank) {
     let conf = bank.config;
     let asset_weight_init = u128::from_le_bytes(conf.asset_weight_init.value);
