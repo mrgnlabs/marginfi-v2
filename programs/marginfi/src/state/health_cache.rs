@@ -20,11 +20,43 @@ pub struct HealthCache {
     ///
     /// * HEALTHY = 1 - If set, the account cannot be liquidated. If 0, the account is unhealthy and
     ///   can be liquidated.
-    /// * 2, 4, 8, 16, 32, 64, 128, etc - reserved for future use
+    /// * ENGINE STATUS = 2 - If set, the engine did not error during the last health pulse. If 0,
+    ///   the engine would have errored and this cache is likely invalid.
+    /// * 4, 8, 16, 32, 64, 128, etc - reserved for future use
     pub flags: u64,
     /// Each price corresponds to that index of Balances in the LendingAccount. Useful for debugging
     /// or liquidator consumption, to determine how a user's position is priced internally.
+    /// * If a price overflows u64, shows u64::MAX
+    /// * If a price is negative for some reason (as several oracles support), pulse will panic
     pub prices: [u64; MAX_LENDING_ACCOUNT_BALANCES],
 
     pub _padding: [u8; 32],
+}
+
+impl HealthCache {
+    /// True if account is healthy (cannot be liquidated)
+    pub fn is_healthy(&self) -> bool {
+        self.flags & 1 != 0
+    }
+
+    pub fn set_healthy(&mut self, healthy: bool) {
+        if healthy {
+            self.flags |= 1;
+        } else {
+            self.flags &= !1;
+        }
+    }
+
+    /// True if the engine did not error during the last health pulse.
+    pub fn is_engine_ok(&self) -> bool {
+        self.flags & 2 != 0
+    }
+
+    pub fn set_engine_ok(&mut self, ok: bool) {
+        if ok {
+            self.flags |= 2;
+        } else {
+            self.flags &= !2;
+        }
+    }
 }
