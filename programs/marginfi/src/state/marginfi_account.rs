@@ -730,17 +730,28 @@ impl<'info> RiskEngine<'_, 'info> {
 
         let n_balances_with_liablities = balances_with_liablities.clone().count();
 
-        let is_in_isolated_risk_tier = balances_with_liablities.clone().any(|a| {
-            // SAFETY: We are shortening 'info -> 'a
-            let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&a.bank) };
-            AccountLoader::<Bank>::try_from(shorter_bank)
-                .unwrap()
-                .load()
-                .unwrap()
-                .config
-                .risk_tier
-                == RiskTier::Isolated
-        });
+        let mut is_in_isolated_risk_tier = false;
+
+        for a in balances_with_liablities {
+            if a.bank.owner != &Bank::owner() {
+                panic!("bank owned by wrong program, this should never happen");
+            }
+            let bank_data = a.bank.try_borrow_data()?;
+            if bank_data.len() < Bank::LEN + 8 {
+                panic!("bank too short, this should never happen");
+            }
+            let bank_discrim = &bank_data[0..8];
+            if bank_discrim != Bank::DISCRIMINATOR {
+                panic!("bad bank discriminator, this should never happen");
+            }
+            let bank_data = &bank_data[8..];
+            let bank: Bank = *bytemuck::from_bytes(bank_data);
+    
+            if bank.config.risk_tier == RiskTier::Isolated {
+                is_in_isolated_risk_tier = true;
+                break;
+            }
+        }
 
         check!(
             !is_in_isolated_risk_tier || n_balances_with_liablities == 1,
