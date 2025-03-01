@@ -746,7 +746,6 @@ impl<'info> RiskEngine<'_, 'info> {
             }
             let bank_data = &bank_data[8..];
             let bank: Bank = *bytemuck::from_bytes(bank_data);
-    
             if bank.config.risk_tier == RiskTier::Isolated {
                 is_in_isolated_risk_tier = true;
                 break;
