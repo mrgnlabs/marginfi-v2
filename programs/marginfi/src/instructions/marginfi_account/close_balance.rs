@@ -13,7 +13,7 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
     let LendingAccountCloseBalance {
         marginfi_account,
         bank: bank_loader,
-        marginfi_group: marginfi_group_loader,
+        group: marginfi_group_loader,
         ..
     } = ctx.accounts;
 
@@ -45,22 +45,20 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
 
 #[derive(Accounts)]
 pub struct LendingAccountCloseBalance<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
+        has_one = group,
+        has_one = authority
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    #[account(
-        address = marginfi_account.load()?.authority,
-    )]
-    pub signer: Signer<'info>,
+    pub authority: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

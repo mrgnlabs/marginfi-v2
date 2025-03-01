@@ -265,7 +265,8 @@ impl AccountsState {
         owner_pubkey: Pubkey,
         rent: Rent,
     ) -> AccountInfo {
-        let data_len = unpadded_len + 12;
+        let data_len = unpadded_len;
+        println!("len: {:?}", data_len);
         self.new_dex_owned_account_with_lamports(
             unpadded_len,
             rent.minimum_balance(data_len),
@@ -321,7 +322,7 @@ impl AccountsState {
 
     fn allocate_dex_owned_account<'bump>(&'bump self, unpadded_size: usize) -> &mut [u8] {
         assert_eq!(unpadded_size % 8, 0);
-        let padded_size = unpadded_size + 12;
+        let padded_size = unpadded_size;
         let u64_data = self.bump.alloc_slice_fill_copy(padded_size / 8 + 1, 0u64);
 
         transmute_to_bytes_mut(u64_data) as _

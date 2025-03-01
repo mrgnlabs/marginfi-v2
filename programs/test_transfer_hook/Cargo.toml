@@ -6,7 +6,6 @@ edition = "2021"
 [features]
 idl-build = []
 no-entrypoint = []
-ignore-fee-deploy = []
 
 [lib]
 crate-type = ["cdylib", "lib"]

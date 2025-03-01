@@ -48,6 +48,7 @@ async fn marginfi_account_borrow_success(
             lp_collateral_token_account.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -71,6 +72,7 @@ async fn marginfi_account_borrow_success(
             user_collateral_token_account_f.key,
             collateral_bank,
             deposit_amount,
+            None,
         )
         .await?;
 
@@ -213,6 +215,7 @@ async fn marginfi_account_borrow_failure_not_enough_collateral(
             lp_token_account_f_sol.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -236,6 +239,7 @@ async fn marginfi_account_borrow_failure_not_enough_collateral(
             borrower_collateral_token_account_f.key,
             collateral_bank,
             deposit_amount,
+            None,
         )
         .await?;
 
@@ -303,6 +307,7 @@ async fn marginfi_account_borrow_failure_borrow_limit(
             lp_collateral_token_account.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await
         .unwrap();
@@ -329,6 +334,7 @@ async fn marginfi_account_borrow_failure_borrow_limit(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             sufficient_collateral_amount,
+            None,
         )
         .await?;
 
@@ -386,7 +392,7 @@ async fn isolated_borrows() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_eq_iso_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_eq_iso_bank, 1_000, None)
         .await?;
 
     let lender_token_account_sol = test_f
@@ -394,7 +400,7 @@ async fn isolated_borrows() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -408,7 +414,7 @@ async fn isolated_borrows() -> anyhow::Result<()> {
         .create_empty_token_account()
         .await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 1_000, None)
         .await?;
 
     // Borrow SOL EQ

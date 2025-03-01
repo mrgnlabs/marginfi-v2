@@ -395,7 +395,7 @@ pub fn lending_account_liquidate<'info>(
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {
-            signer: Some(ctx.accounts.signer.key()),
+            signer: Some(ctx.accounts.authority.key()),
             marginfi_account: liquidator_marginfi_account_loader.key(),
             marginfi_account_authority: liquidator_marginfi_account.authority,
             marginfi_group: ctx.accounts.group.key(),
@@ -433,14 +433,12 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        has_one = authority
     )]
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    #[account(
-        address = liquidator_marginfi_account.load()?.authority
-    )]
-    pub signer: Signer<'info>,
+    pub authority: Signer<'info>,
 
     #[account(
         mut,

@@ -43,7 +43,7 @@ async fn marginfi_account_withdraw_success(
         .await;
     let bank_f = test_f.get_bank(&bank_mint);
     marginfi_account_f
-        .try_bank_deposit(token_account_f.key, bank_f, deposit_amount)
+        .try_bank_deposit(token_account_f.key, bank_f, deposit_amount, None)
         .await
         .unwrap();
 
@@ -186,7 +186,7 @@ async fn marginfi_account_withdraw_all_success(
     let bank_f = test_f.get_bank(&bank_mint);
 
     marginfi_account_f
-        .try_bank_deposit(token_account_f.key, bank_f, deposit_amount)
+        .try_bank_deposit(token_account_f.key, bank_f, deposit_amount, None)
         .await
         .unwrap();
 
@@ -289,7 +289,7 @@ async fn marginfi_account_withdraw_failure_withdrawing_too_much(
     let bank_f = test_f.get_bank(&bank_mint);
 
     marginfi_account_f
-        .try_bank_deposit(token_account_f.key, bank_f, deposit_amount)
+        .try_bank_deposit(token_account_f.key, bank_f, deposit_amount, None)
         .await?;
 
     let res = marginfi_account_f

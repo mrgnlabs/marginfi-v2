@@ -53,7 +53,6 @@ describe("Lending pool add bank (add bank to group)", () => {
       new Transaction().add(
         await addBank(groupAdmin.mrgnProgram, {
           marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
           bank: bankKey,
@@ -199,7 +198,6 @@ describe("Lending pool add bank (add bank to group)", () => {
       new Transaction().add(
         await addBank(groupAdmin.mrgnProgram, {
           marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
           bank: bankKey,

@@ -18,19 +18,17 @@ pub fn set_account_transfer_authority(
 
 #[derive(Accounts)]
 pub struct MarginfiAccountSetAccountAuthority<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        has_one = authority,
+        has_one = group
+    )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    /// CHECK: The group is confirmed by the address macro
-    #[account(
-        address = marginfi_account.load()?.group,
-    )]
-    pub marginfi_group: AccountInfo<'info>,
+    /// CHECK: Validated against account
+    pub group: AccountInfo<'info>,
 
-    #[account(
-        address = marginfi_account.load()?.authority,
-    )]
-    pub signer: Signer<'info>,
+    pub authority: Signer<'info>,
 
     /// CHECK: The new account authority doesn't need explicit checks
     pub new_authority: AccountInfo<'info>,

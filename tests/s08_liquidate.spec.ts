@@ -219,11 +219,11 @@ describe("Liquidate user (including staked assets)", () => {
       riskTier: defaultSettings.riskTier,
     };
     let editTx = new Transaction().add(
-      await editStakedSettings(groupAdmin.mrgnProgram, {
+      await editStakedSettings(groupAdmin.mrgnBankrunProgram, {
         settingsKey: settingsKey,
         settings: settings,
       }),
-      await propagateStakedSettings(program, {
+      await propagateStakedSettings(bankrunProgram, {
         settings: settingsKey,
         bank: assetBankKey,
         oracle: defaultSettings.oracle,
@@ -241,11 +241,10 @@ describe("Liquidate user (including staked assets)", () => {
       10 ** oracles.wsolDecimals;
 
     let tx = new Transaction().add(
-      await liquidateIx(bankrunProgram, {
+      await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
         liabilityBankKey,
         liquidatorMarginfiAccount: liquidatorAccount,
-        liquidatorMarginfiAccountAuthority: liquidatorMarginfiAccount.authority,
         liquidateeMarginfiAccount: liquidateeAccount,
         remaining: [
           oracles.wsolOracle.publicKey,

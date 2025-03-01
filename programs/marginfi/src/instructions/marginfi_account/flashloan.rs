@@ -28,10 +28,14 @@ pub fn lending_account_start_flashloan(
 
 #[derive(Accounts)]
 pub struct LendingAccountStartFlashloan<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        has_one = authority
+    )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-    #[account(address = marginfi_account.load()?.authority)]
-    pub signer: Signer<'info>,
+
+    pub authority: Signer<'info>,
+
     /// CHECK: Instructions sysvar
     #[account(address = sysvar::instructions::ID)]
     pub ixs_sysvar: AccountInfo<'info>,
@@ -140,8 +144,11 @@ pub fn lending_account_end_flashloan<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountEndFlashloan<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        has_one = authority
+    )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-    #[account(address = marginfi_account.load()?.authority)]
-    pub signer: Signer<'info>,
+
+    pub authority: Signer<'info>,
 }

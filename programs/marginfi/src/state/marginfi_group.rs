@@ -37,17 +37,11 @@ use std::{
     fmt::{Debug, Formatter},
     ops::Not,
 };
-
-#[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
 
 assert_struct_size!(MarginfiGroup, 1056);
 #[account(zero_copy)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
 pub struct MarginfiGroup {
     pub admin: Pubkey,
     /// Bitmask for group settings flags.
@@ -124,8 +118,7 @@ impl MarginfiGroup {
     }
 }
 
-#[cfg_attr(any(feature = "test", feature = "client"), derive(TypeLayout))]
-#[derive(AnchorSerialize, AnchorDeserialize, Default, Debug, Clone)]
+#[derive(AnchorSerialize, AnchorDeserialize, Default, Debug, Clone, TypeLayout)]
 pub struct GroupConfig {
     pub admin: Option<Pubkey>,
 }
@@ -139,11 +132,7 @@ pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
 }
 
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
-)]
-#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize, PartialEq, Eq)]
 pub struct InterestRateConfigCompact {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -191,13 +180,20 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
 }
 
 assert_struct_size!(InterestRateConfig, 240);
-#[zero_copy]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
+#[derive(
+    Default,
+    Debug,
+    Copy,
+    Clone,
+    AnchorSerialize,
+    AnchorDeserialize,
+    Zeroable,
+    Pod,
+    PartialEq,
+    Eq,
+    TypeLayout,
 )]
-#[derive(Default, Debug)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -408,11 +404,7 @@ pub struct ComputedInterestRates {
     pub protocol_fee_apr: I80F48,
 }
 
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
-#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone)]
+#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone, Debug, PartialEq, Eq, TypeLayout)]
 pub struct InterestRateConfigOpt {
     pub optimal_utilization_rate: Option<WrappedI80F48>,
     pub plateau_interest_rate: Option<WrappedI80F48>,
@@ -433,13 +425,9 @@ pub struct GroupBankConfig {
 
 assert_struct_size!(Bank, 1856);
 assert_struct_align!(Bank, 8);
-#[account(zero_copy(unsafe))]
+#[account(zero_copy)]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
 pub struct Bank {
     pub mint: Pubkey,
     pub mint_decimals: u8,
@@ -503,6 +491,8 @@ pub struct Bank {
 }
 
 impl Bank {
+    pub const LEN: usize = std::mem::size_of::<Bank>();
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         marginfi_group_pk: Pubkey,
@@ -1148,13 +1138,14 @@ fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48)
 }
 
 #[repr(u8)]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
+#[derive(Debug, Clone, Copy, AnchorDeserialize, AnchorSerialize, PartialEq, Eq)]
 pub enum BankOperationalState {
     Paused,
     Operational,
     ReduceOnly,
 }
+unsafe impl Zeroable for BankOperationalState {}
+unsafe impl Pod for BankOperationalState {}
 
 #[cfg(feature = "client")]
 impl Display for BankOperationalState {
@@ -1180,16 +1171,11 @@ pub enum RiskTier {
     /// they can't borrow XYZ together with SOL, only XYZ alone.
     Isolated = 1,
 }
-
 unsafe impl Zeroable for RiskTier {}
 unsafe impl Pod for RiskTier {}
 
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
-)]
-#[derive(AnchorDeserialize, AnchorSerialize, Debug)]
+#[derive(AnchorDeserialize, AnchorSerialize, Debug, PartialEq, Eq)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfigCompact {
     pub asset_weight_init: WrappedI80F48,
@@ -1279,7 +1265,8 @@ impl From<BankConfigCompact> for BankConfig {
             _pad1: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
-            _padding: [0; 38],
+            _padding0: [0; 6],
+            _padding1: [0; 32],
         }
     }
 }
@@ -1306,13 +1293,10 @@ impl From<BankConfig> for BankConfigCompact {
 
 assert_struct_size!(BankConfig, 544);
 assert_struct_align!(BankConfig, 8);
-#[zero_copy(unsafe)]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
+#[derive(
+    Debug, Clone, Copy, AnchorDeserialize, AnchorSerialize, Zeroable, Pod, PartialEq, Eq, TypeLayout,
 )]
-#[derive(Debug)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub asset_weight_init: WrappedI80F48,
@@ -1362,7 +1346,8 @@ pub struct BankConfig {
     pub oracle_max_age: u16,
 
     // Note: 6 bytes of padding to next 8 byte alignment, then end padding
-    pub _padding: [u8; 38],
+    pub _padding0: [u8; 6],
+    pub _padding1: [u8; 32],
 }
 
 impl Default for BankConfig {
@@ -1384,7 +1369,8 @@ impl Default for BankConfig {
             _pad1: [0; 6],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
-            _padding: [0; 38],
+            _padding0: [0; 6],
+            _padding1: [0; 32],
         }
     }
 }
@@ -1513,8 +1499,7 @@ impl BankConfig {
 
 #[zero_copy]
 #[repr(C, align(8))]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(TypeLayout))]
-#[derive(Default, BorshDeserialize, BorshSerialize)]
+#[derive(Default, BorshDeserialize, BorshSerialize, TypeLayout)]
 pub struct WrappedI80F48 {
     pub value: [u8; 16],
 }
@@ -1547,11 +1532,7 @@ impl PartialEq for WrappedI80F48 {
 
 impl Eq for WrappedI80F48 {}
 
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Clone, PartialEq, Eq, TypeLayout)
-)]
-#[derive(AnchorDeserialize, AnchorSerialize, Default)]
+#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone, PartialEq, Eq, TypeLayout)]
 pub struct BankConfigOpt {
     pub asset_weight_init: Option<WrappedI80F48>,
     pub asset_weight_maint: Option<WrappedI80F48>,

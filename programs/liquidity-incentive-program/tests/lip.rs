@@ -150,7 +150,7 @@ async fn campaign_mixed_yield() -> Result<()> {
     let sol_funding_account = test_f.sol_mint.create_token_account_and_mint_to(1000).await;
 
     borrower
-        .try_bank_deposit(sol_funding_account.key, &sol_bank, 1000)
+        .try_bank_deposit(sol_funding_account.key, &sol_bank, 1000, None)
         .await?;
 
     let usdc_borrowing_account = test_f
@@ -243,7 +243,7 @@ async fn campaign_max_yield() -> Result<()> {
     let sol_funding_account = test_f.sol_mint.create_token_account_and_mint_to(1000).await;
 
     borrower
-        .try_bank_deposit(sol_funding_account.key, &sol_bank, 1000)
+        .try_bank_deposit(sol_funding_account.key, &sol_bank, 1000, None)
         .await?;
 
     let usdc_borrowing_account = test_f

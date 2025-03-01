@@ -19,6 +19,7 @@ enum Action {
         account: AccountIdx,
         bank: BankIdx,
         asset_amount: AssetAmount,
+        deposit_up_to_limit: bool,
     },
     Borrow {
         account: AccountIdx,
@@ -199,7 +200,8 @@ fn process_action<'bump>(action: &Action, mga: &'bump MarginfiFuzzContext<'bump>
             account,
             bank,
             asset_amount,
-        } => mga.process_action_deposit(account, bank, asset_amount)?,
+            deposit_up_to_limit,
+        } => mga.process_action_deposit(account, bank, asset_amount, Some(*deposit_up_to_limit))?,
         Action::Withdraw {
             account,
             bank,
