@@ -168,6 +168,8 @@ pub enum GroupCommand {
     },
     EditFeeState {
         #[clap(long)]
+        new_admin: Pubkey,
+        #[clap(long)]
         fee_wallet: Pubkey,
         #[clap(long)]
         bank_init_flat_sol_fee: u32,
@@ -666,12 +668,14 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             program_fee_rate,
         ),
         GroupCommand::EditFeeState {
+            new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         } => processor::edit_fee_state(
             config,
+            new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
             program_fee_fixed,

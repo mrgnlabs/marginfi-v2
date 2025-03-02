@@ -561,15 +561,21 @@ impl<'info> RiskEngine<'_, 'info> {
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(requirement_type)?;
 
-        debug!(
-            "check_health: assets {} - liabs: {}",
-            total_weighted_assets, total_weighted_liabilities
-        );
-
-        check!(
-            total_weighted_assets >= total_weighted_liabilities,
-            MarginfiError::RiskEngineInitRejected
-        );
+        if total_weighted_assets >= total_weighted_liabilities {
+            debug!(
+                "check_health: assets {} - liabs: {}",
+                total_weighted_assets, total_weighted_liabilities
+            );
+        } else {
+            let assets_u128: u128 = total_weighted_assets.to_num();
+            let liabs_u128: u128 = total_weighted_liabilities.to_num();
+            msg!(
+                "check_health: assets {} - liabs: {}",
+                assets_u128,
+                liabs_u128
+            );
+            return err!(MarginfiError::RiskEngineInitRejected);
+        }
 
         self.check_account_risk_tiers()?;
 

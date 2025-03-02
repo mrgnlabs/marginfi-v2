@@ -24,5 +24,7 @@ pub fn config_group_fee(ctx: Context<ConfigGroupFee>, flag: u64) -> MarginfiResu
 
     marginfi_group.set_flags(flag)?;
 
+    msg!("flags set to: {:?}", flag);
+
     Ok(())
 }

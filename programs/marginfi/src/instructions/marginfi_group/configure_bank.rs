@@ -92,6 +92,14 @@ pub fn lending_pool_setup_emissions(
     bank.emissions_rate = emissions_rate;
     bank.emissions_remaining = I80F48::from_num(total_emissions).into();
 
+    msg!("init emissions with mint: {:?}", bank.emissions_mint,);
+    msg!(
+        "flags: {:?} rate: {:?} total: {:?}",
+        emissions_flags,
+        emissions_rate,
+        total_emissions
+    );
+
     let initial_emissions_amount_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
         ctx.accounts.emissions_mint.to_account_info(),
         total_emissions,

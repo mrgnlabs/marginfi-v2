@@ -6,6 +6,7 @@ use crate::{
         LIQUIDITY_VAULT_SEED,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
+    log_pool_info,
     state::{
         fee_state::FeeState,
         marginfi_group::{Bank, BankConfigCompact, MarginfiGroup},
@@ -73,8 +74,7 @@ pub fn lending_pool_add_bank(
         fee_vault_authority_bump,
     );
 
-    bank.config.validate()?;
-    bank.config.validate_oracle_age()?;
+    log_pool_info(&bank);
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {
