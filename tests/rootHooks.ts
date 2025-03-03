@@ -160,16 +160,21 @@ export const mochaHooks = {
     );
 
     // Init the global fee state
-    miscSetupTx.add(
-      await initGlobalFeeState(mrgnProgram, {
-        payer: provider.publicKey,
-        admin: wallet.payer.publicKey,
-        wallet: globalFeeWallet,
-        bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
-        programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
-        programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
-      })
-    );
+    const [feeState] = deriveGlobalFeeState(mrgnProgram.programId);
+    const feeStateExists =
+      (await mrgnProgram.provider.connection.getAccountInfo(feeState));
+    if (!feeStateExists) {
+      miscSetupTx.add(
+        await initGlobalFeeState(mrgnProgram, {
+          payer: provider.publicKey,
+          admin: wallet.payer.publicKey,
+          wallet: globalFeeWallet,
+          bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
+          programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
+          programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
+        })
+      );
+    }
 
     await provider.sendAndConfirm(miscSetupTx);
     copyKeys.push(

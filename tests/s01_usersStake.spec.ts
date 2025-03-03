@@ -200,7 +200,7 @@ describe("User stakes some native and creates an account", () => {
     }
   });
 
-  it("(user 0) Deposits " + stake + "stake to the v0 LST pool", async () => {
+  it("(user 0) Deposits " + stake + " stake to the v0 LST pool", async () => {
     const userStakeAccount = users[0].accounts.get(STAKE_ACC);
     // Note: use `findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, splPool);` if mint is not known.
     const lstAta = getAssociatedTokenAddressSync(
