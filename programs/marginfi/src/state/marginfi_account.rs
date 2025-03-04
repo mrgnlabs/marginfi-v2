@@ -210,7 +210,12 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
             .filter(|balance| balance.is_active())
             .map(|balance| {
                 // Get the bank
-                let bank_ai = remaining_ais.get(account_index).unwrap();
+                let bank_ai = remaining_ais.get(account_index);
+                if bank_ai.is_none() {
+                    msg!("Ran out of remaining accounts at {:?}", account_index);
+                    return err!(MarginfiError::InvalidBankAccount);
+                }
+                let bank_ai = bank_ai.unwrap();
                 let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
 
                 // Determine number of accounts to process for this balance

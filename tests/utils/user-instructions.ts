@@ -326,11 +326,11 @@ export const repayIx = (program: Program<Marginfi>, args: RepayIxArgs) => {
       signerTokenAccount: args.tokenAccount,
       // bankLiquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
       // bankLiquidityVault = deriveLiquidityVault(id, bank)
-            tokenProgram: TOKEN_PROGRAM_ID,
+      tokenProgram: TOKEN_PROGRAM_ID,
     })
     .remainingAccounts(oracleMeta)
     .instruction();
-    return ix;
+  return ix;
 };
 
 export type LiquidateIxArgs = {
@@ -344,12 +344,12 @@ export type LiquidateIxArgs = {
 
 /**
  * Creates a Liquidate instruction.
- * `remaining`:
- *     liab_mint_ai (if token2022 mint),
- *     asset_oracle_ai,
- *     liab_oracle_ai,
- *     liquidator_observation_ais...,
- *     liquidatee_observation_ais...,
+ * * `remaining`:
+ *     * liab_mint_ai (if token2022 mint),
+ *     * asset_oracle_ai,
+ *     * liab_oracle_ai,
+ *     * liquidator_observation_ais...,
+ *     * liquidatee_observation_ais...,
  *
  * @param program - The marginfi program instance.
  * @param args - The arguments required to create the instruction.
@@ -368,7 +368,6 @@ export const liquidateIx = (
     return { pubkey, isSigner: false, isWritable: false };
   });
 
-  // Return the instruction
   return program.methods
     .lendingAccountLiquidate(args.amount)
     .accounts({
@@ -377,6 +376,44 @@ export const liquidateIx = (
       liquidatorMarginfiAccount: args.liquidatorMarginfiAccount,
       liquidateeMarginfiAccount: args.liquidateeMarginfiAccount,
       tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+};
+
+export type HealthPulseArgs = {
+  marginfiAccount: PublicKey;
+  remaining: PublicKey[];
+};
+
+/**
+ * Creates a Health pulse instruction. This tx sets the user's risk engine health cache, a read-only
+ * way to access the on-chain risk engine's current state, typically for debugging purposes.
+ * * `remaining` - pass bank/oracles for each bank the user is involved with, in the SAME ORDER they
+ *   appear in userAcc.balances (e.g. `[bank0, oracle0, bank1, oracle1]`). For staked collateral
+ *   positions, pass the stake account and lst mint for the single pool as well: [bank0, oracle0,
+ *   stakeAcc0, lstmint0]
+ * @param program
+ * @param args
+ * @returns
+ */
+export const healthPulse = (
+  program: Program<Marginfi>,
+  args: HealthPulseArgs
+) => {
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
+    if (!(pubkey instanceof PublicKey)) {
+      console.error("Invalid remaining key:", pubkey);
+      throw new Error("remaining contains invalid keys");
+    }
+
+    return { pubkey, isSigner: false, isWritable: false };
+  });
+
+  return program.methods
+    .lendingAccountPulseHealth()
+    .accounts({
+      marginfiAccount: args.marginfiAccount,
     })
     .remainingAccounts(oracleMeta)
     .instruction();

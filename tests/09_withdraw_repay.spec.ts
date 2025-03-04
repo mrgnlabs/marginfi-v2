@@ -241,7 +241,7 @@ describe("Withdraw funds", () => {
     const user = users[0];
     const userAccKey = user.accounts.get(USER_ACCOUNT);
     const bank = bankKeypairUsdc.publicKey;
-    expectFailedTxWithError(async () => {
+    await expectFailedTxWithError(async () => {
       await user.mrgnProgram.provider.sendAndConfirm(
         new Transaction().add(
           await repayIx(user.mrgnProgram, {
