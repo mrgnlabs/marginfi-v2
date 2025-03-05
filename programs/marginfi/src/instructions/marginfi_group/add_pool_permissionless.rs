@@ -8,6 +8,7 @@ use crate::{
         SPL_SINGLE_POOL_ID,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
+    log_pool_info,
     state::{
         marginfi_group::{
             Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiGroup,
@@ -94,6 +95,8 @@ pub fn lending_pool_add_bank_permissionless(
     );
     bank.config.oracle_setup = OracleSetup::StakedWithPythPush;
     bank.config.oracle_keys[0] = settings.oracle;
+
+    log_pool_info(&bank);
 
     bank.config.validate()?;
 

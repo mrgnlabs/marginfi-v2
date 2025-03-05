@@ -1,22 +1,20 @@
-use std::{cell::Ref, cmp::min};
-
 use anchor_lang::prelude::*;
 use anchor_spl::token::Mint;
 use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
+pub use pyth_sdk_solana;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
+use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{CurrentResult, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID};
 use switchboard_solana::{
     AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
 };
 
-pub use pyth_sdk_solana;
-
 use crate::{
-    check,
+    check, check_eq,
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL,
         MIN_PYTH_PUSH_VERIFICATION_LEVEL, NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID,
@@ -114,8 +112,9 @@ impl OraclePriceFeedAdapter {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
             OracleSetup::PythLegacy => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
-                check!(
-                    ais[0].key == &bank_config.oracle_keys[0],
+                check_eq!(
+                    ais[0].key,
+                    &bank_config.oracle_keys[0],
                     MarginfiError::InvalidOracleAccount
                 );
 
@@ -127,8 +126,9 @@ impl OraclePriceFeedAdapter {
             }
             OracleSetup::SwitchboardV2 => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
-                check!(
-                    ais[0].key == &bank_config.oracle_keys[0],
+                check_eq!(
+                    ais[0].key,
+                    &bank_config.oracle_keys[0],
                     MarginfiError::InvalidOracleAccount
                 );
 
@@ -140,9 +140,9 @@ impl OraclePriceFeedAdapter {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
 
                 let account_info = &ais[0];
-
-                check!(
-                    account_info.owner == &pyth_solana_receiver_sdk::id(),
+                check_eq!(
+                    account_info.owner,
+                    &pyth_solana_receiver_sdk::id(),
                     MarginfiError::InvalidOracleAccount
                 );
 
@@ -159,8 +159,9 @@ impl OraclePriceFeedAdapter {
             }
             OracleSetup::SwitchboardPull => {
                 check!(ais.len() == 1, MarginfiError::InvalidOracleAccount);
-                check!(
-                    ais[0].key == &bank_config.oracle_keys[0],
+                check_eq!(
+                    ais[0].key,
+                    &bank_config.oracle_keys[0],
                     MarginfiError::InvalidOracleAccount
                 );
 
@@ -171,9 +172,14 @@ impl OraclePriceFeedAdapter {
             OracleSetup::StakedWithPythPush => {
                 check!(ais.len() == 3, MarginfiError::InvalidOracleAccount);
 
-                check!(
-                    ais[1].key == &bank_config.oracle_keys[1]
-                        && ais[2].key == &bank_config.oracle_keys[2],
+                check_eq!(
+                    ais[1].key,
+                    &bank_config.oracle_keys[1],
+                    MarginfiError::InvalidOracleAccount
+                );
+                check_eq!(
+                    ais[2].key,
+                    &bank_config.oracle_keys[2],
                     MarginfiError::InvalidOracleAccount
                 );
 
@@ -205,8 +211,9 @@ impl OraclePriceFeedAdapter {
                 )) {
                     let account_info = &ais[0];
 
-                    check!(
-                        account_info.owner == &pyth_solana_receiver_sdk::id(),
+                    check_eq!(
+                        account_info.owner,
+                        &pyth_solana_receiver_sdk::id(),
                         MarginfiError::InvalidOracleAccount
                     );
 
@@ -235,8 +242,9 @@ impl OraclePriceFeedAdapter {
                     Ok(price)
                 } else {
                     // Localnet only
-                    check!(
-                        ais[0].key == &bank_config.oracle_keys[0],
+                    check_eq!(
+                        ais[0].key,
+                        &bank_config.oracle_keys[0],
                         MarginfiError::InvalidOracleAccount
                     );
 
@@ -282,8 +290,9 @@ impl OraclePriceFeedAdapter {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
             OracleSetup::PythLegacy => {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
-                check!(
-                    oracle_ais[0].key == &bank_config.oracle_keys[0],
+                check_eq!(
+                    oracle_ais[0].key,
+                    &bank_config.oracle_keys[0],
                     MarginfiError::InvalidOracleAccount
                 );
 
@@ -293,8 +302,9 @@ impl OraclePriceFeedAdapter {
             }
             OracleSetup::SwitchboardV2 => {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
-                check!(
-                    oracle_ais[0].key == &bank_config.oracle_keys[0],
+                check_eq!(
+                    oracle_ais[0].key,
+                    &bank_config.oracle_keys[0],
                     MarginfiError::InvalidOracleAccount
                 );
 
@@ -314,8 +324,9 @@ impl OraclePriceFeedAdapter {
             }
             OracleSetup::SwitchboardPull => {
                 check!(oracle_ais.len() == 1, MarginfiError::InvalidOracleAccount);
-                check!(
-                    oracle_ais[0].key == &bank_config.oracle_keys[0],
+                check_eq!(
+                    oracle_ais[0].key,
+                    &bank_config.oracle_keys[0],
                     MarginfiError::InvalidOracleAccount
                 );
 
@@ -335,8 +346,9 @@ impl OraclePriceFeedAdapter {
                         )?;
                     } else {
                         // Localnet only
-                        check!(
-                            oracle_ais[0].key == &bank_config.oracle_keys[0],
+                        check_eq!(
+                            oracle_ais[0].key,
+                            &bank_config.oracle_keys[0],
                             MarginfiError::InvalidOracleAccount
                         );
 
@@ -352,28 +364,31 @@ impl OraclePriceFeedAdapter {
                     // Validate the given stake_pool derives the same lst_mint, proving stake_pool is correct
                     let (exp_mint, _) =
                         Pubkey::find_program_address(&[b"mint", stake_pool_bytes], program_id);
-                    check!(
-                        exp_mint == lst_mint,
-                        MarginfiError::StakePoolValidationFailed
-                    );
+                    check_eq!(exp_mint, lst_mint, MarginfiError::StakePoolValidationFailed);
                     // Validate the now-proven stake_pool derives the given sol_pool
                     let (exp_pool, _) =
                         Pubkey::find_program_address(&[b"stake", stake_pool_bytes], program_id);
-                    check!(
-                        exp_pool == sol_pool.key(),
-                        MarginfiError::StakePoolValidationFailed
-                    );
+                    check_eq!(exp_pool, sol_pool, MarginfiError::StakePoolValidationFailed);
 
                     // Sanity check the mint. Note: spl-single-pool uses a classic Token, never Token22
                     check!(
-                        oracle_ais[1].owner == &SPL_TOKEN_PROGRAM_ID
-                            && oracle_ais[1].key() == lst_mint,
+                        oracle_ais[1].owner == &SPL_TOKEN_PROGRAM_ID,
+                        MarginfiError::StakePoolValidationFailed
+                    );
+                    check_eq!(
+                        oracle_ais[1].key(),
+                        lst_mint,
                         MarginfiError::StakePoolValidationFailed
                     );
                     // Sanity check the pool is a native stake pool. Note: the native staking program is
                     // written in vanilla Solana and has no Anchor discriminator.
                     check!(
-                        oracle_ais[2].owner == &NATIVE_STAKE_ID && oracle_ais[2].key() == sol_pool,
+                        oracle_ais[2].owner == &NATIVE_STAKE_ID,
+                        MarginfiError::StakePoolValidationFailed
+                    );
+                    check_eq!(
+                        oracle_ais[2].key(),
+                        sol_pool,
                         MarginfiError::StakePoolValidationFailed
                     );
 
@@ -873,8 +888,9 @@ impl PythPushOraclePriceFeed {
     pub fn check_ai_and_feed_id(ai: &AccountInfo, feed_id: &FeedId) -> MarginfiResult {
         let price_feed_account = load_price_update_v2_checked(ai)?;
 
-        check!(
-            &price_feed_account.price_message.feed_id.eq(feed_id),
+        check_eq!(
+            feed_id,
+            &price_feed_account.price_message.feed_id,
             MarginfiError::InvalidOracleAccount
         );
 

@@ -1,5 +1,6 @@
 mod accrue_bank_interest;
 mod add_pool;
+mod add_pool_common;
 mod add_pool_permissionless;
 mod add_pool_with_seed;
 mod collect_bank_fees;
@@ -18,6 +19,7 @@ mod propagate_staked_settings;
 
 pub use accrue_bank_interest::*;
 pub use add_pool::*;
+pub use add_pool_common::*;
 pub use add_pool_permissionless::*;
 pub use add_pool_with_seed::*;
 pub use collect_bank_fees::*;

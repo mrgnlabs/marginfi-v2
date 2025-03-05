@@ -1019,6 +1019,7 @@ pub fn initialize_fee_state(
 
 pub fn edit_fee_state(
     config: Config,
+    new_admin: Pubkey,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
     program_fee_fixed: f64,
@@ -1039,6 +1040,7 @@ pub fn edit_fee_state(
             fee_state: fee_state_pubkey,
         })
         .args(marginfi::instruction::EditGlobalFeeState {
+            admin: new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
             program_fee_fixed,
