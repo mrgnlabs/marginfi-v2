@@ -700,10 +700,18 @@ impl Bank {
         set_if_some!(self.config.oracle_max_age, config.oracle_max_age);
 
         if let Some(flag) = config.permissionless_bad_debt_settlement {
+            msg!(
+                "setting bad debt settlement: {:?}",
+                config.permissionless_bad_debt_settlement.unwrap()
+            );
             self.update_flag(flag, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG);
         }
 
         if let Some(flag) = config.freeze_settings {
+            msg!(
+                "setting freeze settings: {:?}",
+                config.freeze_settings.unwrap()
+            );
             self.update_flag(flag, FREEZE_SETTINGS);
         }
 
