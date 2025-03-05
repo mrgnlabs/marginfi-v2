@@ -35,13 +35,13 @@ import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
-import { configureBank } from "./utils/instructions";
 import {
   defaultBankConfigOptRaw,
   HEALTH_CACHE_ENGINE_OK,
   HEALTH_CACHE_HEALTHY,
   HEALTH_CACHE_NONE,
 } from "./utils/types";
+import { configureBank } from "./utils/group-instructions";
 
 describe("Health pulse", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -238,11 +238,9 @@ describe("Health pulse", () => {
 
   it("(admin) restore the default config to Token A bank", async () => {
     let config = defaultBankConfigOptRaw();
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await configureBank(program, {
-          marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
+        await configureBank(groupAdmin.mrgnProgram, {
           bank: bankKeypairA.publicKey,
           bankConfigOpt: config,
         })

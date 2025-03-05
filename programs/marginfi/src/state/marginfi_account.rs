@@ -590,7 +590,7 @@ impl<'info> RiskEngine<'_, 'info> {
                 "check_health: assets {} - liabs: {}",
                 total_weighted_assets, total_weighted_liabilities
             );
-            health_cache.set_healthy(false);
+            health_cache.set_healthy(true);
         } else {
             let assets_u128: u128 = total_weighted_assets.to_num();
             let liabs_u128: u128 = total_weighted_liabilities.to_num();
@@ -599,7 +599,7 @@ impl<'info> RiskEngine<'_, 'info> {
                 assets_u128,
                 liabs_u128
             );
-            health_cache.set_healthy(true);
+            health_cache.set_healthy(false);
             return err!(MarginfiError::RiskEngineInitRejected);
         }
 

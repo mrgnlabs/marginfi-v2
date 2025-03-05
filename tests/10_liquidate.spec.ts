@@ -34,8 +34,8 @@ import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
-import { configureBank } from "./utils/instructions";
 import { defaultBankConfigOptRaw } from "./utils/types";
+import { configureBank } from "./utils/group-instructions";
 
 describe("Liquidate user", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -164,11 +164,9 @@ describe("Liquidate user", () => {
     let config = defaultBankConfigOptRaw();
     config.assetWeightInit = bigNumberToWrappedI80F48(0.05);
     config.assetWeightMaint = bigNumberToWrappedI80F48(0.1);
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await configureBank(program, {
-          marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
+        await configureBank(groupAdmin.mrgnProgram, {
           bank: bankKeypairA.publicKey,
           bankConfigOpt: config,
         })
