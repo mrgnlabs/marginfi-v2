@@ -275,9 +275,10 @@ pub mod marginfi {
         )
     }
 
-    /// (global fee admin only) Adjust fees or the destination wallet
+    /// (global fee admin only) Adjust fees, admin, or the destination wallet
     pub fn edit_global_fee_state(
         ctx: Context<EditFeeState>,
+        admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
@@ -285,6 +286,7 @@ pub mod marginfi {
     ) -> MarginfiResult {
         marginfi_group::edit_fee_state(
             ctx,
+            admin,
             fee_wallet,
             bank_init_flat_sol_fee,
             program_fee_fixed,

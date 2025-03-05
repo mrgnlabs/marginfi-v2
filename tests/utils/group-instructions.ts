@@ -332,6 +332,7 @@ export type EditGlobalFeeStateArgs = {
   bankInitFlatSolFee: number;
   programFeeFixed: WrappedI80F48;
   programFeeRate: WrappedI80F48;
+  newAdmin?: PublicKey;
 };
 
 // TODO add test for this
@@ -341,6 +342,7 @@ export const editGlobalFeeState = (
 ) => {
   const ix = program.methods
     .editGlobalFeeState(
+      args.newAdmin ? args.newAdmin : args.admin,
       args.wallet,
       args.bankInitFlatSolFee,
       args.programFeeFixed,
