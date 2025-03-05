@@ -301,6 +301,8 @@ export type Oracles = {
   tokenBOracle: Keypair;
   tokenBPrice: number;
   tokenBDecimals: number;
+  /** Same initial price/decimals as USDC, but different key. */
+  fakeUsdc: PublicKey;
 };
 
 /**

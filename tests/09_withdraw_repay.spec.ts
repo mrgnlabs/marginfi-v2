@@ -31,7 +31,10 @@ import {
 } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { updatePriceAccount } from "./utils/pyth_mocks";
-import { createAssociatedTokenAccountIdempotentInstruction, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  wrappedI80F48toBigNumber,
+} from "@mrgnlabs/mrgn-common";
 import { u64MAX_BN } from "./utils/types";
 
 describe("Withdraw funds", () => {
@@ -43,7 +46,7 @@ describe("Withdraw funds", () => {
   const withdrawAmountTokenA_native = new BN(
     withdrawAmountTokenA * 10 ** ecosystem.tokenADecimals
   );
-  createAssociatedTokenAccountIdempotentInstruction
+  createAssociatedTokenAccountIdempotentInstruction;
 
   const repayAmountUsdc = 0.1;
   const repayAmountUsdc_native = new BN(
@@ -86,6 +89,32 @@ describe("Withdraw funds", () => {
       },
       wallet
     );
+  });
+
+  it("(user 0) withdraws with bad oracle - should fail", async () => {
+    const user = users[0];
+    const userAccKey = user.accounts.get(USER_ACCOUNT);
+    const bank = bankKeypairA.publicKey;
+
+    await expectFailedTxWithError(async () => {
+      await user.mrgnProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          await withdrawIx(user.mrgnProgram, {
+            marginfiAccount: userAccKey,
+            bank: bank,
+            tokenAccount: user.tokenAAccount,
+            remaining: [
+              bankKeypairA.publicKey,
+              oracles.tokenAOracle.publicKey,
+              bankKeypairUsdc.publicKey,
+              oracles.fakeUsdc,
+            ],
+            amount: withdrawAmountTokenA_native,
+          })
+        )
+      );
+      // Note: the error logs describe this as "Invalid Pyth account" too, so this is enough detail...
+    }, "StaleOracle");
   });
 
   it("(user 0) withdraws some token A - happy path", async () => {

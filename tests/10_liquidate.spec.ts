@@ -86,7 +86,44 @@ describe("Liquidate user", () => {
     );
   });
 
-  it("(user 1) tries to sneak in a bad oracle - should fail", async () => {
+  it("(user 1) tries to sneak in a bad oracle for itself - should fail", async () => {
+    const liquidatee = users[0];
+    const liquidator = users[1];
+
+    const assetBankKey = bankKeypairA.publicKey;
+    const liabilityBankKey = bankKeypairUsdc.publicKey;
+    const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT);
+    const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT);
+
+    await expectFailedTxWithError(async () => {
+      await liquidator.mrgnProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          await liquidateIx(liquidator.mrgnProgram, {
+            assetBankKey,
+            liabilityBankKey,
+            liquidatorMarginfiAccount: liquidatorAccount,
+            liquidateeMarginfiAccount: liquidateeAccount,
+            remaining: [
+              oracles.tokenAOracle.publicKey,
+              oracles.usdcOracle.publicKey,
+              liabilityBankKey,
+              oracles.fakeUsdc, // sneaky sneaky
+              assetBankKey,
+              oracles.tokenAOracle.publicKey,
+              assetBankKey,
+              oracles.tokenAOracle.publicKey,
+              liabilityBankKey,
+              oracles.usdcOracle.publicKey,
+            ],
+            amount: liquidateAmountA_native,
+          })
+        )
+      );
+      // TODO this should throw a more oracle-specific error further upstream, this is kinda dumb.
+    }, "IllegalLiquidation");
+  });
+
+  it("(user 1) tries to sneak in a bad oracle for the liquidatee - should fail", async () => {
     const liquidatee = users[0];
     const liquidator = users[1];
 
@@ -109,17 +146,34 @@ describe("Liquidate user", () => {
               liabilityBankKey,
               oracles.usdcOracle.publicKey,
               assetBankKey,
-              oracles.wsolOracle.publicKey, // sneaky bad oracle...
+              oracles.tokenAOracle.publicKey,
               assetBankKey,
               oracles.tokenAOracle.publicKey,
               liabilityBankKey,
-              oracles.usdcOracle.publicKey,
+              oracles.fakeUsdc, // sneaky sneaky
             ],
             amount: liquidateAmountA_native,
           })
         )
       );
-    }, "errr");
+      // This gives you a generic Stale Oracle failure upstream of the ai failing to match the bank's
+    }, "StaleOracle");
+  });
+
+  it("(admin) vastly reduce Token A bank collateral ratio to induce liquidation", async () => {
+    let config = defaultBankConfigOptRaw();
+    config.assetWeightInit = bigNumberToWrappedI80F48(0.05);
+    config.assetWeightMaint = bigNumberToWrappedI80F48(0.1);
+    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+      new Transaction().add(
+        await configureBank(program, {
+          marginfiGroup: marginfiGroup.publicKey,
+          admin: groupAdmin.wallet.publicKey,
+          bank: bankKeypairA.publicKey,
+          bankConfigOpt: config,
+        })
+      )
+    );
   });
 
   /**
@@ -242,20 +296,6 @@ describe("Liquidate user", () => {
           ).toString()
       );
     }
-
-    let config = defaultBankConfigOptRaw();
-    config.assetWeightInit = bigNumberToWrappedI80F48(0.05);
-    config.assetWeightMaint = bigNumberToWrappedI80F48(0.1);
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
-      new Transaction().add(
-        await configureBank(program, {
-          marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
-          bank: assetBankKey,
-          bankConfigOpt: config,
-        })
-      )
-    );
 
     const tokenALowPrice = oracles.tokenAPrice * (1 - confidenceInterval); // see top of test
     const usdcHighPrice = oracles.usdcPrice * (1 + confidenceInterval); // see top of test

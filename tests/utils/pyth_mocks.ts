@@ -294,9 +294,9 @@ export const writeProductBuffer = (
  * @param wsolDecimals
  * @param usdcPrice
  * @param usdcDecimals
- * @param tokenAPrice:   
+ * @param tokenAPrice:
  * @param tokenADecimals:
- * @param tokenBPrice:   
+ * @param tokenBPrice:
  * @param tokenBDecimals:
  * @param verbose
  * @param skips - set to true to skip sending txes, which makes tests run faster if you don't need
@@ -349,6 +349,27 @@ export const setupPythOracles = async (
   } else {
     await updatePriceAccount(
       usdcPythOracle,
+      {
+        exponent: -usdcDecimals,
+        aggregatePriceInfo: {
+          price: price,
+          conf: price / BigInt(100), // 1% of the price
+        },
+        twap: {
+          valueComponent: price,
+        },
+      },
+      wallet
+    );
+  }
+
+  let fakeUsdcPythOracle = await createPriceAccount(wallet);
+  price = BigInt(usdcPrice * 10 ** usdcDecimals);
+  if (skips && skips.usdc) {
+    // do nothing
+  } else {
+    await updatePriceAccount(
+      fakeUsdcPythOracle,
       {
         exponent: -usdcDecimals,
         aggregatePriceInfo: {
@@ -450,6 +471,7 @@ export const setupPythOracles = async (
     usdcPrice: usdcPrice,
     tokenAPrice: tokenAPrice,
     tokenBPrice: tokenBPrice,
+    fakeUsdc: fakeUsdcPythOracle.publicKey,
   };
   return oracles;
 };
