@@ -61,11 +61,9 @@ describe("Lending pool configure bank", () => {
       freezeSettings: null,
     };
 
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await configureBank(program, {
-          marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
+        await configureBank(groupAdmin.mrgnProgram, {
           bank: bankKey,
           bankConfigOpt: bankConfigOpt,
         })
@@ -101,11 +99,9 @@ describe("Lending pool configure bank", () => {
   });
 
   it("(admin) Restore default settings to bank (USDC)", async () => {
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await configureBank(program, {
-          marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
+        await configureBank(groupAdmin.mrgnProgram, {
           bank: bankKeypairUsdc.publicKey,
           bankConfigOpt: defaultBankConfigOptRaw(),
         })
@@ -132,7 +128,7 @@ describe("Lending pool configure bank", () => {
 
   it("(admin) restore to valid oracle (USDC)", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
         await configureBankOracle(groupAdmin.mrgnProgram, {
           bank: bankKey,
@@ -150,7 +146,7 @@ describe("Lending pool configure bank", () => {
   it("(admin) update oracle to invalid state - should fail", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
     await expectFailedTxWithError(async () => {
-      await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+      await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
           await configureBankOracle(groupAdmin.mrgnProgram, {
             bank: bankKey,
@@ -162,7 +158,7 @@ describe("Lending pool configure bank", () => {
     }, "InvalidOracleAccount");
 
     await expectFailedTxWithMessage(async () => {
-      await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+      await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
           await configureBankOracle(groupAdmin.mrgnProgram, {
             bank: bankKey,
@@ -178,7 +174,7 @@ describe("Lending pool configure bank", () => {
     const bankKey = bankKeypairUsdc.publicKey;
 
     await expectFailedTxWithError(async () => {
-      await users[0].mrgnProgram!.provider.sendAndConfirm!(
+      await users[0].mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
           await configureBankOracle(users[0].mrgnProgram, {
             bank: bankKey,
@@ -205,11 +201,9 @@ describe("Lending pool configure bank", () => {
   it("(admin) Freeze USDC settings so they cannot be changed again (USDC)", async () => {
     let config = defaultBankConfigOptRaw();
     config.freezeSettings = true;
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await configureBank(program, {
-          marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
+        await configureBank(groupAdmin.mrgnProgram, {
           bank: bankKeypairUsdc.publicKey,
           bankConfigOpt: config,
         })
@@ -223,7 +217,7 @@ describe("Lending pool configure bank", () => {
     const bankKey = bankKeypairUsdc.publicKey;
 
     await expectFailedTxWithMessage(async () => {
-      await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+      await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
           await configureBankOracle(groupAdmin.mrgnProgram, {
             bank: bankKey,
@@ -246,11 +240,9 @@ describe("Lending pool configure bank", () => {
     configNew.oracleMaxAge = 42;
     configNew.freezeSettings = false;
 
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await configureBank(program, {
-          marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
+        await configureBank(groupAdmin.mrgnProgram, {
           bank: bankKeypairUsdc.publicKey,
           bankConfigOpt: configNew,
         })

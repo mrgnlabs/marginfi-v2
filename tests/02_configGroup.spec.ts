@@ -1,7 +1,4 @@
-import {
-  Program,
-  workspace,
-} from "@coral-xyz/anchor";
+import { Program, workspace } from "@coral-xyz/anchor";
 import { Keypair, Transaction } from "@solana/web3.js";
 import { groupConfigure } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
@@ -12,12 +9,11 @@ describe("Config group", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
 
   it("(admin) Config group - no change", async () => {
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await groupConfigure(program, {
+        await groupConfigure(groupAdmin.mrgnProgram, {
           newAdmin: null,
           marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
         })
       )
     );
@@ -30,12 +26,11 @@ describe("Config group", () => {
 
   it("(admin) Config group - set new admin", async () => {
     let newAdmin = Keypair.generate();
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await groupConfigure(program, {
+        await groupConfigure(groupAdmin.mrgnProgram, {
           newAdmin: newAdmin.publicKey,
           marginfiGroup: marginfiGroup.publicKey,
-          admin: groupAdmin.wallet.publicKey,
         })
       )
     );
@@ -46,20 +41,26 @@ describe("Config group", () => {
     assertKeysEqual(group.admin, newAdmin.publicKey);
 
     // Restore original
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await groupConfigure(program, {
-          newAdmin: groupAdmin.wallet.publicKey,
-          marginfiGroup: marginfiGroup.publicKey,
-          admin: newAdmin.publicKey,
-        })
+        await groupAdmin.mrgnProgram.methods
+          .marginfiGroupConfigure({ admin: groupAdmin.wallet.publicKey })
+          .accountsPartial({
+            marginfiGroup: marginfiGroup.publicKey,
+            admin: newAdmin.publicKey,
+          })
+          .instruction()
+
+        // Note: Fails because admin is incorrectly implied, TODO figure out why...
+        // await groupConfigure(groupAdmin.mrgnProgram, {
+        //   newAdmin: groupAdmin.wallet.publicKey,
+        //   marginfiGroup: marginfiGroup.publicKey,
+        // })
       ),
       [newAdmin]
     );
 
-    group = await program.account.marginfiGroup.fetch(
-      marginfiGroup.publicKey
-    );
+    group = await program.account.marginfiGroup.fetch(marginfiGroup.publicKey);
     assertKeysEqual(group.admin, groupAdmin.wallet.publicKey);
   });
 });

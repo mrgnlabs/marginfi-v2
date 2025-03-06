@@ -31,13 +31,12 @@ pub fn configure(ctx: Context<MarginfiGroupConfigure>, config: GroupConfig) -> M
 
 #[derive(Accounts)]
 pub struct MarginfiGroupConfigure<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        has_one = admin
+    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(
-        // TODO moving to `marginfi_group` as `has_one` adds a mystery signer?
-        address = marginfi_group.load()?.admin,
-    )]
     pub admin: Signer<'info>,
 }
 
@@ -71,14 +70,17 @@ pub fn set_account_flag(ctx: Context<SetAccountFlag>, flag: u64) -> MarginfiResu
 
 #[derive(Accounts)]
 pub struct SetAccountFlag<'info> {
-    #[account(address = marginfi_account.load()?.group)]
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    #[account(
+        has_one = admin
+    )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        has_one = group
+    )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    /// Admin only
-    #[account(address = marginfi_group.load()?.admin)]
     pub admin: Signer<'info>,
 }
 
@@ -94,14 +96,17 @@ pub fn unset_account_flag(ctx: Context<UnsetAccountFlag>, flag: u64) -> Marginfi
 
 #[derive(Accounts)]
 pub struct UnsetAccountFlag<'info> {
-    #[account(address = marginfi_account.load()?.group)]
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    #[account(
+        has_one = admin
+    )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        has_one = group
+    )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    /// Admin only
-    #[account(address = marginfi_group.load()?.admin)]
     pub admin: Signer<'info>,
 }
 

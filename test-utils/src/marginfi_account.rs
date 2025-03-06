@@ -67,17 +67,18 @@ impl MarginfiAccountFixture {
         funding_account: Pubkey,
         bank: &BankFixture,
         ui_amount: T,
+        deposit_up_to_limit: Option<bool>,
     ) -> Instruction {
         let marginfi_account = self.load().await;
         let ctx = self.ctx.borrow_mut();
 
         let mut accounts = marginfi::accounts::LendingAccountDeposit {
-            marginfi_group: marginfi_account.group,
+            group: marginfi_account.group,
             marginfi_account: self.key,
-            signer: ctx.payer.pubkey(),
+            authority: ctx.payer.pubkey(),
             bank: bank.key,
             signer_token_account: funding_account,
-            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
@@ -90,6 +91,7 @@ impl MarginfiAccountFixture {
             accounts,
             data: marginfi::instruction::LendingAccountDeposit {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+                deposit_up_to_limit,
             }
             .data(),
         }
@@ -100,9 +102,10 @@ impl MarginfiAccountFixture {
         funding_account: Pubkey,
         bank: &BankFixture,
         ui_amount: T,
+        deposit_up_to_limit: Option<bool>,
     ) -> anyhow::Result<(), BanksClientError> {
         let mut ix = self
-            .make_bank_deposit_ix(funding_account, bank, ui_amount)
+            .make_bank_deposit_ix(funding_account, bank, ui_amount, deposit_up_to_limit)
             .await;
 
         // If t22 with transfer hook, add remaining accounts
@@ -158,12 +161,12 @@ impl MarginfiAccountFixture {
         let marginfi_account = self.load().await;
 
         let mut accounts = marginfi::accounts::LendingAccountWithdraw {
-            marginfi_group: marginfi_account.group,
+            group: marginfi_account.group,
             marginfi_account: self.key,
-            signer: self.ctx.borrow().payer.pubkey(),
+            authority: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
             destination_token_account: destination_account,
-            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             bank_liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
             token_program: bank.get_token_program(),
         }
@@ -228,12 +231,12 @@ impl MarginfiAccountFixture {
         let marginfi_account = self.load().await;
 
         let mut accounts = marginfi::accounts::LendingAccountBorrow {
-            marginfi_group: marginfi_account.group,
+            group: marginfi_account.group,
             marginfi_account: self.key,
-            signer: self.ctx.borrow().payer.pubkey(),
+            authority: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
             destination_token_account: destination_account,
-            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             bank_liquidity_vault_authority: bank.get_vault_authority(BankVaultType::Liquidity).0,
             token_program: bank.get_token_program(),
         }
@@ -333,12 +336,12 @@ impl MarginfiAccountFixture {
         let ctx = self.ctx.borrow_mut();
 
         let mut accounts = marginfi::accounts::LendingAccountRepay {
-            marginfi_group: marginfi_account.group,
+            group: marginfi_account.group,
             marginfi_account: self.key,
-            signer: ctx.payer.pubkey(),
+            authority: ctx.payer.pubkey(),
             bank: bank.key,
             signer_token_account: funding_account,
-            bank_liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
+            liquidity_vault: bank.get_vault(BankVaultType::Liquidity).0,
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
@@ -390,9 +393,9 @@ impl MarginfiAccountFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountCloseBalance {
-                marginfi_group: marginfi_account.group,
+                group: marginfi_account.group,
                 marginfi_account: self.key,
-                signer: ctx.payer.pubkey(),
+                authority: ctx.payer.pubkey(),
                 bank: bank.key,
             }
             .to_account_metas(Some(true)),
@@ -428,7 +431,7 @@ impl MarginfiAccountFixture {
             asset_bank: asset_bank_fixture.key,
             liab_bank: liab_bank_fixture.key,
             liquidator_marginfi_account: self.key,
-            signer: self.ctx.borrow().payer.pubkey(),
+            authority: self.ctx.borrow().payer.pubkey(),
             liquidatee_marginfi_account: liquidatee.key,
             bank_liquidity_vault_authority: liab_bank_fixture
                 .get_vault_authority(BankVaultType::Liquidity)
@@ -536,9 +539,9 @@ impl MarginfiAccountFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountWithdrawEmissions {
-                marginfi_group: self.load().await.group,
+                group: self.load().await.group,
                 marginfi_account: self.key,
-                signer: self.ctx.borrow().payer.pubkey(),
+                authority: self.ctx.borrow().payer.pubkey(),
                 emissions_mint,
                 emissions_auth: get_emissions_authority_address(bank.key, emissions_mint).0,
                 emissions_vault: get_emissions_token_account_address(bank.key, emissions_mint).0,
@@ -568,7 +571,7 @@ impl MarginfiAccountFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::SetAccountFlag {
-                marginfi_group: self.load().await.group,
+                group: self.load().await.group,
                 marginfi_account: self.key,
                 admin: self.ctx.borrow().payer.pubkey(),
             }
@@ -594,7 +597,7 @@ impl MarginfiAccountFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::UnsetAccountFlag {
-                marginfi_group: self.load().await.group,
+                group: self.load().await.group,
                 marginfi_account: self.key,
                 admin: self.ctx.borrow().payer.pubkey(),
             }
@@ -618,7 +621,7 @@ impl MarginfiAccountFixture {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingAccountStartFlashloan {
                 marginfi_account: self.key,
-                signer: self.ctx.borrow().payer.pubkey(),
+                authority: self.ctx.borrow().payer.pubkey(),
                 ixs_sysvar: sysvar::instructions::id(),
             }
             .to_account_metas(Some(true)),
@@ -633,7 +636,7 @@ impl MarginfiAccountFixture {
     ) -> Instruction {
         let mut account_metas = marginfi::accounts::LendingAccountEndFlashloan {
             marginfi_account: self.key,
-            signer: self.ctx.borrow().payer.pubkey(),
+            authority: self.ctx.borrow().payer.pubkey(),
         }
         .to_account_metas(Some(true));
 
@@ -692,7 +695,7 @@ impl MarginfiAccountFixture {
             .balances
             .iter()
             .filter_map(|balance| {
-                if balance.active {
+                if balance.is_active() {
                     Some(balance.bank_pk)
                 } else {
                     None
@@ -790,10 +793,10 @@ impl MarginfiAccountFixture {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::MarginfiAccountSetAccountAuthority {
                 marginfi_account: self.key,
-                signer: signer.pubkey(),
+                authority: signer.pubkey(),
                 new_authority,
                 fee_payer: signer.pubkey(),
-                marginfi_group: marginfi_account.group,
+                group: marginfi_account.group,
             }
             .to_account_metas(None),
             data: marginfi::instruction::SetNewAccountAuthority {}.data(),

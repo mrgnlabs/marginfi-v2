@@ -6,7 +6,16 @@ import {
   Wallet,
   workspace,
 } from "@coral-xyz/anchor";
-import { LAMPORTS_PER_SOL, SystemProgram, Transaction } from "@solana/web3.js";
+import {
+  LAMPORTS_PER_SOL,
+  STAKE_CONFIG_ID,
+  StakeProgram,
+  SystemProgram,
+  SYSVAR_CLOCK_PUBKEY,
+  SYSVAR_RENT_PUBKEY,
+  SYSVAR_STAKE_HISTORY_PUBKEY,
+  Transaction,
+} from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairSol,
@@ -25,8 +34,20 @@ import { assertBankrunTxFailed, assertKeysEqual } from "./utils/genericTests";
 import { assert } from "chai";
 import { borrowIx, depositIx } from "./utils/user-instructions";
 import { LST_ATA, USER_ACCOUNT } from "./utils/mocks";
-import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import { getEpochAndSlot, getStakeActivation } from "./utils/stake-utils";
+import {
+  createPoolOnramp,
+  getBankrunBlockhash,
+  replenishPool,
+} from "./utils/spl-staking-utils";
+import {
+  getEpochAndSlot,
+  getStakeAccount,
+  getStakeActivation,
+} from "./utils/stake-utils";
+import { deriveOnRampPool } from "./utils/pdas";
+import { SINGLE_POOL_PROGRAM_ID } from "./utils/types";
+import { dumpBankrunLogs } from "./utils/tools";
+import { getMinimumBalanceForRentExemptAccount } from "@solana/spl-token";
 
 describe("Borrow power grows as v0 Staked SOL gains value from appreciation", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -36,7 +57,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
   // User 2 has a validator 0 staked depost [0] position - net value = 1 LST token Users 0/1/2
   // deposited 10 SOL each, so a total of 30 is staked with validator 0 (minus the 1 SOL staked to
   // start the pool, which is non-refundable and doesn't function as collateral)
-  /** SOL to add to the validator as pretend-earned epoch rewards */
+
+  /** SOL to add to the validator as pretend-earned mev rewards */
   const appreciation = 30;
 
   it("(user 2) tries to borrow 1.1 SOL against 1 v0 STAKED - fails, not enough funds", async () => {
@@ -44,10 +66,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -72,34 +92,36 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, false);
+    assert.equal(balances[1].active, 0);
   });
 
   // Note: there is also some natural appreciation here because a few epochs have elapsed...
 
-  // Here we try to a troll exploit by sending SOL directly to the stake pool's sol balance.
-  it("v0 stake sol pool grows by " + appreciation + " SOL", async () => {
-    let tx = new Transaction();
-    tx.add(
-      SystemProgram.transfer({
-        fromPubkey: wallet.publicKey,
-        toPubkey: validators[0].splSolPool,
-        lamports: appreciation * LAMPORTS_PER_SOL,
-      })
-    );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(wallet.payer);
-    await banksClient.processTransaction(tx);
-  });
+  // In older versions of SVSP, MEV rewards like this would be orphaned here forever and would not
+  // count as stake for pricing purposes.
+  it(
+    "v0 stake sol pool grows by " + appreciation + " SOL (e.g. MEV rewards)",
+    async () => {
+      let tx = new Transaction();
+      tx.add(
+        SystemProgram.transfer({
+          fromPubkey: wallet.publicKey,
+          toPubkey: validators[0].splSolPool,
+          lamports: appreciation * LAMPORTS_PER_SOL,
+        })
+      );
+      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+      tx.sign(wallet.payer);
+      await banksClient.processTransaction(tx);
+    }
+  );
 
   it("(user 2 - attacker) ties to sneak in bad lst mint - should fail", async () => {
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -126,10 +148,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -152,15 +172,14 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     assertBankrunTxFailed(result, "0x177a");
   });
 
-  // The stake hasn't changed (even though the SOL balance did) so this should still fail
+  // The stake hasn't changed (even though the SOL balance did) so this should still fail. For this
+  // to count, we must realize the MEV rewards first (see the next test)
   it("(user 2) borrows 1.1 SOL against their STAKED position - fails", async () => {
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -186,29 +205,109 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     assertBankrunTxFailed(result, "0x177a");
   });
 
-  it("Generate stake income....", async () => {
-    // TODO how?
+  it(
+    "REMOVE v0 stake sol pool grows by " +
+      appreciation +
+      " SOL (e.g. MEV rewards)",
+    async () => {
+      let tx = new Transaction();
+      tx.add(
+        SystemProgram.transfer({
+          fromPubkey: wallet.publicKey,
+          toPubkey: validators[0].splPool,
+          lamports: appreciation * LAMPORTS_PER_SOL,
+        })
+      );
+      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+      tx.sign(wallet.payer);
+      await banksClient.processTransaction(tx);
+    }
+  );
+
+  it("Realize income from MEV rewards", async () => {
+    // First, create the on-ramp account that will temporarily stake MEV rewards
+    const [onRampPoolKey] = deriveOnRampPool(validators[0].splPool);
+    const rent =
+      await bankRunProvider.connection.getMinimumBalanceForRentExemption(
+        StakeProgram.space
+      );
+    const rentIx = SystemProgram.transfer({
+      fromPubkey: wallet.payer.publicKey,
+      toPubkey: onRampPoolKey,
+      lamports: rent,
+    });
+    const ix = createPoolOnramp(validators[0].voteAccount);
+    let initOnRampTx = new Transaction().add(rentIx, ix);
+    initOnRampTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    initOnRampTx.sign(wallet.payer); // pays the tx fee and rent
+    await banksClient.processTransaction(initOnRampTx);
+
+    const onRampAccBefore = await bankRunProvider.connection.getAccountInfo(
+      onRampPoolKey
+    );
+    const onRampBefore = getStakeAccount(onRampAccBefore.data);
+    const stakeBefore = onRampBefore.stake.delegation.stake.toString();
+    if (verbose) {
+      console.log("On ramp lamps: " + onRampAccBefore.lamports);
+      console.log(" (rent was:    " + rent + ")");
+      console.log("On ramp stake: " + stakeBefore);
+    }
+
+    let { epoch: epochBeforeWarp, slot: slotBeforeWarp } =
+      await getEpochAndSlot(banksClient);
+    bankrunContext.warpToEpoch(BigInt(epochBeforeWarp + 1));
+    let { epoch: epochAfterWarp, slot: slotAfterWarp } = await getEpochAndSlot(
+      banksClient
+    );
+    for (let i = 0; i < 3; i++) {
+      bankrunContext.warpToSlot(BigInt(i + slotAfterWarp + 1));
+      const dummyTx = new Transaction();
+      dummyTx.add(
+        SystemProgram.transfer({
+          fromPubkey: users[0].wallet.publicKey,
+          toPubkey: bankrunProgram.provider.publicKey,
+          lamports: i,
+        })
+      );
+      dummyTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+      dummyTx.sign(users[0].wallet);
+      await banksClient.processTransaction(dummyTx);
+    }
+
+    let { epoch, slot } = await getEpochAndSlot(banksClient);
+    if (verbose) {
+      console.log("It is now epoch: " + epoch + " slot " + slot);
+    }
+
+    // Next, the replenish crank cycles free SOL into the "on ramp" pool
+    let replenishTx = new Transaction().add(
+      replenishPool(validators[0].voteAccount)
+    );
+    replenishTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    replenishTx.sign(wallet.payer); // pays the tx fee and rent
+    let result = await banksClient.tryProcessTransaction(replenishTx);
+    dumpBankrunLogs(result);
+
+    const onRampAccAfter = await bankRunProvider.connection.getAccountInfo(
+      onRampPoolKey
+    );
+    const onRampAfter = getStakeAccount(onRampAccAfter.data);
+    const stakeAfter = onRampAfter.stake.delegation.stake.toString();
+    if (verbose) {
+      console.log("On ramp lamps: " + onRampAccAfter.lamports);
+      console.log(" (rent was:    " + rent + ")");
+      console.log("On ramp stake: " + stakeAfter);
+    }
   });
 
   // Now the stake is worth enough and the user can borrow
-  it("(user 2) borrows 1.1 SOL against their STAKED position - succceds", async () => {
+  it("(user 2) borrows 1.1 SOL against their STAKED position - succeeds", async () => {
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     const userLstAta = user.accounts.get(LST_ATA);
     let tx = new Transaction().add(
-      // TODO if we find a way to make stake appreciate on localnet, remove...
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
-        bank: validators[0].bank,
-        tokenAccount: userLstAta,
-        amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
-      }),
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
-        marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -230,7 +329,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertKeysEqual(balances[1].bankPk, bankKeypairSol.publicKey);
   });
 });

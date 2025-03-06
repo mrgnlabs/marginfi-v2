@@ -24,8 +24,12 @@ solana program set-buffer-authority <BUFFER> --new-buffer-authority <MULTISIG> -
 * Click the pending upgrade to start a vote.
 * Execute after the vote passes.
 
-Voters:
-* Clone the branch being deployed and run `./scripts/build-program-verifiable.sh marginfi mainnet`.
+### Voters:
+
+* Clone the branch being deployed (see the release tag the person who initated the upgrade has given you) and run: 
+```
+./scripts/build-program-verifiable.sh marginfi mainnet
+```
 * Check that the program builds with the hash that the person who is deploying gave you. Check what characters other people have validated in Signal, post the next six characters of the hash to verify you have actually checked and aren't skipping this step out of laziness.
 * Check that the buffer contains this hash too `solana-verify get-buffer-hash <Buffer Address>`.
 * After the vote is executed and the contract is upgraded, check that the contract contains the same hash. For example for MFv2, this is `solana-verify get-program-hash MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA`
@@ -38,6 +42,7 @@ Here we list recent deployments to staging/mainnet. The hash is always the first
 
 * 0.1.0: Jan 30, 2025 ~2:35pm ET -- Hash: a4dd3e7
 * 0.1.1: Feb 7, 2025 ~8:15am ET -- Hash: 03455c
+* 0.1.2: Pending
 
 ### MAINNET
 

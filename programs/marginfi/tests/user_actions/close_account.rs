@@ -21,7 +21,7 @@ async fn close_marginfi_account() -> anyhow::Result<()> {
     let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
 
     marginfi_account_f
-        .try_bank_deposit(token_account_f.key, usdc_bank_f, 1_000)
+        .try_bank_deposit(token_account_f.key, usdc_bank_f, 1_000, None)
         .await?;
 
     let res = marginfi_account_f.try_close_account(0).await;
@@ -33,7 +33,7 @@ async fn close_marginfi_account() -> anyhow::Result<()> {
     let sol_account = test_f.sol_mint.create_token_account_and_mint_to(100).await;
     let depositor = test_f.create_marginfi_account().await;
     depositor
-        .try_bank_deposit(sol_account.key, sol_bank_f, 100)
+        .try_bank_deposit(sol_account.key, sol_bank_f, 100, None)
         .await?;
 
     let sol_account_2 = test_f.sol_mint.create_token_account_and_mint_to(0).await;

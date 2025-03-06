@@ -409,6 +409,7 @@ pub enum AccountCommand {
     Deposit {
         bank: Pubkey,
         ui_amount: f64,
+        deposit_up_to_limit: Option<bool>,
     },
     Withdraw {
         bank: Pubkey,
@@ -431,6 +432,7 @@ pub enum AccountCommand {
         ui_asset_amount: f64,
     },
     Create,
+    Close,
     SetFlag {
         account_pk: Pubkey,
         #[clap(long)]
@@ -916,9 +918,17 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
         AccountCommand::Get { account } => {
             processor::marginfi_account_get(profile, &config, account)
         }
-        AccountCommand::Deposit { bank, ui_amount } => {
-            processor::marginfi_account_deposit(&profile, &config, bank, ui_amount)
-        }
+        AccountCommand::Deposit {
+            bank,
+            ui_amount,
+            deposit_up_to_limit,
+        } => processor::marginfi_account_deposit(
+            &profile,
+            &config,
+            bank,
+            ui_amount,
+            deposit_up_to_limit,
+        ),
         AccountCommand::Withdraw {
             bank,
             ui_amount,
@@ -941,6 +951,7 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
             ui_asset_amount,
         ),
         AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
+        AccountCommand::Close => processor::marginfi_account_close(&profile, &config),
         AccountCommand::SetFlag {
             flashloans_enabled: flashloan,
             account_pk,

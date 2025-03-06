@@ -173,11 +173,10 @@ describe("Liquidate user", () => {
 
     await liquidator.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await liquidateIx(program, {
+        await liquidateIx(liquidator.mrgnProgram, {
           assetBankKey,
           liabilityBankKey,
           liquidatorMarginfiAccount: liquidatorAccount,
-          liquidatorMarginfiAccountAuthority: liquidatorMarginfiAccount.authority,
           liquidateeMarginfiAccount: liquidateeAccount,
           remaining: [
             oracles.tokenAOracle.publicKey,
@@ -232,7 +231,7 @@ describe("Liquidate user", () => {
       console.log("user 1 (liquidator) Token A liability shares after: " + wrappedI80F48toBigNumber(liquidatorBalancesAfter[1].liabilityShares).toString());
     }
 
-    assert.equal(liquidatorBalancesAfter[1].active, true);
+    assert.equal(liquidatorBalancesAfter[1].active, 1);
     assertKeysEqual(liquidatorBalancesAfter[1].bankPk, assetBankKey);
 
     let now = Math.floor(Date.now() / 1000);

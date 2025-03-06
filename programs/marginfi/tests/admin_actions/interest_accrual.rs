@@ -44,7 +44,7 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 100)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 100, None)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -53,7 +53,7 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
         .create_token_account_and_mint_to(1_000)
         .await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 999)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 999, None)
         .await?;
     let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f
@@ -134,7 +134,12 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
         .create_token_account_and_mint_to(100_000_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 100_000_000)
+        .try_bank_deposit(
+            lender_token_account_usdc.key,
+            usdc_bank_f,
+            100_000_000,
+            None,
+        )
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -143,7 +148,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
         .create_token_account_and_mint_to(10_000_000)
         .await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 10_000_000)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 10_000_000, None)
         .await?;
     let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f

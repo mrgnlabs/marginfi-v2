@@ -60,7 +60,7 @@ describe("Init group and add banks with asset category flags", () => {
     let tx = new Transaction();
 
     tx.add(
-      await groupInitialize(program, {
+      await groupInitialize(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         admin: groupAdmin.wallet.publicKey,
       })
@@ -140,9 +140,8 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBank(groupAdmin.mrgnProgram, {
+      await addBank(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
-        admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.usdcMint.publicKey,
         bank: bankKey,
@@ -184,9 +183,8 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBank(program, {
+      await addBank(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
-        admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.wsolMint.publicKey,
         bank: bankKey,
@@ -216,7 +214,6 @@ describe("Init group and add banks with asset category flags", () => {
     tx.add(
       await addBank(groupAdmin.mrgnProgram, {
         marginfiGroup: marginfiGroup.publicKey,
-        admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: validators[0].splMint,
         bank: bankKeypair.publicKey,
@@ -285,7 +282,7 @@ describe("Init group and add banks with asset category flags", () => {
             isWritable: false,
           };
 
-          const ix = await program.methods
+          const ix = await bankrunProgram.methods
             .lendingPoolAddBankPermissionless(new BN(0))
             .accounts({
               stakedSettings: settingsKey,
@@ -352,7 +349,7 @@ describe("Init group and add banks with asset category flags", () => {
           isWritable: false,
         };
 
-        const ix = await program.methods
+        const ix = await bankrunProgram.methods
           .lendingPoolAddBankPermissionless(new BN(0))
           .accounts({
             stakedSettings: settingsKey,
@@ -393,7 +390,7 @@ describe("Init group and add banks with asset category flags", () => {
       isWritable: false,
     };
 
-    const ix = await program.methods
+    const ix = await bankrunProgram.methods
       .lendingPoolAddBankPermissionless(new BN(0))
       .accounts({
         stakedSettings: settingsKey,
@@ -427,7 +424,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBankPermissionless(program, {
+      await addBankPermissionless(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         pythOracle: oracles.wsolOracle.publicKey,

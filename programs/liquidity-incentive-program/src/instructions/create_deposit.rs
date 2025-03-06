@@ -80,12 +80,12 @@ pub fn process<'info>(
     let mut cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.marginfi_program.to_account_info(),
         marginfi::cpi::accounts::LendingAccountDeposit {
-            marginfi_group: ctx.accounts.marginfi_group.to_account_info(),
+            group: ctx.accounts.marginfi_group.to_account_info(),
             marginfi_account: ctx.accounts.marginfi_account.to_account_info(),
-            signer: ctx.accounts.mfi_pda_signer.to_account_info(),
+            authority: ctx.accounts.mfi_pda_signer.to_account_info(),
             bank: ctx.accounts.marginfi_bank.to_account_info(),
             signer_token_account: ctx.accounts.temp_token_account.to_account_info(),
-            bank_liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
+            liquidity_vault: ctx.accounts.marginfi_bank_vault.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
         },
         signer_seeds,
@@ -100,7 +100,7 @@ pub fn process<'info>(
         return Err(ProgramError::InvalidAccountData.into());
     }
 
-    marginfi::cpi::lending_account_deposit(cpi_ctx, amount)?;
+    marginfi::cpi::lending_account_deposit(cpi_ctx, amount, None)?;
 
     close_account(CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),

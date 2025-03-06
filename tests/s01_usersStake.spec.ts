@@ -55,10 +55,10 @@ describe("User stakes some native and creates an account", () => {
       console.log("Create stake account: " + user0StakeAccount);
       console.log(
         " Stake: " +
-          stake +
-          " SOL (" +
-          (stake * LAMPORTS_PER_SOL).toLocaleString() +
-          " in native)"
+        stake +
+        " SOL (" +
+        (stake * LAMPORTS_PER_SOL).toLocaleString() +
+        " in native)"
       );
     }
     users[0].accounts.set("v0_stakeAcc", user0StakeAccount);
@@ -102,18 +102,19 @@ describe("User stakes some native and creates an account", () => {
       console.log("It is now epoch: " + epoch + " slot " + slot);
       console.log(
         "Stake active: " +
-          stakeStatusBefore.active.toLocaleString() +
-          " inactive " +
-          stakeStatusBefore.inactive.toLocaleString() +
-          " status: " +
-          stakeStatusBefore.status
+        stakeStatusBefore.active.toLocaleString() +
+        " inactive " +
+        stakeStatusBefore.inactive.toLocaleString() +
+        " status: " +
+        stakeStatusBefore.status
       );
     }
   });
 
-  it("(user 1/2) Stakes and delegates too", async () => {
+  it("(user 1/2/3) Stakes and delegates too", async () => {
     await stakeAndDelegateForUser(1, stake);
     await stakeAndDelegateForUser(2, stake);
+    await stakeAndDelegateForUser(3, stake);
   });
 
   const stakeAndDelegateForUser = async (
@@ -161,11 +162,11 @@ describe("User stakes some native and creates an account", () => {
     if (verbose) {
       console.log(
         "Stake active: " +
-          stakeStatusAfter.active.toLocaleString() +
-          " inactive " +
-          stakeStatusAfter.inactive.toLocaleString() +
-          " status: " +
-          stakeStatusAfter.status
+        stakeStatusAfter.active.toLocaleString() +
+        " inactive " +
+        stakeStatusAfter.inactive.toLocaleString() +
+        " status: " +
+        stakeStatusAfter.status
       );
       console.log("");
     }
@@ -199,7 +200,7 @@ describe("User stakes some native and creates an account", () => {
     }
   });
 
-  it("(user 0) Deposits " + stake + "stake to the v0 LST pool", async () => {
+  it("(user 0) Deposits " + stake + " stake to the v0 LST pool", async () => {
     const userStakeAccount = users[0].accounts.get(STAKE_ACC);
     // Note: use `findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, splPool);` if mint is not known.
     const lstAta = getAssociatedTokenAddressSync(
@@ -287,10 +288,14 @@ describe("User stakes some native and creates an account", () => {
     );
   });
 
-  it("(user 1/2) deposits " + stake + " to the v0 stake pool too", async () => {
-    await depositForUser(1);
-    await depositForUser(2);
-  });
+  it(
+    "(user 1/2/3) deposits " + stake + " to the v0 stake pool too",
+    async () => {
+      await depositForUser(1);
+      await depositForUser(2);
+      await depositForUser(3);
+    }
+  );
 
   const depositForUser = async (userIndex: number) => {
     const user = users[userIndex];

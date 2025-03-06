@@ -25,7 +25,7 @@ pub fn process_collect_fees(config: Config, bank_pk: Pubkey, fee_ata: Pubkey) ->
     let mut ix = Instruction {
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingPoolCollectBankFees {
-            marginfi_group: bank.group,
+            group: bank.group,
             bank: bank_pk,
             fee_vault: bank.fee_vault,
             token_program: spl_token::id(),
@@ -85,7 +85,7 @@ pub fn process_withdraw_fees(
     let mut ix = Instruction {
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingPoolWithdrawFees {
-            marginfi_group: bank.group,
+            group: bank.group,
             bank: bank_pk,
             admin: config.authority(),
             fee_vault: bank.fee_vault,
@@ -143,7 +143,7 @@ pub fn process_withdraw_insurance(
     let mut ix = Instruction {
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingPoolWithdrawInsurance {
-            marginfi_group: bank.group,
+            group: bank.group,
             bank: bank_pk,
             admin: config.authority(),
             insurance_vault: bank.insurance_vault,

@@ -53,7 +53,7 @@ export let groupAdmin: MockUser = undefined;
 /** Administers valiator votes and withdraws */
 export let validatorAdmin: MockUser = undefined;
 export const users: MockUser[] = [];
-export const numUsers = 3;
+export const numUsers = 4;
 
 export const validators: Validator[] = [];
 export const numValidators = 2;
@@ -83,7 +83,7 @@ let copyKeys: PublicKey[] = [];
 
 export const mochaHooks = {
   beforeAll: async () => {
-    // If this is false, you are in the wrong environment to run this test suite, try polyfill.
+    // If false, you are in the wrong environment to run this, update Node or try polyfill
     console.log("Environment supports crypto: ", !!global.crypto?.subtle);
 
     const mrgnProgram = workspace.Marginfi as Program<Marginfi>;
@@ -160,16 +160,21 @@ export const mochaHooks = {
     );
 
     // Init the global fee state
-    miscSetupTx.add(
-      await initGlobalFeeState(mrgnProgram, {
-        payer: provider.publicKey,
-        admin: wallet.payer.publicKey,
-        wallet: globalFeeWallet,
-        bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
-        programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
-        programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
-      })
-    );
+    const [feeState] = deriveGlobalFeeState(mrgnProgram.programId);
+    const feeStateExists =
+      (await mrgnProgram.provider.connection.getAccountInfo(feeState));
+    if (!feeStateExists) {
+      miscSetupTx.add(
+        await initGlobalFeeState(mrgnProgram, {
+          payer: provider.publicKey,
+          admin: wallet.payer.publicKey,
+          wallet: globalFeeWallet,
+          bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
+          programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
+          programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
+        })
+      );
+    }
 
     await provider.sendAndConfirm(miscSetupTx);
     copyKeys.push(
@@ -194,6 +199,7 @@ export const mochaHooks = {
       setupUserOptions
     );
     copyKeys.push(groupAdmin.usdcAccount);
+    copyKeys.push(groupAdmin.tokenBAccount);
     copyKeys.push(groupAdmin.wallet.publicKey);
 
     for (let i = 0; i < numUsers; i++) {
@@ -266,6 +272,31 @@ export const mochaHooks = {
     bankrunContext = await startAnchor(path.resolve(), [], addedAccounts);
     bankRunProvider = new BankrunProvider(bankrunContext);
     bankrunProgram = new Program(mrgnProgram.idl, bankRunProvider);
+    for (let i = 0; i < numUsers; i++) {
+      const wal = new Wallet(users[i].wallet);
+      const prov = new AnchorProvider(bankRunProvider.connection, wal, {});
+      users[i].mrgnBankrunProgram = new Program(mrgnProgram.idl, prov);
+    }
+    banksClient = bankrunContext.banksClient;
+
+    groupAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(groupAdmin.wallet),
+        {}
+      )
+    );
+
+    validatorAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(validatorAdmin.wallet),
+        {}
+      )
+    );
+
     banksClient = bankrunContext.banksClient;
 
     if (verbose) {
@@ -286,7 +317,7 @@ const addValidator = (validator: Validator) => {
 const addUser = (user: MockUser) => {
   users.push(user);
   copyKeys.push(user.tokenAAccount);
-  // copyKeys.push(user.tokenBAccount);
+  copyKeys.push(user.tokenBAccount);
   copyKeys.push(user.usdcAccount);
   copyKeys.push(user.wallet.publicKey);
   copyKeys.push(user.wsolAccount);
