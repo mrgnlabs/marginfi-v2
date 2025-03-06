@@ -123,11 +123,7 @@ pub fn lending_account_withdraw<'info>(
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    RiskEngine::check_account_init_health(
-        &marginfi_account,
-        ctx.remaining_accounts,
-        &mut HealthCache::zeroed(),
-    )?;
+    RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts, &mut None)?;
 
     Ok(())
 }

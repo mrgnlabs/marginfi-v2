@@ -393,7 +393,7 @@ pub fn lending_account_liquidate<'info>(
     RiskEngine::check_account_init_health(
         &liquidator_marginfi_account,
         liquidator_remaining_accounts,
-        &mut HealthCache::zeroed(),
+        &mut None,
     )?;
 
     emit!(LendingAccountLiquidateEvent {

@@ -22,7 +22,7 @@ pub fn lending_account_pulse_health<'info>(
     match RiskEngine::check_account_init_health(
         &marginfi_account,
         ctx.remaining_accounts,
-        &mut health_cache,
+        &mut Some(&mut health_cache),
     ) {
         Ok(()) => {
             health_cache.set_engine_ok(true);

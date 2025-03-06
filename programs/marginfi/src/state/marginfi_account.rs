@@ -249,7 +249,9 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
 
     #[inline(always)]
     /// Calculate the value of the balance, which is either an asset or a liability. If it is an
-    /// asset, returns (asset_value, 0), and if it is a liability, returns (0, liabilty value).
+    /// asset, returns (asset_value, 0, price), and if it is a liability, returns (0, liabilty
+    /// value, price), where price is the actual oracle price used to determine the value after bias
+    /// adjustments, etc.
     ///
     /// Nuances:
     /// 1. Maintenance requirement is calculated using the real time price feed.
@@ -527,7 +529,7 @@ impl<'info> RiskEngine<'_, 'info> {
     pub fn check_account_init_health<'a>(
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
-        health_cache: &mut HealthCache,
+        health_cache: &mut Option<&mut HealthCache>,
     ) -> MarginfiResult<()> {
         if marginfi_account.get_flag(IN_FLASHLOAN_FLAG) {
             // Note: The health cache is not applicable to flashloans
@@ -545,7 +547,7 @@ impl<'info> RiskEngine<'_, 'info> {
     pub fn get_account_health_components(
         &self,
         requirement_type: RiskRequirementType,
-        health_cache: &mut HealthCache,
+        health_cache: &mut Option<&mut HealthCache>,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         let mut total_assets: I80F48 = I80F48::ZERO;
         let mut total_liabilities: I80F48 = I80F48::ZERO;
@@ -555,7 +557,9 @@ impl<'info> RiskEngine<'_, 'info> {
             let (asset_val, liab_val, price) =
                 bank_account.calc_weighted_value(requirement_type)?;
 
-            health_cache.prices[i] = price.saturating_to_num();
+            if let Some(health_cache) = health_cache {
+                health_cache.prices[i] = price.saturating_to_num();
+            }
 
             debug!(
                 "Balance {}, assets: {}, liabilities: {}",
@@ -570,8 +574,10 @@ impl<'info> RiskEngine<'_, 'info> {
                 .ok_or_else(math_error!())?;
         }
 
-        health_cache.asset_value = total_assets.into();
-        health_cache.liability_value = total_liabilities.into();
+        if let Some(health_cache) = health_cache {
+            health_cache.asset_value = total_assets.into();
+            health_cache.liability_value = total_liabilities.into();
+        }
 
         Ok((total_assets, total_liabilities))
     }
@@ -580,17 +586,18 @@ impl<'info> RiskEngine<'_, 'info> {
     fn check_account_health(
         &self,
         requirement_type: RiskRequirementType,
-        health_cache: &mut HealthCache,
+        health_cache: &mut Option<&mut HealthCache>,
     ) -> MarginfiResult<()> {
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(requirement_type, health_cache)?;
 
-        if total_weighted_assets >= total_weighted_liabilities {
+        let healthy = total_weighted_assets >= total_weighted_liabilities;
+
+        if healthy {
             debug!(
                 "check_health: assets {} - liabs: {}",
                 total_weighted_assets, total_weighted_liabilities
             );
-            health_cache.set_healthy(true);
         } else {
             let assets_u128: u128 = total_weighted_assets.to_num();
             let liabs_u128: u128 = total_weighted_liabilities.to_num();
@@ -599,7 +606,13 @@ impl<'info> RiskEngine<'_, 'info> {
                 assets_u128,
                 liabs_u128
             );
-            health_cache.set_healthy(false);
+        }
+
+        if let Some(cache) = health_cache {
+            cache.set_healthy(healthy);
+        }
+
+        if !healthy {
             return err!(MarginfiError::RiskEngineInitRejected);
         }
 
@@ -638,10 +651,8 @@ impl<'info> RiskEngine<'_, 'info> {
             MarginfiError::IllegalLiquidation
         );
 
-        let (assets, liabs) = self.get_account_health_components(
-            RiskRequirementType::Maintenance,
-            &mut HealthCache::zeroed(),
-        )?;
+        let (assets, liabs) =
+            self.get_account_health_components(RiskRequirementType::Maintenance, &mut None)?;
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 
@@ -699,10 +710,8 @@ impl<'info> RiskEngine<'_, 'info> {
             "Liability payoff too severe, liability balance has assets"
         );
 
-        let (assets, liabs) = self.get_account_health_components(
-            RiskRequirementType::Maintenance,
-            &mut HealthCache::zeroed(),
-        )?;
+        let (assets, liabs) =
+            self.get_account_health_components(RiskRequirementType::Maintenance, &mut None)?;
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 
@@ -729,10 +738,8 @@ impl<'info> RiskEngine<'_, 'info> {
     /// Check that the account is in a bankrupt state.
     /// Account needs to be insolvent and total value of assets need to be below the bankruptcy threshold.
     pub fn check_account_bankrupt(&self) -> MarginfiResult {
-        let (total_assets, total_liabilities) = self.get_account_health_components(
-            RiskRequirementType::Equity,
-            &mut HealthCache::zeroed(),
-        )?;
+        let (total_assets, total_liabilities) =
+            self.get_account_health_components(RiskRequirementType::Equity, &mut None)?;
 
         check!(
             !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),

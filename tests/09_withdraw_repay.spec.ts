@@ -31,10 +31,7 @@ import {
 } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { updatePriceAccount } from "./utils/pyth_mocks";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  wrappedI80F48toBigNumber,
-} from "@mrgnlabs/mrgn-common";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { u64MAX_BN } from "./utils/types";
 
 describe("Withdraw funds", () => {
@@ -46,7 +43,6 @@ describe("Withdraw funds", () => {
   const withdrawAmountTokenA_native = new BN(
     withdrawAmountTokenA * 10 ** ecosystem.tokenADecimals
   );
-  createAssociatedTokenAccountIdempotentInstruction;
 
   const repayAmountUsdc = 0.1;
   const repayAmountUsdc_native = new BN(
