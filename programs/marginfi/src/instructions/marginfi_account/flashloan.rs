@@ -1,17 +1,12 @@
-use anchor_lang::{prelude::*, Discriminator};
-use bytemuck::Zeroable;
-use solana_program::{
-    instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT},
-    sysvar::{self, instructions},
-};
-
 use crate::{
     check,
     prelude::*,
-    state::{
-        health_cache::HealthCache,
-        marginfi_account::{MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG},
-    },
+    state::marginfi_account::{MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG},
+};
+use anchor_lang::{prelude::*, Discriminator};
+use solana_program::{
+    instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT},
+    sysvar::{self, instructions},
 };
 
 pub fn lending_account_start_flashloan(

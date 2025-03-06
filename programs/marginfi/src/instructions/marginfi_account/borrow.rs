@@ -5,7 +5,6 @@ use crate::{
     math_error,
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
-        health_cache::HealthCache,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
         marginfi_group::{Bank, BankVaultType},
     },
@@ -13,7 +12,6 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
-use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 

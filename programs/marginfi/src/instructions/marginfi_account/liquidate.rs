@@ -2,7 +2,6 @@ use crate::constants::{
     INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
 };
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
-use crate::state::health_cache::HealthCache;
 use crate::state::marginfi_account::{
     calc_amount, calc_value, get_remaining_accounts_per_bank, RiskEngine,
 };
@@ -17,7 +16,6 @@ use crate::{
 use crate::{check, debug, prelude::*, utils};
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
-use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
