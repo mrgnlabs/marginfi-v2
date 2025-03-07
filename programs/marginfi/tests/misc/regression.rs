@@ -8,7 +8,10 @@ use fixed::types::I80F48;
 use marginfi::{
     constants::ASSET_TAG_DEFAULT,
     state::{
-        health_cache::HealthCache, marginfi_account::MarginfiAccount, marginfi_group::{Bank, BankOperationalState, RiskTier}, price::OracleSetup
+        health_cache::HealthCache,
+        marginfi_account::MarginfiAccount,
+        marginfi_group::{Bank, BankOperationalState, RiskTier},
+        price::OracleSetup,
     },
 };
 use solana_account_decoder::UiAccountData;
