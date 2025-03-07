@@ -49,8 +49,7 @@ pub struct MarginfiAccount {
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
     pub health_cache: HealthCache,
-    pub _padding0: [u8; 48],
-    pub _padding1: [u64; 27],
+    pub _padding0: [u64; 21],
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
@@ -558,7 +557,7 @@ impl<'info> RiskEngine<'_, 'info> {
                 bank_account.calc_weighted_value(requirement_type)?;
 
             if let Some(health_cache) = health_cache {
-                health_cache.prices[i] = price.saturating_to_num();
+                health_cache.prices[i] = price.into();
             }
 
             debug!(
@@ -599,13 +598,9 @@ impl<'info> RiskEngine<'_, 'info> {
                 total_weighted_assets, total_weighted_liabilities
             );
         } else {
-            let assets_u128: u128 = total_weighted_assets.to_num();
-            let liabs_u128: u128 = total_weighted_liabilities.to_num();
-            msg!(
-                "check_health: assets {} - liabs: {}",
-                assets_u128,
-                liabs_u128
-            );
+            let assets_f64: f64 = total_weighted_assets.to_num();
+            let liabs_f64: f64 = total_weighted_liabilities.to_num();
+            msg!("check_health: assets {} - liabs: {}", assets_f64, liabs_f64);
         }
 
         if let Some(cache) = health_cache {
@@ -1535,8 +1530,7 @@ mod test {
             },
             account_flags: TRANSFER_AUTHORITY_ALLOWED_FLAG,
             health_cache: HealthCache::zeroed(),
-            _padding0: [0; 48],
-            _padding1: [0; 27],
+            _padding0: [0; 21],
         };
 
         assert!(acc.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));

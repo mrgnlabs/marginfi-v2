@@ -175,6 +175,34 @@ async fn marginfi_account_borrow_success(
         post_fee_group_fees
     );
 
+    let health_cache = marginfi_account.health_cache;
+    assert!(health_cache.is_engine_ok());
+    assert!(health_cache.is_healthy());
+
+    let asset_value: I80F48 = health_cache.asset_value.into();
+    let asset_value: f64 = asset_value.to_num();
+    let liab_value: I80F48 = health_cache.liability_value.into();
+    let liab_value: f64 = liab_value.to_num();
+    let collateral_price_roughly = get_mint_price(collateral_mint);
+    let liablility_price_roughly: f64 = get_mint_price(debt_mint);
+    // Apply a small discount to account for conf discounts, etc.
+    let disc: f64 = 0.95;
+    assert!(asset_value > deposit_amount * collateral_price_roughly * disc);
+    assert!(liab_value > borrow_amount * liablility_price_roughly * disc);
+
+    for (i, bal) in marginfi_account.lending_account.balances.iter().enumerate() {
+        let shares: I80F48 = bal.asset_shares.into();
+        if bal.is_active() {
+            let price: I80F48 = health_cache.prices[i].into();
+            let price: f64 = price.to_num();
+            if shares != I80F48::ZERO {
+                assert!(price >= (collateral_price_roughly * disc));
+            } else {
+                assert!(price >= (liablility_price_roughly * disc));
+            }
+        }
+    }
+
     Ok(())
 }
 

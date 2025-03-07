@@ -77,7 +77,7 @@ describe("Health pulse", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = cacheAfter.prices[i].toNumber();
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -91,7 +91,7 @@ describe("Health pulse", () => {
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK
     );
     // The fake usdc price is set to zero due to the bad oracle
-    assertBNEqual(cacheAfter.prices[0], 0);
+    assertI80F48Equal(cacheAfter.prices[0], 0);
     // User 1 has a trivial amount of token A as well, but we note here it is almost worth zero.
     assert.isAtMost(assetValue.toNumber(), 1);
   });
@@ -125,7 +125,7 @@ describe("Health pulse", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = cacheAfter.prices[i].toNumber();
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -137,8 +137,8 @@ describe("Health pulse", () => {
       cacheAfter.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK
     );
-    assertBNEqual(cacheAfter.prices[0], oracles.usdcPrice);
-    assertBNEqual(cacheAfter.prices[1], oracles.tokenAPrice);
+    assertI80F48Approx(cacheAfter.prices[0], oracles.usdcPrice);
+    assertI80F48Approx(cacheAfter.prices[1], oracles.tokenAPrice);
   });
 
   it("(user 0) health pulse in unhealthy state - happy path", async () => {
@@ -212,7 +212,7 @@ describe("Health pulse", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = cacheAfter.prices[i].toNumber();
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -222,8 +222,8 @@ describe("Health pulse", () => {
     assert.approximately(cacheAfter.timestamp.toNumber(), now, 3);
     // Note: cache is unhealthy (no HEALTH_CACHE_HEALTHY flag set) but price info is still populated.
     assertBNEqual(cacheAfter.flags, 0);
-    assertBNEqual(cacheAfter.prices[0], oracles.tokenAPrice);
-    assertBNEqual(cacheAfter.prices[1], oracles.usdcPrice);
+    assertI80F48Approx(cacheAfter.prices[0], oracles.tokenAPrice);
+    assertI80F48Approx(cacheAfter.prices[1], oracles.usdcPrice);
     assert.approximately(
       (expectedValue * oracles.tokenAPrice) / 10 ** oracles.tokenADecimals,
       assetValue.toNumber(),
@@ -319,7 +319,7 @@ describe("Health pulse", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = cacheAfter.prices[i].toNumber();
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -332,8 +332,8 @@ describe("Health pulse", () => {
       cacheAfter.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK
     );
-    assertBNEqual(cacheAfter.prices[0], oracles.tokenAPrice);
-    assertBNEqual(cacheAfter.prices[1], oracles.usdcPrice);
+    assertI80F48Approx(cacheAfter.prices[0], oracles.tokenAPrice);
+    assertI80F48Approx(cacheAfter.prices[1], oracles.usdcPrice);
     assert.approximately(
       (expectedValue * oracles.tokenAPrice) / 10 ** oracles.tokenADecimals,
       assetValue.toNumber(),

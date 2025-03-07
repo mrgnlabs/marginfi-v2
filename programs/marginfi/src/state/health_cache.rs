@@ -4,12 +4,15 @@ use anchor_lang::prelude::*;
 use bytemuck::{Pod, Zeroable};
 use type_layout::TypeLayout;
 
-assert_struct_size!(HealthCache, 208);
+assert_struct_size!(HealthCache, 304);
 assert_struct_align!(HealthCache, 8);
 #[repr(C)]
 #[derive(
-    AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod, PartialEq, Eq, TypeLayout,
+    AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod, PartialEq, Eq, TypeLayout, Debug,
 )]
+/// A read-only cache of the internal risk engine's information. Only valid in borrow/withdraw if
+/// the tx does not fail. To see the state in any context, e.g. to figure out if the risk engine is
+/// failing due to some bad price information, use `pulse_health`.
 pub struct HealthCache {
     pub asset_value: WrappedI80F48,
     pub liability_value: WrappedI80F48,
@@ -28,9 +31,7 @@ pub struct HealthCache {
     /// or liquidator consumption, to determine how a user's position is priced internally.
     /// * If a price overflows u64, shows u64::MAX
     /// * If a price is negative for some reason (as several oracles support), pulse will panic
-    pub prices: [u64; MAX_LENDING_ACCOUNT_BALANCES],
-
-    pub _padding: [u8; 32],
+    pub prices: [WrappedI80F48; MAX_LENDING_ACCOUNT_BALANCES],
 }
 
 impl HealthCache {

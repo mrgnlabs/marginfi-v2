@@ -905,3 +905,28 @@ impl TestFixture {
         get_max_deposit_amount_pre_fee(collateral_amount)
     }
 }
+
+pub fn get_mint_price(mint: BankMint) -> f64 {
+    match mint {
+        // For the T22 with fee variant, it's 50 cents
+        BankMint::T22WithFee => 0.5,
+        // For USDC-based and PYUSD mints, the price is roughly 1.0.
+        BankMint::Usdc | BankMint::UsdcSwb | BankMint::UsdcT22 | BankMint::PyUSD => 1.0,
+        // For SOL and its equivalents, use the SOL price (here, roughly 10.0).
+        BankMint::Sol
+        | BankMint::SolSwb
+        | BankMint::SolSwbPull
+        | BankMint::SolSwbOrigFee
+        | BankMint::SolEquivalent
+        | BankMint::SolEquivalent1
+        | BankMint::SolEquivalent2
+        | BankMint::SolEquivalent3
+        | BankMint::SolEquivalent4
+        | BankMint::SolEquivalent5
+        | BankMint::SolEquivalent6
+        | BankMint::SolEquivalent7
+        | BankMint::SolEquivalent8
+        | BankMint::SolEquivalent9
+        | BankMint::SolEqIsolated => 10.0,
+    }
+}

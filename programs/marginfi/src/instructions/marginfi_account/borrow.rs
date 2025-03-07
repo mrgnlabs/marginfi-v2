@@ -5,6 +5,7 @@ use crate::{
     math_error,
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
+        health_cache::HealthCache,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
         marginfi_group::{Bank, BankVaultType},
     },
@@ -12,6 +13,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
+use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 
@@ -165,9 +167,18 @@ pub fn lending_account_borrow<'info>(
         }
     }
 
+    let mut health_cache = HealthCache::zeroed();
+    health_cache.timestamp = clock.unix_timestamp;
+
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts, &mut None)?;
+    RiskEngine::check_account_init_health(
+        &marginfi_account,
+        ctx.remaining_accounts,
+        &mut Some(&mut health_cache),
+    )?;
+    health_cache.set_engine_ok(true);
+    marginfi_account.health_cache = health_cache;
 
     Ok(())
 }
