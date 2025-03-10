@@ -224,7 +224,7 @@ describe("Init group and add banks with asset category flags", () => {
     tx.sign(groupAdmin.wallet, bankKeypair);
     let result = await banksClient.tryProcessTransaction(tx);
     // AddedStakedPoolManually
-    assertBankrunTxFailed(result, "0x17a0");
+    assertBankrunTxFailed(result, "0x179e");
   });
 
   it("(attacker) Add bank (validator 0) with bad accounts + bad metadata - should fail", async () => {
@@ -302,7 +302,7 @@ describe("Init group and add banks with asset category flags", () => {
 
           let result = await banksClient.tryProcessTransaction(tx);
           // StakePoolValidationFailed
-          assertBankrunTxFailed(result, "0x17a2");
+          assertBankrunTxFailed(result, "0x17a0");
         }
       }
     }
@@ -369,7 +369,7 @@ describe("Init group and add banks with asset category flags", () => {
 
         let result = await banksClient.tryProcessTransaction(tx);
         // StakePoolValidationFailed
-        assertBankrunTxFailed(result, "0x17a2");
+        assertBankrunTxFailed(result, "0x17a0");
       }
     }
 
@@ -409,8 +409,8 @@ describe("Init group and add banks with asset category flags", () => {
     tx.sign(users[0].wallet);
 
     let result = await banksClient.tryProcessTransaction(tx);
-    // Note: different error
-    assertBankrunTxFailed(result, "0x1777");
+    // Note: WrongOracleAccountKeys
+    assertBankrunTxFailed(result, "0x17a4");
   });
 
   it("(permissionless) Add staked collateral bank (validator 0) - happy path", async () => {

@@ -63,8 +63,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // 6010 (Generic risk engine rejection)
-    assertBankrunTxFailed(result, "0x177a");
+    // 6009 (Generic risk engine rejection)
+    assertBankrunTxFailed(result, "0x1779");
 
     const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
       userAccount
@@ -113,9 +113,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // Throws 6007 (InvalidOracleAccount) first at `try_from_bank_config_with_max_age` which is
-    // converted to 6010 (Generic risk engine rejection) downstream
-    assertBankrunTxFailed(result, "0x177a");
+    // 6009 (Generic risk engine rejection)
+    assertBankrunTxFailed(result, "0x1779");
   });
 
   it("(user 2 - attacker) ties to sneak in bad sol pool - should fail", async () => {
@@ -141,9 +140,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // Throws 6007 (InvalidOracleAccount) first at `try_from_bank_config_with_max_age` which is
-    // converted to 6010 (Generic risk engine rejection) downstream
-    assertBankrunTxFailed(result, "0x177a");
+    // 6009 (Generic risk engine rejection)
+    assertBankrunTxFailed(result, "0x1779");
   });
 
   // The stake hasn't changed (even though the SOL balance did) so this should still fail
@@ -174,8 +172,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // 6010 (Generic risk engine rejection)
-    assertBankrunTxFailed(result, "0x177a");
+    // 6009 (Generic risk engine rejection)
+    assertBankrunTxFailed(result, "0x1779");
   });
 
   it("Generate stake income....", async () => {
