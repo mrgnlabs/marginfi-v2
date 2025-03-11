@@ -466,6 +466,7 @@ pub struct Bank {
     /// - EMISSIONS_FLAG_BORROW_ACTIVE: 1
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
+    /// - FREEZE_SETTINGS: 8
     ///
     pub flags: u64,
     /// Emissions APR.

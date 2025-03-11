@@ -1,13 +1,12 @@
-use anchor_lang::{prelude::*, Discriminator};
-use solana_program::{
-    instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT},
-    sysvar::{self, instructions},
-};
-
 use crate::{
     check,
     prelude::*,
     state::marginfi_account::{MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG},
+};
+use anchor_lang::{prelude::*, Discriminator};
+use solana_program::{
+    instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT},
+    sysvar::{self, instructions},
 };
 
 pub fn lending_account_start_flashloan(
@@ -137,7 +136,7 @@ pub fn lending_account_end_flashloan<'info>(
 
     marginfi_account.unset_flag(IN_FLASHLOAN_FLAG);
 
-    RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts)?;
+    RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts, &mut None)?;
 
     Ok(())
 }

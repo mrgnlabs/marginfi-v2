@@ -244,6 +244,17 @@ pub mod marginfi {
         marginfi_account::lending_account_withdraw_emissions_permissionless(ctx)
     }
 
+    /// (Permissionless) Refresh the internal risk engine health cache. Useful for liquidators and
+    /// other consumers that want to see the internal risk state of a user account. This cache is
+    /// read-only and serves no purpose except being populated by this ix.
+    /// * remaining accounts expected in the same order as borrow, etc. I.e., for each balance the
+    ///   user has, pass bank and oracle: <bank1, oracle1, bank2, oracle2>
+    pub fn lending_account_pulse_health<'info>(
+        ctx: Context<'_, '_, 'info, 'info, PulseHealth<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_pulse_health(ctx)
+    }
+
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees
     /// that are assessed to the protocol
     pub fn init_global_fee_state(

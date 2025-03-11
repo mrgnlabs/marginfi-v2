@@ -121,6 +121,9 @@ async fn marginfi_account_withdraw_success(
         .await
         .get_asset_amount(balance.asset_shares.into())
         .unwrap();
+    let post: I80F48 = post_accounted.into();
+    let post: f64 = post.to_num();
+    println!("post bal: {:?}", post);
 
     let active_balance_count = marginfi_account
         .lending_account
@@ -142,6 +145,29 @@ async fn marginfi_account_withdraw_success(
         accounted_user_balance_delta,
         1
     );
+
+    let health_cache = marginfi_account.health_cache;
+    let collateral_price_roughly = get_mint_price(bank_mint);
+    // Apply a small discount to account for conf discounts, etc.
+    let disc: f64 = 0.95;
+    assert!(health_cache.is_engine_ok());
+    assert!(health_cache.is_healthy());
+
+    let asset_value: I80F48 = health_cache.asset_value.into();
+    let asset_value: f64 = asset_value.to_num();
+    let diff = deposit_amount - adjusted_withdraw_amount - withdraw_fee as f64;
+    assert!(asset_value >= (diff) * collateral_price_roughly * disc);
+
+    for (i, bal) in marginfi_account.lending_account.balances.iter().enumerate() {
+        let shares: I80F48 = bal.asset_shares.into();
+        if bal.is_active() {
+            let price: I80F48 = health_cache.prices[i].into();
+            let price: f64 = price.to_num();
+            if shares != I80F48::ZERO {
+                assert!(price >= (collateral_price_roughly * disc));
+            }
+        }
+    }
 
     Ok(())
 }

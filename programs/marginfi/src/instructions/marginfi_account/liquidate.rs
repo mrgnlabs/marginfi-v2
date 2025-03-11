@@ -387,10 +387,13 @@ pub fn lending_account_liquidate<'info>(
                 pre_liquidation_health,
             )?;
 
+    // TODO consider if health cache update here is worth blowing the extra CU
+
     // Verify liquidator account health
     RiskEngine::check_account_init_health(
         &liquidator_marginfi_account,
         liquidator_remaining_accounts,
+        &mut None,
     )?;
 
     emit!(LendingAccountLiquidateEvent {

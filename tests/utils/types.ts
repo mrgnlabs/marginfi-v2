@@ -38,6 +38,11 @@ export const ORACLE_SETUP_PYTH_PUSH = 3;
 export const ORACLE_SETUP_SWITCHBOARD_PULL = 4;
 export const ORACLE_SETUP_STAKED_WITH_PYTH_PUSH = 5;
 
+export const HEALTH_CACHE_NONE = 0;
+export const HEALTH_CACHE_HEALTHY = 1;
+export const HEALTH_CACHE_ENGINE_OK = 2;
+
+
 /**
  * The default bank config has
  * * all weights are 1

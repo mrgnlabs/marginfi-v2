@@ -21,6 +21,7 @@ import {
   assertBNApproximately,
   assertI80F48Approx,
   assertI80F48Equal,
+  expectFailedTxWithError,
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
@@ -79,6 +80,31 @@ describe("Borrow funds", () => {
     );
   });
 
+  it("(user 0) tries to borrow usdc with a bad oracle - should fail", async () => {
+    const user = users[0];
+    const user0Account = user.accounts.get(USER_ACCOUNT);
+    const bank = bankKeypairUsdc.publicKey;
+    await expectFailedTxWithError(async () => {
+      await user.mrgnProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          await borrowIx(user.mrgnProgram, {
+            marginfiAccount: user0Account,
+            bank: bank,
+            tokenAccount: user.usdcAccount,
+            remaining: [
+              bankKeypairA.publicKey,
+              oracles.tokenAOracle.publicKey,
+              bank,
+              oracles.fakeUsdc, // sneaky sneaky...
+            ],
+            amount: borrowAmountUsdc_native,
+          })
+        )
+      );
+      // Note: the error logs describe this as "Invalid Pyth account" too, so this is enough detail...
+    }, "StaleOracle");
+  });
+
   it("(user 0) borrows USDC against their token A position - happy path", async () => {
     const user = users[0];
     const bank = bankKeypairUsdc.publicKey;
@@ -88,15 +114,15 @@ describe("Borrow funds", () => {
       console.log("user 0 USDC before: " + userUsdcBefore.toLocaleString());
       console.log(
         "usdc fees owed to bank: " +
-        wrappedI80F48toBigNumber(
-          bankBefore.collectedGroupFeesOutstanding
-        ).toString()
+          wrappedI80F48toBigNumber(
+            bankBefore.collectedGroupFeesOutstanding
+          ).toString()
       );
       console.log(
         "usdc fees owed to program: " +
-        wrappedI80F48toBigNumber(
-          bankBefore.collectedProgramFeesOutstanding
-        ).toString()
+          wrappedI80F48toBigNumber(
+            bankBefore.collectedProgramFeesOutstanding
+          ).toString()
       );
     }
 
@@ -127,15 +153,15 @@ describe("Borrow funds", () => {
       console.log("user 0 USDC after: " + userUsdcAfter.toLocaleString());
       console.log(
         "usdc fees owed to bank: " +
-        wrappedI80F48toBigNumber(
-          bankAfter.collectedGroupFeesOutstanding
-        ).toString()
+          wrappedI80F48toBigNumber(
+            bankAfter.collectedGroupFeesOutstanding
+          ).toString()
       );
       console.log(
         "usdc fees owed to program: " +
-        wrappedI80F48toBigNumber(
-          bankAfter.collectedProgramFeesOutstanding
-        ).toString()
+          wrappedI80F48toBigNumber(
+            bankAfter.collectedProgramFeesOutstanding
+          ).toString()
       );
     }
 
