@@ -91,7 +91,7 @@ describe("Deposit funds (included staked assets)", () => {
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
     // AssetTagMismatch
-    assertBankrunTxFailed(result, "0x17a1");
+    assertBankrunTxFailed(result, "0x179f");
 
     // Verify the deposit worked and the entry does not exist
     const userAcc = await bankrunProgram.account.marginfiAccount.fetch(

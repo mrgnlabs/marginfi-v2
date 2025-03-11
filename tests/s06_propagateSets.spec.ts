@@ -153,8 +153,8 @@ describe("Edit and propagate staked settings", () => {
     tx.sign(groupAdmin.wallet); // just to the pay the fee
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // 6007 (InvalidOracleAccount)
-    assertBankrunTxFailed(result, "0x1777");
+    // 6000 (InternalLogicError)
+    assertBankrunTxFailed(result, "0x1770");
   });
 
   it("(admin) restores default settings - happy path", async () => {

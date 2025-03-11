@@ -129,16 +129,20 @@ async fn pyth_push_partv_borrow() -> anyhow::Result<()> {
         .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 101)
         .await;
 
-    // TODO: Bad error, need to improve the flexible risk engine logic to correctly pass the
-    // unerlying error.
-    assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::PythPushInsufficientVerificationLevel
+    );
 
     // Borrow SOL
     let res = borrower_mfi_account_f
         .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 100)
         .await;
 
-    assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::PythPushInsufficientVerificationLevel
+    );
 
     Ok(())
 }

@@ -310,7 +310,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
 
                 if matches!(
                     (&price_feed, requirement_type),
-                    (&Err(PriceFeedError::StaleOracle), RequirementType::Initial)
+                    (&Err(_), RequirementType::Initial)
                 ) {
                     debug!("Skipping stale oracle");
                     return Ok(I80F48::ZERO);
@@ -374,32 +374,32 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         )
     }
 
-    fn try_get_price_feed(&self) -> std::result::Result<&OraclePriceFeedAdapter, PriceFeedError> {
+    fn try_get_price_feed(&self) -> MarginfiResult<&OraclePriceFeedAdapter> {
         match self.price_feed.as_ref() {
             Ok(a) => Ok(a),
             #[allow(unused_variables)]
-            Err(e) => {
-                debug!("Price feed error: {:?}", e);
-                Err(PriceFeedError::StaleOracle)
-            }
+            Err(e) => match e {
+                anchor_lang::error::Error::AnchorError(inner) => {
+                    let error_code = inner.as_ref().error_code_number;
+                    let custom_error = MarginfiError::from(error_code);
+                    Err(error!(custom_error))
+                }
+                anchor_lang::error::Error::ProgramError(inner) => {
+                    match inner.as_ref().program_error {
+                        ProgramError::Custom(error_code) => {
+                            let custom_error = MarginfiError::from(error_code);
+                            Err(error!(custom_error))
+                        }
+                        _ => Err(error!(MarginfiError::InternalLogicError)),
+                    }
+                }
+            },
         }
     }
 
     #[inline]
     pub fn is_empty(&self, side: BalanceSide) -> bool {
         self.balance.is_empty(side)
-    }
-}
-
-enum PriceFeedError {
-    StaleOracle,
-}
-
-impl From<PriceFeedError> for Error {
-    fn from(value: PriceFeedError) -> Self {
-        match value {
-            PriceFeedError::StaleOracle => error!(MarginfiError::StaleOracle),
-        }
     }
 }
 

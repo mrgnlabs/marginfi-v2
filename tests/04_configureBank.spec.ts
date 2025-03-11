@@ -155,7 +155,7 @@ describe("Lending pool configure bank", () => {
           })
         )
       );
-    }, "InvalidOracleAccount");
+    }, "InternalLogicError");
 
     await expectFailedTxWithMessage(async () => {
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(

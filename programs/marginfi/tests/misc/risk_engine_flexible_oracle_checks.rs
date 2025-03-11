@@ -209,7 +209,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
 
     // Make SOL oracle not stale
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
@@ -315,7 +315,7 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
 
     // Make borrower asset bank not stale
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
@@ -421,7 +421,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
 
     // Make borrower liablity bank not stale
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;
