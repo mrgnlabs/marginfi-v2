@@ -23,6 +23,8 @@ pub fn configure(
     marginfi_group.update_admin(new_admin);
     marginfi_group.set_arena_group(is_arena_group)?;
 
+    msg!("flags set to: {:?}", marginfi_group.group_flags);
+
     emit!(MarginfiGroupConfigureEvent {
         header: GroupEventHeader {
             marginfi_group: ctx.accounts.marginfi_group.key(),

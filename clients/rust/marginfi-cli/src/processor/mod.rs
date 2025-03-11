@@ -209,6 +209,7 @@ pub fn group_create(
     profile: Profile,
     admin: Option<Pubkey>,
     override_existing_profile_group: bool,
+    is_arena_group: bool,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
     let admin = admin.unwrap_or_else(|| config.authority());
@@ -234,7 +235,7 @@ pub fn group_create(
             fee_state: find_fee_state_pda(&marginfi::id()).0,
             system_program: system_program::id(),
         })
-        .args(marginfi::instruction::MarginfiGroupInitialize {})
+        .args(marginfi::instruction::MarginfiGroupInitialize { is_arena_group })
         .instructions()?;
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
@@ -256,7 +257,12 @@ pub fn group_create(
     Ok(())
 }
 
-pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) -> Result<()> {
+pub fn group_configure(
+    config: Config,
+    profile: Profile,
+    new_admin: Pubkey,
+    is_arena_group: bool,
+) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
 
     if profile.marginfi_group.is_none() {
@@ -275,7 +281,8 @@ pub fn group_configure(config: Config, profile: Profile, admin: Option<Pubkey>) 
             admin: config.authority(),
         })
         .args(marginfi::instruction::MarginfiGroupConfigure {
-            config: GroupConfig { admin },
+            new_admin,
+            is_arena_group,
         })
         .instructions()?;
 
@@ -1064,7 +1071,7 @@ pub fn edit_fee_state(
     Ok(())
 }
 
-pub fn config_group_fee(config: Config, profile: Profile, flag: u64) -> Result<()> {
+pub fn config_group_fee(config: Config, profile: Profile, enable_program_fee: bool) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
     let marginfi_group_pubkey = profile.marginfi_group.ok_or_else(|| {
         anyhow!(
@@ -1083,7 +1090,7 @@ pub fn config_group_fee(config: Config, profile: Profile, flag: u64) -> Result<(
             global_fee_admin: config.authority(),
             fee_state: fee_state_pubkey,
         })
-        .args(marginfi::instruction::ConfigGroupFee { flag })
+        .args(marginfi::instruction::ConfigGroupFee { enable_program_fee })
         .instructions()?;
 
     let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
