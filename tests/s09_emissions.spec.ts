@@ -390,8 +390,8 @@ describe("Set up emissions on staked collateral assets", () => {
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // InvalidEmissionsDestinationAccount 6051
-    assertBankrunTxFailed(result, "0x17a3");
+    // InvalidEmissionsDestinationAccount 6063
+    assertBankrunTxFailed(result, "0x17af");
   });
 
   it("(user 2) registers permissionless settle to some wallet - (happy path)", async () => {
