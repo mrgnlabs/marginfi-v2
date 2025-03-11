@@ -147,8 +147,9 @@ impl OraclePriceFeedAdapter {
 
                 let account_info = &ais[0];
 
-                check!(
-                    account_info.owner == &pyth_solana_receiver_sdk::id(),
+                check_eq!(
+                    account_info.owner,
+                    &pyth_solana_receiver_sdk::id(),
                     MarginfiError::PythPushWrongAccountOwner
                 );
 
@@ -222,8 +223,9 @@ impl OraclePriceFeedAdapter {
                 )) {
                     let account_info = &ais[0];
 
-                    check!(
-                        account_info.owner == &pyth_solana_receiver_sdk::id(),
+                    check_eq!(
+                        account_info.owner,
+                        &pyth_solana_receiver_sdk::id(),
                         MarginfiError::StakedPythPushWrongAccountOwner
                     );
 
@@ -252,10 +254,15 @@ impl OraclePriceFeedAdapter {
                     Ok(price)
                 } else {
                     // Localnet only
-                    check!(
-                        ais[0].key == &bank_config.oracle_keys[0],
-                        MarginfiError::WrongOracleAccountKeys
-                    );
+
+                    if ais[0].key != &bank_config.oracle_keys[0] {
+                        msg!(
+                            "Expected oracle key: {:?}, got: {:?}",
+                            bank_config.oracle_keys[0],
+                            ais[0].key
+                        );
+                        return Err(error!(MarginfiError::WrongOracleAccountKeys));
+                    }
 
                     let account_info = &ais[0];
                     let mut feed = PythLegacyPriceFeed::load_checked(
@@ -302,10 +309,15 @@ impl OraclePriceFeedAdapter {
                     oracle_ais.len() == 1,
                     MarginfiError::WrongNumberOfOracleAccounts
                 );
-                check!(
-                    oracle_ais[0].key == &bank_config.oracle_keys[0],
-                    MarginfiError::WrongOracleAccountKeys
-                );
+
+                if oracle_ais[0].key != &bank_config.oracle_keys[0] {
+                    msg!(
+                        "Expected oracle key: {:?}, got: {:?}",
+                        bank_config.oracle_keys[0],
+                        oracle_ais[0].key
+                    );
+                    return Err(error!(MarginfiError::WrongOracleAccountKeys));
+                }
 
                 PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
 
@@ -316,10 +328,14 @@ impl OraclePriceFeedAdapter {
                     oracle_ais.len() == 1,
                     MarginfiError::WrongNumberOfOracleAccounts
                 );
-                check!(
-                    oracle_ais[0].key == &bank_config.oracle_keys[0],
-                    MarginfiError::WrongOracleAccountKeys
-                );
+                if oracle_ais[0].key != &bank_config.oracle_keys[0] {
+                    msg!(
+                        "Expected oracle key: {:?}, got: {:?}",
+                        bank_config.oracle_keys[0],
+                        oracle_ais[0].key
+                    );
+                    return Err(error!(MarginfiError::WrongOracleAccountKeys));
+                }
 
                 SwitchboardV2PriceFeed::check_ais(&oracle_ais[0])?;
 
@@ -343,10 +359,14 @@ impl OraclePriceFeedAdapter {
                     oracle_ais.len() == 1,
                     MarginfiError::WrongNumberOfOracleAccounts
                 );
-                check!(
-                    oracle_ais[0].key == &bank_config.oracle_keys[0],
-                    MarginfiError::WrongOracleAccountKeys
-                );
+                if oracle_ais[0].key != &bank_config.oracle_keys[0] {
+                    msg!(
+                        "Expected oracle key: {:?}, got: {:?}",
+                        bank_config.oracle_keys[0],
+                        oracle_ais[0].key
+                    );
+                    return Err(error!(MarginfiError::WrongOracleAccountKeys));
+                }
 
                 SwitchboardPullPriceFeed::check_ais(&oracle_ais[0])?;
 
@@ -367,10 +387,14 @@ impl OraclePriceFeedAdapter {
                         )?;
                     } else {
                         // Localnet only
-                        check!(
-                            oracle_ais[0].key == &bank_config.oracle_keys[0],
-                            MarginfiError::WrongOracleAccountKeys
-                        );
+                        if oracle_ais[0].key != &bank_config.oracle_keys[0] {
+                            msg!(
+                                "Expected oracle key: {:?}, got: {:?}",
+                                bank_config.oracle_keys[0],
+                                oracle_ais[0].key
+                            );
+                            return Err(error!(MarginfiError::WrongOracleAccountKeys));
+                        }
 
                         PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
                     }
