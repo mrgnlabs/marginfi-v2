@@ -475,6 +475,15 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaBankLimit);
 
+    // Arena banks cannot be restored to non-arena
+
+    let res = test_f
+        .marginfi_group
+        .try_update(group_before.admin, false)
+        .await;
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaSettingCannotChange);
+
     Ok(())
 }
 

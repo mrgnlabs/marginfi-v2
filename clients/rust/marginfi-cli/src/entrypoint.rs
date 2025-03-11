@@ -699,7 +699,9 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             program_fee_fixed,
             program_fee_rate,
         ),
-        GroupCommand::ConfigGroupFee { enable_program_fee } => processor::config_group_fee(config, profile, enable_program_fee),
+        GroupCommand::ConfigGroupFee { enable_program_fee } => {
+            processor::config_group_fee(config, profile, enable_program_fee)
+        }
         GroupCommand::PropagateFee { marginfi_group } => {
             processor::propagate_fee(config, marginfi_group)
         }

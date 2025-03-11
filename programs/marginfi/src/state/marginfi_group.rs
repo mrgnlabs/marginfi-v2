@@ -109,11 +109,19 @@ impl MarginfiGroup {
         }
     }
 
-    /// If the group already has more than two banks, fails.
+    /// Set the `ARENA_GROUP` if `is_arena` is true. If trying to set as arena and the group already
+    /// has more than two banks, fails. If trying to set an arena bank as non-arena, fails.
     pub fn set_arena_group(&mut self, is_arena: bool) -> MarginfiResult {
-        // Avoids a footgun where we set a group that already has more than two banks as an arena bank.
-        let allowed_to_change = (is_arena && self.banks <= 2) || !is_arena;
-        check!(allowed_to_change, MarginfiError::ArenaBankLimit);
+        // If enabling arena mode, ensure the group doesn't already have more than two banks.
+        if is_arena && self.banks > 2 {
+            return err!(MarginfiError::ArenaBankLimit);
+        }
+
+        // If the group is currently marked as arena, disallow switching it back to non-arena.
+        if self.is_arena_group() && !is_arena {
+            return err!(MarginfiError::ArenaSettingCannotChange);
+        }
+
         if is_arena {
             self.group_flags |= ARENA_GROUP;
         } else {
@@ -136,9 +144,9 @@ impl MarginfiGroup {
     // errors if trying to add a third bank. If you managed to create 16,000 banks, congrats, does
     // nothing.
     pub fn add_bank(&mut self) -> MarginfiResult {
-        let is_arena_group = self.is_arena_group();
-        let allowed_to_add = (is_arena_group && self.banks < 2) || !is_arena_group;
-        check!(allowed_to_add, MarginfiError::ArenaBankLimit);
+        if self.is_arena_group() && self.banks >= 2 {
+            return err!(MarginfiError::ArenaBankLimit);
+        }
         self.banks = self.banks.saturating_add(1);
         Ok(())
     }

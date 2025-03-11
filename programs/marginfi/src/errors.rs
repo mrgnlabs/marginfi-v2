@@ -132,6 +132,8 @@ pub enum MarginfiError {
     InvalidEmissionsDestinationAccount,
     #[msg("Arena groups can only support two banks")] // 6064
     ArenaBankLimit,
+    #[msg("Arena groups cannot return to non-arena status")] // 6065
+    ArenaSettingCannotChange,
 }
 
 impl From<MarginfiError> for ProgramError {
