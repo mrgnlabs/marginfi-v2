@@ -15,7 +15,7 @@ use marginfi::state::marginfi_group::BankConfigCompact;
 use marginfi::state::price::OracleSetup;
 use marginfi::{
     prelude::MarginfiGroup,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType},
 };
 use solana_program::sysvar;
 use solana_program_test::*;
@@ -40,10 +40,7 @@ pub struct MarginfiGroupFixture {
 }
 
 impl MarginfiGroupFixture {
-    pub async fn new(
-        ctx: Rc<RefCell<ProgramTestContext>>,
-        config: GroupConfig,
-    ) -> MarginfiGroupFixture {
+    pub async fn new(ctx: Rc<RefCell<ProgramTestContext>>) -> MarginfiGroupFixture {
         let ctx_ref = ctx.clone();
 
         let group_key = Keypair::new();
@@ -53,27 +50,35 @@ impl MarginfiGroupFixture {
 
         {
             let mut ctx = ctx.borrow_mut();
+            let admin = ctx.payer.pubkey();
 
             let initialize_marginfi_group_ix = Instruction {
                 program_id: marginfi::id(),
                 accounts: marginfi::accounts::MarginfiGroupInitialize {
                     marginfi_group: group_key.pubkey(),
-                    admin: ctx.payer.pubkey(),
+                    admin,
                     fee_state: fee_state_key,
                     system_program: system_program::id(),
                 }
                 .to_account_metas(Some(true)),
-                data: marginfi::instruction::MarginfiGroupInitialize {}.data(),
+                data: marginfi::instruction::MarginfiGroupInitialize {
+                    is_arena_group: false,
+                }
+                .data(),
             };
 
             let configure_marginfi_group_ix = Instruction {
                 program_id: marginfi::id(),
                 accounts: marginfi::accounts::MarginfiGroupConfigure {
                     marginfi_group: group_key.pubkey(),
-                    admin: ctx.payer.pubkey(),
+                    admin,
                 }
                 .to_account_metas(Some(true)),
-                data: marginfi::instruction::MarginfiGroupConfigure { config }.data(),
+                data: marginfi::instruction::MarginfiGroupConfigure {
+                    new_admin: admin,
+                    is_arena_group: false,
+                }
+                .data(),
             };
 
             // Check if the fee state account already exists
@@ -408,7 +413,11 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
-    pub async fn try_update(&self, config: GroupConfig) -> Result<(), BanksClientError> {
+    pub async fn try_update(
+        &self,
+        new_admin: Pubkey,
+        is_arena_group: bool,
+    ) -> Result<(), BanksClientError> {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::MarginfiGroupConfigure {
@@ -416,7 +425,11 @@ impl MarginfiGroupFixture {
                 admin: self.ctx.borrow().payer.pubkey(),
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::MarginfiGroupConfigure { config }.data(),
+            data: marginfi::instruction::MarginfiGroupConfigure {
+                new_admin,
+                is_arena_group,
+            }
+            .data(),
         };
 
         let tx = Transaction::new_signed_with_payer(

@@ -6,7 +6,7 @@ use fixtures::{
         DEFAULT_USDC_TEST_REAL_BANK_CONFIG,
     },
 };
-use marginfi::{errors::MarginfiError, state::marginfi_group::GroupConfig};
+use marginfi::errors::MarginfiError;
 use solana_program_test::tokio;
 
 #[tokio::test]
@@ -22,7 +22,6 @@ async fn real_oracle_marginfi_account_borrow_success() -> anyhow::Result<()> {
                 config: Some(*DEFAULT_SOL_TEST_REAL_BANK_CONFIG),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;
@@ -97,7 +96,6 @@ async fn real_oracle_pyth_push_marginfi_account_borrow_success() -> anyhow::Resu
                 config: Some(*DEFAULT_PYTH_PUSH_SOL_TEST_REAL_BANK_CONFIG),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;

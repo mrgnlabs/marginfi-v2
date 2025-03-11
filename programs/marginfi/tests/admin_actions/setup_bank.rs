@@ -422,3 +422,104 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn add_too_many_arena_banks() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+    let group_before = test_f.marginfi_group.load().await;
+
+    let res = test_f
+        .marginfi_group
+        .try_update(group_before.admin, true)
+        .await;
+    assert!(res.is_ok());
+    let group_after = test_f.marginfi_group.load().await;
+    assert_eq!(group_after.is_arena_group(), true);
+
+    // The first two banks/mints, which will succeed
+    let mints = vec![
+        (
+            MintFixture::new(test_f.context.clone(), None, None).await,
+            *DEFAULT_USDC_TEST_BANK_CONFIG,
+        ),
+        (
+            MintFixture::new_token_22(
+                test_f.context.clone(),
+                None,
+                None,
+                &[SupportedExtension::TransferFee],
+            )
+            .await,
+            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
+        ),
+    ];
+
+    for (mint_f, bank_config) in mints {
+        let res = test_f
+            .marginfi_group
+            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .await;
+        assert!(res.is_ok());
+    }
+
+    // Adding a third bank fails
+    let another_mint =
+        MintFixture::new_from_file(&test_f.context.clone(), "src/fixtures/pyUSD.json");
+    let another_config = *DEFAULT_PYUSD_TEST_BANK_CONFIG;
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_add_bank(&another_mint, another_config)
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaBankLimit);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    // Add three banks
+    let mints = vec![
+        (
+            MintFixture::new(test_f.context.clone(), None, None).await,
+            *DEFAULT_USDC_TEST_BANK_CONFIG,
+        ),
+        (
+            MintFixture::new_token_22(
+                test_f.context.clone(),
+                None,
+                None,
+                &[SupportedExtension::TransferFee],
+            )
+            .await,
+            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
+        ),
+        (
+            MintFixture::new_from_file(&test_f.context.clone(), "src/fixtures/pyUSD.json"),
+            *DEFAULT_PYUSD_TEST_BANK_CONFIG,
+        ),
+    ];
+
+    for (mint_f, bank_config) in mints {
+        let res = test_f
+            .marginfi_group
+            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .await;
+        assert!(res.is_ok());
+    }
+
+    let group_before = test_f.marginfi_group.load().await;
+    let res = test_f
+        .marginfi_group
+        .try_update(group_before.admin, true)
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaBankLimit);
+
+    Ok(())
+}

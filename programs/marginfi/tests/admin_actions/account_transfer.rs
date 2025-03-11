@@ -60,13 +60,17 @@ async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Resu
     let new_authority = Keypair::new().pubkey();
     let signer = Keypair::new();
 
-    let res = marginfi_account
-        .try_transfer_account_authority(new_authority, Some(signer))
+    let tx = marginfi_account
+        .get_tx_transfer_account_authority(new_authority, Some(signer))
         .await;
+
+    let mut ctx = test_f.context.borrow_mut();
+    let res = ctx.banks_client.simulate_transaction(tx).await;
+    let is_err = res.unwrap().result.unwrap().is_err();
 
     // Assert the response is an error due to fact that a non-owner of the
     // acount attempted to initialize this account transfer
-    assert!(res.is_err());
+    assert!(is_err);
 
     Ok(())
 }

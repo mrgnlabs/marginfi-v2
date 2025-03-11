@@ -6,7 +6,6 @@ use fixtures::{
     assert_anchor_error,
     test::{BankMint, TestFixture, TestSettings},
 };
-use marginfi::state::marginfi_group::GroupConfig;
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 use test_case::test_case;
@@ -100,9 +99,7 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
     // Update the admin of the marginfi group
     test_f
         .marginfi_group
-        .try_update(GroupConfig {
-            admin: Some(Pubkey::new_unique()),
-        })
+        .try_update(Pubkey::new_unique(), false)
         .await?;
 
     // Mint `insurance_vault_balance` USDC to the insurance vault

@@ -8,7 +8,7 @@ use fixtures::{
 };
 use marginfi::{
     prelude::MarginfiError,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType},
 };
 use solana_program_test::tokio;
 
@@ -248,7 +248,6 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;
@@ -336,7 +335,6 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
 #[tokio::test]
 async fn re_bankruptcy_fail() -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings {
-        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::Usdc,

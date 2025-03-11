@@ -7,7 +7,7 @@ use marginfi::{
     errors::MarginfiError,
     state::{
         marginfi_account::DISABLED_FLAG,
-        marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+        marginfi_group::{BankConfig, BankConfigOpt, BankVaultType},
     },
 };
 use solana_program_test::tokio;
@@ -16,7 +16,6 @@ use solana_sdk::pubkey::Pubkey;
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings {
-        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::Usdc,
@@ -92,9 +91,7 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_update(GroupConfig {
-            admin: Some(Pubkey::new_unique()),
-        })
+        .try_update(Pubkey::new_unique(), false)
         .await?;
 
     let bank = test_f.get_bank(&BankMint::Usdc);
@@ -113,7 +110,6 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings {
-        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::Usdc,
@@ -200,9 +196,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
 
     test_f
         .marginfi_group
-        .try_update(GroupConfig {
-            admin: Some(Pubkey::new_unique()),
-        })
+        .try_update(Pubkey::new_unique(), false)
         .await?;
 
     let res = test_f

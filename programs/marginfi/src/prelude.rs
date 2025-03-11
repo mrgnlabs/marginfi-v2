@@ -4,5 +4,5 @@ pub type MarginfiResult<G = ()> = Result<G>;
 
 pub use crate::{
     errors::MarginfiError,
-    state::marginfi_group::{GroupConfig, MarginfiGroup},
+    state::marginfi_group::MarginfiGroup,
 };

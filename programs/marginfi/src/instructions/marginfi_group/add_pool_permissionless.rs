@@ -39,7 +39,7 @@ pub fn lending_pool_add_bank_permissionless(
 
     let mut bank = bank_loader.load_init()?;
     let settings = ctx.accounts.staked_settings.load()?;
-    let group = ctx.accounts.marginfi_group.load()?;
+    let mut group = ctx.accounts.marginfi_group.load_mut()?;
 
     let liquidity_vault_bump = ctx.bumps.liquidity_vault;
     let liquidity_vault_authority_bump = ctx.bumps.liquidity_vault_authority;
@@ -98,6 +98,8 @@ pub fn lending_pool_add_bank_permissionless(
 
     log_pool_info(&bank);
 
+    group.add_bank()?;
+
     bank.config.validate()?;
 
     check!(
@@ -133,6 +135,7 @@ pub fn lending_pool_add_bank_permissionless(
 #[derive(Accounts)]
 #[instruction(bank_seed: u64)]
 pub struct LendingPoolAddBankPermissionless<'info> {
+    #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

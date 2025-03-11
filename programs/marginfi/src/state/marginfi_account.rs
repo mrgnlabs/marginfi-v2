@@ -33,15 +33,15 @@ pub struct MarginfiAccount {
     pub group: Pubkey,                   // 32
     pub authority: Pubkey,               // 32
     pub lending_account: LendingAccount, // 1728
-    /// The flags that indicate the state of the account.
-    /// This is u64 bitfield, where each bit represents a flag.
+    /// The flags that indicate the state of the account. This is u64 bitfield, where each bit
+    /// represents a flag.
     ///
     /// Flags:MarginfiAccount
-    /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
-    /// and no further actions can be taken on it.
-    /// - IN_FLASHLOAN_FLAG (1 << 1)
-    /// - FLASHLOAN_ENABLED_FLAG (1 << 2)
-    /// - TRANSFER_AUTHORITY_ALLOWED_FLAG (1 << 3)
+    /// - 1: `DISABLED_FLAG`  This flag indicates that the account is disabled and no further
+    /// actions can be taken on it.
+    /// - 2: `IN_FLASHLOAN_FLAG`
+    /// - 4: `FLASHLOAN_ENABLED_FLAG`
+    /// - 8: `TRANSFER_AUTHORITY_ALLOWED_FLAG`
     pub account_flags: u64, // 8
     /// Set with `update_emissions_destination_account`. Emissions rewards can be withdrawn to the
     /// cannonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).

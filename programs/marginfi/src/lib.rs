@@ -29,15 +29,19 @@ cfg_if::cfg_if! {
 pub mod marginfi {
     use super::*;
 
-    pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
-        marginfi_group::initialize_group(ctx)
+    pub fn marginfi_group_initialize(
+        ctx: Context<MarginfiGroupInitialize>,
+        is_arena_group: bool,
+    ) -> MarginfiResult {
+        marginfi_group::initialize_group(ctx, is_arena_group)
     }
 
     pub fn marginfi_group_configure(
         ctx: Context<MarginfiGroupConfigure>,
-        config: GroupConfig,
+        new_admin: Pubkey,
+        is_arena_group: bool,
     ) -> MarginfiResult {
-        marginfi_group::configure(ctx, config)
+        marginfi_group::configure(ctx, new_admin, is_arena_group)
     }
 
     pub fn lending_pool_add_bank(
@@ -302,8 +306,11 @@ pub mod marginfi {
     /// (global fee admin only) Enable or disable program fees for any group. Does not require the
     /// group admin to sign: the global fee state admin can turn program fees on or off for any
     /// group
-    pub fn config_group_fee(ctx: Context<ConfigGroupFee>, flag: u64) -> MarginfiResult {
-        marginfi_group::config_group_fee(ctx, flag)
+    pub fn config_group_fee(
+        ctx: Context<ConfigGroupFee>,
+        enable_program_fee: bool,
+    ) -> MarginfiResult {
+        marginfi_group::config_group_fee(ctx, enable_program_fee)
     }
 
     /// (group admin only) Init the Staked Settings account, which is used to create staked

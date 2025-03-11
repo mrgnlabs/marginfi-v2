@@ -39,11 +39,19 @@ anchor build -p marginfi
 ./scripts/test-program.sh marginfi mainnet-beta
 ```
 
+This is much slower than the remix test command, but stable on any system.
+
 ### Customize Your Rust testing experience:
 
 ```
 ./scripts/test-program-remix.sh -p marginfi -l warn -c mainnet-beta -f mainnet-beta
 ```
+
+This will throttle your CPU and may error sporadically as a reminder to buy a better CPU if you try to do anything else (like say, compile another Rust repo) while this is running.
+
+Benchmarks:
+
+- 9700X: `Summary [   6.302s] 238 tests run: 238 passed, 0 skipped`
 
 ### To just one Rust test:
 

@@ -130,6 +130,8 @@ pub enum MarginfiError {
     MathError,
     #[msg("Invalid emissions destination account")] // 6063
     InvalidEmissionsDestinationAccount,
+    #[msg("Arena groups can only support two banks")] // 6064
+    ArenaBankLimit,
 }
 
 impl From<MarginfiError> for ProgramError {

@@ -4,26 +4,32 @@ use crate::prelude::MarginfiError;
 use crate::state::marginfi_account::{
     MarginfiAccount, FLASHLOAN_ENABLED_FLAG, TRANSFER_AUTHORITY_ALLOWED_FLAG,
 };
-use crate::{
-    state::marginfi_group::{GroupConfig, MarginfiGroup},
-    MarginfiResult,
-};
+use crate::{state::marginfi_group::MarginfiGroup, MarginfiResult};
 use anchor_lang::prelude::*;
 
-/// Configure margin group
+/// Configure margin group.
+///
+/// Note: not even the group admin can configure `PROGRAM_FEES_ENABLED`, only the program admin can
+/// with `configure_group_fee`
 ///
 /// Admin only
-pub fn configure(ctx: Context<MarginfiGroupConfigure>, config: GroupConfig) -> MarginfiResult {
+pub fn configure(
+    ctx: Context<MarginfiGroupConfigure>,
+    new_admin: Pubkey,
+    is_arena_group: bool,
+) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_mut()?;
 
-    marginfi_group.configure(&config)?;
+    marginfi_group.update_admin(new_admin);
+    marginfi_group.set_arena_group(is_arena_group)?;
 
     emit!(MarginfiGroupConfigureEvent {
         header: GroupEventHeader {
             marginfi_group: ctx.accounts.marginfi_group.key(),
             signer: Some(*ctx.accounts.admin.key)
         },
-        config,
+        admin: new_admin,
+        flags: marginfi_group.group_flags
     });
 
     Ok(())

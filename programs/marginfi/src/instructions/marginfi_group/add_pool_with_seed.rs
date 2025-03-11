@@ -76,6 +76,9 @@ pub fn lending_pool_add_bank_with_seed(
 
     log_pool_info(&bank);
 
+    let mut group = ctx.accounts.marginfi_group.load_mut()?;
+    group.add_bank()?;
+
     bank.config.validate()?;
     bank.config.validate_oracle_age()?;
 
@@ -99,6 +102,7 @@ pub fn lending_pool_add_bank_with_seed(
 #[instruction(bank_config: BankConfigCompact, bank_seed: u64)]
 pub struct LendingPoolAddBankWithSeed<'info> {
     #[account(
+        mut,
         has_one = admin
     )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,

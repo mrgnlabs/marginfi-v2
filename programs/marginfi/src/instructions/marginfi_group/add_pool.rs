@@ -76,6 +76,12 @@ pub fn lending_pool_add_bank(
 
     log_pool_info(&bank);
 
+    let mut group = ctx.accounts.marginfi_group.load_mut()?;
+    group.add_bank()?;
+
+    bank.config.validate()?;
+    bank.config.validate_oracle_age()?;
+
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {
             marginfi_group: ctx.accounts.marginfi_group.key(),
@@ -96,6 +102,7 @@ pub fn lending_pool_add_bank(
 #[instruction(bank_config: BankConfigCompact)]
 pub struct LendingPoolAddBank<'info> {
     #[account(
+        mut,
         has_one = admin
     )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
