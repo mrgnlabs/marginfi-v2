@@ -101,8 +101,8 @@ describe("Borrow funds", () => {
           })
         )
       );
-      // Note: the error logs describe this as "Invalid Pyth account" too, so this is enough detail...
-    }, "StaleOracle");
+      // Note: you can now see expected vs actual keys in the msg! logs just before this error.
+    }, "WrongOracleAccountKeys");
   });
 
   it("(user 0) borrows USDC against their token A position - happy path", async () => {

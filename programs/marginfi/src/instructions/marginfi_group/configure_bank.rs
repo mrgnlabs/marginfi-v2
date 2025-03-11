@@ -23,6 +23,8 @@ pub fn lending_pool_configure_bank(
     if bank.get_flag(FREEZE_SETTINGS) {
         bank.configure_unfrozen_fields_only(&bank_config)?;
 
+        msg!("WARN: Only deposit+borrow limits updated. Other settings IGNORED for frozen banks!");
+
         emit!(LendingPoolBankConfigureFrozenEvent {
             header: GroupEventHeader {
                 marginfi_group: ctx.accounts.group.key(),

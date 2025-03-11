@@ -76,6 +76,7 @@ import {
 import { deriveStakedSettings } from "./utils/pdas";
 import { getEpochAndSlot, getStakeAccount } from "./utils/stake-utils";
 import { createMintToInstruction } from "@solana/spl-token";
+import { dumpBankrunLogs } from "./utils/tools";
 
 describe("Set up emissions on staked collateral assets", () => {
   const provider = getProvider() as AnchorProvider;
@@ -389,9 +390,10 @@ describe("Set up emissions on staked collateral assets", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
+    dumpBankrunLogs(result);
 
-    // InvalidEmissionsDestinationAccount 6051
-    assertBankrunTxFailed(result, "0x17a3");
+    // InvalidEmissionsDestinationAccount 6063
+    assertBankrunTxFailed(result, "0x17af");
   });
 
   it("(user 2) registers permissionless settle to some wallet - (happy path)", async () => {

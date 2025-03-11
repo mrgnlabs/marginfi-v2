@@ -156,8 +156,7 @@ describe("Liquidate user", () => {
           })
         )
       );
-      // This gives you a generic Stale Oracle failure upstream of the ai failing to match the bank's
-    }, "StaleOracle");
+    }, "WrongOracleAccountKeys");
   });
 
   it("(admin) vastly reduce Token A bank collateral ratio to induce liquidation", async () => {
