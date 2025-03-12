@@ -78,8 +78,17 @@ export let bankrunContext: ProgramTestContext;
 export let bankRunProvider: BankrunProvider;
 export let bankrunProgram: Program<Marginfi>;
 export let banksClient: BanksClient;
+/** A mainnet Pyth pull feed (Jup's Sol feed) */
+export const PYTH_ORACLE_FEED_SAMPLE = new PublicKey(
+  "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE"
+);
+/** A mainnet Pyth pull oracle (Jup's Sol feed) */
+export const PYTH_ORACLE_SAMPLE = new PublicKey(
+  "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"
+);
+
 /** keys copied into the bankrun instance */
-let copyKeys: PublicKey[] = [];
+let copyKeys: PublicKey[] = [PYTH_ORACLE_FEED_SAMPLE, PYTH_ORACLE_SAMPLE];
 
 export const mochaHooks = {
   beforeAll: async () => {
@@ -127,23 +136,34 @@ export const mochaHooks = {
       ecosystem.tokenBDecimals,
       ecosystem.tokenBMint
     );
-    const initMintsTx = new Transaction();
-    initMintsTx.add(...wsolIxes);
-    initMintsTx.add(...usdcIxes);
-    initMintsTx.add(...aIxes);
-    initMintsTx.add(...bIxes);
-
-    await provider.sendAndConfirm(initMintsTx, [
+    const { ixes: alphaIXes, mint: alphaMint } = await createSimpleMint(
+      provider.publicKey,
+      provider.connection,
+      ecosystem.lstAlphaDecimals,
+      ecosystem.lstAlphaMint
+    );
+    const initMintsTx1 = new Transaction();
+    initMintsTx1.add(...wsolIxes);
+    initMintsTx1.add(...usdcIxes);
+    initMintsTx1.add(...aIxes);
+    initMintsTx1.add(...bIxes);
+    // Note: too large for one tx.
+    const initMintsTx2 = new Transaction();
+    initMintsTx2.add(...alphaIXes);
+    await provider.sendAndConfirm(initMintsTx1, [
       wsolMint,
       usdcMint,
       aMint,
       bMint,
     ]);
+    await provider.sendAndConfirm(initMintsTx2, [alphaMint]);
+
     copyKeys.push(
       wsolMint.publicKey,
       usdcMint.publicKey,
       aMint.publicKey,
-      bMint.publicKey
+      bMint.publicKey,
+      alphaMint.publicKey
     );
 
     let miscSetupTx = new Transaction();
@@ -185,6 +205,7 @@ export const mochaHooks = {
       tokenAMint: ecosystem.tokenAMint.publicKey,
       tokenBMint: ecosystem.tokenBMint.publicKey,
       usdcMint: ecosystem.usdcMint.publicKey,
+      lstAlphaMint: ecosystem.lstAlphaMint.publicKey,
     };
 
     groupAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
@@ -193,9 +214,11 @@ export const mochaHooks = {
       wallet.payer,
       setupUserOptions
     );
-    copyKeys.push(groupAdmin.usdcAccount);
-    copyKeys.push(groupAdmin.tokenBAccount);
-    copyKeys.push(groupAdmin.wallet.publicKey);
+    copyKeys.push(
+      groupAdmin.usdcAccount,
+      groupAdmin.tokenBAccount,
+      groupAdmin.wallet.publicKey
+    );
 
     for (let i = 0; i < numUsers; i++) {
       const user = await setupTestUser(
@@ -224,11 +247,18 @@ export const mochaHooks = {
       ecosystem.tokenADecimals,
       20,
       ecosystem.tokenBDecimals,
+      175,
+      ecosystem.lstAlphaDecimals,
+      0.02, // confidnece interval
       verbose
     );
-    copyKeys.push(oracles.wsolOracle.publicKey);
-    copyKeys.push(oracles.usdcOracle.publicKey);
-    copyKeys.push(oracles.tokenAOracle.publicKey);
+    copyKeys.push(
+      oracles.wsolOracle.publicKey,
+      oracles.usdcOracle.publicKey,
+      oracles.tokenAOracle.publicKey,
+      oracles.pythPullLst.publicKey,
+      oracles.pythPullLstOracleFeed.publicKey
+    );
 
     for (let i = 0; i < numValidators; i++) {
       const validator = await createValidator(
@@ -311,11 +341,14 @@ const addValidator = (validator: Validator) => {
 
 const addUser = (user: MockUser) => {
   users.push(user);
-  copyKeys.push(user.tokenAAccount);
-  copyKeys.push(user.tokenBAccount);
-  copyKeys.push(user.usdcAccount);
-  copyKeys.push(user.wallet.publicKey);
-  copyKeys.push(user.wsolAccount);
+  copyKeys.push(
+    user.tokenAAccount,
+    user.tokenBAccount,
+    user.usdcAccount,
+    user.wallet.publicKey,
+    user.wsolAccount,
+    user.lstAlphaAccount
+  );
 };
 
 /**

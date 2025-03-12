@@ -390,7 +390,6 @@ describe("Set up emissions on staked collateral assets", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
-    dumpBankrunLogs(result);
 
     // InvalidEmissionsDestinationAccount 6063
     assertBankrunTxFailed(result, "0x17af");
