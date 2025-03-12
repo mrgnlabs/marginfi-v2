@@ -20,7 +20,7 @@ pub struct ConfigGroupFee<'info> {
 
 pub fn config_group_fee(ctx: Context<ConfigGroupFee>, enable_program_fee: bool) -> MarginfiResult {
     let mut marginfi_group = ctx.accounts.marginfi_group.load_mut()?;
-    let flag_before = marginfi_group.group_flags.clone();
+    let flag_before = marginfi_group.group_flags;
 
     marginfi_group.set_program_fee_enabled(enable_program_fee);
 
