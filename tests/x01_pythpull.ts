@@ -9,9 +9,10 @@ anchor test --skip-build
 // This test also isn't currently part of the CI pipeline
 
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { Keypair, Transaction } from "@solana/web3.js";
+import { AccountMeta, Keypair, Transaction } from "@solana/web3.js";
 import {
   addBankPermissionless,
+  addBankWithSeed,
   groupInitialize,
   initStakedSettings,
 } from "./utils/group-instructions";
@@ -20,6 +21,7 @@ import {
   bankrunContext,
   bankrunProgram,
   banksClient,
+  ecosystem,
   groupAdmin,
   PYTH_ORACLE_FEED_SAMPLE,
   PYTH_ORACLE_SAMPLE,
@@ -34,7 +36,9 @@ import {
 import {
   ASSET_TAG_DEFAULT,
   ASSET_TAG_STAKED,
+  defaultBankConfig,
   defaultStakedInterestSettings,
+  ORACLE_SETUP_PYTH_PUSH,
 } from "./utils/types";
 import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
@@ -137,6 +141,66 @@ describe("Add Bank using Pyth Pull Oracles", () => {
     assert.equal(bank.config.assetTag, ASSET_TAG_STAKED);
     assert.deepEqual(bank.config.oracleSetup, {
       stakedWithPythPush: {},
+    });
+  });
+
+  it("(admin) Add regular sol bank (pyth pull oracle)", async () => {
+    const [bankKey] = deriveBankWithSeed(
+      program.programId,
+      groupKey,
+      ecosystem.wsolMint.publicKey,
+      new BN(0)
+    );
+    let config = defaultBankConfig();
+
+    // Example: packing the oracle config in the same tx as the bank init
+    const oracleMeta: AccountMeta = {
+      pubkey: PYTH_ORACLE_FEED_SAMPLE,
+      isSigner: false,
+      isWritable: false,
+    };
+    const config_ix = await program.methods
+      .lendingPoolConfigureBankOracle(
+        ORACLE_SETUP_PYTH_PUSH,
+        PYTH_ORACLE_SAMPLE
+      )
+      .accountsPartial({
+        group: groupKey,
+        bank: bankKey,
+        admin: groupAdmin.wallet.publicKey,
+      })
+      .remainingAccounts([oracleMeta])
+      .instruction();
+
+    let tx = new Transaction().add(
+      await addBankWithSeed(groupAdmin.mrgnProgram, {
+        marginfiGroup: groupKey,
+        feePayer: groupAdmin.wallet.publicKey,
+        bankMint: ecosystem.wsolMint.publicKey,
+        bank: bankKey,
+        // globalFeeWallet: globalFeeWallet,
+        config: config,
+      }),
+      config_ix
+    );
+
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet);
+    await banksClient.processTransaction(tx);
+
+    // let logs = result.meta.logMessages;
+    // for (let i = 0; i < logs.length; i++) {
+    //   console.log(logs[i]);
+    // }
+
+    if (verbose) {
+      console.log("*init Sol bank " + bankKey);
+    }
+
+    const bank = await bankrunProgram.account.bank.fetch(bankKey);
+    assert.equal(bank.config.assetTag, ASSET_TAG_DEFAULT);
+    assert.deepEqual(bank.config.oracleSetup, {
+      pythPushOracle: {},
     });
   });
 });
