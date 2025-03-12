@@ -978,19 +978,26 @@ fn initialize_marginfi_group<'a>(
     let marginfi_group =
         state.new_owned_account(size_of::<MarginfiGroup>(), program_id, Rent::free());
 
-    marginfi::instructions::marginfi_group::initialize_group(Context::new(
-        &marginfi::id(),
-        &mut marginfi::instructions::MarginfiGroupInitialize {
-            // Unchecked because we are initializing the account.
-            marginfi_group: AccountLoader::try_from_unchecked(&program_id, airls(&marginfi_group))
+    marginfi::instructions::marginfi_group::initialize_group(
+        Context::new(
+            &marginfi::id(),
+            &mut marginfi::instructions::MarginfiGroupInitialize {
+                // Unchecked because we are initializing the account.
+                marginfi_group: AccountLoader::try_from_unchecked(
+                    &program_id,
+                    airls(&marginfi_group),
+                )
                 .unwrap(),
-            admin: Signer::try_from(airls(&admin)).unwrap(),
-            fee_state: AccountLoader::try_from_unchecked(&program_id, airls(&fee_state)).unwrap(),
-            system_program: Program::try_from(airls(&system_program)).unwrap(),
-        },
-        &[],
-        Default::default(),
-    ))
+                admin: Signer::try_from(airls(&admin)).unwrap(),
+                fee_state: AccountLoader::try_from_unchecked(&program_id, airls(&fee_state))
+                    .unwrap(),
+                system_program: Program::try_from(airls(&system_program)).unwrap(),
+            },
+            &[],
+            Default::default(),
+        ),
+        false,
+    )
     .unwrap();
 
     set_discriminator::<MarginfiGroup>(marginfi_group.clone());
@@ -1147,13 +1154,14 @@ mod tests {
 
             let re = RiskEngine::new(&marginfi_account, aisls(&remaining_accounts)).unwrap();
 
-            let health = re
-                .get_account_health(
+            let (assets, liabs) = re
+                .get_account_health_components(
                     marginfi::state::marginfi_account::RiskRequirementType::Maintenance,
+                    &mut None,
                 )
                 .unwrap();
 
-            println!("Health {health}");
+            println!("assets {assets} liabs: {liabs}");
         }
 
         a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000), None)
@@ -1207,13 +1215,14 @@ mod tests {
 
             let re = RiskEngine::new(&marginfi_account, aisls(&remaining_accounts)).unwrap();
 
-            let health = re
-                .get_account_health(
+            let (assets, liabs) = re
+                .get_account_health_components(
                     marginfi::state::marginfi_account::RiskRequirementType::Maintenance,
+                    &mut None,
                 )
                 .unwrap();
 
-            println!("Health {health}");
+            println!("assets {assets} liabs: {liabs}");
         }
 
         a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000), None)
