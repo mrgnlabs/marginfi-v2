@@ -16,7 +16,6 @@ target
 # IDEs
 .idea
 *.iml
-**/.vscode
 
 # other
 .env
@@ -32,3 +31,4 @@ test-ledger/
 # Allow specific json files
 !tests/fixtures/**/*.json
 !programs/marginfi/tests/fixtures/**/*.json
+!.vscode/tasks.json

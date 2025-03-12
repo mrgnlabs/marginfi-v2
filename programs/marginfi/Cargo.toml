@@ -1,6 +1,6 @@
 [package]
 name = "marginfi"
-version = "0.1.0"
+version = "0.1.2"
 description = "Created with Anchor"
 edition = "2021"
 
@@ -22,7 +22,6 @@ devnet = []
 mainnet-beta = []
 debug = []
 staging = []
-ignore-fee-deploy = []
 
 [dependencies]
 solana-program = { workspace = true }

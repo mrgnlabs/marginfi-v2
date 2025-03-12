@@ -23,9 +23,11 @@ pub fn lending_pool_configure_bank(
     if bank.get_flag(FREEZE_SETTINGS) {
         bank.configure_unfrozen_fields_only(&bank_config)?;
 
+        msg!("WARN: Only deposit+borrow limits updated. Other settings IGNORED for frozen banks!");
+
         emit!(LendingPoolBankConfigureFrozenEvent {
             header: GroupEventHeader {
-                marginfi_group: ctx.accounts.marginfi_group.key(),
+                marginfi_group: ctx.accounts.group.key(),
                 signer: Some(*ctx.accounts.admin.key)
             },
             bank: ctx.accounts.bank.key(),
@@ -37,14 +39,13 @@ pub fn lending_pool_configure_bank(
         // Settings are not frozen, everything updates
         bank.configure(&bank_config)?;
 
-        if bank_config.oracle.is_some() {
-            bank.config
-                .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
+        if bank_config.oracle_max_age.is_some() {
+            bank.config.validate_oracle_age()?;
         }
 
         emit!(LendingPoolBankConfigureEvent {
             header: GroupEventHeader {
-                marginfi_group: ctx.accounts.marginfi_group.key(),
+                marginfi_group: ctx.accounts.group.key(),
                 signer: Some(*ctx.accounts.admin.key)
             },
             bank: ctx.accounts.bank.key(),
@@ -58,16 +59,17 @@ pub fn lending_pool_configure_bank(
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBank<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
-        address = marginfi_group.load()?.admin,
+        mut,
+        has_one = admin,
     )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
     pub admin: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group,
     )]
     pub bank: AccountLoader<'info, Bank>,
 }
@@ -91,6 +93,14 @@ pub fn lending_pool_setup_emissions(
 
     bank.emissions_rate = emissions_rate;
     bank.emissions_remaining = I80F48::from_num(total_emissions).into();
+
+    msg!("init emissions with mint: {:?}", bank.emissions_mint,);
+    msg!(
+        "flags: {:?} rate: {:?} total: {:?}",
+        emissions_flags,
+        emissions_rate,
+        total_emissions
+    );
 
     let initial_emissions_amount_pre_fee = utils::calculate_pre_fee_spl_deposit_amount(
         ctx.accounts.emissions_mint.to_account_info(),
@@ -117,22 +127,24 @@ pub fn lending_pool_setup_emissions(
 
 #[derive(Accounts)]
 pub struct LendingPoolSetupEmissions<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
         mut,
-        address = marginfi_group.load()?.admin,
+        has_one = admin,
     )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group,
     )]
     pub bank: AccountLoader<'info, Bank>,
 
     pub emissions_mint: InterfaceAccount<'info, Mint>,
 
+    /// CHECK: Asserted by PDA constraints
     #[account(
         seeds = [
             EMISSIONS_AUTH_SEED.as_bytes(),
@@ -141,7 +153,6 @@ pub struct LendingPoolSetupEmissions<'info> {
         ],
         bump
     )]
-    /// CHECK: Asserted by PDA constraints
     pub emissions_auth: AccountInfo<'info>,
 
     #[account(
@@ -234,17 +245,18 @@ pub fn lending_pool_update_emissions_parameters(
 
 #[derive(Accounts)]
 pub struct LendingPoolUpdateEmissionsParameters<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
         mut,
-        address = marginfi_group.load()?.admin,
+        has_one = admin
     )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
 

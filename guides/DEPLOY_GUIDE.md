@@ -24,26 +24,27 @@ solana program set-buffer-authority <BUFFER> --new-buffer-authority <MULTISIG> -
 * Click the pending upgrade to start a vote.
 * Execute after the vote passes.
 
-## DEPLOYING STAKED COLLATERAL TO STAGING
+### Voters:
 
-The Staked Collateral feature uses spl-single-pool, developed by the Solana Foundation (https://github.com/solana-labs/solana-program-library/tree/master/single-pool). This guide will show you how to deploy that program.
-
-First you will need: 
-* Agave tools 2.1.0 or later (`sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"`) and possibly `agave-install init 2.1.0`
-* A wallet with at least 2 SOL (this guide will assume your wallet is at `~/keys/staging-deploy.json`). Verify the pubkey of your wallet with `solana-keygen pubkey ~/keys/staging-deploy.json` and verify you have at least 2 SOL with `solana balance -k ~/keys/staging-deploy.json`
-* An RPC provider connected to mainnet (`solana config set --url https://api.mainnet-beta.solana.com`). The solana public api is usually fine.
-
-Steps:
-* Clone https://github.com/solana-labs/solana-program-library/tree/master/single-pool and pull latest
-* Navigate to programs/single-pool and run `cargo build-sbf`
-* Navigate back up to root, then navigate to target. Verify that `solana-keygen pubkey deploy/spl_single_pool-keypair.json` matches the program's declared id. If you want to generate a new id, delete this file and build again to generate a new program keypair. Don't forget to update the declare_id in lib.rs as needed.
-* Deploy the program with:
+* Clone the branch being deployed (see the release tag the person who initated the upgrade has given you) and run: 
 ```
-solana program deploy \                                                  
-  deploy/spl_single_pool.so \
-  --program-id deploy/spl_single_pool-keypair.json \
-  --keypair ~/keys/staging-deploy.json \
-  --fee-payer ~/keys/staging-deploy.json \
-  --url <your_rpc_url (optional, omit this line to use api.mainnet-beta)>
-
+./scripts/build-program-verifiable.sh marginfi mainnet
 ```
+* Check that the program builds with the hash that the person who is deploying gave you. Check what characters other people have validated in Signal, post the next six characters of the hash to verify you have actually checked and aren't skipping this step out of laziness.
+* Check that the buffer contains this hash too `solana-verify get-buffer-hash <Buffer Address>`.
+* After the vote is executed and the contract is upgraded, check that the contract contains the same hash. For example for MFv2, this is `solana-verify get-program-hash MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA`
+
+## RECENT DEPLOY HASHES
+
+Here we list recent deployments to staging/mainnet. The hash is always the first 6 chars of the hash generated with the mainnet verified build guide above (even for staging, this is the mainnet hash, not the hash on staging. Staging does not get a verified build.).
+
+### STAGING
+
+* 0.1.0: Jan 30, 2025 ~2:35pm ET -- Hash: a4dd3e7
+* 0.1.1: Feb 7, 2025 ~8:15am ET -- Hash: 03455c
+* 0.1.2: Pending
+
+### MAINNET
+
+* 0.1.0-alpha mainnet on Fev 3, 2024 ~2:45ET -- Hash: ea5d15
+* 0.1.1: Feb 17, 2025 ~3:00pm ET -- Hash: 03455c

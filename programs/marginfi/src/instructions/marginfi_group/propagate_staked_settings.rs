@@ -9,11 +9,8 @@ pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> Resul
     let settings = ctx.accounts.staked_settings.load()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    // Only validate the oracle if it has changed
-    if settings.oracle != bank.config.oracle_keys[0] {
-        bank.config
-            .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
-    }
+    let (oracle_before, oracle_after) = (bank.config.oracle_keys[0], settings.oracle);
+    let (age_before, age_after) = (bank.config.oracle_max_age, settings.oracle_max_age);
 
     bank.config.oracle_keys[0] = settings.oracle;
     bank.config.asset_weight_init = settings.asset_weight_init;
@@ -23,8 +20,16 @@ pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> Resul
     bank.config.oracle_max_age = settings.oracle_max_age;
     bank.config.risk_tier = settings.risk_tier;
 
+    // Only validate the oracle info if it has changed
+    if oracle_before != oracle_after {
+        bank.config
+            .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
+    }
+    if age_before != age_after {
+        bank.config.validate_oracle_age()?;
+    }
+
     bank.config.validate()?;
-    // ...Possibly emit event.
 
     Ok(())
 }

@@ -15,9 +15,8 @@ use marginfi::{
         marginfi_account::{Balance, LendingAccount, MarginfiAccount, FLASHLOAN_ENABLED_FLAG},
         marginfi_group::{
             Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
-            InterestRateConfigOpt, OracleConfig, RiskTier, WrappedI80F48,
+            InterestRateConfigOpt, RiskTier, WrappedI80F48,
         },
-        price::OracleSetup,
     },
 };
 use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
@@ -120,10 +119,6 @@ pub enum GroupCommand {
         #[clap(long)]
         borrow_limit_ui: u64,
         #[clap(long)]
-        oracle_key: Pubkey,
-        #[clap(long)]
-        feed_id: Option<Pubkey>,
-        #[clap(long)]
         optimal_utilization_rate: f64,
         #[clap(long)]
         plateau_interest_rate: f64,
@@ -139,8 +134,6 @@ pub enum GroupCommand {
         group_ir_fee: f64,
         #[clap(long, arg_enum)]
         risk_tier: RiskTierArg,
-        #[clap(long, arg_enum)]
-        oracle_type: OracleTypeArg,
         #[clap(
             long,
             help = "Max oracle age in seconds, 0 for default (60s)",
@@ -175,6 +168,8 @@ pub enum GroupCommand {
     },
     EditFeeState {
         #[clap(long)]
+        new_admin: Pubkey,
+        #[clap(long)]
         fee_wallet: Pubkey,
         #[clap(long)]
         bank_init_flat_sol_fee: u32,
@@ -204,25 +199,6 @@ impl From<RiskTierArg> for RiskTier {
         match value {
             RiskTierArg::Collateral => RiskTier::Collateral,
             RiskTierArg::Isolated => RiskTier::Isolated,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Parser, ArgEnum)]
-pub enum OracleTypeArg {
-    PythLegacy,
-    SwitchboardLegacy,
-    PythPushOracle,
-    SwitchboardPull,
-}
-
-impl From<OracleTypeArg> for OracleSetup {
-    fn from(value: OracleTypeArg) -> Self {
-        match value {
-            OracleTypeArg::PythLegacy => OracleSetup::PythLegacy,
-            OracleTypeArg::SwitchboardLegacy => OracleSetup::SwitchboardV2,
-            OracleTypeArg::PythPushOracle => OracleSetup::PythPushOracle,
-            OracleTypeArg::SwitchboardPull => OracleSetup::SwitchboardPull,
         }
     }
 }
@@ -294,10 +270,6 @@ pub enum BankCommand {
         risk_tier: Option<RiskTierArg>,
         #[clap(long, help = "0 = default, 1 = SOL, 2 = Staked SOL LST")]
         asset_tag: Option<u8>,
-        #[clap(long, arg_enum, help = "Bank oracle type")]
-        oracle_type: Option<OracleTypeArg>,
-        #[clap(long, help = "Bank oracle account")]
-        oracle_key: Option<Pubkey>,
         #[clap(long, help = "Soft USD init limit")]
         usd_init_limit: Option<u64>,
         #[clap(long, help = "Oracle max age in seconds, 0 to use default value (60s)")]
@@ -312,6 +284,16 @@ pub enum BankCommand {
             help = "If enabled, will prevent this Update ix from ever running against after this invokation"
         )]
         freeze_settings: Option<bool>,
+    },
+    UpdateOracle {
+        bank_pk: Pubkey,
+        #[clap(
+            long,
+            help = "Bank oracle type (0 = Pyth Legacy, 1 = Switchboardv2, 3 = Pyth Pull, 4 = Switchboard Pull, 5 = Staked Pyth Pull"
+        )]
+        oracle_type: u8,
+        #[clap(long, help = "Bank oracle account (or feed if using Pyth Pull")]
+        oracle_key: Pubkey,
     },
     InspectPriceOracle {
         bank_pk: Pubkey,
@@ -429,6 +411,7 @@ pub enum AccountCommand {
     Deposit {
         bank: Pubkey,
         ui_amount: f64,
+        deposit_up_to_limit: Option<bool>,
     },
     Withdraw {
         bank: Pubkey,
@@ -451,6 +434,7 @@ pub enum AccountCommand {
         ui_asset_amount: f64,
     },
     Create,
+    Close,
     SetFlag {
         account_pk: Pubkey,
         #[clap(long)]
@@ -614,8 +598,6 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            oracle_key,
-            feed_id,
             optimal_utilization_rate,
             plateau_interest_rate,
             max_interest_rate,
@@ -626,7 +608,6 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             deposit_limit_ui,
             borrow_limit_ui,
             risk_tier,
-            oracle_type,
             oracle_max_age,
             global_fee_wallet,
         } => processor::group_add_bank(
@@ -634,9 +615,6 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             profile,
             bank_mint,
             seed,
-            oracle_key,
-            feed_id,
-            oracle_type,
             asset_weight_init,
             asset_weight_maint,
             liability_weight_init,
@@ -690,12 +668,14 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             program_fee_rate,
         ),
         GroupCommand::EditFeeState {
+            new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         } => processor::edit_fee_state(
             config,
+            new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
             program_fee_fixed,
@@ -744,8 +724,6 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             pf_or,
             risk_tier,
             asset_tag,
-            oracle_type,
-            oracle_key,
             usd_init_limit,
             oracle_max_age,
             permissionless_bad_debt_settlement,
@@ -773,18 +751,6 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                         spl_token::ui_amount_to_amount(ui_amount, bank.mint_decimals)
                     }),
                     operational_state: operational_state.map(|x| x.into()),
-                    oracle: oracle_key.map(|x| marginfi::state::marginfi_group::OracleConfig {
-                        setup: oracle_type
-                            .expect("Orcale type must be provided with oracle_key")
-                            .into(),
-                        keys: [
-                            x,
-                            Pubkey::default(),
-                            Pubkey::default(),
-                            Pubkey::default(),
-                            Pubkey::default(),
-                        ],
-                    }),
                     interest_rate_config: Some(InterestRateConfigOpt {
                         optimal_utilization_rate: opr_ur.map(|x| I80F48::from_num(x).into()),
                         plateau_interest_rate: p_ir.map(|x| I80F48::from_num(x).into()),
@@ -804,6 +770,11 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                 },
             )
         }
+        BankCommand::UpdateOracle {
+            bank_pk,
+            oracle_type,
+            oracle_key,
+        } => processor::bank_configure_oracle(config, profile, bank_pk, oracle_type, oracle_key),
         BankCommand::InspectPriceOracle { bank_pk } => {
             processor::bank_inspect_price_oracle(config, bank_pk)
         }
@@ -864,7 +835,6 @@ fn inspect_padding() -> Result<()> {
         marginfi::state::marginfi_group::Bank::type_layout()
     );
     println!("BankConfig: {}", BankConfig::type_layout());
-    println!("OracleConfig: {}", OracleConfig::type_layout());
     println!("BankConfigOpt: {}", BankConfigOpt::type_layout());
     println!("WrappedI80F48: {}", WrappedI80F48::type_layout());
 
@@ -886,7 +856,6 @@ fn inspect_size() -> Result<()> {
         size_of::<marginfi::state::marginfi_group::Bank>()
     );
     println!("BankConfig: {}", size_of::<BankConfig>());
-    println!("OracleConfig: {}", size_of::<OracleConfig>());
     println!("BankConfigOpt: {}", size_of::<BankConfigOpt>());
     println!("WrappedI80F48: {}", size_of::<WrappedI80F48>());
 
@@ -953,9 +922,17 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
         AccountCommand::Get { account } => {
             processor::marginfi_account_get(profile, &config, account)
         }
-        AccountCommand::Deposit { bank, ui_amount } => {
-            processor::marginfi_account_deposit(&profile, &config, bank, ui_amount)
-        }
+        AccountCommand::Deposit {
+            bank,
+            ui_amount,
+            deposit_up_to_limit,
+        } => processor::marginfi_account_deposit(
+            &profile,
+            &config,
+            bank,
+            ui_amount,
+            deposit_up_to_limit,
+        ),
         AccountCommand::Withdraw {
             bank,
             ui_amount,
@@ -978,6 +955,7 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
             ui_asset_amount,
         ),
         AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
+        AccountCommand::Close => processor::marginfi_account_close(&profile, &config),
         AccountCommand::SetFlag {
             flashloans_enabled: flashloan,
             account_pk,

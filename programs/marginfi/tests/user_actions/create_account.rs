@@ -51,7 +51,7 @@ async fn marginfi_account_create_success() -> anyhow::Result<()> {
         .lending_account
         .balances
         .iter()
-        .all(|bank| !bank.active));
+        .all(|bank| !bank.is_active()));
 
     Ok(())
 }

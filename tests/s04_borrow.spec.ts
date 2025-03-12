@@ -1,45 +1,30 @@
 import {
-  AnchorProvider,
   BN,
-  getProvider,
   Program,
-  Wallet,
   workspace,
 } from "@coral-xyz/anchor";
-import { Keypair, Transaction } from "@solana/web3.js";
+import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
-  bankKeypairA,
   bankKeypairSol,
   bankKeypairUsdc,
   bankrunContext,
   bankrunProgram,
-  bankRunProvider,
   banksClient,
   ecosystem,
-  groupAdmin,
   marginfiGroup,
-  numUsers,
   oracles,
   users,
   validators,
-  verbose,
 } from "./rootHooks";
 import {
   assertBankrunTxFailed,
-  assertBNApproximately,
-  assertI80F48Approx,
-  assertI80F48Equal,
   assertKeysEqual,
-  getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { accountInit, borrowIx, depositIx } from "./utils/user-instructions";
+import { borrowIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { createMintToInstruction } from "@solana/spl-token";
-import { deriveLiquidityVault } from "./utils/pdas";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import { BanksTransactionResultWithMeta } from "solana-bankrun";
 
 describe("Deposit funds (included staked assets)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -52,10 +37,8 @@ describe("Deposit funds (included staked assets)", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -75,7 +58,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertKeysEqual(balances[1].bankPk, bankKeypairSol.publicKey);
   });
 
@@ -87,10 +70,8 @@ describe("Deposit funds (included staked assets)", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         remaining: [
@@ -110,14 +91,14 @@ describe("Deposit funds (included staked assets)", () => {
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
     // AssetTagMismatch
-    assertBankrunTxFailed(result, "0x17a1");
+    assertBankrunTxFailed(result, "0x179f");
 
     // Verify the deposit worked and the entry does not exist
     const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[2].active, false);
+    assert.equal(balances[2].active, 0);
   });
 
   // TODO withdraw user 1's SOL collateral and verify they can borrow SOL

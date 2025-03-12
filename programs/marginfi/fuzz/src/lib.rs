@@ -18,14 +18,18 @@ use arbitrary_helpers::{
 };
 use bank_accounts::{get_bank_map, BankAccounts};
 use fixed_macro::types::I80F48;
-use marginfi::{constants::FEE_STATE_SEED, state::fee_state::FeeState};
+use marginfi::{
+    constants::FEE_STATE_SEED,
+    instructions::LendingPoolConfigureBankOracleBumps,
+    state::{fee_state::FeeState, marginfi_group::BankConfigCompact},
+};
 use marginfi::{
     errors::MarginfiError,
     instructions::LendingPoolAddBankBumps,
     prelude::MarginfiGroup,
     state::{
         marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig},
+        marginfi_group::{Bank, BankVaultType, InterestRateConfig},
     },
 };
 use metrics::{MetricAction, Metrics};
@@ -135,6 +139,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                             * 10_u64
                                 .pow(marginfi_state.banks[bank_idx as usize].mint_decimals.into()),
                     ),
+                    None,
                 )
                 .unwrap();
         }
@@ -228,6 +233,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             fee_vault: fee_vault_bump,
             fee_state: fee_state_bump,
         };
+        let configure_bumps = LendingPoolConfigureBankOracleBumps {};
 
         let token_program = match initial_bank_config.token_type {
             TokenType::Tokenkeg => state.new_program(spl_token::id()),
@@ -264,10 +270,10 @@ impl<'state> MarginfiFuzzContext<'state> {
                         token_program: Interface::try_from(airls(&token_program)).unwrap(),
                         system_program: Program::try_from(airls(&self.system_program)).unwrap(),
                     },
-                    &[ails(oracle.clone())],
+                    &[],
                     add_bank_bumps,
                 ),
-                BankConfig {
+                BankConfigCompact {
                     asset_weight_init: initial_bank_config.asset_weight_init,
                     asset_weight_maint: initial_bank_config.asset_weight_maint,
                     liability_weight_init: initial_bank_config.liability_weight_init,
@@ -283,15 +289,8 @@ impl<'state> MarginfiFuzzContext<'state> {
                         protocol_fixed_fee_apr: I80F48!(0.01).into(),
                         protocol_ir_fee: I80F48!(0.1).into(),
                         ..Default::default()
-                    },
-                    oracle_setup: marginfi::state::price::OracleSetup::PythLegacy,
-                    oracle_keys: [
-                        oracle.key(),
-                        Pubkey::default(),
-                        Pubkey::default(),
-                        Pubkey::default(),
-                        Pubkey::default(),
-                    ],
+                    }
+                    .into(),
                     operational_state:
                         marginfi::state::marginfi_group::BankOperationalState::Operational,
                     risk_tier: if !initial_bank_config.risk_tier_isolated {
@@ -307,6 +306,25 @@ impl<'state> MarginfiFuzzContext<'state> {
         }
 
         set_discriminator::<Bank>(bank.clone());
+
+        {
+            marginfi::instructions::marginfi_group::lending_pool_configure_bank_oracle(
+                Context::new(
+                    &marginfi::ID,
+                    &mut marginfi::instructions::LendingPoolConfigureBankOracle {
+                        group: AccountLoader::try_from(airls(&self.marginfi_group)).unwrap(),
+                        admin: Signer::try_from(airls(&self.owner)).unwrap(),
+                        bank: AccountLoader::try_from_unchecked(&marginfi::ID, airls(&bank))
+                            .unwrap(),
+                    },
+                    &[ails(oracle.clone())],
+                    configure_bumps,
+                ),
+                1,
+                oracle.key(),
+            )
+            .unwrap();
+        }
 
         self.banks.push(BankAccounts {
             bank,
@@ -373,6 +391,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         account_idx: &AccountIdx,
         bank_idx: &BankIdx,
         asset_amount: &AssetAmount,
+        deposit_up_to_limit: Option<bool>,
     ) -> anyhow::Result<()> {
         let marginfi_account = &self.marginfi_accounts[account_idx.0 as usize];
         sort_balances(airls(&marginfi_account.margin_account));
@@ -395,22 +414,25 @@ impl<'state> MarginfiFuzzContext<'state> {
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountDeposit {
-                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     marginfi_account: AccountLoader::try_from(airls(
                         &marginfi_account.margin_account,
                     ))?,
-                    signer: Signer::try_from(airls(&self.owner))?,
+                    authority: Signer::try_from(airls(&self.owner))?,
                     bank: AccountLoader::try_from(airls(&bank.bank))?,
                     signer_token_account: ails(
                         marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
                     ),
-                    bank_liquidity_vault: ails(bank.liquidity_vault.clone()),
+                    liquidity_vault: InterfaceAccount::try_from(airls(
+                        &bank.liquidity_vault.clone(),
+                    ))?,
                     token_program: Interface::try_from(airls(&bank.token_program))?,
                 },
                 &remaining_accounts,
                 Default::default(),
             ),
             asset_amount.0,
+            deposit_up_to_limit,
         );
 
         let success = if res.is_err() {
@@ -466,16 +488,18 @@ impl<'state> MarginfiFuzzContext<'state> {
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountRepay {
-                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     marginfi_account: AccountLoader::try_from(airls(
                         &marginfi_account.margin_account,
                     ))?,
-                    signer: Signer::try_from(airls(&self.owner))?,
+                    authority: Signer::try_from(airls(&self.owner))?,
                     bank: AccountLoader::try_from(airls(&bank.bank))?,
                     signer_token_account: ails(
                         marginfi_account.token_accounts[bank_idx.0 as usize].clone(),
                     ),
-                    bank_liquidity_vault: ails(bank.liquidity_vault.clone()),
+                    liquidity_vault: InterfaceAccount::try_from(airls(
+                        &bank.liquidity_vault.clone(),
+                    ))?,
                     token_program: Interface::try_from(airls(&bank.token_program))?,
                 },
                 &remaining_accounts,
@@ -561,18 +585,18 @@ impl<'state> MarginfiFuzzContext<'state> {
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountWithdraw {
-                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     marginfi_account: AccountLoader::try_from(airls(
                         &marginfi_account.margin_account,
                     ))?,
-                    signer: Signer::try_from(airls(&self.owner))?,
+                    authority: Signer::try_from(airls(&self.owner))?,
                     bank: AccountLoader::try_from(airls(&bank.bank))?,
                     token_program: Interface::try_from(airls(&bank.token_program))?,
                     destination_token_account: InterfaceAccount::try_from(airls(
                         &marginfi_account.token_accounts[bank_idx.0 as usize],
                     ))?,
                     bank_liquidity_vault_authority: ails(bank.liquidity_vault_authority.clone()),
-                    bank_liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
+                    liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
                 },
                 aisls(&remaining_accounts),
                 Default::default(),
@@ -646,18 +670,18 @@ impl<'state> MarginfiFuzzContext<'state> {
             Context::new(
                 &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountBorrow {
-                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     marginfi_account: AccountLoader::try_from(airls(
                         &marginfi_account.margin_account,
                     ))?,
-                    signer: Signer::try_from(airls(&self.owner))?,
+                    authority: Signer::try_from(airls(&self.owner))?,
                     bank: AccountLoader::try_from(airls(&bank.bank))?,
                     token_program: Interface::try_from(airls(&bank.token_program))?,
                     destination_token_account: InterfaceAccount::try_from(airls(
                         &marginfi_account.token_accounts[bank_idx.0 as usize],
                     ))?,
                     bank_liquidity_vault_authority: ails(bank.liquidity_vault_authority.clone()),
-                    bank_liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
+                    liquidity_vault: InterfaceAccount::try_from(airls(&bank.liquidity_vault))?,
                 },
                 aisls(&remaining_accounts),
                 Default::default(),
@@ -773,13 +797,13 @@ impl<'state> MarginfiFuzzContext<'state> {
             Context::new(
                 &marginfi::id(),
                 &mut marginfi::instructions::LendingAccountLiquidate {
-                    marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                    group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     asset_bank: AccountLoader::try_from(airls(&asset_bank.bank))?,
                     liab_bank: AccountLoader::try_from(airls(&liab_bank.bank))?,
                     liquidator_marginfi_account: AccountLoader::try_from(airls(
                         &liquidator_account.margin_account,
                     ))?,
-                    signer: Signer::try_from(airls(&self.owner))?,
+                    authority: Signer::try_from(airls(&self.owner))?,
                     liquidatee_marginfi_account: AccountLoader::try_from(airls(
                         &liquidatee_account.margin_account,
                     ))?,
@@ -863,7 +887,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         let res = marginfi::instructions::lending_pool_handle_bankruptcy(Context::new(
             &marginfi::ID,
             &mut marginfi::instructions::LendingPoolHandleBankruptcy {
-                marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
+                group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                 signer: Signer::try_from(airls(&self.owner))?,
                 bank: AccountLoader::try_from(airls(&bank.bank))?,
                 marginfi_account: AccountLoader::try_from(airls(&marginfi_account.margin_account))?,
@@ -1031,7 +1055,7 @@ mod tests {
 
         assert_eq!(al.load().unwrap().admin, a.owner.key());
 
-        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000), None)
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
@@ -1052,9 +1076,9 @@ mod tests {
         let account_state = AccountsState::new();
         let a = MarginfiFuzzContext::setup(&account_state, &[BankAndOracleConfig::dummy(); 2], 2);
 
-        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000), None)
             .unwrap();
-        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000), None)
             .unwrap();
         a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(100))
             .unwrap();
@@ -1094,9 +1118,9 @@ mod tests {
         let account_state = AccountsState::new();
         let a = MarginfiFuzzContext::setup(&account_state, &[BankAndOracleConfig::dummy(); 2], 3);
 
-        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000), None)
             .unwrap();
-        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000), None)
             .unwrap();
         a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(500))
             .unwrap();
@@ -1132,7 +1156,7 @@ mod tests {
             println!("Health {health}");
         }
 
-        a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000), None)
             .unwrap();
 
         a.process_liquidate_account(&AccountIdx(2), &AccountIdx(0), &AssetAmount(50))
@@ -1158,9 +1182,9 @@ mod tests {
 
         let a = MarginfiFuzzContext::setup(&account_state, &[BankAndOracleConfig::dummy(); 2], 3);
 
-        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(1), &BankIdx(1), &AssetAmount(1000), None)
             .unwrap();
-        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(0), &BankIdx(0), &AssetAmount(1000), None)
             .unwrap();
         a.process_action_borrow(&AccountIdx(0), &BankIdx(1), &AssetAmount(500))
             .unwrap();
@@ -1192,7 +1216,7 @@ mod tests {
             println!("Health {health}");
         }
 
-        a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000))
+        a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000), None)
             .unwrap();
 
         a.process_liquidate_account(&AccountIdx(2), &AccountIdx(0), &AssetAmount(1000))

@@ -1,36 +1,34 @@
 use super::{
+    health_cache::HealthCache,
     marginfi_group::{Bank, RiskTier, WrappedI80F48},
     price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
 };
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        ASSET_TAG_DEFAULT, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE,
-        EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD, EXP_10_I80F48,
-        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
+        ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
+        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD,
+        EXP_10_I80F48, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
     utils::NumTraitsWithTolerance,
 };
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, Discriminator};
 use anchor_spl::token_interface::Mint;
+use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
 use std::{
     cmp::{max, min},
     ops::Not,
 };
-#[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
 
 assert_struct_size!(MarginfiAccount, 2304);
 assert_struct_align!(MarginfiAccount, 8);
-#[account(zero_copy(unsafe))]
+#[account(zero_copy)]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
+#[derive(PartialEq, Eq, TypeLayout)]
 pub struct MarginfiAccount {
     pub group: Pubkey,                   // 32
     pub authority: Pubkey,               // 32
@@ -38,14 +36,20 @@ pub struct MarginfiAccount {
     /// The flags that indicate the state of the account.
     /// This is u64 bitfield, where each bit represents a flag.
     ///
-    /// Flags:
+    /// Flags:MarginfiAccount
     /// - DISABLED_FLAG = 1 << 0 = 1 - This flag indicates that the account is disabled,
     /// and no further actions can be taken on it.
     /// - IN_FLASHLOAN_FLAG (1 << 1)
     /// - FLASHLOAN_ENABLED_FLAG (1 << 2)
     /// - TRANSFER_AUTHORITY_ALLOWED_FLAG (1 << 3)
     pub account_flags: u64, // 8
-    pub _padding: [u64; 63],             // 504
+    /// Set with `update_emissions_destination_account`. Emissions rewards can be withdrawn to the
+    /// cannonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).
+    /// If pubkey default, the user has not opted into this feature, and must claim emissions
+    /// manually (withdraw_emissions).
+    pub emissions_destination_account: Pubkey, // 32
+    pub health_cache: HealthCache,
+    pub _padding0: [u64; 21],
 }
 
 pub const DISABLED_FLAG: u64 = 1 << 0;
@@ -53,20 +57,47 @@ pub const IN_FLASHLOAN_FLAG: u64 = 1 << 1;
 pub const FLASHLOAN_ENABLED_FLAG: u64 = 1 << 2;
 pub const TRANSFER_AUTHORITY_ALLOWED_FLAG: u64 = 1 << 3;
 
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
+pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
+    get_remaining_accounts_per_asset_tag(bank.config.asset_tag)
+}
+
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
+fn get_remaining_accounts_per_balance(balance: &Balance) -> MarginfiResult<usize> {
+    get_remaining_accounts_per_asset_tag(balance.bank_asset_tag)
+}
+
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
+fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> {
+    match asset_tag {
+        ASSET_TAG_DEFAULT | ASSET_TAG_SOL => Ok(2),
+        ASSET_TAG_STAKED => Ok(4),
+        _ => err!(MarginfiError::AssetTagMismatch),
+    }
+}
+
 impl MarginfiAccount {
     /// Set the initial data for the marginfi account.
     pub fn initialize(&mut self, group: Pubkey, authority: Pubkey) {
         self.authority = authority;
         self.group = group;
+        self.emissions_destination_account = Pubkey::default();
     }
 
-    pub fn get_remaining_accounts_len(&self) -> usize {
-        self.lending_account
+    /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
+    /// key, oracle, and optional accounts like lst mint/pool, etc.
+    pub fn get_remaining_accounts_len(&self) -> MarginfiResult<usize> {
+        let mut total = 0usize;
+        for balance in self
+            .lending_account
             .balances
             .iter()
-            .filter(|b| b.active)
-            .count()
-            * 2 // TODO: Make account count oracle setup specific
+            .filter(|b| b.is_active())
+        {
+            let num_accounts = get_remaining_accounts_per_balance(balance)?;
+            total += num_accounts;
+        }
+        Ok(total)
     }
 
     pub fn set_flag(&mut self, flag: u64) {
@@ -169,51 +200,29 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         lending_account: &'a LendingAccount,
         remaining_ais: &'info [AccountInfo<'info>],
     ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a, 'info>>> {
-        let active_balances = lending_account
-            .balances
-            .iter()
-            .filter(|balance| balance.active)
-            .collect::<Vec<_>>();
-
-        let expected_accounts = active_balances
-            .iter()
-            .map(|balance| {
-                if balance.bank_asset_tag == ASSET_TAG_STAKED {
-                    4
-                } else {
-                    2
-                }
-            })
-            .sum::<usize>();
-
-        debug!("Expecting {} remaining accounts", expected_accounts);
-        debug!("Got {} remaining accounts", remaining_ais.len());
-
-        check!(
-            expected_accounts <= remaining_ais.len(),
-            MarginfiError::MissingPythOrBankAccount
-        );
-
         let clock = Clock::get()?;
         let mut account_index = 0;
 
-        active_balances
+        lending_account
+            .balances
             .iter()
+            .filter(|balance| balance.is_active())
             .map(|balance| {
-                // Determine number of accounts to process for this balance
-                let num_accounts = if balance.bank_asset_tag == ASSET_TAG_STAKED {
-                    4
-                } else {
-                    2
-                };
-
                 // Get the bank
-                let bank_ai = remaining_ais.get(account_index).unwrap();
+                let bank_ai: Option<&AccountInfo<'info>> = remaining_ais.get(account_index);
+                if bank_ai.is_none() {
+                    msg!("Ran out of remaining accounts at {:?}", account_index);
+                    return err!(MarginfiError::InvalidBankAccount);
+                }
+                let bank_ai = bank_ai.unwrap();
+                let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
+
+                // Determine number of accounts to process for this balance
+                let num_accounts = get_remaining_accounts_per_balance(balance)?;
                 check!(
                     balance.bank_pk.eq(bank_ai.key),
                     MarginfiError::InvalidBankAccount
                 );
-                let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
                 let bank = bank_al.load()?;
 
                 // Get the oracle, and the LST mint and sol pool if applicable (staked only)
@@ -238,58 +247,88 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
     }
 
     #[inline(always)]
-    /// Calculate the value of the assets and liabilities of the account in the form of (assets, liabilities)
+    /// Calculate the value of the balance, which is either an asset or a liability. If it is an
+    /// asset, returns (asset_value, 0, price), and if it is a liability, returns (0, liabilty
+    /// value, price), where price is the actual oracle price used to determine the value after bias
+    /// adjustments, etc.
     ///
     /// Nuances:
     /// 1. Maintenance requirement is calculated using the real time price feed.
     /// 2. Initial requirement is calculated using the time weighted price feed, if available.
-    /// 3. Initial requirement is discounted by the initial discount, if enabled and the usd limit is exceeded.
+    /// 3. Initial requirement is discounted by the initial discount, if enabled and the usd limit
+    ///    is exceeded.
     /// 4. Assets are only calculated for collateral risk tier.
     /// 5. Oracle errors are ignored for deposits in isolated risk tier.
-    fn calc_weighted_assets_and_liabilities_values<'a>(
+    fn calc_weighted_value<'a>(
         &'a self,
         requirement_type: RequirementType,
-    ) -> MarginfiResult<(I80F48, I80F48)>
+    ) -> MarginfiResult<(I80F48, I80F48, I80F48)>
     where
         'info: 'a,
     {
         match self.balance.get_side() {
             Some(side) => {
-                // SAFETY: We are shortening 'info -> 'a
-                let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&self.bank) };
-                let bank_al = AccountLoader::<Bank>::try_from(shorter_bank)?;
-                let bank = bank_al.load()?;
+                // We want lifetime <'a> but we have <'info> and it's a pain to modify everything...
+                // To avoid an unsafe transmuation we just interpret the bank from bytes. Here we
+                // repeat some of the sanity checks from AccountLoader
+                if self.bank.owner != &Bank::owner() {
+                    panic!("bank owned by wrong program, this should never happen");
+                }
+                let bank_data = &self.bank.try_borrow_data()?;
+                if bank_data.len() < Bank::LEN + 8 {
+                    panic!("bank too short, this should never happen");
+                }
+                let bank_discrim: &[u8] = &bank_data[0..8];
+                if bank_discrim != Bank::DISCRIMINATOR {
+                    panic!("bad bank discriminator, this should never happen");
+                }
+                let bank_data: &[u8] = &bank_data[8..];
+                let bank = *bytemuck::from_bytes(bank_data);
+
+                // Our alternative is this transmute, which is probably fine because we are
+                // shortening 'info to 'a, but better not to tempt fate with transmute in case
+                // Anchor messes with lifetimes in a later version.
+
+                // let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&self.bank) };
+                // let bank_al = AccountLoader::<Bank>::try_from(&shorter_bank)?;
+                // let bank = bank_al.load()?;
+
                 match side {
-                    BalanceSide::Assets => Ok((
-                        self.calc_weighted_assets(requirement_type, &bank)?,
-                        I80F48::ZERO,
-                    )),
-                    BalanceSide::Liabilities => Ok((
-                        I80F48::ZERO,
-                        self.calc_weighted_liabs(requirement_type, &bank)?,
-                    )),
+                    BalanceSide::Assets => {
+                        // TODO: health_cache.prices[some_index] = the index of this in the bank_accounts_with_price Vec
+                        let (value, price) =
+                            self.calc_weighted_asset_value(requirement_type, &bank)?;
+                        Ok((value, I80F48::ZERO, price))
+                    }
+
+                    BalanceSide::Liabilities => {
+                        let (value, price) =
+                            self.calc_weighted_liab_value(requirement_type, &bank)?;
+                        Ok((I80F48::ZERO, value, price))
+                    }
                 }
             }
-            None => Ok((I80F48::ZERO, I80F48::ZERO)),
+            None => Ok((I80F48::ZERO, I80F48::ZERO, I80F48::ZERO)),
         }
     }
 
+    /// Returns value, the net asset value in $, and the price used to determine that value.
     #[inline(always)]
-    fn calc_weighted_assets<'a>(
+    fn calc_weighted_asset_value<'a>(
         &'a self,
         requirement_type: RequirementType,
         bank: &'a Bank,
-    ) -> MarginfiResult<I80F48> {
+    ) -> MarginfiResult<(I80F48, I80F48)> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
                 let price_feed = self.try_get_price_feed();
 
                 if matches!(
                     (&price_feed, requirement_type),
-                    (&Err(PriceFeedError::StaleOracle), RequirementType::Initial)
+                    (&Err(_), RequirementType::Initial)
                 ) {
                     debug!("Skipping stale oracle");
-                    return Ok(I80F48::ZERO);
+                    return Ok((I80F48::ZERO, I80F48::ZERO));
                 }
 
                 let price_feed = price_feed?;
@@ -313,23 +352,26 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                     }
                 }
 
-                calc_value(
+                let value = calc_value(
                     bank.get_asset_amount(self.balance.asset_shares.into())?,
                     lower_price,
                     bank.mint_decimals,
                     Some(asset_weight),
-                )
+                )?;
+
+                Ok((value, lower_price))
             }
-            RiskTier::Isolated => Ok(I80F48::ZERO),
+            RiskTier::Isolated => Ok((I80F48::ZERO, I80F48::ZERO)),
         }
     }
 
+    /// Returns value, the net liability value in $, and the price used to determine that value.
     #[inline(always)]
-    fn calc_weighted_liabs(
+    fn calc_weighted_liab_value(
         &self,
         requirement_type: RequirementType,
         bank: &Bank,
-    ) -> MarginfiResult<I80F48> {
+    ) -> MarginfiResult<(I80F48, I80F48)> {
         let price_feed = self.try_get_price_feed()?;
         let liability_weight = bank
             .config
@@ -342,40 +384,42 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
 
         // If `ASSET_TAG_STAKED` assets can ever be borrowed, accomodate for that here...
 
-        calc_value(
+        let value = calc_value(
             bank.get_liability_amount(self.balance.liability_shares.into())?,
             higher_price,
             bank.mint_decimals,
             Some(liability_weight),
-        )
+        )?;
+
+        Ok((value, higher_price))
     }
 
-    fn try_get_price_feed(&self) -> std::result::Result<&OraclePriceFeedAdapter, PriceFeedError> {
+    fn try_get_price_feed(&self) -> MarginfiResult<&OraclePriceFeedAdapter> {
         match self.price_feed.as_ref() {
             Ok(a) => Ok(a),
             #[allow(unused_variables)]
-            Err(e) => {
-                debug!("Price feed error: {:?}", e);
-                Err(PriceFeedError::StaleOracle)
-            }
+            Err(e) => match e {
+                anchor_lang::error::Error::AnchorError(inner) => {
+                    let error_code = inner.as_ref().error_code_number;
+                    let custom_error = MarginfiError::from(error_code);
+                    Err(error!(custom_error))
+                }
+                anchor_lang::error::Error::ProgramError(inner) => {
+                    match inner.as_ref().program_error {
+                        ProgramError::Custom(error_code) => {
+                            let custom_error = MarginfiError::from(error_code);
+                            Err(error!(custom_error))
+                        }
+                        _ => Err(error!(MarginfiError::InternalLogicError)),
+                    }
+                }
+            },
         }
     }
 
     #[inline]
     pub fn is_empty(&self, side: BalanceSide) -> bool {
         self.balance.is_empty(side)
-    }
-}
-
-enum PriceFeedError {
-    StaleOracle,
-}
-
-impl From<PriceFeedError> for Error {
-    fn from(value: PriceFeedError) -> Self {
-        match value {
-            PriceFeedError::StaleOracle => error!(MarginfiError::StaleOracle),
-        }
     }
 }
 
@@ -484,13 +528,16 @@ impl<'info> RiskEngine<'_, 'info> {
     pub fn check_account_init_health<'a>(
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
+        health_cache: &mut Option<&mut HealthCache>,
     ) -> MarginfiResult<()> {
         if marginfi_account.get_flag(IN_FLASHLOAN_FLAG) {
+            // Note: The health cache is not applicable to flashloans
             return Ok(());
         }
 
-        Self::new_no_flashloan_check(marginfi_account, remaining_ais)?
-            .check_account_health(RiskRequirementType::Initial)?;
+        let risk_engine = Self::new_no_flashloan_check(marginfi_account, remaining_ais)?;
+        let requirement_type = RiskRequirementType::Initial;
+        risk_engine.check_account_health(requirement_type, health_cache)?;
 
         Ok(())
     }
@@ -499,53 +546,70 @@ impl<'info> RiskEngine<'_, 'info> {
     pub fn get_account_health_components(
         &self,
         requirement_type: RiskRequirementType,
+        health_cache: &mut Option<&mut HealthCache>,
     ) -> MarginfiResult<(I80F48, I80F48)> {
-        let mut total_assets = I80F48::ZERO;
-        let mut total_liabilities = I80F48::ZERO;
+        let mut total_assets: I80F48 = I80F48::ZERO;
+        let mut total_liabilities: I80F48 = I80F48::ZERO;
 
-        for a in &self.bank_accounts_with_price {
-            let (assets, liabilities) =
-                a.calc_weighted_assets_and_liabilities_values(requirement_type.to_weight_type())?;
+        for (i, bank_account) in self.bank_accounts_with_price.iter().enumerate() {
+            let requirement_type = requirement_type.to_weight_type();
+            let (asset_val, liab_val, price) =
+                bank_account.calc_weighted_value(requirement_type)?;
+
+            if let Some(health_cache) = health_cache {
+                health_cache.prices[i] = price.into();
+            }
 
             debug!(
                 "Balance {}, assets: {}, liabilities: {}",
-                a.balance.bank_pk, assets, liabilities
+                bank_account.balance.bank_pk, asset_val, liab_val
             );
 
-            total_assets = total_assets.checked_add(assets).ok_or_else(math_error!())?;
-            total_liabilities = total_liabilities
-                .checked_add(liabilities)
+            total_assets = total_assets
+                .checked_add(asset_val)
                 .ok_or_else(math_error!())?;
+            total_liabilities = total_liabilities
+                .checked_add(liab_val)
+                .ok_or_else(math_error!())?;
+        }
+
+        if let Some(health_cache) = health_cache {
+            health_cache.asset_value = total_assets.into();
+            health_cache.liability_value = total_liabilities.into();
         }
 
         Ok((total_assets, total_liabilities))
     }
 
-    pub fn get_account_health(
-        &'info self,
+    /// Errors if risk account's liabilities exceed their assets.
+    fn check_account_health(
+        &self,
         requirement_type: RiskRequirementType,
-    ) -> MarginfiResult<I80F48> {
+        health_cache: &mut Option<&mut HealthCache>,
+    ) -> MarginfiResult<()> {
         let (total_weighted_assets, total_weighted_liabilities) =
-            self.get_account_health_components(requirement_type)?;
+            self.get_account_health_components(requirement_type, health_cache)?;
 
-        Ok(total_weighted_assets
-            .checked_sub(total_weighted_liabilities)
-            .ok_or_else(math_error!())?)
-    }
+        let healthy = total_weighted_assets >= total_weighted_liabilities;
 
-    fn check_account_health(&self, requirement_type: RiskRequirementType) -> MarginfiResult {
-        let (total_weighted_assets, total_weighted_liabilities) =
-            self.get_account_health_components(requirement_type)?;
+        if healthy {
+            debug!(
+                "check_health: assets {} - liabs: {}",
+                total_weighted_assets, total_weighted_liabilities
+            );
+        } else {
+            let assets_f64: f64 = total_weighted_assets.to_num();
+            let liabs_f64: f64 = total_weighted_liabilities.to_num();
+            msg!("check_health: assets {} - liabs: {}", assets_f64, liabs_f64);
+        }
 
-        debug!(
-            "check_health: assets {} - liabs: {}",
-            total_weighted_assets, total_weighted_liabilities
-        );
+        if let Some(cache) = health_cache {
+            cache.set_healthy(healthy);
+        }
 
-        check!(
-            total_weighted_assets >= total_weighted_liabilities,
-            MarginfiError::RiskEngineInitRejected
-        );
+        if !healthy {
+            return err!(MarginfiError::RiskEngineInitRejected);
+        }
 
         self.check_account_risk_tiers()?;
 
@@ -583,7 +647,7 @@ impl<'info> RiskEngine<'_, 'info> {
         );
 
         let (assets, liabs) =
-            self.get_account_health_components(RiskRequirementType::Maintenance)?;
+            self.get_account_health_components(RiskRequirementType::Maintenance, &mut None)?;
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 
@@ -642,7 +706,7 @@ impl<'info> RiskEngine<'_, 'info> {
         );
 
         let (assets, liabs) =
-            self.get_account_health_components(RiskRequirementType::Maintenance)?;
+            self.get_account_health_components(RiskRequirementType::Maintenance, &mut None)?;
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 
@@ -670,7 +734,7 @@ impl<'info> RiskEngine<'_, 'info> {
     /// Account needs to be insolvent and total value of assets need to be below the bankruptcy threshold.
     pub fn check_account_bankrupt(&self) -> MarginfiResult {
         let (total_assets, total_liabilities) =
-            self.get_account_health_components(RiskRequirementType::Equity)?;
+            self.get_account_health_components(RiskRequirementType::Equity, &mut None)?;
 
         check!(
             !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
@@ -706,17 +770,27 @@ impl<'info> RiskEngine<'_, 'info> {
 
         let n_balances_with_liablities = balances_with_liablities.clone().count();
 
-        let is_in_isolated_risk_tier = balances_with_liablities.clone().any(|a| {
-            // SAFETY: We are shortening 'info -> 'a
-            let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&a.bank) };
-            AccountLoader::<Bank>::try_from(shorter_bank)
-                .unwrap()
-                .load()
-                .unwrap()
-                .config
-                .risk_tier
-                == RiskTier::Isolated
-        });
+        let mut is_in_isolated_risk_tier = false;
+
+        for a in balances_with_liablities {
+            if a.bank.owner != &Bank::owner() {
+                panic!("bank owned by wrong program, this should never happen");
+            }
+            let bank_data = a.bank.try_borrow_data()?;
+            if bank_data.len() < Bank::LEN + 8 {
+                panic!("bank too short, this should never happen");
+            }
+            let bank_discrim = &bank_data[0..8];
+            if bank_discrim != Bank::DISCRIMINATOR {
+                panic!("bad bank discriminator, this should never happen");
+            }
+            let bank_data = &bank_data[8..];
+            let bank: Bank = *bytemuck::from_bytes(bank_data);
+            if bank.config.risk_tier == RiskTier::Isolated {
+                is_in_isolated_risk_tier = true;
+                break;
+            }
+        }
 
         check!(
             !is_in_isolated_risk_tier || n_balances_with_liablities == 1,
@@ -727,15 +801,13 @@ impl<'info> RiskEngine<'_, 'info> {
     }
 }
 
-const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
+pub const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 assert_struct_size!(LendingAccount, 1728);
 assert_struct_align!(LendingAccount, 8);
-#[zero_copy(unsafe)]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
+#[derive(
+    AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod, PartialEq, Eq, TypeLayout,
 )]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES], // 104 * 16 = 1664
@@ -744,7 +816,7 @@ pub struct LendingAccount {
 
 impl LendingAccount {
     pub fn get_first_empty_balance(&self) -> Option<usize> {
-        self.balances.iter().position(|b| !b.active)
+        self.balances.iter().position(|b| !b.is_active())
     }
 }
 
@@ -753,24 +825,22 @@ impl LendingAccount {
     pub fn get_balance(&self, bank_pk: &Pubkey) -> Option<&Balance> {
         self.balances
             .iter()
-            .find(|balance| balance.active && balance.bank_pk.eq(bank_pk))
+            .find(|balance| balance.is_active() && balance.bank_pk.eq(bank_pk))
     }
 
     pub fn get_active_balances_iter(&self) -> impl Iterator<Item = &Balance> {
-        self.balances.iter().filter(|b| b.active)
+        self.balances.iter().filter(|b| b.is_active())
     }
 }
 
 assert_struct_size!(Balance, 104);
 assert_struct_align!(Balance, 8);
-#[zero_copy(unsafe)]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
+#[derive(
+    AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod, PartialEq, Eq, TypeLayout,
 )]
 pub struct Balance {
-    pub active: bool,
+    pub active: u8,
     pub bank_pk: Pubkey,
     /// Inherited from the bank when the position is first created and CANNOT BE CHANGED after that.
     /// Note that all balances created before the addition of this feature use `ASSET_TAG_DEFAULT`
@@ -784,6 +854,14 @@ pub struct Balance {
 }
 
 impl Balance {
+    pub fn is_active(&self) -> bool {
+        self.active != 0
+    }
+
+    pub fn set_active(&mut self, value: bool) {
+        self.active = value as u8;
+    }
+
     /// Check whether a balance is empty while accounting for any rounding errors
     /// that might have occured during depositing/withdrawing.
     #[inline]
@@ -845,7 +923,7 @@ impl Balance {
 
     pub fn empty_deactivated() -> Self {
         Balance {
-            active: false,
+            active: 0,
             bank_pk: Pubkey::default(),
             bank_asset_tag: ASSET_TAG_DEFAULT,
             _pad0: [0; 6],
@@ -873,7 +951,7 @@ impl<'a> BankAccountWrapper<'a> {
         let balance = lending_account
             .balances
             .iter_mut()
-            .find(|balance| balance.active && balance.bank_pk.eq(bank_pk))
+            .find(|balance| balance.is_active() && balance.bank_pk.eq(bank_pk))
             .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
 
         Ok(Self { balance, bank })
@@ -889,7 +967,7 @@ impl<'a> BankAccountWrapper<'a> {
         let balance_index = lending_account
             .balances
             .iter()
-            .position(|balance| balance.active && balance.bank_pk.eq(bank_pk));
+            .position(|balance| balance.is_active() && balance.bank_pk.eq(bank_pk));
 
         match balance_index {
             Some(balance_index) => {
@@ -906,7 +984,7 @@ impl<'a> BankAccountWrapper<'a> {
                     .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
 
                 lending_account.balances[empty_index] = Balance {
-                    active: true,
+                    active: 1,
                     bank_pk: *bank_pk,
                     bank_asset_tag: bank.config.asset_tag,
                     _pad0: [0; 6],
@@ -1435,9 +1513,10 @@ mod test {
         let mut acc = MarginfiAccount {
             group: group.into(),
             authority: authority.into(),
+            emissions_destination_account: Pubkey::default(),
             lending_account: LendingAccount {
                 balances: [Balance {
-                    active: true,
+                    active: 1,
                     bank_pk: bank_pk.into(),
                     bank_asset_tag: ASSET_TAG_DEFAULT,
                     _pad0: [0; 6],
@@ -1450,7 +1529,8 @@ mod test {
                 _padding: [0; 8],
             },
             account_flags: TRANSFER_AUTHORITY_ALLOWED_FLAG,
-            _padding: [0; 63],
+            health_cache: HealthCache::zeroed(),
+            _padding0: [0; 21],
         };
 
         assert!(acc.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));

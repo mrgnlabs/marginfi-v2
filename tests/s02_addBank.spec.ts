@@ -1,5 +1,5 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { AccountMeta, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { AccountMeta, Keypair, Transaction } from "@solana/web3.js";
 import {
   addBank,
   addBankPermissionless,
@@ -36,6 +36,7 @@ import {
   defaultBankConfig,
   defaultStakedInterestSettings,
   I80F48_ONE,
+  ORACLE_SETUP_PYTH_LEGACY,
   SINGLE_POOL_PROGRAM_ID,
 } from "./utils/types";
 import { assert } from "chai";
@@ -59,7 +60,7 @@ describe("Init group and add banks with asset category flags", () => {
     let tx = new Transaction();
 
     tx.add(
-      await groupInitialize(program, {
+      await groupInitialize(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         admin: groupAdmin.wallet.publicKey,
       })
@@ -119,19 +120,34 @@ describe("Init group and add banks with asset category flags", () => {
   });
 
   it("(admin) Add bank (USDC) - is neither SOL nor staked LST", async () => {
-    let setConfig = defaultBankConfig(oracles.usdcOracle.publicKey);
-    let bankKey = bankKeypairUsdc.publicKey;
+    let setConfig = defaultBankConfig();
+    const bankKey = bankKeypairUsdc.publicKey;
+    const oracle = oracles.usdcOracle.publicKey;
+    const oracleMeta: AccountMeta = {
+      pubkey: oracle,
+      isSigner: false,
+      isWritable: false,
+    };
+    const config_ix = await groupAdmin.mrgnProgram.methods
+      .lendingPoolConfigureBankOracle(ORACLE_SETUP_PYTH_LEGACY, oracle)
+      .accountsPartial({
+        group: marginfiGroup.publicKey,
+        bank: bankKey,
+        admin: groupAdmin.wallet.publicKey,
+      })
+      .remainingAccounts([oracleMeta])
+      .instruction();
 
     let tx = new Transaction();
     tx.add(
-      await addBank(program, {
+      await addBank(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
-        admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.usdcMint.publicKey,
         bank: bankKey,
         config: setConfig,
-      })
+      }),
+      config_ix
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet, bankKeypairUsdc);
@@ -146,20 +162,35 @@ describe("Init group and add banks with asset category flags", () => {
   });
 
   it("(admin) Add bank (SOL) - is tagged as SOL", async () => {
-    let setConfig = defaultBankConfig(oracles.wsolOracle.publicKey);
+    let setConfig = defaultBankConfig();
     setConfig.assetTag = ASSET_TAG_SOL;
     let bankKey = bankKeypairSol.publicKey;
+    const oracle = oracles.wsolOracle.publicKey;
+    const oracleMeta: AccountMeta = {
+      pubkey: oracle,
+      isSigner: false,
+      isWritable: false,
+    };
+    const config_ix = await groupAdmin.mrgnProgram.methods
+      .lendingPoolConfigureBankOracle(ORACLE_SETUP_PYTH_LEGACY, oracle)
+      .accountsPartial({
+        group: marginfiGroup.publicKey,
+        bank: bankKey,
+        admin: groupAdmin.wallet.publicKey,
+      })
+      .remainingAccounts([oracleMeta])
+      .instruction();
 
     let tx = new Transaction();
     tx.add(
-      await addBank(program, {
+      await addBank(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
-        admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.wsolMint.publicKey,
         bank: bankKey,
         config: setConfig,
-      })
+      }),
+      config_ix
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet, bankKeypairSol);
@@ -174,7 +205,7 @@ describe("Init group and add banks with asset category flags", () => {
   });
 
   it("(admin) Tries to add staked bank WITH permission - should fail", async () => {
-    let setConfig = defaultBankConfig(oracles.wsolOracle.publicKey);
+    let setConfig = defaultBankConfig();
     setConfig.assetTag = ASSET_TAG_STAKED;
     setConfig.borrowLimit = new BN(0);
     let bankKeypair = Keypair.generate();
@@ -183,7 +214,6 @@ describe("Init group and add banks with asset category flags", () => {
     tx.add(
       await addBank(groupAdmin.mrgnProgram, {
         marginfiGroup: marginfiGroup.publicKey,
-        admin: groupAdmin.wallet.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: validators[0].splMint,
         bank: bankKeypair.publicKey,
@@ -194,7 +224,7 @@ describe("Init group and add banks with asset category flags", () => {
     tx.sign(groupAdmin.wallet, bankKeypair);
     let result = await banksClient.tryProcessTransaction(tx);
     // AddedStakedPoolManually
-    assertBankrunTxFailed(result, "0x17a0");
+    assertBankrunTxFailed(result, "0x179e");
   });
 
   it("(attacker) Add bank (validator 0) with bad accounts + bad metadata - should fail", async () => {
@@ -252,7 +282,7 @@ describe("Init group and add banks with asset category flags", () => {
             isWritable: false,
           };
 
-          const ix = await program.methods
+          const ix = await bankrunProgram.methods
             .lendingPoolAddBankPermissionless(new BN(0))
             .accounts({
               stakedSettings: settingsKey,
@@ -272,7 +302,7 @@ describe("Init group and add banks with asset category flags", () => {
 
           let result = await banksClient.tryProcessTransaction(tx);
           // StakePoolValidationFailed
-          assertBankrunTxFailed(result, "0x17a2");
+          assertBankrunTxFailed(result, "0x17a0");
         }
       }
     }
@@ -319,7 +349,7 @@ describe("Init group and add banks with asset category flags", () => {
           isWritable: false,
         };
 
-        const ix = await program.methods
+        const ix = await bankrunProgram.methods
           .lendingPoolAddBankPermissionless(new BN(0))
           .accounts({
             stakedSettings: settingsKey,
@@ -339,7 +369,7 @@ describe("Init group and add banks with asset category flags", () => {
 
         let result = await banksClient.tryProcessTransaction(tx);
         // StakePoolValidationFailed
-        assertBankrunTxFailed(result, "0x17a2");
+        assertBankrunTxFailed(result, "0x17a0");
       }
     }
 
@@ -360,7 +390,7 @@ describe("Init group and add banks with asset category flags", () => {
       isWritable: false,
     };
 
-    const ix = await program.methods
+    const ix = await bankrunProgram.methods
       .lendingPoolAddBankPermissionless(new BN(0))
       .accounts({
         stakedSettings: settingsKey,
@@ -379,8 +409,8 @@ describe("Init group and add banks with asset category flags", () => {
     tx.sign(users[0].wallet);
 
     let result = await banksClient.tryProcessTransaction(tx);
-    // Note: different error
-    assertBankrunTxFailed(result, "0x1777");
+    // Note: WrongOracleAccountKeys
+    assertBankrunTxFailed(result, "0x17a4");
   });
 
   it("(permissionless) Add staked collateral bank (validator 0) - happy path", async () => {
@@ -394,7 +424,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     let tx = new Transaction();
     tx.add(
-      await addBankPermissionless(program, {
+      await addBankPermissionless(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         pythOracle: oracles.wsolOracle.publicKey,

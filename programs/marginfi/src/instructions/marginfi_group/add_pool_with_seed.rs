@@ -6,9 +6,10 @@ use crate::{
         LIQUIDITY_VAULT_SEED,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
+    log_pool_info,
     state::{
         fee_state::FeeState,
-        marginfi_group::{Bank, BankConfig, BankConfigCompact, MarginfiGroup},
+        marginfi_group::{Bank, BankConfigCompact, MarginfiGroup},
     },
     MarginfiError, MarginfiResult,
 };
@@ -21,7 +22,7 @@ use anchor_spl::token_interface::*;
 /// The previous lending_pool_add_bank is preserved for backwards-compatibility.
 pub fn lending_pool_add_bank_with_seed(
     ctx: Context<LendingPoolAddBankWithSeed>,
-    bank_config: BankConfig,
+    bank_config: BankConfigCompact,
     _bank_seed: u64,
 ) -> MarginfiResult {
     // Transfer the flat sol init fee to the global fee wallet
@@ -58,7 +59,7 @@ pub fn lending_pool_add_bank_with_seed(
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
-        bank_config,
+        bank_config.into(),
         bank_mint.key(),
         bank_mint.decimals,
         liquidity_vault.key(),
@@ -73,9 +74,10 @@ pub fn lending_pool_add_bank_with_seed(
         fee_vault_authority_bump,
     );
 
+    log_pool_info(&bank);
+
     bank.config.validate()?;
-    bank.config
-        .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
+    bank.config.validate_oracle_age()?;
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {
@@ -96,12 +98,12 @@ pub fn lending_pool_add_bank_with_seed(
 #[derive(Accounts)]
 #[instruction(bank_config: BankConfigCompact, bank_seed: u64)]
 pub struct LendingPoolAddBankWithSeed<'info> {
+    #[account(
+        has_one = admin
+    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    #[account(
-        mut,
-        address = marginfi_group.load()?.admin,
-    )]
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     /// Pays to init accounts and pays `fee_state.bank_init_flat_sol_fee` lamports to the protocol

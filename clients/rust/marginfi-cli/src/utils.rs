@@ -7,7 +7,7 @@ use {
     marginfi::{
         bank_authority_seed, bank_seed,
         constants::{
-            EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED, MAX_ORACLE_KEYS,
+            EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED,
             PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
         },
         state::{
@@ -130,12 +130,6 @@ pub fn find_fee_state_pda(program_id: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], program_id)
 }
 
-pub fn create_oracle_key_array(oracle_key: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS] {
-    let mut oracle_keys = [Pubkey::default(); MAX_ORACLE_KEYS];
-    oracle_keys[0] = oracle_key;
-    oracle_keys
-}
-
 pub const EXP_10_I80F48: [I80F48; 15] = [
     I80F48!(1),
     I80F48!(10),
@@ -164,7 +158,7 @@ pub fn load_observation_account_metas(
         .lending_account
         .balances
         .iter()
-        .filter_map(|balance| balance.active.then_some(balance.bank_pk))
+        .filter_map(|balance| balance.is_active().then_some(balance.bank_pk))
         .collect::<Vec<_>>();
 
     for bank_pk in include_banks {

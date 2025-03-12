@@ -10,7 +10,7 @@ use crate::{
         EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, MAX_SWB_ORACLE_AGE,
-        ORACLE_MIN_AGE, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_ID, SECONDS_PER_YEAR,
+        ORACLE_MIN_AGE, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, SECONDS_PER_YEAR,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
@@ -29,7 +29,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
-use pyth_sdk_solana::{state::SolanaPriceAccount, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::FeedId;
 #[cfg(feature = "client")]
 use std::fmt::Display;
@@ -37,17 +36,11 @@ use std::{
     fmt::{Debug, Formatter},
     ops::Not,
 };
-
-#[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
 
 assert_struct_size!(MarginfiGroup, 1056);
 #[account(zero_copy)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
 pub struct MarginfiGroup {
     pub admin: Pubkey,
     /// Bitmask for group settings flags.
@@ -124,26 +117,13 @@ impl MarginfiGroup {
     }
 }
 
-#[cfg_attr(any(feature = "test", feature = "client"), derive(TypeLayout))]
-#[derive(AnchorSerialize, AnchorDeserialize, Default, Debug, Clone)]
+#[derive(AnchorSerialize, AnchorDeserialize, Default, Debug, Clone, TypeLayout)]
 pub struct GroupConfig {
     pub admin: Option<Pubkey>,
 }
 
-/// Load and validate a pyth price feed account.
-pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
-    check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
-    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
-        .map_err(|_| MarginfiError::InvalidOracleAccount)?;
-    Ok(price_feed)
-}
-
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
-)]
-#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize, PartialEq, Eq)]
 pub struct InterestRateConfigCompact {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -191,13 +171,20 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
 }
 
 assert_struct_size!(InterestRateConfig, 240);
-#[zero_copy]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
+#[derive(
+    Default,
+    Debug,
+    Copy,
+    Clone,
+    AnchorSerialize,
+    AnchorDeserialize,
+    Zeroable,
+    Pod,
+    PartialEq,
+    Eq,
+    TypeLayout,
 )]
-#[derive(Default, Debug)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -408,11 +395,7 @@ pub struct ComputedInterestRates {
     pub protocol_fee_apr: I80F48,
 }
 
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
-#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone)]
+#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone, Debug, PartialEq, Eq, TypeLayout)]
 pub struct InterestRateConfigOpt {
     pub optimal_utilization_rate: Option<WrappedI80F48>,
     pub plateau_interest_rate: Option<WrappedI80F48>,
@@ -433,13 +416,9 @@ pub struct GroupBankConfig {
 
 assert_struct_size!(Bank, 1856);
 assert_struct_align!(Bank, 8);
-#[account(zero_copy(unsafe))]
+#[account(zero_copy)]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
 pub struct Bank {
     pub mint: Pubkey,
     pub mint_decimals: u8,
@@ -487,6 +466,7 @@ pub struct Bank {
     /// - EMISSIONS_FLAG_BORROW_ACTIVE: 1
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
+    /// - FREEZE_SETTINGS: 8
     ///
     pub flags: u64,
     /// Emissions APR.
@@ -503,6 +483,8 @@ pub struct Bank {
 }
 
 impl Bank {
+    pub const LEN: usize = std::mem::size_of::<Bank>();
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         marginfi_group_pk: Pubkey,
@@ -694,10 +676,6 @@ impl Bank {
 
         set_if_some!(self.config.operational_state, config.operational_state);
 
-        set_if_some!(self.config.oracle_setup, config.oracle.map(|o| o.setup));
-
-        set_if_some!(self.config.oracle_keys, config.oracle.map(|o| o.keys));
-
         if let Some(ir_config) = &config.interest_rate_config {
             self.config.interest_rate_config.update(ir_config);
         }
@@ -714,10 +692,18 @@ impl Bank {
         set_if_some!(self.config.oracle_max_age, config.oracle_max_age);
 
         if let Some(flag) = config.permissionless_bad_debt_settlement {
+            msg!(
+                "setting bad debt settlement: {:?}",
+                config.permissionless_bad_debt_settlement.unwrap()
+            );
             self.update_flag(flag, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG);
         }
 
         if let Some(flag) = config.freeze_settings {
+            msg!(
+                "setting freeze settings: {:?}",
+                config.freeze_settings.unwrap()
+            );
             self.update_flag(flag, FREEZE_SETTINGS);
         }
 
@@ -1152,13 +1138,14 @@ fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48)
 }
 
 #[repr(u8)]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
+#[derive(Debug, Clone, Copy, AnchorDeserialize, AnchorSerialize, PartialEq, Eq)]
 pub enum BankOperationalState {
     Paused,
     Operational,
     ReduceOnly,
 }
+unsafe impl Zeroable for BankOperationalState {}
+unsafe impl Pod for BankOperationalState {}
 
 #[cfg(feature = "client")]
 impl Display for BankOperationalState {
@@ -1184,16 +1171,11 @@ pub enum RiskTier {
     /// they can't borrow XYZ together with SOL, only XYZ alone.
     Isolated = 1,
 }
-
 unsafe impl Zeroable for RiskTier {}
 unsafe impl Pod for RiskTier {}
 
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
-)]
-#[derive(AnchorDeserialize, AnchorSerialize, Debug)]
+#[derive(AnchorDeserialize, AnchorSerialize, Debug, PartialEq, Eq)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfigCompact {
     pub asset_weight_init: WrappedI80F48,
@@ -1206,9 +1188,6 @@ pub struct BankConfigCompact {
 
     pub interest_rate_config: InterestRateConfigCompact,
     pub operational_state: BankOperationalState,
-
-    pub oracle_setup: OracleSetup,
-    pub oracle_key: Pubkey,
 
     pub borrow_limit: u64,
 
@@ -1240,10 +1219,30 @@ pub struct BankConfigCompact {
     pub oracle_max_age: u16,
 }
 
+impl Default for BankConfigCompact {
+    fn default() -> Self {
+        Self {
+            asset_weight_init: I80F48::ZERO.into(),
+            asset_weight_maint: I80F48::ZERO.into(),
+            liability_weight_init: I80F48::ONE.into(),
+            liability_weight_maint: I80F48::ONE.into(),
+            deposit_limit: 0,
+            borrow_limit: 0,
+            interest_rate_config: InterestRateConfigCompact::default(),
+            operational_state: BankOperationalState::Paused,
+            _pad0: [0; 6],
+            risk_tier: RiskTier::Isolated,
+            asset_tag: ASSET_TAG_DEFAULT,
+            total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
+            oracle_max_age: 0,
+        }
+    }
+}
+
 impl From<BankConfigCompact> for BankConfig {
     fn from(config: BankConfigCompact) -> Self {
         let keys = [
-            config.oracle_key,
+            Pubkey::default(),
             Pubkey::default(),
             Pubkey::default(),
             Pubkey::default(),
@@ -1257,7 +1256,7 @@ impl From<BankConfigCompact> for BankConfig {
             deposit_limit: config.deposit_limit,
             interest_rate_config: config.interest_rate_config.into(),
             operational_state: config.operational_state,
-            oracle_setup: config.oracle_setup,
+            oracle_setup: OracleSetup::None,
             oracle_keys: keys,
             _pad0: [0; 6],
             borrow_limit: config.borrow_limit,
@@ -1266,7 +1265,8 @@ impl From<BankConfigCompact> for BankConfig {
             _pad1: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
-            _padding: [0; 38],
+            _padding0: [0; 6],
+            _padding1: [0; 32],
         }
     }
 }
@@ -1281,8 +1281,6 @@ impl From<BankConfig> for BankConfigCompact {
             deposit_limit: config.deposit_limit,
             interest_rate_config: config.interest_rate_config.into(),
             operational_state: config.operational_state,
-            oracle_setup: config.oracle_setup,
-            oracle_key: config.oracle_keys[0],
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             asset_tag: config.asset_tag,
@@ -1295,13 +1293,10 @@ impl From<BankConfig> for BankConfigCompact {
 
 assert_struct_size!(BankConfig, 544);
 assert_struct_align!(BankConfig, 8);
-#[zero_copy(unsafe)]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
+#[derive(
+    Debug, Clone, Copy, AnchorDeserialize, AnchorSerialize, Zeroable, Pod, PartialEq, Eq, TypeLayout,
 )]
-#[derive(Debug)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub asset_weight_init: WrappedI80F48,
@@ -1351,7 +1346,8 @@ pub struct BankConfig {
     pub oracle_max_age: u16,
 
     // Note: 6 bytes of padding to next 8 byte alignment, then end padding
-    pub _padding: [u8; 38],
+    pub _padding0: [u8; 6],
+    pub _padding1: [u8; 32],
 }
 
 impl Default for BankConfig {
@@ -1373,7 +1369,8 @@ impl Default for BankConfig {
             _pad1: [0; 6],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
-            _padding: [0; 38],
+            _padding0: [0; 6],
+            _padding1: [0; 32],
         }
     }
 }
@@ -1462,11 +1459,15 @@ impl BankConfig {
         stake_pool: Option<Pubkey>,
         sol_pool: Option<Pubkey>,
     ) -> MarginfiResult {
+        OraclePriceFeedAdapter::validate_bank_config(self, ais, lst_mint, stake_pool, sol_pool)?;
+        Ok(())
+    }
+
+    pub fn validate_oracle_age(&self) -> MarginfiResult {
         check!(
             self.oracle_max_age >= ORACLE_MIN_AGE,
             MarginfiError::InvalidOracleSetup
         );
-        OraclePriceFeedAdapter::validate_bank_config(self, ais, lst_mint, stake_pool, sol_pool)?;
         Ok(())
     }
 
@@ -1498,8 +1499,7 @@ impl BankConfig {
 
 #[zero_copy]
 #[repr(C, align(8))]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(TypeLayout))]
-#[derive(Default, BorshDeserialize, BorshSerialize)]
+#[derive(Default, BorshDeserialize, BorshSerialize, TypeLayout)]
 pub struct WrappedI80F48 {
     pub value: [u8; 16],
 }
@@ -1532,11 +1532,7 @@ impl PartialEq for WrappedI80F48 {
 
 impl Eq for WrappedI80F48 {}
 
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Clone, PartialEq, Eq, TypeLayout)
-)]
-#[derive(AnchorDeserialize, AnchorSerialize, Default)]
+#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone, PartialEq, Eq, TypeLayout)]
 pub struct BankConfigOpt {
     pub asset_weight_init: Option<WrappedI80F48>,
     pub asset_weight_maint: Option<WrappedI80F48>,
@@ -1548,8 +1544,6 @@ pub struct BankConfigOpt {
     pub borrow_limit: Option<u64>,
 
     pub operational_state: Option<BankOperationalState>,
-
-    pub oracle: Option<OracleConfig>,
 
     pub interest_rate_config: Option<InterestRateConfigOpt>,
 
@@ -1564,16 +1558,6 @@ pub struct BankConfigOpt {
     pub permissionless_bad_debt_settlement: Option<bool>,
 
     pub freeze_settings: Option<bool>,
-}
-
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
-)]
-#[derive(Clone, Copy, AnchorDeserialize, AnchorSerialize, Debug)]
-pub struct OracleConfig {
-    pub setup: OracleSetup,
-    pub keys: [Pubkey; MAX_ORACLE_KEYS],
 }
 
 #[derive(Debug, Clone)]

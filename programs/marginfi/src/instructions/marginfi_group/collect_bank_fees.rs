@@ -163,7 +163,7 @@ pub fn lending_pool_collect_bank_fees<'info>(
 
     emit!(LendingPoolBankCollectFeesEvent {
         header: GroupEventHeader {
-            marginfi_group: ctx.accounts.marginfi_group.key(),
+            marginfi_group: ctx.accounts.group.key(),
             signer: None
         },
         bank: ctx.accounts.bank.key(),
@@ -179,11 +179,11 @@ pub fn lending_pool_collect_bank_fees<'info>(
 
 #[derive(Accounts)]
 pub struct LendingPoolCollectBankFees<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -283,16 +283,16 @@ pub fn lending_pool_withdraw_fees<'info>(
 
 #[derive(Accounts)]
 pub struct LendingPoolWithdrawFees<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    #[account(
+        has_one = admin
+    )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    #[account(
-        address = marginfi_group.load()?.admin,
-    )]
     pub admin: Signer<'info>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
@@ -360,16 +360,16 @@ pub fn lending_pool_withdraw_insurance<'info>(
 
 #[derive(Accounts)]
 pub struct LendingPoolWithdrawInsurance<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    #[account(
+        has_one = admin
+    )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    #[account(
-        address = marginfi_group.load()?.admin,
-    )]
     pub admin: Signer<'info>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑

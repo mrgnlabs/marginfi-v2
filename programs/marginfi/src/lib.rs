@@ -44,7 +44,7 @@ pub mod marginfi {
         ctx: Context<LendingPoolAddBank>,
         bank_config: BankConfigCompact,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank(ctx, bank_config.into())
+        marginfi_group::lending_pool_add_bank(ctx, bank_config)
     }
 
     /// A copy of lending_pool_add_bank with an additional bank seed.
@@ -55,7 +55,7 @@ pub mod marginfi {
         bank_config: BankConfigCompact,
         bank_seed: u64,
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config.into(), bank_seed)
+        marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config, bank_seed)
     }
 
     pub fn lending_pool_add_bank_permissionless(
@@ -70,6 +70,14 @@ pub mod marginfi {
         bank_config_opt: BankConfigOpt,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_configure_bank(ctx, bank_config_opt)
+    }
+
+    pub fn lending_pool_configure_bank_oracle(
+        ctx: Context<LendingPoolConfigureBankOracle>,
+        setup: u8,
+        oracle: Pubkey,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
     }
 
     pub fn lending_pool_setup_emissions(
@@ -112,8 +120,9 @@ pub mod marginfi {
     pub fn lending_account_deposit<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
         amount: u64,
+        deposit_up_to_limit: Option<bool>,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_deposit(ctx, amount)
+        marginfi_account::lending_account_deposit(ctx, amount, deposit_up_to_limit)
     }
 
     pub fn lending_account_repay<'info>(
@@ -178,6 +187,12 @@ pub mod marginfi {
         marginfi_account::lending_account_end_flashloan(ctx)
     }
 
+    pub fn marginfi_account_update_emissions_destination_account<'info>(
+        ctx: Context<'_, '_, 'info, 'info, MarginfiAccountUpdateEmissionsDestinationAccount<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::marginfi_account_update_emissions_destination_account(ctx)
+    }
+
     // Operational instructions
     pub fn lending_pool_accrue_bank_interest(
         ctx: Context<LendingPoolAccrueBankInterest>,
@@ -223,6 +238,23 @@ pub mod marginfi {
         marginfi_account::close_account(ctx)
     }
 
+    pub fn lending_account_withdraw_emissions_permissionless<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdrawEmissionsPermissionless<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_withdraw_emissions_permissionless(ctx)
+    }
+
+    /// (Permissionless) Refresh the internal risk engine health cache. Useful for liquidators and
+    /// other consumers that want to see the internal risk state of a user account. This cache is
+    /// read-only and serves no purpose except being populated by this ix.
+    /// * remaining accounts expected in the same order as borrow, etc. I.e., for each balance the
+    ///   user has, pass bank and oracle: <bank1, oracle1, bank2, oracle2>
+    pub fn lending_account_pulse_health<'info>(
+        ctx: Context<'_, '_, 'info, 'info, PulseHealth<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_pulse_health(ctx)
+    }
+
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees
     /// that are assessed to the protocol
     pub fn init_global_fee_state(
@@ -243,9 +275,10 @@ pub mod marginfi {
         )
     }
 
-    /// (global fee admin only) Adjust fees or the destination wallet
+    /// (global fee admin only) Adjust fees, admin, or the destination wallet
     pub fn edit_global_fee_state(
         ctx: Context<EditFeeState>,
+        admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
@@ -253,6 +286,7 @@ pub mod marginfi {
     ) -> MarginfiResult {
         marginfi_group::edit_fee_state(
             ctx,
+            admin,
             fee_wallet,
             bank_init_flat_sol_fee,
             program_fee_fixed,
