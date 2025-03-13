@@ -832,7 +832,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     MarginfiError::RiskEngineInitRejected.into(),
                     MarginfiError::IsolatedAccountIllegalState.into(),
                     MarginfiError::IllegalUtilizationRatio.into(),
-                    MarginfiError::IllegalLiquidation.into(),
+                    MarginfiError::ZeroLiquidationAmount.into(),
                     MarginfiError::AccountDisabled.into(),
                     MarginfiError::MathError.into(), // TODO: would be best to avoid this one
                 ]
