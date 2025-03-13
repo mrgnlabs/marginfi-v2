@@ -1,9 +1,7 @@
 use crate::check;
 use crate::events::{GroupEventHeader, MarginfiGroupConfigureEvent};
 use crate::prelude::MarginfiError;
-use crate::state::marginfi_account::{
-    MarginfiAccount, ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
-};
+use crate::state::marginfi_account::{MarginfiAccount, ACCOUNT_TRANSFER_AUTHORITY_ALLOWED};
 use crate::{state::marginfi_group::MarginfiGroup, MarginfiResult};
 use anchor_lang::prelude::*;
 
@@ -132,8 +130,7 @@ mod tests {
         let flag3 = ACCOUNT_IN_FLASHLOAN + ACCOUNT_DISABLED + ACCOUNT_FLAG_DEPRECATED;
         let flag4 = ACCOUNT_DISABLED + ACCOUNT_IN_FLASHLOAN;
         let flag5 = ACCOUNT_FLAG_DEPRECATED + ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
-        let flag6 =
-            ACCOUNT_DISABLED + ACCOUNT_FLAG_DEPRECATED + ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
+        let flag6 = ACCOUNT_DISABLED + ACCOUNT_FLAG_DEPRECATED + ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
         let flag7 = ACCOUNT_DISABLED
             + ACCOUNT_FLAG_DEPRECATED
             + ACCOUNT_IN_FLASHLOAN
