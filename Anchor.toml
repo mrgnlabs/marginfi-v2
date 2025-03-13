@@ -31,6 +31,9 @@ test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.t
 # Staked collateral tests only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/s*.spec.ts --exit --require tests/rootHooks.ts"
 
+# Pyth pull tests only
+# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/p*.spec.ts --exit --require tests/rootHooks.ts"
+
 [test]
 startup_wait = 60000
 shutdown_wait = 2000
@@ -56,6 +59,14 @@ filename = "tests/fixtures/pyusd_bank.json"
 [[test.validator.account]]
 address = "8FRFC6MoGGkMFQwngccyu69VnYbzykGeez7ignHVAFSN"
 filename = "tests/fixtures/localnet_usdc.json"
+
+[[test.validator.account]]
+address = "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE"
+filename = "tests/fixtures/sol_pyth_price_feed.json"
+
+[[test.validator.account]]
+address = "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"
+filename = "tests/fixtures/sol_pyth_oracle.json"
 
 # To update:
 # clone https://github.com/solana-labs/solana-program-library/tree/master and run cargo build-sbf in spl_single_pool
