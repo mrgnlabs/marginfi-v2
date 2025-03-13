@@ -12,7 +12,7 @@ use marginfi::state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
 use marginfi::{
     prelude::*,
     state::{
-        marginfi_account::{Balance, LendingAccount, MarginfiAccount, ACCOUNT_FLASHLOAN_ENABLED},
+        marginfi_account::{Balance, LendingAccount, MarginfiAccount, ACCOUNT_FLAG_DEPRECATED},
         marginfi_group::{
             Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
             InterestRateConfigOpt, RiskTier, WrappedI80F48,
@@ -983,7 +983,7 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
 
             if flashloan {
                 println!("Setting flashloan flag");
-                flag |= ACCOUNT_FLASHLOAN_ENABLED;
+                flag |= ACCOUNT_FLAG_DEPRECATED;
             }
 
             if account_migration_enabled {

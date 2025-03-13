@@ -1,7 +1,9 @@
 use crate::{
     check,
     prelude::*,
-    state::marginfi_account::{MarginfiAccount, RiskEngine, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN},
+    state::marginfi_account::{
+        MarginfiAccount, RiskEngine, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
+    },
 };
 use anchor_lang::{prelude::*, Discriminator};
 use solana_program::{
@@ -56,13 +58,7 @@ pub fn check_flashloan_can_start(
     sysvar_ixs: &AccountInfo,
     end_fl_idx: usize,
 ) -> MarginfiResult<()> {
-    // Note: FLASHLOAN_ENABLED_FLAG is now deprecated.
-    // Any non-disabled account can initiate a flash loan.
-    check!(
-        !marginfi_account.load()?.get_flag(ACCOUNT_DISABLED),
-        MarginfiError::AccountDisabled
-    );
-
+    // Note: FLASHLOAN_ENABLED_FLAG is now deprecated, any non-disabled account can initiate a flash loan.
     let current_ix_idx: usize = instructions::load_current_index_checked(sysvar_ixs)?.into();
 
     check!(current_ix_idx < end_fl_idx, MarginfiError::IllegalFlashloan);

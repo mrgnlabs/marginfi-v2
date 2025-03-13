@@ -18,7 +18,7 @@ use marginfi::{
     },
     prelude::*,
     state::marginfi_account::{
-        BankAccountWrapper, ACCOUNT_DISABLED, ACCOUNT_FLASHLOAN_ENABLED, ACCOUNT_IN_FLASHLOAN,
+        BankAccountWrapper, ACCOUNT_DISABLED, ACCOUNT_FLAG_DEPRECATED, ACCOUNT_IN_FLASHLOAN,
     },
 };
 use pretty_assertions::assert_eq;
@@ -477,15 +477,15 @@ async fn account_flags() -> anyhow::Result<()> {
 
     let mfi_account_f = test_f.create_marginfi_account().await;
 
-    mfi_account_f.try_set_flag(ACCOUNT_FLASHLOAN_ENABLED).await?;
+    mfi_account_f.try_set_flag(ACCOUNT_FLAG_DEPRECATED).await?;
 
     let mfi_account_data = mfi_account_f.load().await;
 
-    assert_eq!(mfi_account_data.account_flags, ACCOUNT_FLASHLOAN_ENABLED);
+    assert_eq!(mfi_account_data.account_flags, ACCOUNT_FLAG_DEPRECATED);
 
-    assert!(mfi_account_data.get_flag(ACCOUNT_FLASHLOAN_ENABLED));
+    assert!(mfi_account_data.get_flag(ACCOUNT_FLAG_DEPRECATED));
 
-    mfi_account_f.try_unset_flag(ACCOUNT_FLASHLOAN_ENABLED).await?;
+    mfi_account_f.try_unset_flag(ACCOUNT_FLAG_DEPRECATED).await?;
 
     let mfi_account_data = mfi_account_f.load().await;
 

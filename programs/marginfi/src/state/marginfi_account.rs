@@ -41,7 +41,7 @@ pub struct MarginfiAccount {
     /// be taken on it.
     /// - 2: `ACCOUNT_IN_FLASHLOAN` - Only set when an account is within a flash loan, e.g. when
     ///   start_flashloan is called, then unset when the flashloan ends.
-    /// - 4: `ACCOUNT_FLASHLOAN_ENABLED` - Unused?
+    /// - 4: `ACCOUNT_FLAG_DEPRECATED` - Deprecated, available for future use
     /// - 8: `ACCOUNT_TRANSFER_AUTHORITY_ALLOWED` - the admin has flagged with account to be moved,
     ///   original owner can now call `set_account_transfer_authority`
     pub account_flags: u64, // 8
@@ -56,7 +56,7 @@ pub struct MarginfiAccount {
 
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;
 pub const ACCOUNT_IN_FLASHLOAN: u64 = 1 << 1;
-pub const ACCOUNT_FLASHLOAN_ENABLED: u64 = 1 << 2;
+pub const ACCOUNT_FLAG_DEPRECATED: u64 = 1 << 2;
 pub const ACCOUNT_TRANSFER_AUTHORITY_ALLOWED: u64 = 1 << 3;
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
@@ -297,7 +297,6 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
 
                 match side {
                     BalanceSide::Assets => {
-                        // TODO: health_cache.prices[some_index] = the index of this in the bank_accounts_with_price Vec
                         let (value, price) =
                             self.calc_weighted_asset_value(requirement_type, &bank)?;
                         Ok((value, I80F48::ZERO, price))
