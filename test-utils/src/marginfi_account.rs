@@ -830,7 +830,7 @@ impl MarginfiAccountFixture {
         let tx = self
             .build_transfer_authority_tx(new_authority, signer_keypair)
             .await;
-        return tx;
+        tx
     }
 
     pub async fn try_close_account(&self, nonce: u64) -> std::result::Result<(), BanksClientError> {

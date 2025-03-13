@@ -37,11 +37,13 @@ pub struct MarginfiAccount {
     /// represents a flag.
     ///
     /// Flags:MarginfiAccount
-    /// - 1: `DISABLED_FLAG`  This flag indicates that the account is disabled and no further
-    /// actions can be taken on it.
-    /// - 2: `IN_FLASHLOAN_FLAG`
-    /// - 4: `FLASHLOAN_ENABLED_FLAG`
-    /// - 8: `TRANSFER_AUTHORITY_ALLOWED_FLAG`
+    /// - 1: `ACCOUNT_DISABLED` - Indicates that the account is disabled and no further actions can
+    /// be taken on it.
+    /// - 2: `ACCOUNT_IN_FLASHLOAN` - Only set when an account is within a flash loan, e.g. when
+    ///   start_flashloan is called, then unset when the flashloan ends.
+    /// - 4: `ACCOUNT_FLASHLOAN_ENABLED` - Unused?
+    /// - 8: `ACCOUNT_TRANSFER_AUTHORITY_ALLOWED` - the admin has flagged with account to be moved,
+    ///   original owner can now call `set_account_transfer_authority`
     pub account_flags: u64, // 8
     /// Set with `update_emissions_destination_account`. Emissions rewards can be withdrawn to the
     /// cannonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).
@@ -52,10 +54,10 @@ pub struct MarginfiAccount {
     pub _padding0: [u64; 21],
 }
 
-pub const DISABLED_FLAG: u64 = 1 << 0;
-pub const IN_FLASHLOAN_FLAG: u64 = 1 << 1;
-pub const FLASHLOAN_ENABLED_FLAG: u64 = 1 << 2;
-pub const TRANSFER_AUTHORITY_ALLOWED_FLAG: u64 = 1 << 3;
+pub const ACCOUNT_DISABLED: u64 = 1 << 0;
+pub const ACCOUNT_IN_FLASHLOAN: u64 = 1 << 1;
+pub const ACCOUNT_FLASHLOAN_ENABLED: u64 = 1 << 2;
+pub const ACCOUNT_TRANSFER_AUTHORITY_ALLOWED: u64 = 1 << 3;
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
 pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
@@ -116,7 +118,7 @@ impl MarginfiAccount {
 
     pub fn set_new_account_authority_checked(&mut self, new_authority: Pubkey) -> MarginfiResult {
         // check if new account authority flag is set
-        if !self.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG) || self.get_flag(DISABLED_FLAG) {
+        if !self.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED) || self.get_flag(ACCOUNT_DISABLED) {
             return Err(MarginfiError::IllegalAccountAuthorityTransfer.into());
         }
 
@@ -125,7 +127,7 @@ impl MarginfiAccount {
         self.authority = new_authority;
 
         // unset flag after updating the account authority
-        self.unset_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG);
+        self.unset_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED);
 
         msg!(
             "Transferred account authority from {:?} to {:?} in group {:?}",
@@ -137,7 +139,7 @@ impl MarginfiAccount {
     }
 
     pub fn can_be_closed(&self) -> bool {
-        let is_disabled = self.get_flag(DISABLED_FLAG);
+        let is_disabled = self.get_flag(ACCOUNT_DISABLED);
         let only_has_empty_balances = self
             .lending_account
             .balances
@@ -498,7 +500,7 @@ impl<'info> RiskEngine<'_, 'info> {
         remaining_ais: &'info [AccountInfo<'info>],
     ) -> MarginfiResult<RiskEngine<'a, 'info>> {
         check!(
-            !marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            !marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
         );
 
@@ -522,7 +524,7 @@ impl<'info> RiskEngine<'_, 'info> {
 
     /// Checks account is healthy after performing actions that increase risk (removing liquidity).
     ///
-    /// `IN_FLASHLOAN_FLAG` behavior.
+    /// `ACCOUNT_IN_FLASHLOAN` behavior.
     /// - Health check is skipped.
     /// - `remaining_ais` can be an empty vec.
     pub fn check_account_init_health<'a>(
@@ -530,7 +532,7 @@ impl<'info> RiskEngine<'_, 'info> {
         remaining_ais: &'info [AccountInfo<'info>],
         health_cache: &mut Option<&mut HealthCache>,
     ) -> MarginfiResult<()> {
-        if marginfi_account.get_flag(IN_FLASHLOAN_FLAG) {
+        if marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN) {
             // Note: The health cache is not applicable to flashloans
             return Ok(());
         }
@@ -624,7 +626,7 @@ impl<'info> RiskEngine<'_, 'info> {
         bank_pk: &Pubkey,
     ) -> MarginfiResult<I80F48> {
         check!(
-            !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            !self.marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
         );
 
@@ -681,7 +683,7 @@ impl<'info> RiskEngine<'_, 'info> {
         pre_liquidation_health: I80F48,
     ) -> MarginfiResult<I80F48> {
         check!(
-            !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            !self.marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
         );
 
@@ -737,7 +739,7 @@ impl<'info> RiskEngine<'_, 'info> {
             self.get_account_health_components(RiskRequirementType::Equity, &mut None)?;
 
         check!(
-            !self.marginfi_account.get_flag(IN_FLASHLOAN_FLAG),
+            !self.marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
         );
 
@@ -1528,12 +1530,12 @@ mod test {
                 }; 16],
                 _padding: [0; 8],
             },
-            account_flags: TRANSFER_AUTHORITY_ALLOWED_FLAG,
+            account_flags: ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
             health_cache: HealthCache::zeroed(),
             _padding0: [0; 21],
         };
 
-        assert!(acc.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
+        assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED));
 
         match acc.set_new_account_authority_checked(new_authority.into()) {
             Ok(_) => (),

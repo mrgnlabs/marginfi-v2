@@ -1,5 +1,5 @@
 use fixtures::{assert_custom_error, test::TestFixture};
-use marginfi::{errors::MarginfiError, state::marginfi_account::TRANSFER_AUTHORITY_ALLOWED_FLAG};
+use marginfi::{errors::MarginfiError, state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_ALLOWED};
 use solana_program_test::tokio;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
@@ -31,13 +31,13 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
 
     // set the flag on the account
     marginfi_account
-        .try_set_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG)
+        .try_set_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED)
         .await
         .unwrap();
 
     // Check transfer authority flag
     let account = marginfi_account.load().await;
-    assert!(account.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
+    assert!(account.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED));
 
     let new_authority_2 = Keypair::new().pubkey();
     let res = marginfi_account

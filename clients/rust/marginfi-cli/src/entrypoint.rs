@@ -8,11 +8,11 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
-use marginfi::state::marginfi_account::TRANSFER_AUTHORITY_ALLOWED_FLAG;
+use marginfi::state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
 use marginfi::{
     prelude::*,
     state::{
-        marginfi_account::{Balance, LendingAccount, MarginfiAccount, FLASHLOAN_ENABLED_FLAG},
+        marginfi_account::{Balance, LendingAccount, MarginfiAccount, ACCOUNT_FLASHLOAN_ENABLED},
         marginfi_group::{
             Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
             InterestRateConfigOpt, RiskTier, WrappedI80F48,
@@ -983,12 +983,12 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
 
             if flashloan {
                 println!("Setting flashloan flag");
-                flag |= FLASHLOAN_ENABLED_FLAG;
+                flag |= ACCOUNT_FLASHLOAN_ENABLED;
             }
 
             if account_migration_enabled {
                 println!("Setting account migration flag");
-                flag |= TRANSFER_AUTHORITY_ALLOWED_FLAG;
+                flag |= ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
             }
 
             if flag == 0 {
