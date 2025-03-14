@@ -639,12 +639,12 @@ impl<'info> RiskEngine<'_, 'info> {
             liability_bank_balance
                 .is_empty(BalanceSide::Liabilities)
                 .not(),
-            MarginfiError::IllegalLiquidation
+            MarginfiError::NoLiabilitiesInLiabilityBank
         );
 
         check!(
             liability_bank_balance.is_empty(BalanceSide::Assets),
-            MarginfiError::IllegalLiquidation
+            MarginfiError::AssetsInLiabilityBank
         );
 
         let (assets, liabs) =
@@ -659,8 +659,7 @@ impl<'info> RiskEngine<'_, 'info> {
 
         check!(
             account_health <= I80F48::ZERO,
-            MarginfiError::IllegalLiquidation,
-            "Account not unhealthy"
+            MarginfiError::HealthyAccount
         );
 
         Ok(account_health)
@@ -696,14 +695,12 @@ impl<'info> RiskEngine<'_, 'info> {
             liability_bank_balance
                 .is_empty(BalanceSide::Liabilities)
                 .not(),
-            MarginfiError::IllegalLiquidation,
-            "Liability payoff too severe, exhausted liability"
+            MarginfiError::ExhaustedLiability
         );
 
         check!(
             liability_bank_balance.is_empty(BalanceSide::Assets),
-            MarginfiError::IllegalLiquidation,
-            "Liability payoff too severe, liability balance has assets"
+            MarginfiError::TooSeverePayoff
         );
 
         let (assets, liabs) =
@@ -713,8 +710,7 @@ impl<'info> RiskEngine<'_, 'info> {
 
         check!(
             account_health <= I80F48::ZERO,
-            MarginfiError::IllegalLiquidation,
-            "Liquidation too severe, account above maintenance requirement"
+            MarginfiError::TooSevereLiquidation
         );
 
         debug!(
@@ -724,8 +720,7 @@ impl<'info> RiskEngine<'_, 'info> {
 
         check!(
             account_health > pre_liquidation_health,
-            MarginfiError::IllegalLiquidation,
-            "Post liquidation health worse"
+            MarginfiError::WorseHealthPostLiquidation
         );
 
         Ok(account_health)

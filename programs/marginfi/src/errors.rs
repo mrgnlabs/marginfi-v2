@@ -26,8 +26,8 @@ pub enum MarginfiError {
     LendingAccountBalanceSlotsFull,
     #[msg("Bank already exists")] // 6011
     BankAlreadyExists,
-    #[msg("Illegal liquidation")] // 6012
-    IllegalLiquidation,
+    #[msg("Amount to liquidate must be positive")] // 6012
+    ZeroLiquidationAmount,
     #[msg("Account is not bankrupt")] // 6013
     AccountNotBankrupt,
     #[msg("Account balance is not bad debt")] // 6014
@@ -130,9 +130,27 @@ pub enum MarginfiError {
     MathError,
     #[msg("Invalid emissions destination account")] // 6063
     InvalidEmissionsDestinationAccount,
-    #[msg("Arena groups can only support two banks")] // 6064
+    #[msg("Asset and liability bank cannot be the same")] // 6064
+    SameAssetAndLiabilityBanks,
+    #[msg("Trying to withdraw more assets than available")] // 6065
+    OverliquidationAttempt,
+    #[msg("Liability bank has no liabilities")] // 6066
+    NoLiabilitiesInLiabilityBank,
+    #[msg("Liability bank has assets")] // 6067
+    AssetsInLiabilityBank,
+    #[msg("Account is healthy and cannot be liquidated")] // 6068
+    HealthyAccount,
+    #[msg("Liability payoff too severe, exhausted liability")] // 6069
+    ExhaustedLiability,
+    #[msg("Liability payoff too severe, liability balance has assets")] // 6070
+    TooSeverePayoff,
+    #[msg("Liquidation too severe, account above maintenance requirement")] // 6071
+    TooSevereLiquidation,
+    #[msg("Liquidation would worsen account health")] // 6072
+    WorseHealthPostLiquidation,
+    #[msg("Arena groups can only support two banks")] // 6073
     ArenaBankLimit,
-    #[msg("Arena groups cannot return to non-arena status")] // 6065
+    #[msg("Arena groups cannot return to non-arena status")] // 6074
     ArenaSettingCannotChange,
 }
 
@@ -177,7 +195,7 @@ impl From<u32> for MarginfiError {
             6009 => MarginfiError::RiskEngineInitRejected,
             6010 => MarginfiError::LendingAccountBalanceSlotsFull,
             6011 => MarginfiError::BankAlreadyExists,
-            6012 => MarginfiError::IllegalLiquidation,
+            6012 => MarginfiError::ZeroLiquidationAmount,
             6013 => MarginfiError::AccountNotBankrupt,
             6014 => MarginfiError::BalanceNotBadDebt,
             6015 => MarginfiError::InvalidConfig,
@@ -229,6 +247,15 @@ impl From<u32> for MarginfiError {
             6061 => MarginfiError::SwitchboardInvalidAccount,
             6062 => MarginfiError::MathError,
             6063 => MarginfiError::InvalidEmissionsDestinationAccount,
+            6064 => MarginfiError::SameAssetAndLiabilityBanks,
+            6065 => MarginfiError::OverliquidationAttempt,
+            6066 => MarginfiError::NoLiabilitiesInLiabilityBank,
+            6067 => MarginfiError::AssetsInLiabilityBank,
+            6068 => MarginfiError::HealthyAccount,
+            6069 => MarginfiError::ExhaustedLiability,
+            6070 => MarginfiError::TooSeverePayoff,
+            6071 => MarginfiError::TooSevereLiquidation,
+            6072 => MarginfiError::WorseHealthPostLiquidation,
             _ => MarginfiError::InternalLogicError,
         }
     }

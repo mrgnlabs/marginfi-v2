@@ -147,11 +147,18 @@ impl OraclePriceFeedAdapter {
 
                 let account_info = &ais[0];
 
-                check_eq!(
-                    account_info.owner,
-                    &pyth_solana_receiver_sdk::id(),
-                    MarginfiError::PythPushWrongAccountOwner
-                );
+                if live!() {
+                    check_eq!(
+                        *account_info.owner,
+                        pyth_solana_receiver_sdk::id(),
+                        MarginfiError::PythPushWrongAccountOwner
+                    );
+                } else {
+                    // On localnet, allow the mock program ID -OR- the real one
+                    let owner_ok = account_info.owner.eq(&PYTH_ID)
+                        || account_info.owner.eq(&pyth_solana_receiver_sdk::id());
+                    check!(owner_ok, MarginfiError::PythPushWrongAccountOwner);
+                }
 
                 let price_feed_id = bank_config.get_pyth_push_oracle_feed_id().unwrap();
 
@@ -796,10 +803,21 @@ impl PriceAdapter for SwitchboardV2PriceFeed {
 }
 
 pub fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
-    check!(
-        ai.owner.eq(&pyth_solana_receiver_sdk::id()),
-        MarginfiError::PythPushWrongAccountOwner
-    );
+    if live!() {
+        check_eq!(
+            *ai.owner,
+            pyth_solana_receiver_sdk::id(),
+            MarginfiError::PythPushWrongAccountOwner
+        );
+    } else {
+        // On localnet, allow the mock program ID OR the real one (for regression tests against
+        // actual mainnet accounts).
+        // * Note: Typically price updates are owned by `pyth_solana_receiver_sdk` and the oracle
+        // feed account itself is owned by PYTH ID. On localnet, the mock program may own both for
+        // simplicity.
+        let owner_ok = ai.owner.eq(&PYTH_ID) || ai.owner.eq(&pyth_solana_receiver_sdk::id());
+        check!(owner_ok, MarginfiError::PythPushWrongAccountOwner);
+    }
 
     let price_feed_data = ai.try_borrow_data()?;
     let discriminator = &price_feed_data[0..8];

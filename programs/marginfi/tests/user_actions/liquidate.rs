@@ -566,7 +566,7 @@ async fn marginfi_account_liquidation_failure_liquidatee_not_unhealthy() -> anyh
 
     assert!(res.is_err());
 
-    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalLiquidation);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::HealthyAccount);
 
     Ok(())
 }
@@ -609,7 +609,7 @@ async fn marginfi_account_liquidation_failure_liquidation_too_severe() -> anyhow
         .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 10, usdc_bank_f)
         .await;
 
-    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalLiquidation);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::ExhaustedLiability);
 
     let res = lender_mfi_account_f
         .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_bank_f)
@@ -687,7 +687,7 @@ async fn marginfi_account_liquidation_failure_liquidator_no_collateral() -> anyh
         .try_liquidate(&borrower_mfi_account_f, sol_eq_bank_f, 2, usdc_bank_f)
         .await;
 
-    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalLiquidation);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::OverliquidationAttempt);
 
     let res = lender_mfi_account_f
         .try_liquidate(&borrower_mfi_account_f, sol_eq_bank_f, 1, usdc_bank_f)
@@ -744,7 +744,10 @@ async fn marginfi_account_liquidation_failure_bank_not_liquidatable() -> anyhow:
         .try_liquidate(&borrower_mfi_account_f, sol_eq_bank_f, 1, sol_bank_f)
         .await;
 
-    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalLiquidation);
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::NoLiabilitiesInLiabilityBank
+    );
 
     let res = lender_mfi_account_f
         .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_bank_f)

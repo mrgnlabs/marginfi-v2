@@ -120,7 +120,7 @@ describe("Liquidate user", () => {
         )
       );
       // TODO this should throw a more oracle-specific error further upstream, this is kinda dumb.
-    }, "IllegalLiquidation");
+    }, "HealthyAccount");
   });
 
   it("(user 1) tries to sneak in a bad oracle for the liquidatee - should fail", async () => {

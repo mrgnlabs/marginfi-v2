@@ -4,10 +4,14 @@
 // will still deserialize the price data)
 
 // Adapated from PsyLend, Jet labs, etc
-import { Program, Wallet, workspace } from "@coral-xyz/anchor";
+import { BN, Program, Wallet, workspace } from "@coral-xyz/anchor";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { Oracles, createMockAccount, storeMockAccount } from "./mocks";
 import { Mocks } from "../../target/types/mocks";
+import {
+  initBlankOracleFeed,
+  initOrUpdatePriceUpdateV2,
+} from "./pyth-pull-mocks";
 /** Copied from `@pythnetwork/client": "^2.19.0"`, used as a discriminator */
 const Magic = 2712847316;
 
@@ -313,12 +317,16 @@ export const setupPythOracles = async (
   tokenADecimals: number,
   tokenBPrice: number,
   tokenBDecimals: number,
+  lstAlphaPrice: number,
+  lstAlphaDecimals: number,
+  oracleConfDefault: number,
   verbose: boolean,
   skips?: {
     wsol: boolean;
     usdc: boolean;
     a: boolean;
     b: boolean;
+    wsolPyth: boolean;
   }
 ) => {
   let wsolPythOracle = await createPriceAccount(wallet);
@@ -426,12 +434,33 @@ export const setupPythOracles = async (
     );
   }
 
+  let lstPythPullOracle = Keypair.generate();
+  let lstPythPullOracleFeed = Keypair.generate();
+  let priceAlpha = lstAlphaPrice * 10 ** lstAlphaDecimals;
+  let confAlpha = lstAlphaPrice * oracleConfDefault * 10 ** lstAlphaDecimals;
+  if (skips && skips.wsolPyth) {
+    // do nothing
+  } else {
+    lstPythPullOracleFeed = await initBlankOracleFeed(wallet);
+    lstPythPullOracle = await initOrUpdatePriceUpdateV2(
+      wallet,
+      lstPythPullOracleFeed.publicKey,
+      new BN(priceAlpha),
+      new BN(confAlpha),
+      new BN(priceAlpha),
+      new BN(confAlpha),
+      new BN(0),
+      -lstAlphaDecimals
+    );
+  }
+
   if (verbose) {
     console.log("Mock Pyth price oracles:");
     console.log("wsol price:    \t" + wsolPythOracle.publicKey);
     console.log("usdc price:    \t" + usdcPythOracle.publicKey);
     console.log("token a price: \t" + tokenAPythOracle.publicKey);
     console.log("token b price: \t" + tokenBPythOracle.publicKey);
+    console.log("lst pyth pull  \t" + lstPythPullOracle.publicKey);
     console.log(
       "Price of 1 wsol.......$" +
         wsolPrice +
@@ -456,6 +485,12 @@ export const setupPythOracles = async (
         "\t  one token in native decimals: " +
         (1 * 10 ** tokenBDecimals).toLocaleString()
     );
+    console.log(
+      "Price of 1 LST alpha..$" +
+        lstAlphaPrice +
+        "\t  one token in native decimals: " +
+        (1 * 10 ** lstAlphaDecimals).toLocaleString()
+    );
     console.log("");
   }
   let oracles: Oracles = {
@@ -471,7 +506,11 @@ export const setupPythOracles = async (
     usdcPrice: usdcPrice,
     tokenAPrice: tokenAPrice,
     tokenBPrice: tokenBPrice,
+    lstAlphaPrice: lstAlphaPrice,
+    lstAlphaDecimals: lstAlphaDecimals,
     fakeUsdc: fakeUsdcPythOracle.publicKey,
+    pythPullLst: lstPythPullOracle,
+    pythPullLstOracleFeed: lstPythPullOracleFeed,
   };
   return oracles;
 };
