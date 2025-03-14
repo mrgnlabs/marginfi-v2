@@ -1,7 +1,6 @@
 use super::{bank::BankFixture, prelude::*};
 use crate::ui_to_native;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
-
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankVaultType},
@@ -772,23 +771,17 @@ impl MarginfiAccountFixture {
         mem::size_of::<MarginfiAccount>() + 8
     }
 
-    /// Use the client to send the transfer ix authority transaction
-    /// Pass the new authority as an argument
-    /// Optional: use a different signer (for negative test case)
-    pub async fn try_transfer_account_authority(
+    async fn build_transfer_authority_tx(
         &self,
         new_authority: Pubkey,
         signer_keypair: Option<Keypair>,
-    ) -> std::result::Result<(), BanksClientError> {
+    ) -> Transaction {
+        // Load account details
         let marginfi_account = self.load().await;
-        let mut ctx = self.ctx.borrow_mut();
-        let signer = if let Some(s) = signer_keypair {
-            s
-        } else {
-            ctx.payer.insecure_clone()
-        };
+        let ctx = self.ctx.borrow();
+        let signer = signer_keypair.unwrap_or_else(|| ctx.payer.insecure_clone());
 
-        // create instruction
+        // Create the transfer authority instruction
         let transfer_account_authority_ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::MarginfiAccountSetAccountAuthority {
@@ -802,15 +795,42 @@ impl MarginfiAccountFixture {
             data: marginfi::instruction::SetNewAccountAuthority {}.data(),
         };
 
-        // create transaction
-        let tx = Transaction::new_signed_with_payer(
+        // Build and sign the transaction
+        Transaction::new_signed_with_payer(
             &[transfer_account_authority_ix],
-            Some(&signer.pubkey().clone()),
+            Some(&signer.pubkey()),
             &[&signer],
             ctx.last_blockhash,
-        );
+        )
+    }
 
+    /// Use the client to send the transfer ix authority transaction
+    /// Pass the new authority as an argument
+    /// Optional: use a different signer (for negative test case)
+    pub async fn try_transfer_account_authority(
+        &self,
+        new_authority: Pubkey,
+        signer_keypair: Option<Keypair>,
+    ) -> std::result::Result<(), BanksClientError> {
+        let tx = self
+            .build_transfer_authority_tx(new_authority, signer_keypair)
+            .await;
+        let mut ctx = self.ctx.borrow_mut();
         ctx.banks_client.process_transaction(tx).await
+    }
+
+    /// Use the client to get the transfer ix authority transaction
+    /// Pass the new authority as an argument
+    /// Optional: use a different signer (for negative test case)
+    pub async fn get_tx_transfer_account_authority(
+        &self,
+        new_authority: Pubkey,
+        signer_keypair: Option<Keypair>,
+    ) -> Transaction {
+        let tx = self
+            .build_transfer_authority_tx(new_authority, signer_keypair)
+            .await;
+        tx
     }
 
     pub async fn try_close_account(&self, nonce: u64) -> std::result::Result<(), BanksClientError> {

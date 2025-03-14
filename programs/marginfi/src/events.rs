@@ -1,4 +1,4 @@
-use crate::{prelude::*, state::marginfi_group::BankConfigOpt, StakedSettingsEditConfig};
+use crate::{state::marginfi_group::BankConfigOpt, StakedSettingsEditConfig};
 use anchor_lang::prelude::*;
 
 // Event headers
@@ -27,7 +27,8 @@ pub struct MarginfiGroupCreateEvent {
 #[event]
 pub struct MarginfiGroupConfigureEvent {
     pub header: GroupEventHeader,
-    pub config: GroupConfig,
+    pub admin: Pubkey,
+    pub flags: u64,
 }
 
 #[event]

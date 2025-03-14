@@ -5,7 +5,7 @@ use crate::{
     prelude::*,
     state::{
         health_cache::HealthCache,
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
         marginfi_group::{Bank, BankVaultType},
     },
     utils,
@@ -44,7 +44,7 @@ pub fn lending_account_withdraw<'info>(
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
     check!(
-        !marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 

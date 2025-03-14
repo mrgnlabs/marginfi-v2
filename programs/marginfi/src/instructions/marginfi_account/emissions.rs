@@ -10,7 +10,7 @@ use crate::{
     debug,
     prelude::{MarginfiError, MarginfiResult},
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
         marginfi_group::{Bank, MarginfiGroup},
     },
 };
@@ -21,7 +21,7 @@ pub fn lending_account_withdraw_emissions<'info>(
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
     check!(
-        !marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 
@@ -151,7 +151,7 @@ pub fn marginfi_account_update_emissions_destination_account<'info>(
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
     check!(
-        !marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 
@@ -183,7 +183,7 @@ pub fn lending_account_withdraw_emissions_permissionless<'info>(
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
     check!(
-        !marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 

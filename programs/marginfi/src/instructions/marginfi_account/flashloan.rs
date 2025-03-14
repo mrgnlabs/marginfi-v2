@@ -1,7 +1,9 @@
 use crate::{
     check,
     prelude::*,
-    state::marginfi_account::{MarginfiAccount, RiskEngine, DISABLED_FLAG, IN_FLASHLOAN_FLAG},
+    state::marginfi_account::{
+        MarginfiAccount, RiskEngine, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
+    },
 };
 use anchor_lang::{prelude::*, Discriminator};
 use solana_program::{
@@ -20,7 +22,7 @@ pub fn lending_account_start_flashloan(
     )?;
 
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
-    marginfi_account.set_flag(IN_FLASHLOAN_FLAG);
+    marginfi_account.set_flag(ACCOUNT_IN_FLASHLOAN);
 
     Ok(())
 }
@@ -56,13 +58,7 @@ pub fn check_flashloan_can_start(
     sysvar_ixs: &AccountInfo,
     end_fl_idx: usize,
 ) -> MarginfiResult<()> {
-    // Note: FLASHLOAN_ENABLED_FLAG is now deprecated.
-    // Any non-disabled account can initiate a flash loan.
-    check!(
-        !marginfi_account.load()?.get_flag(DISABLED_FLAG),
-        MarginfiError::AccountDisabled
-    );
-
+    // Note: FLASHLOAN_ENABLED_FLAG is now deprecated, any non-disabled account can initiate a flash loan.
     let current_ix_idx: usize = instructions::load_current_index_checked(sysvar_ixs)?.into();
 
     check!(current_ix_idx < end_fl_idx, MarginfiError::IllegalFlashloan);
@@ -111,12 +107,12 @@ pub fn check_flashloan_can_start(
     let marginf_account = marginfi_account.load()?;
 
     check!(
-        !marginf_account.get_flag(DISABLED_FLAG),
+        !marginf_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 
     check!(
-        !marginf_account.get_flag(IN_FLASHLOAN_FLAG),
+        !marginf_account.get_flag(ACCOUNT_IN_FLASHLOAN),
         MarginfiError::IllegalFlashloan
     );
 
@@ -134,7 +130,7 @@ pub fn lending_account_end_flashloan<'info>(
 
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
-    marginfi_account.unset_flag(IN_FLASHLOAN_FLAG);
+    marginfi_account.unset_flag(ACCOUNT_IN_FLASHLOAN);
 
     RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts, &mut None)?;
 

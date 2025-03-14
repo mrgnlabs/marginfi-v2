@@ -138,18 +138,26 @@ export const addBankWithSeed = (
 /**
  * newAdmin - (Optional) pass null to keep current admin
  * marginfiGroup's admin - must sign
+ * isArena - default false
  */
 export type GroupConfigureArgs = {
-  newAdmin: PublicKey | null;
+  newAdmin?: PublicKey | null; // optional; pass null or leave undefined to keep current admin
   marginfiGroup: PublicKey;
+  isArena?: boolean; // optional; defaults to false if not provided
 };
 
-export const groupConfigure = (
+export const groupConfigure = async (
   program: Program<Marginfi>,
   args: GroupConfigureArgs
 ) => {
+  const isArena = args.isArena ?? false;
+  let newAdmin = args.newAdmin;
+  if (newAdmin == null) {
+    const group = await program.account.marginfiGroup.fetch(args.marginfiGroup);
+    newAdmin = group.admin;
+  }
   const ix = program.methods
-    .marginfiGroupConfigure({ admin: args.newAdmin })
+    .marginfiGroupConfigure(newAdmin, isArena)
     .accounts({
       marginfiGroup: args.marginfiGroup,
       // admin: // implied from group
@@ -162,14 +170,16 @@ export const groupConfigure = (
 export type GroupInitializeArgs = {
   marginfiGroup: PublicKey;
   admin: PublicKey;
+  isArena?: boolean; // optional; defaults to false if not provided
 };
 
 export const groupInitialize = (
   program: Program<Marginfi>,
   args: GroupInitializeArgs
 ) => {
+  const isArena = args.isArena ?? false;
   const ix = program.methods
-    .marginfiGroupInitialize()
+    .marginfiGroupInitialize(isArena)
     .accounts({
       marginfiGroup: args.marginfiGroup,
       // feeState: deriveGlobalFeeState(id),

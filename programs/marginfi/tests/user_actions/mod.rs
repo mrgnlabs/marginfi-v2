@@ -18,7 +18,8 @@ use marginfi::{
     },
     prelude::*,
     state::marginfi_account::{
-        BankAccountWrapper, DISABLED_FLAG, FLASHLOAN_ENABLED_FLAG, IN_FLASHLOAN_FLAG,
+        BankAccountWrapper, ACCOUNT_DISABLED, ACCOUNT_FLAG_DEPRECATED, ACCOUNT_IN_FLASHLOAN,
+        ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
     },
 };
 use pretty_assertions::assert_eq;
@@ -477,29 +478,28 @@ async fn account_flags() -> anyhow::Result<()> {
 
     let mfi_account_f = test_f.create_marginfi_account().await;
 
-    mfi_account_f.try_set_flag(FLASHLOAN_ENABLED_FLAG).await?;
-
-    let mfi_account_data = mfi_account_f.load().await;
-
-    assert_eq!(mfi_account_data.account_flags, FLASHLOAN_ENABLED_FLAG);
-
-    assert!(mfi_account_data.get_flag(FLASHLOAN_ENABLED_FLAG));
-
-    mfi_account_f.try_unset_flag(FLASHLOAN_ENABLED_FLAG).await?;
-
-    let mfi_account_data = mfi_account_f.load().await;
-
-    assert_eq!(mfi_account_data.account_flags, 0);
-
-    let res = mfi_account_f.try_set_flag(DISABLED_FLAG).await;
+    let res = mfi_account_f.try_set_flag(ACCOUNT_FLAG_DEPRECATED).await;
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlag);
 
-    let res = mfi_account_f.try_unset_flag(IN_FLASHLOAN_FLAG).await;
+    let res = mfi_account_f.try_set_flag(ACCOUNT_DISABLED).await;
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlag);
+
+    let res = mfi_account_f.try_unset_flag(ACCOUNT_IN_FLASHLOAN).await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlag);
+
+    let res = mfi_account_f
+        .try_set_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED)
+        .await;
+
+    assert!(res.is_ok());
+    let acc = mfi_account_f.load().await;
+    assert_eq!(acc.account_flags, ACCOUNT_TRANSFER_AUTHORITY_ALLOWED);
 
     Ok(())
 }

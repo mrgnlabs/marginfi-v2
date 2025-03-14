@@ -9,9 +9,7 @@ use fixtures::{
     test::{BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG},
     ui_to_native,
 };
-use marginfi::state::marginfi_group::{
-    Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig,
-};
+use marginfi::state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType};
 use solana_program_test::tokio;
 use test_case::test_case;
 
@@ -54,7 +52,6 @@ async fn marginfi_account_liquidation_success_with_extension(
                     }),
                 },
             ],
-            group_config: Some(GroupConfig { admin: None }),
             protocol_fees: false,
         }),
         &extensions,

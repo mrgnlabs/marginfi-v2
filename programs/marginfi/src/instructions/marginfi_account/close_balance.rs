@@ -4,7 +4,7 @@ use crate::{
     check,
     prelude::*,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
         marginfi_group::Bank,
     },
 };
@@ -21,7 +21,7 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
     let mut bank = bank_loader.load_mut()?;
 
     check!(
-        !marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 

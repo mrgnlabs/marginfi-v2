@@ -3,7 +3,7 @@ use crate::{
     events::{AccountEventHeader, LendingAccountRepayEvent},
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
         marginfi_group::Bank,
     },
     utils,
@@ -46,7 +46,7 @@ pub fn lending_account_repay<'info>(
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
     check!(
-        !marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 

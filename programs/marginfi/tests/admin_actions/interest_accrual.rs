@@ -3,17 +3,13 @@ use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_eq_noise, native, prelude::*};
-use marginfi::{
-    prelude::GroupConfig,
-    state::marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig},
-};
+use marginfi::state::marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
-        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::Usdc,
@@ -120,7 +116,6 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;

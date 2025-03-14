@@ -4,7 +4,7 @@ use crate::{
     math_error,
     prelude::*,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
         marginfi_group::Bank,
     },
     utils::{self, validate_asset_tags},
@@ -50,7 +50,7 @@ pub fn lending_account_deposit<'info>(
     validate_asset_tags(&bank, &marginfi_account)?;
 
     check!(
-        !marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 

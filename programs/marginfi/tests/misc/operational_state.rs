@@ -1,7 +1,7 @@
 use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
-    prelude::{GroupConfig, MarginfiError},
+    prelude::MarginfiError,
     state::marginfi_group::{BankConfig, BankConfigOpt, BankOperationalState},
 };
 use pretty_assertions::assert_eq;
@@ -14,7 +14,6 @@ async fn marginfi_group_bank_paused_should_error() -> anyhow::Result<()> {
             mint: BankMint::Usdc,
             config: None,
         }],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;
@@ -54,7 +53,6 @@ async fn marginfi_group_bank_reduce_only_withdraw_success() -> anyhow::Result<()
             mint: BankMint::Usdc,
             config: None,
         }],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;
@@ -105,7 +103,6 @@ async fn marginfi_group_bank_reduce_only_deposit_success() -> anyhow::Result<()>
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;
@@ -168,7 +165,6 @@ async fn marginfi_group_bank_reduce_only_borrow_failure() -> anyhow::Result<()> 
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;
@@ -219,7 +215,6 @@ async fn marginfi_group_bank_reduce_only_deposit_failure() -> anyhow::Result<()>
             mint: BankMint::Usdc,
             config: None,
         }],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;

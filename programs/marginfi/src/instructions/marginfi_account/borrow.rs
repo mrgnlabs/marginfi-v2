@@ -6,7 +6,7 @@ use crate::{
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
         health_cache::HealthCache,
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
         marginfi_group::{Bank, BankVaultType},
     },
     utils::{self, validate_asset_tags},
@@ -50,7 +50,7 @@ pub fn lending_account_borrow<'info>(
     let program_fee_rate: I80F48 = group.fee_state_cache.program_fee_rate.into();
 
     check!(
-        !marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 

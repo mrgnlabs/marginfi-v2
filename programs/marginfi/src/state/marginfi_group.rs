@@ -38,20 +38,32 @@ use std::{
 };
 use type_layout::TypeLayout;
 
+pub const PROGRAM_FEES_ENABLED: u64 = 1;
+pub const ARENA_GROUP: u64 = 2;
+
 assert_struct_size!(MarginfiGroup, 1056);
 #[account(zero_copy)]
 #[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
 pub struct MarginfiGroup {
     pub admin: Pubkey,
     /// Bitmask for group settings flags.
-    /// * Bit 0: If set, program-level fees are enabled.
+    /// * 0: `PROGRAM_FEES_ENABLED` If set, program-level fees are enabled.
+    /// * 1: `ARENA_GROUP` If set, this is an arena group, which can only have two banks
     /// * Bits 1-63: Reserved for future use.
     pub group_flags: u64,
     /// Caches information from the global `FeeState` so the FeeState can be omitted on certain ixes
     pub fee_state_cache: FeeStateCache,
-    pub _padding_0: [[u64; 2]; 27],
+    // For groups initialized in versions 0.1.2 or greater (roughly the public launch of Arena),
+    // this is an authoritative count of the number of banks under this group. For groups
+    // initialized prior to 0.1.2, a non-authoritative count of the number of banks initiated after
+    // 0.1.2 went live.
+    pub banks: u16,
+    pub pad0: [u8; 6],
+
+    pub _padding_0: [[u64; 2]; 26],
     pub _padding_1: [[u64; 2]; 32],
     pub _padding_3: u64,
+    pub _padding_4: u64,
 }
 
 #[derive(
@@ -65,61 +77,79 @@ pub struct FeeStateCache {
 }
 
 impl MarginfiGroup {
-    const PROGRAM_FEES_ENABLED: u64 = 1;
-
-    /// Bits in use for flag settings.
-    const ALLOWED_FLAGS: u64 = Self::PROGRAM_FEES_ENABLED;
-    // To add: const ALLOWED_FLAGS: u64 = PROGRAM_FEES_ENABLED | ANOTHER_FEATURE_BIT;
-
-    /// Configure the group parameters.
-    /// This function validates config values so the group remains in a valid state.
-    /// Any modification of group config should happen through this function.
-    pub fn configure(&mut self, config: &GroupConfig) -> MarginfiResult {
-        set_if_some!(self.admin, config.admin);
-
-        Ok(())
+    pub fn update_admin(&mut self, new_admin: Pubkey) {
+        if self.admin == new_admin {
+            msg!("No change to admin: {:?}", new_admin);
+            // do nothing
+        } else {
+            msg!("Set admin from {:?} to {:?}", self.admin, new_admin);
+            self.admin = new_admin;
+        }
     }
 
     /// Set the group parameters when initializing a group.
     /// This should be called only when the group is first initialized.
-    /// Both margin requirements are initially set to 100% and should be configured before use.
     #[allow(clippy::too_many_arguments)]
     pub fn set_initial_configuration(&mut self, admin_pk: Pubkey) {
         self.admin = admin_pk;
-        self.group_flags = Self::PROGRAM_FEES_ENABLED;
+        self.set_program_fee_enabled(true);
     }
 
     pub fn get_group_bank_config(&self) -> GroupBankConfig {
         GroupBankConfig {
-            program_fees: self.group_flags == Self::PROGRAM_FEES_ENABLED,
+            program_fees: self.group_flags == PROGRAM_FEES_ENABLED,
         }
     }
 
-    /// Validates that only allowed flags are being set.
-    pub fn validate_flags(flag: u64) -> MarginfiResult {
-        // Note: 0xnnnn & 0x1110, is nonzero for 0x1000 & 0x1110
-        let flag_ok = flag & !Self::ALLOWED_FLAGS == 0;
-        check!(flag_ok, MarginfiError::IllegalFlag);
-
-        Ok(())
+    pub fn set_program_fee_enabled(&mut self, fee_enabled: bool) {
+        if fee_enabled {
+            self.group_flags |= PROGRAM_FEES_ENABLED;
+        } else {
+            self.group_flags &= !PROGRAM_FEES_ENABLED;
+        }
     }
 
-    /// Sets flag and errors if a disallowed flag is set
-    pub fn set_flags(&mut self, flag: u64) -> MarginfiResult {
-        Self::validate_flags(flag)?;
-        self.group_flags = flag;
+    /// Set the `ARENA_GROUP` if `is_arena` is true. If trying to set as arena and the group already
+    /// has more than two banks, fails. If trying to set an arena bank as non-arena, fails.
+    pub fn set_arena_group(&mut self, is_arena: bool) -> MarginfiResult {
+        // If enabling arena mode, ensure the group doesn't already have more than two banks.
+        if is_arena && self.banks > 2 {
+            return err!(MarginfiError::ArenaBankLimit);
+        }
+
+        // If the group is currently marked as arena, disallow switching it back to non-arena.
+        if self.is_arena_group() && !is_arena {
+            return err!(MarginfiError::ArenaSettingCannotChange);
+        }
+
+        if is_arena {
+            self.group_flags |= ARENA_GROUP;
+        } else {
+            self.group_flags &= !ARENA_GROUP;
+        }
         Ok(())
     }
 
     /// True if program fees are enabled
     pub fn program_fees_enabled(&self) -> bool {
-        (self.group_flags & Self::PROGRAM_FEES_ENABLED) != 0
+        (self.group_flags & PROGRAM_FEES_ENABLED) != 0
     }
-}
 
-#[derive(AnchorSerialize, AnchorDeserialize, Default, Debug, Clone, TypeLayout)]
-pub struct GroupConfig {
-    pub admin: Option<Pubkey>,
+    /// True if this is an arena group
+    pub fn is_arena_group(&self) -> bool {
+        (self.group_flags & ARENA_GROUP) != 0
+    }
+
+    // Increment the bank count by 1. If this is an arena group, which only supports two banks,
+    // errors if trying to add a third bank. If you managed to create 16,000 banks, congrats, does
+    // nothing.
+    pub fn add_bank(&mut self) -> MarginfiResult {
+        if self.is_arena_group() && self.banks >= 2 {
+            return err!(MarginfiError::ArenaBankLimit);
+        }
+        self.banks = self.banks.saturating_add(1);
+        Ok(())
+    }
 }
 
 #[repr(C)]

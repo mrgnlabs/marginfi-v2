@@ -14,9 +14,7 @@ use lazy_static::lazy_static;
 use marginfi::{
     constants::MAX_ORACLE_KEYS,
     state::{
-        marginfi_group::{
-            BankConfig, BankOperationalState, GroupConfig, InterestRateConfig, RiskTier,
-        },
+        marginfi_group::{BankConfig, BankOperationalState, InterestRateConfig, RiskTier},
         price::OracleSetup,
     },
 };
@@ -28,7 +26,6 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Default, Debug, Clone)]
 pub struct TestSettings {
-    pub group_config: Option<GroupConfig>,
     pub banks: Vec<TestBankSetting>,
     pub protocol_fees: bool,
 }
@@ -80,7 +77,6 @@ impl TestSettings {
 
         Self {
             banks,
-            group_config: Some(GroupConfig { admin: None }),
             protocol_fees: false,
         }
     }
@@ -98,7 +94,6 @@ impl TestSettings {
                     config: Some(*DEFAULT_SOL_TEST_SW_BANK_CONFIG),
                 },
             ],
-            group_config: Some(GroupConfig { admin: None }),
             protocol_fees: false,
         }
     }
@@ -124,7 +119,6 @@ impl TestSettings {
                     }),
                 },
             ],
-            group_config: Some(GroupConfig { admin: None }),
             protocol_fees: false,
         }
     }
@@ -173,7 +167,6 @@ impl TestSettings {
                     ..TestBankSetting::default()
                 },
             ],
-            group_config: Some(GroupConfig { admin: None }),
             protocol_fees: false,
         }
     }
@@ -639,14 +632,7 @@ impl TestFixture {
         )
         .await;
 
-        let tester_group = MarginfiGroupFixture::new(
-            Rc::clone(&context),
-            test_settings
-                .clone()
-                .map(|ts| ts.group_config.unwrap_or(GroupConfig { admin: None }))
-                .unwrap_or(GroupConfig { admin: None }),
-        )
-        .await;
+        let tester_group = MarginfiGroupFixture::new(Rc::clone(&context)).await;
 
         tester_group
             .set_protocol_fees_flag(test_settings.clone().unwrap_or_default().protocol_fees)

@@ -5,7 +5,7 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, assert_eq_noise, native, prelude::*};
 use marginfi::{
-    prelude::{GroupConfig, MarginfiError},
+    prelude::MarginfiError,
     state::marginfi_group::{BankConfig, BankVaultType},
 };
 use pretty_assertions::assert_eq;
@@ -879,7 +879,6 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;

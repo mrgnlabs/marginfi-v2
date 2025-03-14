@@ -10,7 +10,7 @@ use fixtures::{
 };
 use marginfi::{
     errors::MarginfiError,
-    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
 };
 use solana_program_test::tokio;
 
@@ -27,7 +27,6 @@ async fn pyth_push_fullv_borrow() -> anyhow::Result<()> {
                 config: Some(*DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;
@@ -96,7 +95,6 @@ async fn pyth_push_partv_borrow() -> anyhow::Result<()> {
                 config: Some(*DEFAULT_SOL_TEST_PYTH_PUSH_PARTV_BANK_CONFIG),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;
@@ -164,7 +162,6 @@ async fn pyth_push_fullv_liquidate() -> anyhow::Result<()> {
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;

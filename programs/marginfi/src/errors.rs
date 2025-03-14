@@ -148,6 +148,10 @@ pub enum MarginfiError {
     TooSevereLiquidation,
     #[msg("Liquidation would worsen account health")] // 6072
     WorseHealthPostLiquidation,
+    #[msg("Arena groups can only support two banks")] // 6073
+    ArenaBankLimit,
+    #[msg("Arena groups cannot return to non-arena status")] // 6074
+    ArenaSettingCannotChange,
 }
 
 impl From<MarginfiError> for ProgramError {

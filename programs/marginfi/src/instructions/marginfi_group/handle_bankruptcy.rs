@@ -9,7 +9,7 @@ use crate::{
     math_error,
     prelude::MarginfiError,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
         marginfi_group::{Bank, BankVaultType, MarginfiGroup},
     },
     utils, MarginfiResult,
@@ -154,7 +154,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     )?
     .repay(bad_debt)?;
 
-    marginfi_account.set_flag(DISABLED_FLAG);
+    marginfi_account.set_flag(ACCOUNT_DISABLED);
 
     emit!(LendingPoolBankHandleBankruptcyEvent {
         header: AccountEventHeader {

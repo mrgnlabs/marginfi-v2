@@ -4,6 +4,9 @@ use anchor_lang::prelude::*;
 use bytemuck::{Pod, Zeroable};
 use type_layout::TypeLayout;
 
+pub const HEALTHY: u64 = 1;
+pub const ENGINE_OK: u64 = 2;
+
 assert_struct_size!(HealthCache, 304);
 assert_struct_align!(HealthCache, 8);
 #[repr(C)]
@@ -37,27 +40,27 @@ pub struct HealthCache {
 impl HealthCache {
     /// True if account is healthy (cannot be liquidated)
     pub fn is_healthy(&self) -> bool {
-        self.flags & 1 != 0
+        self.flags & HEALTHY != 0
     }
 
     pub fn set_healthy(&mut self, healthy: bool) {
         if healthy {
-            self.flags |= 1;
+            self.flags |= HEALTHY;
         } else {
-            self.flags &= !1;
+            self.flags &= !HEALTHY;
         }
     }
 
     /// True if the engine did not error during the last health pulse.
     pub fn is_engine_ok(&self) -> bool {
-        self.flags & 2 != 0
+        self.flags & ENGINE_OK != 0
     }
 
     pub fn set_engine_ok(&mut self, ok: bool) {
         if ok {
-            self.flags |= 2;
+            self.flags |= ENGINE_OK;
         } else {
-            self.flags &= !2;
+            self.flags &= !ENGINE_OK;
         }
     }
 }
