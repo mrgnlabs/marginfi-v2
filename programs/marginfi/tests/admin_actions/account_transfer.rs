@@ -1,5 +1,7 @@
 use fixtures::{assert_custom_error, test::TestFixture};
-use marginfi::{errors::MarginfiError, state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_ALLOWED};
+use marginfi::{
+    errors::MarginfiError, state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
+};
 use solana_program_test::tokio;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
