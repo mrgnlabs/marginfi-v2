@@ -82,16 +82,11 @@ pub fn lending_account_liquidate<'info>(
     mut ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
     asset_amount: u64,
 ) -> MarginfiResult {
-    check!(
-        asset_amount > 0,
-        MarginfiError::IllegalLiquidation,
-        "Asset amount must be positive"
-    );
+    check!(asset_amount > 0, MarginfiError::ZeroLiquidationAmount);
 
     check!(
         ctx.accounts.asset_bank.key() != ctx.accounts.liab_bank.key(),
-        MarginfiError::IllegalLiquidation,
-        "Asset and liability bank cannot be the same"
+        MarginfiError::SameAssetAndLiabilityBanks
     );
 
     // Liquidators must repay debts in allowed asset types. A SOL debt can be repaid in any asset. A
@@ -264,7 +259,7 @@ pub fn lending_account_liquidate<'info>(
 
             bank_account
                 .withdraw(asset_amount)
-                .map_err(|_| MarginfiError::IllegalLiquidation)?;
+                .map_err(|_| MarginfiError::OverliquidationAttempt)?;
 
             let post_balance = bank_account
                 .bank
