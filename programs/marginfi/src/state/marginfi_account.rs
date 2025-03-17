@@ -652,11 +652,12 @@ impl<'info> RiskEngine<'_, 'info> {
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 
-        if account_health > I80F48::ZERO
-        {
+        if account_health > I80F48::ZERO {
             msg!(
                 "pre_liquidation_health: {} ({} - {})",
-                account_health, assets, liabs
+                account_health,
+                assets,
+                liabs
             );
             return err!(MarginfiError::HealthyAccount);
         }
