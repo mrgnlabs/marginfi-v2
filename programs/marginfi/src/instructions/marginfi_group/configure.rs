@@ -14,12 +14,15 @@ use anchor_lang::prelude::*;
 pub fn configure(
     ctx: Context<MarginfiGroupConfigure>,
     new_admin: Pubkey,
+    new_emode_admin: Pubkey,
     is_arena_group: bool,
 ) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_mut()?;
 
     marginfi_group.update_admin(new_admin);
+    marginfi_group.update_emode_admin(new_emode_admin);
     marginfi_group.set_arena_group(is_arena_group)?;
+
 
     msg!("flags set to: {:?}", marginfi_group.group_flags);
 

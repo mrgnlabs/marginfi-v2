@@ -1,0 +1,1 @@
+add new admin arg to config

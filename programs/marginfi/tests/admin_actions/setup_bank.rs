@@ -430,7 +430,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, true)
+        .try_update(group_before.admin, group_before.emode_admin, true)
         .await;
     assert!(res.is_ok());
     let group_after = test_f.marginfi_group.load().await;
@@ -479,7 +479,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, false)
+        .try_update(group_before.admin, group_before.emode_admin, false)
         .await;
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaSettingCannotChange);
@@ -524,7 +524,7 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
     let group_before = test_f.marginfi_group.load().await;
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, true)
+        .try_update(group_before.admin, group_before.emode_admin, true)
         .await;
 
     assert!(res.is_err());

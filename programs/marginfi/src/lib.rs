@@ -39,9 +39,10 @@ pub mod marginfi {
     pub fn marginfi_group_configure(
         ctx: Context<MarginfiGroupConfigure>,
         new_admin: Pubkey,
+        new_emode_admin: Pubkey,
         is_arena_group: bool,
     ) -> MarginfiResult {
-        marginfi_group::configure(ctx, new_admin, is_arena_group)
+        marginfi_group::configure(ctx, new_admin, new_emode_admin, is_arena_group)
     }
 
     pub fn lending_pool_add_bank(

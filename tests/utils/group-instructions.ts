@@ -137,11 +137,13 @@ export const addBankWithSeed = (
 
 /**
  * newAdmin - (Optional) pass null to keep current admin
+ * newEModeAdmin - (Optional) pass null to keep current emode admin
  * marginfiGroup's admin - must sign
  * isArena - default false
  */
 export type GroupConfigureArgs = {
   newAdmin?: PublicKey | null; // optional; pass null or leave undefined to keep current admin
+  newEmodeAdmin?: PublicKey | null;
   marginfiGroup: PublicKey;
   isArena?: boolean; // optional; defaults to false if not provided
 };
@@ -156,8 +158,13 @@ export const groupConfigure = async (
     const group = await program.account.marginfiGroup.fetch(args.marginfiGroup);
     newAdmin = group.admin;
   }
+  let newEmodeAdmin = args.newEmodeAdmin;
+  if (newEmodeAdmin == null) {
+    const group = await program.account.marginfiGroup.fetch(args.marginfiGroup);
+    newEmodeAdmin = group.emodeAdmin;
+  }
   const ix = program.methods
-    .marginfiGroupConfigure(newAdmin, isArena)
+    .marginfiGroupConfigure(newAdmin, newEmodeAdmin, isArena)
     .accounts({
       marginfiGroup: args.marginfiGroup,
       // admin: // implied from group

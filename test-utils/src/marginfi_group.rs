@@ -75,7 +75,10 @@ impl MarginfiGroupFixture {
                 }
                 .to_account_metas(Some(true)),
                 data: marginfi::instruction::MarginfiGroupConfigure {
+                    // Payer is both admins in most test cases for simplicity,
+                    // generally this is not true in production
                     new_admin: admin,
+                    new_emode_admin: admin,
                     is_arena_group: false,
                 }
                 .data(),
@@ -416,6 +419,7 @@ impl MarginfiGroupFixture {
     pub async fn try_update(
         &self,
         new_admin: Pubkey,
+        new_emode_admin:Pubkey,
         is_arena_group: bool,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
@@ -427,6 +431,7 @@ impl MarginfiGroupFixture {
             .to_account_metas(Some(true)),
             data: marginfi::instruction::MarginfiGroupConfigure {
                 new_admin,
+                new_emode_admin,
                 is_arena_group,
             }
             .data(),

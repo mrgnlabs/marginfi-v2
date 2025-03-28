@@ -1,6 +1,5 @@
 use super::{
-    marginfi_account::{BalanceSide, RequirementType},
-    price::{OraclePriceFeedAdapter, OracleSetup},
+    emode::EmodeSettings, marginfi_account::{BalanceSide, RequirementType}, price::{OraclePriceFeedAdapter, OracleSetup}
 };
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
@@ -59,8 +58,12 @@ pub struct MarginfiGroup {
     // 0.1.2 went live.
     pub banks: u16,
     pub pad0: [u8; 6],
+    /// This admin can configure collateral ratios above (but not below) the
+    /// collateral ratio of certain banks , e.g. allow SOL to count as 90%
+    /// collateral when borrowing an LST instead of the default rate.
+    pub emode_admin: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 26],
+    pub _padding_0: [[u64; 2]; 24],
     pub _padding_1: [[u64; 2]; 32],
     pub _padding_3: u64,
     pub _padding_4: u64,
@@ -84,6 +87,20 @@ impl MarginfiGroup {
         } else {
             msg!("Set admin from {:?} to {:?}", self.admin, new_admin);
             self.admin = new_admin;
+        }
+    }
+
+    pub fn update_emode_admin(&mut self, new_emode_admin: Pubkey) {
+        if self.emode_admin == new_emode_admin {
+            msg!("No change to emode admin: {:?}", new_emode_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set emode admin from {:?} to {:?}",
+                self.admin,
+                new_emode_admin
+            );
+            self.emode_admin = new_emode_admin;
         }
     }
 
@@ -499,8 +516,8 @@ pub struct Bank {
     /// - FREEZE_SETTINGS: 8
     ///
     pub flags: u64,
-    /// Emissions APR.
-    /// Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens (bank mint) (native amount) per 1 YEAR.
+    /// Emissions APR. Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens
+    /// (bank mint) (native amount) per 1 YEAR.
     pub emissions_rate: u64,
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
@@ -508,7 +525,11 @@ pub struct Bank {
     /// Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s cannonical ATA for `mint`
     pub collected_program_fees_outstanding: WrappedI80F48,
 
-    pub _padding_0: [[u64; 2]; 27],
+    /// Controls this bank's emode configuration, which enables some banks to treat the assets of
+    /// certain other banks more preferrentially as collateral.
+    pub emode: EmodeSettings,
+
+    pub _padding_0: [u8; 8],
     pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
 }
 
@@ -558,6 +579,7 @@ impl Bank {
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
             collected_program_fees_outstanding: I80F48::ZERO.into(),
+            emode: EmodeSettings::zeroed(),
             ..Default::default()
         }
     }

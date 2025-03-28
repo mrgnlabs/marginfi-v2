@@ -1,5 +1,5 @@
 import { Program, workspace } from "@coral-xyz/anchor";
-import { Keypair, Transaction } from "@solana/web3.js";
+import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { groupConfigure } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
 import { groupAdmin, marginfiGroup } from "./rootHooks";
@@ -44,7 +44,7 @@ describe("Config group", () => {
     await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
         await groupAdmin.mrgnProgram.methods
-          .marginfiGroupConfigure(groupAdmin.wallet.publicKey, false)
+          .marginfiGroupConfigure(groupAdmin.wallet.publicKey, PublicKey.default, false)
           .accountsPartial({
             marginfiGroup: marginfiGroup.publicKey,
             admin: newAdmin.publicKey,

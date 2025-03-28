@@ -1,3 +1,4 @@
+pub mod emode;
 pub mod fee_state;
 pub mod health_cache;
 pub mod marginfi_account;

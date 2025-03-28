@@ -99,7 +99,7 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
     // Update the admin of the marginfi group
     test_f
         .marginfi_group
-        .try_update(Pubkey::new_unique(), false)
+        .try_update(Pubkey::new_unique(), Pubkey::new_unique(), false)
         .await?;
 
     // Mint `insurance_vault_balance` USDC to the insurance vault
