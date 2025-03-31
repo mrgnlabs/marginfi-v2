@@ -58,9 +58,9 @@ pub struct MarginfiGroup {
     // 0.1.2 went live.
     pub banks: u16,
     pub pad0: [u8; 6],
-    /// This admin can configure collateral ratios above (but not below) the
-    /// collateral ratio of certain banks , e.g. allow SOL to count as 90%
-    /// collateral when borrowing an LST instead of the default rate.
+    /// This admin can configure collateral ratios above (but not below) the collateral ratio of
+    /// certain banks , e.g. allow SOL to count as 90% collateral when borrowing an LST instead of
+    /// the default rate.
     pub emode_admin: Pubkey,
 
     pub _padding_0: [[u64; 2]; 24],
@@ -1449,6 +1449,7 @@ impl BankConfig {
         requirement_type: RequirementType,
         balance_side: BalanceSide,
     ) -> I80F48 {
+        // TODO emode determination...
         match (requirement_type, balance_side) {
             (RequirementType::Initial, BalanceSide::Assets) => self.asset_weight_init.into(),
             (RequirementType::Initial, BalanceSide::Liabilities) => {

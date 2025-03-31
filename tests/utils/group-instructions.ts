@@ -153,14 +153,13 @@ export const groupConfigure = async (
   args: GroupConfigureArgs
 ) => {
   const isArena = args.isArena ?? false;
+  const group = await program.account.marginfiGroup.fetch(args.marginfiGroup);
   let newAdmin = args.newAdmin;
   if (newAdmin == null) {
-    const group = await program.account.marginfiGroup.fetch(args.marginfiGroup);
     newAdmin = group.admin;
   }
   let newEmodeAdmin = args.newEmodeAdmin;
   if (newEmodeAdmin == null) {
-    const group = await program.account.marginfiGroup.fetch(args.marginfiGroup);
     newEmodeAdmin = group.emodeAdmin;
   }
   const ix = program.methods
