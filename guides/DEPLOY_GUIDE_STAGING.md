@@ -47,7 +47,7 @@ solana program deploy --use-rpc \
   --url <your rpc (https://api.mainnet-beta.solana.com is usually fine)> \
   --buffer recovered-buffer.json
 ```
-* Program buffer full? Use:
+* Program buffer full (e.g. `account data too small for instruction`)? Use:
 ```
 solana program extend \
   --url <RPC_URL> \

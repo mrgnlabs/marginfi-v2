@@ -89,10 +89,9 @@ pub mod marginfi {
     pub fn lending_pool_configure_bank_emode(
         ctx: Context<LendingPoolConfigureBankEmode>,
         emode_tag: u16,
-        flags: u64,
         entries: [EmodeEntry; MAX_EMODE_ENTRIES],
     ) -> MarginfiResult {
-        marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, flags, entries)
+        marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
     }
 
     pub fn lending_pool_setup_emissions(

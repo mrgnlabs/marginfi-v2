@@ -152,6 +152,8 @@ pub enum MarginfiError {
     ArenaBankLimit,
     #[msg("Arena groups cannot return to non-arena status")] // 6074
     ArenaSettingCannotChange,
+    #[msg("The Emode config was invalid")] // 6075
+    BadEmodeConfig,
 }
 
 impl From<MarginfiError> for ProgramError {

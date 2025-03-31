@@ -8,21 +8,33 @@ use anchor_lang::prelude::*;
 pub fn lending_pool_configure_bank_emode(
     ctx: Context<LendingPoolConfigureBankEmode>,
     emode_tag: u16,
-    flags: u64,
     entries: [EmodeEntry; MAX_EMODE_ENTRIES],
 ) -> MarginfiResult {
     let mut bank = ctx.accounts.bank.load_mut()?;
 
+    let mut sorted_entries = entries;
+    sorted_entries.sort_by(|a, b| {
+        a.collateral_bank_emode_tag
+            .cmp(&b.collateral_bank_emode_tag)
+    });
+
     bank.emode.emode_tag = emode_tag;
-    bank.emode.flags = flags;
-    bank.emode.entries = entries;
+    bank.emode.entries = sorted_entries;
     bank.emode.timestamp = Clock::get()?.unix_timestamp;
     bank.emode.validate_entries()?;
 
+    if bank.emode.has_entries() {
+        msg!("emode entries detected and activated");
+        bank.emode.set_emode_enabled(true);
+    } else {
+        msg!("no emode entries detected");
+        bank.emode.set_emode_enabled(false);
+    }
+
     msg!(
-        "emode tag set to {:?} status set to: {:?}",
+        "emode tag set to {:?} entries set to: {:?}",
         emode_tag,
-        entries
+        sorted_entries
     );
 
     Ok(())
