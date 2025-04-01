@@ -1449,7 +1449,6 @@ impl BankConfig {
         requirement_type: RequirementType,
         balance_side: BalanceSide,
     ) -> I80F48 {
-        // TODO emode determination...
         match (requirement_type, balance_side) {
             (RequirementType::Initial, BalanceSide::Assets) => self.asset_weight_init.into(),
             (RequirementType::Initial, BalanceSide::Liabilities) => {

@@ -537,7 +537,7 @@ export const addBankPermissionless = (
 export type ConfigureBankEmodeArgs = {
   bank: PublicKey;
   tag: number;
-  /** Must be `MAX_EMODE_ENTRIES` or fewer */
+  /** Must be `MAX_EMODE_ENTRIES` or fewer, see `newEmodeEntry` */
   entries: EmodeEntry[];
 };
 
@@ -546,22 +546,9 @@ export const configBankEmode = (
   args: ConfigureBankEmodeArgs
 ) => {
   const paddedEntries = padEmodeEntries(args.entries);
-  const ent:  EmodeEntry[] = [
-    newEmodeEntry(5, 1, I80F48_ONE, I80F48_ONE),
-    newEmodeEntry(5, 1, I80F48_ONE, I80F48_ONE),
-    newEmodeEntry(5, 1, I80F48_ONE, I80F48_ONE),
-    newEmodeEntry(5, 1, I80F48_ONE, I80F48_ONE),
-    newEmodeEntry(5, 1, I80F48_ONE, I80F48_ONE),
-    newEmodeEntry(5, 1, I80F48_ONE, I80F48_ONE),
-    newEmodeEntry(5, 1, I80F48_ONE, I80F48_ONE),
-    newEmodeEntry(5, 1, I80F48_ONE, I80F48_ONE),
-    newEmodeEntry(5, 1, I80F48_ONE, I80F48_ONE),
-    newEmodeEntry(5, 1, I80F48_ONE, I80F48_ONE)
-  ];
-
 
   const ix = program.methods
-    .lendingPoolConfigureBankEmode(args.tag, ent)
+    .lendingPoolConfigureBankEmode(args.tag, paddedEntries)
     .accounts({
       // group: // implied from bank
       // emode_admin: // implied from group
@@ -581,11 +568,11 @@ const padEmodeEntries = (entries: EmodeEntry[]): EmodeEntry[] => {
   const padded = [...entries];
   while (padded.length < MAX_EMODE_ENTRIES) {
     padded.push({
-      collateral_bank_emode_tag: 0,
+      collateralBankEmodeTag: 0,
       flags: 0,
       pad0: [0, 0, 0, 0, 0],
-      asset_weight_init: I80F48_ZERO,
-      asset_weight_maint: I80F48_ZERO,
+      assetWeightInit: I80F48_ZERO,
+      assetWeightMaint: I80F48_ZERO,
     });
   }
   return padded;

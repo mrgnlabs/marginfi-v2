@@ -29,14 +29,37 @@ import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
 
+const seed = new BN(EMODE_SEED);
+let usdcBank: PublicKey;
+let solBank: PublicKey;
+let lstABank: PublicKey;
+let lstBBank: PublicKey;
+
 describe("Init e-mode enabled group", () => {
-  const seed = new BN(EMODE_SEED);
-
-  before: async () => {
-    // TODO
-    console.log("derive bank keys:")
-
-  }
+  [usdcBank] = deriveBankWithSeed(
+    bankrunProgram.programId,
+    emodeGroup.publicKey,
+    ecosystem.usdcMint.publicKey,
+    seed
+  );
+  [solBank] = deriveBankWithSeed(
+    bankrunProgram.programId,
+    emodeGroup.publicKey,
+    ecosystem.wsolMint.publicKey,
+    seed
+  );
+  [lstABank] = deriveBankWithSeed(
+    bankrunProgram.programId,
+    emodeGroup.publicKey,
+    ecosystem.lstAlphaMint.publicKey,
+    seed
+  );
+  [lstBBank] = deriveBankWithSeed(
+    bankrunProgram.programId,
+    emodeGroup.publicKey,
+    ecosystem.lstAlphaMint.publicKey,
+    seed.addn(1)
+  );
 
   it("(emode admin) Configures the 4 banks - happy path", async () => {
     let tx = new Transaction();
@@ -45,7 +68,7 @@ describe("Init e-mode enabled group", () => {
 
     // let actual = await bankrunProgram.account.bank.fetch(PublicKey.default);
     // let entry = actual.emode.emodeConfig.entries[0];
-    
+
     // tx.add(
     //   await groupConfigure(groupAdmin.mrgnBankrunProgram, {
     //     marginfiGroup: emodeGroup.publicKey,
@@ -61,5 +84,4 @@ describe("Init e-mode enabled group", () => {
     // );
     // assertKeysEqual(group.emodeAdmin, emodeAdmin.wallet.publicKey);
   });
-
 });

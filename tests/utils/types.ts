@@ -286,24 +286,24 @@ export interface StakedSettingsEdit {
 export const MAX_EMODE_ENTRIES = 10;
 
 export type EmodeEntry = {
-  collateral_bank_emode_tag: number;
+  collateralBankEmodeTag: number;
   flags: number;
-  pad0: [0, 0, 0, 0, 0];
-  asset_weight_init: WrappedI80F48;
-  asset_weight_maint: WrappedI80F48;
+  pad0: number[];
+  assetWeightInit: WrappedI80F48;
+  assetWeightMaint: WrappedI80F48;
 };
 
 export function newEmodeEntry(
-  collateral_bank_emode_tag: number,
+  collateralBankEmodeTag: number,
   flags: number,
-  asset_weight_init: WrappedI80F48,
-  asset_weight_maint: WrappedI80F48
+  assetWeightInit: WrappedI80F48,
+  assetWeightMaint: WrappedI80F48
 ): EmodeEntry {
   return {
-    collateral_bank_emode_tag,
+    collateralBankEmodeTag,
     flags,
     pad0: [0, 0, 0, 0, 0],
-    asset_weight_init,
-    asset_weight_maint,
+    assetWeightInit,
+    assetWeightMaint,
   };
 }
