@@ -15,12 +15,19 @@ pub fn lending_pool_configure_bank_emode(
     let mut sorted_entries = entries;
     sorted_entries.sort_by_key(|e| e.collateral_bank_emode_tag);
 
+    // Prevent footguns from passing data in padding, which could interfere with future values in
+    // that assumed-empty space. Yes, we could simply take a struct without padding as input, but
+    // having a seperate config type has proved to be more of a pain than dealing with padding.
+    for entry in sorted_entries.iter_mut() {
+        entry.pad0 = [0; 5];
+    }
+
     bank.emode.emode_tag = emode_tag;
     bank.emode.emode_config.entries = sorted_entries;
     bank.emode.timestamp = Clock::get()?.unix_timestamp;
     bank.emode.validate_entries()?;
 
-    if bank.emode.has_entries() {
+    if bank.emode.emode_config.has_entries() {
         msg!("emode entries detected and activated");
         bank.emode.set_emode_enabled(true);
     } else {

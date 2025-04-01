@@ -384,6 +384,9 @@ pub fn lending_account_liquidate<'info>(
 
     // TODO consider if health cache update here is worth blowing the extra CU
 
+    // TODO is this even neccessary? Under what circumstances can a liquidator put themselves
+    // underwater after a liquidation?
+    
     // Verify liquidator account health
     RiskEngine::check_account_init_health(
         &liquidator_marginfi_account,

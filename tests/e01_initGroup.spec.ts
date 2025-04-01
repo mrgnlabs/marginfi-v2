@@ -1,5 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
-import { AccountMeta, Transaction } from "@solana/web3.js";
+import { AccountMeta, PublicKey, Transaction } from "@solana/web3.js";
 import {
   addBankWithSeed,
   groupConfigure,
@@ -29,7 +29,7 @@ import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
 
-describe("Init e-mode enabled group", () => {
+describe("Init e-mode enabled group and banks", () => {
   const seed = new BN(EMODE_SEED);
 
   it("(admin) Init group - happy path", async () => {
@@ -62,7 +62,7 @@ describe("Init e-mode enabled group", () => {
     tx.add(
       await groupConfigure(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: emodeGroup.publicKey,
-        newEmodeAdmin: emodeAdmin.wallet.publicKey
+        newEmodeAdmin: emodeAdmin.wallet.publicKey,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -75,72 +75,112 @@ describe("Init e-mode enabled group", () => {
     assertKeysEqual(group.emodeAdmin, emodeAdmin.wallet.publicKey);
   });
 
-
   it("(admin) Add bank (USDC)", async () => {
-    let setConfig = defaultBankConfig();
-    const [bankKey] = deriveBankWithSeed(
-      bankrunProgram.programId,
-      emodeGroup.publicKey,
-      ecosystem.usdcMint.publicKey,
-      seed
-    );
-    const oracle = oracles.usdcOracle.publicKey;
-    const oracleMeta: AccountMeta = {
-      pubkey: oracle,
-      isSigner: false,
-      isWritable: false,
-    };
-    const config_ix = await groupAdmin.mrgnProgram.methods
-      .lendingPoolConfigureBankOracle(ORACLE_SETUP_PYTH_LEGACY, oracle)
-      .accountsPartial({
-        group: emodeGroup.publicKey,
-        bank: bankKey,
-        admin: groupAdmin.wallet.publicKey,
-      })
-      .remainingAccounts([oracleMeta])
-      .instruction();
-
-    let tx = new Transaction();
-    tx.add(
-      await addBankWithSeed(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: emodeGroup.publicKey,
-        feePayer: groupAdmin.wallet.publicKey,
-        bankMint: ecosystem.usdcMint.publicKey,
-        bank: bankKey,
-        config: setConfig,
-        seed: seed,
-      }),
-      config_ix
-    );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet);
-    await banksClient.processTransaction(tx);
-
-    if (verbose) {
-      console.log("*init USDC bank " + bankKey);
-    }
-
-    const bank = await bankrunProgram.account.bank.fetch(bankKey);
-    assert.equal(bank.config.assetTag, ASSET_TAG_DEFAULT);
+    await addBankTest({
+      bankMint: ecosystem.usdcMint.publicKey,
+      oracle: oracles.usdcOracle.publicKey,
+      oracleMeta: {
+        pubkey: oracles.usdcOracle.publicKey,
+        isSigner: false,
+        isWritable: false,
+      },
+      seed: seed,
+      verboseMessage: "*init USDC bank:",
+    });
   });
 
   it("(admin) Add bank (SOL)", async () => {
-    let setConfig = defaultBankConfig();
-    setConfig.assetTag = ASSET_TAG_SOL;
+    await addBankTest({
+      assetTag: ASSET_TAG_SOL,
+      bankMint: ecosystem.wsolMint.publicKey,
+      oracle: oracles.wsolOracle.publicKey,
+      oracleMeta: {
+        pubkey: oracles.wsolOracle.publicKey,
+        isSigner: false,
+        isWritable: false,
+      },
+      seed: seed,
+      verboseMessage: "*init SOL bank:",
+    });
+  });
+
+  it("(admin) Add bank (LST)", async () => {
+    await addBankTest({
+      bankMint: ecosystem.lstAlphaMint.publicKey,
+      oracle: oracles.pythPullLstOracleFeed.publicKey,
+      oracleMeta: {
+        pubkey: oracles.pythPullLst.publicKey, // NOTE: Price V2 update
+        isSigner: false,
+        isWritable: false,
+      },
+      oracleSetup: "PUSH",
+      feedOracle: oracles.pythPullLstOracleFeed.publicKey,
+      seed: seed,
+      verboseMessage: "*init LST A bank:",
+    });
+  });
+
+  it("(admin) Add another bank (also an LST)", async () => {
+    await addBankTest({
+      bankMint: ecosystem.lstAlphaMint.publicKey,
+      oracle: oracles.pythPullLstOracleFeed.publicKey,
+      oracleMeta: {
+        pubkey: oracles.pythPullLst.publicKey, // NOTE: Price V2 update
+        isSigner: false,
+        isWritable: false,
+      },
+      oracleSetup: "PUSH",
+      feedOracle: oracles.pythPullLstOracleFeed.publicKey,
+      seed: seed.addn(1),
+      verboseMessage: "*init LST B bank:",
+    });
+  });
+
+  async function addBankTest(options: {
+    assetTag?: number;
+    bankMint: PublicKey;
+    oracle: PublicKey;
+    oracleMeta: AccountMeta;
+    // For banks (like LST) that need a different oracle setup (push vs legacy)
+    oracleSetup?: "LEGACY" | "PUSH";
+    // Optional feed oracle in case the instruction requires it (i.e. for LST)
+    feedOracle?: PublicKey;
+    // Function to adjust the seed (for example, seed.addn(1))
+    seed: BN;
+    verboseMessage: string;
+  }) {
+    const {
+      assetTag,
+      bankMint,
+      oracle,
+      oracleMeta,
+      oracleSetup = "LEGACY",
+      feedOracle,
+      seed,
+      verboseMessage,
+    } = options;
+
+    // Set configuration; override assetTag if provided
+    const config = defaultBankConfig();
+    if (assetTag) {
+      config.assetTag = assetTag;
+    }
+
+    // Calculate bank key using the (optionally modified) seed
     const [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
       emodeGroup.publicKey,
-      ecosystem.wsolMint.publicKey,
+      bankMint,
       seed
     );
-    const oracle = oracles.wsolOracle.publicKey;
-    const oracleMeta: AccountMeta = {
-      pubkey: oracle,
-      isSigner: false,
-      isWritable: false,
-    };
+
+    const setupType =
+      oracleSetup === "PUSH"
+        ? ORACLE_SETUP_PYTH_PUSH
+        : ORACLE_SETUP_PYTH_LEGACY;
+    const targetOracle = feedOracle ?? oracle;
     const config_ix = await groupAdmin.mrgnProgram.methods
-      .lendingPoolConfigureBankOracle(ORACLE_SETUP_PYTH_LEGACY, oracle)
+      .lendingPoolConfigureBankOracle(setupType, targetOracle)
       .accountsPartial({
         group: emodeGroup.publicKey,
         bank: bankKey,
@@ -149,77 +189,23 @@ describe("Init e-mode enabled group", () => {
       .remainingAccounts([oracleMeta])
       .instruction();
 
-    let tx = new Transaction();
-    tx.add(
-      await addBankWithSeed(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: emodeGroup.publicKey,
-        feePayer: groupAdmin.wallet.publicKey,
-        bankMint: ecosystem.wsolMint.publicKey,
-        bank: bankKey,
-        config: setConfig,
-        seed: seed,
-      }),
-      config_ix
-    );
+    const addBankIx = await addBankWithSeed(groupAdmin.mrgnBankrunProgram, {
+      marginfiGroup: emodeGroup.publicKey,
+      feePayer: groupAdmin.wallet.publicKey,
+      bankMint: bankMint,
+      bank: bankKey,
+      config: config,
+      seed,
+    });
+
+    const tx = new Transaction();
+    tx.add(addBankIx, config_ix);
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet);
     await banksClient.processTransaction(tx);
 
     if (verbose) {
-      console.log("*init SOL bank " + bankKey);
+      console.log(`${verboseMessage} ${bankKey}`);
     }
-
-    const bank = await bankrunProgram.account.bank.fetch(bankKey);
-    assert.equal(bank.config.assetTag, ASSET_TAG_SOL);
-  });
-
-  it("(admin) Add bank (LST)", async () => {
-    let setConfig = defaultBankConfig();
-    const [bankKey] = deriveBankWithSeed(
-      bankrunProgram.programId,
-      emodeGroup.publicKey,
-      ecosystem.lstAlphaMint.publicKey,
-      seed
-    );
-    const oracleMeta: AccountMeta = {
-      pubkey: oracles.pythPullLst.publicKey, // NOTE: This is the Price V2 update
-      isSigner: false,
-      isWritable: false,
-    };
-
-    let tx = new Transaction();
-    tx.add(
-      await addBankWithSeed(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: emodeGroup.publicKey,
-        feePayer: groupAdmin.wallet.publicKey,
-        bankMint: ecosystem.lstAlphaMint.publicKey,
-        bank: bankKey,
-        config: setConfig,
-        seed: seed,
-      }),
-      await groupAdmin.mrgnProgram.methods
-        // Note: This is the feed id
-        .lendingPoolConfigureBankOracle(
-          ORACLE_SETUP_PYTH_PUSH,
-          oracles.pythPullLstOracleFeed.publicKey
-        )
-        .accountsPartial({
-          group: emodeGroup.publicKey,
-          bank: bankKey,
-          admin: groupAdmin.wallet.publicKey,
-        })
-        .remainingAccounts([oracleMeta])
-        .instruction()
-    );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet);
-    await banksClient.processTransaction(tx);
-
-    if (verbose) {
-      console.log("*init WSOL bank " + bankKey);
-    }
-
-    const bank = await bankrunProgram.account.bank.fetch(bankKey);
-    assert.equal(bank.config.assetTag, ASSET_TAG_DEFAULT);
-  });
+  }
 });

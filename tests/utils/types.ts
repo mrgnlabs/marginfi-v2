@@ -42,7 +42,6 @@ export const HEALTH_CACHE_NONE = 0;
 export const HEALTH_CACHE_HEALTHY = 1;
 export const HEALTH_CACHE_ENGINE_OK = 2;
 
-
 /**
  * The default bank config has
  * * all weights are 1
@@ -282,4 +281,29 @@ export interface StakedSettingsEdit {
 
   oracleMaxAge: number | null;
   riskTier: { collateral: {} } | { isolated: {} } | null;
+}
+
+export const MAX_EMODE_ENTRIES = 10;
+
+export type EmodeEntry = {
+  collateral_bank_emode_tag: number;
+  flags: number;
+  pad0: [0, 0, 0, 0, 0];
+  asset_weight_init: WrappedI80F48;
+  asset_weight_maint: WrappedI80F48;
+};
+
+export function newEmodeEntry(
+  collateral_bank_emode_tag: number,
+  flags: number,
+  asset_weight_init: WrappedI80F48,
+  asset_weight_maint: WrappedI80F48
+): EmodeEntry {
+  return {
+    collateral_bank_emode_tag,
+    flags,
+    pad0: [0, 0, 0, 0, 0],
+    asset_weight_init,
+    asset_weight_maint,
+  };
 }

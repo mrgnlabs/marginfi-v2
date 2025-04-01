@@ -1,4 +1,5 @@
 use super::{
+    emode::{reconcile_emode_configs, EmodeConfig},
     health_cache::HealthCache,
     marginfi_group::{Bank, RiskTier, WrappedI80F48},
     price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
@@ -18,10 +19,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
-use std::{
-    cmp::{max, min},
-    ops::Not,
-};
+use std::cmp::{max, min};
 use type_layout::TypeLayout;
 
 assert_struct_size!(MarginfiAccount, 2304);
@@ -264,10 +262,8 @@ impl<'info> BankAccountWithPriceFeed<'_> {
     fn calc_weighted_value<'a>(
         &'a self,
         requirement_type: RequirementType,
-    ) -> MarginfiResult<(I80F48, I80F48, I80F48)>
-    where
-        'info: 'a,
-    {
+        emode_config: &EmodeConfig,
+    ) -> MarginfiResult<(I80F48, I80F48, I80F48)> {
         match self.balance.get_side() {
             Some(side) => {
                 let bank = &self.bank;
@@ -275,7 +271,7 @@ impl<'info> BankAccountWithPriceFeed<'_> {
                 match side {
                     BalanceSide::Assets => {
                         let (value, price) =
-                            self.calc_weighted_asset_value(requirement_type, &bank)?;
+                            self.calc_weighted_asset_value(requirement_type, &bank, emode_config)?;
                         Ok((value, I80F48::ZERO, price))
                     }
 
@@ -296,6 +292,7 @@ impl<'info> BankAccountWithPriceFeed<'_> {
         &'a self,
         requirement_type: RequirementType,
         bank: &'a Bank,
+        emode_config: &EmodeConfig,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
@@ -311,9 +308,28 @@ impl<'info> BankAccountWithPriceFeed<'_> {
 
                 let price_feed = price_feed?;
 
-                let mut asset_weight = bank
-                    .config
-                    .get_weight(requirement_type, BalanceSide::Assets);
+                // If an emode entry exists for this bank's emode tag in the reconciled config of
+                // all borrowing banks, use its weight, otherwise use the weight designated on the
+                // collateral bank itself. If the bank's weight is higher, always use that weight.
+                let mut asset_weight =
+                    if let Some(emode_entry) = emode_config.find_with_tag(bank.emode.emode_tag) {
+                        let bank_weight = bank
+                            .config
+                            .get_weight(requirement_type, BalanceSide::Assets);
+                        let emode_weight = match requirement_type {
+                            RequirementType::Initial => I80F48::from(emode_entry.asset_weight_init),
+                            RequirementType::Maintenance => {
+                                I80F48::from(emode_entry.asset_weight_maint)
+                            }
+                            // Note: For equity (which is only used for bankruptcies) emode does not
+                            // apply, as the asset weight is always 1
+                            RequirementType::Equity => I80F48::ONE,
+                        };
+                        max(bank_weight, emode_weight)
+                    } else {
+                        bank.config
+                            .get_weight(requirement_type, BalanceSide::Assets)
+                    };
 
                 let lower_price = price_feed.get_price_of_type(
                     requirement_type.get_oracle_price_type(),
@@ -468,6 +484,7 @@ impl RiskRequirementType {
 pub struct RiskEngine<'a> {
     marginfi_account: &'a MarginfiAccount,
     bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
+    emode_config: EmodeConfig,
 }
 
 impl<'info> RiskEngine<'_> {
@@ -492,9 +509,18 @@ impl<'info> RiskEngine<'_> {
         let bank_accounts_with_price =
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
+        // Load the reconciled Emode configuration for all banks where the user has borrowed
+        let emode_configs: Vec<EmodeConfig> = bank_accounts_with_price
+            .iter()
+            .filter(|b_w_p| !b_w_p.balance.is_empty(BalanceSide::Liabilities))
+            .map(|b_w_p| b_w_p.bank.emode.emode_config)
+            .collect();
+        let reconciled_emode_config = reconcile_emode_configs(emode_configs);
+
         Ok(RiskEngine {
             marginfi_account,
             bank_accounts_with_price,
+            emode_config: reconciled_emode_config,
         })
     }
 
@@ -532,7 +558,7 @@ impl<'info> RiskEngine<'_> {
         for (i, bank_account) in self.bank_accounts_with_price.iter().enumerate() {
             let requirement_type = requirement_type.to_weight_type();
             let (asset_val, liab_val, price) =
-                bank_account.calc_weighted_value(requirement_type)?;
+                bank_account.calc_weighted_value(requirement_type, &self.emode_config)?;
 
             if let Some(health_cache) = health_cache {
                 health_cache.prices[i] = price.into();
@@ -613,9 +639,7 @@ impl<'info> RiskEngine<'_> {
             .ok_or(MarginfiError::LendingAccountBalanceNotFound)?;
 
         check!(
-            liability_bank_balance
-                .is_empty(BalanceSide::Liabilities)
-                .not(),
+            !liability_bank_balance.is_empty(BalanceSide::Liabilities),
             MarginfiError::NoLiabilitiesInLiabilityBank
         );
 
@@ -669,9 +693,7 @@ impl<'info> RiskEngine<'_> {
             .unwrap();
 
         check!(
-            liability_bank_balance
-                .is_empty(BalanceSide::Liabilities)
-                .not(),
+            !liability_bank_balance.is_empty(BalanceSide::Liabilities),
             MarginfiError::ExhaustedLiability
         );
 
@@ -732,14 +754,13 @@ impl<'info> RiskEngine<'_> {
         Ok(())
     }
 
-    fn check_account_risk_tiers<'a>(&'a self) -> MarginfiResult
-    where
-        'info: 'a,
-    {
+    // TODO this function seems excessive relative to the trivial check it performs, it performs
+    // like 4x O(N) loops and should be optimized at minimum.
+    fn check_account_risk_tiers<'a>(&'a self) -> MarginfiResult {
         let balances_with_liablities = self
             .bank_accounts_with_price
             .iter()
-            .filter(|a| a.balance.is_empty(BalanceSide::Liabilities).not());
+            .filter(|a| !a.balance.is_empty(BalanceSide::Liabilities));
 
         let n_balances_with_liablities = balances_with_liablities.clone().count();
 

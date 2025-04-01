@@ -50,7 +50,10 @@ assert_struct_align!(EmodeConfig, 8);
 #[derive(
     AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod, PartialEq, Eq, TypeLayout, Debug,
 )]
-/// A bank's emode configurations.
+/// An emode configuration. Each bank has one such configuration, but this may also be the
+/// intersection of many configurations (see `reconcile_emode_configs`). For example, the risk
+/// engine creates such an intersection from all the emode config of all banks the user is borrowing
+/// from.
 pub struct EmodeConfig {
     pub entries: [EmodeEntry; MAX_EMODE_ENTRIES],
 }
@@ -71,6 +74,15 @@ impl EmodeConfig {
         let mut config = Self::zeroed();
         config.entries[..entries.len()].copy_from_slice(&entries);
         config
+    }
+
+    pub fn find_with_tag(&self, tag: u16) -> Option<&EmodeEntry> {
+        self.entries.iter().find(|e| e.tag_equals(tag))
+    }
+    /// True if any entries are present in the mode configuration. Typically, this is the definition
+    /// of flag `EMODE_ON`
+    pub fn has_entries(&self) -> bool {
+        self.entries.iter().any(|e| !e.is_empty())
     }
 }
 
@@ -119,14 +131,6 @@ impl EmodeSettings {
         }
     }
 
-    pub fn find_with_tag(&self, tag: u16) -> Option<&EmodeEntry> {
-        self.emode_config.entries.iter().find(|e| e.tag_equals(tag))
-    }
-    /// True if any entries are present in the mode configuration. Typically, this is the definition
-    /// of flag `EMODE_ON`
-    pub fn has_entries(&self) -> bool {
-        self.emode_config.entries.iter().any(|e| !e.is_empty())
-    }
     /// True if an emode configuration has been set (EMODE_ON)
     pub fn is_enabled(&self) -> bool {
         self.flags & EMODE_ON != 0
