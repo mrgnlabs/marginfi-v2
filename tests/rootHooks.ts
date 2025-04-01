@@ -331,6 +331,15 @@ export const mochaHooks = {
       )
     );
 
+    emodeAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(emodeAdmin.wallet),
+        {}
+      )
+    );
+
     banksClient = bankrunContext.banksClient;
 
     if (verbose) {

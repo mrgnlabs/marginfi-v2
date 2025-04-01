@@ -284,6 +284,7 @@ export interface StakedSettingsEdit {
 }
 
 export const MAX_EMODE_ENTRIES = 10;
+export const EMODE_APPLIES_TO_ISOLATED = 1;
 
 export type EmodeEntry = {
   collateralBankEmodeTag: number;

@@ -1,4 +1,5 @@
 use crate::state::emode::{EmodeEntry, MAX_EMODE_ENTRIES};
+use crate::MarginfiError;
 use crate::{
     state::marginfi_group::{Bank, MarginfiGroup},
     MarginfiResult,
@@ -47,7 +48,7 @@ pub fn lending_pool_configure_bank_emode(
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankEmode<'info> {
     #[account(
-        has_one = emode_admin
+        has_one = emode_admin @ MarginfiError::Unauthorized
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 

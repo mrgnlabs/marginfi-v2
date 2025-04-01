@@ -77,6 +77,9 @@ impl EmodeConfig {
     }
 
     pub fn find_with_tag(&self, tag: u16) -> Option<&EmodeEntry> {
+        if tag == EMODE_TAG_EMPTY {
+            return None;
+        }
         self.entries.iter().find(|e| e.tag_equals(tag))
     }
     /// True if any entries are present in the mode configuration. Typically, this is the definition
