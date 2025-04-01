@@ -40,8 +40,38 @@ pub struct EmodeSettings {
     /// EMODE_ON (1) - If set, at least one entry is configured
     /// 2, 4, 8, etc, Reserved for future use
     pub flags: u64,
-    /// This bank's emode configurations.
+
+    pub emode_config: EmodeConfig,
+}
+
+assert_struct_size!(EmodeConfig, 400);
+assert_struct_align!(EmodeConfig, 8);
+#[repr(C)]
+#[derive(
+    AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod, PartialEq, Eq, TypeLayout, Debug,
+)]
+/// A bank's emode configurations.
+pub struct EmodeConfig {
     pub entries: [EmodeEntry; MAX_EMODE_ENTRIES],
+}
+
+impl EmodeConfig {
+    /// Creates an EmodeConfig from a list of EmodeEntry items.
+    /// Entries will be sorted by tag.
+    /// Panics if more than MAX_EMODE_ENTRIES are provided.
+    pub fn from_entries(mut entries: Vec<EmodeEntry>) -> Self {
+        if entries.len() > MAX_EMODE_ENTRIES {
+            panic!(
+                "Too many EmodeEntry items {:?}, maximum allowed {:?}",
+                entries.len(),
+                MAX_EMODE_ENTRIES
+            );
+        }
+        entries.sort_by_key(|e| e.collateral_bank_emode_tag);
+        let mut config = Self::zeroed();
+        config.entries[..entries.len()].copy_from_slice(&entries);
+        config
+    }
 }
 
 impl Default for EmodeSettings {
@@ -52,7 +82,7 @@ impl Default for EmodeSettings {
 
 impl EmodeSettings {
     pub fn validate_entries(&self) -> MarginfiResult {
-        for entry in self.entries {
+        for entry in self.emode_config.entries {
             if entry.is_empty() {
                 continue;
             }
@@ -75,6 +105,7 @@ impl EmodeSettings {
     /// Note: expects entries to be sorted, invalid otherwise.
     fn check_dupes(&self) -> MarginfiResult {
         let non_empty_tags: Vec<u16> = self
+            .emode_config
             .entries
             .iter()
             .filter(|e| !e.is_empty())
@@ -89,12 +120,12 @@ impl EmodeSettings {
     }
 
     pub fn find_with_tag(&self, tag: u16) -> Option<&EmodeEntry> {
-        self.entries.iter().find(|e| e.tag_equals(tag))
+        self.emode_config.entries.iter().find(|e| e.tag_equals(tag))
     }
     /// True if any entries are present in the mode configuration. Typically, this is the definition
     /// of flag `EMODE_ON`
     pub fn has_entries(&self) -> bool {
-        self.entries.iter().any(|e| !e.is_empty())
+        self.emode_config.entries.iter().any(|e| !e.is_empty())
     }
     /// True if an emode configuration has been set (EMODE_ON)
     pub fn is_enabled(&self) -> bool {
@@ -141,27 +172,133 @@ impl EmodeEntry {
     }
 }
 
+/// Users who borrow multiple e-mode assets at the same time get the LEAST FAVORABLE treatment
+/// between the borrowed assets, regardless of the amount of each asset borrowed. For example, if
+/// borrowing an LST and USDC against SOL, the user would normally get an emode benefit for LST/SOL,
+/// but since they are also borrowing USDC, they get only standard rates.
+///
+/// Returns the INTERSECTION of EmodeConfigs. If passed configs have the same
+/// `collateral_bank_emode_tag`, we will take the one that has:
+/// 1) The lesser of the flags (e.g. if just one has APPLIES_TO_ISOLATED, we take flags = 0)
+/// 2) The lesser of both asset_weight_init and asset_weight_maint
+///
+/// If one config has a collateral_bank_emode_tag and the others do not, ***we don't make an
+/// EmodeEntry for it at all***, i.e. there is no benefit for that collateral
+///
+/// ***Example 1***
+/// * entry | tag | flags | init | maint
+/// * 0       101    1       70     75
+/// * 1       101    0       60     80
+/// Result
+/// * tag | flags | init | maint
+/// * 101    0       60     75
+///
+///
+/// ***Example 2***
+/// * entry | tag | flags | init | maint
+/// * 0       99     1       70     75
+/// * 1       101    0       60     80
+/// Result
+/// * tag | flags | init | maint
+/// * empty
+///
+///
+/// ***Example 3***
+/// * entry | tag | flags | init | maint
+/// * 0       101    1       70     75
+/// * 1       101    0       60     80
+/// * 2       101    0       60     80
+/// * 2       99     0       60     80
+/// Result
+/// * tag | flags | init | maint
+/// * 101    0       60     75
+pub fn reconcile_emode_configs(configs: Vec<EmodeConfig>) -> EmodeConfig {
+    // TODO benchmark this in the mock program
+    // If no configs, return a zeroed config.
+    if configs.is_empty() {
+        return EmodeConfig::zeroed();
+    }
+    // If only one config, return it.
+    if configs.len() == 1 {
+        return configs.into_iter().next().unwrap();
+    }
+
+    let num_configs = configs.len();
+    // Stores (tag, (entry, tag_count)), where tag_count is how many times we've seen this tag. This
+    // BTreeMap is logically easier on the eyes, but is probably fairly CU expensive, and should be
+    // benchmarked at some point, a simple Vec might actually be more performant here
+    let mut merged_entries: std::collections::BTreeMap<u16, (EmodeEntry, usize)> =
+        std::collections::BTreeMap::new();
+
+    for config in &configs {
+        for entry in config.entries.iter() {
+            if entry.is_empty() {
+                continue;
+            }
+            // Note: We assume that entries is de-duped and each tag appears at most one time!
+            let tag = entry.collateral_bank_emode_tag;
+            // Insert or merge the entry: if an entry with the same tag already exists, take the
+            // lesser of each field, increment how many times we've seen this tag
+            merged_entries
+                .entry(tag)
+                .and_modify(|(merged, tag_count)| {
+                    // Note: More complex flag merging logic may be needed in the future
+                    merged.flags = merged.flags.min(entry.flags);
+                    let current_init: I80F48 = merged.asset_weight_init.into();
+                    let new_init: I80F48 = entry.asset_weight_init.into();
+                    if new_init < current_init {
+                        merged.asset_weight_init = entry.asset_weight_init;
+                    }
+                    let current_maint: I80F48 = merged.asset_weight_maint.into();
+                    let new_maint: I80F48 = entry.asset_weight_maint.into();
+                    if new_maint < current_maint {
+                        merged.asset_weight_maint = entry.asset_weight_maint;
+                    }
+                    *tag_count += 1;
+                })
+                .or_insert((*entry, 1));
+        }
+    }
+
+    // Collect only the tags that appear in EVERY config.
+    let final_entries: Vec<EmodeEntry> = merged_entries
+        .into_iter()
+        .filter(|(_, (_, tag_count))| *tag_count == num_configs)
+        .map(|(_, (merged_entry, _))| merged_entry)
+        .collect();
+
+    // Sort the entries by tag and build a config from them
+    let final_config = EmodeConfig::from_entries(final_entries);
+
+    final_config
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use fixed_macro::types::I80F48;
 
-    fn create_generic_entry(tag: u16) -> EmodeEntry {
+    fn create_entry(tag: u16, flags: u8, init: f32, maint: f32) -> EmodeEntry {
         EmodeEntry {
             collateral_bank_emode_tag: tag,
-            flags: 0,
+            flags,
             pad0: [0u8; 5],
-            asset_weight_init: I80F48!(0.7).into(),
-            asset_weight_maint: I80F48!(0.8).into(),
+            asset_weight_init: I80F48::from_num(init).into(),
+            asset_weight_maint: I80F48::from_num(maint).into(),
         }
+    }
+
+    /// "Standard" entry with flags=0, init=0.7, maint=0.8.
+    fn generic_entry(tag: u16) -> EmodeEntry {
+        create_entry(tag, 0, 0.7, 0.8)
     }
 
     #[test]
     fn test_emode_valid_entries() {
         let mut settings = EmodeSettings::zeroed();
-        settings.entries[0] = create_generic_entry(1);
-        settings.entries[1] = create_generic_entry(2);
-        settings.entries[2] = create_generic_entry(3);
+        settings.emode_config.entries[0] = generic_entry(1);
+        settings.emode_config.entries[1] = generic_entry(2);
+        settings.emode_config.entries[2] = generic_entry(3);
         // Note: The remaining entries stay zeroed (and are skipped during validation).
         assert!(settings.validate_entries().is_ok());
     }
@@ -169,9 +306,9 @@ mod tests {
     #[test]
     fn test_emode_invalid_duplicate_tags() {
         let mut settings = EmodeSettings::zeroed();
-        settings.entries[0] = create_generic_entry(1);
-        settings.entries[1] = create_generic_entry(1); // Duplicate tag: 1.
-        settings.entries[2] = create_generic_entry(2);
+        settings.emode_config.entries[0] = generic_entry(1);
+        settings.emode_config.entries[1] = generic_entry(1); // Duplicate tag: 1.
+        settings.emode_config.entries[2] = generic_entry(2);
         let result = settings.validate_entries();
         assert!(result.is_err());
         assert_eq!(result.err().unwrap(), MarginfiError::BadEmodeConfig.into());
@@ -188,7 +325,7 @@ mod tests {
             asset_weight_init: I80F48!(1.2).into(),
             asset_weight_maint: I80F48!(1.3).into(),
         };
-        settings.entries[0] = entry;
+        settings.emode_config.entries[0] = entry;
         let result = settings.validate_entries();
         assert!(result.is_err());
         assert_eq!(result.err().unwrap(), MarginfiError::BadEmodeConfig.into());
@@ -205,9 +342,92 @@ mod tests {
             asset_weight_init: I80F48!(0.8).into(),
             asset_weight_maint: I80F48!(0.7).into(),
         };
-        settings.entries[0] = entry;
+        settings.emode_config.entries[0] = entry;
         let result = settings.validate_entries();
         assert!(result.is_err());
         assert_eq!(result.err().unwrap(), MarginfiError::BadEmodeConfig.into());
+    }
+
+    #[test]
+    fn test_reconcile_emode_single_common_tag() {
+        // Example 1:
+        // * Config1 has an entry with tag 101, flags 1, init 0.7, maint 0.75.
+        // * Config2 has an entry with tag 101, flags 0, init 0.6, maint 0.8.
+        let entry1 = create_entry(101, 1, 0.7, 0.75);
+        let entry2 = create_entry(101, 0, 0.6, 0.8);
+        let config1 = EmodeConfig::from_entries(vec![entry1]);
+        let config2 = EmodeConfig::from_entries(vec![entry2]);
+
+        let reconciled = reconcile_emode_configs(vec![config1, config2]);
+
+        // Expected: For tag 101, flags = min(1,0)=0, init = min(0.7,0.6)=0.6, maint = min(0.75,0.8)=0.75.
+        let expected_entry = create_entry(101, 0, 0.6, 0.75);
+
+        assert_eq!(reconciled.entries[0], expected_entry);
+        // The rest of the entries should be zeroed.
+        for entry in reconciled.entries.iter().skip(1) {
+            assert!(entry.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_reconcile_emode_no_common_tags() {
+        // Example 2:
+        // * Config1 has an entry with tag 99.
+        // * Config2 has an entry with tag 101.
+        // * Since there is no common tag across both, the result should be an empty (zeroed) config.
+        let config1 = EmodeConfig::from_entries(vec![generic_entry(99)]);
+        let config2 = EmodeConfig::from_entries(vec![generic_entry(101)]);
+
+        let reconciled = reconcile_emode_configs(vec![config1, config2]);
+
+        // Verify that all entries are empty.
+        assert!(reconciled.entries.iter().all(|entry| entry.is_empty()));
+    }
+
+    #[test]
+    fn test_reconcile_emode_multiple_configs() {
+        // Example 3:
+        // * Config1 has entries with tags 101 and 99.
+        // * Config2 has an entry with tag 101.
+        // * Config3 has an entry with tag 101.
+        // * Only tag 101 is common to all configs.
+        // * For tag 101:
+        //   - Config1: flags 1, init 0.7, maint 0.75.
+        //   - Config2: flags 0, init 0.6, maint 0.8.
+        //   - Config3: flags 0, init 0.65, maint 0.8.
+        // * The reconciled entry should have:
+        //   - flags = min(1, 0, 0) = 0,
+        //   - init   = min(0.7, 0.6, 0.65) = 0.6,
+        //   - maint  = min(0.75, 0.8, 0.8) = 0.75.
+        let entry1 = create_entry(101, 1, 0.7, 0.75);
+        let entry2 = create_entry(101, 0, 0.6, 0.8);
+        let entry3 = create_entry(101, 0, 0.65, 0.8);
+
+        let config1 = EmodeConfig::from_entries(vec![entry1, generic_entry(99)]);
+        let config2 = EmodeConfig::from_entries(vec![entry2]);
+        let config3 = EmodeConfig::from_entries(vec![entry3]);
+
+        let reconciled = reconcile_emode_configs(vec![config1, config2, config3]);
+
+        let expected_entry = create_entry(101, 0, 0.6, 0.75);
+
+        assert_eq!(reconciled.entries[0], expected_entry);
+        // All other entries should be zeroed.
+        for entry in reconciled.entries.iter().skip(1) {
+            assert!(entry.is_empty());
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Too many EmodeEntry items")]
+    fn test_emode_from_entries_panics_on_too_many_entries() {
+        // Generate more entries than allowed.
+        let mut entries = Vec::new();
+        for i in 0..(MAX_EMODE_ENTRIES as u16 + 1) {
+            entries.push(generic_entry(i));
+        }
+        // This call should panic.
+        let _ = EmodeConfig::from_entries(entries);
     }
 }

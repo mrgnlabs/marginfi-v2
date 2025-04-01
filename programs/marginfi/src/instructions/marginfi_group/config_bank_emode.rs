@@ -13,13 +13,10 @@ pub fn lending_pool_configure_bank_emode(
     let mut bank = ctx.accounts.bank.load_mut()?;
 
     let mut sorted_entries = entries;
-    sorted_entries.sort_by(|a, b| {
-        a.collateral_bank_emode_tag
-            .cmp(&b.collateral_bank_emode_tag)
-    });
+    sorted_entries.sort_by_key(|e| e.collateral_bank_emode_tag);
 
     bank.emode.emode_tag = emode_tag;
-    bank.emode.entries = sorted_entries;
+    bank.emode.emode_config.entries = sorted_entries;
     bank.emode.timestamp = Clock::get()?.unix_timestamp;
     bank.emode.validate_entries()?;
 
