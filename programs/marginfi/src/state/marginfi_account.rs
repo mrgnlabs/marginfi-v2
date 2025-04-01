@@ -14,7 +14,7 @@ use crate::{
     prelude::{MarginfiError, MarginfiResult},
     utils::NumTraitsWithTolerance,
 };
-use anchor_lang::{prelude::*, Discriminator};
+use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
@@ -186,8 +186,8 @@ impl RequirementType {
     }
 }
 
-pub struct BankAccountWithPriceFeed<'a, 'info> {
-    bank: AccountInfo<'info>,
+pub struct BankAccountWithPriceFeed<'a> {
+    bank: Box<Bank>,
     price_feed: Box<MarginfiResult<OraclePriceFeedAdapter>>,
     balance: &'a Balance,
 }
@@ -197,11 +197,11 @@ pub enum BalanceSide {
     Liabilities,
 }
 
-impl<'info> BankAccountWithPriceFeed<'_, 'info> {
+impl<'info> BankAccountWithPriceFeed<'_> {
     pub fn load<'a>(
         lending_account: &'a LendingAccount,
         remaining_ais: &'info [AccountInfo<'info>],
-    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a, 'info>>> {
+    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
         let clock = Clock::get()?;
         let mut account_index = 0;
 
@@ -240,7 +240,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 account_index += num_accounts;
 
                 Ok(BankAccountWithPriceFeed {
-                    bank: bank_ai.clone(),
+                    bank: Box::new(*bank),
                     price_feed: price_adapter,
                     balance,
                 })
@@ -270,30 +270,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
     {
         match self.balance.get_side() {
             Some(side) => {
-                // We want lifetime <'a> but we have <'info> and it's a pain to modify everything...
-                // To avoid an unsafe transmuation we just interpret the bank from bytes. Here we
-                // repeat some of the sanity checks from AccountLoader
-                if self.bank.owner != &Bank::owner() {
-                    panic!("bank owned by wrong program, this should never happen");
-                }
-                let bank_data = &self.bank.try_borrow_data()?;
-                if bank_data.len() < Bank::LEN + 8 {
-                    panic!("bank too short, this should never happen");
-                }
-                let bank_discrim: &[u8] = &bank_data[0..8];
-                if bank_discrim != Bank::DISCRIMINATOR {
-                    panic!("bad bank discriminator, this should never happen");
-                }
-                let bank_data: &[u8] = &bank_data[8..];
-                let bank = *bytemuck::from_bytes(bank_data);
-
-                // Our alternative is this transmute, which is probably fine because we are
-                // shortening 'info to 'a, but better not to tempt fate with transmute in case
-                // Anchor messes with lifetimes in a later version.
-
-                // let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&self.bank) };
-                // let bank_al = AccountLoader::<Bank>::try_from(&shorter_bank)?;
-                // let bank = bank_al.load()?;
+                let bank = &self.bank;
 
                 match side {
                     BalanceSide::Assets => {
@@ -488,16 +465,16 @@ impl RiskRequirementType {
     }
 }
 
-pub struct RiskEngine<'a, 'info> {
+pub struct RiskEngine<'a> {
     marginfi_account: &'a MarginfiAccount,
-    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a, 'info>>,
+    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
 }
 
-impl<'info> RiskEngine<'_, 'info> {
+impl<'info> RiskEngine<'_> {
     pub fn new<'a>(
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
-    ) -> MarginfiResult<RiskEngine<'a, 'info>> {
+    ) -> MarginfiResult<RiskEngine<'a>> {
         check!(
             !marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
@@ -511,7 +488,7 @@ impl<'info> RiskEngine<'_, 'info> {
     fn new_no_flashloan_check<'a>(
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
-    ) -> MarginfiResult<RiskEngine<'a, 'info>> {
+    ) -> MarginfiResult<RiskEngine<'a>> {
         let bank_accounts_with_price =
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
@@ -769,19 +746,7 @@ impl<'info> RiskEngine<'_, 'info> {
         let mut is_in_isolated_risk_tier = false;
 
         for a in balances_with_liablities {
-            if a.bank.owner != &Bank::owner() {
-                panic!("bank owned by wrong program, this should never happen");
-            }
-            let bank_data = a.bank.try_borrow_data()?;
-            if bank_data.len() < Bank::LEN + 8 {
-                panic!("bank too short, this should never happen");
-            }
-            let bank_discrim = &bank_data[0..8];
-            if bank_discrim != Bank::DISCRIMINATOR {
-                panic!("bad bank discriminator, this should never happen");
-            }
-            let bank_data = &bank_data[8..];
-            let bank: Bank = *bytemuck::from_bytes(bank_data);
+            let bank = &a.bank;
             if bank.config.risk_tier == RiskTier::Isolated {
                 is_in_isolated_risk_tier = true;
                 break;
