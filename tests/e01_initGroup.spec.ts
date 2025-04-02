@@ -34,9 +34,7 @@ describe("Init e-mode enabled group and banks", () => {
   const seed = new BN(EMODE_SEED);
 
   it("(admin) Init group - happy path", async () => {
-    let tx = new Transaction();
-
-    tx.add(
+    let tx = new Transaction().add(
       await groupInitialize(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: emodeGroup.publicKey,
         admin: groupAdmin.wallet.publicKey,
@@ -58,16 +56,14 @@ describe("Init e-mode enabled group and banks", () => {
   });
 
   it("(admin) Set the emode admin - happy path", async () => {
-    let tx = new Transaction();
-
-    tx.add(
+    let tx = new Transaction().add(
       await groupConfigure(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: emodeGroup.publicKey,
         newEmodeAdmin: emodeAdmin.wallet.publicKey,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet, emodeGroup);
+    tx.sign(groupAdmin.wallet);
     await banksClient.processTransaction(tx);
 
     let group = await bankrunProgram.account.marginfiGroup.fetch(
@@ -114,7 +110,7 @@ describe("Init e-mode enabled group and banks", () => {
         isSigner: false,
         isWritable: false,
       },
-      oracleSetup: "PUSH",
+      oracleSetup: "PULL",
       feedOracle: oracles.pythPullLstOracleFeed.publicKey,
       seed: seed,
       verboseMessage: "*init LST A bank:",
@@ -130,7 +126,7 @@ describe("Init e-mode enabled group and banks", () => {
         isSigner: false,
         isWritable: false,
       },
-      oracleSetup: "PUSH",
+      oracleSetup: "PULL",
       feedOracle: oracles.pythPullLstOracleFeed.publicKey,
       seed: seed.addn(1),
       verboseMessage: "*init LST B bank:",
@@ -142,9 +138,9 @@ describe("Init e-mode enabled group and banks", () => {
     bankMint: PublicKey;
     oracle: PublicKey;
     oracleMeta: AccountMeta;
-    // For banks (like LST) that need a different oracle setup (push vs legacy)
-    oracleSetup?: "LEGACY" | "PUSH";
-    // Optional feed oracle in case the instruction requires it (i.e. for LST)
+    // For banks (like LST) that need a different oracle setup (pull vs legacy)
+    oracleSetup?: "LEGACY" | "PULL";
+    // Optional feed oracle in case the instruction requires it (i.e. for pull)
     feedOracle?: PublicKey;
     // Function to adjust the seed (for example, seed.addn(1))
     seed: BN;
@@ -179,7 +175,7 @@ describe("Init e-mode enabled group and banks", () => {
     );
 
     const setupType =
-      oracleSetup === "PUSH"
+      oracleSetup === "PULL"
         ? ORACLE_SETUP_PYTH_PUSH
         : ORACLE_SETUP_PYTH_LEGACY;
     const targetOracle = feedOracle ?? oracle;

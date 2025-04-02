@@ -123,6 +123,8 @@ export type MockUser = {
 
 /** in mockUser.accounts, key used to get/set the users's account for group 0 */
 export const USER_ACCOUNT: string = "g0_acc";
+/** in mockUser.accounts, key used to get/set the users's account for the emode group */
+export const USER_ACCOUNT_E: string = "ge_acc";
 /** in mockUser.accounts, key used to get/set the users's LST ATA for validator 0 */
 export const LST_ATA = "v0_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */

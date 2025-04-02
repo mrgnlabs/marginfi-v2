@@ -223,8 +223,11 @@ export const mochaHooks = {
       setupUserOptions
     );
     copyKeys.push(
+      groupAdmin.wsolAccount,
       groupAdmin.usdcAccount,
+      groupAdmin.tokenAAccount,
       groupAdmin.tokenBAccount,
+      groupAdmin.lstAlphaAccount,
       groupAdmin.wallet.publicKey,
       emodeAdmin.wallet.publicKey
     );

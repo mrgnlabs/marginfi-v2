@@ -34,6 +34,10 @@ export const ASSET_TAG_STAKED = 2;
 export const ORACLE_SETUP_NONE = 0;
 export const ORACLE_SETUP_PYTH_LEGACY = 1;
 export const ORACLE_SETUP_SWITCHBOARD_v2 = 2;
+/** 
+ * Yes, it should technically be called "pull", but this is what we call it on-chain, and
+ * consistency is king... 
+ * */
 export const ORACLE_SETUP_PYTH_PUSH = 3;
 export const ORACLE_SETUP_SWITCHBOARD_PULL = 4;
 export const ORACLE_SETUP_STAKED_WITH_PYTH_PUSH = 5;
