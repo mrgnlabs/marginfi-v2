@@ -652,15 +652,15 @@ impl<'info> RiskEngine<'_, 'info> {
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 
-        debug!(
-            "pre_liquidation_health: {} ({} - {})",
-            account_health, assets, liabs
-        );
-
-        check!(
-            account_health <= I80F48::ZERO,
-            MarginfiError::HealthyAccount
-        );
+        if account_health > I80F48::ZERO {
+            msg!(
+                "pre_liquidation_health: {} ({} - {})",
+                account_health,
+                assets,
+                liabs
+            );
+            return err!(MarginfiError::HealthyAccount);
+        }
 
         Ok(account_health)
     }
@@ -713,15 +713,16 @@ impl<'info> RiskEngine<'_, 'info> {
             MarginfiError::TooSevereLiquidation
         );
 
-        debug!(
-            "account_health: {} ({} - {}), pre_liquidation_health: {}",
-            account_health, assets, liabs, pre_liquidation_health,
-        );
-
-        check!(
-            account_health > pre_liquidation_health,
-            MarginfiError::WorseHealthPostLiquidation
-        );
+        if account_health <= pre_liquidation_health {
+            msg!(
+                "post_liquidation_health: {} ({} - {}), pre_liquidation_health: {}",
+                account_health,
+                assets,
+                liabs,
+                pre_liquidation_health
+            );
+            return err!(MarginfiError::WorseHealthPostLiquidation);
+        };
 
         Ok(account_health)
     }
