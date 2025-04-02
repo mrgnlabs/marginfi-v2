@@ -28,6 +28,7 @@ import {
 import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
+import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
 describe("Init e-mode enabled group and banks", () => {
   const seed = new BN(EMODE_SEED);
@@ -162,6 +163,9 @@ describe("Init e-mode enabled group and banks", () => {
 
     // Set configuration; override assetTag if provided
     const config = defaultBankConfig();
+    // Use a reduced weight for this test suite to see the impact of emode.
+    config.assetWeightInit = bigNumberToWrappedI80F48(0.5);
+    config.assetWeightMaint = bigNumberToWrappedI80F48(0.6);
     if (assetTag) {
       config.assetTag = assetTag;
     }
