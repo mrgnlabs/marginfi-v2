@@ -163,12 +163,13 @@ describe("Emode borrowing", () => {
     await banksClient.processTransaction(tx);
   });
 
+  // TODO why isn't the SOL pricing getting a confidence discount?
   /*
    * SOL is worth $150, and LST is worth $175. Against a 10 SOL position, worth $1500, with a
    * `EMODE_INIT_RATE_SOL_TO_LST` of 90% we expect to borrow .9 * 1500 / 175 ~= 7.71428571429 LST.
    *
-   * Due to confidence adjustments the actual SOL price used for risk purposes is ~99% of $150 and
-   * the LST liability is ~102% of $175 so .9 * (1500 * .99) / (175 * 1.0424) ~= 7.3264992874 LST
+   * Due to confidence adjustments the actual price of the LST liability is ~104% of $175 so:
+   * - 0.9 * 1500 / (175 * 1.0424) ~= 7.3264992874 LST
    *
    * With the bank's default rate sans-emode (50%), we could only borrow ~4.28571428571 LST
    *
