@@ -5,7 +5,7 @@ use super::{
     price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
 };
 use crate::{
-    assert_struct_align, assert_struct_size, check,
+    assert_struct_align, assert_struct_size, check, check_eq,
     constants::{
         ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
         EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD,
@@ -219,8 +219,9 @@ impl<'info> BankAccountWithPriceFeed<'_> {
 
                 // Determine number of accounts to process for this balance
                 let num_accounts = get_remaining_accounts_per_balance(balance)?;
-                check!(
-                    balance.bank_pk.eq(bank_ai.key),
+                check_eq!(
+                    balance.bank_pk,
+                    *bank_ai.key,
                     MarginfiError::InvalidBankAccount
                 );
                 let bank = bank_al.load()?;

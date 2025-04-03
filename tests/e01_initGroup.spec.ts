@@ -162,6 +162,9 @@ describe("Init e-mode enabled group and banks", () => {
     // Use a reduced weight for this test suite to see the impact of emode.
     config.assetWeightInit = bigNumberToWrappedI80F48(0.5);
     config.assetWeightMaint = bigNumberToWrappedI80F48(0.6);
+    // The default limit is somewhat small for SOL/LST with 9 decimals, so we bump it here.
+    config.depositLimit = new BN(100_000_000_000_000);
+    config.borrowLimit = new BN(100_000_000_000_000);
     if (assetTag) {
       config.assetTag = assetTag;
     }

@@ -13,19 +13,30 @@ import {
   bankrunProgram,
   banksClient,
   ecosystem,
+  EMODE_INIT_RATE_LST_TO_LST,
+  EMODE_INIT_RATE_SOL_TO_LST,
+  EMODE_MAINT_RATE_LST_TO_LST,
+  EMODE_MAINT_RATE_SOL_TO_LST,
   EMODE_SEED,
   emodeAdmin,
   emodeGroup,
   groupAdmin,
   users,
 } from "./rootHooks";
-import { assertBankrunTxFailed } from "./utils/genericTests";
+import {
+  assertBankrunTxFailed,
+  assertBNApproximately,
+  assertBNEqual,
+  assertI80F48Approx,
+  assertI80F48Equal,
+} from "./utils/genericTests";
 import { EMODE_APPLIES_TO_ISOLATED, newEmodeEntry } from "./utils/types";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { createMintToInstruction } from "@solana/spl-token";
 import { Marginfi } from "../target/types/marginfi";
+import { assert } from "chai";
 
 // By convention, all tags must be in 13375p34k (kidding, but only sorta)
 const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
@@ -156,8 +167,8 @@ describe("Init e-mode settings for a set of banks", () => {
           newEmodeEntry(
             EMODE_LST_TAG,
             EMODE_APPLIES_TO_ISOLATED,
-            bigNumberToWrappedI80F48(0.9),
-            bigNumberToWrappedI80F48(0.95)
+            bigNumberToWrappedI80F48(EMODE_INIT_RATE_SOL_TO_LST),
+            bigNumberToWrappedI80F48(EMODE_MAINT_RATE_SOL_TO_LST)
           ),
         ],
       })
@@ -175,8 +186,9 @@ describe("Init e-mode settings for a set of banks", () => {
           newEmodeEntry(
             EMODE_SOL_TAG,
             EMODE_APPLIES_TO_ISOLATED,
-            bigNumberToWrappedI80F48(0.85),
-            bigNumberToWrappedI80F48(0.9)
+            // Here SOL can be borrowed against LST at a reciprocal rate
+            bigNumberToWrappedI80F48(EMODE_INIT_RATE_SOL_TO_LST),
+            bigNumberToWrappedI80F48(EMODE_MAINT_RATE_SOL_TO_LST)
           ),
           // Note: borrowing LST against another LST is a fairly common use-case and generally
           // considered little to no risk. In this scenario, the entry is also the bank's own emode
@@ -186,8 +198,8 @@ describe("Init e-mode settings for a set of banks", () => {
           newEmodeEntry(
             EMODE_LST_TAG,
             EMODE_APPLIES_TO_ISOLATED,
-            bigNumberToWrappedI80F48(0.9),
-            bigNumberToWrappedI80F48(0.95)
+            bigNumberToWrappedI80F48(EMODE_INIT_RATE_LST_TO_LST),
+            bigNumberToWrappedI80F48(EMODE_MAINT_RATE_LST_TO_LST)
           ),
         ],
       })
@@ -201,22 +213,56 @@ describe("Init e-mode settings for a set of banks", () => {
           newEmodeEntry(
             EMODE_SOL_TAG,
             EMODE_APPLIES_TO_ISOLATED,
-            bigNumberToWrappedI80F48(0.85),
-            bigNumberToWrappedI80F48(0.9)
+            bigNumberToWrappedI80F48(EMODE_INIT_RATE_SOL_TO_LST),
+            bigNumberToWrappedI80F48(EMODE_MAINT_RATE_SOL_TO_LST)
           ),
           newEmodeEntry(
             EMODE_LST_TAG,
             EMODE_APPLIES_TO_ISOLATED,
-            bigNumberToWrappedI80F48(0.9),
-            bigNumberToWrappedI80F48(0.95)
+            bigNumberToWrappedI80F48(EMODE_INIT_RATE_LST_TO_LST),
+            bigNumberToWrappedI80F48(EMODE_MAINT_RATE_LST_TO_LST)
           ),
         ],
       })
     );
 
+    const now = Date.now() / 1000;
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(emodeAdmin.wallet);
     await banksClient.processTransaction(tx);
+
+    let lstBBankAcc = await bankrunProgram.account.bank.fetch(lstBBank);
+    let emode = lstBBankAcc.emode;
+    assert.equal(emode.emodeTag, EMODE_LST_TAG);
+    assertBNEqual(emode.flags, 1); // is active
+
+    let lastUpdate = emode.timestamp.toNumber();
+    // Date checks in bankrun are wonky, this is close enough...
+    assert.approximately(lastUpdate, now, 100);
+
+    // When the entries are sorted ascending, sol (501) will be last, and lst (157) just prior.
+    let entrySol =
+      emode.emodeConfig.entries[emode.emodeConfig.entries.length - 1];
+    assert.equal(entrySol.collateralBankEmodeTag, EMODE_SOL_TAG);
+    assert.equal(entrySol.flags, EMODE_APPLIES_TO_ISOLATED);
+    assertI80F48Approx(entrySol.assetWeightInit, EMODE_INIT_RATE_SOL_TO_LST);
+    assertI80F48Approx(entrySol.assetWeightMaint, EMODE_MAINT_RATE_SOL_TO_LST);
+
+    let entryLst =
+      emode.emodeConfig.entries[emode.emodeConfig.entries.length - 2];
+    assert.equal(entryLst.collateralBankEmodeTag, EMODE_LST_TAG);
+    assert.equal(entryLst.flags, EMODE_APPLIES_TO_ISOLATED);
+    assertI80F48Approx(entryLst.assetWeightInit, EMODE_INIT_RATE_LST_TO_LST);
+    assertI80F48Approx(entryLst.assetWeightMaint, EMODE_MAINT_RATE_LST_TO_LST);
+
+    // The rest is blank
+    for (let i = 0; i < emode.emodeConfig.entries.length - 2; i++) {
+      let entry = emode.emodeConfig.entries[i];
+      assert.equal(entry.collateralBankEmodeTag, 0);
+      assert.equal(entry.flags, 0);
+      assertI80F48Equal(entry.assetWeightInit, 0);
+      assertI80F48Equal(entry.assetWeightMaint, 0);
+    }
   });
 
   it("(Fund users/admin USDC/WSOL/LST token accounts", async () => {

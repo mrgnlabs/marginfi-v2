@@ -93,6 +93,10 @@ export const PYTH_ORACLE_SAMPLE = new PublicKey(
 
 /** Banks in the emode test suite use this seed */
 export const EMODE_SEED = 44;
+export const EMODE_INIT_RATE_SOL_TO_LST = .9;
+export const EMODE_MAINT_RATE_SOL_TO_LST = .95;
+export const EMODE_INIT_RATE_LST_TO_LST = .8;
+export const EMODE_MAINT_RATE_LST_TO_LST = .85;
 
 /** keys copied into the bankrun instance */
 let copyKeys: PublicKey[] = [PYTH_ORACLE_FEED_SAMPLE, PYTH_ORACLE_SAMPLE];
@@ -261,7 +265,7 @@ export const mochaHooks = {
       ecosystem.tokenBDecimals,
       175,
       ecosystem.lstAlphaDecimals,
-      0.02, // confidnece interval
+      0.02, // confidence interval
       verbose
     );
     copyKeys.push(

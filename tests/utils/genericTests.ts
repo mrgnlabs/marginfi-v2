@@ -62,6 +62,10 @@ export const assertI80F48Equal = (
     throw new Error("Unsupported type for comparison");
   }
 
+  if (bigA.isNaN() || bigB.isNaN()) {
+    throw new Error("One of the values is NaN");
+  }
+
   assert.equal(bigA.toString(), bigB.toString());
 };
 
@@ -87,6 +91,10 @@ export const assertI80F48Approx = (
     bigB = wrappedI80F48toBigNumber(b);
   } else {
     throw new Error("Unsupported type for comparison");
+  }
+
+  if (bigA.isNaN() || bigB.isNaN()) {
+    throw new Error("One of the values is NaN");
   }
 
   const diff = bigA.minus(bigB).abs();
