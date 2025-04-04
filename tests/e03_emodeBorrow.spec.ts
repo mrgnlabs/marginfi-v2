@@ -14,6 +14,8 @@ import {
   bankrunProgram,
   banksClient,
   ecosystem,
+  EMODE_INIT_RATE_LST_TO_LST,
+  EMODE_INIT_RATE_SOL_TO_LST,
   EMODE_SEED,
   emodeAdmin,
   emodeGroup,
@@ -23,8 +25,15 @@ import {
   users,
   verbose,
 } from "./rootHooks";
-import { assertBankrunTxFailed } from "./utils/genericTests";
-import { EMODE_APPLIES_TO_ISOLATED, newEmodeEntry } from "./utils/types";
+import {
+  assertBankrunTxFailed,
+  assertI80F48Approx,
+} from "./utils/genericTests";
+import {
+  CONF_INTERVAL_MULTIPLE,
+  EMODE_APPLIES_TO_ISOLATED,
+  newEmodeEntry,
+} from "./utils/types";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
 import {
@@ -163,7 +172,7 @@ describe("Emode borrowing", () => {
     await banksClient.processTransaction(tx);
   });
 
-  // TODO why isn't the SOL pricing getting a confidence discount?
+  // TODO why isn't the SOL pricing getting a confidence discount (legacy oracle issue)?
   /*
    * SOL is worth $150, and LST is worth $175. Against a 10 SOL position, worth $1500, with a
    * `EMODE_INIT_RATE_SOL_TO_LST` of 90% we expect to borrow .9 * 1500 / 175 ~= 7.71428571429 LST.
@@ -181,6 +190,8 @@ describe("Emode borrowing", () => {
    */
   it("(user 0) borrows LST A against SOL at a favorable rate - happy path", async () => {
     const user = users[0];
+    const solDeposit = 10;
+    const lstBorrow = 7.3;
     const userAccount = user.accounts.get(USER_ACCOUNT_E);
 
     let tx = new Transaction().add(
@@ -188,7 +199,7 @@ describe("Emode borrowing", () => {
         marginfiAccount: userAccount,
         bank: solBank,
         tokenAccount: user.wsolAccount,
-        amount: new BN(10 * 10 ** ecosystem.wsolDecimals),
+        amount: new BN(solDeposit * 10 ** ecosystem.wsolDecimals),
         depositUpToLimit: false,
       })
     );
@@ -207,7 +218,7 @@ describe("Emode borrowing", () => {
           lstABank,
           oracles.pythPullLst.publicKey,
         ],
-        amount: new BN(7.3 * 10 ** ecosystem.lstAlphaDecimals),
+        amount: new BN(lstBorrow * 10 ** ecosystem.lstAlphaDecimals),
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -233,8 +244,138 @@ describe("Emode borrowing", () => {
       }
     }
 
-    // TODO assert balances
+    const assetsExpected =
+      oracles.wsolPrice * solDeposit * EMODE_INIT_RATE_SOL_TO_LST;
+    assertI80F48Approx(cacheAfter.assetValue, assetsExpected);
+
+    const liabsExpected =
+      oracles.lstAlphaPrice *
+      lstBorrow *
+      (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
+      1; // Note: Liability weight 1 for banks in this test
+    // TODO the expected liability value is still about 1% higher than the computed why?
+    assertI80F48Approx(
+      cacheAfter.liabilityValue,
+      liabsExpected,
+      liabsExpected * 0.02
+    );
   });
+
+  // This illustrates a possible emode footgun: the user tries to borrow USDC, which would cause
+  // them to lose the emode benefit from their LST borrow. Even this trivial borrow amount fails
+  // because breaking the emode benefit would put this user significantly under water.
+  it("(user 0) tries to borrow a trivial amount of USDC - fails, emode error", async () => {
+    const user = users[0];
+    const userAccount = user.accounts.get(USER_ACCOUNT_E);
+
+    let tx = new Transaction().add(
+      await borrowIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: usdcBank,
+        tokenAccount: user.usdcAccount,
+        remaining: [
+          solBank,
+          oracles.wsolOracle.publicKey,
+          lstABank,
+          oracles.pythPullLst.publicKey,
+          usdcBank,
+          oracles.usdcOracle.publicKey,
+        ],
+        amount: new BN(0.0001 * 10 ** ecosystem.usdcDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
+    // 6009 (RiskEngineInitRejected)
+    assertBankrunTxFailed(result, "0x1779");
+  });
+
+  /*
+   * Both LST are worth $175. With an LST to LST emode rate of 80%, we expect:
+   * .8 * 1750 / 175 = 8 LST B borrowed
+   *
+   * And with the confidence adjustment:
+   * - (0.8 * 1750 * (1 - 0.02 * 2.12)) / (175 * 1.0424) ~= 7.34919416731 LST
+   */
+  it("(user 1) borrows LST A against LST B at a favorable rate - happy path", async () => {
+    const user = users[1];
+    const lstADeposit = 10;
+    const lstBBorrow = 7.2;
+    const userAccount = user.accounts.get(USER_ACCOUNT_E);
+
+    let tx = new Transaction().add(
+      await depositIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: lstABank,
+        tokenAccount: user.lstAlphaAccount,
+        amount: new BN(lstADeposit * 10 ** ecosystem.lstAlphaDecimals),
+        depositUpToLimit: false,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+
+    tx = new Transaction().add(
+      await borrowIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: lstBBank,
+        tokenAccount: user.lstAlphaAccount,
+        remaining: [
+          lstABank,
+          oracles.pythPullLst.publicKey,
+          lstBBank,
+          oracles.pythPullLst.publicKey,
+        ],
+        amount: new BN(lstBBorrow * 10 ** ecosystem.lstAlphaDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+
+    let userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    const cacheAfter = userAcc.healthCache;
+    const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
+    const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
+    if (verbose) {
+      console.log("---user health state---");
+      console.log("asset value: " + assetValue.toString());
+      console.log("liab value: " + liabValue.toString());
+      console.log("prices: ");
+      for (let i = 0; i < cacheAfter.prices.length; i++) {
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        if (price != 0) {
+          console.log(" [" + i + "] " + price);
+        }
+      }
+    }
+
+    // (0.8 * 1750 * (1 - 0.02 * 2.12))
+    const assetsExpected =
+      oracles.lstAlphaPrice *
+      lstADeposit *
+      EMODE_INIT_RATE_LST_TO_LST *
+      (1 - oracles.confidenceValue * CONF_INTERVAL_MULTIPLE);
+    assertI80F48Approx(cacheAfter.assetValue, assetsExpected);
+
+    const liabsExpected =
+      oracles.lstAlphaPrice *
+      lstBBorrow *
+      (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
+      1; // Note: Liability weight 1 for banks in this test
+    // TODO Again the liability is very slightly (about 1%) overvalue
+    assertI80F48Approx(
+      cacheAfter.liabilityValue,
+      liabsExpected,
+      liabsExpected * 0.02
+    );
+  });
+
+  // TODO borrow SOL, no impact due to MORE favorable rate (and health does not change)
 
   // TODO moar tests....
 });
