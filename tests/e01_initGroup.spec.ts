@@ -22,6 +22,7 @@ import {
   ASSET_TAG_DEFAULT,
   ASSET_TAG_SOL,
   defaultBankConfig,
+  I80F48_ZERO,
   ORACLE_SETUP_PYTH_LEGACY,
   ORACLE_SETUP_PYTH_PUSH,
 } from "./utils/types";
@@ -165,6 +166,8 @@ describe("Init e-mode enabled group and banks", () => {
     // The default limit is somewhat small for SOL/LST with 9 decimals, so we bump it here.
     config.depositLimit = new BN(100_000_000_000_000);
     config.borrowLimit = new BN(100_000_000_000_000);
+    // We don't want origination fees messing with debt here
+    config.interestRateConfig.protocolOriginationFee = I80F48_ZERO;
     if (assetTag) {
       config.assetTag = assetTag;
     }

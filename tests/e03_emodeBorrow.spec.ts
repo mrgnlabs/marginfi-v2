@@ -253,11 +253,10 @@ describe("Emode borrowing", () => {
       lstBorrow *
       (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
       1; // Note: Liability weight 1 for banks in this test
-    // TODO the expected liability value is still about 1% higher than the computed why?
     assertI80F48Approx(
       cacheAfter.liabilityValue,
       liabsExpected,
-      liabsExpected * 0.02
+      liabsExpected * 0.001
     );
   });
 
@@ -367,11 +366,10 @@ describe("Emode borrowing", () => {
       lstBBorrow *
       (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
       1; // Note: Liability weight 1 for banks in this test
-    // TODO Again the liability is very slightly (about 1%) overvalue
     assertI80F48Approx(
       cacheAfter.liabilityValue,
       liabsExpected,
-      liabsExpected * 0.02
+      liabsExpected * 0.001
     );
   });
 
