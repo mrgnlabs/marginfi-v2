@@ -256,7 +256,7 @@ describe("Emode borrowing", () => {
     assertI80F48Approx(
       cacheAfter.liabilityValue,
       liabsExpected,
-      liabsExpected * 0.001
+      liabsExpected * 0.0001
     );
   });
 
@@ -280,7 +280,7 @@ describe("Emode borrowing", () => {
           usdcBank,
           oracles.usdcOracle.publicKey,
         ],
-        amount: new BN(0.0001 * 10 ** ecosystem.usdcDecimals),
+        amount: new BN(0.000001 * 10 ** ecosystem.usdcDecimals),
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -297,10 +297,10 @@ describe("Emode borrowing", () => {
    * And with the confidence adjustment:
    * - (0.8 * 1750 * (1 - 0.02 * 2.12)) / (175 * 1.0424) ~= 7.34919416731 LST
    */
+  const lstADeposit = 10;
+  const lstBBorrow = 7.3;
   it("(user 1) borrows LST A against LST B at a favorable rate - happy path", async () => {
     const user = users[1];
-    const lstADeposit = 10;
-    const lstBBorrow = 7.2;
     const userAccount = user.accounts.get(USER_ACCOUNT_E);
 
     let tx = new Transaction().add(
@@ -369,11 +369,79 @@ describe("Emode borrowing", () => {
     assertI80F48Approx(
       cacheAfter.liabilityValue,
       liabsExpected,
-      liabsExpected * 0.001
+      liabsExpected * 0.0001
     );
   });
 
-  // TODO borrow SOL, no impact due to MORE favorable rate (and health does not change)
+  // Here the user adds a SOL borrow, which is fine, because SOL has a better emode pairing with LST
+  // A than LST B does. The lesser emode value (from the LST B borrow) is used for collateral
+  // purposes, but the position doesn't blow up like with the earlier attempted USDC borrow, its
+  // value doesn't change other than the trivial increase from the SOL borrow.
+  it("(user 1) tries to also borrow a trivial amount of SOL - succeeds, no change", async () => {
+    const user = users[1];
+    const wsolBorrow = 0.000001;
+    const userAccount = user.accounts.get(USER_ACCOUNT_E);
+
+    let tx = new Transaction().add(
+      await borrowIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: solBank,
+        tokenAccount: user.wsolAccount,
+        remaining: [
+          lstABank,
+          oracles.pythPullLst.publicKey,
+          lstBBank,
+          oracles.pythPullLst.publicKey,
+          solBank,
+          oracles.wsolOracle.publicKey,
+        ],
+        amount: new BN(0.000001 * 10 ** ecosystem.wsolDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+
+    // Note: essentially no change
+    let userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    const cacheAfter = userAcc.healthCache;
+    const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
+    const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
+    if (verbose) {
+      console.log("---user health state---");
+      console.log("asset value: " + assetValue.toString());
+      console.log("liab value: " + liabValue.toString());
+      console.log("prices: ");
+      for (let i = 0; i < cacheAfter.prices.length; i++) {
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        if (price != 0) {
+          console.log(" [" + i + "] " + price);
+        }
+      }
+    }
+
+    // (0.8 * 1750 * (1 - 0.02 * 2.12))
+    const assetsExpected =
+      oracles.lstAlphaPrice *
+      lstADeposit *
+      EMODE_INIT_RATE_LST_TO_LST *
+      (1 - oracles.confidenceValue * CONF_INTERVAL_MULTIPLE);
+    assertI80F48Approx(cacheAfter.assetValue, assetsExpected);
+
+    const liabsExpected =
+      oracles.lstAlphaPrice *
+        lstBBorrow *
+        (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
+        1 +
+      wsolBorrow * oracles.wsolPrice; // Close enough, the amount is trivial
+    assertI80F48Approx(
+      cacheAfter.liabilityValue,
+      liabsExpected,
+      liabsExpected * 0.001
+    );
+  });
 
   // TODO moar tests....
 });
