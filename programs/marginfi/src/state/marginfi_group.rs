@@ -525,7 +525,7 @@ pub struct Bank {
     pub collected_program_fees_outstanding: WrappedI80F48,
 
     /// Controls this bank's emode configuration, which enables some banks to treat the assets of
-    /// certain other banks more preferrentially as collateral.
+    /// certain other banks more preferentially as collateral.
     pub emode: EmodeSettings,
 
     pub _padding_0: [u8; 8],

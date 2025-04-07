@@ -155,7 +155,7 @@ impl MarginfiGroupFixture {
 
     /// Adds bank and configures the oracle.
     ///
-    /// Note: AddBank and LendingPoolConfigureBankOracle were seperated to handle a tx size issue in
+    /// Note: AddBank and LendingPoolConfigureBankOracle were separated to handle a tx size issue in
     /// squads. This test fixture packs both ixes into one tx as is typical outside of squads.
     pub async fn try_lending_pool_add_bank(
         &self,
@@ -232,7 +232,7 @@ impl MarginfiGroupFixture {
 
     /// Adds bank and configures the oracle.
     ///
-    /// Note: AddBank and LendingPoolConfigureBankOracle were seperated to handle a tx size issue in
+    /// Note: AddBank and LendingPoolConfigureBankOracle were separated to handle a tx size issue in
     /// squads. This test fixture packs both ixes into one tx as is typical outside of squads.
     pub async fn try_lending_pool_add_bank_with_seed(
         &self,
@@ -419,7 +419,7 @@ impl MarginfiGroupFixture {
     pub async fn try_update(
         &self,
         new_admin: Pubkey,
-        new_emode_admin:Pubkey,
+        new_emode_admin: Pubkey,
         is_arena_group: bool,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {

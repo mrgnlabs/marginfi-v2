@@ -23,7 +23,6 @@ pub fn configure(
     marginfi_group.update_emode_admin(new_emode_admin);
     marginfi_group.set_arena_group(is_arena_group)?;
 
-
     msg!("flags set to: {:?}", marginfi_group.group_flags);
 
     emit!(MarginfiGroupConfigureEvent {

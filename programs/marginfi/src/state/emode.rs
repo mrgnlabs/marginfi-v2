@@ -26,8 +26,8 @@ pub struct EmodeSettings {
     ///
     /// For example, all stablecoin banks might share the same emode_tag, and in their entries, each
     /// such stablecoin bank will recognize that collateral sources with this "stable" tag get
-    /// preferrential weights. When a new stablecoin is added that is considered riskier, it may get
-    /// a new, less favorable emode tag, and eventually get ugraded to the same one as the other
+    /// preferential weights. When a new stablecoin is added that is considered riskier, it may get
+    /// a new, less favorable emode tag, and eventually get upgraded to the same one as the other
     /// stables
     ///
     /// * 0 is in an invalid tag and will do nothing.
@@ -156,7 +156,7 @@ assert_struct_align!(EmodeEntry, 8);
     AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod, PartialEq, Eq, TypeLayout, Debug,
 )]
 pub struct EmodeEntry {
-    /// emode_tag of the bank(s) whose collateral you wish to treat preferrentially.
+    /// emode_tag of the bank(s) whose collateral you wish to treat preferentially.
     pub collateral_bank_emode_tag: u16,
     /// * APPLIES_TO_ISOLATED (1) - if set, isolated banks with this tag also benefit. If not set,
     ///   isolated banks continue to offer zero collateral, even if they use this tag.

@@ -18,7 +18,7 @@ pub fn lending_pool_configure_bank_emode(
 
     // Prevent footguns from passing data in padding, which could interfere with future values in
     // that assumed-empty space. Yes, we could simply take a struct without padding as input, but
-    // having a seperate config type has proved to be more of a pain than dealing with padding.
+    // having a separate config type has proved to be more of a pain than dealing with padding.
     for entry in sorted_entries.iter_mut() {
         entry.pad0 = [0; 5];
     }
