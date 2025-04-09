@@ -57,14 +57,14 @@ pub fn lending_account_repay<'info>(
         bank_loader.key(),
     )?;
 
-    let mut bank_account = BankAccountWrapper::find(
-        &bank_loader.key(),
-        &mut bank,
-        &mut marginfi_account.lending_account,
-    )?;
+    let lending_account = &mut marginfi_account.lending_account;
+    let mut bank_account =
+        BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
     let repay_amount_post_fee = if repay_all {
-        bank_account.repay_all()?
+        let amount = bank_account.repay_all()?;
+        lending_account.ensure_no_gaps_in_lending_account();
+        amount
     } else {
         bank_account.repay(I80F48::from_num(amount))?;
 
@@ -83,7 +83,7 @@ pub fn lending_account_repay<'info>(
         .transpose()?
         .unwrap_or(repay_amount_post_fee);
 
-    bank_account.deposit_spl_transfer(
+    bank.deposit_spl_transfer(
         repay_amount_pre_fee,
         signer_token_account.to_account_info(),
         bank_liquidity_vault.to_account_info(),
@@ -105,6 +105,8 @@ pub fn lending_account_repay<'info>(
         amount: repay_amount_post_fee,
         close_balance: repay_all,
     });
+
+    marginfi_account.lending_account.sort_balances();
 
     Ok(())
 }

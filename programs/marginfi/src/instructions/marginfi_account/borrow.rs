@@ -170,6 +170,8 @@ pub fn lending_account_borrow<'info>(
     let mut health_cache = HealthCache::zeroed();
     health_cache.timestamp = clock.unix_timestamp;
 
+    marginfi_account.lending_account.sort_balances();
+
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
     RiskEngine::check_account_init_health(

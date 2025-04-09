@@ -32,13 +32,12 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
         bank_loader.key(),
     )?;
 
-    let mut bank_account = BankAccountWrapper::find(
-        &bank_loader.key(),
-        &mut bank,
-        &mut marginfi_account.lending_account,
-    )?;
+    let lending_account = &mut marginfi_account.lending_account;
+    let mut bank_account =
+        BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
     bank_account.close_balance()?;
+    lending_account.ensure_no_gaps_in_lending_account();
 
     Ok(())
 }

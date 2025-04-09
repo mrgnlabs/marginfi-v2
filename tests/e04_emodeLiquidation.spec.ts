@@ -53,6 +53,8 @@ let stableBank: PublicKey;
 let solBank: PublicKey;
 let lstABank: PublicKey;
 let lstBBank: PublicKey;
+let lstABank: PublicKey;
+let solBank: PublicKey;
 
 /** USDC funding for the liquidator (user 2) */
 const liquidator_usdc: number = 10;
@@ -79,8 +81,8 @@ describe("Emode liquidation", () => {
     [solBank] = deriveBankWithSeed(
       bankrunProgram.programId,
       emodeGroup.publicKey,
-      ecosystem.wsolMint.publicKey,
-      seed
+      ecosystem.lstAlphaMint.publicKey,
+      seed.addn(1)
     );
     [lstABank] = deriveBankWithSeed(
       bankrunProgram.programId,
@@ -88,11 +90,11 @@ describe("Emode liquidation", () => {
       ecosystem.lstAlphaMint.publicKey,
       seed
     );
-    [lstBBank] = deriveBankWithSeed(
+    [solBank] = deriveBankWithSeed(
       bankrunProgram.programId,
       emodeGroup.publicKey,
-      ecosystem.lstAlphaMint.publicKey,
-      seed.addn(1)
+      ecosystem.wsolMint.publicKey,
+      seed
     );
   });
 

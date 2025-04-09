@@ -1,11 +1,8 @@
-import { workspace, Program } from "@coral-xyz/anchor";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import BN from "bn.js";
-import { Marginfi } from "../target/types/marginfi";
 import {
   marginfiGroup,
   validators,
-  groupAdmin,
   oracles,
   bankrunContext,
   banksClient,
@@ -14,34 +11,21 @@ import {
   ecosystem,
   bankKeypairSol,
   bankRunProvider,
-  verbose,
 } from "./rootHooks";
-import {
-  editStakedSettings,
-  propagateStakedSettings,
-} from "./utils/group-instructions";
 import { deriveBankWithSeed, deriveStakedSettings } from "./utils/pdas";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
-  bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
 import { assert } from "chai";
 import {
-  assertKeysEqual,
-  assertI80F48Approx,
-  assertBNEqual,
-  assertBankrunTxFailed,
   getTokenBalance,
   assertI80F48Equal,
 } from "./utils/genericTests";
-import {
-  defaultStakedInterestSettings,
-  StakedSettingsEdit,
-} from "./utils/types";
 import { LST_ATA, USER_ACCOUNT } from "./utils/mocks";
 import {
   borrowIx,
+  composeRemainingAccounts,
   depositIx,
   repayIx,
   withdrawIx,
@@ -87,14 +71,14 @@ describe("Withdraw staked asset", () => {
         marginfiAccount: userAccount,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
-        remaining: [
-          validators[0].bank,
+        remaining: composeRemainingAccounts([
+          [validators[0].bank,
           oracles.wsolOracle.publicKey,
           validators[0].splMint,
-          validators[0].splSolPool,
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+          validators[0].splSolPool],
+          [bankKeypairSol.publicKey,
+          oracles.wsolOracle.publicKey],
+        ]),
         amount: new BN(0.5 * 10 ** ecosystem.wsolDecimals),
       })
     );
@@ -117,14 +101,14 @@ describe("Withdraw staked asset", () => {
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(amtNative),
-        remaining: [
-          validators[0].bank,
+        remaining: composeRemainingAccounts([
+          [validators[0].bank,
           oracles.wsolOracle.publicKey,
           validators[0].splMint,
-          validators[0].splSolPool,
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+          validators[0].splSolPool],
+          [bankKeypairSol.publicKey,
+          oracles.wsolOracle.publicKey],
+        ]),
       })
     );
 
@@ -157,14 +141,14 @@ describe("Withdraw staked asset", () => {
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         amount: new BN(amtNative),
-        remaining: [
-          validators[0].bank,
+        remaining: composeRemainingAccounts([
+          [validators[0].bank,
           oracles.wsolOracle.publicKey,
           validators[0].splMint,
-          validators[0].splSolPool,
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+          validators[0].splSolPool],
+          [bankKeypairSol.publicKey,
+          oracles.wsolOracle.publicKey],
+        ]),
       })
     );
 
@@ -207,14 +191,14 @@ describe("Withdraw staked asset", () => {
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         amount: new BN(amtNative),
-        remaining: [
-          validators[0].bank,
+        remaining: composeRemainingAccounts([
+          [validators[0].bank,
           oracles.wsolOracle.publicKey,
           validators[0].splMint,
-          validators[0].splSolPool,
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+          validators[0].splSolPool],
+          [bankKeypairSol.publicKey,
+          oracles.wsolOracle.publicKey],
+        ]),
         repayAll: true,
       })
     );
@@ -260,14 +244,14 @@ describe("Withdraw staked asset", () => {
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(amtNative),
-        remaining: [
-          validators[0].bank,
+        remaining: composeRemainingAccounts([
+          [validators[0].bank,
           oracles.wsolOracle.publicKey,
           validators[0].splMint,
-          validators[0].splSolPool,
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+          validators[0].splSolPool],
+          [bankKeypairSol.publicKey,
+          oracles.wsolOracle.publicKey],
+        ]),
         withdrawAll: true,
       })
     );

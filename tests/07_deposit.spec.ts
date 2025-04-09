@@ -29,7 +29,7 @@ import { depositIx, withdrawIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { createMintToInstruction } from "@solana/spl-token";
 import { deriveBankWithSeed, deriveLiquidityVault } from "./utils/pdas";
-import { addBank, addBankWithSeed } from "./utils/group-instructions";
+import { addBankWithSeed } from "./utils/group-instructions";
 import {
   defaultBankConfig,
   ORACLE_SETUP_PYTH_LEGACY,
@@ -240,6 +240,11 @@ describe("Deposit funds", () => {
     }
 
     const user1Account = user.accounts.get(USER_ACCOUNT);
+    const userAccBefore = await program.account.marginfiAccount.fetch(user1Account);
+    const balancesBefore = userAccBefore.lendingAccount.balances;
+    assert.equal(balancesBefore[0].active, 1);
+    assert.equal(balancesBefore[1].active, 0);
+
     await user.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
         await depositIx(user.mrgnProgram, {
@@ -266,11 +271,23 @@ describe("Deposit funds", () => {
       userTokenABefore - userTokenAAfter,
       depositLimit - depositAmount0 - 1
     );
+
     const userAcc = await program.account.marginfiAccount.fetch(user1Account);
+    const balances = userAcc.lendingAccount.balances;
+    assert.equal(balances[0].active, 1);
+    assert.equal(balances[1].active, 1);
+
+    // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
+    const depositIndex = balances.findIndex(
+      (balance) => balance.bankPk.equals(bankKey)
+    );
+
     assertI80F48Approx(
-      userAcc.lendingAccount.balances[1].assetShares,
+      balances[depositIndex].assetShares,
       expected
     );
+    let now = Math.floor(Date.now() / 1000);
+    assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
 
     // withdraw amounts to restore to previous state...
 

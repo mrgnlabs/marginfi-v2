@@ -12,7 +12,6 @@ import {
   bankrunProgram,
 } from "./rootHooks";
 import {
-  editStakedSettings,
   propagateStakedSettings,
 } from "./utils/group-instructions";
 import { deriveBankWithSeed, deriveStakedSettings } from "./utils/pdas";

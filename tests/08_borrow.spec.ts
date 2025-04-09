@@ -12,7 +12,6 @@ import {
   bankKeypairA,
   bankKeypairUsdc,
   ecosystem,
-  marginfiGroup,
   oracles,
   users,
   verbose,
@@ -166,18 +165,24 @@ describe("Borrow funds", () => {
     }
 
     assert.equal(balances[1].active, 1);
-    assertI80F48Equal(balances[1].assetShares, 0);
+
+    // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
+    const borrowIndex = balances.findIndex(
+      (balance) => balance.bankPk.equals(bank)
+    );
+
+    assertI80F48Equal(balances[borrowIndex].assetShares, 0);
     // Note: The first borrow issues shares 1:1 and the shares use the same decimals
     // Note: An origination fee of 0.01 is also incurred here (configured during addBank)
     const originationFee_native = borrowAmountUsdc_native.toNumber() * 0.01;
     const amtUsdcWithFee_native = new BN(
       borrowAmountUsdc_native.toNumber() + originationFee_native
     );
-    assertI80F48Approx(balances[1].liabilityShares, amtUsdcWithFee_native);
-    assertI80F48Equal(balances[1].emissionsOutstanding, 0);
+    assertI80F48Approx(balances[borrowIndex].liabilityShares, amtUsdcWithFee_native);
+    assertI80F48Equal(balances[borrowIndex].emissionsOutstanding, 0);
 
     let now = Math.floor(Date.now() / 1000);
-    assertBNApproximately(balances[1].lastUpdate, now, 2);
+    assertBNApproximately(balances[borrowIndex].lastUpdate, now, 2);
 
     assert.equal(
       userUsdcAfter - borrowAmountUsdc_native.toNumber(),

@@ -13,7 +13,6 @@ import {
   bankKeypairUsdc,
   ecosystem,
   groupAdmin,
-  marginfiGroup,
   verbose,
 } from "./rootHooks";
 import {

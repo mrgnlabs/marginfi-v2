@@ -2,7 +2,6 @@ import { BN, Program } from "@coral-xyz/anchor";
 import { AccountMeta, PublicKey } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { deriveLiquidityVault } from "./pdas";
 
 export type AccountInitArgs = {
   marginfiGroup: PublicKey;
@@ -417,4 +416,28 @@ export const healthPulse = (
     })
     .remainingAccounts(oracleMeta)
     .instruction();
+};
+
+export type BankAndOracles = PublicKey[]; // [bank, oracle, oracle_2...]
+
+/**
+ * Prepares transaction remaining accounts by processing bank-oracle groups:
+ * 1. Sorts groups in descending order by bank public key (pushes inactive accounts to end)
+ * 2. Flattens the structure into a single public key array
+ * 
+ * @param banksAndOracles - Array where each element is a bank-oracle group:
+ *                          [bankPubkey, oracle1Pubkey, oracle2Pubkey?, ...]
+ *                          Note: SystemProgram keys (111..111) represent inactive accounts
+ * @returns Flattened array of public keys with inactive accounts at the end,
+ *          ready for transaction composition
+ */
+export const composeRemainingAccounts = (
+  banksAndOracles: BankAndOracles[]
+): PublicKey[] => {
+  // Sort in descending order to push SystemProgram keys (inactive) to end
+  banksAndOracles.sort((a, b) => 
+    b[0].toString().localeCompare(a[0].toString())
+  );
+  
+  return banksAndOracles.flat();
 };

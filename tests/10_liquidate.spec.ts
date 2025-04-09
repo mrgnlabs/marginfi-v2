@@ -13,21 +13,19 @@ import {
   bankKeypairUsdc,
   ecosystem,
   groupAdmin,
-  marginfiGroup,
   oracles,
   users,
   verbose,
 } from "./rootHooks";
 import {
   assertBNApproximately,
-  assertI80F48Approx,
   assertI80F48Equal,
   assertKeysEqual,
   expectFailedTxWithError,
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { liquidateIx } from "./utils/user-instructions";
+import { composeRemainingAccounts, liquidateIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { updatePriceAccount } from "./utils/pyth_mocks";
 import {
@@ -92,6 +90,9 @@ describe("Liquidate user", () => {
 
     const assetBankKey = bankKeypairA.publicKey;
     const liabilityBankKey = bankKeypairUsdc.publicKey;
+    console.log("asset bank key", assetBankKey.toString()); //6g
+    console.log("liability bank key", liabilityBankKey.toString()); //47
+    
     const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT);
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT);
 
@@ -106,15 +107,18 @@ describe("Liquidate user", () => {
             remaining: [
               oracles.tokenAOracle.publicKey,
               oracles.usdcOracle.publicKey,
-              liabilityBankKey,
-              oracles.fakeUsdc, // sneaky sneaky
-              assetBankKey,
-              oracles.tokenAOracle.publicKey,
-              assetBankKey,
-              oracles.tokenAOracle.publicKey,
-              liabilityBankKey,
-              oracles.usdcOracle.publicKey,
-            ],
+              ...composeRemainingAccounts(
+                [[liabilityBankKey,
+                  oracles.fakeUsdc], // sneaky sneaky
+                  [assetBankKey,
+                    oracles.tokenAOracle.publicKey]]),
+              ...composeRemainingAccounts(
+                [[liabilityBankKey,
+                  oracles.usdcOracle.publicKey],
+                [assetBankKey,
+                  oracles.tokenAOracle.publicKey]]
+              )]
+            ,
             amount: liquidateAmountA_native,
           })
         )
@@ -140,18 +144,19 @@ describe("Liquidate user", () => {
             liabilityBankKey,
             liquidatorMarginfiAccount: liquidatorAccount,
             liquidateeMarginfiAccount: liquidateeAccount,
-            remaining: [
-              oracles.tokenAOracle.publicKey,
-              oracles.usdcOracle.publicKey,
-              liabilityBankKey,
-              oracles.usdcOracle.publicKey,
-              assetBankKey,
-              oracles.tokenAOracle.publicKey,
-              assetBankKey,
-              oracles.tokenAOracle.publicKey,
-              liabilityBankKey,
-              oracles.fakeUsdc, // sneaky sneaky
-            ],
+            remaining: [oracles.tokenAOracle.publicKey,
+            oracles.usdcOracle.publicKey,
+            ...composeRemainingAccounts(
+              [[liabilityBankKey,
+                oracles.usdcOracle.publicKey],
+              [assetBankKey,
+                oracles.tokenAOracle.publicKey]]),
+            ...composeRemainingAccounts(
+              [[liabilityBankKey,
+                oracles.fakeUsdc], // sneaky sneaky
+              [assetBankKey,
+                oracles.tokenAOracle.publicKey]]
+            )],
             amount: liquidateAmountA_native,
           })
         )
@@ -227,7 +232,7 @@ describe("Liquidate user", () => {
       liquidateeMarginfiAccount.lendingAccount.balances;
     const liquidatorBalances =
       liquidatorMarginfiAccount.lendingAccount.balances;
-    const liabilitySharesBefore = liquidateeBalances[1].liabilityShares;
+    const liabilitySharesBefore = liquidateeBalances[0].liabilityShares;
     assertI80F48Equal(liquidatorBalances[1].assetShares, 0);
 
     const insuranceVaultBalance = await getTokenBalance(
@@ -237,7 +242,7 @@ describe("Liquidate user", () => {
     assert.equal(insuranceVaultBalance, 0);
 
     const sharesA = wrappedI80F48toBigNumber(
-      liquidateeBalances[0].assetShares
+      liquidateeBalances[1].assetShares
     ).toNumber();
     const shareValueA = wrappedI80F48toBigNumber(
       assetBankBefore.assetShareValue
@@ -308,18 +313,19 @@ describe("Liquidate user", () => {
           liabilityBankKey,
           liquidatorMarginfiAccount: liquidatorAccount,
           liquidateeMarginfiAccount: liquidateeAccount,
-          remaining: [
-            oracles.tokenAOracle.publicKey,
-            oracles.usdcOracle.publicKey,
-            liabilityBankKey,
-            oracles.usdcOracle.publicKey,
-            assetBankKey,
-            oracles.tokenAOracle.publicKey,
-            assetBankKey,
-            oracles.tokenAOracle.publicKey,
-            liabilityBankKey,
-            oracles.usdcOracle.publicKey,
-          ],
+          remaining:
+            [oracles.tokenAOracle.publicKey, oracles.usdcOracle.publicKey,
+              ...composeRemainingAccounts(
+                [[liabilityBankKey,
+                  oracles.usdcOracle.publicKey],
+                [assetBankKey,
+                  oracles.tokenAOracle.publicKey]]),
+              ...composeRemainingAccounts(
+                [[liabilityBankKey,
+                  oracles.usdcOracle.publicKey],
+                [assetBankKey,
+                  oracles.tokenAOracle.publicKey]]
+          )],
           amount: liquidateAmountA_native,
         })
       )
@@ -350,12 +356,16 @@ describe("Liquidate user", () => {
     assertI80F48Equal(liquidateeBalancesAfter[0].liabilityShares, 0);
     assertI80F48Equal(liquidateeBalancesAfter[1].assetShares, 0);
 
-    assertI80F48Equal(liquidatorBalancesAfter[0].liabilityShares, 0);
+    assert.equal(liquidatorBalancesAfter[1].active, 1);
+    assertKeysEqual(liquidatorBalancesAfter[1].bankPk, liabilityBankKey);
+    assertKeysEqual(liquidatorBalancesAfter[0].bankPk, assetBankKey);
+
+    assertI80F48Equal(liquidatorBalancesAfter[1].liabilityShares, 0);
     assertI80F48Equal(
-      liquidatorBalancesAfter[1].assetShares,
+      liquidatorBalancesAfter[0].assetShares,
       liquidateAmountA_native
     );
-    assertI80F48Equal(liquidatorBalancesAfter[1].liabilityShares, 0);
+    assertI80F48Equal(liquidatorBalancesAfter[0].liabilityShares, 0);
 
     const insuranceVaultBalanceAfter = await getTokenBalance(
       provider,
@@ -429,9 +439,6 @@ describe("Liquidate user", () => {
           ).toString()
       );
     }
-
-    assert.equal(liquidatorBalancesAfter[1].active, 1);
-    assertKeysEqual(liquidatorBalancesAfter[1].bankPk, assetBankKey);
 
     let now = Math.floor(Date.now() / 1000);
     assertBNApproximately(liquidatorBalancesAfter[0].lastUpdate, now, 2);

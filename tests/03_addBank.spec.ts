@@ -43,6 +43,7 @@ describe("Lending pool add bank (add bank to group)", () => {
   it("(admin) Add bank (USDC) - happy path", async () => {
     let setConfig = defaultBankConfig();
     let bankKey = bankKeypairUsdc.publicKey;
+
     const now = Date.now() / 1000;
 
     const feeAccSolBefore = await program.provider.connection.getBalance(

@@ -1,52 +1,37 @@
 import {
-  AnchorProvider,
-  BN,
-  getProvider,
   Program,
-  Wallet,
   workspace,
 } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
-  bankKeypairSol,
   bankKeypairUsdc,
-  ecosystem,
   groupAdmin,
-  marginfiGroup,
   oracles,
   users,
   verbose,
 } from "./rootHooks";
 import {
-  assertBNApproximately,
   assertBNEqual,
   assertI80F48Approx,
   assertI80F48Equal,
-  assertKeysEqual,
-  getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { healthPulse, liquidateIx } from "./utils/user-instructions";
+import { composeRemainingAccounts, healthPulse } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { updatePriceAccount } from "./utils/pyth_mocks";
 import {
-  bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
 import {
   defaultBankConfigOptRaw,
   HEALTH_CACHE_ENGINE_OK,
   HEALTH_CACHE_HEALTHY,
-  HEALTH_CACHE_NONE,
 } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
 
 describe("Health pulse", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
-  const provider = getProvider() as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
 
   it("(user 1) health pulse with bad oracle - cache notes the missing price", async () => {
     const user = users[1];
@@ -55,12 +40,12 @@ describe("Health pulse", () => {
       new Transaction().add(
         await healthPulse(user.mrgnProgram, {
           marginfiAccount: acc,
-          remaining: [
-            bankKeypairUsdc.publicKey,
-            oracles.fakeUsdc, // sneaky sneaky
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey,
+            oracles.fakeUsdc], // sneaky sneaky
+            [bankKeypairA.publicKey,
+            oracles.tokenAOracle.publicKey],
+          ]),
         })
       )
     );
@@ -91,7 +76,7 @@ describe("Health pulse", () => {
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK
     );
     // The fake usdc price is set to zero due to the bad oracle
-    assertI80F48Equal(cacheAfter.prices[0], 0);
+    assertI80F48Equal(cacheAfter.prices[1], 0);
     // User 1 has a trivial amount of token A as well, but we note here it is almost worth zero.
     assert.isAtMost(assetValue.toNumber(), 1);
   });
@@ -103,12 +88,12 @@ describe("Health pulse", () => {
       new Transaction().add(
         await healthPulse(user.mrgnProgram, {
           marginfiAccount: acc,
-          remaining: [
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey,
+            oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey,
+            oracles.tokenAOracle.publicKey],
+          ]),
         })
       )
     );
@@ -137,8 +122,8 @@ describe("Health pulse", () => {
       cacheAfter.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK
     );
-    assertI80F48Approx(cacheAfter.prices[0], oracles.usdcPrice);
-    assertI80F48Approx(cacheAfter.prices[1], oracles.tokenAPrice);
+    assertI80F48Approx(cacheAfter.prices[0], oracles.tokenAPrice);
+    assertI80F48Approx(cacheAfter.prices[1], oracles.usdcPrice);
   });
 
   it("(user 0) health pulse in unhealthy state - happy path", async () => {
@@ -148,12 +133,12 @@ describe("Health pulse", () => {
       new Transaction().add(
         await healthPulse(user.mrgnProgram, {
           marginfiAccount: acc,
-          remaining: [
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey,
+            oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey,
+            oracles.tokenAOracle.publicKey],
+          ]),
         })
       )
     );
@@ -255,12 +240,12 @@ describe("Health pulse", () => {
       new Transaction().add(
         await healthPulse(user.mrgnProgram, {
           marginfiAccount: acc,
-          remaining: [
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey,
+            oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey,
+            oracles.tokenAOracle.publicKey],
+          ]),
         })
       )
     );

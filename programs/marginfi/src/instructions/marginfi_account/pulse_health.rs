@@ -19,6 +19,8 @@ pub fn lending_account_pulse_health<'info>(
     let mut health_cache = HealthCache::zeroed();
     health_cache.timestamp = clock.unix_timestamp;
 
+    marginfi_account.lending_account.sort_balances();
+
     match RiskEngine::check_account_init_health(
         &marginfi_account,
         ctx.remaining_accounts,

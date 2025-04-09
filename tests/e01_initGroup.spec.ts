@@ -19,14 +19,12 @@ import {
 } from "./rootHooks";
 import { assertKeyDefault, assertKeysEqual } from "./utils/genericTests";
 import {
-  ASSET_TAG_DEFAULT,
   ASSET_TAG_SOL,
   defaultBankConfig,
   I80F48_ZERO,
   ORACLE_SETUP_PYTH_LEGACY,
   ORACLE_SETUP_PYTH_PUSH,
 } from "./utils/types";
-import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
