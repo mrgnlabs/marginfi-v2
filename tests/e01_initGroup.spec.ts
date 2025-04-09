@@ -87,6 +87,20 @@ describe("Init e-mode enabled group and banks", () => {
     });
   });
 
+  it("(admin) Add bank (also a stablecoin)", async () => {
+    await addBankTest({
+      bankMint: ecosystem.usdcMint.publicKey,
+      oracle: oracles.usdcOracle.publicKey,
+      oracleMeta: {
+        pubkey: oracles.usdcOracle.publicKey,
+        isSigner: false,
+        isWritable: false,
+      },
+      seed: seed.addn(1),
+      verboseMessage: "*init USDC bank:",
+    });
+  });
+
   it("(admin) Add bank (SOL)", async () => {
     await addBankTest({
       assetTag: ASSET_TAG_SOL,

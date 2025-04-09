@@ -34,9 +34,9 @@ export const ASSET_TAG_STAKED = 2;
 export const ORACLE_SETUP_NONE = 0;
 export const ORACLE_SETUP_PYTH_LEGACY = 1;
 export const ORACLE_SETUP_SWITCHBOARD_v2 = 2;
-/** 
+/**
  * Yes, it should technically be called "pull", but this is what we call it on-chain, and
- * consistency is king... 
+ * consistency is king...
  * */
 export const ORACLE_SETUP_PYTH_PUSH = 3;
 export const ORACLE_SETUP_SWITCHBOARD_PULL = 4;
@@ -48,6 +48,11 @@ export const HEALTH_CACHE_ENGINE_OK = 2;
 
 /** Confidence intervals are multiplied by this constant internally */
 export const CONF_INTERVAL_MULTIPLE = 2.12;
+
+// By convention, all tags must be in 13375p34k (kidding, but only sorta)
+export const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
+export const EMODE_SOL_TAG = 501;
+export const EMODE_LST_TAG = 157;
 
 /**
  * The default bank config has

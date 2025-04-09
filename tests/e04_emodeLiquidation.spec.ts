@@ -1,18 +1,64 @@
 import { BN } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
-import { bankrunProgram, ecosystem, EMODE_SEED, emodeGroup } from "./rootHooks";
+import { PublicKey, Transaction } from "@solana/web3.js";
+import {
+  bankrunContext,
+  bankrunProgram,
+  banksClient,
+  ecosystem,
+  EMODE_INIT_RATE_LST_TO_LST,
+  EMODE_INIT_RATE_SOL_TO_LST,
+  EMODE_MAINT_RATE_LST_TO_LST,
+  EMODE_MAINT_RATE_SOL_TO_LST,
+  EMODE_SEED,
+  emodeAdmin,
+  emodeGroup,
+  oracles,
+  users,
+  verbose,
+} from "./rootHooks";
 import { deriveBankWithSeed } from "./utils/pdas";
-
-// By convention, all tags must be in 13375p34k (kidding, but only sorta)
-const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
-const EMODE_SOL_TAG = 501;
-const EMODE_LST_TAG = 157;
+import {
+  bigNumberToWrappedI80F48,
+  wrappedI80F48toBigNumber,
+} from "@mrgnlabs/mrgn-common";
+import {
+  assertBankrunTxFailed,
+  assertI80F48Approx,
+  expectFailedTxWithError,
+} from "./utils/genericTests";
+import { USER_ACCOUNT_E } from "./utils/mocks";
+import { getBankrunBlockhash } from "./utils/spl-staking-utils";
+import {
+  CONF_INTERVAL_MULTIPLE,
+  EMODE_APPLIES_TO_ISOLATED,
+  EMODE_LST_TAG,
+  EMODE_SOL_TAG,
+  HEALTH_CACHE_HEALTHY,
+  newEmodeEntry,
+} from "./utils/types";
+import {
+  depositIx,
+  borrowIx,
+  liquidateIx,
+  healthPulse,
+} from "./utils/user-instructions";
+import { configBankEmode } from "./utils/group-instructions";
+import { dumpBankrunLogs } from "./utils/tools";
 
 const seed = new BN(EMODE_SEED);
 let usdcBank: PublicKey;
+let stableBank: PublicKey;
 let solBank: PublicKey;
 let lstABank: PublicKey;
 let lstBBank: PublicKey;
+
+/** USDC funding for the liquidator (user 2) */
+const liquidator_usdc: number = 100;
+/** SOL funding for the liquidator (user 2) */
+const liquidator_sol: number = 10;
+
+const REDUCED_INIT_SOL_LST_RATE = 0.85;
+const REDUCED_MAINT_SOL_LST_RATE = 0.9;
 
 describe("Emode liquidation", () => {
   before(async () => {
@@ -21,6 +67,12 @@ describe("Emode liquidation", () => {
       emodeGroup.publicKey,
       ecosystem.usdcMint.publicKey,
       seed
+    );
+    [stableBank] = deriveBankWithSeed(
+      bankrunProgram.programId,
+      emodeGroup.publicKey,
+      ecosystem.usdcMint.publicKey,
+      seed.addn(1)
     );
     [solBank] = deriveBankWithSeed(
       bankrunProgram.programId,
@@ -42,11 +94,320 @@ describe("Emode liquidation", () => {
     );
   });
 
-  it("Emode in effect - Can't liquidate", async () => {
-    // TODO can't liquidate
+  it("(user 2 aka liquidator) Deposits SOLD and USDC to operate as a liquidator", async () => {
+    const user = users[2];
+    const userAccount = user.accounts.get(USER_ACCOUNT_E);
+
+    let tx = new Transaction().add(
+      await depositIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: usdcBank,
+        tokenAccount: user.usdcAccount,
+        amount: new BN(liquidator_usdc * 10 ** ecosystem.usdcDecimals),
+        depositUpToLimit: false,
+      }),
+      await depositIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: solBank,
+        tokenAccount: user.wsolAccount,
+        amount: new BN(liquidator_sol * 10 ** ecosystem.wsolDecimals),
+        depositUpToLimit: false,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+  });
+
+  // Note: in this test, as in most real-world conditions, the liquidator is not optimizing their
+  // liabilities to take advantage of emode. They have a variety of liabilities that they obtain
+  // when liquidating positions, and typically close/offload these quickly. Here we pretend the
+  // liquidator got some "stable" in a previous liquidation.
+  // TODO test liquidator can't claim a position due to emode stance
+  it("(liquidator) borrows a trivial amount of stable to mock normal operation", async () => {
+    const user = users[2];
+    const userAccount = user.accounts.get(USER_ACCOUNT_E);
+
+    let tx = new Transaction().add(
+      await borrowIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: stableBank,
+        tokenAccount: user.usdcAccount,
+        remaining: [
+          usdcBank,
+          oracles.usdcOracle.publicKey,
+          solBank,
+          oracles.wsolOracle.publicKey,
+          stableBank,
+          oracles.usdcOracle.publicKey,
+        ],
+        amount: new BN(0.0001 * 10 ** ecosystem.usdcDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+
+    let userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    const cacheAfter = userAcc.healthCache;
+    const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
+    const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
+    if (verbose) {
+      console.log("---liquidator health state---");
+      console.log("asset value: " + assetValue.toString());
+      console.log("liab value: " + liabValue.toString());
+      console.log("prices: ");
+      for (let i = 0; i < cacheAfter.prices.length; i++) {
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        if (price != 0) {
+          console.log(" [" + i + "] " + price);
+        }
+      }
+    }
+  });
+
+  // Note: excluding emode, user 1 is unhealthy. Any liquidator that does not yet account for emode
+  // will try to do this repeatedly and fail.
+  it("(liquidator) Tries to liquidate user 0 with emode in effect - can't liquidate", async () => {
+    const liquidatee = users[0];
+    const liquidator = users[2];
+
+    const assetBankKey = solBank;
+    const liabilityBankKey = lstABank;
+    const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT_E);
+    const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT_E);
+
+    let tx = new Transaction().add(
+      await liquidateIx(liquidator.mrgnBankrunProgram, {
+        assetBankKey,
+        liabilityBankKey,
+        liquidatorMarginfiAccount: liquidatorAccount,
+        liquidateeMarginfiAccount: liquidateeAccount,
+        remaining: [
+          oracles.wsolOracle.publicKey, // asset oracle
+          oracles.pythPullLst.publicKey, // liab oracle
+
+          // liquidator accounts
+          usdcBank,
+          oracles.usdcOracle.publicKey,
+          solBank,
+          oracles.wsolOracle.publicKey,
+          stableBank,
+          oracles.usdcOracle.publicKey,
+          // Note: these accounts would be needed if the LST A position was created on the
+          // liquidator due to the liablity repayment
+          lstABank,
+          oracles.pythPullLst.publicKey,
+
+          // liquidatee accounts
+          solBank,
+          oracles.wsolOracle.publicKey,
+          lstABank,
+          oracles.pythPullLst.publicKey,
+        ],
+        amount: new BN(0.001 * 10 ** ecosystem.wsolDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(liquidator.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
+    // 6068 (HealthyAccount)
+    assertBankrunTxFailed(result, 6068);
+  });
+
+  // Note: In production, reducing Emode weights is at least as risky as reducing regular weights,
+  // which is done rarely or never because it can trigger use liquidations. In rare instances where
+  // this must be done outside for security concerns or assets in freefall, it should be done
+  // carefully and slowly!
+  it("(emode admin) Reduces LST A emode settings", async () => {
+    let tx = new Transaction().add(
+      await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
+        bank: lstABank,
+        tag: EMODE_LST_TAG,
+        entries: [
+          newEmodeEntry(
+            EMODE_SOL_TAG,
+            EMODE_APPLIES_TO_ISOLATED,
+            // Here SOL borrowing power is drastically reduced
+            bigNumberToWrappedI80F48(REDUCED_INIT_SOL_LST_RATE),
+            bigNumberToWrappedI80F48(REDUCED_MAINT_SOL_LST_RATE)
+          ),
+          newEmodeEntry(
+            EMODE_LST_TAG,
+            EMODE_APPLIES_TO_ISOLATED,
+            bigNumberToWrappedI80F48(EMODE_INIT_RATE_LST_TO_LST),
+            bigNumberToWrappedI80F48(EMODE_MAINT_RATE_LST_TO_LST)
+          ),
+        ],
+      })
+    );
+
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(emodeAdmin.wallet);
+    await banksClient.processTransaction(tx);
   });
 
   it("Emode reduced - Can liquidate", async () => {
-    // TODO can liquidate after emode reduction/removal
+    const liquidatee = users[0];
+    const liquidator = users[2];
+
+    const assetBankKey = solBank;
+    const liabilityBankKey = lstABank;
+    const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT_E);
+    const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT_E);
+
+    const liqAccountDataBefore = await processHealthPulse(
+      liquidator,
+      liquidatorAccount,
+      [
+        usdcBank,
+        oracles.usdcOracle.publicKey,
+        solBank,
+        oracles.wsolOracle.publicKey,
+        stableBank,
+        oracles.usdcOracle.publicKey,
+        // Note: the LST A liability position doesn't exist yet
+      ]
+    );
+    const liqHealthCacheBefore = liqAccountDataBefore.healthCache;
+    if (verbose) {
+      logHealthCache("liquidator health state before", liqHealthCacheBefore);
+    }
+
+    const leeAccountDataBefore = await processHealthPulse(
+      liquidatee,
+      liquidateeAccount,
+      [
+        solBank,
+        oracles.wsolOracle.publicKey,
+        lstABank,
+        oracles.pythPullLst.publicKey,
+      ]
+    );
+    const leeHealthCacheBefore = leeAccountDataBefore.healthCache;
+    if (verbose) {
+      logHealthCache("liquidatee health state before", leeHealthCacheBefore);
+    }
+
+    let tx = new Transaction().add(
+      await liquidateIx(liquidator.mrgnBankrunProgram, {
+        assetBankKey,
+        liabilityBankKey,
+        liquidatorMarginfiAccount: liquidatorAccount,
+        liquidateeMarginfiAccount: liquidateeAccount,
+        remaining: [
+          oracles.wsolOracle.publicKey, // asset oracle
+          oracles.pythPullLst.publicKey, // liab oracle
+
+          // liquidator accounts
+          usdcBank,
+          oracles.usdcOracle.publicKey,
+          solBank,
+          oracles.wsolOracle.publicKey,
+          stableBank,
+          oracles.usdcOracle.publicKey,
+          lstABank,
+          oracles.pythPullLst.publicKey,
+
+          // liquidatee accounts
+          solBank,
+          oracles.wsolOracle.publicKey,
+          lstABank,
+          oracles.pythPullLst.publicKey,
+        ],
+        amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(liquidator.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
+    dumpBankrunLogs(result);
+    console.log("");
+
+    const liqAccountData = await processHealthPulse(
+      liquidator,
+      liquidatorAccount,
+      [
+        usdcBank,
+        oracles.usdcOracle.publicKey,
+        solBank,
+        oracles.wsolOracle.publicKey,
+        stableBank,
+        oracles.usdcOracle.publicKey,
+        lstABank,
+        oracles.pythPullLst.publicKey,
+      ]
+    );
+    const liqHealthCache = liqAccountData.healthCache;
+    if (verbose) {
+      logHealthCache("liquidator health state after", liqHealthCache);
+    }
+
+    const leeAccountData = await processHealthPulse(
+      liquidatee,
+      liquidateeAccount,
+      [
+        solBank,
+        oracles.wsolOracle.publicKey,
+        lstABank,
+        oracles.pythPullLst.publicKey,
+      ]
+    );
+    const leeHealthCache = leeAccountData.healthCache;
+    if (verbose) {
+      logHealthCache("liquidatee health state after", leeHealthCache);
+    }
+
+    // Note: The health cache shows the price for init (borrowing) purposes, the actual price
+    // (maint) uses `OraclePriceType::RealTime` and applies the confidence interval discount! So
+    // instead of $150, the "actual" price of the collateral for liquidation purposes is $146.82
+    // (150 * (1 - 1 * 0.0212))
+
+    // TODO look into above, is this a footgun with assets that have broad confidence bands?
+
+    // SOL is worth $146.82 (see above for confidence discount)
+    // Liquidator will claim .1 sol worth ~= $14.682
+    // We expect to repay: .1 * (1 - 0.025) * 146.82 = $14.31495 (worth of LST)
+    // Liquidatee will receive: .1 * (1 - 0.025- 0.025) * 146.82 = $13.9479 (worth of LST)
   });
+
+  const processHealthPulse = async (
+    user: { mrgnBankrunProgram: any; wallet: any },
+    userAccount: PublicKey,
+    remaining: Array<any>
+  ) => {
+    const tx = new Transaction().add(
+      await healthPulse(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        remaining,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+    return bankrunProgram.account.marginfiAccount.fetch(userAccount);
+  };
+
+  const logHealthCache = (header: string, healthCache: any) => {
+    const av = wrappedI80F48toBigNumber(healthCache.assetValue);
+    const lv = wrappedI80F48toBigNumber(healthCache.liabilityValue);
+    console.log(`---${header}---`);
+    if (healthCache.flags & HEALTH_CACHE_HEALTHY) {
+      console.log("**HEALTHY**");
+    } else {
+      console.log("**UNHEALTHY OR INVALID**");
+    }
+    console.log("asset value: " + av.toString());
+    console.log("liab value: " + lv.toString());
+    console.log("prices: ");
+    healthCache.prices.forEach((priceWrapped: any, i: number) => {
+      const price = wrappedI80F48toBigNumber(priceWrapped).toNumber();
+      if (price !== 0) {
+        console.log(` [${i}] ${price}`);
+      }
+    });
+    console.log("");
+  };
 });

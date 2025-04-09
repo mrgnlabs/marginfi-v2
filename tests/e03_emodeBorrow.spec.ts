@@ -1,15 +1,6 @@
-import {
-  AnchorProvider,
-  BN,
-  getProvider,
-  Program,
-  Wallet,
-  workspace,
-} from "@coral-xyz/anchor";
+import { BN } from "@coral-xyz/anchor";
 import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
-import { configBankEmode } from "./utils/group-instructions";
 import {
-  bankKeypairUsdc,
   bankrunContext,
   bankrunProgram,
   banksClient,
@@ -17,10 +8,8 @@ import {
   EMODE_INIT_RATE_LST_TO_LST,
   EMODE_INIT_RATE_SOL_TO_LST,
   EMODE_SEED,
-  emodeAdmin,
   emodeGroup,
   groupAdmin,
-  marginfiGroup,
   oracles,
   users,
   verbose,
@@ -29,31 +18,16 @@ import {
   assertBankrunTxFailed,
   assertI80F48Approx,
 } from "./utils/genericTests";
-import {
-  CONF_INTERVAL_MULTIPLE,
-  EMODE_APPLIES_TO_ISOLATED,
-  newEmodeEntry,
-} from "./utils/types";
+import { CONF_INTERVAL_MULTIPLE } from "./utils/types";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
-import {
-  bigNumberToWrappedI80F48,
-  wrappedI80F48toBigNumber,
-} from "@mrgnlabs/mrgn-common";
-import { createMintToInstruction } from "@solana/spl-token";
-import { Marginfi } from "../target/types/marginfi";
-import { program } from "@coral-xyz/anchor/dist/cjs/native/system";
-import { USER_ACCOUNT, USER_ACCOUNT_E } from "./utils/mocks";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { USER_ACCOUNT_E } from "./utils/mocks";
 import { accountInit, borrowIx, depositIx } from "./utils/user-instructions";
-import { dumpBankrunLogs } from "./utils/tools";
-
-// By convention, all tags must be in 13375p34k (kidding, but only sorta)
-const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
-const EMODE_SOL_TAG = 501;
-const EMODE_LST_TAG = 157;
 
 const seed = new BN(EMODE_SEED);
 let usdcBank: PublicKey;
+let stableBank: PublicKey;
 let solBank: PublicKey;
 let lstABank: PublicKey;
 let lstBBank: PublicKey;
@@ -65,6 +39,12 @@ describe("Emode borrowing", () => {
       emodeGroup.publicKey,
       ecosystem.usdcMint.publicKey,
       seed
+    );
+    [stableBank] = deriveBankWithSeed(
+      bankrunProgram.programId,
+      emodeGroup.publicKey,
+      ecosystem.usdcMint.publicKey,
+      seed.addn(1)
     );
     [solBank] = deriveBankWithSeed(
       bankrunProgram.programId,
@@ -88,13 +68,19 @@ describe("Emode borrowing", () => {
 
   it("Initialize user accounts (if needed)", async () => {
     for (let i = 0; i < users.length; i++) {
-      if (users[i].accounts.get(USER_ACCOUNT_E)) {
-        console.log("Skipped creating user " + i);
-        continue;
-      }
       const userAccKeypair = Keypair.generate();
       const userAccount = userAccKeypair.publicKey;
-      users[i].accounts.set(USER_ACCOUNT_E, userAccount);
+      if (users[i].accounts.get(USER_ACCOUNT_E)) {
+        if (verbose) {
+          console.log("Skipped creating user " + i);
+        }
+        continue;
+      } else {
+        if (verbose) {
+          console.log("user [" + i + "]: " + userAccount);
+        }
+        users[i].accounts.set(USER_ACCOUNT_E, userAccount);
+      }
 
       let userinitTx: Transaction = new Transaction();
       userinitTx.add(
@@ -140,6 +126,13 @@ describe("Emode borrowing", () => {
       await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
         bank: usdcBank,
+        tokenAccount: user.usdcAccount,
+        amount: new BN(100 * 10 ** ecosystem.usdcDecimals),
+        depositUpToLimit: false,
+      }),
+      await depositIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: stableBank,
         tokenAccount: user.usdcAccount,
         amount: new BN(100 * 10 ** ecosystem.usdcDecimals),
         depositUpToLimit: false,
@@ -262,7 +255,7 @@ describe("Emode borrowing", () => {
 
   // This illustrates a possible emode footgun: the user tries to borrow USDC, which would cause
   // them to lose the emode benefit from their LST borrow. Even this trivial borrow amount fails
-  // because breaking the emode benefit would put this user significantly under water.
+  // because breaking the emode benefit would put this user significantly in bad health.
   it("(user 0) tries to borrow a trivial amount of USDC - fails, emode error", async () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_E);
@@ -435,13 +428,15 @@ describe("Emode borrowing", () => {
         lstBBorrow *
         (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
         1 +
-      wsolBorrow * oracles.wsolPrice; // Close enough, the amount is trivial
+      wsolBorrow * oracles.wsolPrice; // Close enough for wsol value, the amount is trivial
     assertI80F48Approx(
       cacheAfter.liabilityValue,
       liabsExpected,
       liabsExpected * 0.001
     );
   });
+
+  // TODO test against isolated bank (not yet supported in program)
 
   // TODO moar tests....
 });

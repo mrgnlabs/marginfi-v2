@@ -34,7 +34,7 @@ import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
-import { defaultBankConfigOptRaw } from "./utils/types";
+import { CONF_INTERVAL_MULTIPLE, defaultBankConfigOptRaw } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
 
 describe("Liquidate user", () => {
@@ -42,7 +42,7 @@ describe("Liquidate user", () => {
   const provider = getProvider() as AnchorProvider;
   const wallet = provider.wallet as Wallet;
 
-  const confidenceInterval = 0.0212; // 1% confidence * CONF_INTERVAL_MULTIPLE
+  const confidenceInterval = 0.01 * CONF_INTERVAL_MULTIPLE;
   const liquidateAmountA = 0.2;
   const liquidateAmountA_native = new BN(
     liquidateAmountA * 10 ** ecosystem.tokenADecimals

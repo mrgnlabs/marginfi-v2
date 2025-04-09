@@ -30,7 +30,7 @@ import {
   assertI80F48Approx,
   assertI80F48Equal,
 } from "./utils/genericTests";
-import { EMODE_APPLIES_TO_ISOLATED, newEmodeEntry } from "./utils/types";
+import { EMODE_APPLIES_TO_ISOLATED, EMODE_LST_TAG, EMODE_SOL_TAG, EMODE_STABLE_TAG, newEmodeEntry } from "./utils/types";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
@@ -38,13 +38,9 @@ import { createMintToInstruction } from "@solana/spl-token";
 import { Marginfi } from "../target/types/marginfi";
 import { assert } from "chai";
 
-// By convention, all tags must be in 13375p34k (kidding, but only sorta)
-const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
-const EMODE_SOL_TAG = 501;
-const EMODE_LST_TAG = 157;
-
 const seed = new BN(EMODE_SEED);
 let usdcBank: PublicKey;
+let stableBank: PublicKey;
 let solBank: PublicKey;
 let lstABank: PublicKey;
 let lstBBank: PublicKey;
@@ -56,6 +52,12 @@ describe("Init e-mode settings for a set of banks", () => {
       emodeGroup.publicKey,
       ecosystem.usdcMint.publicKey,
       seed
+    );
+    [stableBank] = deriveBankWithSeed(
+      bankrunProgram.programId,
+      emodeGroup.publicKey,
+      ecosystem.usdcMint.publicKey,
+      seed.addn(1)
     );
     [solBank] = deriveBankWithSeed(
       bankrunProgram.programId,
@@ -160,6 +162,20 @@ describe("Init e-mode settings for a set of banks", () => {
     );
 
     tx.add(
+      await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
+        bank: stableBank,
+        tag: EMODE_STABLE_TAG,
+        entries: [
+          // other stable bank doesn't have any favored entries
+        ],
+      })
+    );
+
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(emodeAdmin.wallet);
+    await banksClient.processTransaction(tx);
+
+    tx = new Transaction().add(
       await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
         bank: solBank,
         tag: EMODE_SOL_TAG,

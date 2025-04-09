@@ -328,17 +328,22 @@ export const createSimpleMint = async (
 
 export type Oracles = {
   wsolOracle: Keypair;
+  /** Default 150 */
   wsolPrice: number;
   wsolDecimals: number;
   usdcOracle: Keypair;
+  /** Default 1 */
   usdcPrice: number;
   usdcDecimals: number;
   tokenAOracle: Keypair;
+  /** Default 10 */
   tokenAPrice: number;
   tokenADecimals: number;
   tokenBOracle: Keypair;
+  /** Default 20 */
   tokenBPrice: number;
   tokenBDecimals: number;
+  /** Default 175 */
   lstAlphaPrice: number;
   lstAlphaDecimals: number;
   /** By default, oracle conf is this times price */
