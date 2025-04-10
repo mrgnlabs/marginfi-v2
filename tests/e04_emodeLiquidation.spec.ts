@@ -41,6 +41,7 @@ import {
   borrowIx,
   liquidateIx,
   healthPulse,
+  repayIx,
 } from "./utils/user-instructions";
 import { configBankEmode } from "./utils/group-instructions";
 import { dumpBankrunLogs } from "./utils/tools";
@@ -54,9 +55,9 @@ let lstABank: PublicKey;
 let lstBBank: PublicKey;
 
 /** USDC funding for the liquidator (user 2) */
-const liquidator_usdc: number = 100;
+const liquidator_usdc: number = 10;
 /** SOL funding for the liquidator (user 2) */
-const liquidator_sol: number = 10;
+const liquidator_sol: number = 0.1;
 
 const REDUCED_INIT_SOL_LST_RATE = 0.85;
 const REDUCED_MAINT_SOL_LST_RATE = 0.9;
@@ -124,7 +125,6 @@ describe("Emode liquidation", () => {
   // liabilities to take advantage of emode. They have a variety of liabilities that they obtain
   // when liquidating positions, and typically close/offload these quickly. Here we pretend the
   // liquidator got some "stable" in a previous liquidation.
-  // TODO test liquidator can't claim a position due to emode stance
   it("(liquidator) borrows a trivial amount of stable to mock normal operation", async () => {
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT_E);
@@ -250,7 +250,29 @@ describe("Emode liquidation", () => {
     await banksClient.processTransaction(tx);
   });
 
-  it("Emode reduced - Can liquidate", async () => {
+  // Note: The health cache shows the price for init (borrowing) purposes, the "actual" price
+  // (maint) uses `OraclePriceType::RealTime` and applies the confidence interval discount! So
+  // instead of $150, the "actual" price of the collateral for liquidation purposes is $146.82
+  // (150 * (1 - 1 * 0.0212))
+
+  // TODO look into above, is this a footgun with assets that have broad confidence bands?
+
+  // * SOL is worth $146.82 (see above for confidence discount)
+  // * Liquidator will claim .1 sol worth ~= $14.682 (this is really $15 with conf discount)
+  // * We expect to repay: .1 * (1 - 0.025) * 146.82 = $14.31495 (worth of LST)
+  // * Liquidatee will receive: .1 * (1 - 0.025- 0.025) * 146.82 = $13.9479 (worth of LST)
+
+  // In terms of what we actually see in the health pulse:
+  // * Because liquidator has other borrows, they get no emode benefit on the sol they obtained.
+  //   The SOL bank's actual asset weight is 0.5, so Liquidator's asset value increases by
+  //   ($15 * 0.5) = $7.5
+  // * The liability weight is 100%, so liquidator repays ($14.31495 * 1) = $14.31495
+  // * Liquidatee loses the same asset amount, but WITH an emode benefit, so liquidatee sees a
+  //   drop of ($14.682 * 0.85) = $12.75 and a reduction of $13.9479 in debt
+
+  // In health terms the liquidator has lost money! In real terms the liquidator has gained $
+  // value $15 - $14.31495 = $0.68505
+  it("(liquidator) Liquidates user 0 after emode reduced - happy path", async () => {
     const liquidatee = users[0];
     const liquidator = users[2];
 
@@ -359,29 +381,6 @@ describe("Emode liquidation", () => {
       logHealthCache("liquidatee health state after", leeHealthCache);
     }
 
-    // Note: The health cache shows the price for init (borrowing) purposes, the "actual" price
-    // (maint) uses `OraclePriceType::RealTime` and applies the confidence interval discount! So
-    // instead of $150, the "actual" price of the collateral for liquidation purposes is $146.82
-    // (150 * (1 - 1 * 0.0212))
-
-    // TODO look into above, is this a footgun with assets that have broad confidence bands?
-
-    // * SOL is worth $146.82 (see above for confidence discount)
-    // * Liquidator will claim .1 sol worth ~= $14.682 (this is really $15 with conf discount)
-    // * We expect to repay: .1 * (1 - 0.025) * 146.82 = $14.31495 (worth of LST)
-    // * Liquidatee will receive: .1 * (1 - 0.025- 0.025) * 146.82 = $13.9479 (worth of LST)
-
-    // In terms of what we actually see in the health pulse:
-    // * Because liquidator has other borrows, they get no emode benefit on the sol they obtained.
-    //   The SOL bank's actual asset weight is 0.5, so Liquidator's asset value increases by
-    //   ($15 * 0.5) = $7.5
-    // * The liability weight is 100%, so liquidator repays ($14.31495 * 1) = $14.31495
-    // * Liquidatee loses the same asset amount, but WITH an emode benefit, so liquidatee sees a
-    //   drop of ($14.682 * 0.85) = $12.75 and a reduction of $13.9479 in debt
-
-    // In health terms the liquidator has lost money! In real terms the liquidator has gained $
-    // value $15 - $14.31495 = $0.68505
-
     const liqAvBefore = wrappedI80F48toBigNumber(
       liqHealthCacheBefore.assetValue
     ).toNumber();
@@ -414,10 +413,186 @@ describe("Emode liquidation", () => {
     assert.approximately(leeLvAfter - leeLvBefore, -13.9479, 0.001);
   });
 
+  // This test demonstrates a new footgun that liquidators have to watch out for. On the user's
+  // portfolio, due to emode, a position might be more valuable than when the liquidator acquires
+  // it, which can make their account unhealthy and cause liquidation to fail.
+  //
+  // Here the liquidator has $20 in collateral at the end of the previous test and ~$14.31 in
+  // liabilties. Repeating the 7.5 and 14.31495 repayment above, the liquidator would end up with 20
+  // + 7.5 = $27.5 in assets and 14.31495 + 14.31495 = $28.62 in liabilities, so the liquidator has
+  // put themselves in an unhealthy state!
+  it("(liquidator) renders their own account unhealthy due to liquidation - should fail)", async () => {
+    const liquidatee = users[0];
+    const liquidator = users[2];
+
+    const assetBankKey = solBank;
+    const liabilityBankKey = lstABank;
+    const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT_E);
+    const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT_E);
+
+    let tx = new Transaction().add(
+      await liquidateIx(liquidator.mrgnBankrunProgram, {
+        assetBankKey,
+        liabilityBankKey,
+        liquidatorMarginfiAccount: liquidatorAccount,
+        liquidateeMarginfiAccount: liquidateeAccount,
+        remaining: [
+          oracles.wsolOracle.publicKey, // asset oracle
+          oracles.pythPullLst.publicKey, // liab oracle
+
+          // liquidator accounts
+          usdcBank,
+          oracles.usdcOracle.publicKey,
+          solBank,
+          oracles.wsolOracle.publicKey,
+          stableBank,
+          oracles.usdcOracle.publicKey,
+          lstABank,
+          oracles.pythPullLst.publicKey,
+
+          // liquidatee accounts
+          solBank,
+          oracles.wsolOracle.publicKey,
+          lstABank,
+          oracles.pythPullLst.publicKey,
+        ],
+        amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(liquidator.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
+    // 6009 (RiskEngineInitRejected.)
+    assertBankrunTxFailed(result, 6009);
+  });
+
+  it("(liquidator) repays their trivial stable position - now has an emode benefit", async () => {
+    const user = users[2];
+    const userAccount = user.accounts.get(USER_ACCOUNT_E);
+
+    let tx = new Transaction().add(
+      await repayIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: stableBank,
+        tokenAccount: user.usdcAccount,
+        repayAll: true,
+        remaining: [
+          usdcBank,
+          oracles.usdcOracle.publicKey,
+          solBank,
+          oracles.wsolOracle.publicKey,
+          stableBank,
+          oracles.usdcOracle.publicKey,
+          lstABank,
+          oracles.pythPullLst.publicKey,
+        ],
+        amount: new BN(0.0001 * 10 ** ecosystem.usdcDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+
+    const userAcc = await processHealthPulse(user, userAccount, [
+      usdcBank,
+      oracles.usdcOracle.publicKey,
+      solBank,
+      oracles.wsolOracle.publicKey,
+      // Note: stable is now closed
+      lstABank,
+      oracles.pythPullLst.publicKey,
+    ]);
+
+    const cacheAfter = userAcc.healthCache;
+    const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
+    const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
+    if (verbose) {
+      console.log("---liquidator health state---");
+      console.log("asset value: " + assetValue.toString());
+      console.log("liab value: " + liabValue.toString());
+      console.log("prices: ");
+      for (let i = 0; i < cacheAfter.prices.length; i++) {
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        if (price != 0) {
+          console.log(" [" + i + "] " + price);
+        }
+      }
+    }
+  });
+
+  it("(liquidator) can now liquidate the position due its own emode benefit!)", async () => {
+    const liquidatee = users[0];
+    const liquidator = users[2];
+
+    const assetBankKey = solBank;
+    const liabilityBankKey = lstABank;
+    const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT_E);
+    const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT_E);
+
+    let tx = new Transaction().add(
+      await liquidateIx(liquidator.mrgnBankrunProgram, {
+        assetBankKey,
+        liabilityBankKey,
+        liquidatorMarginfiAccount: liquidatorAccount,
+        liquidateeMarginfiAccount: liquidateeAccount,
+        remaining: [
+          oracles.wsolOracle.publicKey, // asset oracle
+          oracles.pythPullLst.publicKey, // liab oracle
+
+          // liquidator accounts
+          usdcBank,
+          oracles.usdcOracle.publicKey,
+          solBank,
+          oracles.wsolOracle.publicKey,
+          // Note: stable bank is closed
+          lstABank,
+          oracles.pythPullLst.publicKey,
+
+          // liquidatee accounts
+          solBank,
+          oracles.wsolOracle.publicKey,
+          lstABank,
+          oracles.pythPullLst.publicKey,
+        ],
+        amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(liquidator.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
+    dumpBankrunLogs(result);
+
+    const userAcc = await processHealthPulse(liquidator, liquidatorAccount, [
+      usdcBank,
+      oracles.usdcOracle.publicKey,
+      solBank,
+      oracles.wsolOracle.publicKey,
+      // Note: stable is now closed
+      lstABank,
+      oracles.pythPullLst.publicKey,
+    ]);
+
+    const cacheAfter = userAcc.healthCache;
+    const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
+    const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
+    if (verbose) {
+      console.log("---liquidator health state---");
+      console.log("asset value: " + assetValue.toString());
+      console.log("liab value: " + liabValue.toString());
+      console.log("prices: ");
+      for (let i = 0; i < cacheAfter.prices.length; i++) {
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        if (price != 0) {
+          console.log(" [" + i + "] " + price);
+        }
+      }
+    }
+  });
+
   const processHealthPulse = async (
     user: { mrgnBankrunProgram: any; wallet: any },
     userAccount: PublicKey,
-    remaining: Array<any>
+    remaining: Array<PublicKey>
   ) => {
     const tx = new Transaction().add(
       await healthPulse(user.mrgnBankrunProgram, {
