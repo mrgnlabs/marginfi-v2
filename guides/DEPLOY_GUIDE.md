@@ -1,6 +1,6 @@
 ## MAINNET VERIFIED DEPLOY GUIDE
 
-Marginfi program authority is managed by squads (https://v3.squads.so/dashboard/M05MQ1FNRDdmUTdCQjc2aTY0aGpMRUNYTEFFNHpmeFJ2UTdlYVREVEo2elo=) and uses verified builds.
+Marginfi program authority is managed by squads (https://app.squads.so/squads/J3oBkTkDXU3TcAggJEa3YeBZE5om5yNAdTtLVNXFD47/home) and uses verified builds.
 
 
 First you will need:
@@ -12,7 +12,7 @@ First you will need:
 
 
 Steps:
-* Make sure you are on the main branch and you have pulled latest.
+* Make sure you are on the appropriate release tag branch and you have pulled latest.
 * Run `./scripts/build-program-verifiable.sh marginfi mainnet`. Other people signing on the multisig should also run this and validate that the hash matches. 
 * Deploy the buffer with `./scripts/deploy-buffer.sh marginfi <YOUR_RPC_ENDPOINT> ~/keys/mainnet-deploy.json`
 * Go to squads, developers, programs, pick marginfi. The buffer address is the output of the previous command. The buffer refund is the public key of the wallet you have used so far (`solana-keygen pubkey ~/keys/mainnet-deploy.json` if you don't know it). Click next.
@@ -42,9 +42,10 @@ Here we list recent deployments to staging/mainnet. The hash is always the first
 
 * 0.1.0: Jan 30, 2025 ~2:35pm ET -- Hash: a4dd3e7
 * 0.1.1: Feb 7, 2025 ~8:15am ET -- Hash: 03455c
-* 0.1.2: Pending
+* 0.1.2: March 14, 2025 ~3:00pm ET -- Hash 65bbbe
 
 ### MAINNET
 
 * 0.1.0-alpha mainnet on Fev 3, 2024 ~2:45ET -- Hash: ea5d15
 * 0.1.1: Feb 17, 2025 ~3:00pm ET -- Hash: 03455c
+* 0.1.2: April 14, 2025 ~1:00pm ET -- Hash 65bbbe
