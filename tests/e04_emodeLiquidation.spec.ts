@@ -44,6 +44,7 @@ import {
 } from "./utils/user-instructions";
 import { configBankEmode } from "./utils/group-instructions";
 import { dumpBankrunLogs } from "./utils/tools";
+import { assert } from "chai";
 
 const seed = new BN(EMODE_SEED);
 let usdcBank: PublicKey;
@@ -322,9 +323,7 @@ describe("Emode liquidation", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(liquidator.wallet);
-    let result = await banksClient.tryProcessTransaction(tx);
-    dumpBankrunLogs(result);
-    console.log("");
+    await banksClient.processTransaction(tx);
 
     const liqAccountData = await processHealthPulse(
       liquidator,
@@ -360,17 +359,59 @@ describe("Emode liquidation", () => {
       logHealthCache("liquidatee health state after", leeHealthCache);
     }
 
-    // Note: The health cache shows the price for init (borrowing) purposes, the actual price
+    // Note: The health cache shows the price for init (borrowing) purposes, the "actual" price
     // (maint) uses `OraclePriceType::RealTime` and applies the confidence interval discount! So
     // instead of $150, the "actual" price of the collateral for liquidation purposes is $146.82
     // (150 * (1 - 1 * 0.0212))
 
     // TODO look into above, is this a footgun with assets that have broad confidence bands?
 
-    // SOL is worth $146.82 (see above for confidence discount)
-    // Liquidator will claim .1 sol worth ~= $14.682
-    // We expect to repay: .1 * (1 - 0.025) * 146.82 = $14.31495 (worth of LST)
-    // Liquidatee will receive: .1 * (1 - 0.025- 0.025) * 146.82 = $13.9479 (worth of LST)
+    // * SOL is worth $146.82 (see above for confidence discount)
+    // * Liquidator will claim .1 sol worth ~= $14.682 (this is really $15 with conf discount)
+    // * We expect to repay: .1 * (1 - 0.025) * 146.82 = $14.31495 (worth of LST)
+    // * Liquidatee will receive: .1 * (1 - 0.025- 0.025) * 146.82 = $13.9479 (worth of LST)
+
+    // In terms of what we actually see in the health pulse:
+    // * Because liquidator has other borrows, they get no emode benefit on the sol they obtained.
+    //   The SOL bank's actual asset weight is 0.5, so Liquidator's asset value increases by
+    //   ($15 * 0.5) = $7.5
+    // * The liability weight is 100%, so liquidator repays ($14.31495 * 1) = $14.31495
+    // * Liquidatee loses the same asset amount, but WITH an emode benefit, so liquidatee sees a
+    //   drop of ($14.682 * 0.85) = $12.75 and a reduction of $13.9479 in debt
+
+    // In health terms the liquidator has lost money! In real terms the liquidator has gained $
+    // value $15 - $14.31495 = $0.68505
+
+    const liqAvBefore = wrappedI80F48toBigNumber(
+      liqHealthCacheBefore.assetValue
+    ).toNumber();
+    const liqAvAfter = wrappedI80F48toBigNumber(
+      liqHealthCache.assetValue
+    ).toNumber();
+    const liqLvBefore = wrappedI80F48toBigNumber(
+      liqHealthCacheBefore.liabilityValue
+    ).toNumber();
+    const liqLvAfter = wrappedI80F48toBigNumber(
+      liqHealthCache.liabilityValue
+    ).toNumber();
+
+    const leeAvBefore = wrappedI80F48toBigNumber(
+      leeHealthCacheBefore.assetValue
+    ).toNumber();
+    const leeAvAfter = wrappedI80F48toBigNumber(
+      leeHealthCache.assetValue
+    ).toNumber();
+    const leeLvBefore = wrappedI80F48toBigNumber(
+      leeHealthCacheBefore.liabilityValue
+    ).toNumber();
+    const leeLvAfter = wrappedI80F48toBigNumber(
+      leeHealthCache.liabilityValue
+    ).toNumber();
+
+    assert.approximately(liqAvAfter - liqAvBefore, 7.5, 0.001);
+    assert.approximately(liqLvAfter - liqLvBefore, 14.31495, 0.001);
+    assert.approximately(leeAvAfter - leeAvBefore, -12.75, 0.001);
+    assert.approximately(leeLvAfter - leeLvBefore, -13.9479, 0.001);
   });
 
   const processHealthPulse = async (

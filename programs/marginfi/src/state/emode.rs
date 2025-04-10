@@ -158,7 +158,7 @@ assert_struct_align!(EmodeEntry, 8);
 pub struct EmodeEntry {
     /// emode_tag of the bank(s) whose collateral you wish to treat preferentially.
     pub collateral_bank_emode_tag: u16,
-    /// * APPLIES_TO_ISOLATED (1) - (NOT YET INMPLEMNENTED) if set, isolated banks with this tag
+    /// * APPLIES_TO_ISOLATED (1) - (NOT YET IMPLEMENTED) if set, isolated banks with this tag
     ///   also benefit. If not set, isolated banks continue to offer zero collateral, even if they
     ///   use this tag.
     /// * 2, 4, 8, 16, 32, etc - reserved for future use
