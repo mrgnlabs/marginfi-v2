@@ -520,6 +520,11 @@ describe("Emode liquidation", () => {
     }
   });
 
+  // Completing the possible footguns, this is a somewhat dangerous state for liquidators, since the
+  // liquidator may now not be able to consume any position that breaks its own emode benefit. Since
+  // most liquidators quickly repay debts and convert them back into a preferred currency, this is
+  // probably not an issue for most liquidators, but that those hold balances for longer should be
+  // aware of the possible footgun here.
   it("(liquidator) can now liquidate the position due its own emode benefit!)", async () => {
     const liquidatee = users[0];
     const liquidator = users[2];
@@ -559,8 +564,7 @@ describe("Emode liquidation", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(liquidator.wallet);
-    let result = await banksClient.tryProcessTransaction(tx);
-    dumpBankrunLogs(result);
+    await banksClient.processTransaction(tx);
 
     const userAcc = await processHealthPulse(liquidator, liquidatorAccount, [
       usdcBank,

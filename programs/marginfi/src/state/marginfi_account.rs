@@ -260,8 +260,8 @@ impl<'info> BankAccountWithPriceFeed<'_> {
     ///    is exceeded.
     /// 4. Assets are only calculated for collateral risk tier.
     /// 5. Oracle errors are ignored for deposits in isolated risk tier.
-    fn calc_weighted_value<'a>(
-        &'a self,
+    fn calc_weighted_value(
+        &self,
         requirement_type: RequirementType,
         emode_config: &EmodeConfig,
     ) -> MarginfiResult<(I80F48, I80F48, I80F48)> {
@@ -272,13 +272,13 @@ impl<'info> BankAccountWithPriceFeed<'_> {
                 match side {
                     BalanceSide::Assets => {
                         let (value, price) =
-                            self.calc_weighted_asset_value(requirement_type, &bank, emode_config)?;
+                            self.calc_weighted_asset_value(requirement_type, bank, emode_config)?;
                         Ok((value, I80F48::ZERO, price))
                     }
 
                     BalanceSide::Liabilities => {
                         let (value, price) =
-                            self.calc_weighted_liab_value(requirement_type, &bank)?;
+                            self.calc_weighted_liab_value(requirement_type, bank)?;
                         Ok((I80F48::ZERO, value, price))
                     }
                 }
@@ -289,10 +289,10 @@ impl<'info> BankAccountWithPriceFeed<'_> {
 
     /// Returns value, the net asset value in $, and the price used to determine that value.
     #[inline(always)]
-    fn calc_weighted_asset_value<'a>(
-        &'a self,
+    fn calc_weighted_asset_value(
+        &self,
         requirement_type: RequirementType,
-        bank: &'a Bank,
+        bank: &Bank,
         emode_config: &EmodeConfig,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         match bank.config.risk_tier {
@@ -757,7 +757,7 @@ impl<'info> RiskEngine<'_> {
 
     // TODO this function seems excessive relative to the trivial check it performs, it performs
     // like 4x O(N) loops and should be optimized at minimum.
-    fn check_account_risk_tiers<'a>(&'a self) -> MarginfiResult {
+    fn check_account_risk_tiers(&self) -> MarginfiResult {
         let balances_with_liablities = self
             .bank_accounts_with_price
             .iter()

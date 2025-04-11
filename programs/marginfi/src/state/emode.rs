@@ -128,7 +128,7 @@ impl EmodeSettings {
             .collect();
 
         if non_empty_tags.windows(2).any(|w| w[0] == w[1]) {
-            return err!(MarginfiError::BadEmodeConfig);
+            err!(MarginfiError::BadEmodeConfig)
         } else {
             Ok(())
         }
@@ -276,9 +276,7 @@ pub fn reconcile_emode_configs(configs: Vec<EmodeConfig>) -> EmodeConfig {
         .collect();
 
     // Sort the entries by tag and build a config from them
-    let final_config = EmodeConfig::from_entries(final_entries);
-
-    final_config
+    EmodeConfig::from_entries(final_entries)
 }
 
 #[cfg(test)]
