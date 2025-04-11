@@ -31,14 +31,13 @@ import {
 import { USER_ACCOUNT_E } from "./utils/mocks";
 import { accountInit, borrowIx, composeRemainingAccounts, depositIx } from "./utils/user-instructions";
 
-// Banks are listed here in the sorted-by-public-keys order - the same used in the lending account balances,
-// so make sure to respect the same ordering while pass them as remaining accounts 
+// Banks are listed here in the sorted-by-public-keys order - the same used in the lending account balances
 const seed = new BN(EMODE_SEED);
 let usdcBank: PublicKey;
 let lstBBank: PublicKey;
+let stableBank: PublicKey;
 let lstABank: PublicKey;
 let solBank: PublicKey;
-let stableBank: PublicKey;
 
 describe("Emode borrowing", () => {
   before(async () => {
