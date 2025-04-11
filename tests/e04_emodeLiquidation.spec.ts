@@ -96,7 +96,7 @@ describe("Emode liquidation", () => {
     );
   });
 
-  it("(user 2 aka liquidator) Deposits SOLD and USDC to operate as a liquidator", async () => {
+  it("(user 2 aka liquidator) Deposits SOL and USDC to operate as a liquidator", async () => {
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT_E);
 
@@ -421,7 +421,7 @@ describe("Emode liquidation", () => {
   // liabilties. Repeating the 7.5 and 14.31495 repayment above, the liquidator would end up with 20
   // + 7.5 = $27.5 in assets and 14.31495 + 14.31495 = $28.62 in liabilities, so the liquidator has
   // put themselves in an unhealthy state!
-  it("(liquidator) renders their own account unhealthy due to liquidation - should fail)", async () => {
+  it("(liquidator) renders their own account unhealthy due to liquidation - should fail", async () => {
     const liquidatee = users[0];
     const liquidator = users[2];
 
@@ -525,7 +525,7 @@ describe("Emode liquidation", () => {
   // most liquidators quickly repay debts and convert them back into a preferred currency, this is
   // probably not an issue for most liquidators, but that those hold balances for longer should be
   // aware of the possible footgun here.
-  it("(liquidator) can now liquidate the position due its own emode benefit!)", async () => {
+  it("(liquidator) can now liquidate the position due to its own emode benefit!", async () => {
     const liquidatee = users[0];
     const liquidator = users[2];
 
