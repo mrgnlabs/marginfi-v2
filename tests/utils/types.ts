@@ -45,6 +45,7 @@ export const ORACLE_SETUP_STAKED_WITH_PYTH_PUSH = 5;
 export const HEALTH_CACHE_NONE = 0;
 export const HEALTH_CACHE_HEALTHY = 1;
 export const HEALTH_CACHE_ENGINE_OK = 2;
+export const HEALTH_CACHE_ORACLE_OK = 4;
 
 /** Confidence intervals are multiplied by this constant internally */
 export const CONF_INTERVAL_MULTIPLE = 2.12;

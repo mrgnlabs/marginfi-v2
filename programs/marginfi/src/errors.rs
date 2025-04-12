@@ -258,7 +258,52 @@ impl From<u32> for MarginfiError {
             6070 => MarginfiError::TooSeverePayoff,
             6071 => MarginfiError::TooSevereLiquidation,
             6072 => MarginfiError::WorseHealthPostLiquidation,
+            6073 => MarginfiError::ArenaBankLimit,
+            6074 => MarginfiError::ArenaSettingCannotChange,
+            6075 => MarginfiError::BadEmodeConfig,
             _ => MarginfiError::InternalLogicError,
+        }
+    }
+}
+
+impl PartialEq for MarginfiError {
+    fn eq(&self, other: &Self) -> bool {
+        (*self as u32) == (*other as u32)
+    }
+}
+
+impl Eq for MarginfiError {}
+
+impl MarginfiError {
+    pub fn is_oracle_error(&self) -> bool {
+        match self {
+            // TODO check if this an exhaustive list...
+            MarginfiError::WrongNumberOfOracleAccounts
+            | MarginfiError::SwitchboardInvalidAccount
+            | MarginfiError::PythPushInvalidAccount
+            | MarginfiError::SwitchboardWrongAccountOwner
+            | MarginfiError::PythPushFeedIdNonHexCharacter
+            | MarginfiError::PythPushFeedIdMustBe32Bytes
+            | MarginfiError::PythPushInsufficientVerificationLevel
+            | MarginfiError::PythPushMismatchedFeedId
+            | MarginfiError::StakedPythPushWrongAccountOwner
+            | MarginfiError::PythPushWrongAccountOwner
+            | MarginfiError::WrongOracleAccountKeys
+            | MarginfiError::PythPushStalePrice
+            | MarginfiError::SwitchboardStalePrice
+            | MarginfiError::StakePoolValidationFailed
+            | MarginfiError::InvalidBankAccount
+            | MarginfiError::MissingBankAccount
+            | MarginfiError::MissingPythAccount
+            | MarginfiError::MissingPythOrBankAccount => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_risk_engine_rejection(&self) -> bool {
+        match self {
+            MarginfiError::RiskEngineInitRejected => true,
+            _ => false,
         }
     }
 }

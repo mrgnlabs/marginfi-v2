@@ -6,6 +6,7 @@ use type_layout::TypeLayout;
 
 pub const HEALTHY: u64 = 1;
 pub const ENGINE_OK: u64 = 2;
+pub const ORACLE_OK: u64 = 4;
 
 assert_struct_size!(HealthCache, 304);
 assert_struct_align!(HealthCache, 8);
@@ -21,14 +22,20 @@ pub struct HealthCache {
     pub liability_value: WrappedI80F48,
     /// Unix timestamp from the system clock when this cache was last updated
     pub timestamp: i64,
-    /// The flags that indicate the state of the health cache This is u64 bitfield, where each bit
-    /// represents a flag.
+    /// The flags that indicate the state of the health cache. This is a u64 bitfield, where each
+    /// bit represents a flag.
     ///
     /// * HEALTHY = 1 - If set, the account cannot be liquidated. If 0, the account is unhealthy and
     ///   can be liquidated.
     /// * ENGINE STATUS = 2 - If set, the engine did not error during the last health pulse. If 0,
-    ///   the engine would have errored and this cache is likely invalid.
-    /// * 4, 8, 16, 32, 64, 128, etc - reserved for future use
+    ///   the engine would have errored and this cache is likely invalid. `RiskEngineInitRejected`
+    ///   is ignored and will allow the flag to be set anyways.
+    /// * ORACLE OK = 4 - If set, the engine did not error due to an oracle issue. If 0, engine was
+    ///   passed a bad bank or oracle account, or an oracle was stale. Check the order in which
+    ///   accounts were passed and ensure each balance has the correct banks/oracles, and that
+    ///   oracle cranks ran recently enough. Note that if `ENGINE_OK` is not set, this flag may be
+    ///   invalid.
+    /// * 8, 16, 32, 64, 128, etc - reserved for future use
     pub flags: u64,
     /// Each price corresponds to that index of Balances in the LendingAccount. Useful for debugging
     /// or liquidator consumption, to determine how a user's position is priced internally.
@@ -61,6 +68,19 @@ impl HealthCache {
             self.flags |= ENGINE_OK;
         } else {
             self.flags &= !ENGINE_OK;
+        }
+    }
+
+    /// True if the engine did not detect an oracle input issue in the last health pulse
+    pub fn is_oracle_ok(&self) -> bool {
+        self.flags & ORACLE_OK != 0
+    }
+
+    pub fn set_oracle_ok(&mut self, ok: bool) {
+        if ok {
+            self.flags |= ORACLE_OK;
+        } else {
+            self.flags &= !ORACLE_OK;
         }
     }
 }
