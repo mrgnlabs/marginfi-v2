@@ -1,23 +1,28 @@
 use crate::state::marginfi_group::Bank;
 use anchor_lang::prelude::*;
+use fixed::types::I80F48;
 
 /// Echo the information used to create banks to the log output. Useful for at-a-glance debugging
 /// bank creation txes in explorer. Note: costs a lot of CU
 pub fn log_pool_info(bank: &Bank) {
     let conf = bank.config;
-    let asset_weight_init = u128::from_le_bytes(conf.asset_weight_init.value);
-    let asset_weight_maint = u128::from_le_bytes(bank.config.asset_weight_maint.value);
+    let asset_weight_init: I80F48 = conf.asset_weight_init.into();
+    let asset_weight_init_f64: f64 = asset_weight_init.to_num();
+    let asset_weight_maint: I80F48 = conf.asset_weight_maint.into();
+    let asset_weight_maint_f64: f64 = asset_weight_maint.to_num();
     msg!(
         "Asset weight init: {:?} maint: {:?}",
-        asset_weight_init,
-        asset_weight_maint
+        asset_weight_init_f64,
+        asset_weight_maint_f64
     );
-    let liab_weight_init = u128::from_le_bytes(conf.liability_weight_init.value);
-    let liab_weight_maint = u128::from_le_bytes(conf.liability_weight_maint.value);
+    let liab_weight_init: I80F48 = conf.liability_weight_init.into();
+    let liab_weight_init_f64: f64 = liab_weight_init.to_num();
+    let liab_weight_maint: I80F48 = conf.liability_weight_maint.into();
+    let liab_weight_maint_f64: f64 = liab_weight_maint.to_num();
     msg!(
         "Liab weight init: {:?} maint: {:?}",
-        liab_weight_init,
-        liab_weight_maint
+        liab_weight_init_f64,
+        liab_weight_maint_f64
     );
     msg!(
         "deposit limit: {:?} borrow limit: {:?} init val limit: {:?}",
