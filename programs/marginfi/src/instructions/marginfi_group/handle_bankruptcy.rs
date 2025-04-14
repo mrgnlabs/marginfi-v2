@@ -9,7 +9,7 @@ use crate::{
     math_error,
     prelude::MarginfiError,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
         marginfi_group::{Bank, BankVaultType, MarginfiGroup},
     },
     utils, MarginfiResult,
@@ -33,7 +33,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         insurance_vault,
         token_program,
         bank: bank_loader,
-        marginfi_group: marginfi_group_loader,
+        group: marginfi_group_loader,
         ..
     } = ctx.accounts;
     let bank = bank_loader.load()?;
@@ -68,7 +68,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         .lending_account
         .balances
         .iter_mut()
-        .find(|balance| balance.active && balance.bank_pk == bank_loader.key());
+        .find(|balance| balance.is_active() && balance.bank_pk == bank_loader.key());
 
     check!(
         lending_account_balance.is_some(),
@@ -154,7 +154,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     )?
     .repay(bad_debt)?;
 
-    marginfi_account.set_flag(DISABLED_FLAG);
+    marginfi_account.set_flag(ACCOUNT_DISABLED);
 
     emit!(LendingPoolBankHandleBankruptcyEvent {
         header: AccountEventHeader {
@@ -175,20 +175,21 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 
 #[derive(Accounts)]
 pub struct LendingPoolHandleBankruptcy<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
-    // #[account(address = marginfi_group.load()?.admin)]
+    /// CHECK: The admin signer constraint is only validated (in handler) if bank
+    /// PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG is not set
     pub signer: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
 
     #[account(
         mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
+        has_one = group
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

@@ -1,17 +1,19 @@
 use crate::{
     bank_signer, check,
-    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
+    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
     events::{AccountEventHeader, LendingAccountBorrowEvent},
     math_error,
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, DISABLED_FLAG},
+        health_cache::HealthCache,
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
         marginfi_group::{Bank, BankVaultType},
     },
     utils::{self, validate_asset_tags},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
+use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use solana_program::{clock::Clock, sysvar::Sysvar};
 
@@ -29,11 +31,11 @@ pub fn lending_account_borrow<'info>(
     let LendingAccountBorrow {
         marginfi_account: marginfi_account_loader,
         destination_token_account,
-        bank_liquidity_vault,
+        liquidity_vault: bank_liquidity_vault,
         token_program,
         bank_liquidity_vault_authority,
         bank: bank_loader,
-        marginfi_group: marginfi_group_loader,
+        group: marginfi_group_loader,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
@@ -48,7 +50,7 @@ pub fn lending_account_borrow<'info>(
     let program_fee_rate: I80F48 = group.fee_state_cache.program_fee_rate.into();
 
     check!(
-        !marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 
@@ -123,7 +125,7 @@ pub fn lending_account_borrow<'info>(
 
         emit!(LendingAccountBorrowEvent {
             header: AccountEventHeader {
-                signer: Some(ctx.accounts.signer.key()),
+                signer: Some(ctx.accounts.authority.key()),
                 marginfi_account: marginfi_account_loader.key(),
                 marginfi_account_authority: marginfi_account.authority,
                 marginfi_group: marginfi_account.group,
@@ -165,31 +167,39 @@ pub fn lending_account_borrow<'info>(
         }
     }
 
+    let mut health_cache = HealthCache::zeroed();
+    health_cache.timestamp = clock.unix_timestamp;
+
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts)?;
+    RiskEngine::check_account_init_health(
+        &marginfi_account,
+        ctx.remaining_accounts,
+        &mut Some(&mut health_cache),
+    )?;
+    health_cache.set_engine_ok(true);
+    marginfi_account.health_cache = health_cache;
 
     Ok(())
 }
 
 #[derive(Accounts)]
 pub struct LendingAccountBorrow<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
-        constraint = marginfi_account.load() ?.group == marginfi_group.key(),
+        has_one = group,
+        has_one = authority
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    #[account(
-        address = marginfi_account.load() ?.authority,
-    )]
-    pub signer: Signer<'info>,
+    pub authority: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load() ?.group == marginfi_group.key(),
+        has_one = group,
+        has_one = liquidity_vault
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -207,15 +217,8 @@ pub struct LendingAccountBorrow<'info> {
     )]
     pub bank_liquidity_vault_authority: AccountInfo<'info>,
 
-    #[account(
-        mut,
-        seeds = [
-            LIQUIDITY_VAULT_SEED.as_bytes(),
-            bank.key().as_ref(),
-        ],
-        bump = bank.load() ?.liquidity_vault_bump,
-    )]
-    pub bank_liquidity_vault: InterfaceAccount<'info, TokenAccount>,
+    #[account(mut)]
+    pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }

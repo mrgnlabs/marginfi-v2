@@ -37,10 +37,8 @@ describe("Deposit funds (included staked assets)", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -60,7 +58,7 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertKeysEqual(balances[1].bankPk, bankKeypairSol.publicKey);
   });
 
@@ -72,10 +70,8 @@ describe("Deposit funds (included staked assets)", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         remaining: [
@@ -95,14 +91,14 @@ describe("Deposit funds (included staked assets)", () => {
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
     // AssetTagMismatch
-    assertBankrunTxFailed(result, "0x17a1");
+    assertBankrunTxFailed(result, "0x179f");
 
     // Verify the deposit worked and the entry does not exist
     const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[2].active, false);
+    assert.equal(balances[2].active, 0);
   });
 
   // TODO withdraw user 1's SOL collateral and verify they can borrow SOL

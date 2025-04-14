@@ -30,7 +30,6 @@ export const MAX_ORACLE_KEYS = 5;
  */
 export type AddBankArgs = {
   marginfiGroup: PublicKey;
-  admin: PublicKey;
   feePayer: PublicKey;
   bankMint: PublicKey;
   bank: PublicKey;
@@ -56,7 +55,7 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
     })
     .accounts({
       marginfiGroup: args.marginfiGroup,
-      admin: args.admin,
+      // admin: args.admin, // implied from group
       feePayer: args.feePayer,
       bankMint: args.bankMint,
       bank: args.bank,
@@ -78,24 +77,90 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
 };
 
 /**
- * newAdmin - (Optional) pass null to keep current admin
- * admin - must sign, must be current admin of marginfiGroup
+ * * admin/feePayer - must sign
+ * * bank - use a fresh keypair, must sign
  */
-export type GroupConfigureArgs = {
-  newAdmin: PublicKey | null;
+export type AddBankWithSeedArgs = {
   marginfiGroup: PublicKey;
-  admin: PublicKey;
+  feePayer: PublicKey;
+  bankMint: PublicKey;
+  bank: PublicKey;
+  config: BankConfig;
+  seed?: BN;
 };
 
-export const groupConfigure = (
+export const addBankWithSeed = (
+  program: Program<Marginfi>,
+  args: AddBankWithSeedArgs
+) => {
+  const ix = program.methods
+    .lendingPoolAddBankWithSeed(
+      {
+        assetWeightInit: args.config.assetWeightInit,
+        assetWeightMaint: args.config.assetWeightMaint,
+        liabilityWeightInit: args.config.liabilityWeightInit,
+        liabilityWeightMaint: args.config.liabilityWeightMain,
+        depositLimit: args.config.depositLimit,
+        interestRateConfig: args.config.interestRateConfig,
+        operationalState: args.config.operationalState,
+        borrowLimit: args.config.borrowLimit,
+        riskTier: args.config.riskTier,
+        assetTag: args.config.assetTag,
+        pad0: [0, 0, 0, 0, 0, 0],
+        totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
+        oracleMaxAge: args.config.oracleMaxAge,
+      },
+      args.seed ?? new BN(0)
+    )
+    .accounts({
+      marginfiGroup: args.marginfiGroup,
+      // admin: args.admin, // implied from group
+      feePayer: args.feePayer,
+      bankMint: args.bankMint,
+      // bank: args.bank, // derived from seed
+      // globalFeeState: deriveGlobalFeeState(id),
+      // globalFeeWallet: args.globalFeeWallet,
+      // liquidityVaultAuthority = deriveLiquidityVaultAuthority(id, bank);
+      // liquidityVault = deriveLiquidityVault(id, bank);
+      // insuranceVaultAuthority = deriveInsuranceVaultAuthority(id, bank);
+      // insuranceVault = deriveInsuranceVault(id, bank);
+      // feeVaultAuthority = deriveFeeVaultAuthority(id, bank);
+      // feeVault = deriveFeeVault(id, bank);
+      // rent = SYSVAR_RENT_PUBKEY
+      tokenProgram: TOKEN_PROGRAM_ID,
+      // systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+
+  return ix;
+};
+
+/**
+ * newAdmin - (Optional) pass null to keep current admin
+ * marginfiGroup's admin - must sign
+ * isArena - default false
+ */
+export type GroupConfigureArgs = {
+  newAdmin?: PublicKey | null; // optional; pass null or leave undefined to keep current admin
+  marginfiGroup: PublicKey;
+  isArena?: boolean; // optional; defaults to false if not provided
+};
+
+export const groupConfigure = async (
   program: Program<Marginfi>,
   args: GroupConfigureArgs
 ) => {
+  const isArena = args.isArena ?? false;
+  let newAdmin = args.newAdmin;
+  if (newAdmin == null) {
+    const group = await program.account.marginfiGroup.fetch(args.marginfiGroup);
+    newAdmin = group.admin;
+  }
   const ix = program.methods
-    .marginfiGroupConfigure({ admin: args.newAdmin })
+    .marginfiGroupConfigure(newAdmin, isArena)
     .accounts({
       marginfiGroup: args.marginfiGroup,
-      admin: args.admin,
+      // admin: // implied from group
     })
     .instruction();
 
@@ -105,14 +170,16 @@ export const groupConfigure = (
 export type GroupInitializeArgs = {
   marginfiGroup: PublicKey;
   admin: PublicKey;
+  isArena?: boolean; // optional; defaults to false if not provided
 };
 
 export const groupInitialize = (
   program: Program<Marginfi>,
   args: GroupInitializeArgs
 ) => {
+  const isArena = args.isArena ?? false;
   const ix = program.methods
-    .marginfiGroupInitialize()
+    .marginfiGroupInitialize(isArena)
     .accounts({
       marginfiGroup: args.marginfiGroup,
       // feeState: deriveGlobalFeeState(id),
@@ -125,8 +192,6 @@ export const groupInitialize = (
 };
 
 export type ConfigureBankArgs = {
-  marginfiGroup: PublicKey;
-  admin: PublicKey;
   bank: PublicKey;
   bankConfigOpt: BankConfigOptWithAssetTag; // BankConfigOptRaw + assetTag
 };
@@ -138,8 +203,6 @@ export const configureBank = (
   const ix = program.methods
     .lendingPoolConfigureBank(args.bankConfigOpt)
     .accounts({
-      marginfiGroup: args.marginfiGroup,
-      admin: args.admin,
       bank: args.bank,
     })
     .instruction();
@@ -176,8 +239,6 @@ export const configureBankOracle = (
 };
 
 export type SetupEmissionsArgs = {
-  marginfiGroup: PublicKey;
-  admin: PublicKey;
   bank: PublicKey;
   emissionsMint: PublicKey;
   fundingAccount: PublicKey;
@@ -197,8 +258,6 @@ export const setupEmissions = (
       args.totalEmissions
     )
     .accounts({
-      marginfiGroup: args.marginfiGroup,
-      admin: args.admin,
       bank: args.bank,
       emissionsMint: args.emissionsMint,
       // emissionsAuth: deriveEmissionsAuth()
@@ -212,8 +271,6 @@ export const setupEmissions = (
 };
 
 export type UpdateEmissionsArgs = {
-  marginfiGroup: PublicKey;
-  admin: PublicKey;
   bank: PublicKey;
   emissionsMint: PublicKey;
   fundingAccount: PublicKey;
@@ -233,8 +290,6 @@ export const updateEmissions = (
       args.additionalEmissions
     )
     .accounts({
-      marginfiGroup: args.marginfiGroup,
-      admin: args.admin,
       bank: args.bank,
       emissionsMint: args.emissionsMint,
       // emissionsAuth: deriveEmissionsAuth()
@@ -287,6 +342,7 @@ export type EditGlobalFeeStateArgs = {
   bankInitFlatSolFee: number;
   programFeeFixed: WrappedI80F48;
   programFeeRate: WrappedI80F48;
+  newAdmin?: PublicKey;
 };
 
 // TODO add test for this
@@ -296,6 +352,7 @@ export const editGlobalFeeState = (
 ) => {
   const ix = program.methods
     .editGlobalFeeState(
+      args.newAdmin ? args.newAdmin : args.admin,
       args.wallet,
       args.bankInitFlatSolFee,
       args.programFeeFixed,

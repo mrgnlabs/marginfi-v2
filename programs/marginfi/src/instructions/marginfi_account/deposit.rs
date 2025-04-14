@@ -1,16 +1,16 @@
 use crate::{
     check,
-    constants::LIQUIDITY_VAULT_SEED,
     events::{AccountEventHeader, LendingAccountDepositEvent},
+    math_error,
     prelude::*,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, DISABLED_FLAG},
+        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
         marginfi_group::Bank,
     },
     utils::{self, validate_asset_tags},
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::TokenInterface;
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use solana_program::clock::Clock;
 use solana_program::sysvar::Sysvar;
@@ -24,15 +24,16 @@ use solana_program::sysvar::Sysvar;
 pub fn lending_account_deposit<'info>(
     mut ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
     amount: u64,
+    deposit_up_to_limit: Option<bool>,
 ) -> MarginfiResult {
     let LendingAccountDeposit {
         marginfi_account: marginfi_account_loader,
-        signer,
+        authority: signer,
         signer_token_account,
-        bank_liquidity_vault,
+        liquidity_vault: bank_liquidity_vault,
         token_program,
         bank: bank_loader,
-        marginfi_group: marginfi_group_loader,
+        group: marginfi_group_loader,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
@@ -41,6 +42,7 @@ pub fn lending_account_deposit<'info>(
         &*bank_loader.load()?,
         token_program.key,
     )?;
+    let deposit_up_to_limit = deposit_up_to_limit.unwrap_or(false);
 
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
@@ -48,9 +50,36 @@ pub fn lending_account_deposit<'info>(
     validate_asset_tags(&bank, &marginfi_account)?;
 
     check!(
-        !marginfi_account.get_flag(DISABLED_FLAG),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
+
+    let deposit_amount = if deposit_up_to_limit && bank.config.is_deposit_limit_active() {
+        let current_asset_amount = bank.get_asset_amount(bank.total_asset_shares.into())?;
+        let deposit_limit = I80F48::from_num(bank.config.deposit_limit);
+
+        if current_asset_amount >= deposit_limit {
+            0
+        } else {
+            let remaining_capacity = deposit_limit
+                .checked_sub(current_asset_amount)
+                .ok_or_else(math_error!())?
+                .checked_sub(I80F48::ONE) // Subtract 1 to ensure we stay under limit: total_deposits_amount < deposit_limit
+                .ok_or_else(math_error!())?
+                .checked_floor()
+                .ok_or_else(math_error!())?
+                .checked_to_num::<u64>()
+                .ok_or_else(math_error!())?;
+
+            std::cmp::min(amount, remaining_capacity)
+        }
+    } else {
+        amount
+    };
+
+    if deposit_amount == 0 {
+        return Ok(());
+    }
 
     bank.accrue_interest(
         clock.unix_timestamp,
@@ -65,15 +94,19 @@ pub fn lending_account_deposit<'info>(
         &mut marginfi_account.lending_account,
     )?;
 
-    bank_account.deposit(I80F48::from_num(amount))?;
+    bank_account.deposit(I80F48::from_num(deposit_amount))?;
 
     let amount_pre_fee = maybe_bank_mint
         .as_ref()
         .map(|mint| {
-            utils::calculate_pre_fee_spl_deposit_amount(mint.to_account_info(), amount, clock.epoch)
+            utils::calculate_pre_fee_spl_deposit_amount(
+                mint.to_account_info(),
+                deposit_amount,
+                clock.epoch,
+            )
         })
         .transpose()?
-        .unwrap_or(amount);
+        .unwrap_or(deposit_amount);
 
     bank_account.deposit_spl_transfer(
         amount_pre_fee,
@@ -94,7 +127,7 @@ pub fn lending_account_deposit<'info>(
         },
         bank: bank_loader.key(),
         mint: bank.mint,
-        amount,
+        amount: deposit_amount,
     });
 
     Ok(())
@@ -102,22 +135,21 @@ pub fn lending_account_deposit<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountDeposit<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+    pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
-        constraint = marginfi_account.load()?.group == marginfi_group.key(),
+        has_one = group,
+        has_one = authority
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    #[account(
-        address = marginfi_account.load()?.authority,
-    )]
-    pub signer: Signer<'info>,
+    pub authority: Signer<'info>,
 
     #[account(
         mut,
-        constraint = bank.load()?.group == marginfi_group.key(),
+        has_one = group,
+        has_one = liquidity_vault
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -125,16 +157,8 @@ pub struct LendingAccountDeposit<'info> {
     #[account(mut)]
     pub signer_token_account: AccountInfo<'info>,
 
-    /// CHECK: Seed constraint check
-    #[account(
-        mut,
-        seeds = [
-            LIQUIDITY_VAULT_SEED.as_bytes(),
-            bank.key().as_ref(),
-        ],
-        bump = bank.load()?.liquidity_vault_bump,
-    )]
-    pub bank_liquidity_vault: AccountInfo<'info>,
+    #[account(mut)]
+    pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }

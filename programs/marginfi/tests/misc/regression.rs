@@ -3,10 +3,12 @@ use std::{fs::File, io::Read, path::PathBuf, str::FromStr};
 use anchor_lang::AccountDeserialize;
 use anyhow::bail;
 use base64::{prelude::BASE64_STANDARD, Engine};
+use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use marginfi::{
     constants::ASSET_TAG_DEFAULT,
     state::{
+        health_cache::HealthCache,
         marginfi_account::MarginfiAccount,
         marginfi_group::{Bank, BankOperationalState, RiskTier},
         price::OracleSetup,
@@ -45,10 +47,12 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("Dq7wypbedtaqQK9QqEFvfrxc4ppfRGXCeTVd7ee7n2jw")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding, [0; 63]);
+    // health cache doesn't exist on these old accounts, but it also doesn't matter since it's read-only
+    assert_eq!(account.health_cache, HealthCache::zeroed());
+    assert_eq!(account._padding0, [0; 21]);
 
     let balance_1 = account.lending_account.balances[0];
-    assert!(balance_1.active);
+    assert!(balance_1.is_active());
     assert_eq!(
         balance_1.bank_pk,
         pubkey!("2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB")
@@ -74,7 +78,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(balance_1._padding, [0; 1]);
 
     let balance_2 = account.lending_account.balances[1];
-    assert!(balance_2.active);
+    assert!(balance_2.is_active());
     assert_eq!(
         balance_2.bank_pk,
         pubkey!("CCKtUs6Cgwo4aaQUmBPmyoApH2gUDErxNZCAntD6LYGh")
@@ -122,10 +126,10 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("3T1kGHp7CrdeW9Qj1t8NMc2Ks233RyvzVhoaUPWoBEFK")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding, [0; 63]);
+    assert_eq!(account._padding0, [0; 21]);
 
     let balance_1 = account.lending_account.balances[0];
-    assert!(balance_1.active);
+    assert!(balance_1.is_active());
     assert_eq!(
         balance_1.bank_pk,
         pubkey!("6hS9i46WyTq1KXcoa2Chas2Txh9TJAVr6n1t3tnrE23K")
@@ -151,7 +155,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(balance_1._padding, [0; 1]);
 
     let balance_2 = account.lending_account.balances[1];
-    assert!(!balance_2.active);
+    assert!(!balance_2.is_active());
     assert_eq!(
         balance_2.bank_pk,
         pubkey!("11111111111111111111111111111111")
@@ -199,10 +203,10 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("7hmfVTuXc7HeX3YQjpiCXGVQuTeXonzjp795jorZukVR")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding, [0; 63]);
+    assert_eq!(account._padding0, [0; 21]);
 
     let balance_1 = account.lending_account.balances[0];
-    assert!(!balance_1.active);
+    assert!(!balance_1.is_active());
     assert_eq!(
         balance_1.bank_pk,
         pubkey!("11111111111111111111111111111111")
@@ -647,7 +651,8 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank.config._pad1, [0; 6]);
     assert_eq!(bank.config.total_asset_value_init_limit, 0);
     assert_eq!(bank.config.oracle_max_age, 300);
-    assert_eq!(bank.config._padding, [0; 38]);
+    assert_eq!(bank.config._padding0, [0; 6]);
+    assert_eq!(bank.config._padding1, [0; 32]);
 
     assert_eq!(bank.flags, 2);
 

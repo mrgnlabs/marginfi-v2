@@ -29,15 +29,19 @@ cfg_if::cfg_if! {
 pub mod marginfi {
     use super::*;
 
-    pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
-        marginfi_group::initialize_group(ctx)
+    pub fn marginfi_group_initialize(
+        ctx: Context<MarginfiGroupInitialize>,
+        is_arena_group: bool,
+    ) -> MarginfiResult {
+        marginfi_group::initialize_group(ctx, is_arena_group)
     }
 
     pub fn marginfi_group_configure(
         ctx: Context<MarginfiGroupConfigure>,
-        config: GroupConfig,
+        new_admin: Pubkey,
+        is_arena_group: bool,
     ) -> MarginfiResult {
-        marginfi_group::configure(ctx, config)
+        marginfi_group::configure(ctx, new_admin, is_arena_group)
     }
 
     pub fn lending_pool_add_bank(
@@ -120,8 +124,9 @@ pub mod marginfi {
     pub fn lending_account_deposit<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
         amount: u64,
+        deposit_up_to_limit: Option<bool>,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_deposit(ctx, amount)
+        marginfi_account::lending_account_deposit(ctx, amount, deposit_up_to_limit)
     }
 
     pub fn lending_account_repay<'info>(
@@ -186,6 +191,12 @@ pub mod marginfi {
         marginfi_account::lending_account_end_flashloan(ctx)
     }
 
+    pub fn marginfi_account_update_emissions_destination_account<'info>(
+        ctx: Context<'_, '_, 'info, 'info, MarginfiAccountUpdateEmissionsDestinationAccount<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::marginfi_account_update_emissions_destination_account(ctx)
+    }
+
     // Operational instructions
     pub fn lending_pool_accrue_bank_interest(
         ctx: Context<LendingPoolAccrueBankInterest>,
@@ -231,6 +242,23 @@ pub mod marginfi {
         marginfi_account::close_account(ctx)
     }
 
+    pub fn lending_account_withdraw_emissions_permissionless<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdrawEmissionsPermissionless<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_withdraw_emissions_permissionless(ctx)
+    }
+
+    /// (Permissionless) Refresh the internal risk engine health cache. Useful for liquidators and
+    /// other consumers that want to see the internal risk state of a user account. This cache is
+    /// read-only and serves no purpose except being populated by this ix.
+    /// * remaining accounts expected in the same order as borrow, etc. I.e., for each balance the
+    ///   user has, pass bank and oracle: <bank1, oracle1, bank2, oracle2>
+    pub fn lending_account_pulse_health<'info>(
+        ctx: Context<'_, '_, 'info, 'info, PulseHealth<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_pulse_health(ctx)
+    }
+
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees
     /// that are assessed to the protocol
     pub fn init_global_fee_state(
@@ -251,9 +279,10 @@ pub mod marginfi {
         )
     }
 
-    /// (global fee admin only) Adjust fees or the destination wallet
+    /// (global fee admin only) Adjust fees, admin, or the destination wallet
     pub fn edit_global_fee_state(
         ctx: Context<EditFeeState>,
+        admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
@@ -261,6 +290,7 @@ pub mod marginfi {
     ) -> MarginfiResult {
         marginfi_group::edit_fee_state(
             ctx,
+            admin,
             fee_wallet,
             bank_init_flat_sol_fee,
             program_fee_fixed,
@@ -276,8 +306,11 @@ pub mod marginfi {
     /// (global fee admin only) Enable or disable program fees for any group. Does not require the
     /// group admin to sign: the global fee state admin can turn program fees on or off for any
     /// group
-    pub fn config_group_fee(ctx: Context<ConfigGroupFee>, flag: u64) -> MarginfiResult {
-        marginfi_group::config_group_fee(ctx, flag)
+    pub fn config_group_fee(
+        ctx: Context<ConfigGroupFee>,
+        enable_program_fee: bool,
+    ) -> MarginfiResult {
+        marginfi_group::config_group_fee(ctx, enable_program_fee)
     }
 
     /// (group admin only) Init the Staked Settings account, which is used to create staked

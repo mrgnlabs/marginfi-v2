@@ -93,7 +93,7 @@ impl BankFixture {
         let mut instructions = Vec::new();
 
         let accounts = marginfi::accounts::LendingPoolConfigureBank {
-            marginfi_group: self.load().await.group,
+            group: self.load().await.group,
             admin: self.ctx.borrow().payer.pubkey(),
             bank: self.key,
         }
@@ -112,7 +112,7 @@ impl BankFixture {
 
         if let Some((setup, oracle)) = oracle_update {
             let mut oracle_accounts = marginfi::accounts::LendingPoolConfigureBank {
-                marginfi_group: self.load().await.group,
+                group: self.load().await.group,
                 admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
             }
@@ -220,7 +220,7 @@ impl BankFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolSetupEmissions {
-                marginfi_group: self.load().await.group,
+                group: self.load().await.group,
                 admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
                 emissions_mint,
@@ -275,7 +275,7 @@ impl BankFixture {
         let ix = Instruction {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
-                marginfi_group: self.load().await.group,
+                group: self.load().await.group,
                 admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
                 emissions_mint: bank.emissions_mint,
@@ -330,7 +330,7 @@ impl BankFixture {
         );
 
         let mut accounts = marginfi::accounts::LendingPoolWithdrawFees {
-            marginfi_group: bank.group,
+            group: bank.group,
             token_program: receiving_account.token_program,
             bank: self.key,
             admin: signer_pk,
@@ -375,7 +375,7 @@ impl BankFixture {
         );
 
         let mut accounts = marginfi::accounts::LendingPoolWithdrawInsurance {
-            marginfi_group: bank.group,
+            group: bank.group,
             token_program: receiving_account.token_program,
             bank: self.key,
             admin: signer_pk,

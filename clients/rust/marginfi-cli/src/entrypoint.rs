@@ -8,11 +8,11 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
-use marginfi::state::marginfi_account::TRANSFER_AUTHORITY_ALLOWED_FLAG;
+use marginfi::state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
 use marginfi::{
     prelude::*,
     state::{
-        marginfi_account::{Balance, LendingAccount, MarginfiAccount, FLASHLOAN_ENABLED_FLAG},
+        marginfi_account::{Balance, LendingAccount, MarginfiAccount, ACCOUNT_FLAG_DEPRECATED},
         marginfi_group::{
             Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
             InterestRateConfigOpt, RiskTier, WrappedI80F48,
@@ -96,9 +96,14 @@ pub enum GroupCommand {
         admin: Option<Pubkey>,
         #[clap(short = 'f', long = "override")]
         override_existing_profile_group: bool,
+        #[clap(long)]
+        is_arena_group: bool,
     },
     Update {
-        admin: Option<Pubkey>,
+        #[clap(long)]
+        new_admin: Pubkey,
+        #[clap(long)]
+        is_arena_group: bool,
     },
     AddBank {
         #[clap(long)]
@@ -168,6 +173,8 @@ pub enum GroupCommand {
     },
     EditFeeState {
         #[clap(long)]
+        new_admin: Pubkey,
+        #[clap(long)]
         fee_wallet: Pubkey,
         #[clap(long)]
         bank_init_flat_sol_fee: u32,
@@ -177,8 +184,11 @@ pub enum GroupCommand {
         program_fee_rate: f64,
     },
     ConfigGroupFee {
-        #[clap(long)]
-        flag: u64,
+        #[clap(
+            long,
+            help = "True to enable collecting program fees for all banks in this group"
+        )]
+        enable_program_fee: bool,
     },
     PropagateFee {
         #[clap(long)]
@@ -409,6 +419,7 @@ pub enum AccountCommand {
     Deposit {
         bank: Pubkey,
         ui_amount: f64,
+        deposit_up_to_limit: Option<bool>,
     },
     Withdraw {
         bank: Pubkey,
@@ -431,6 +442,7 @@ pub enum AccountCommand {
         ui_asset_amount: f64,
     },
     Create,
+    Close,
     SetFlag {
         account_pk: Pubkey,
         #[clap(long)]
@@ -583,9 +595,19 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         GroupCommand::Create {
             admin,
             override_existing_profile_group,
-        } => processor::group_create(config, profile, admin, override_existing_profile_group),
+            is_arena_group,
+        } => processor::group_create(
+            config,
+            profile,
+            admin,
+            override_existing_profile_group,
+            is_arena_group,
+        ),
 
-        GroupCommand::Update { admin } => processor::group_configure(config, profile, admin),
+        GroupCommand::Update {
+            new_admin,
+            is_arena_group,
+        } => processor::group_configure(config, profile, new_admin, is_arena_group),
 
         GroupCommand::AddBank {
             mint: bank_mint,
@@ -664,18 +686,22 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             program_fee_rate,
         ),
         GroupCommand::EditFeeState {
+            new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         } => processor::edit_fee_state(
             config,
+            new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
         ),
-        GroupCommand::ConfigGroupFee { flag } => processor::config_group_fee(config, profile, flag),
+        GroupCommand::ConfigGroupFee { enable_program_fee } => {
+            processor::config_group_fee(config, profile, enable_program_fee)
+        }
         GroupCommand::PropagateFee { marginfi_group } => {
             processor::propagate_fee(config, marginfi_group)
         }
@@ -822,7 +848,6 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
 
 fn inspect_padding() -> Result<()> {
     println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
-    println!("GroupConfig: {}", GroupConfig::type_layout());
     println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
     println!(
         "Bank: {}",
@@ -843,7 +868,6 @@ fn inspect_size() -> Result<()> {
     use std::mem::size_of;
 
     println!("MarginfiGroup: {}", size_of::<MarginfiGroup>());
-    println!("GroupConfig: {}", size_of::<GroupConfig>());
     println!("InterestRateConfig: {}", size_of::<InterestRateConfig>());
     println!(
         "Bank: {}",
@@ -916,9 +940,17 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
         AccountCommand::Get { account } => {
             processor::marginfi_account_get(profile, &config, account)
         }
-        AccountCommand::Deposit { bank, ui_amount } => {
-            processor::marginfi_account_deposit(&profile, &config, bank, ui_amount)
-        }
+        AccountCommand::Deposit {
+            bank,
+            ui_amount,
+            deposit_up_to_limit,
+        } => processor::marginfi_account_deposit(
+            &profile,
+            &config,
+            bank,
+            ui_amount,
+            deposit_up_to_limit,
+        ),
         AccountCommand::Withdraw {
             bank,
             ui_amount,
@@ -941,6 +973,7 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
             ui_asset_amount,
         ),
         AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
+        AccountCommand::Close => processor::marginfi_account_close(&profile, &config),
         AccountCommand::SetFlag {
             flashloans_enabled: flashloan,
             account_pk,
@@ -950,12 +983,12 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
 
             if flashloan {
                 println!("Setting flashloan flag");
-                flag |= FLASHLOAN_ENABLED_FLAG;
+                flag |= ACCOUNT_FLAG_DEPRECATED;
             }
 
             if account_migration_enabled {
                 println!("Setting account migration flag");
-                flag |= TRANSFER_AUTHORITY_ALLOWED_FLAG;
+                flag |= ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
             }
 
             if flag == 0 {

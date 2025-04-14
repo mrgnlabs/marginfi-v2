@@ -26,6 +26,8 @@ export type Ecosystem = {
   tokenBMint: Keypair;
   /** A generic spl token mint like USDC (6 decimals) */
   usdcMint: Keypair;
+  /** A generic LST-like mint (like wsol, 9 decimals) */
+  lstAlphaMint: Keypair;
   /** 9 */
   wsolDecimals: number;
   /** Decimals for token A (default 8) */
@@ -34,6 +36,8 @@ export type Ecosystem = {
   tokenBDecimals: number;
   /** 6 */
   usdcDecimals: number;
+  /** Decimals for lst alpha (default 9)*/
+  lstAlphaDecimals: number;
 };
 
 /**
@@ -48,10 +52,12 @@ export const getGenericEcosystem = () => {
     tokenAMint: Keypair.generate(),
     tokenBMint: Keypair.generate(),
     usdcMint: Keypair.generate(),
+    lstAlphaMint: Keypair.generate(),
     wsolDecimals: 9,
     tokenADecimals: 8,
     tokenBDecimals: 6,
     usdcDecimals: 6,
+    lstAlphaDecimals: 9,
   };
   return ecosystem;
 };
@@ -62,7 +68,13 @@ export const getGenericEcosystem = () => {
  */
 export const echoEcosystemInfo = (
   ecosystem: Ecosystem,
-  { skipWsol = false, skipUsdc = false, skipA = false, skipB = false }
+  {
+    skipWsol = false,
+    skipUsdc = false,
+    skipA = false,
+    skipB = false,
+    skipAlpha = false,
+  }
 ) => {
   if (!skipWsol) {
     console.log("wsol mint:........... " + ecosystem.wsolMint.publicKey);
@@ -80,6 +92,10 @@ export const echoEcosystemInfo = (
     console.log("token b mint:........ " + ecosystem.tokenBMint.publicKey);
     console.log("  token b decimals:.. " + ecosystem.tokenBDecimals);
   }
+  if (!skipAlpha) {
+    console.log("lst alpha mint:...... " + ecosystem.lstAlphaMint.publicKey);
+    console.log("  lst alpha decimals: " + ecosystem.lstAlphaDecimals);
+  }
 };
 
 /**
@@ -95,8 +111,12 @@ export type MockUser = {
   tokenBAccount: PublicKey;
   /** Users's ATA for USDC */
   usdcAccount: PublicKey;
+  /** Users's ATA for LST Alpha */
+  lstAlphaAccount: PublicKey;
   /** A program that uses the user's wallet */
   mrgnProgram: Program<Marginfi> | undefined;
+  /** A bankrun program that uses the user's wallet */
+  mrgnBankrunProgram: Program<Marginfi> | undefined;
   /** A map to store arbitrary accounts related to the user using a string key */
   accounts: Map<string, PublicKey>;
 };
@@ -119,6 +139,7 @@ export interface SetupTestUserOptions {
   tokenAMint: PublicKey;
   tokenBMint: PublicKey;
   usdcMint: PublicKey;
+  lstAlphaMint: PublicKey;
 }
 
 /**
@@ -207,6 +228,22 @@ export const setupTestUser = async (
     );
   }
 
+  let alphaAccount: PublicKey = PublicKey.default;
+  if (options.lstAlphaMint) {
+    alphaAccount = getAssociatedTokenAddressSync(
+      options.lstAlphaMint,
+      userWallet
+    );
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        wallet.publicKey,
+        alphaAccount,
+        userWallet,
+        options.lstAlphaMint
+      )
+    );
+  }
+
   await provider.sendAndConfirm(tx, [wallet]);
 
   const user: MockUser = {
@@ -215,10 +252,12 @@ export const setupTestUser = async (
     tokenAAccount: tokenAAccount,
     tokenBAccount: tokenBAccount,
     usdcAccount: usdcAccount,
+    lstAlphaAccount: alphaAccount,
 
     mrgnProgram: options.marginProgram
       ? getUserMarginfiProgram(options.marginProgram, userWalletKeypair)
       : undefined,
+    mrgnBankrunProgram: undefined,
     accounts: new Map<string, PublicKey>(),
   };
   return user;
@@ -298,6 +337,16 @@ export type Oracles = {
   tokenBOracle: Keypair;
   tokenBPrice: number;
   tokenBDecimals: number;
+  lstAlphaPrice: number;
+  lstAlphaDecimals: number;
+  /** By default, oracle conf is this times price */
+  confidenceValue: number;
+  /** Same initial price/decimals as USDC, but different key. */
+  fakeUsdc: PublicKey;
+  /** Pyth pull oracle price feed that uses a SOL-like price and SOL decimals */
+  pythPullLst: Keypair;
+  /** the feed ID that pythPullLst oracle uses. */
+  pythPullLstOracleFeed: Keypair;
 };
 
 /**

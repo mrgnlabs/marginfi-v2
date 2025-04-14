@@ -44,10 +44,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -65,14 +63,14 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // 6010 (Generic risk engine rejection)
-    assertBankrunTxFailed(result, "0x177a");
+    // 6009 (Generic risk engine rejection)
+    assertBankrunTxFailed(result, "0x1779");
 
     const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, false);
+    assert.equal(balances[1].active, 0);
   });
 
   // Note: there is also some natural appreciation here because a few epochs have elapsed...
@@ -96,10 +94,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -117,19 +113,16 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // Throws 6007 (InvalidOracleAccount) first at `try_from_bank_config_with_max_age` which is
-    // converted to 6010 (Generic risk engine rejection) downstream
-    assertBankrunTxFailed(result, "0x177a");
+    // 6009 (Generic risk engine rejection)
+    assertBankrunTxFailed(result, "0x1779");
   });
 
   it("(user 2 - attacker) ties to sneak in bad sol pool - should fail", async () => {
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -147,9 +140,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // Throws 6007 (InvalidOracleAccount) first at `try_from_bank_config_with_max_age` which is
-    // converted to 6010 (Generic risk engine rejection) downstream
-    assertBankrunTxFailed(result, "0x177a");
+    // 6009 (Generic risk engine rejection)
+    assertBankrunTxFailed(result, "0x1779");
   });
 
   // The stake hasn't changed (even though the SOL balance did) so this should still fail
@@ -157,10 +149,8 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     let tx = new Transaction().add(
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -182,33 +172,30 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // 6010 (Generic risk engine rejection)
-    assertBankrunTxFailed(result, "0x177a");
+    // 6009 (Generic risk engine rejection)
+    assertBankrunTxFailed(result, "0x1779");
   });
 
   it("Generate stake income....", async () => {
     // TODO how?
+    //
   });
 
   // Now the stake is worth enough and the user can borrow
-  it("(user 2) borrows 1.1 SOL against their STAKED position - succceds", async () => {
+  it("(user 2) borrows 1.1 SOL against their STAKED position - succeeds", async () => {
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     const userLstAta = user.accounts.get(LST_ATA);
     let tx = new Transaction().add(
       // TODO if we find a way to make stake appreciate on localnet, remove...
-      await depositIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: validators[0].bank,
         tokenAccount: userLstAta,
         amount: new BN(1 * 10 ** ecosystem.wsolDecimals),
       }),
-      await borrowIx(program, {
-        marginfiGroup: marginfiGroup.publicKey,
+      await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: [
@@ -230,7 +217,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertKeysEqual(balances[1].bankPk, bankKeypairSol.publicKey);
   });
 });

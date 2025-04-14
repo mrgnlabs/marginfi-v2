@@ -8,7 +8,7 @@ use fixtures::{
 };
 use marginfi::{
     prelude::MarginfiError,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType},
 };
 use solana_program_test::tokio;
 
@@ -34,7 +34,7 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -50,11 +50,11 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500, None)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 500, None)
         .await?;
 
     // Borrow SOL
@@ -126,7 +126,7 @@ async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -142,11 +142,11 @@ async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500, None)
         .await?;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_sol_eq.key, sol_eq_bank, 500, None)
         .await?;
 
     // Borrow SOL
@@ -184,7 +184,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -194,7 +194,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500)
+        .try_bank_deposit(borrower_token_account_f_usdc.key, usdc_bank, 500, None)
         .await?;
 
     // Make SOL oracle stale
@@ -209,7 +209,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
 
     // Make SOL oracle not stale
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
@@ -248,7 +248,6 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;
@@ -265,14 +264,14 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(2_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000, None)
         .await?;
     let lender_token_account_sole = test_f
         .sol_equivalent_mint
         .create_token_account_and_mint_to(100)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sole.key, sole_bank_f, 100)
+        .try_bank_deposit(lender_token_account_sole.key, sole_bank_f, 100, None)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -281,7 +280,7 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
 
     // Borrower deposits 100 SOL worth $1000
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100, None)
         .await?;
 
     // Borrower borrows $999
@@ -315,7 +314,7 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
 
     // Make borrower asset bank not stale
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
@@ -336,7 +335,6 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
 #[tokio::test]
 async fn re_bankruptcy_fail() -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings {
-        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::Usdc,
@@ -366,6 +364,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
             lender_token_account_usdc.key,
             test_f.get_bank(&BankMint::Usdc),
             100_000,
+            None,
         )
         .await?;
 
@@ -380,6 +379,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
             borrower_deposit_account.key,
             test_f.get_bank(&BankMint::Sol),
             1_001,
+            None,
         )
         .await?;
 
@@ -419,7 +419,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::StaleOracle);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
 
     // Make borrower liablity bank not stale
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;

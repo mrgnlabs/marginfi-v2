@@ -14,9 +14,7 @@ use lazy_static::lazy_static;
 use marginfi::{
     constants::MAX_ORACLE_KEYS,
     state::{
-        marginfi_group::{
-            BankConfig, BankOperationalState, GroupConfig, InterestRateConfig, RiskTier,
-        },
+        marginfi_group::{BankConfig, BankOperationalState, InterestRateConfig, RiskTier},
         price::OracleSetup,
     },
 };
@@ -28,7 +26,6 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Default, Debug, Clone)]
 pub struct TestSettings {
-    pub group_config: Option<GroupConfig>,
     pub banks: Vec<TestBankSetting>,
     pub protocol_fees: bool,
 }
@@ -80,7 +77,6 @@ impl TestSettings {
 
         Self {
             banks,
-            group_config: Some(GroupConfig { admin: None }),
             protocol_fees: false,
         }
     }
@@ -98,7 +94,6 @@ impl TestSettings {
                     config: Some(*DEFAULT_SOL_TEST_SW_BANK_CONFIG),
                 },
             ],
-            group_config: Some(GroupConfig { admin: None }),
             protocol_fees: false,
         }
     }
@@ -124,7 +119,6 @@ impl TestSettings {
                     }),
                 },
             ],
-            group_config: Some(GroupConfig { admin: None }),
             protocol_fees: false,
         }
     }
@@ -173,7 +167,6 @@ impl TestSettings {
                     ..TestBankSetting::default()
                 },
             ],
-            group_config: Some(GroupConfig { admin: None }),
             protocol_fees: false,
         }
     }
@@ -639,14 +632,7 @@ impl TestFixture {
         )
         .await;
 
-        let tester_group = MarginfiGroupFixture::new(
-            Rc::clone(&context),
-            test_settings
-                .clone()
-                .map(|ts| ts.group_config.unwrap_or(GroupConfig { admin: None }))
-                .unwrap_or(GroupConfig { admin: None }),
-        )
-        .await;
+        let tester_group = MarginfiGroupFixture::new(Rc::clone(&context)).await;
 
         tester_group
             .set_protocol_fees_flag(test_settings.clone().unwrap_or_default().protocol_fees)
@@ -903,5 +889,30 @@ impl TestFixture {
             ((collateral_amount * decimal_scaling).round() + 1.) / decimal_scaling;
 
         get_max_deposit_amount_pre_fee(collateral_amount)
+    }
+}
+
+pub fn get_mint_price(mint: BankMint) -> f64 {
+    match mint {
+        // For the T22 with fee variant, it's 50 cents
+        BankMint::T22WithFee => 0.5,
+        // For USDC-based and PYUSD mints, the price is roughly 1.0.
+        BankMint::Usdc | BankMint::UsdcSwb | BankMint::UsdcT22 | BankMint::PyUSD => 1.0,
+        // For SOL and its equivalents, use the SOL price (here, roughly 10.0).
+        BankMint::Sol
+        | BankMint::SolSwb
+        | BankMint::SolSwbPull
+        | BankMint::SolSwbOrigFee
+        | BankMint::SolEquivalent
+        | BankMint::SolEquivalent1
+        | BankMint::SolEquivalent2
+        | BankMint::SolEquivalent3
+        | BankMint::SolEquivalent4
+        | BankMint::SolEquivalent5
+        | BankMint::SolEquivalent6
+        | BankMint::SolEquivalent7
+        | BankMint::SolEquivalent8
+        | BankMint::SolEquivalent9
+        | BankMint::SolEqIsolated => 10.0,
     }
 }

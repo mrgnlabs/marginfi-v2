@@ -1,5 +1,7 @@
 use fixtures::{assert_custom_error, test::TestFixture};
-use marginfi::{errors::MarginfiError, state::marginfi_account::TRANSFER_AUTHORITY_ALLOWED_FLAG};
+use marginfi::{
+    errors::MarginfiError, state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
+};
 use solana_program_test::tokio;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
@@ -31,13 +33,13 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
 
     // set the flag on the account
     marginfi_account
-        .try_set_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG)
+        .try_set_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED)
         .await
         .unwrap();
 
     // Check transfer authority flag
     let account = marginfi_account.load().await;
-    assert!(account.get_flag(TRANSFER_AUTHORITY_ALLOWED_FLAG));
+    assert!(account.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED));
 
     let new_authority_2 = Keypair::new().pubkey();
     let res = marginfi_account
@@ -60,13 +62,20 @@ async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Resu
     let new_authority = Keypair::new().pubkey();
     let signer = Keypair::new();
 
-    let res = marginfi_account
-        .try_transfer_account_authority(new_authority, Some(signer))
+    let tx = marginfi_account
+        .get_tx_transfer_account_authority(new_authority, Some(signer))
         .await;
+
+    // Note: Sending this tx takes a very long time (longer than all the other tests combined)
+    // because for some reason it takes longer for a signature verification fail to return than it
+    // does for other errors. We simulate instead here for testing SPEEEEEED
+    let mut ctx = test_f.context.borrow_mut();
+    let res = ctx.banks_client.simulate_transaction(tx).await;
+    let is_err = res.unwrap().result.unwrap().is_err();
 
     // Assert the response is an error due to fact that a non-owner of the
     // acount attempted to initialize this account transfer
-    assert!(res.is_err());
+    assert!(is_err);
 
     Ok(())
 }

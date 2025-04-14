@@ -18,7 +18,8 @@ use marginfi::{
     },
     prelude::*,
     state::marginfi_account::{
-        BankAccountWrapper, DISABLED_FLAG, FLASHLOAN_ENABLED_FLAG, IN_FLASHLOAN_FLAG,
+        BankAccountWrapper, ACCOUNT_DISABLED, ACCOUNT_FLAG_DEPRECATED, ACCOUNT_IN_FLASHLOAN,
+        ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
     },
 };
 use pretty_assertions::assert_eq;
@@ -40,7 +41,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000, None)
         .await?;
 
     // Create borrower user accounts and deposit USDC asset
@@ -50,7 +51,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_usdc.key, usdc_bank_f, 1_000)
+        .try_bank_deposit(borrower_token_account_usdc.key, usdc_bank_f, 1_000, None)
         .await?;
 
     // Borrow SOL from borrower mfi account
@@ -120,14 +121,14 @@ async fn marginfi_account_correct_balance_selection_after_closing_position() -> 
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000)
+        .try_bank_deposit(lender_token_account_sol.key, sol_bank_f, 1_000, None)
         .await?;
     let lender_token_account_usdc = test_f
         .usdc_mint
         .create_token_account_and_mint_to(2_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank_f, 2_000, None)
         .await?;
 
     lender_mfi_account_f
@@ -226,7 +227,7 @@ async fn emissions_test() -> anyhow::Result<()> {
     let sol_lender_token_account = test_f.sol_mint.create_token_account_and_mint_to(100).await;
 
     sol_lender_account
-        .try_bank_deposit(sol_lender_token_account.key, sol_bank, 100)
+        .try_bank_deposit(sol_lender_token_account.key, sol_bank, 100, None)
         .await?;
 
     // Create account and setup positions
@@ -242,7 +243,7 @@ async fn emissions_test() -> anyhow::Result<()> {
     let lender_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(50).await;
 
     mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank, 50)
+        .try_bank_deposit(lender_token_account_usdc.key, usdc_bank, 50, None)
         .await?;
 
     let sol_account = test_f.sol_mint.create_empty_token_account().await;
@@ -477,29 +478,28 @@ async fn account_flags() -> anyhow::Result<()> {
 
     let mfi_account_f = test_f.create_marginfi_account().await;
 
-    mfi_account_f.try_set_flag(FLASHLOAN_ENABLED_FLAG).await?;
-
-    let mfi_account_data = mfi_account_f.load().await;
-
-    assert_eq!(mfi_account_data.account_flags, FLASHLOAN_ENABLED_FLAG);
-
-    assert!(mfi_account_data.get_flag(FLASHLOAN_ENABLED_FLAG));
-
-    mfi_account_f.try_unset_flag(FLASHLOAN_ENABLED_FLAG).await?;
-
-    let mfi_account_data = mfi_account_f.load().await;
-
-    assert_eq!(mfi_account_data.account_flags, 0);
-
-    let res = mfi_account_f.try_set_flag(DISABLED_FLAG).await;
+    let res = mfi_account_f.try_set_flag(ACCOUNT_FLAG_DEPRECATED).await;
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlag);
 
-    let res = mfi_account_f.try_unset_flag(IN_FLASHLOAN_FLAG).await;
+    let res = mfi_account_f.try_set_flag(ACCOUNT_DISABLED).await;
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlag);
+
+    let res = mfi_account_f.try_unset_flag(ACCOUNT_IN_FLASHLOAN).await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlag);
+
+    let res = mfi_account_f
+        .try_set_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED)
+        .await;
+
+    assert!(res.is_ok());
+    let acc = mfi_account_f.load().await;
+    assert_eq!(acc.account_flags, ACCOUNT_TRANSFER_AUTHORITY_ALLOWED);
 
     Ok(())
 }

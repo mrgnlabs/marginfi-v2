@@ -15,13 +15,6 @@ pub fn initialize_fee_state(
     program_fee_rate: WrappedI80F48,
 ) -> Result<()> {
     let mut fee_state = ctx.accounts.fee_state.load_init()?;
-    cfg_if::cfg_if! {
-        if #[cfg(all(feature = "mainnet-beta", not(feature = "ignore-fee-deploy")))] {
-            if ctx.accounts.payer.key != &pubkey!("3HGdGLrnK9DsnHi1mCrUMLGfQHcu6xUrXhMY14GYjqvM") {
-                panic!("The mrgn program multisig must sign on mainnet.");
-            }
-        }
-    }
     fee_state.global_fee_admin = admin_key;
     fee_state.global_fee_wallet = fee_wallet;
     fee_state.key = ctx.accounts.fee_state.key();

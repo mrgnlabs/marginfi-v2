@@ -16,9 +16,13 @@ pub fn close_account(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
 
 #[derive(Accounts)]
 pub struct MarginfiAccountClose<'info> {
-    #[account(mut, close = fee_payer)]
+    #[account(
+        mut,
+        has_one = authority,
+        close = fee_payer
+    )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
-    #[account(address = marginfi_account.load()?.authority)]
+
     pub authority: Signer<'info>,
     #[account(mut)]
     pub fee_payer: Signer<'info>,

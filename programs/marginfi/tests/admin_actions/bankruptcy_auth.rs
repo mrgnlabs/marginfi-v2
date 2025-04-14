@@ -6,8 +6,8 @@ use fixtures::{
 use marginfi::{
     errors::MarginfiError,
     state::{
-        marginfi_account::DISABLED_FLAG,
-        marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, GroupConfig},
+        marginfi_account::ACCOUNT_DISABLED,
+        marginfi_group::{BankConfig, BankConfigOpt, BankVaultType},
     },
 };
 use solana_program_test::tokio;
@@ -16,7 +16,6 @@ use solana_sdk::pubkey::Pubkey;
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings {
-        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::Usdc,
@@ -44,6 +43,7 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
             lender_token_account_usdc.key,
             test_f.get_bank(&BankMint::Usdc),
             100_000,
+            None,
         )
         .await?;
 
@@ -58,6 +58,7 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
             borrower_deposit_account.key,
             test_f.get_bank(&BankMint::Sol),
             1_001,
+            None,
         )
         .await?;
 
@@ -90,9 +91,7 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_update(GroupConfig {
-            admin: Some(Pubkey::new_unique()),
-        })
+        .try_update(Pubkey::new_unique(), false)
         .await?;
 
     let bank = test_f.get_bank(&BankMint::Usdc);
@@ -111,7 +110,6 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()> {
     let mut test_f = TestFixture::new(Some(TestSettings {
-        group_config: Some(GroupConfig { admin: None }),
         banks: vec![
             TestBankSetting {
                 mint: BankMint::Usdc,
@@ -139,6 +137,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
             lender_token_account_usdc.key,
             test_f.get_bank(&BankMint::Usdc),
             100_000,
+            None,
         )
         .await?;
 
@@ -153,6 +152,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
             borrower_deposit_account.key,
             test_f.get_bank(&BankMint::Sol),
             1_001,
+            None,
         )
         .await?;
 
@@ -196,9 +196,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
 
     test_f
         .marginfi_group
-        .try_update(GroupConfig {
-            admin: Some(Pubkey::new_unique()),
-        })
+        .try_update(Pubkey::new_unique(), false)
         .await?;
 
     let res = test_f
@@ -210,7 +208,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
 
     // Check borrower account is disabled and shares are
     let borrower_marginfi_account = borrower_account.load().await;
-    assert!(borrower_marginfi_account.get_flag(DISABLED_FLAG));
+    assert!(borrower_marginfi_account.get_flag(ACCOUNT_DISABLED));
     assert_eq!(
         borrower_marginfi_account.lending_account.balances[1].liability_shares,
         I80F48!(0.0).into()

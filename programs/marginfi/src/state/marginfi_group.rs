@@ -10,7 +10,7 @@ use crate::{
         EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, MAX_SWB_ORACLE_AGE,
-        ORACLE_MIN_AGE, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_ID, SECONDS_PER_YEAR,
+        ORACLE_MIN_AGE, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, SECONDS_PER_YEAR,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
@@ -29,7 +29,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
-use pyth_sdk_solana::{state::SolanaPriceAccount, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::FeedId;
 #[cfg(feature = "client")]
 use std::fmt::Display;
@@ -37,28 +36,34 @@ use std::{
     fmt::{Debug, Formatter},
     ops::Not,
 };
-
-#[cfg(any(feature = "test", feature = "client"))]
 use type_layout::TypeLayout;
+
+pub const PROGRAM_FEES_ENABLED: u64 = 1;
+pub const ARENA_GROUP: u64 = 2;
 
 assert_struct_size!(MarginfiGroup, 1056);
 #[account(zero_copy)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
 pub struct MarginfiGroup {
     pub admin: Pubkey,
     /// Bitmask for group settings flags.
-    /// * Bit 0: If set, program-level fees are enabled.
+    /// * 0: `PROGRAM_FEES_ENABLED` If set, program-level fees are enabled.
+    /// * 1: `ARENA_GROUP` If set, this is an arena group, which can only have two banks
     /// * Bits 1-63: Reserved for future use.
     pub group_flags: u64,
     /// Caches information from the global `FeeState` so the FeeState can be omitted on certain ixes
     pub fee_state_cache: FeeStateCache,
-    pub _padding_0: [[u64; 2]; 27],
+    // For groups initialized in versions 0.1.2 or greater (roughly the public launch of Arena),
+    // this is an authoritative count of the number of banks under this group. For groups
+    // initialized prior to 0.1.2, a non-authoritative count of the number of banks initiated after
+    // 0.1.2 went live.
+    pub banks: u16,
+    pub pad0: [u8; 6],
+
+    pub _padding_0: [[u64; 2]; 26],
     pub _padding_1: [[u64; 2]; 32],
     pub _padding_3: u64,
+    pub _padding_4: u64,
 }
 
 #[derive(
@@ -72,78 +77,83 @@ pub struct FeeStateCache {
 }
 
 impl MarginfiGroup {
-    const PROGRAM_FEES_ENABLED: u64 = 1;
-
-    /// Bits in use for flag settings.
-    const ALLOWED_FLAGS: u64 = Self::PROGRAM_FEES_ENABLED;
-    // To add: const ALLOWED_FLAGS: u64 = PROGRAM_FEES_ENABLED | ANOTHER_FEATURE_BIT;
-
-    /// Configure the group parameters.
-    /// This function validates config values so the group remains in a valid state.
-    /// Any modification of group config should happen through this function.
-    pub fn configure(&mut self, config: &GroupConfig) -> MarginfiResult {
-        set_if_some!(self.admin, config.admin);
-
-        Ok(())
+    pub fn update_admin(&mut self, new_admin: Pubkey) {
+        if self.admin == new_admin {
+            msg!("No change to admin: {:?}", new_admin);
+            // do nothing
+        } else {
+            msg!("Set admin from {:?} to {:?}", self.admin, new_admin);
+            self.admin = new_admin;
+        }
     }
 
     /// Set the group parameters when initializing a group.
     /// This should be called only when the group is first initialized.
-    /// Both margin requirements are initially set to 100% and should be configured before use.
     #[allow(clippy::too_many_arguments)]
     pub fn set_initial_configuration(&mut self, admin_pk: Pubkey) {
         self.admin = admin_pk;
-        self.group_flags = Self::PROGRAM_FEES_ENABLED;
+        self.set_program_fee_enabled(true);
     }
 
     pub fn get_group_bank_config(&self) -> GroupBankConfig {
         GroupBankConfig {
-            program_fees: self.group_flags == Self::PROGRAM_FEES_ENABLED,
+            program_fees: self.group_flags == PROGRAM_FEES_ENABLED,
         }
     }
 
-    /// Validates that only allowed flags are being set.
-    pub fn validate_flags(flag: u64) -> MarginfiResult {
-        // Note: 0xnnnn & 0x1110, is nonzero for 0x1000 & 0x1110
-        let flag_ok = flag & !Self::ALLOWED_FLAGS == 0;
-        check!(flag_ok, MarginfiError::IllegalFlag);
-
-        Ok(())
+    pub fn set_program_fee_enabled(&mut self, fee_enabled: bool) {
+        if fee_enabled {
+            self.group_flags |= PROGRAM_FEES_ENABLED;
+        } else {
+            self.group_flags &= !PROGRAM_FEES_ENABLED;
+        }
     }
 
-    /// Sets flag and errors if a disallowed flag is set
-    pub fn set_flags(&mut self, flag: u64) -> MarginfiResult {
-        Self::validate_flags(flag)?;
-        self.group_flags = flag;
+    /// Set the `ARENA_GROUP` if `is_arena` is true. If trying to set as arena and the group already
+    /// has more than two banks, fails. If trying to set an arena bank as non-arena, fails.
+    pub fn set_arena_group(&mut self, is_arena: bool) -> MarginfiResult {
+        // If enabling arena mode, ensure the group doesn't already have more than two banks.
+        if is_arena && self.banks > 2 {
+            return err!(MarginfiError::ArenaBankLimit);
+        }
+
+        // If the group is currently marked as arena, disallow switching it back to non-arena.
+        if self.is_arena_group() && !is_arena {
+            return err!(MarginfiError::ArenaSettingCannotChange);
+        }
+
+        if is_arena {
+            self.group_flags |= ARENA_GROUP;
+        } else {
+            self.group_flags &= !ARENA_GROUP;
+        }
         Ok(())
     }
 
     /// True if program fees are enabled
     pub fn program_fees_enabled(&self) -> bool {
-        (self.group_flags & Self::PROGRAM_FEES_ENABLED) != 0
+        (self.group_flags & PROGRAM_FEES_ENABLED) != 0
+    }
+
+    /// True if this is an arena group
+    pub fn is_arena_group(&self) -> bool {
+        (self.group_flags & ARENA_GROUP) != 0
+    }
+
+    // Increment the bank count by 1. If this is an arena group, which only supports two banks,
+    // errors if trying to add a third bank. If you managed to create 16,000 banks, congrats, does
+    // nothing.
+    pub fn add_bank(&mut self) -> MarginfiResult {
+        if self.is_arena_group() && self.banks >= 2 {
+            return err!(MarginfiError::ArenaBankLimit);
+        }
+        self.banks = self.banks.saturating_add(1);
+        Ok(())
     }
 }
 
-#[cfg_attr(any(feature = "test", feature = "client"), derive(TypeLayout))]
-#[derive(AnchorSerialize, AnchorDeserialize, Default, Debug, Clone)]
-pub struct GroupConfig {
-    pub admin: Option<Pubkey>,
-}
-
-/// Load and validate a pyth price feed account.
-pub fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
-    check!(ai.owner.eq(&PYTH_ID), MarginfiError::InvalidOracleAccount);
-    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
-        .map_err(|_| MarginfiError::InvalidOracleAccount)?;
-    Ok(price_feed)
-}
-
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
-)]
-#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize)]
+#[derive(Default, Debug, AnchorDeserialize, AnchorSerialize, PartialEq, Eq)]
 pub struct InterestRateConfigCompact {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -191,13 +201,20 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
 }
 
 assert_struct_size!(InterestRateConfig, 240);
-#[zero_copy]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
+#[derive(
+    Default,
+    Debug,
+    Copy,
+    Clone,
+    AnchorSerialize,
+    AnchorDeserialize,
+    Zeroable,
+    Pod,
+    PartialEq,
+    Eq,
+    TypeLayout,
 )]
-#[derive(Default, Debug)]
 pub struct InterestRateConfig {
     // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
@@ -408,11 +425,7 @@ pub struct ComputedInterestRates {
     pub protocol_fee_apr: I80F48,
 }
 
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
-#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone)]
+#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone, Debug, PartialEq, Eq, TypeLayout)]
 pub struct InterestRateConfigOpt {
     pub optimal_utilization_rate: Option<WrappedI80F48>,
     pub plateau_interest_rate: Option<WrappedI80F48>,
@@ -433,13 +446,9 @@ pub struct GroupBankConfig {
 
 assert_struct_size!(Bank, 1856);
 assert_struct_align!(Bank, 8);
-#[account(zero_copy(unsafe))]
+#[account(zero_copy)]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Debug, PartialEq, Eq, TypeLayout)
-)]
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
 pub struct Bank {
     pub mint: Pubkey,
     pub mint_decimals: u8,
@@ -487,6 +496,7 @@ pub struct Bank {
     /// - EMISSIONS_FLAG_BORROW_ACTIVE: 1
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
+    /// - FREEZE_SETTINGS: 8
     ///
     pub flags: u64,
     /// Emissions APR.
@@ -503,6 +513,8 @@ pub struct Bank {
 }
 
 impl Bank {
+    pub const LEN: usize = std::mem::size_of::<Bank>();
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         marginfi_group_pk: Pubkey,
@@ -710,10 +722,18 @@ impl Bank {
         set_if_some!(self.config.oracle_max_age, config.oracle_max_age);
 
         if let Some(flag) = config.permissionless_bad_debt_settlement {
+            msg!(
+                "setting bad debt settlement: {:?}",
+                config.permissionless_bad_debt_settlement.unwrap()
+            );
             self.update_flag(flag, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG);
         }
 
         if let Some(flag) = config.freeze_settings {
+            msg!(
+                "setting freeze settings: {:?}",
+                config.freeze_settings.unwrap()
+            );
             self.update_flag(flag, FREEZE_SETTINGS);
         }
 
@@ -1148,13 +1168,14 @@ fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48)
 }
 
 #[repr(u8)]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(PartialEq, Eq))]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize)]
+#[derive(Debug, Clone, Copy, AnchorDeserialize, AnchorSerialize, PartialEq, Eq)]
 pub enum BankOperationalState {
     Paused,
     Operational,
     ReduceOnly,
 }
+unsafe impl Zeroable for BankOperationalState {}
+unsafe impl Pod for BankOperationalState {}
 
 #[cfg(feature = "client")]
 impl Display for BankOperationalState {
@@ -1180,16 +1201,11 @@ pub enum RiskTier {
     /// they can't borrow XYZ together with SOL, only XYZ alone.
     Isolated = 1,
 }
-
 unsafe impl Zeroable for RiskTier {}
 unsafe impl Pod for RiskTier {}
 
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
-)]
-#[derive(AnchorDeserialize, AnchorSerialize, Debug)]
+#[derive(AnchorDeserialize, AnchorSerialize, Debug, PartialEq, Eq)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfigCompact {
     pub asset_weight_init: WrappedI80F48,
@@ -1279,7 +1295,8 @@ impl From<BankConfigCompact> for BankConfig {
             _pad1: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
-            _padding: [0; 38],
+            _padding0: [0; 6],
+            _padding1: [0; 32],
         }
     }
 }
@@ -1306,13 +1323,10 @@ impl From<BankConfig> for BankConfigCompact {
 
 assert_struct_size!(BankConfig, 544);
 assert_struct_align!(BankConfig, 8);
-#[zero_copy(unsafe)]
 #[repr(C)]
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(PartialEq, Eq, TypeLayout)
+#[derive(
+    Debug, Clone, Copy, AnchorDeserialize, AnchorSerialize, Zeroable, Pod, PartialEq, Eq, TypeLayout,
 )]
-#[derive(Debug)]
 /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
 pub struct BankConfig {
     pub asset_weight_init: WrappedI80F48,
@@ -1362,7 +1376,8 @@ pub struct BankConfig {
     pub oracle_max_age: u16,
 
     // Note: 6 bytes of padding to next 8 byte alignment, then end padding
-    pub _padding: [u8; 38],
+    pub _padding0: [u8; 6],
+    pub _padding1: [u8; 32],
 }
 
 impl Default for BankConfig {
@@ -1384,7 +1399,8 @@ impl Default for BankConfig {
             _pad1: [0; 6],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
-            _padding: [0; 38],
+            _padding0: [0; 6],
+            _padding1: [0; 32],
         }
     }
 }
@@ -1513,8 +1529,7 @@ impl BankConfig {
 
 #[zero_copy]
 #[repr(C, align(8))]
-#[cfg_attr(any(feature = "test", feature = "client"), derive(TypeLayout))]
-#[derive(Default, BorshDeserialize, BorshSerialize)]
+#[derive(Default, BorshDeserialize, BorshSerialize, TypeLayout)]
 pub struct WrappedI80F48 {
     pub value: [u8; 16],
 }
@@ -1547,11 +1562,7 @@ impl PartialEq for WrappedI80F48 {
 
 impl Eq for WrappedI80F48 {}
 
-#[cfg_attr(
-    any(feature = "test", feature = "client"),
-    derive(Clone, PartialEq, Eq, TypeLayout)
-)]
-#[derive(AnchorDeserialize, AnchorSerialize, Default)]
+#[derive(AnchorDeserialize, AnchorSerialize, Default, Clone, PartialEq, Eq, TypeLayout)]
 pub struct BankConfigOpt {
     pub asset_weight_init: Option<WrappedI80F48>,
     pub asset_weight_maint: Option<WrappedI80F48>,

@@ -1,6 +1,5 @@
-use anchor_lang::prelude::*;
-
 use crate::{constants::FEE_STATE_SEED, state::fee_state::FeeState, MarginfiGroup, MarginfiResult};
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct ConfigGroupFee<'info> {
@@ -19,10 +18,17 @@ pub struct ConfigGroupFee<'info> {
     pub fee_state: AccountLoader<'info, FeeState>,
 }
 
-pub fn config_group_fee(ctx: Context<ConfigGroupFee>, flag: u64) -> MarginfiResult {
+pub fn config_group_fee(ctx: Context<ConfigGroupFee>, enable_program_fee: bool) -> MarginfiResult {
     let mut marginfi_group = ctx.accounts.marginfi_group.load_mut()?;
+    let flag_before = marginfi_group.group_flags;
 
-    marginfi_group.set_flags(flag)?;
+    marginfi_group.set_program_fee_enabled(enable_program_fee);
+
+    msg!(
+        "flag set to: {:?} was {:?}",
+        marginfi_group.group_flags,
+        flag_before
+    );
 
     Ok(())
 }

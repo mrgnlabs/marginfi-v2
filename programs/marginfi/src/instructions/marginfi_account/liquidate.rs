@@ -82,16 +82,11 @@ pub fn lending_account_liquidate<'info>(
     mut ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
     asset_amount: u64,
 ) -> MarginfiResult {
-    check!(
-        asset_amount > 0,
-        MarginfiError::IllegalLiquidation,
-        "Asset amount must be positive"
-    );
+    check!(asset_amount > 0, MarginfiError::ZeroLiquidationAmount);
 
     check!(
         ctx.accounts.asset_bank.key() != ctx.accounts.liab_bank.key(),
-        MarginfiError::IllegalLiquidation,
-        "Asset and liability bank cannot be the same"
+        MarginfiError::SameAssetAndLiabilityBanks
     );
 
     // Liquidators must repay debts in allowed asset types. A SOL debt can be repaid in any asset. A
@@ -264,7 +259,7 @@ pub fn lending_account_liquidate<'info>(
 
             bank_account
                 .withdraw(asset_amount)
-                .map_err(|_| MarginfiError::IllegalLiquidation)?;
+                .map_err(|_| MarginfiError::OverliquidationAttempt)?;
 
             let post_balance = bank_account
                 .bank
@@ -387,15 +382,18 @@ pub fn lending_account_liquidate<'info>(
                 pre_liquidation_health,
             )?;
 
+    // TODO consider if health cache update here is worth blowing the extra CU
+
     // Verify liquidator account health
     RiskEngine::check_account_init_health(
         &liquidator_marginfi_account,
         liquidator_remaining_accounts,
+        &mut None,
     )?;
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {
-            signer: Some(ctx.accounts.signer.key()),
+            signer: Some(ctx.accounts.authority.key()),
             marginfi_account: liquidator_marginfi_account_loader.key(),
             marginfi_account_authority: liquidator_marginfi_account.authority,
             marginfi_group: ctx.accounts.group.key(),
@@ -433,14 +431,12 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        has_one = authority
     )]
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    #[account(
-        address = liquidator_marginfi_account.load()?.authority
-    )]
-    pub signer: Signer<'info>,
+    pub authority: Signer<'info>,
 
     #[account(
         mut,

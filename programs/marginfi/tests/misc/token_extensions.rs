@@ -9,9 +9,7 @@ use fixtures::{
     test::{BankMint, TestBankSetting, TestFixture, TestSettings, DEFAULT_SOL_TEST_BANK_CONFIG},
     ui_to_native,
 };
-use marginfi::state::marginfi_group::{
-    Bank, BankConfig, BankConfigOpt, BankVaultType, GroupConfig,
-};
+use marginfi::state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType};
 use solana_program_test::tokio;
 use test_case::test_case;
 
@@ -54,7 +52,6 @@ async fn marginfi_account_liquidation_success_with_extension(
                     }),
                 },
             ],
-            group_config: Some(GroupConfig { admin: None }),
             protocol_fees: false,
         }),
         &extensions,
@@ -70,7 +67,12 @@ async fn marginfi_account_liquidation_success_with_extension(
         .create_token_account_and_mint_to(2_500)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_usdc_t22.key, usdc_t22_bank_f, 2_000)
+        .try_bank_deposit(
+            lender_token_account_usdc_t22.key,
+            usdc_t22_bank_f,
+            2_000,
+            None,
+        )
         .await
         .unwrap();
 
@@ -80,7 +82,7 @@ async fn marginfi_account_liquidation_success_with_extension(
 
     // Borrower deposits 100 SOL worth of $1000
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 100, None)
         .await?;
 
     // Borrower borrows $999

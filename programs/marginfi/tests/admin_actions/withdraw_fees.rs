@@ -6,7 +6,6 @@ use fixtures::{
     assert_anchor_error,
     test::{BankMint, TestFixture, TestSettings},
 };
-use marginfi::state::marginfi_group::GroupConfig;
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 use test_case::test_case;
@@ -100,9 +99,7 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
     // Update the admin of the marginfi group
     test_f
         .marginfi_group
-        .try_update(GroupConfig {
-            admin: Some(Pubkey::new_unique()),
-        })
+        .try_update(Pubkey::new_unique(), false)
         .await?;
 
     // Mint `insurance_vault_balance` USDC to the insurance vault
@@ -118,7 +115,7 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
         .await;
 
     // Unable to withdraw 1000 USDC from the insurance vault, because the signer is not the admin
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintAddress);
+    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
 
     // Mint `fee_vault_balance` USDC to the fee vault
     bank_f
@@ -133,7 +130,7 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
         .await;
 
     // Unable to withdraw `fee_vault_balance` USDC from the fee vault, because the signer is not the admin
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintAddress);
+    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
 
     Ok(())
 }

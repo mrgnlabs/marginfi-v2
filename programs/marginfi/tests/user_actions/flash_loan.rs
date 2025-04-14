@@ -1,6 +1,6 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixtures::{assert_custom_error, prelude::*};
-use marginfi::{prelude::*, state::marginfi_account::FLASHLOAN_ENABLED_FLAG};
+use marginfi::prelude::*;
 use pretty_assertions::assert_eq;
 use solana_program::{instruction::Instruction, pubkey::Pubkey};
 use solana_program_test::*;
@@ -33,15 +33,11 @@ async fn flashloan_success_1op() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-
-    borrower_mfi_account_f
-        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
-        .await?;
 
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
@@ -82,15 +78,11 @@ async fn flashloan_success_3op() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-
-    borrower_mfi_account_f
-        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
-        .await?;
 
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
 
@@ -137,15 +129,11 @@ async fn flashloan_fail_account_health() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-
-    borrower_mfi_account_f
-        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
-        .await?;
 
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
@@ -181,7 +169,7 @@ async fn flashloan_ok_missing_flag() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
@@ -226,15 +214,11 @@ async fn flashloan_fail_missing_fe_ix() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-
-    borrower_mfi_account_f
-        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
-        .await?;
 
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
@@ -290,15 +274,11 @@ async fn flashloan_fail_missing_invalid_sysvar_ixs() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-
-    borrower_mfi_account_f
-        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
-        .await?;
 
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
@@ -322,7 +302,7 @@ async fn flashloan_fail_missing_invalid_sysvar_ixs() -> anyhow::Result<()> {
         program_id: marginfi::id(),
         accounts: marginfi::accounts::LendingAccountStartFlashloan {
             marginfi_account: borrower_mfi_account_f.key,
-            signer: test_f.context.borrow().payer.pubkey(),
+            authority: test_f.context.borrow().payer.pubkey(),
             ixs_sysvar: Pubkey::default(),
         }
         .to_account_metas(Some(true)),
@@ -369,15 +349,11 @@ async fn flashloan_fail_invalid_end_fl_order() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-
-    borrower_mfi_account_f
-        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
-        .await?;
 
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
@@ -429,15 +405,11 @@ async fn flashloan_fail_invalid_end_fl_different_m_account() -> anyhow::Result<(
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-
-    borrower_mfi_account_f
-        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
-        .await?;
 
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL
@@ -489,15 +461,11 @@ async fn flashloan_fail_already_in_flashloan() -> anyhow::Result<()> {
         .create_token_account_and_mint_to(1_000)
         .await;
     lender_mfi_account_f
-        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000)
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000, None)
         .await?;
 
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-
-    borrower_mfi_account_f
-        .try_set_flag(FLASHLOAN_ENABLED_FLAG)
-        .await?;
 
     let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
     // Borrow SOL

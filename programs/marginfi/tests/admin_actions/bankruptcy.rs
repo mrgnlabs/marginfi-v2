@@ -5,7 +5,7 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, assert_eq_noise, native, prelude::*};
 use marginfi::{
-    prelude::{GroupConfig, MarginfiError},
+    prelude::MarginfiError,
     state::marginfi_group::{BankConfig, BankVaultType},
 };
 use pretty_assertions::assert_eq;
@@ -45,6 +45,7 @@ async fn marginfi_group_handle_bankruptcy_failure_not_bankrupt(
             lp_token_account_f_sol.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -70,6 +71,7 @@ async fn marginfi_group_handle_bankruptcy_failure_not_bankrupt(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             sufficient_collateral_amount,
+            None,
         )
         .await?;
     user_mfi_account_f
@@ -130,6 +132,7 @@ async fn marginfi_group_handle_bankruptcy_failure_no_debt(
             lp_token_account_f_sol.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -155,6 +158,7 @@ async fn marginfi_group_handle_bankruptcy_failure_no_debt(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             sufficient_collateral_amount,
+            None,
         )
         .await?;
     user_mfi_account_f
@@ -222,6 +226,7 @@ async fn marginfi_group_handle_bankruptcy_success(
             lp_token_account_f_sol.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -247,6 +252,7 @@ async fn marginfi_group_handle_bankruptcy_success(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             sufficient_collateral_amount,
+            None,
         )
         .await?;
     user_mfi_account_f
@@ -313,6 +319,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
             lp_token_account_f_sol.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -338,6 +345,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             sufficient_collateral_amount,
+            None,
         )
         .await?;
     user_mfi_account_f
@@ -495,6 +503,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             1,
+            None,
         )
         .await;
 
@@ -576,6 +585,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured(
             lp_token_account_f_sol.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -601,6 +611,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             sufficient_collateral_amount,
+            None,
         )
         .await?;
     user_mfi_account_f
@@ -751,6 +762,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured(
             lp_token_account_f_sol.key,
             test_f.get_bank(&debt_mint),
             lp_deposit_amount,
+            None,
         )
         .await?;
 
@@ -776,6 +788,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured(
             user_collateral_token_account_f.key,
             test_f.get_bank(&collateral_mint),
             sufficient_collateral_amount,
+            None,
         )
         .await?;
     user_mfi_account_f
@@ -866,7 +879,6 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
                 }),
             },
         ],
-        group_config: Some(GroupConfig { admin: None }),
         protocol_fees: false,
     }))
     .await;
@@ -880,7 +892,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
         .create_token_account_and_mint_to(100_000)
         .await;
     lender_1_mfi_account_f
-        .try_bank_deposit(lender_1_token_account.key, usdc_bank_f, 100_000)
+        .try_bank_deposit(lender_1_token_account.key, usdc_bank_f, 100_000, None)
         .await?;
 
     let lender_2_mfi_account_f = test_f.create_marginfi_account().await;
@@ -889,7 +901,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
         .create_token_account_and_mint_to(100_000)
         .await;
     lender_2_mfi_account_f
-        .try_bank_deposit(lender_2_token_account.key, usdc_bank_f, 100_000)
+        .try_bank_deposit(lender_2_token_account.key, usdc_bank_f, 100_000, None)
         .await?;
 
     let lender_3_mfi_account_f = test_f.create_marginfi_account().await;
@@ -898,7 +910,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
         .create_token_account_and_mint_to(100_000)
         .await;
     lender_3_mfi_account_f
-        .try_bank_deposit(lender_3_token_account.key, usdc_bank_f, 100_000)
+        .try_bank_deposit(lender_3_token_account.key, usdc_bank_f, 100_000, None)
         .await?;
 
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
@@ -907,7 +919,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
         .create_token_account_and_mint_to(1_001)
         .await;
     borrower_mfi_account_f
-        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 1_001)
+        .try_bank_deposit(borrower_token_account_sol.key, sol_bank_f, 1_001, None)
         .await?;
     let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
     borrower_mfi_account_f

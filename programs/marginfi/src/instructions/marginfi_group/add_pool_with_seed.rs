@@ -6,6 +6,7 @@ use crate::{
         LIQUIDITY_VAULT_SEED,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
+    log_pool_info,
     state::{
         fee_state::FeeState,
         marginfi_group::{Bank, BankConfigCompact, MarginfiGroup},
@@ -73,6 +74,11 @@ pub fn lending_pool_add_bank_with_seed(
         fee_vault_authority_bump,
     );
 
+    log_pool_info(&bank);
+
+    let mut group = ctx.accounts.marginfi_group.load_mut()?;
+    group.add_bank()?;
+
     bank.config.validate()?;
     bank.config.validate_oracle_age()?;
 
@@ -95,12 +101,13 @@ pub fn lending_pool_add_bank_with_seed(
 #[derive(Accounts)]
 #[instruction(bank_config: BankConfigCompact, bank_seed: u64)]
 pub struct LendingPoolAddBankWithSeed<'info> {
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
         mut,
-        address = marginfi_group.load()?.admin,
+        has_one = admin
     )]
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     /// Pays to init accounts and pays `fee_state.bank_init_flat_sol_fee` lamports to the protocol

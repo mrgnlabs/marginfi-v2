@@ -21,6 +21,7 @@ import {
   assertBNApproximately,
   assertI80F48Approx,
   assertI80F48Equal,
+  expectFailedTxWithError,
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
@@ -79,6 +80,31 @@ describe("Borrow funds", () => {
     );
   });
 
+  it("(user 0) tries to borrow usdc with a bad oracle - should fail", async () => {
+    const user = users[0];
+    const user0Account = user.accounts.get(USER_ACCOUNT);
+    const bank = bankKeypairUsdc.publicKey;
+    await expectFailedTxWithError(async () => {
+      await user.mrgnProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          await borrowIx(user.mrgnProgram, {
+            marginfiAccount: user0Account,
+            bank: bank,
+            tokenAccount: user.usdcAccount,
+            remaining: [
+              bankKeypairA.publicKey,
+              oracles.tokenAOracle.publicKey,
+              bank,
+              oracles.fakeUsdc, // sneaky sneaky...
+            ],
+            amount: borrowAmountUsdc_native,
+          })
+        )
+      );
+      // Note: you can now see expected vs actual keys in the msg! logs just before this error.
+    }, "WrongOracleAccountKeys");
+  });
+
   it("(user 0) borrows USDC against their token A position - happy path", async () => {
     const user = users[0];
     const bank = bankKeypairUsdc.publicKey;
@@ -102,12 +128,10 @@ describe("Borrow funds", () => {
 
     const user0Account = user.accounts.get(USER_ACCOUNT);
 
-    await users[0].mrgnProgram.provider.sendAndConfirm(
+    await user.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        await borrowIx(program, {
-          marginfiGroup: marginfiGroup.publicKey,
+        await borrowIx(user.mrgnProgram, {
           marginfiAccount: user0Account,
-          authority: user.wallet.publicKey,
           bank: bank,
           tokenAccount: user.usdcAccount,
           remaining: [
@@ -141,7 +165,7 @@ describe("Borrow funds", () => {
       );
     }
 
-    assert.equal(balances[1].active, true);
+    assert.equal(balances[1].active, 1);
     assertI80F48Equal(balances[1].assetShares, 0);
     // Note: The first borrow issues shares 1:1 and the shares use the same decimals
     // Note: An origination fee of 0.01 is also incurred here (configured during addBank)
