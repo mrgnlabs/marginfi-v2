@@ -4,11 +4,11 @@ use anchor_lang::prelude::*;
 use bytemuck::{Pod, Zeroable};
 use type_layout::TypeLayout;
 
-pub const HEALTHY: u64 = 1;
-pub const ENGINE_OK: u64 = 2;
-pub const ORACLE_OK: u64 = 4;
+pub const HEALTHY: u32 = 1;
+pub const ENGINE_OK: u32 = 2;
+pub const ORACLE_OK: u32 = 4;
 
-assert_struct_size!(HealthCache, 304);
+assert_struct_size!(HealthCache, 312);
 assert_struct_align!(HealthCache, 8);
 #[repr(C)]
 #[derive(
@@ -33,15 +33,23 @@ pub struct HealthCache {
     /// * ORACLE OK = 4 - If set, the engine did not error due to an oracle issue. If 0, engine was
     ///   passed a bad bank or oracle account, or an oracle was stale. Check the order in which
     ///   accounts were passed and ensure each balance has the correct banks/oracles, and that
-    ///   oracle cranks ran recently enough. Note that if `ENGINE_OK` is not set, this flag may be
-    ///   invalid.
+    ///   oracle cranks ran recently enough. Check `internal_err` and `err_index` for more details
+    ///   in some circumstances.
     /// * 8, 16, 32, 64, 128, etc - reserved for future use
-    pub flags: u64,
+    pub flags: u32,
+    /// If the engine errored, look here for the error code.
+    pub mrgn_err: u32,
     /// Each price corresponds to that index of Balances in the LendingAccount. Useful for debugging
     /// or liquidator consumption, to determine how a user's position is priced internally.
     /// * If a price overflows u64, shows u64::MAX
     /// * If a price is negative for some reason (as several oracles support), pulse will panic
     pub prices: [WrappedI80F48; MAX_LENDING_ACCOUNT_BALANCES],
+    /// Errors in asset oracles are ignored (with prices treated as zero). If you see a zero price
+    /// and the `ORACLE_OK` flag is not set, check here to see what error was ignored internally.
+    pub internal_err: u32,
+    /// Index in `balances` where `internal_err` appeared
+    pub err_index: u8,
+    pub pad0: [u8; 3],
 }
 
 impl HealthCache {

@@ -49,7 +49,7 @@ pub struct MarginfiAccount {
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
     pub health_cache: HealthCache,
-    pub _padding0: [u64; 21],
+    pub _padding0: [u64; 20],
 }
 
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;
@@ -249,9 +249,12 @@ impl<'info> BankAccountWithPriceFeed<'_> {
 
     #[inline(always)]
     /// Calculate the value of the balance, which is either an asset or a liability. If it is an
-    /// asset, returns (asset_value, 0, price), and if it is a liability, returns (0, liabilty
-    /// value, price), where price is the actual oracle price used to determine the value after bias
-    /// adjustments, etc.
+    /// asset, returns (asset_value, 0, price, 0), and if it is a liability, returns (0, liabilty
+    /// value, price, 0), where price is the actual oracle price used to determine the value after
+    /// bias adjustments, etc.
+    ///
+    /// err_code is an internal oracle error code in the event the oracle did not load. This applies
+    /// only to assets and the return type will always be (0, 0, 0, err_code).
     ///
     /// Nuances:
     /// 1. Maintenance requirement is calculated using the real time price feed.
@@ -264,47 +267,50 @@ impl<'info> BankAccountWithPriceFeed<'_> {
         &self,
         requirement_type: RequirementType,
         emode_config: &EmodeConfig,
-    ) -> MarginfiResult<(I80F48, I80F48, I80F48)> {
+    ) -> MarginfiResult<(I80F48, I80F48, I80F48, u32)> {
         match self.balance.get_side() {
             Some(side) => {
                 let bank = &self.bank;
 
                 match side {
                     BalanceSide::Assets => {
-                        let (value, price) =
+                        let (value, price, err_code) =
                             self.calc_weighted_asset_value(requirement_type, bank, emode_config)?;
-                        Ok((value, I80F48::ZERO, price))
+                        Ok((value, I80F48::ZERO, price, err_code))
                     }
 
                     BalanceSide::Liabilities => {
                         let (value, price) =
                             self.calc_weighted_liab_value(requirement_type, bank)?;
-                        Ok((I80F48::ZERO, value, price))
+                        Ok((I80F48::ZERO, value, price, 0))
                     }
                 }
             }
-            None => Ok((I80F48::ZERO, I80F48::ZERO, I80F48::ZERO)),
+            None => Ok((I80F48::ZERO, I80F48::ZERO, I80F48::ZERO, 0)),
         }
     }
 
-    /// Returns value, the net asset value in $, and the price used to determine that value.
+    /// Returns value, the net asset value in $, and the price used to determine that value. In most
+    /// cases, returns (value, price, 0). If there was an error loading the price feed, treats the
+    /// price as zero, and passes the the u32 argument that contains the error code, i.e. the return
+    /// type is (0, 0, err_code). Other types of errors (e.g. math) will still throw.
     #[inline(always)]
     fn calc_weighted_asset_value(
         &self,
         requirement_type: RequirementType,
         bank: &Bank,
         emode_config: &EmodeConfig,
-    ) -> MarginfiResult<(I80F48, I80F48)> {
+    ) -> MarginfiResult<(I80F48, I80F48, u32)> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
-                let price_feed = self.try_get_price_feed();
+                let (price_feed, err_code) = self.try_get_price_feed();
 
                 if matches!(
                     (&price_feed, requirement_type),
                     (&Err(_), RequirementType::Initial)
                 ) {
                     debug!("Skipping stale oracle");
-                    return Ok((I80F48::ZERO, I80F48::ZERO));
+                    return Ok((I80F48::ZERO, I80F48::ZERO, err_code));
                 }
 
                 let price_feed = price_feed?;
@@ -354,20 +360,22 @@ impl<'info> BankAccountWithPriceFeed<'_> {
                     Some(asset_weight),
                 )?;
 
-                Ok((value, lower_price))
+                Ok((value, lower_price, 0))
             }
-            RiskTier::Isolated => Ok((I80F48::ZERO, I80F48::ZERO)),
+            RiskTier::Isolated => Ok((I80F48::ZERO, I80F48::ZERO, 0)),
         }
     }
 
     /// Returns value, the net liability value in $, and the price used to determine that value.
+    /// Note that an error in liability value always throws, unlike assets which simply return 0.
     #[inline(always)]
     fn calc_weighted_liab_value(
         &self,
         requirement_type: RequirementType,
         bank: &Bank,
     ) -> MarginfiResult<(I80F48, I80F48)> {
-        let price_feed = self.try_get_price_feed()?;
+        let (price_feed, _) = self.try_get_price_feed();
+        let price_feed = price_feed?;
         let liability_weight = bank
             .config
             .get_weight(requirement_type, BalanceSide::Liabilities);
@@ -389,23 +397,26 @@ impl<'info> BankAccountWithPriceFeed<'_> {
         Ok((value, higher_price))
     }
 
-    fn try_get_price_feed(&self) -> MarginfiResult<&OraclePriceFeedAdapter> {
+    fn try_get_price_feed(&self) -> (MarginfiResult<&OraclePriceFeedAdapter>, u32) {
         match self.price_feed.as_ref() {
-            Ok(a) => Ok(a),
+            Ok(a) => (Ok(a), 0),
             #[allow(unused_variables)]
             Err(e) => match e {
                 anchor_lang::error::Error::AnchorError(inner) => {
                     let error_code = inner.as_ref().error_code_number;
                     let custom_error = MarginfiError::from(error_code);
-                    Err(error!(custom_error))
+                    (Err(error!(custom_error)), error_code)
                 }
                 anchor_lang::error::Error::ProgramError(inner) => {
                     match inner.as_ref().program_error {
                         ProgramError::Custom(error_code) => {
                             let custom_error = MarginfiError::from(error_code);
-                            Err(error!(custom_error))
+                            (Err(error!(custom_error)), error_code)
                         }
-                        _ => Err(error!(MarginfiError::InternalLogicError)),
+                        _ => (
+                            Err(error!(MarginfiError::InternalLogicError)),
+                            MarginfiError::InternalLogicError as u32,
+                        ),
                     }
                 }
             },
@@ -534,7 +545,7 @@ impl<'info> RiskEngine<'_> {
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
         health_cache: &mut Option<&mut HealthCache>,
-    ) -> MarginfiResult<()> {
+    ) -> MarginfiResult {
         if marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN) {
             // Note: The health cache is not applicable to flashloans
             return Ok(());
@@ -555,11 +566,20 @@ impl<'info> RiskEngine<'_> {
     ) -> MarginfiResult<(I80F48, I80F48)> {
         let mut total_assets: I80F48 = I80F48::ZERO;
         let mut total_liabilities: I80F48 = I80F48::ZERO;
+        const NO_INDEX_FOUND: usize = 255;
+        let mut first_err_index = NO_INDEX_FOUND;
 
         for (i, bank_account) in self.bank_accounts_with_price.iter().enumerate() {
             let requirement_type = requirement_type.to_weight_type();
-            let (asset_val, liab_val, price) =
+            let (asset_val, liab_val, price, err_code) =
                 bank_account.calc_weighted_value(requirement_type, &self.emode_config)?;
+            if err_code != 0 && first_err_index == NO_INDEX_FOUND {
+                first_err_index = i;
+                if let Some(cache) = health_cache {
+                    cache.err_index = i as u8;
+                    cache.internal_err = err_code;
+                };
+            }
 
             if let Some(health_cache) = health_cache {
                 health_cache.prices[i] = price.into();
@@ -591,7 +611,7 @@ impl<'info> RiskEngine<'_> {
         &self,
         requirement_type: RiskRequirementType,
         health_cache: &mut Option<&mut HealthCache>,
-    ) -> MarginfiResult<()> {
+    ) -> MarginfiResult {
         let (total_weighted_assets, total_weighted_liabilities) =
             self.get_account_health_components(requirement_type, health_cache)?;
 
@@ -726,8 +746,8 @@ impl<'info> RiskEngine<'_> {
         Ok(account_health)
     }
 
-    /// Check that the account is in a bankrupt state.
-    /// Account needs to be insolvent and total value of assets need to be below the bankruptcy threshold.
+    /// Check that the account is in a bankrupt state. Account needs to be insolvent and total value
+    /// of assets need to be below the bankruptcy threshold.
     pub fn check_account_bankrupt(&self) -> MarginfiResult {
         let (total_assets, total_liabilities) =
             self.get_account_health_components(RiskRequirementType::Equity, &mut None)?;
@@ -1513,7 +1533,7 @@ mod test {
             },
             account_flags: ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
             health_cache: HealthCache::zeroed(),
-            _padding0: [0; 21],
+            _padding0: [0; 20],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED));

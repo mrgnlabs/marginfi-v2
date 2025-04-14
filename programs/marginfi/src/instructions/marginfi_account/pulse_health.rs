@@ -26,12 +26,17 @@ pub fn lending_account_pulse_health<'info>(
         &mut Some(&mut health_cache),
     ) {
         Ok(()) => {
-            health_cache.set_oracle_ok(true);
+            if health_cache.internal_err != 0 {
+                health_cache.set_oracle_ok(false);
+            } else {
+                health_cache.set_oracle_ok(true);
+            }
             health_cache.set_engine_ok(true);
         }
         Err(e) => match e {
             Error::AnchorError(a_e) => {
                 let e_n = a_e.error_code_number;
+                health_cache.mrgn_err = e_n;
                 let mfi_err: MarginfiError = e_n.into();
                 if mfi_err.is_risk_engine_rejection() {
                     // risk engine failure is ignored for engine_ok purposes
@@ -39,8 +44,7 @@ pub fn lending_account_pulse_health<'info>(
                 } else {
                     health_cache.set_engine_ok(false);
                 }
-                // TODO bubble up the sub-error in risk engine rejection...
-                if mfi_err.is_oracle_error() {
+                if mfi_err.is_oracle_error() || health_cache.internal_err != 0 {
                     health_cache.set_oracle_ok(false);
                 } else {
                     health_cache.set_oracle_ok(true);

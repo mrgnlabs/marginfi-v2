@@ -58,9 +58,9 @@ describe("Health pulse", () => {
           marginfiAccount: acc,
           remaining: [
             bankKeypairUsdc.publicKey,
-            oracles.fakeUsdc, // sneaky sneaky
+            oracles.usdcOracle.publicKey,
             bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
+            oracles.fakeUsdc, // sneaky sneaky
           ],
         })
       )
@@ -72,13 +72,15 @@ describe("Health pulse", () => {
     const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
     const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
 
-    const flags = cacheAfter.flags.toNumber();
+    const flags = cacheAfter.flags;
     const oracleOk = (flags & HEALTH_CACHE_ORACLE_OK) !== 0;
     if (verbose) {
       console.log("---user health state---");
       console.log("asset value: " + assetValue.toString());
       console.log("liab value: " + liabValue.toString());
       console.log("oracle ok: " + oracleOk);
+      console.log("internal error: " + cacheAfter.internalErr);
+      console.log("index of err:   " + cacheAfter.errIndex);
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
         const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
@@ -92,14 +94,17 @@ describe("Health pulse", () => {
     // Note: still healthy, and the engine has technically resolved, but the oracle flag is not set!
     // This is not a valid entry for risk purposes but you might use this if you are trying to
     // determine what the price would be if the oracle was in a particular state.
-    assertBNEqual(
+    assert.equal(
       cacheAfter.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK
     );
+    // no error, the risk engine didn't reject this even with the bad oracle because there are no
+    // liabilities, so any asset balance is valid!
+    assert.equal(cacheAfter.mrgnErr, 0);
+    assert.equal(cacheAfter.internalErr, 6052); // (WrongOracleAccountKeys)
+    assert.equal(cacheAfter.errIndex, 1);
     // The fake usdc price is set to zero due to the bad oracle
-    assertI80F48Equal(cacheAfter.prices[0], 0);
-    // User 1 has a trivial amount of token A as well, but we note here it is almost worth zero.
-    assert.isAtMost(assetValue.toNumber(), 1);
+    assertI80F48Equal(cacheAfter.prices[1], 0);
   });
 
   it("(user 1) health pulse - happy path", async () => {
@@ -125,7 +130,7 @@ describe("Health pulse", () => {
 
     const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
     const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
-    const flags = cacheAfter.flags.toNumber();
+    const flags = cacheAfter.flags;
     if (verbose) {
       console.log("---user health state---");
       const isHealthy = (flags & HEALTH_CACHE_HEALTHY) !== 0;
@@ -146,7 +151,7 @@ describe("Health pulse", () => {
     }
 
     assert.approximately(cacheAfter.timestamp.toNumber(), now, 3);
-    assertBNEqual(
+    assert.equal(
       cacheAfter.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
@@ -216,7 +221,7 @@ describe("Health pulse", () => {
       }
 
       console.log("---user health state---");
-      const flags = cacheAfter.flags.toNumber();
+      const flags = cacheAfter.flags;
       const isHealthy = (flags & HEALTH_CACHE_HEALTHY) !== 0;
       const engineOk = (flags & HEALTH_CACHE_ENGINE_OK) !== 0;
       const oracleOk = (flags & HEALTH_CACHE_ORACLE_OK) !== 0;
@@ -237,10 +242,11 @@ describe("Health pulse", () => {
     assert.approximately(cacheAfter.timestamp.toNumber(), now, 3);
     // Note: cache is unhealthy (no HEALTH_CACHE_HEALTHY flag set) but price info is still
     // populated, and the risk engine and oracle report no failures.
-    assertBNEqual(
+    assert.equal(
       cacheAfter.flags,
       HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
+    assert.equal(cacheAfter.mrgnErr, 6009); // RiskEngineInitRejected
     assertI80F48Approx(cacheAfter.prices[0], oracles.tokenAPrice);
     assertI80F48Approx(cacheAfter.prices[1], oracles.usdcPrice);
     assert.approximately(
@@ -329,7 +335,7 @@ describe("Health pulse", () => {
       }
 
       console.log("---user health state---");
-      const flags = cacheAfter.flags.toNumber();
+      const flags = cacheAfter.flags;
       const isHealthy = (flags & HEALTH_CACHE_HEALTHY) !== 0;
       const engineOk = (flags & HEALTH_CACHE_ENGINE_OK) !== 0;
       const oracleOk = (flags & HEALTH_CACHE_ORACLE_OK) !== 0;
@@ -348,7 +354,7 @@ describe("Health pulse", () => {
     }
 
     assert.approximately(cacheAfter.timestamp.toNumber(), now, 3);
-    assertBNEqual(
+    assert.equal(
       cacheAfter.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
