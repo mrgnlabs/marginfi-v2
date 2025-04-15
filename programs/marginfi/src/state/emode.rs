@@ -194,30 +194,30 @@ impl EmodeEntry {
 /// EmodeEntry for it at all***, i.e. there is no benefit for that collateral
 ///
 /// ***Example 1***
-/// * entry | tag | flags | init | maint
+/// * bank | tag | flags | init | maint
 /// * 0       101    1       70     75
 /// * 1       101    0       60     80
-/// Result
+/// - Result
 /// * tag | flags | init | maint
 /// * 101    0       60     75
 ///
 ///
 /// ***Example 2***
-/// * entry | tag | flags | init | maint
+/// * bank  | tag | flags | init | maint
 /// * 0       99     1       70     75
 /// * 1       101    0       60     80
-/// Result
+/// - Result
 /// * tag | flags | init | maint
 /// * empty
 ///
 ///
 /// ***Example 3***
-/// * entry | tag | flags | init | maint
+/// * bank  | tag | flags | init | maint
 /// * 0       101    1       70     75
 /// * 1       101    0       60     80
-/// * 2       101    0       60     80
+/// * 2       101    0       60     80 (note this bank has multiple entries)
 /// * 2       99     0       60     80
-/// Result
+/// - Result
 /// * tag | flags | init | maint
 /// * 101    0       60     75
 pub fn reconcile_emode_configs(configs: Vec<EmodeConfig>) -> EmodeConfig {
