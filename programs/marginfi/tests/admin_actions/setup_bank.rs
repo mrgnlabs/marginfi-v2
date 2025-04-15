@@ -643,7 +643,7 @@ async fn configure_bank_emode_invalid_args(bank_mint: BankMint) -> anyhow::Resul
         .await;
     assert!(res.is_err());
 
-    // Try to set an emode config with invalid collateral bank tag -> should fail
+    // Try to set an emode config with duplicate entries -> should fail
     let emode_tag = 2u16;
     let emode_entries = vec![
         EmodeEntry {
