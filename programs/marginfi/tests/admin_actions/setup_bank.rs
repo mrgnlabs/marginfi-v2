@@ -7,7 +7,7 @@ use marginfi::{
     },
     prelude::MarginfiError,
     state::{
-        emode::EmodeEntry,
+        emode::{EmodeEntry, EMODE_ON},
         marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
     },
 };
@@ -548,6 +548,7 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
     let bank = test_f.get_bank(&bank_mint);
     let old_bank = bank.load().await;
 
+    assert_eq!(old_bank.emode.flags, 0u64);
     assert_eq!(old_bank.emode.emode_tag, 0u16);
 
     // First try to enable emode without any entries
@@ -567,6 +568,7 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
         clock.unix_timestamp
     };
 
+    assert_eq!(loaded_bank.emode.flags, 0u64); // EMODE_ON is still not set because there are no entries
     assert_eq!(loaded_bank.emode.emode_tag, empty_emode_tag);
     assert_eq!(loaded_bank.emode.timestamp, timestamp);
     assert_eq!(old_bank.emode.emode_config, loaded_bank.emode.emode_config); // config stays the same
@@ -575,7 +577,7 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
     // Now update the tag and add some entries
     let emode_tag = 2u16;
     let emode_entries = vec![EmodeEntry {
-        collateral_bank_emode_tag: empty_emode_tag,
+        collateral_bank_emode_tag: emode_tag, // sharing the same tag is allowed
         flags: 1,
         pad0: [0, 0, 0, 0, 0],
         asset_weight_init: loaded_bank.config.asset_weight_init,
@@ -596,6 +598,7 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
         clock.unix_timestamp
     };
 
+    assert_eq!(loaded_bank.emode.flags, EMODE_ON);
     assert_eq!(loaded_bank.emode.emode_tag, emode_tag);
     assert_eq!(loaded_bank.emode.timestamp, timestamp);
     // Due to sorting by tag, the newly added entry is the last one
@@ -611,6 +614,59 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
             0
         );
     }
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::T22WithFee)]
+#[test_case(BankMint::SolSwbPull)]
+#[tokio::test]
+async fn configure_bank_emode_invalid_args(bank_mint: BankMint) -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&bank_mint);
+
+    // Try to set an emode config with invalid weight params -> should fail
+    let emode_tag = 1u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 1,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: I80F48!(1.0).into(),
+        asset_weight_maint: I80F48!(0.9).into(),
+    }];
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await;
+    assert!(res.is_err());
+
+    // Try to set an emode config with invalid collateral bank tag -> should fail
+    let emode_tag = 2u16;
+    let emode_entries = vec![
+        EmodeEntry {
+            collateral_bank_emode_tag: emode_tag,
+            flags: 1,
+            pad0: [0, 0, 0, 0, 0],
+            asset_weight_init: I80F48!(0.9).into(),
+            asset_weight_maint: I80F48!(1.0).into(),
+        },
+        EmodeEntry {
+            collateral_bank_emode_tag: emode_tag,
+            flags: 0,
+            pad0: [0, 0, 0, 0, 0],
+            asset_weight_init: I80F48!(0.5).into(),
+            asset_weight_maint: I80F48!(0.9).into(),
+        },
+    ];
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await;
+    assert!(res.is_err());
 
     Ok(())
 }

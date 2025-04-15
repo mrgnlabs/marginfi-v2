@@ -393,6 +393,7 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn pad_emode_entries(
         entries: &[EmodeEntry],
     ) -> Result<[EmodeEntry; MAX_EMODE_ENTRIES], BanksClientError> {
