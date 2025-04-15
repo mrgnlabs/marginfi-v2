@@ -6,9 +6,7 @@ import {
   banksClient,
   ecosystem,
   EMODE_INIT_RATE_LST_TO_LST,
-  EMODE_INIT_RATE_SOL_TO_LST,
   EMODE_MAINT_RATE_LST_TO_LST,
-  EMODE_MAINT_RATE_SOL_TO_LST,
   EMODE_SEED,
   emodeAdmin,
   emodeGroup,
@@ -21,15 +19,10 @@ import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
-import {
-  assertBankrunTxFailed,
-  assertI80F48Approx,
-  expectFailedTxWithError,
-} from "./utils/genericTests";
+import { assertBankrunTxFailed } from "./utils/genericTests";
 import { USER_ACCOUNT_E } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
-  CONF_INTERVAL_MULTIPLE,
   EMODE_APPLIES_TO_ISOLATED,
   EMODE_LST_TAG,
   EMODE_SOL_TAG,
@@ -44,7 +37,6 @@ import {
   repayIx,
 } from "./utils/user-instructions";
 import { configBankEmode } from "./utils/group-instructions";
-import { dumpBankrunLogs } from "./utils/tools";
 import { assert } from "chai";
 
 const seed = new BN(EMODE_SEED);
