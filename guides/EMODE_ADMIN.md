@@ -14,11 +14,11 @@
   controls all the settings for the asset.
 - **Asset Weight** - Each asset available to lend has two rates: The "Initial" and "Maintenance"
   rates. The Maintenance rate is always higher. If attempting to execute a borrow, collateral is
-  valued at (price _ initial rate). If a liquidator is attempting a liquidation, collateral is
-  valued at (price _ maintenance rate). The range between these is sometimes called the health
+  valued at (price x initial rate). If a liquidator is attempting a liquidation, collateral is
+  valued at (price x maintenance rate). The range between these is sometimes called the health
   buffer. For example, if a user has collateral worth \$10, and init/maint rates are 50\% and 60\%
-  respectively, the user can borrow \$10 _ .5 = \$5 in collateral. For liquidation purposes, their
-  collateral is worth \$10 _ .6 = \$6.
+  respectively, the user can borrow \$10 x .5 = \$5 in collateral. For liquidation purposes, their
+  collateral is worth \$10 x .6 = \$6.
 - **Emode Tag** - an arbitrary number (1 - 65,535) assigned to each bank by the admin. Multiple
   banks can share the same number. By convention, these are the asset name in l337sp34k. For
   example, SOL is 501, LST is 157, etc. If the name doesn't fit into range (1 - 65,535), we use our
@@ -47,7 +47,7 @@ are also borrowing USDC, they get only standard rates on the SOL they are lendin
 that is currently lending SOL and borrowing LST, but now wants to borrow USDT, must have enough
 account health to support the LST and USDT borrow without any emode advantage.
 
-One the biggest naunces is that we always configure the BORROWING bank not the LENDING bank. For
+One of the biggest naunces is that we always configure the BORROWING bank not the LENDING bank. For
 example, if we want users to be able to borrow more SOL against some LST, we will configure the SOL
 bank. If we want users to be able to borrow more WIF against BONK, we configure WIF, and so forth.
 
