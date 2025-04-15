@@ -815,7 +815,7 @@ impl LendingAccount {
 
     pub fn sort_balances(&mut self) {
         // Sort all balances in descending order by bank_pk
-        self.balances.sort_by(|a, b| b.bank_pk.cmp(&a.bank_pk)); // Note: reverse order
+        self.balances.sort_by(|a, b| b.bank_pk.cmp(&a.bank_pk));
     }
 }
 

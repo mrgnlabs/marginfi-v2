@@ -12,6 +12,7 @@ import {
   bankKeypairA,
   bankKeypairUsdc,
   ecosystem,
+  groupAdmin,
   oracles,
   users,
   verbose,
@@ -27,7 +28,10 @@ import { assert } from "chai";
 import { borrowIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { updatePriceAccount } from "./utils/pyth_mocks";
-import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { defaultBankConfigOptRaw } from "./utils/types";
+import { RiskTier } from "@mrgnlabs/marginfi-client-v2";
+import { configureBank } from "./utils/group-instructions";
 
 describe("Borrow funds", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -202,4 +206,63 @@ describe("Borrow funds", () => {
       origination_fee_program
     );
   });
+  
+    it("(admin) vastly reduce Token A bank collateral ratio to induce liquidation", async () => {
+      const usdcBank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
+      console.log("Bank config BEFORE: ", usdcBank.config);
+
+      let config = defaultBankConfigOptRaw();
+      config.assetTag = usdcBank.config.assetTag;
+      //config.assetWeightInit = bigNumberToWrappedI80F48(0);
+      //config.assetWeightMaint = bigNumberToWrappedI80F48(0);
+      config.liabilityWeightInit = usdcBank.config.liabilityWeightInit;
+      config.liabilityWeightMaint = usdcBank.config.liabilityWeightMaint;
+      config.depositLimit = usdcBank.config.depositLimit;
+      config.borrowLimit = usdcBank.config.borrowLimit;
+      config.interestRateConfig = usdcBank.config.interestRateConfig;
+      config.operationalState = usdcBank.config.operationalState;
+      config.oracleMaxAge = usdcBank.config.oracleMaxAge;
+      config.riskTier = { isolated: {
+        collateral: RiskTier.Isolated,
+        liquidationThreshold: 0.1,
+        liquidationPenalty: 0.1,
+      } };
+      
+      await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
+        new Transaction().add(
+          await configureBank(groupAdmin.mrgnProgram, {
+            bank: bankKeypairA.publicKey,
+            bankConfigOpt: config,
+          })
+        )
+      );
+
+      const usdcBankAfter = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
+      console.log("Bank config AFTER: ", usdcBankAfter.config);
+    });
+
+  // it("(user 0) tries to borrow usdc with a bad oracle - should fail", async () => {
+  //   const user = users[0];
+  //   const user0Account = user.accounts.get(USER_ACCOUNT);
+  //   const bank = bankKeypairUsdc.publicKey;
+  //   await expectFailedTxWithError(async () => {
+  //     await user.mrgnProgram.provider.sendAndConfirm(
+  //       new Transaction().add(
+  //         await borrowIx(user.mrgnProgram, {
+  //           marginfiAccount: user0Account,
+  //           bank: bank,
+  //           tokenAccount: user.usdcAccount,
+  //           remaining: [
+  //             bankKeypairA.publicKey,
+  //             oracles.tokenAOracle.publicKey,
+  //             bank,
+  //             oracles.fakeUsdc, // sneaky sneaky...
+  //           ],
+  //           amount: borrowAmountUsdc_native,
+  //         })
+  //       )
+  //     );
+  //     // Note: you can now see expected vs actual keys in the msg! logs just before this error.
+  //   }, "WrongOracleAccountKeys");
+  // });
 });
