@@ -188,6 +188,8 @@ describe("Liquidate user", () => {
    * DEBTS
    *    [index 1] 5,050,000 (5.05) USDC (worth $5.05)
    * Note: $5.05 is 25.25% of $20, which is more than 10%, so liquidation is allowed
+   * 
+   * Health calc before: (2 * 9.788 * .1) - (5.05 * 1.0212) = -3.19946
    *
    * Liquidator tries to repay .2 token A (worth $2) of liquidatee's debt, so liquidator's assets
    * increase by this value, while liquidatee's assets decrease by this value. Which also means that:
@@ -202,6 +204,8 @@ describe("Liquidate user", () => {
    *
    * Insurance fund collects the difference
    *  USDC diff 1,869,036  - 1,822,457 = 46,579
+   * 
+   * Health calc after: ((2-0.2) * 9.788 * .1) - ((5.05-1.8608) * 1.0212) = -1.49497104
    */
 
   it("(user 1) liquidate user 0 who borrowed USDC against their token A position - happy path", async () => {
