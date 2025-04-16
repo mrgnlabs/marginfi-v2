@@ -169,7 +169,7 @@ describe("Emode liquidation", () => {
     }
   });
 
-  // Note: excluding emode, user 1 is unhealthy. Any liquidator that does not yet account for emode
+  // Note: excluding emode, user 0 is unhealthy. Any liquidator that does not yet account for emode
   // will try to do this repeatedly and fail.
   it("(liquidator) Tries to liquidate user 0 with emode in effect - can't liquidate", async () => {
     const liquidatee = users[0];
@@ -219,7 +219,7 @@ describe("Emode liquidation", () => {
   });
 
   // Note: In production, reducing Emode weights is at least as risky as reducing regular weights,
-  // which is done rarely or never because it can trigger use liquidations. In rare instances where
+  // which is done rarely or never because it can trigger user liquidations. In rare instances where
   // this must be done outside for security concerns or assets in freefall, it should be done
   // carefully and slowly!
   it("(emode admin) Reduces LST A emode settings", async () => {
