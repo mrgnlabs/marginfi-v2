@@ -1,28 +1,19 @@
-use crate::state::marginfi_group::Bank;
+use crate::{state::marginfi_group::Bank, utils::wrapped_i80f48_to_f64};
 use anchor_lang::prelude::*;
-use fixed::types::I80F48;
 
 /// Echo the information used to create banks to the log output. Useful for at-a-glance debugging
 /// bank creation txes in explorer. Note: costs a lot of CU
 pub fn log_pool_info(bank: &Bank) {
     let conf = bank.config;
-    let asset_weight_init: I80F48 = conf.asset_weight_init.into();
-    let asset_weight_init_f64: f64 = asset_weight_init.to_num();
-    let asset_weight_maint: I80F48 = conf.asset_weight_maint.into();
-    let asset_weight_maint_f64: f64 = asset_weight_maint.to_num();
     msg!(
         "Asset weight init: {:?} maint: {:?}",
-        asset_weight_init_f64,
-        asset_weight_maint_f64
+        wrapped_i80f48_to_f64(conf.asset_weight_init),
+        wrapped_i80f48_to_f64(conf.asset_weight_maint)
     );
-    let liab_weight_init: I80F48 = conf.liability_weight_init.into();
-    let liab_weight_init_f64: f64 = liab_weight_init.to_num();
-    let liab_weight_maint: I80F48 = conf.liability_weight_maint.into();
-    let liab_weight_maint_f64: f64 = liab_weight_maint.to_num();
     msg!(
         "Liab weight init: {:?} maint: {:?}",
-        liab_weight_init_f64,
-        liab_weight_maint_f64
+        wrapped_i80f48_to_f64(conf.liability_weight_init),
+        wrapped_i80f48_to_f64(conf.liability_weight_maint)
     );
     msg!(
         "deposit limit: {:?} borrow limit: {:?} init val limit: {:?}",
@@ -40,5 +31,23 @@ pub fn log_pool_info(bank: &Bank) {
         "oracle age: {:?} flags: {:?}",
         conf.oracle_max_age as u8,
         bank.flags as u8
+    );
+    let interest = conf.interest_rate_config;
+    msg!(
+        "Insurance fixed: {:?} ir: {:?}",
+        wrapped_i80f48_to_f64(interest.insurance_fee_fixed_apr),
+        wrapped_i80f48_to_f64(interest.insurance_ir_fee)
+    );
+    msg!(
+        "Group fixed: {:?} ir: {:?} origination: {:?}",
+        wrapped_i80f48_to_f64(interest.protocol_fixed_fee_apr),
+        wrapped_i80f48_to_f64(interest.protocol_ir_fee),
+        wrapped_i80f48_to_f64(interest.protocol_origination_fee)
+    );
+    msg!(
+        "Plateau: {:?} Optimal: {:?} Max: {:?}",
+        wrapped_i80f48_to_f64(interest.plateau_interest_rate),
+        wrapped_i80f48_to_f64(interest.optimal_utilization_rate),
+        wrapped_i80f48_to_f64(interest.max_interest_rate)
     );
 }
