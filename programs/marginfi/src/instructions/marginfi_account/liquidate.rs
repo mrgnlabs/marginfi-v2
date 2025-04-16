@@ -147,21 +147,22 @@ pub fn lending_account_liquidate<'info>(
         ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
     let liquidatee_remaining_accounts = &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
 
-    let pre_liquidation_health =
+    let pre_liquidation_health: I80F48 =
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
             .check_pre_liquidation_condition_and_get_account_health(
-                &ctx.accounts.liab_bank.key(),
+                Some(&ctx.accounts.liab_bank.key()),
+                &mut None,
             )?;
 
     // ##Accounting changes##
 
     let (pre_balances, post_balances) = {
-        let asset_amount = I80F48::from_num(asset_amount);
+        let asset_amount: I80F48 = I80F48::from_num(asset_amount);
 
         let mut asset_bank = ctx.accounts.asset_bank.load_mut()?;
         let asset_bank_remaining_accounts_len = get_remaining_accounts_per_bank(&asset_bank)? - 1;
 
-        let asset_price = {
+        let asset_price: I80F48 = {
             let oracle_ais = &ctx.remaining_accounts[0..asset_bank_remaining_accounts_len];
             let asset_pf = OraclePriceFeedAdapter::try_from_bank_config(
                 &asset_bank.config,
@@ -173,7 +174,7 @@ pub fn lending_account_liquidate<'info>(
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
         let liab_bank_remaining_accounts_len = get_remaining_accounts_per_bank(&liab_bank)? - 1;
-        let liab_price = {
+        let liab_price: I80F48 = {
             let oracle_ais = &ctx.remaining_accounts[asset_bank_remaining_accounts_len
                 ..(asset_bank_remaining_accounts_len + liab_bank_remaining_accounts_len)];
             let liab_pf = OraclePriceFeedAdapter::try_from_bank_config(
@@ -184,11 +185,12 @@ pub fn lending_account_liquidate<'info>(
             liab_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?
         };
 
-        let final_discount = I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
-        let liquidator_discount = I80F48::ONE - LIQUIDATION_LIQUIDATOR_FEE;
+        let final_discount: I80F48 =
+            I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
+        let liquidator_discount: I80F48 = I80F48::ONE - LIQUIDATION_LIQUIDATOR_FEE;
 
         // Quantity of liability to be paid off by liquidator
-        let liab_amount_liquidator = calc_amount(
+        let liab_amount_liquidator: I80F48 = calc_amount(
             calc_value(
                 asset_amount,
                 asset_price,
@@ -200,7 +202,7 @@ pub fn lending_account_liquidate<'info>(
         )?;
 
         // Quantity of liability to be received by liquidatee
-        let liab_amount_final = calc_amount(
+        let liab_amount_final: I80F48 = calc_amount(
             calc_value(
                 asset_amount,
                 asset_price,
@@ -212,7 +214,7 @@ pub fn lending_account_liquidate<'info>(
         )?;
 
         // Insurance fund fee
-        let insurance_fund_fee = liab_amount_liquidator - liab_amount_final;
+        let insurance_fund_fee: I80F48 = liab_amount_liquidator - liab_amount_final;
 
         assert!(
             insurance_fund_fee >= I80F48::ZERO,
@@ -232,13 +234,13 @@ pub fn lending_account_liquidate<'info>(
                 &mut liquidator_marginfi_account.lending_account,
             )?;
 
-            let pre_balance = bank_account
+            let pre_balance: I80F48 = bank_account
                 .bank
                 .get_liability_amount(bank_account.balance.liability_shares.into())?;
 
             bank_account.decrease_balance_in_liquidation(liab_amount_liquidator)?;
 
-            let post_balance = bank_account
+            let post_balance: I80F48 = bank_account
                 .bank
                 .get_liability_amount(bank_account.balance.liability_shares.into())?;
 
@@ -253,7 +255,7 @@ pub fn lending_account_liquidate<'info>(
                 &mut liquidatee_marginfi_account.lending_account,
             )?;
 
-            let pre_balance = bank_account
+            let pre_balance: I80F48 = bank_account
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
@@ -261,7 +263,7 @@ pub fn lending_account_liquidate<'info>(
                 .withdraw(asset_amount)
                 .map_err(|_| MarginfiError::OverliquidationAttempt)?;
 
-            let post_balance = bank_account
+            let post_balance: I80F48 = bank_account
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
@@ -276,13 +278,13 @@ pub fn lending_account_liquidate<'info>(
                 &mut liquidator_marginfi_account.lending_account,
             )?;
 
-            let pre_balance = bank_account
+            let pre_balance: I80F48 = bank_account
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
             bank_account.increase_balance_in_liquidation(asset_amount)?;
 
-            let post_balance = bank_account
+            let post_balance: I80F48 = bank_account
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
@@ -306,14 +308,14 @@ pub fn lending_account_liquidate<'info>(
                 &mut liquidatee_marginfi_account.lending_account,
             )?;
 
-            let liquidatee_liability_pre_balance =
+            let liquidatee_liability_pre_balance: I80F48 =
                 liquidatee_liab_bank_account.bank.get_liability_amount(
                     liquidatee_liab_bank_account.balance.liability_shares.into(),
                 )?;
 
             liquidatee_liab_bank_account.increase_balance(liab_amount_final)?;
 
-            let liquidatee_liability_post_balance =
+            let liquidatee_liability_post_balance: I80F48 =
                 liquidatee_liab_bank_account.bank.get_liability_amount(
                     liquidatee_liab_bank_account.balance.liability_shares.into(),
                 )?;
@@ -374,6 +376,10 @@ pub fn lending_account_liquidate<'info>(
     let liquidator_remaining_accounts =
         &ctx.remaining_accounts[liquidator_accounts_starting_pos..liquidatee_accounts_starting_pos];
 
+    // TODO why call RiskEngine::new here again instead of reusing the one we made in line ~151? Is
+    // it because we mutated the liab bank and corresponding balance? Is reloading the entire engine
+    // more CU intensive than mutating the old engine with the updated balance + bank
+
     // Verify liquidatee liquidation post health
     let post_liquidation_health =
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
@@ -383,11 +389,12 @@ pub fn lending_account_liquidate<'info>(
             )?;
 
     // TODO consider if health cache update here is worth blowing the extra CU
-    RiskEngine::check_account_init_health(
+    let (risk_result, _engine) = RiskEngine::check_account_init_health(
         &liquidator_marginfi_account,
         liquidator_remaining_accounts,
         &mut None,
-    )?;
+    );
+    risk_result?;
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {

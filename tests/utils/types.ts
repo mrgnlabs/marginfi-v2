@@ -55,6 +55,9 @@ export const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
 export const EMODE_SOL_TAG = 501;
 export const EMODE_LST_TAG = 157;
 
+/** For 0.1.3, this is how the cache represents the version */
+export const HEALTH_CACHE_PROGRAM_VERSION_0_1_3 = 1;
+
 /**
  * The default bank config has
  * * all weights are 1

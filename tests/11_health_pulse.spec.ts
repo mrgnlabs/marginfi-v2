@@ -41,13 +41,17 @@ import {
   HEALTH_CACHE_HEALTHY,
   HEALTH_CACHE_NONE,
   HEALTH_CACHE_ORACLE_OK,
+  HEALTH_CACHE_PROGRAM_VERSION_0_1_3,
 } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
+import { bytesToF64 } from "./utils/tools";
 
 describe("Health pulse", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
   const provider = getProvider() as AnchorProvider;
   const wallet = provider.wallet as Wallet;
+  /** Tolerance for float inaccuracy */
+  const t = 0.00001;
 
   it("(user 1) health pulse with bad oracle - cache notes the missing price", async () => {
     const user = users[1];
@@ -83,7 +87,7 @@ describe("Health pulse", () => {
       console.log("index of err:   " + cacheAfter.errIndex);
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        const price = bytesToF64(cacheAfter.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -104,7 +108,7 @@ describe("Health pulse", () => {
     assert.equal(cacheAfter.internalErr, 6052); // (WrongOracleAccountKeys)
     assert.equal(cacheAfter.errIndex, 1);
     // The fake usdc price is set to zero due to the bad oracle
-    assertI80F48Equal(cacheAfter.prices[1], 0);
+    assert.approximately(bytesToF64(cacheAfter.prices[1]), 0, t);
   });
 
   it("(user 1) health pulse - happy path", async () => {
@@ -125,12 +129,16 @@ describe("Health pulse", () => {
     );
 
     const accAfter = await program.account.marginfiAccount.fetch(acc);
-    const cacheAfter = accAfter.healthCache;
+    const cA = accAfter.healthCache;
     const now = Date.now() / 1000;
 
-    const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
-    const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
-    const flags = cacheAfter.flags;
+    const assetValue = wrappedI80F48toBigNumber(cA.assetValue);
+    const liabValue = wrappedI80F48toBigNumber(cA.liabilityValue);
+    const aValMaint = wrappedI80F48toBigNumber(cA.assetValueMaint);
+    const lValMaint = wrappedI80F48toBigNumber(cA.liabilityValueMaint);
+    const aValEquity = wrappedI80F48toBigNumber(cA.assetValueEquity);
+    const lValEquity = wrappedI80F48toBigNumber(cA.liabilityValueEquity);
+    const flags = cA.flags;
     if (verbose) {
       console.log("---user health state---");
       const isHealthy = (flags & HEALTH_CACHE_HEALTHY) !== 0;
@@ -141,22 +149,30 @@ describe("Health pulse", () => {
       console.log("oracle ok: " + oracleOk);
       console.log("asset value: " + assetValue.toString());
       console.log("liab value: " + liabValue.toString());
+      console.log("asset value (maint): " + aValMaint.toString());
+      console.log("liab value (maint): " + lValMaint.toString());
+      console.log("asset value (equity): " + aValEquity.toString());
+      console.log("liab value equity): " + lValEquity.toString());
       console.log("prices: ");
-      for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+      for (let i = 0; i < cA.prices.length; i++) {
+        const price = bytesToF64(cA.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
       }
     }
 
-    assert.approximately(cacheAfter.timestamp.toNumber(), now, 3);
+    assert.approximately(cA.timestamp.toNumber(), now, 3);
     assert.equal(
-      cacheAfter.flags,
+      cA.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
-    assertI80F48Approx(cacheAfter.prices[0], oracles.usdcPrice);
-    assertI80F48Approx(cacheAfter.prices[1], oracles.tokenAPrice);
+    assert.equal(cA.programVersion, HEALTH_CACHE_PROGRAM_VERSION_0_1_3);
+    // Note: Technically this is wrong, our test suite doesn't have any ema confidence for legacy
+    // pyth oracles so the price uses the actual value. You can note that for an oracle with a valid
+    // ema conf like LST the value here will be price - conf.
+    assert.approximately(bytesToF64(cA.prices[0]), oracles.usdcPrice, t);
+    assert.approximately(bytesToF64(cA.prices[1]), oracles.tokenAPrice, t);
   });
 
   it("(user 0) health pulse in unhealthy state - happy path", async () => {
@@ -232,7 +248,7 @@ describe("Health pulse", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        const price = bytesToF64(cacheAfter.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -247,8 +263,16 @@ describe("Health pulse", () => {
       HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
     assert.equal(cacheAfter.mrgnErr, 6009); // RiskEngineInitRejected
-    assertI80F48Approx(cacheAfter.prices[0], oracles.tokenAPrice);
-    assertI80F48Approx(cacheAfter.prices[1], oracles.usdcPrice);
+    assert.approximately(
+      bytesToF64(cacheAfter.prices[0]),
+      oracles.tokenAPrice,
+      t
+    );
+    assert.approximately(
+      bytesToF64(cacheAfter.prices[1]),
+      oracles.usdcPrice,
+      t
+    );
     assert.approximately(
       (expectedValue * oracles.tokenAPrice) / 10 ** oracles.tokenADecimals,
       assetValue.toNumber(),
@@ -346,7 +370,7 @@ describe("Health pulse", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        const price = bytesToF64(cacheAfter.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -358,8 +382,16 @@ describe("Health pulse", () => {
       cacheAfter.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
-    assertI80F48Approx(cacheAfter.prices[0], oracles.tokenAPrice);
-    assertI80F48Approx(cacheAfter.prices[1], oracles.usdcPrice);
+    assert.approximately(
+      bytesToF64(cacheAfter.prices[0]),
+      oracles.tokenAPrice,
+      t
+    );
+    assert.approximately(
+      bytesToF64(cacheAfter.prices[1]),
+      oracles.usdcPrice,
+      t
+    );
     assert.approximately(
       (expectedValue * oracles.tokenAPrice) / 10 ** oracles.tokenADecimals,
       assetValue.toNumber(),

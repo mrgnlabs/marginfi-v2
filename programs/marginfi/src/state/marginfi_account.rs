@@ -49,7 +49,7 @@ pub struct MarginfiAccount {
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
     pub health_cache: HealthCache,
-    pub _padding0: [u64; 20],
+    pub _padding0: [u64; 21],
 }
 
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;
@@ -541,21 +541,25 @@ impl<'info> RiskEngine<'_> {
     /// `ACCOUNT_IN_FLASHLOAN` behavior.
     /// - Health check is skipped.
     /// - `remaining_ais` can be an empty vec.
+    /// * Returns a Some(RiskEngine) if creating the engine didn't error, even if the risk check itself did error.
     pub fn check_account_init_health<'a>(
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
         health_cache: &mut Option<&mut HealthCache>,
-    ) -> MarginfiResult {
+    ) -> (MarginfiResult, Option<RiskEngine<'a>>) {
         if marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN) {
-            // Note: The health cache is not applicable to flashloans
-            return Ok(());
+            // Note: All risk, including the health cache, is not applicable during flashloans
+            return (Ok(()), None);
         }
 
-        let risk_engine = Self::new_no_flashloan_check(marginfi_account, remaining_ais)?;
+        let risk_engine = match Self::new_no_flashloan_check(marginfi_account, remaining_ais) {
+            Ok(engine) => engine,
+            Err(e) => return (Err(e), None),
+        };
         let requirement_type = RiskRequirementType::Initial;
-        risk_engine.check_account_health(requirement_type, health_cache)?;
+        let risk_engine_result = risk_engine.check_account_health(requirement_type, health_cache);
 
-        Ok(())
+        (risk_engine_result, Some(risk_engine))
     }
 
     /// Returns the total assets and liabilities of the account in the form of (assets, liabilities)
@@ -582,7 +586,14 @@ impl<'info> RiskEngine<'_> {
             }
 
             if let Some(health_cache) = health_cache {
-                health_cache.prices[i] = price.into();
+                // Note: We only record the Initial weighted price in cache, at some point we may
+                // record others.
+                match requirement_type {
+                    RequirementType::Initial => {
+                        health_cache.prices[i] = price.to_num::<f64>().to_le_bytes();
+                    }
+                    _ => {}
+                }
             }
 
             debug!(
@@ -599,8 +610,20 @@ impl<'info> RiskEngine<'_> {
         }
 
         if let Some(health_cache) = health_cache {
-            health_cache.asset_value = total_assets.into();
-            health_cache.liability_value = total_liabilities.into();
+            match requirement_type {
+                RiskRequirementType::Initial => {
+                    health_cache.asset_value = total_assets.into();
+                    health_cache.liability_value = total_liabilities.into();
+                }
+                RiskRequirementType::Maintenance => {
+                    health_cache.asset_value_maint = total_assets.into();
+                    health_cache.liability_value_maint = total_liabilities.into();
+                }
+                RiskRequirementType::Equity => {
+                    health_cache.asset_value_equity = total_assets.into();
+                    health_cache.liability_value_equity = total_liabilities.into();
+                }
+            }
         }
 
         Ok((total_assets, total_liabilities))
@@ -643,36 +666,45 @@ impl<'info> RiskEngine<'_> {
 
     /// Checks
     /// 1. Account is liquidatable
-    /// 2. Account has an outstanding liability for the provided liability bank
+    /// 2. Account has an outstanding liability for the provided liability bank. This check is
+    ///    ignored if passing None.
+    /// * returns - account health (assets - liabs)
     pub fn check_pre_liquidation_condition_and_get_account_health(
         &self,
-        bank_pk: &Pubkey,
+        bank_pk: Option<&Pubkey>,
+        health_cache: &mut Option<&mut HealthCache>,
     ) -> MarginfiResult<I80F48> {
         check!(
             !self.marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
         );
 
-        let liability_bank_balance = self
-            .bank_accounts_with_price
-            .iter()
-            .find(|a| a.balance.bank_pk == *bank_pk)
-            .ok_or(MarginfiError::LendingAccountBalanceNotFound)?;
+        if bank_pk.is_some() {
+            let liability_bank_balance = self
+                .bank_accounts_with_price
+                .iter()
+                .find(|a| a.balance.bank_pk == *bank_pk.unwrap())
+                .ok_or(MarginfiError::LendingAccountBalanceNotFound)?;
 
-        check!(
-            !liability_bank_balance.is_empty(BalanceSide::Liabilities),
-            MarginfiError::NoLiabilitiesInLiabilityBank
-        );
+            check!(
+                !liability_bank_balance.is_empty(BalanceSide::Liabilities),
+                MarginfiError::NoLiabilitiesInLiabilityBank
+            );
 
-        check!(
-            liability_bank_balance.is_empty(BalanceSide::Assets),
-            MarginfiError::AssetsInLiabilityBank
-        );
+            check!(
+                liability_bank_balance.is_empty(BalanceSide::Assets),
+                MarginfiError::AssetsInLiabilityBank
+            );
+        }
 
         let (assets, liabs) =
-            self.get_account_health_components(RiskRequirementType::Maintenance, &mut None)?;
+            self.get_account_health_components(RiskRequirementType::Maintenance, health_cache)?;
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
+
+        if let Some(cache) = health_cache {
+            cache.set_healthy(account_health > I80F48::ZERO);
+        }
 
         debug!(
             "pre_liquidation_health: {} ({} - {})",
@@ -748,9 +780,12 @@ impl<'info> RiskEngine<'_> {
 
     /// Check that the account is in a bankrupt state. Account needs to be insolvent and total value
     /// of assets need to be below the bankruptcy threshold.
-    pub fn check_account_bankrupt(&self) -> MarginfiResult {
+    pub fn check_account_bankrupt(
+        &self,
+        health_cache: &mut Option<&mut HealthCache>,
+    ) -> MarginfiResult {
         let (total_assets, total_liabilities) =
-            self.get_account_health_components(RiskRequirementType::Equity, &mut None)?;
+            self.get_account_health_components(RiskRequirementType::Equity, health_cache)?;
 
         check!(
             !self.marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
@@ -1533,7 +1568,7 @@ mod test {
             },
             account_flags: ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
             health_cache: HealthCache::zeroed(),
-            _padding0: [0; 20],
+            _padding0: [0; 21],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED));

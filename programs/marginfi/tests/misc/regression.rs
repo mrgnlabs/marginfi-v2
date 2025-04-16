@@ -49,7 +49,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(account.account_flags, 0);
     // health cache doesn't exist on these old accounts, but it also doesn't matter since it's read-only
     assert_eq!(account.health_cache, HealthCache::zeroed());
-    assert_eq!(account._padding0, [0; 20]);
+    assert_eq!(account._padding0, [0; 21]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.is_active());
@@ -126,7 +126,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("3T1kGHp7CrdeW9Qj1t8NMc2Ks233RyvzVhoaUPWoBEFK")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 20]);
+    assert_eq!(account._padding0, [0; 21]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.is_active());
@@ -203,7 +203,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("7hmfVTuXc7HeX3YQjpiCXGVQuTeXonzjp795jorZukVR")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 20]);
+    assert_eq!(account._padding0, [0; 21]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(!balance_1.is_active());
