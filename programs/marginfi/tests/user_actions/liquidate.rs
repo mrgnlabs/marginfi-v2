@@ -1001,11 +1001,12 @@ async fn marginfi_account_liquidation_emode(
     }
 
     // Now we check the scenario where the liquidator tries to liquidate a valid amount of liquidatee's debt
-    // but fails due to rendering its own account in a bad health as a result liquidation. This happens because
+    // but fails due to rendering its own account in a bad health as a result of liquidation. This happens because
     // liquidatee's collateral is still in emode and is weighted as 0.6 whereas liquidator's collateral is NOT
-    // in emode and is weighted by default - as 0.4. So even though the liquidator has actually gained some money,
-    // its health became worse.
+    // in emode (see below) and is weighted by default - as 0.4. So even though the liquidator would actually gain
+    // some money, its health would become worse.
 
+    // This borrowing of another asset disables emode for the liquidator
     let liquidator_debt_token_account_f = {
         let liquidator_debt_token_account_f = test_f
             .get_bank_mut(&emode_breaker_bank_mint)
