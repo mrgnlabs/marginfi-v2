@@ -130,6 +130,10 @@ jobs:
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
 
+      ## TODO remove when fixed see https://github.com/solana-foundation/anchor/pull/3663
+      - name: Patch for random solana build issue
+        run: cargo update -p proc-macro2 --precise 1.0.94
+
       - name: Install Node.js dependencies
         run: yarn install
 
