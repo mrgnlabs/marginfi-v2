@@ -130,24 +130,40 @@ jobs:
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
 
-      ## TODO remove when fixed see https://github.com/solana-foundation/anchor/pull/3663
-      - name: Patch for random solana build issue
-        run: cargo update -p proc-macro2 --precise 1.0.78
-
       - name: Install Node.js dependencies
         run: yarn install
 
       - name: Build marginfi program
-        run: anchor build -p marginfi -- --no-default-features
+        run: anchor build -p marginfi --no-idl -- --no-default-features
 
       - name: Build mocks program
-        run: anchor build -p mocks
+        run: anchor build -p mocks --no-idl
 
       - name: Build liquidity program
         run: anchor build -p liquidity_incentive_program --no-idl
 
       - name: Build brick
         run: anchor build -p brick --no-idl
+
+      - name: Generate marginfi IDL & TS types
+        run: |
+          cd programs/marginfi
+          anchor idl build \
+            -o ../../target/idl/marginfi.json \
+            -t ../../target/types/marginfi.ts
+          cd ../..
+          echo "Current directory: $(pwd)"
+          ls -R .
+
+      - name: Generate mock program IDL and TS types
+        run: |
+          cd programs/marginfi
+          anchor idl build \
+            -o ../../target/idl/mocks.json \
+            -t ../../target/types/mocks.ts
+          cd ../..
+          echo "Current directory: $(pwd)"
+          ls -R .
 
       # Handles extraneous (os error 2) that appears during testing in some versions of solana. See:
       # https://solana.stackexchange.com/questions/1648/error-no-such-file-or-directory-os-error-2-error-from-anchor-test
