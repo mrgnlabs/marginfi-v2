@@ -18,7 +18,7 @@ marginfi = { path = "../../programs/marginfi", version = "0.1.0", features = [
 ] }
 pagerduty-rs = { version = "*", features = ["sync"] }
 pyth-sdk-solana = { workspace = true }
-pyth-solana-receiver-sdk = "0.3.1"
+pyth-solana-receiver-sdk = "0.6.0"
 serde = "1.0.210"
 solana-account-decoder = { workspace = true }
 solana-client.workspace = true

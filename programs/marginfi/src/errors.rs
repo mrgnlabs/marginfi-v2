@@ -154,6 +154,8 @@ pub enum MarginfiError {
     ArenaSettingCannotChange,
     #[msg("The Emode config was invalid")] // 6075
     BadEmodeConfig,
+    #[msg("TWAP window size does not match expected duration")] // 6076
+    PythPushInvalidWindowSize,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -179,6 +181,9 @@ impl From<pyth_solana_receiver_sdk::error::GetPriceError> for MarginfiError {
             }
             pyth_solana_receiver_sdk::error::GetPriceError::FeedIdNonHexCharacter => {
                 MarginfiError::PythPushFeedIdNonHexCharacter
+            }
+            pyth_solana_receiver_sdk::error::GetPriceError::InvalidWindowSize => {
+                MarginfiError::PythPushInvalidWindowSize
             }
         }
     }
@@ -258,6 +263,10 @@ impl From<u32> for MarginfiError {
             6070 => MarginfiError::TooSeverePayoff,
             6071 => MarginfiError::TooSevereLiquidation,
             6072 => MarginfiError::WorseHealthPostLiquidation,
+            6073 => MarginfiError::ArenaBankLimit,
+            6074 => MarginfiError::ArenaSettingCannotChange,
+            6075 => MarginfiError::BadEmodeConfig,
+            6076 => MarginfiError::PythPushInvalidWindowSize,
             _ => MarginfiError::InternalLogicError,
         }
     }
