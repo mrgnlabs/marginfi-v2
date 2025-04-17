@@ -30,6 +30,7 @@ anchor-client = { git = "https://github.com/mrgnlabs/anchor.git", rev = "fdcf299
 
 pyth-sdk-solana = "=0.10.1"
 pyth-solana-receiver-sdk = "0.6.0"
+pythnet-sdk = "2.3.1"
 switchboard-solana = "0.29.0"
 switchboard-on-demand = "0.1.14"
 borsh = "0.10.3"

@@ -28,6 +28,7 @@ anchor-client = { workspace = true }
 anchor-spl = { workspace = true, features = ["token_2022"] }
 
 pyth-sdk-solana = { workspace = true }
+pythnet-sdk = { workspace = true }
 switchboard-solana = { workspace = true }
 switchboard-on-demand = "0.1.14"
 borsh = "0.10.3"
