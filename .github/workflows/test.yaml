@@ -145,7 +145,7 @@ jobs:
       - name: Build brick
         run: anchor build -p brick --no-idl
 
-      - name: Generate marginfi IDL & TS types
+      - name: Generate marginfi IDL and TS types
         run: |
           cd programs/marginfi
           anchor idl build \
