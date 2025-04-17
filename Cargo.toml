@@ -1,38 +1,40 @@
 [workspace]
 resolver = "2"
-members = ["programs/*", "clients/rust/*", "tools/*"]
+members = ["programs/marginfi", "programs/mocks"]
+# exclude = [
+#   "programs/test_transfer_hook",
+#   "programs/liquidity-incentive-program",
+#   "programs/brick",
+# ]
 
 [workspace.dependencies]
-solana-cli-output = "=1.18.17"
-solana-client = "=1.18.17"
-solana-sdk = "=1.18.17"
-solana-logger = "=1.18.17"
-solana-program = "=1.18.17"
-solana-program-test = "=1.18.17"
-solana-account-decoder = "=1.18.17"
-solana-measure = "=1.18.17"
-solana-metrics = "=1.18.17"
-solana-transaction-status = "=1.18.17"
-solana-address-lookup-table-program = "=1.18.17"
-spl-token = "4.0.0"
-spl-associated-token-account = "2.2.0"
+solana-cli-output = "=2.1.0"
+solana-client = "=2.1.0"
+solana-sdk = "=2.1.0"
+solana-logger = "=2.1.0"
+solana-program = "=2.1.0"
+solana-program-test = "=2.1.0"
+solana-account-decoder = "=2.1.0"
+# solana-measure = "=2.1.0"
+# solana-metrics = "=2.1.0"
+# solana-transaction-status = "=2.1.0"
+# solana-address-lookup-table-program = "=2.1.0"
+spl-token = "8.0.0"
+# spl-associated-token-account = "2.2.0"
 spl-transfer-hook-interface = "0.6.3"
-spl-tlv-account-resolution = "0.6.3"
-spl-discriminator = "0.2.2"
-spl-token-2022 = "3.0.2"
+# spl-tlv-account-resolution = "0.6.3"
+# spl-discriminator = "0.2.2"
+spl-token-2022 = { version = "7.0.0", features = ["no-entrypoint"] }
 
-anchor-lang = { git = "https://github.com/mrgnlabs/anchor.git", rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
-anchor-lang-29 = { version = "0.29.0", package = "anchor-lang" }
-anchor-spl = { git = "https://github.com/mrgnlabs/anchor.git", features = [
-  "token_2022",
-], rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
-anchor-client = { git = "https://github.com/mrgnlabs/anchor.git", rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
+anchor-lang = { version = "0.31.0" }
+anchor-spl = { version = "0.31.0", features = ["token_2022"] }
+anchor-client = { version = "0.31.0" }
 
 pyth-sdk-solana = "=0.10.1"
 pyth-solana-receiver-sdk = "0.6.0"
 pythnet-sdk = "2.3.1"
-switchboard-solana = "0.29.0"
-switchboard-on-demand = "0.1.14"
+# switchboard-solana = "0.29.0"
+switchboard-on-demand = "0.3.5"
 borsh = "0.10.3"
 
 [profile.release]

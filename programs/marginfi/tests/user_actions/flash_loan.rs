@@ -1,8 +1,8 @@
+use anchor_lang::solana_program::{instruction::Instruction, pubkey::Pubkey};
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::prelude::*;
 use pretty_assertions::assert_eq;
-use solana_program::{instruction::Instruction, pubkey::Pubkey};
 use solana_program_test::*;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, signer::Signer, transaction::Transaction,

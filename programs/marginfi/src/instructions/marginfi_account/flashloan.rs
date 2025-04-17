@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use anchor_lang::{prelude::*, Discriminator};
-use solana_program::{
+use anchor_lang::solana_program::{
     instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT},
     sysvar::{self, instructions},
 };
@@ -81,11 +81,15 @@ pub fn check_flashloan_can_start(
     // Will error if ix doesn't exist
     let unchecked_end_fl_ix = instructions::load_instruction_at_checked(end_fl_idx, sysvar_ixs)?;
 
-    check!(
-        unchecked_end_fl_ix.data[..8]
-            .eq(&crate::instruction::LendingAccountEndFlashloan::DISCRIMINATOR),
-        MarginfiError::IllegalFlashloan
-    );
+    // TODO restore with 0.31.0 discrim syntax or hard coded value
+    if unchecked_end_fl_ix.data[..8] != [0; 8] {
+        panic!("put discrim check back");
+    }
+    // check!(
+    //     unchecked_end_fl_ix.data[..8]
+    //         .eq(&crate::instruction::LendingAccountEndFlashloan::DISCRIMINATOR),
+    //     MarginfiError::IllegalFlashloan
+    // );
 
     check!(
         unchecked_end_fl_ix.program_id.eq(&crate::id()),

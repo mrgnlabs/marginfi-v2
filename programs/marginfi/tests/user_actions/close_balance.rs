@@ -4,7 +4,7 @@ use fixtures::{
 };
 use marginfi::errors::MarginfiError;
 use solana_program_test::tokio;
-use switchboard_solana::Clock;
+use solana_sdk::clock::Clock;
 
 #[tokio::test]
 async fn lending_account_close_balance() -> anyhow::Result<()> {

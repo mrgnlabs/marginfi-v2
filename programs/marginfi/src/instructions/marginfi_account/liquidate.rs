@@ -15,10 +15,10 @@ use crate::{
 };
 use crate::{check, debug, prelude::*, utils};
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::clock::Clock;
+use anchor_lang::solana_program::sysvar::Sysvar;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
-use solana_program::clock::Clock;
-use solana_program::sysvar::Sysvar;
 
 /// Instruction liquidates a position owned by a margin account that is in a unhealthy state.
 /// The liquidator can purchase discounted collateral from the unhealthy account, in exchange for paying its debt.

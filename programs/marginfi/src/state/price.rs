@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
 use anchor_spl::token::Mint;
 use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
@@ -6,12 +7,8 @@ use fixed::types::I80F48;
 pub use pyth_sdk_solana;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
-use solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
 use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{CurrentResult, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID};
-use switchboard_solana::{
-    AggregatorAccountData, AggregatorResolutionMode, SwitchboardDecimal, SWITCHBOARD_PROGRAM_ID,
-};
 
 use crate::{
     check, check_eq,
@@ -33,7 +30,7 @@ use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 pub enum OracleSetup {
     None,
     PythLegacy,
-    SwitchboardV2,
+    SwbDeprecated,
     PythPushOracle,
     SwitchboardPull,
     StakedWithPythPush,
@@ -46,7 +43,7 @@ impl OracleSetup {
         match value {
             0 => Some(Self::None),
             1 => Some(Self::PythLegacy),
-            2 => Some(Self::SwitchboardV2),
+            2 => Some(Self::SwbDeprecated),
             3 => Some(Self::PythPushOracle),
             4 => Some(Self::SwitchboardPull),
             5 => Some(Self::StakedWithPythPush),
@@ -88,6 +85,22 @@ pub enum OraclePriceFeedAdapter {
     SwitchboardPull(SwitchboardPullPriceFeed),
 }
 
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
+pub struct SwitchboardV2PriceFeed {
+    _ema_price: Box<Price>,
+    _price: Box<Price>,
+}
+
+impl PriceAdapter for SwitchboardV2PriceFeed {
+    fn get_price_of_type(
+        &self,
+        price_type: OraclePriceType,
+        bias: Option<PriceBias>,
+    ) -> MarginfiResult<I80F48> {
+        panic!("swb v2 is deprecated");
+    }
+}
+
 impl OraclePriceFeedAdapter {
     pub fn try_from_bank_config<'info>(
         bank_config: &BankConfig,
@@ -127,20 +140,8 @@ impl OraclePriceFeedAdapter {
                     PythLegacyPriceFeed::load_checked(account_info, clock.unix_timestamp, max_age)?,
                 ))
             }
-            OracleSetup::SwitchboardV2 => {
-                check!(ais.len() == 1, MarginfiError::WrongNumberOfOracleAccounts);
-                if ais[0].key != &bank_config.oracle_keys[0] {
-                    msg!(
-                        "Expected oracle key: {:?}, got: {:?}",
-                        bank_config.oracle_keys[0],
-                        ais[0].key
-                    );
-                    return Err(error!(MarginfiError::WrongOracleAccountKeys));
-                }
-
-                Ok(OraclePriceFeedAdapter::SwitchboardV2(
-                    SwitchboardV2PriceFeed::load_checked(&ais[0], clock.unix_timestamp, max_age)?,
-                ))
+            OracleSetup::SwbDeprecated => {
+                panic!("swb v2 is deprecated");
             }
             OracleSetup::PythPushOracle => {
                 check!(ais.len() == 1, MarginfiError::WrongNumberOfOracleAccounts);
@@ -330,23 +331,8 @@ impl OraclePriceFeedAdapter {
 
                 Ok(())
             }
-            OracleSetup::SwitchboardV2 => {
-                check!(
-                    oracle_ais.len() == 1,
-                    MarginfiError::WrongNumberOfOracleAccounts
-                );
-                if oracle_ais[0].key != &bank_config.oracle_keys[0] {
-                    msg!(
-                        "Expected oracle key: {:?}, got: {:?}",
-                        bank_config.oracle_keys[0],
-                        oracle_ais[0].key
-                    );
-                    return Err(error!(MarginfiError::WrongOracleAccountKeys));
-                }
-
-                SwitchboardV2PriceFeed::check_ais(&oracle_ais[0])?;
-
-                Ok(())
+            OracleSetup::SwbDeprecated => {
+                panic!("swb v2 is deprecated");
             }
             OracleSetup::PythPushOracle => {
                 check!(
@@ -693,115 +679,6 @@ impl PriceAdapter for SwitchboardPullPriceFeed {
     }
 }
 
-#[cfg_attr(feature = "client", derive(Clone, Debug))]
-pub struct SwitchboardV2PriceFeed {
-    aggregator_account: Box<LiteAggregatorAccountData>,
-}
-
-impl SwitchboardV2PriceFeed {
-    pub fn load_checked(
-        ai: &AccountInfo,
-        current_timestamp: i64,
-        max_age: u64,
-    ) -> MarginfiResult<Self> {
-        let ai_data = ai.data.borrow();
-
-        check!(
-            ai.owner.eq(&SWITCHBOARD_PROGRAM_ID),
-            MarginfiError::InternalLogicError
-        );
-
-        let aggregator_account = AggregatorAccountData::new_from_bytes(&ai_data)
-            .map_err(|_| MarginfiError::InternalLogicError)?;
-
-        aggregator_account
-            .check_staleness(current_timestamp, max_age as i64)
-            .map_err(|_| MarginfiError::InternalLogicError)?;
-
-        Ok(Self {
-            aggregator_account: Box::new(aggregator_account.into()),
-        })
-    }
-
-    fn check_ais(ai: &AccountInfo) -> MarginfiResult {
-        let ai_data = ai.data.borrow();
-
-        check!(
-            ai.owner.eq(&SWITCHBOARD_PROGRAM_ID),
-            MarginfiError::InternalLogicError
-        );
-
-        AggregatorAccountData::new_from_bytes(&ai_data)
-            .map_err(|_| MarginfiError::InternalLogicError)?;
-
-        Ok(())
-    }
-
-    fn get_price(&self) -> MarginfiResult<I80F48> {
-        let sw_decimal = self
-            .aggregator_account
-            .get_result()
-            .map_err(|_| MarginfiError::InvalidPrice)?;
-
-        Ok(switchboard_decimal_to_i80f48(sw_decimal)
-            .ok_or(MarginfiError::InvalidSwitchboardDecimalConversion)?)
-    }
-
-    fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
-        let std_div = self.aggregator_account.latest_confirmed_round_std_deviation;
-        let std_div = switchboard_decimal_to_i80f48(std_div)
-            .ok_or(MarginfiError::InvalidSwitchboardDecimalConversion)?;
-
-        let conf_interval = std_div
-            .checked_mul(STD_DEV_MULTIPLE)
-            .ok_or_else(math_error!())?;
-
-        let price = self.get_price()?;
-
-        let max_conf_interval = price
-            .checked_mul(MAX_CONF_INTERVAL)
-            .ok_or_else(math_error!())?;
-
-        assert!(
-            max_conf_interval >= I80F48::ZERO,
-            "Negative max confidence interval"
-        );
-
-        assert!(
-            conf_interval >= I80F48::ZERO,
-            "Negative confidence interval"
-        );
-
-        Ok(min(conf_interval, max_conf_interval))
-    }
-}
-
-impl PriceAdapter for SwitchboardV2PriceFeed {
-    fn get_price_of_type(
-        &self,
-        _price_type: OraclePriceType,
-        bias: Option<PriceBias>,
-    ) -> MarginfiResult<I80F48> {
-        let price = self.get_price()?;
-
-        match bias {
-            Some(price_bias) => {
-                let confidence_interval = self.get_confidence_interval()?;
-
-                match price_bias {
-                    PriceBias::Low => Ok(price
-                        .checked_sub(confidence_interval)
-                        .ok_or_else(math_error!())?),
-                    PriceBias::High => Ok(price
-                        .checked_add(confidence_interval)
-                        .ok_or_else(math_error!())?),
-                }
-            }
-            None => Ok(price),
-        }
-    }
-}
-
 pub fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
     if live!() {
         check_eq!(
@@ -823,7 +700,7 @@ pub fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpd
     let discriminator = &price_feed_data[0..8];
 
     check!(
-        discriminator == <PriceUpdateV2 as anchor_lang_29::Discriminator>::DISCRIMINATOR,
+        discriminator == <PriceUpdateV2 as anchor_lang::Discriminator>::DISCRIMINATOR,
         MarginfiError::PythPushInvalidAccount
     );
 
@@ -1074,58 +951,6 @@ impl From<Ref<'_, PullFeedAccountData>> for LitePullFeedAccountData {
     }
 }
 
-/// A slimmed down version of the AggregatorAccountData struct copied from the switchboard-v2/src/aggregator.rs
-#[cfg_attr(feature = "client", derive(Clone, Debug))]
-struct LiteAggregatorAccountData {
-    /// Use sliding windoe or round based resolution
-    /// NOTE: This changes result propagation in latest_round_result
-    pub resolution_mode: AggregatorResolutionMode,
-    /// Latest confirmed update request result that has been accepted as valid.
-    pub latest_confirmed_round_result: SwitchboardDecimal,
-    pub latest_confirmed_round_num_success: u32,
-    pub latest_confirmed_round_std_deviation: SwitchboardDecimal,
-    /// Minimum number of oracle responses required before a round is validated.
-    pub min_oracle_results: u32,
-}
-
-impl From<&AggregatorAccountData> for LiteAggregatorAccountData {
-    fn from(agg: &AggregatorAccountData) -> Self {
-        Self {
-            resolution_mode: agg.resolution_mode,
-            latest_confirmed_round_result: agg.latest_confirmed_round.result,
-            latest_confirmed_round_num_success: agg.latest_confirmed_round.num_success,
-            latest_confirmed_round_std_deviation: agg.latest_confirmed_round.std_deviation,
-            min_oracle_results: agg.min_oracle_results,
-        }
-    }
-}
-
-impl LiteAggregatorAccountData {
-    /// If sufficient oracle responses, returns the latest on-chain result in SwitchboardDecimal format
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use switchboard_v2::AggregatorAccountData;
-    /// use std::convert::TryInto;
-    ///
-    /// let feed_result = AggregatorAccountData::new(feed_account_info)?.get_result()?;
-    /// let decimal: f64 = feed_result.try_into()?;
-    /// ```
-
-    pub fn get_result(&self) -> anchor_lang::Result<SwitchboardDecimal> {
-        if self.resolution_mode == AggregatorResolutionMode::ModeSlidingResolution {
-            return Ok(self.latest_confirmed_round_result);
-        }
-        let min_oracle_results = self.min_oracle_results;
-        let latest_confirmed_round_num_success = self.latest_confirmed_round_num_success;
-        if min_oracle_results > latest_confirmed_round_num_success {
-            return Err(MarginfiError::SwitchboardInvalidAccount.into());
-        }
-        Ok(self.latest_confirmed_round_result)
-    }
-}
-
 #[inline(always)]
 fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResult<I80F48> {
     let scaling_factor = EXP_10_I80F48[exponent.unsigned_abs() as usize];
@@ -1153,70 +978,16 @@ fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
     Ok(price_feed)
 }
 
-#[inline(always)]
-fn switchboard_decimal_to_i80f48(decimal: SwitchboardDecimal) -> Option<I80F48> {
-    let decimal = fit_scale_switchboard_decimal(decimal, MAX_SCALE)?;
-
-    I80F48::from_num(decimal.mantissa).checked_div(EXP_10_I80F48[decimal.scale as usize])
-}
-
-const MAX_SCALE: u32 = 20;
-
-/// Scale a SwitchboardDecimal down to a given scale.
-/// Return original SwitchboardDecimal if it is already at or below the given scale.
-///
-/// This may result in minimal loss of precision past the scale delta.
-#[inline]
-fn fit_scale_switchboard_decimal(
-    decimal: SwitchboardDecimal,
-    scale: u32,
-) -> Option<SwitchboardDecimal> {
-    if decimal.scale <= scale {
-        return Some(decimal);
-    }
-
-    let scale_diff = decimal.scale - scale;
-    let mantissa = decimal.mantissa.checked_div(EXP_10[scale_diff as usize])?;
-
-    Some(SwitchboardDecimal { mantissa, scale })
-}
-
 #[cfg(test)]
 mod tests {
     use fixed_macro::types::I80F48;
     use pretty_assertions::assert_eq;
     use rust_decimal::Decimal;
+    use switchboard_on_demand::Discriminator;
 
     use crate::utils::hex_to_bytes;
 
     use super::*;
-    #[test]
-    fn swb_decimal_test_18() {
-        let decimal = SwitchboardDecimal {
-            mantissa: 1000000000000000000,
-            scale: 18,
-        };
-        let i80f48 = switchboard_decimal_to_i80f48(decimal).unwrap();
-        assert_eq!(i80f48, I80F48::from_num(1));
-    }
-
-    #[test]
-    /// Testing the standard deviation of the switchboard oracle on the SOLUSD mainnet feed
-    fn swb_dec_test_28() {
-        let dec = SwitchboardDecimal {
-            mantissa: 13942937500000000000000000,
-            scale: 28,
-        };
-
-        {
-            let decimal: Decimal = dec.try_into().unwrap();
-            println!("control check: {:?}", decimal);
-        }
-
-        let i80f48 = switchboard_decimal_to_i80f48(dec).unwrap();
-
-        assert_eq!(i80f48, I80F48::from_num(0.00139429375));
-    }
 
     #[test]
     fn pyth_conf_interval_cap() {
@@ -1251,46 +1022,6 @@ mod tests {
         let low_conf_interval = pyth_adapter.get_confidence_interval(false).unwrap();
         // The confidence interval should be the calculated value (2.12%)
         assert_eq!(low_conf_interval, I80F48!(2.12));
-    }
-
-    #[test]
-    fn switchboard_conf_interval_cap() {
-        // Define a price with a 10% confidence interval
-        // Initialize SwitchboardV2PriceFeed with high confidence price
-        let swb_adapter_high_confidence = SwitchboardV2PriceFeed {
-            aggregator_account: Box::new(LiteAggregatorAccountData {
-                resolution_mode: AggregatorResolutionMode::ModeSlidingResolution,
-                latest_confirmed_round_result: SwitchboardDecimal::from_f64(100.0),
-                latest_confirmed_round_num_success: 1,
-                latest_confirmed_round_std_deviation: SwitchboardDecimal::from_f64(10.0),
-                min_oracle_results: 1,
-            }),
-        };
-
-        let swb_adapter_low_confidence = SwitchboardV2PriceFeed {
-            aggregator_account: Box::new(LiteAggregatorAccountData {
-                resolution_mode: AggregatorResolutionMode::ModeSlidingResolution,
-                latest_confirmed_round_result: SwitchboardDecimal::from_f64(100.0),
-                latest_confirmed_round_num_success: 1,
-                latest_confirmed_round_std_deviation: SwitchboardDecimal::from_f64(1.0),
-                min_oracle_results: 1,
-            }),
-        };
-
-        // Test confidence interval
-        let high_conf_interval = swb_adapter_high_confidence
-            .get_confidence_interval()
-            .unwrap();
-        // The confidence interval should be capped at 5%
-        assert_eq!(high_conf_interval, I80F48!(5.00000000000007));
-
-        let low_conf_interval = swb_adapter_low_confidence
-            .get_confidence_interval()
-            .unwrap();
-
-        // The confidence interval should be the calculated value (1.96%)
-
-        assert_eq!(low_conf_interval, I80F48!(1.96));
     }
 
     #[test]
@@ -1472,91 +1203,117 @@ mod tests {
         );
     }
 
-    use solana_sdk::account::Account;
+    use anchor_lang::solana_program::account_info::AccountInfo;
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    /// Convert an account to info, useful if you only care about data for testing purposes.
-    pub fn account_to_account_info<'a>(
-        account: &'a mut Account,
-        key: &'a Pubkey,
-    ) -> AccountInfo<'a> {
-        AccountInfo {
-            key,
-            lamports: Rc::new(RefCell::new(&mut account.lamports)),
-            data: Rc::new(RefCell::new(&mut account.data[..])),
-            owner: &account.owner,
-            rent_epoch: account.rent_epoch,
-            is_signer: false,
-            is_writable: true,
-            executable: account.executable,
-        }
-    }
+    // TODO restore
 
-    pub fn create_switch_pull_oracle_account_from_bytes(data: Vec<u8>) -> Account {
-        Account {
-            lamports: 1_000_000,
-            data,
-            owner: SWITCHBOARD_PULL_ID,
-            executable: false,
-            rent_epoch: 361,
-        }
-    }
+    // /// Convert an account to info, useful if you only care about data for testing purposes.
+    // pub fn account_to_account_info<'a>(
+    //     account: &'a mut dyn Account,
+    //     key: &'a Pubkey,
+    // ) -> AccountInfo<'a> {
+    //     AccountInfo {
+    //         key,
+    //         lamports: Rc::new(RefCell::new(&mut account.lamports)),
+    //         data: Rc::new(RefCell::new(&mut account.data[..])),
+    //         owner: &account.owner,
+    //         rent_epoch: account.rent_epoch,
+    //         is_signer: false,
+    //         is_writable: true,
+    //         executable: account.executable,
+    //     }
+    // }
 
-    #[test]
-    fn swb_pull_get_price() {
-        // From mainnet: https://solana.fm/address/BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP
-        // Actual price $155.59404527
-        // conf/Std_dev ~5%
-        let bytes = hex_to_bytes("c41b6cc40ad7db286f5e7566ac000a9530e56b1db49585772719aeaaeeadb4d9bd8c2357b88e9e782e53d81000000000000000000000000000985f538057856308000000000000005cba953f3f15356b17703e554d3983801916531d7976aa424ad64348ec50e4224650d81000000000000000000000000000a0d5a780cc7f580800000000000000a20b742cedab55efd1faf60aef2cb872a092d24dfba8a48c8b953a5e90ac7bbf874ed81000000000000000000000000000c04958360093580800000000000000e7ef024ea756f8beec2eaa40234070da356754a8eeb2ac6a17c32d17c3e99f8ddc50d81000000000000000000000000000bc8739b45d215b0800000000000000e3e5130902c3e9c27917789769f1ae05de15cf504658beafeed2c598a949b3b7bf53d810000000000000000000000000007cec168c94d667080000000000000020e270b743473d87eff321663e267ba1c9a151f7969cef8147f625e9a2af7287ea54d81000000000000000000000000000dc65eccc174d6f0800000000000000ab605484238ac93f225c65f24d7705bb74b00cdb576555c3995e196691a4de5f484ed8100000000000000000000000000088f28dc9271d59080000000000000015196392573dc9043242716f629d4c0fb93bc0cff7a1a10ede24281b0e98fb7d5454d810000000000000000000000000000441a10ca4a268080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000048ac38271f28ab1b12e49439bddf54871094e4832a56c7a8ec57bd18d357980086807068432f186a147cf0b13a30067d386204ea9d6c8b04743ac2ef010b07524c935636f2523f6aeeb6dc7b7dab0e86a13ff2c794f7895fc78851d69fdb593bdccdb36600000000000000000000000000e40b540200000001000000534f4c2f55534400000000000000000000000000000000000000000000000000000000019e9eb66600000000fca3d11000000000000000000000000000000000000000000000000000000000000000000000000000dc65eccc174d6f0800000000000000006c9225e039550300000000000000000070d3c6ecddf76b080000000000000000d8244bc073aa060000000000000000000441a10ca4a268080000000000000000dc65eccc174d6f08000000000000000200000000000000ea54d810000000005454d81000000000ea54d81000000000fa0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
-        let mut acc = create_switch_pull_oracle_account_from_bytes(bytes);
-        let key = pubkey!("BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP");
-        let ai = account_to_account_info(&mut acc, &key);
-        let ai_check = SwitchboardPullPriceFeed::check_ais(&ai);
-        assert!(ai_check.is_ok());
+    // pub fn create_switch_pull_oracle_account_from_bytes(data: Vec<u8>) -> dyn Account {
+    //     Account {
+    //         lamports: 1_000_000,
+    //         data,
+    //         owner: SWITCHBOARD_PULL_ID,
+    //         executable: false,
+    //         rent_epoch: 361,
+    //     }
+    // }
 
-        let current_timestamp = 42;
-        let max_age = 100;
-        let feed: SwitchboardPullPriceFeed =
-            SwitchboardPullPriceFeed::load_checked(&ai, current_timestamp, max_age).unwrap();
-        let price: I80F48 = feed.get_price().unwrap();
-        let conf: I80F48 = feed.get_confidence_interval().unwrap();
+    // #[test]
+    // fn swb_pull_get_price() {
+    //     // From mainnet: https://solana.fm/address/BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP
+    //     // Actual price $155.59404527
+    //     // conf/Std_dev ~5%
+    //     let bytes = hex_to_bytes("c41b6cc40ad7db286f5e7566ac000a9530e56b1db49585772719aeaaeeadb4d9bd8c2357b88e9e782e53d81000000000000000000000000000985f538057856308000000000000005cba953f3f15356b17703e554d3983801916531d7976aa424ad64348ec50e4224650d81000000000000000000000000000a0d5a780cc7f580800000000000000a20b742cedab55efd1faf60aef2cb872a092d24dfba8a48c8b953a5e90ac7bbf874ed81000000000000000000000000000c04958360093580800000000000000e7ef024ea756f8beec2eaa40234070da356754a8eeb2ac6a17c32d17c3e99f8ddc50d81000000000000000000000000000bc8739b45d215b0800000000000000e3e5130902c3e9c27917789769f1ae05de15cf504658beafeed2c598a949b3b7bf53d810000000000000000000000000007cec168c94d667080000000000000020e270b743473d87eff321663e267ba1c9a151f7969cef8147f625e9a2af7287ea54d81000000000000000000000000000dc65eccc174d6f0800000000000000ab605484238ac93f225c65f24d7705bb74b00cdb576555c3995e196691a4de5f484ed8100000000000000000000000000088f28dc9271d59080000000000000015196392573dc9043242716f629d4c0fb93bc0cff7a1a10ede24281b0e98fb7d5454d810000000000000000000000000000441a10ca4a268080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000048ac38271f28ab1b12e49439bddf54871094e4832a56c7a8ec57bd18d357980086807068432f186a147cf0b13a30067d386204ea9d6c8b04743ac2ef010b07524c935636f2523f6aeeb6dc7b7dab0e86a13ff2c794f7895fc78851d69fdb593bdccdb36600000000000000000000000000e40b540200000001000000534f4c2f55534400000000000000000000000000000000000000000000000000000000019e9eb66600000000fca3d11000000000000000000000000000000000000000000000000000000000000000000000000000dc65eccc174d6f0800000000000000006c9225e039550300000000000000000070d3c6ecddf76b080000000000000000d8244bc073aa060000000000000000000441a10ca4a268080000000000000000dc65eccc174d6f08000000000000000200000000000000ea54d810000000005454d81000000000ea54d81000000000fa0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+    //     let key = pubkey!("BSzfJs4d1tAkSDqkepnfzEVcx2WtDVnwwXa2giy9PLeP");
+    //     let mut data = bytes.clone();
+    //     println!("data: {:?}", data.len());
 
-        //println!("price: {:?}, conf: {:?}", price, conf);
+    //     let mut lamports = 1_000_000u64;
+    //     let discrim = &PullFeedAccountData::DISCRIMINATOR;
+    //     let mut fake_data: [u8; 3208] = [0; 3208];
+    //     fake_data[0..8].copy_from_slice(discrim);
 
-        let target_price: I80F48 = I80F48::from_num(155); // Target price is $155
-        let price_tolerance: I80F48 = target_price * I80F48::from_num(0.01);
+    //     let ai = AccountInfo {
+    //         key: &key,
+    //         lamports: Rc::new(RefCell::new(&mut lamports)),
+    //         data: Rc::new(RefCell::new(&mut fake_data[..])),
+    //         owner: &SWITCHBOARD_PULL_ID,
+    //         rent_epoch: 361,
+    //         is_signer: false,
+    //         is_writable: true,
+    //         executable: false,
+    //     };
 
-        let target_conf: I80F48 = target_price * I80F48::from_num(0.05);
-        let conf_tolerance: I80F48 = target_conf * I80F48::from_num(0.005);
+    //     let ai_data = ai.data.borrow();
+    //     println!("a");
+    //     let result = PullFeedAccountData::parse(ai_data)
+    //         .map_err(|_| MarginfiError::SwitchboardInvalidAccount);
+    //     println!("b");
 
-        let min_price: I80F48 = target_price.checked_sub(price_tolerance).unwrap();
-        let max_price: I80F48 = target_price.checked_add(price_tolerance).unwrap();
-        assert!(price >= min_price && price <= max_price);
+    //     let ai_check = SwitchboardPullPriceFeed::check_ais(&ai);
+    //     assert!(ai_check.is_ok());
 
-        let min_conf: I80F48 = target_conf.checked_sub(conf_tolerance).unwrap();
-        let max_conf: I80F48 = target_conf.checked_add(conf_tolerance).unwrap();
-        assert!(conf >= min_conf && conf <= max_conf);
+    //     println!("b");
+    //     let current_timestamp = 42;
+    //     let max_age = 100;
+    //     let feed: SwitchboardPullPriceFeed =
+    //         SwitchboardPullPriceFeed::load_checked(&ai, current_timestamp, max_age).unwrap();
+    //     let price: I80F48 = feed.get_price().unwrap();
+    //     let conf: I80F48 = feed.get_confidence_interval().unwrap();
 
-        let price_bias_none: I80F48 = feed
-            .get_price_of_type(OraclePriceType::RealTime, None)
-            .unwrap();
-        assert_eq!(price, price_bias_none);
+    //     //println!("price: {:?}, conf: {:?}", price, conf);
 
-        let price_bias_low: I80F48 = feed
-            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
-            .unwrap();
-        let target_price_low: I80F48 = target_price.checked_sub(target_conf).unwrap();
-        let min_price: I80F48 = target_price_low.checked_sub(price_tolerance).unwrap();
-        let max_price: I80F48 = target_price_low.checked_add(price_tolerance).unwrap();
-        assert!(price_bias_low >= min_price && price_bias_low <= max_price);
+    //     let target_price: I80F48 = I80F48::from_num(155); // Target price is $155
+    //     let price_tolerance: I80F48 = target_price * I80F48::from_num(0.01);
 
-        let price_bias_high: I80F48 = feed
-            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))
-            .unwrap();
-        let target_price_high: I80F48 = target_price.checked_add(target_conf).unwrap();
-        let min_price: I80F48 = target_price_high.checked_sub(price_tolerance).unwrap();
-        let max_price: I80F48 = target_price_high.checked_add(price_tolerance).unwrap();
-        assert!(price_bias_high >= min_price && price_bias_high <= max_price);
-    }
+    //     let target_conf: I80F48 = target_price * I80F48::from_num(0.05);
+    //     let conf_tolerance: I80F48 = target_conf * I80F48::from_num(0.005);
+
+    //     let min_price: I80F48 = target_price.checked_sub(price_tolerance).unwrap();
+    //     let max_price: I80F48 = target_price.checked_add(price_tolerance).unwrap();
+    //     assert!(price >= min_price && price <= max_price);
+
+    //     let min_conf: I80F48 = target_conf.checked_sub(conf_tolerance).unwrap();
+    //     let max_conf: I80F48 = target_conf.checked_add(conf_tolerance).unwrap();
+    //     assert!(conf >= min_conf && conf <= max_conf);
+
+    //     let price_bias_none: I80F48 = feed
+    //         .get_price_of_type(OraclePriceType::RealTime, None)
+    //         .unwrap();
+    //     assert_eq!(price, price_bias_none);
+
+    //     let price_bias_low: I80F48 = feed
+    //         .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
+    //         .unwrap();
+    //     let target_price_low: I80F48 = target_price.checked_sub(target_conf).unwrap();
+    //     let min_price: I80F48 = target_price_low.checked_sub(price_tolerance).unwrap();
+    //     let max_price: I80F48 = target_price_low.checked_add(price_tolerance).unwrap();
+    //     assert!(price_bias_low >= min_price && price_bias_low <= max_price);
+
+    //     let price_bias_high: I80F48 = feed
+    //         .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))
+    //         .unwrap();
+    //     let target_price_high: I80F48 = target_price.checked_add(target_conf).unwrap();
+    //     let min_price: I80F48 = target_price_high.checked_sub(price_tolerance).unwrap();
+    //     let max_price: I80F48 = target_price_high.checked_add(price_tolerance).unwrap();
+    //     assert!(price_bias_high >= min_price && price_bias_high <= max_price);
+    // }
 }

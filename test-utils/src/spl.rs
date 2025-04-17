@@ -1,4 +1,4 @@
-use crate::{transfer_hook::TEST_HOOK_ID, ui_to_native};
+use crate::ui_to_native;
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::{
@@ -101,103 +101,103 @@ impl MintFixture {
         }
     }
 
-    pub async fn new_token_22(
-        ctx: Rc<RefCell<ProgramTestContext>>,
-        mint_keypair: Option<Keypair>,
-        mint_decimals: Option<u8>,
-        extensions: &[SupportedExtension],
-    ) -> MintFixture {
-        let ctx_ref = Rc::clone(&ctx);
-        let keypair = mint_keypair.unwrap_or_else(Keypair::new);
-        let program = token_2022::ID;
-        let mint = {
-            let mut ctx = ctx.borrow_mut();
+    // pub async fn new_token_22(
+    //     ctx: Rc<RefCell<ProgramTestContext>>,
+    //     mint_keypair: Option<Keypair>,
+    //     mint_decimals: Option<u8>,
+    //     extensions: &[SupportedExtension],
+    // ) -> MintFixture {
+    //     let ctx_ref = Rc::clone(&ctx);
+    //     let keypair = mint_keypair.unwrap_or_else(Keypair::new);
+    //     let program = token_2022::ID;
+    //     let mint = {
+    //         let mut ctx = ctx.borrow_mut();
 
-            let rent = ctx.banks_client.get_rent().await.unwrap();
+    //         let rent = ctx.banks_client.get_rent().await.unwrap();
 
-            let extension_types = SupportedExtension::types(extensions.iter());
-            let len = ExtensionType::try_calculate_account_len::<spl_token_2022::state::Mint>(
-                &extension_types,
-            )
-            .unwrap();
-            let init_account_ix = create_account(
-                &ctx.payer.pubkey(),
-                &keypair.pubkey(),
-                rent.minimum_balance(len),
-                len as u64,
-                &program,
-            );
-            let init_mint_ix = spl_token_2022::instruction::initialize_mint(
-                &program,
-                &keypair.pubkey(),
-                &ctx.payer.pubkey(),
-                None,
-                mint_decimals.unwrap_or(6),
-            )
-            .unwrap();
+    //         let extension_types = SupportedExtension::types(extensions.iter());
+    //         let len = ExtensionType::try_calculate_account_len::<spl_token_2022::state::Mint>(
+    //             &extension_types,
+    //         )
+    //         .unwrap();
+    //         let init_account_ix = create_account(
+    //             &ctx.payer.pubkey(),
+    //             &keypair.pubkey(),
+    //             rent.minimum_balance(len),
+    //             len as u64,
+    //             &program,
+    //         );
+    //         let init_mint_ix = spl_token_2022::instruction::initialize_mint(
+    //             &program,
+    //             &keypair.pubkey(),
+    //             &ctx.payer.pubkey(),
+    //             None,
+    //             mint_decimals.unwrap_or(6),
+    //         )
+    //         .unwrap();
 
-            let mut ixs = vec![init_account_ix];
-            ixs.extend(
-                extensions
-                    .iter()
-                    .map(|e| e.instruction(&keypair.pubkey(), &ctx.payer.pubkey())),
-            );
-            ixs.push(init_mint_ix);
-            let extra_metas_address = get_extra_account_metas_address(
-                &keypair.pubkey(),
-                &super::transfer_hook::TEST_HOOK_ID,
-            );
-            if extensions.contains(&SupportedExtension::TransferHook) {
-                ixs.push(system_instruction::transfer(
-                    &ctx.payer.pubkey(),
-                    &extra_metas_address,
-                    10 * LAMPORTS_PER_SOL,
-                ));
-                ixs.push(initialize_extra_account_meta_list(
-                    &super::transfer_hook::TEST_HOOK_ID,
-                    &extra_metas_address,
-                    &keypair.pubkey(),
-                    &ctx.payer.pubkey(),
-                    &[],
-                ))
-            }
+    //         let mut ixs = vec![init_account_ix];
+    //         ixs.extend(
+    //             extensions
+    //                 .iter()
+    //                 .map(|e| e.instruction(&keypair.pubkey(), &ctx.payer.pubkey())),
+    //         );
+    //         ixs.push(init_mint_ix);
+    //         let extra_metas_address = get_extra_account_metas_address(
+    //             &keypair.pubkey(),
+    //             &super::transfer_hook::TEST_HOOK_ID,
+    //         );
+    //         if extensions.contains(&SupportedExtension::TransferHook) {
+    //             ixs.push(system_instruction::transfer(
+    //                 &ctx.payer.pubkey(),
+    //                 &extra_metas_address,
+    //                 10 * LAMPORTS_PER_SOL,
+    //             ));
+    //             ixs.push(initialize_extra_account_meta_list(
+    //                 &super::transfer_hook::TEST_HOOK_ID,
+    //                 &extra_metas_address,
+    //                 &keypair.pubkey(),
+    //                 &ctx.payer.pubkey(),
+    //                 &[],
+    //             ))
+    //         }
 
-            let tx = Transaction::new_signed_with_payer(
-                &ixs,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer, &keypair],
-                ctx.last_blockhash,
-            );
+    //         let tx = Transaction::new_signed_with_payer(
+    //             &ixs,
+    //             Some(&ctx.payer.pubkey()),
+    //             &[&ctx.payer, &keypair],
+    //             ctx.last_blockhash,
+    //         );
 
-            ctx.banks_client.process_transaction(tx).await.unwrap();
+    //         ctx.banks_client.process_transaction(tx).await.unwrap();
 
-            if extensions.contains(&SupportedExtension::TransferHook) {
-                ctx.banks_client
-                    .get_account(extra_metas_address)
-                    .await
-                    .unwrap()
-                    .unwrap();
-            }
+    //         if extensions.contains(&SupportedExtension::TransferHook) {
+    //             ctx.banks_client
+    //                 .get_account(extra_metas_address)
+    //                 .await
+    //                 .unwrap()
+    //                 .unwrap();
+    //         }
 
-            let mint_account = ctx
-                .banks_client
-                .get_account(keypair.pubkey())
-                .await
-                .unwrap()
-                .unwrap();
+    //         let mint_account = ctx
+    //             .banks_client
+    //             .get_account(keypair.pubkey())
+    //             .await
+    //             .unwrap()
+    //             .unwrap();
 
-            StateWithExtensionsOwned::<spl_token_2022::state::Mint>::unpack(mint_account.data)
-                .unwrap()
-                .base
-        };
+    //         StateWithExtensionsOwned::<spl_token_2022::state::Mint>::unpack(mint_account.data)
+    //             .unwrap()
+    //             .base
+    //     };
 
-        MintFixture {
-            ctx: ctx_ref,
-            key: keypair.pubkey(),
-            mint,
-            token_program: token_2022::ID,
-        }
-    }
+    //     MintFixture {
+    //         ctx: ctx_ref,
+    //         key: keypair.pubkey(),
+    //         mint,
+    //         token_program: token_2022::ID,
+    //     }
+    // }
 
     pub fn new_from_file(
         ctx: &Rc<RefCell<ProgramTestContext>>,
@@ -643,7 +643,7 @@ pub enum SupportedExtension {
     MintCloseAuthority,
     InterestBearing,
     PermanentDelegate,
-    TransferHook,
+    // TransferHook,
     TransferFee,
 }
 
@@ -675,15 +675,15 @@ impl SupportedExtension {
                 )
                 .unwrap()
             }
-            Self::TransferHook => {
-                spl_token_2022::extension::transfer_hook::instruction::initialize(
-                    &token_2022::ID,
-                    mint,
-                    Some(*key),
-                    Some(TEST_HOOK_ID),
-                )
-                .unwrap()
-            }
+            // Self::TransferHook => {
+            //     spl_token_2022::extension::transfer_hook::instruction::initialize(
+            //         &token_2022::ID,
+            //         mint,
+            //         Some(*key),
+            //         Some(TEST_HOOK_ID),
+            //     )
+            //     .unwrap()
+            // }
             Self::TransferFee => {
                 spl_token_2022::extension::transfer_fee::instruction::initialize_transfer_fee_config(
                 &token_2022::ID,
@@ -703,7 +703,7 @@ impl SupportedExtension {
             SupportedExtension::MintCloseAuthority => pod_get_packed_len::<MintCloseAuthority>(),
             SupportedExtension::InterestBearing => pod_get_packed_len::<InterestBearingConfig>(),
             SupportedExtension::PermanentDelegate => pod_get_packed_len::<PermanentDelegate>(),
-            SupportedExtension::TransferHook => pod_get_packed_len::<TransferHook>(),
+            // SupportedExtension::TransferHook => pod_get_packed_len::<TransferHook>(),
             SupportedExtension::TransferFee => pod_get_packed_len::<TransferFee>(),
         })
         .sum()
@@ -714,7 +714,7 @@ impl SupportedExtension {
             SupportedExtension::MintCloseAuthority => ExtensionType::MintCloseAuthority,
             SupportedExtension::InterestBearing => ExtensionType::InterestBearingConfig,
             SupportedExtension::PermanentDelegate => ExtensionType::PermanentDelegate,
-            SupportedExtension::TransferHook => ExtensionType::TransferHook,
+            // SupportedExtension::TransferHook => ExtensionType::TransferHook,
             SupportedExtension::TransferFee => ExtensionType::TransferFeeConfig,
         })
         .collect()

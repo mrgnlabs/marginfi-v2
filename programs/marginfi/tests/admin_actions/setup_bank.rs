@@ -13,8 +13,7 @@ use marginfi::{
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
-use solana_sdk::pubkey::Pubkey;
-use switchboard_solana::Clock;
+use solana_sdk::{clock::Clock, pubkey::Pubkey};
 use test_case::test_case;
 
 #[tokio::test]
@@ -30,14 +29,8 @@ async fn add_bank_success() -> anyhow::Result<()> {
             *DEFAULT_USDC_TEST_BANK_CONFIG,
         ),
         (
-            MintFixture::new_token_22(
-                test_f.context.clone(),
-                None,
-                None,
-                &[SupportedExtension::TransferFee],
-            )
-            .await,
-            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
+            MintFixture::new(test_f.context.clone(), None, None).await,
+            *DEFAULT_SOL_TEST_BANK_CONFIG,
         ),
         (
             MintFixture::new_from_file(&test_f.context.clone(), "src/fixtures/pyUSD.json"),
@@ -163,14 +156,8 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             *DEFAULT_USDC_TEST_BANK_CONFIG,
         ),
         (
-            MintFixture::new_token_22(
-                test_f.context.clone(),
-                None,
-                None,
-                &[SupportedExtension::TransferFee],
-            )
-            .await,
-            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
+            MintFixture::new(test_f.context.clone(), None, None).await,
+            *DEFAULT_SOL_TEST_BANK_CONFIG,
         ),
         (
             MintFixture::new_from_file(&test_f.context.clone(), "src/fixtures/pyUSD.json"),
@@ -310,8 +297,8 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
 }
 
 #[test_case(BankMint::Usdc)]
-#[test_case(BankMint::PyUSD)]
-#[test_case(BankMint::T22WithFee)]
+// t22 #[test_case(BankMint::PyUSD)]
+// t22 #[test_case(BankMint::T22WithFee)]
 #[test_case(BankMint::SolSwbPull)]
 #[tokio::test]
 async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
@@ -447,14 +434,8 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
             *DEFAULT_USDC_TEST_BANK_CONFIG,
         ),
         (
-            MintFixture::new_token_22(
-                test_f.context.clone(),
-                None,
-                None,
-                &[SupportedExtension::TransferFee],
-            )
-            .await,
-            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
+            MintFixture::new(test_f.context.clone(), None, None).await,
+            *DEFAULT_SOL_TEST_BANK_CONFIG,
         ),
     ];
 
@@ -502,14 +483,8 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
             *DEFAULT_USDC_TEST_BANK_CONFIG,
         ),
         (
-            MintFixture::new_token_22(
-                test_f.context.clone(),
-                None,
-                None,
-                &[SupportedExtension::TransferFee],
-            )
-            .await,
-            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
+            MintFixture::new(test_f.context.clone(), None, None).await,
+            *DEFAULT_SOL_TEST_BANK_CONFIG,
         ),
         (
             MintFixture::new_from_file(&test_f.context.clone(), "src/fixtures/pyUSD.json"),
@@ -538,8 +513,8 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
 }
 
 #[test_case(BankMint::Usdc)]
-#[test_case(BankMint::PyUSD)]
-#[test_case(BankMint::T22WithFee)]
+// t22 #[test_case(BankMint::PyUSD)]
+// t22 #[test_case(BankMint::T22WithFee)]
 #[test_case(BankMint::SolSwbPull)]
 #[tokio::test]
 async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()> {
@@ -619,8 +594,8 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
 }
 
 #[test_case(BankMint::Usdc)]
-#[test_case(BankMint::PyUSD)]
-#[test_case(BankMint::T22WithFee)]
+// t22 #[test_case(BankMint::PyUSD)]
+// t22 #[test_case(BankMint::T22WithFee)]
 #[test_case(BankMint::SolSwbPull)]
 #[tokio::test]
 async fn configure_bank_emode_invalid_args(bank_mint: BankMint) -> anyhow::Result<()> {

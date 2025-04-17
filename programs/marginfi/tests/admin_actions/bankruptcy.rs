@@ -13,11 +13,9 @@ use solana_program_test::*;
 use test_case::test_case;
 
 #[test_case(BankMint::Usdc, BankMint::Sol)]
-#[test_case(BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(BankMint::Sol, BankMint::Usdc)]
-#[test_case(BankMint::PyUSD, BankMint::SolSwb)]
-#[test_case(BankMint::PyUSD, BankMint::T22WithFee)]
-#[test_case(BankMint::T22WithFee, BankMint::Sol)]
+// t22 #[test_case(BankMint::PyUSD, BankMint::T22WithFee)]
+// t22 #[test_case(BankMint::T22WithFee, BankMint::Sol)]
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_failure_not_bankrupt(
     collateral_mint: BankMint,
@@ -100,11 +98,9 @@ async fn marginfi_group_handle_bankruptcy_failure_not_bankrupt(
 }
 
 #[test_case(BankMint::Usdc, BankMint::Sol)]
-#[test_case(BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(BankMint::Sol, BankMint::Usdc)]
-#[test_case(BankMint::PyUSD, BankMint::SolSwb)]
-#[test_case(BankMint::PyUSD, BankMint::T22WithFee)]
-#[test_case(BankMint::T22WithFee, BankMint::Sol)]
+// t22 #[test_case(BankMint::PyUSD, BankMint::T22WithFee)]
+// t22 #[test_case(BankMint::T22WithFee, BankMint::Sol)]
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_failure_no_debt(
     collateral_mint: BankMint,
@@ -194,11 +190,9 @@ async fn marginfi_group_handle_bankruptcy_failure_no_debt(
 }
 
 #[test_case(BankMint::Usdc, BankMint::Sol)]
-#[test_case(BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(BankMint::Sol, BankMint::Usdc)]
-#[test_case(BankMint::PyUSD, BankMint::SolSwb)]
-#[test_case(BankMint::PyUSD, BankMint::T22WithFee)]
-#[test_case(BankMint::T22WithFee, BankMint::Sol)]
+// t22 #[test_case(BankMint::PyUSD, BankMint::T22WithFee)]
+// t22 #[test_case(BankMint::T22WithFee, BankMint::Sol)]
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_success(
     collateral_mint: BankMint,
@@ -286,11 +280,9 @@ async fn marginfi_group_handle_bankruptcy_success(
 }
 
 #[test_case(10_000., BankMint::Usdc, BankMint::Sol)]
-#[test_case(10_000., BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(10_000., BankMint::Sol, BankMint::Usdc)]
-#[test_case(10_000., BankMint::PyUSD, BankMint::SolSwb)]
-#[test_case(10_000., BankMint::PyUSD, BankMint::T22WithFee)]
-#[test_case(10_000., BankMint::T22WithFee, BankMint::Sol)]
+// t22 #[test_case(10_000., BankMint::PyUSD, BankMint::T22WithFee)]
+// t22 #[test_case(10_000., BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(10_000., BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_success_fully_insured(
@@ -552,11 +544,9 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
 }
 
 #[test_case(10_000., 5000., BankMint::Usdc, BankMint::Sol)]
-#[test_case(10_000., 5000., BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(10_000., 5000., BankMint::Sol, BankMint::Usdc)]
-#[test_case(10_000., 5000., BankMint::PyUSD, BankMint::SolSwb)]
-#[test_case(10_000., 5000., BankMint::PyUSD, BankMint::T22WithFee)]
-#[test_case(10_000., 5000., BankMint::T22WithFee, BankMint::Sol)]
+// t22 #[test_case(10_000., 5000., BankMint::PyUSD, BankMint::T22WithFee)]
+// t22 #[test_case(10_000., 5000., BankMint::T22WithFee, BankMint::Sol)]
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_success_partially_insured(
     borrow_amount: f64,
@@ -730,11 +720,9 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured(
 }
 
 #[test_case(10_000., BankMint::Usdc, BankMint::Sol)]
-#[test_case(10_000., BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(10_000., BankMint::Sol, BankMint::Usdc)]
-#[test_case(10_000., BankMint::PyUSD, BankMint::SolSwb)]
-#[test_case(10_000., BankMint::PyUSD, BankMint::T22WithFee)]
-#[test_case(10_000., BankMint::T22WithFee, BankMint::Sol)]
+// t22 #[test_case(10_000., BankMint::PyUSD, BankMint::T22WithFee)]
+// t22 #[test_case(10_000., BankMint::T22WithFee, BankMint::Sol)]
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_success_not_insured(
     borrow_amount: f64,

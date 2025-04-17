@@ -107,35 +107,35 @@ impl MarginfiAccountFixture {
             .make_bank_deposit_ix(funding_account, bank, ui_amount, deposit_up_to_limit)
             .await;
 
-        // If t22 with transfer hook, add remaining accounts
-        let fetch_account_data_fn = |key| async move {
-            Ok(self
-                .ctx
-                .borrow_mut()
-                .banks_client
-                .get_account(key)
-                .await
-                .map(|acc| acc.map(|a| a.data))?)
-        };
-        let payer = self.ctx.borrow_mut().payer.pubkey();
-        if bank.mint.token_program == spl_token_2022::ID {
-            // TODO: do that only if hook exists
-            println!(
-                "[TODO] Adding extra account metas for execute for mint {:?}",
-                bank.mint.key
-            );
-            let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
-                &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
-                &funding_account,
-                &bank.mint.key,
-                &bank.get_vault(BankVaultType::Liquidity).0,
-                &payer,
-                ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
-                fetch_account_data_fn,
-            )
-            .await;
-        }
+        // // If t22 with transfer hook, add remaining accounts
+        // let fetch_account_data_fn = |key| async move {
+        //     Ok(self
+        //         .ctx
+        //         .borrow_mut()
+        //         .banks_client
+        //         .get_account(key)
+        //         .await
+        //         .map(|acc| acc.map(|a| a.data))?)
+        // };
+        // let payer = self.ctx.borrow_mut().payer.pubkey();
+        // if bank.mint.token_program == spl_token_2022::ID {
+        //     // TODO: do that only if hook exists
+        //     println!(
+        //         "[TODO] Adding extra account metas for execute for mint {:?}",
+        //         bank.mint.key
+        //     );
+        //     let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
+        //         &mut ix,
+        //         &super::transfer_hook::TEST_HOOK_ID,
+        //         &funding_account,
+        //         &bank.mint.key,
+        //         &bank.get_vault(BankVaultType::Liquidity).0,
+        //         &payer,
+        //         ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+        //         fetch_account_data_fn,
+        //     )
+        //     .await;
+        // }
 
         let mut ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
@@ -283,30 +283,30 @@ impl MarginfiAccountFixture {
             .make_bank_borrow_ix(destination_account, bank, ui_amount)
             .await;
 
-        if bank.mint.token_program == spl_token_2022::ID {
-            let fetch_account_data_fn = |key| async move {
-                Ok(self
-                    .ctx
-                    .borrow_mut()
-                    .banks_client
-                    .get_account(key)
-                    .await
-                    .map(|acc| acc.map(|a| a.data))?)
-            };
+        // if bank.mint.token_program == spl_token_2022::ID {
+        //     let fetch_account_data_fn = |key| async move {
+        //         Ok(self
+        //             .ctx
+        //             .borrow_mut()
+        //             .banks_client
+        //             .get_account(key)
+        //             .await
+        //             .map(|acc| acc.map(|a| a.data))?)
+        //     };
 
-            let payer = self.ctx.borrow().payer.pubkey();
-            let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
-                &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
-                &bank.get_vault(BankVaultType::Liquidity).0,
-                &bank.mint.key,
-                &destination_account,
-                &payer,
-                ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
-                fetch_account_data_fn,
-            )
-            .await;
-        }
+        //     let payer = self.ctx.borrow().payer.pubkey();
+        //     let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
+        //         &mut ix,
+        //         &super::transfer_hook::TEST_HOOK_ID,
+        //         &bank.get_vault(BankVaultType::Liquidity).0,
+        //         &bank.mint.key,
+        //         &destination_account,
+        //         &payer,
+        //         ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
+        //         fetch_account_data_fn,
+        //     )
+        //     .await;
+        // }
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
         let nonce_ix = ComputeBudgetInstruction::set_compute_unit_price(nonce);
@@ -476,30 +476,30 @@ impl MarginfiAccountFixture {
             .data(),
         };
 
-        if liab_bank_fixture.mint.token_program == spl_token_2022::ID {
-            let payer = self.ctx.borrow().payer.pubkey();
-            let fetch_account_data_fn = |key| async move {
-                Ok(self
-                    .ctx
-                    .borrow_mut()
-                    .banks_client
-                    .get_account(key)
-                    .await
-                    .map(|acc| acc.map(|a| a.data))?)
-            };
+        // if liab_bank_fixture.mint.token_program == spl_token_2022::ID {
+        //     let payer = self.ctx.borrow().payer.pubkey();
+        //     let fetch_account_data_fn = |key| async move {
+        //         Ok(self
+        //             .ctx
+        //             .borrow_mut()
+        //             .banks_client
+        //             .get_account(key)
+        //             .await
+        //             .map(|acc| acc.map(|a| a.data))?)
+        //     };
 
-            let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
-                &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
-                &liab_bank_fixture.mint.key,
-                &liab_bank_fixture.mint.key,
-                &liab_bank_fixture.mint.key,
-                &payer,
-                0,
-                fetch_account_data_fn,
-            )
-            .await;
-        }
+        //     let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
+        //         &mut ix,
+        //         &super::transfer_hook::TEST_HOOK_ID,
+        //         &liab_bank_fixture.mint.key,
+        //         &liab_bank_fixture.mint.key,
+        //         &liab_bank_fixture.mint.key,
+        //         &payer,
+        //         0,
+        //         fetch_account_data_fn,
+        //     )
+        //     .await;
+        // }
 
         ix.accounts.extend_from_slice(
             &self

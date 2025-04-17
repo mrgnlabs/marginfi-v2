@@ -24,22 +24,21 @@ debug = []
 staging = []
 
 [dependencies]
-solana-program = { workspace = true }
+# solana-program = { workspace = true }
 spl-transfer-hook-interface = { workspace = true }
-spl-tlv-account-resolution = { workspace = true }
+# spl-tlv-account-resolution = { workspace = true }
 
 anchor-lang = { workspace = true }
-anchor-lang-29 = { workspace = true }
 anchor-spl = { workspace = true }
 
 pyth-sdk-solana = { workspace = true }
 pyth-solana-receiver-sdk = { workspace = true }
 pythnet-sdk = { workspace = true }
-switchboard-solana = { workspace = true }
+# switchboard-solana = { workspace = true }
 switchboard-on-demand = { workspace = true }
 borsh = "0.10.3"
 
-bytemuck = "1.9.1"
+bytemuck = "1.22.0"
 cfg-if = "1.0.0"
 enum_dispatch = "0.3.11"
 fixed = "1.12.0"
@@ -53,7 +52,7 @@ solana-security-txt = "1.1.1"
 solana-account-decoder = { workspace = true }
 solana-cli-output = { workspace = true }
 solana-program-test = { workspace = true }
-solana-logger = { workspace = true }
+# solana-logger = { workspace = true }
 solana-sdk = { workspace = true }
 
 anyhow = "1.0.66"

@@ -787,7 +787,7 @@ impl Bank {
         #[cfg(not(feature = "client"))] bank: Pubkey,
     ) -> MarginfiResult<()> {
         #[cfg(all(not(feature = "client"), feature = "debug"))]
-        solana_program::log::sol_log_compute_units();
+        anchor_lang::solana_program::log::sol_log_compute_units();
 
         let time_delta: u64 = (current_timestamp - self.last_update).try_into().unwrap();
         if time_delta == 0 {
@@ -871,7 +871,7 @@ impl Bank {
         #[cfg(not(feature = "client"))]
         {
             #[cfg(feature = "debug")]
-            solana_program::log::sol_log_compute_units();
+            anchor_lang::solana_program::log::sol_log_compute_units();
 
             emit!(LendingPoolBankAccrueInterestEvent {
                 header: GroupEventHeader {
@@ -1534,7 +1534,7 @@ impl BankConfig {
     #[inline]
     pub fn get_oracle_max_age(&self) -> u64 {
         match (self.oracle_max_age, self.oracle_setup) {
-            (0, OracleSetup::SwitchboardV2) => MAX_SWB_ORACLE_AGE,
+            (0, OracleSetup::SwbDeprecated) => MAX_SWB_ORACLE_AGE,
             (0, OracleSetup::PythLegacy | OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
             (n, _) => n as u64,
         }

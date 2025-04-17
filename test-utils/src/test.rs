@@ -1,6 +1,11 @@
 use super::marginfi_account::MarginfiAccountFixture;
 use crate::{
-    bank::BankFixture, marginfi_group::*, native, spl::*, transfer_hook::TEST_HOOK_ID, utils::*,
+    bank::BankFixture,
+    marginfi_group::*,
+    native,
+    spl::*,
+    utils::*,
+    // transfer_hook::TEST_HOOK_ID,
 };
 
 use anchor_lang::prelude::*;
@@ -38,15 +43,7 @@ impl TestSettings {
                 ..TestBankSetting::default()
             },
             TestBankSetting {
-                mint: BankMint::UsdcSwb,
-                ..TestBankSetting::default()
-            },
-            TestBankSetting {
                 mint: BankMint::Sol,
-                ..TestBankSetting::default()
-            },
-            TestBankSetting {
-                mint: BankMint::SolSwb,
                 ..TestBankSetting::default()
             },
             TestBankSetting {
@@ -61,14 +58,14 @@ impl TestSettings {
                 mint: BankMint::SolEquivalent,
                 ..TestBankSetting::default()
             },
-            TestBankSetting {
-                mint: BankMint::PyUSD,
-                ..TestBankSetting::default()
-            },
-            TestBankSetting {
-                mint: BankMint::T22WithFee,
-                ..TestBankSetting::default()
-            },
+            // TestBankSetting {
+            //     mint: BankMint::PyUSD,
+            //     ..TestBankSetting::default()
+            // },
+            // TestBankSetting {
+            //     mint: BankMint::T22WithFee,
+            //     ..TestBankSetting::default()
+            // },
             TestBankSetting {
                 mint: BankMint::SolEqIsolated,
                 ..TestBankSetting::default()
@@ -77,23 +74,6 @@ impl TestSettings {
 
         Self {
             banks,
-            protocol_fees: false,
-        }
-    }
-
-    /// All banks with the same config, but USDC and SOL are using switchboard price oracls
-    pub fn all_banks_swb_payer_not_admin() -> Self {
-        Self {
-            banks: vec![
-                TestBankSetting {
-                    mint: BankMint::Usdc,
-                    config: Some(*DEFAULT_USDC_TEST_SW_BANK_CONFIG),
-                },
-                TestBankSetting {
-                    mint: BankMint::Sol,
-                    config: Some(*DEFAULT_SOL_TEST_SW_BANK_CONFIG),
-                },
-            ],
             protocol_fees: false,
         }
     }
@@ -181,9 +161,7 @@ pub struct TestBankSetting {
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum BankMint {
     Usdc,
-    UsdcSwb,
     Sol,
-    SolSwb,
     SolSwbPull,
     SolSwbOrigFee,
     SolEquivalent,
@@ -196,9 +174,9 @@ pub enum BankMint {
     SolEquivalent7,
     SolEquivalent8,
     SolEquivalent9,
-    UsdcT22,
-    T22WithFee,
-    PyUSD,
+    // UsdcT22,
+    // T22WithFee,
+    // PyUSD,
     SolEqIsolated,
 }
 
@@ -216,8 +194,8 @@ pub struct TestFixture {
     pub sol_mint: MintFixture,
     pub sol_equivalent_mint: MintFixture,
     pub mnde_mint: MintFixture,
-    pub usdc_t22_mint: MintFixture,
-    pub pyusd_mint: MintFixture,
+    // pub usdc_t22_mint: MintFixture,
+    // pub pyusd_mint: MintFixture,
 }
 
 pub const PYTH_USDC_FEED: Pubkey = pubkey!("PythUsdcPrice111111111111111111111111111111");
@@ -346,20 +324,6 @@ lazy_static! {
         oracle_keys: create_oracle_key_array(PYTH_MNDE_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
-    pub static ref DEFAULT_USDC_TEST_SW_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::SwitchboardV2,
-        deposit_limit: native!(1_000_000_000, "USDC"),
-        borrow_limit: native!(1_000_000_000, "USDC"),
-        oracle_keys: create_oracle_key_array(SWITCHBOARD_USDC_FEED),
-        ..*DEFAULT_TEST_BANK_CONFIG
-    };
-    pub static ref DEFAULT_SOL_TEST_SW_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::SwitchboardV2,
-        deposit_limit: native!(1_000_000, "SOL"),
-        borrow_limit: native!(1_000_000, "SOL"),
-        oracle_keys: create_oracle_key_array(SWITCHBOARD_SOL_FEED),
-        ..*DEFAULT_TEST_BANK_CONFIG
-    };
     pub static ref DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG: BankConfig = BankConfig {
         oracle_setup: OracleSetup::PythPushOracle,
         deposit_limit: native!(1_000_000, "SOL"),
@@ -452,7 +416,7 @@ impl TestFixture {
 
         program.prefer_bpf(true);
         program.add_program("marginfi", marginfi::ID, None);
-        program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
+        // program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
         #[cfg(feature = "lip")]
         program.add_program(
             "liquidity_incentive_program",
@@ -523,14 +487,6 @@ impl TestFixture {
                 None,
             ),
             // create_pyth_price_account(mnde_keypair.pubkey(), 10.0, MNDE_MINT_DECIMALS.into(), None),
-        );
-        program.add_account(
-            SWITCHBOARD_USDC_FEED,
-            create_switchboard_price_feed(1, USDC_MINT_DECIMALS.into()),
-        );
-        program.add_account(
-            SWITCHBOARD_SOL_FEED,
-            create_switchboard_price_feed(10, SOL_MINT_DECIMALS.into()),
         );
         program.add_account(
             PYTH_PUSH_SOL_FULLV_FEED,
@@ -616,21 +572,21 @@ impl TestFixture {
             Some(MNDE_MINT_DECIMALS),
         )
         .await;
-        let usdc_t22_mint_f = MintFixture::new_token_22(
-            Rc::clone(&context),
-            Some(usdc_t22_keypair),
-            Some(USDC_MINT_DECIMALS),
-            extensions,
-        )
-        .await;
-        let pyusd_mint_f = MintFixture::new_from_file(&context, "src/fixtures/pyUSD.json");
-        let t22_with_fee_mint_f = MintFixture::new_token_22(
-            Rc::clone(&context),
-            Some(t22_with_fee_keypair),
-            Some(T22_WITH_FEE_MINT_DECIMALS),
-            &[SupportedExtension::TransferFee],
-        )
-        .await;
+        // let usdc_t22_mint_f = MintFixture::new_token_22(
+        //     Rc::clone(&context),
+        //     Some(usdc_t22_keypair),
+        //     Some(USDC_MINT_DECIMALS),
+        //     extensions,
+        // )
+        // .await;
+        // let pyusd_mint_f = MintFixture::new_from_file(&context, "src/fixtures/pyUSD.json");
+        // let t22_with_fee_mint_f = MintFixture::new_token_22(
+        //     Rc::clone(&context),
+        //     Some(t22_with_fee_keypair),
+        //     Some(T22_WITH_FEE_MINT_DECIMALS),
+        //     &[SupportedExtension::TransferFee],
+        // )
+        // .await;
 
         let tester_group = MarginfiGroupFixture::new(Rc::clone(&context)).await;
 
@@ -643,9 +599,7 @@ impl TestFixture {
             for bank in test_settings.banks.iter() {
                 let (bank_mint, default_config) = match bank.mint {
                     BankMint::Usdc => (&usdc_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
-                    BankMint::UsdcSwb => (&usdc_mint_f, *DEFAULT_USDC_TEST_SW_BANK_CONFIG),
                     BankMint::Sol => (&sol_mint_f, *DEFAULT_SOL_TEST_BANK_CONFIG),
-                    BankMint::SolSwb => (&sol_mint_f, *DEFAULT_SOL_TEST_SW_BANK_CONFIG),
                     BankMint::SolSwbPull => {
                         (&sol_mint_f, *DEFAULT_SB_PULL_SOL_TEST_REAL_BANK_CONFIG)
                     }
@@ -693,11 +647,11 @@ impl TestFixture {
                         &sol_equivalent_mint_f,
                         *DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG,
                     ),
-                    BankMint::T22WithFee => {
-                        (&t22_with_fee_mint_f, *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG)
-                    }
-                    BankMint::UsdcT22 => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
-                    BankMint::PyUSD => (&pyusd_mint_f, *DEFAULT_PYUSD_TEST_BANK_CONFIG),
+                    // BankMint::T22WithFee => {
+                    //     (&t22_with_fee_mint_f, *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG)
+                    // }
+                    // BankMint::UsdcT22 => (&usdc_t22_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
+                    // BankMint::PyUSD => (&pyusd_mint_f, *DEFAULT_PYUSD_TEST_BANK_CONFIG),
                     BankMint::SolEqIsolated => {
                         (&sol_equivalent_mint_f, *DEFAULT_SOL_EQ_ISO_TEST_BANK_CONFIG)
                     }
@@ -721,8 +675,8 @@ impl TestFixture {
             sol_mint: sol_mint_f,
             sol_equivalent_mint: sol_equivalent_mint_f,
             mnde_mint: mnde_mint_f,
-            usdc_t22_mint: usdc_t22_mint_f,
-            pyusd_mint: pyusd_mint_f,
+            // usdc_t22_mint: usdc_t22_mint_f,
+            // pyusd_mint: pyusd_mint_f,
         }
     }
 
@@ -895,12 +849,11 @@ impl TestFixture {
 pub fn get_mint_price(mint: BankMint) -> f64 {
     match mint {
         // For the T22 with fee variant, it's 50 cents
-        BankMint::T22WithFee => 0.5,
+        // BankMint::T22WithFee => 0.5,
         // For USDC-based and PYUSD mints, the price is roughly 1.0.
-        BankMint::Usdc | BankMint::UsdcSwb | BankMint::UsdcT22 | BankMint::PyUSD => 1.0,
+        BankMint::Usdc /* | BankMint::UsdcT22 | BankMint::PyUSD */ => 1.0,
         // For SOL and its equivalents, use the SOL price (here, roughly 10.0).
         BankMint::Sol
-        | BankMint::SolSwb
         | BankMint::SolSwbPull
         | BankMint::SolSwbOrigFee
         | BankMint::SolEquivalent

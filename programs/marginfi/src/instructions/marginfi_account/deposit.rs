@@ -12,8 +12,8 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
-use solana_program::clock::Clock;
-use solana_program::sysvar::Sysvar;
+use anchor_lang::solana_program::clock::Clock;
+use anchor_lang::solana_program::sysvar::Sysvar;
 
 /// 1. Accrue interest
 /// 2. Create the user's bank account for the asset deposited if it does not exist yet

@@ -12,10 +12,10 @@ use crate::{
     utils::{self, validate_asset_tags},
 };
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
 /// 2. Create the user's bank account for the asset borrowed if it does not exist yet
