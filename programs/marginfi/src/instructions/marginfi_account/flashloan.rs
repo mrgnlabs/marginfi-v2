@@ -5,11 +5,11 @@ use crate::{
         MarginfiAccount, RiskEngine, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
     },
 };
-use anchor_lang::{prelude::*, Discriminator};
 use anchor_lang::solana_program::{
     instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT},
     sysvar::{self, instructions},
 };
+use anchor_lang::{prelude::*, Discriminator};
 
 pub fn lending_account_start_flashloan(
     ctx: Context<LendingAccountStartFlashloan>,
@@ -81,15 +81,13 @@ pub fn check_flashloan_can_start(
     // Will error if ix doesn't exist
     let unchecked_end_fl_ix = instructions::load_instruction_at_checked(end_fl_idx, sysvar_ixs)?;
 
-    // TODO restore with 0.31.0 discrim syntax or hard coded value
-    if unchecked_end_fl_ix.data[..8] != [0; 8] {
-        panic!("put discrim check back");
+    let discrim = &unchecked_end_fl_ix.data[..8];
+    // TODO figure out anchor's fancy new discrim syntax to avoid hard coding this.
+    const FLASHLOAN_DISCRIM: [u8; 8] = [105, 124, 201, 106, 153, 2, 8, 156];
+    if discrim != FLASHLOAN_DISCRIM {
+        msg!("discrim: {:?}, expected: {:?}", discrim, FLASHLOAN_DISCRIM);
+        return err!(MarginfiError::IllegalFlashloan);
     }
-    // check!(
-    //     unchecked_end_fl_ix.data[..8]
-    //         .eq(&crate::instruction::LendingAccountEndFlashloan::DISCRIMINATOR),
-    //     MarginfiError::IllegalFlashloan
-    // );
 
     check!(
         unchecked_end_fl_ix.program_id.eq(&crate::id()),

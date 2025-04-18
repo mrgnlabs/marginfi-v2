@@ -54,16 +54,19 @@ async fn marginfi_account_repay_success(
         .get_sufficient_collateral_for_outflow(borrow_amount, &collateral_mint, &debt_mint)
         .await;
     let user_wallet_balance = get_max_deposit_amount_pre_fee(sufficient_collateral_amount);
+
     let user_collateral_token_account_f = test_f
         .get_bank_mut(&collateral_mint)
         .mint
         .create_token_account_and_mint_to(user_wallet_balance)
         .await;
+
     let user_debt_token_account_f = test_f
         .get_bank_mut(&debt_mint)
         .mint
         .create_empty_token_account()
         .await;
+
     user_mfi_account_f
         .try_bank_deposit(
             user_collateral_token_account_f.key,
