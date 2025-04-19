@@ -703,13 +703,12 @@ pub fn parse_swb_ignore_alignment<'info>(
         return err!(MarginfiError::SwitchboardInvalidAccount);
     }
 
-    let mut heap_bytes: Box<[u8; 3200]> = Box::new([0u8; 3200]);
-    heap_bytes.copy_from_slice(&data[8..3208]);
+    let mut data_bytes: Box<[u8; 3200]> = Box::new([0u8; 3200]);
+    data_bytes.copy_from_slice(&data[8..3208]);
 
-    // 3) parse the POD unaligned
-    let pod = bytemuck::try_pod_read_unaligned::<PullFeedAccountData>(&*heap_bytes)
+    let feed = bytemuck::try_pod_read_unaligned::<PullFeedAccountData>(&*data_bytes)
         .map_err(|_| MarginfiError::SwitchboardInvalidAccount)?;
-    Ok(Box::new(pod))
+    Ok(Box::new(feed))
 }
 
 pub fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
