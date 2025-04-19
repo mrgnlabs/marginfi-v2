@@ -24,6 +24,7 @@ use solana_cli_output::CliAccount;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     account::{AccountSharedData, ReadableAccount, WritableAccount},
+    commitment_config::CommitmentLevel,
     instruction::Instruction,
     native_token::LAMPORTS_PER_SOL,
     program_pack::{Pack, Sealed},
@@ -81,7 +82,10 @@ impl MintFixture {
                 ctx.last_blockhash,
             );
 
-            ctx.banks_client.process_transaction(tx).await.unwrap();
+            ctx.banks_client
+                .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+                .await
+                .unwrap();
 
             let mint_account = ctx
                 .banks_client
@@ -169,7 +173,7 @@ impl MintFixture {
     //             ctx.last_blockhash,
     //         );
 
-    //         ctx.banks_client.process_transaction(tx).await.unwrap();
+    //         ctx.banks_client.process_transaction_with_preflight_and_commitment(tx).await.unwrap();
 
     //         if extensions.contains(&SupportedExtension::TransferHook) {
     //             ctx.banks_client
@@ -277,7 +281,7 @@ impl MintFixture {
         self.ctx
             .borrow_mut()
             .banks_client
-            .process_transaction(tx)
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
             .await
             .unwrap();
 
@@ -328,7 +332,10 @@ impl MintFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await.unwrap();
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
+            .unwrap();
 
         token_account_f
     }
@@ -446,7 +453,10 @@ impl TokenAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await.unwrap();
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
+            .unwrap();
 
         keypair.pubkey()
     }
@@ -486,7 +496,7 @@ impl TokenAccountFixture {
 
             ctx.borrow_mut()
                 .banks_client
-                .process_transaction(tx)
+                .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
                 .await
                 .unwrap();
         }
@@ -536,7 +546,7 @@ impl TokenAccountFixture {
 
             ctx.borrow_mut()
                 .banks_client
-                .process_transaction(tx)
+                .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
                 .await
                 .unwrap();
         }

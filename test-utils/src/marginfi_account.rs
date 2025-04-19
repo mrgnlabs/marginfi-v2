@@ -9,8 +9,8 @@ use marginfi::state::{
 use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, signature::Keypair, signer::Signer,
-    transaction::Transaction,
+    commitment_config::CommitmentLevel, compute_budget::ComputeBudgetInstruction,
+    signature::Keypair, signer::Signer, transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
 
@@ -52,7 +52,10 @@ impl MarginfiAccountFixture {
                 &[&ctx.payer, &account_key],
                 ctx.last_blockhash,
             );
-            ctx.banks_client.process_transaction(tx).await.unwrap();
+            ctx.banks_client
+                .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+                .await
+                .unwrap();
         }
 
         MarginfiAccountFixture {
@@ -145,7 +148,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }
@@ -216,7 +221,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }
@@ -319,7 +326,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }
@@ -377,7 +386,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }
@@ -408,7 +419,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }
@@ -526,7 +539,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     pub async fn try_withdraw_emissions(
@@ -560,7 +575,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     /// Set a flag on the account
@@ -586,7 +603,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     /// Unset a flag on the account
@@ -612,7 +631,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     pub async fn make_lending_account_start_flashloan_ix(&self, end_index: u64) -> Instruction {
@@ -679,7 +700,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     pub async fn load_observation_account_metas(
@@ -816,7 +839,9 @@ impl MarginfiAccountFixture {
             .build_transfer_authority_tx(new_authority, signer_keypair)
             .await;
         let mut ctx = self.ctx.borrow_mut();
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     /// Use the client to get the transfer ix authority transaction
@@ -852,6 +877,8 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 }

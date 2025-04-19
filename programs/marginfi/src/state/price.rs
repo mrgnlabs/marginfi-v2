@@ -587,7 +587,8 @@ impl SwitchboardPullPriceFeed {
             MarginfiError::SwitchboardWrongAccountOwner
         );
 
-        let feed = &parse_swb_ignore_alignment(ai_data)?;
+        let feed = parse_swb_ignore_alignment(ai_data)?;
+        let lite_feed = Box::new(LitePullFeedAccountData::from(&*feed));
         // TODO restore when swb fixes alignment issue in crate.
         // let feed = PullFeedAccountData::parse(ai_data)
         //     .map_err(|_| MarginfiError::SwitchboardInvalidAccount)?;
@@ -598,9 +599,7 @@ impl SwitchboardPullPriceFeed {
             return err!(MarginfiError::SwitchboardStalePrice);
         }
 
-        Ok(Self {
-            feed: Box::new(feed.into()),
-        })
+        Ok(Self { feed: lite_feed })
     }
 
     fn check_ais(ai: &AccountInfo) -> MarginfiResult {
@@ -693,7 +692,7 @@ impl PriceAdapter for SwitchboardPullPriceFeed {
 /// The same as PullFeedAccountData::parse but completely ignores input alignment.
 pub fn parse_swb_ignore_alignment<'info>(
     data: Ref<'info, &mut [u8]>,
-) -> MarginfiResult<PullFeedAccountData> {
+) -> MarginfiResult<Box<PullFeedAccountData>> {
     if data.len() < 8 {
         return err!(MarginfiError::SwitchboardInvalidAccount);
     }
@@ -704,16 +703,13 @@ pub fn parse_swb_ignore_alignment<'info>(
         return err!(MarginfiError::SwitchboardInvalidAccount);
     }
 
-    let mut data_bytes = [0u8; 3200];
-    data_bytes.copy_from_slice(&data[8..]);
+    let mut heap_bytes: Box<[u8; 3200]> = Box::new([0u8; 3200]);
+    heap_bytes.copy_from_slice(&data[8..3208]);
 
-    let feed_maybe = bytemuck::try_pod_read_unaligned::<PullFeedAccountData>(&data_bytes);
-    let feed = if feed_maybe.is_ok() {
-        feed_maybe.unwrap()
-    } else {
-        return err!(MarginfiError::SwitchboardInvalidAccount);
-    };
-    Ok(feed)
+    // 3) parse the POD unaligned
+    let pod = bytemuck::try_pod_read_unaligned::<PullFeedAccountData>(&*heap_bytes)
+        .map_err(|_| MarginfiError::SwitchboardInvalidAccount)?;
+    Ok(Box::new(pod))
 }
 
 pub fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {

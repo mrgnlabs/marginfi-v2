@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::Discriminator;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use marginfi::constants::PYTH_ID;
@@ -9,7 +10,6 @@ use pyth_sdk_solana::state::{
 use pyth_solana_receiver_sdk::price_update::FeedId;
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use pyth_solana_receiver_sdk::price_update::VerificationLevel;
-use anchor_lang::solana_program::instruction::Instruction;
 use solana_program_test::*;
 use solana_sdk::{account::Account, signature::Keypair};
 use std::{cell::RefCell, rc::Rc};
@@ -158,15 +158,25 @@ pub fn create_switch_pull_oracle_account_from_bytes(data: Vec<u8>) -> Account {
 macro_rules! assert_custom_error {
     ($error:expr, $matcher:expr) => {
         match $error {
+            // direct transaction error
             solana_program_test::BanksClientError::TransactionError(
                 solana_sdk::transaction::TransactionError::InstructionError(
                     _,
                     anchor_lang::solana_program::instruction::InstructionError::Custom(n),
                 ),
-            ) => {
-                assert_eq!(n, anchor_lang::error::ERROR_CODE_OFFSET + $matcher as u32)
+            )
+            // simulation (preflight) error
+            | solana_program_test::BanksClientError::SimulationError {
+                err: solana_sdk::transaction::TransactionError::InstructionError(
+                    _,
+                    anchor_lang::solana_program::instruction::InstructionError::Custom(n),
+                ),
+                ..
+            } => {
+                let expected = anchor_lang::error::ERROR_CODE_OFFSET + $matcher as u32;
+                assert_eq!(n, expected);
             }
-            _ => assert!(false),
+            other => panic!("expected custom error, got {:?}", other),
         }
     };
 }
@@ -175,15 +185,24 @@ macro_rules! assert_custom_error {
 macro_rules! assert_anchor_error {
     ($error:expr, $matcher:expr) => {
         match $error {
+            // direct transaction error
             solana_program_test::BanksClientError::TransactionError(
                 solana_sdk::transaction::TransactionError::InstructionError(
                     _,
                     anchor_lang::solana_program::instruction::InstructionError::Custom(n),
                 ),
-            ) => {
-                assert_eq!(n, $matcher as u32)
+            )
+            // simulation (preflight) failure
+            | solana_program_test::BanksClientError::SimulationError {
+                err: solana_sdk::transaction::TransactionError::InstructionError(
+                    _,
+                    anchor_lang::solana_program::instruction::InstructionError::Custom(n),
+                ),
+                ..
+            } => {
+                assert_eq!(n, $matcher as u32);
             }
-            _ => assert!(false),
+            other => panic!("expected anchor error {:?}, got {:?}", $matcher, other),
         }
     };
 }

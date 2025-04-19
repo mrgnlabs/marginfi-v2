@@ -1,8 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["programs/marginfi", "programs/mocks"]
+members = [
+    "programs/marginfi",
+    "test-utils",
+    "programs/mocks",
+    "programs/test_transfer_hook",
+]
 # exclude = [
-#   "programs/test_transfer_hook",
 #   "programs/liquidity-incentive-program",
 #   "programs/brick",
 # ]
@@ -21,8 +25,8 @@ solana-account-decoder = "=2.1.0"
 # solana-address-lookup-table-program = "=2.1.0"
 spl-token = "8.0.0"
 # spl-associated-token-account = "2.2.0"
-spl-transfer-hook-interface = "0.6.3"
-# spl-tlv-account-resolution = "0.6.3"
+spl-transfer-hook-interface = "0.9.0"
+spl-tlv-account-resolution = "0.9.0"
 # spl-discriminator = "0.2.2"
 spl-token-2022 = { version = "7.0.0", features = ["no-entrypoint"] }
 
@@ -30,19 +34,45 @@ anchor-lang = { version = "0.31.0" }
 anchor-spl = { version = "0.31.0", features = ["token_2022"] }
 anchor-client = { version = "0.31.0" }
 
-pyth-sdk-solana = "=0.10.1"
+fixtures = { path = "test-utils", package = "test-utilities" }
+marginfi = { path = "programs/marginfi", package = "marginfi" }
+transfer_hook = { path = "programs/test_transfer_hook", package = "test_transfer_hook" }
+
+pyth-sdk-solana = "=0.10.4"
 pyth-solana-receiver-sdk = "0.6.0"
 pythnet-sdk = "2.3.1"
-# switchboard-solana = "0.29.0"
 switchboard-on-demand = "0.3.5"
-borsh = "0.10.3"
+
+borsh = "1.5.7"
+bytemuck = "1.22.0"
+# Note: 1.29.0 and later require Rust 1.83+ which solana does not ship with (yet)
+fixed = "=1.28.0"
+fixed-macro = "1.2.0"
+lazy_static = "1.4.0"
+type-layout = "0.2.0"
+static_assertions = "1.1.0"
 
 [profile.release]
-overflow-checks = true
-lto = "fat"
-codegen-units = 1
+overflow-checks = false
+lto = "off"
+codegen-units = 8
 
-[profile.release.build-override]
-opt-level = 3
-incremental = false
-codegen-units = 1
+## Build options for release (build-program-verifiable should use these through env settings)
+# [profile.release]
+# overflow-checks = true
+# lto = "fat"
+# codegen-units = 1
+
+# [profile.release.build-override]
+# opt-level = 3
+# incremental = false
+# codegen-units = 1
+
+
+## Notes for usable lockfile generation in Solana land
+# Patch a version of half compatabile with fixed and Rust <=1.79:
+# cargo update -p half --precise 2.4.1
+# 
+# Patch zerofrom and litemap:
+# cargo update -p zerofrom --precise 0.1.5
+# cargo update -p litemap --precise 0.7.4
