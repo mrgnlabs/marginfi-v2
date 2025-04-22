@@ -1,0 +1,19 @@
+[package]
+name = "marginfi-type-crate"
+version = "0.1.0"
+edition = "2021"
+publish = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "marginfitypecrate"
+
+[features]
+default = ["client"]
+client = []
+
+[dependencies]
+bytemuck = { workspace = true, features = ["derive"] }
+fixed = { workspace = true }
+fixed-macro = { workspace = true }
+bs58 = { workspace = true }
