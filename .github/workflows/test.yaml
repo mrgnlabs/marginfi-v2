@@ -129,9 +129,7 @@ jobs:
 
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
-
-      - uses: ./.github/actions/build-workspace/
-
+          
       - name: Install Node.js dependencies
         run: yarn install
 
@@ -140,6 +138,9 @@ jobs:
 
       - name: Build mocks program
         run: anchor build -p mocks
+
+      - name: Build transfer hook program
+        run: anchor build -p test_transfer_hook --no-idl
 
       # Handles extraneous (os error 2) that appears during testing in some versions of solana. See:
       # https://solana.stackexchange.com/questions/1648/error-no-such-file-or-directory-os-error-2-error-from-anchor-test

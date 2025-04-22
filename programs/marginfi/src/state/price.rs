@@ -1,3 +1,14 @@
+use super::marginfi_group::BankConfig;
+use crate::{
+    check, check_eq,
+    constants::{
+        CONF_INTERVAL_MULTIPLE, EXP_10_I80F48, MAX_CONF_INTERVAL, MIN_PYTH_PUSH_VERIFICATION_LEVEL,
+        NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID, STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID,
+    },
+    debug, live, math_error,
+    prelude::*,
+};
+use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
 use anchor_spl::token::Mint;
@@ -7,33 +18,18 @@ use fixed::types::I80F48;
 pub use pyth_sdk_solana;
 use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
-use std::mem;
+use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{
     CurrentResult, Discriminator, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID,
 };
-
-use crate::{
-    check, check_eq,
-    constants::{
-        CONF_INTERVAL_MULTIPLE, EXP_10, EXP_10_I80F48, MAX_CONF_INTERVAL,
-        MIN_PYTH_PUSH_VERIFICATION_LEVEL, NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID,
-        STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID,
-    },
-    debug, live, math_error,
-    prelude::*,
-};
-
-use super::marginfi_group::BankConfig;
-use anchor_lang::prelude::borsh;
-use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum OracleSetup {
     None,
     PythLegacy,
-    SwbDeprecated,
+    SwitchboardV2,
     PythPushOracle,
     SwitchboardPull,
     StakedWithPythPush,
@@ -46,7 +42,7 @@ impl OracleSetup {
         match value {
             0 => Some(Self::None),
             1 => Some(Self::PythLegacy),
-            2 => Some(Self::SwbDeprecated),
+            2 => Some(Self::SwitchboardV2),
             3 => Some(Self::PythPushOracle),
             4 => Some(Self::SwitchboardPull),
             5 => Some(Self::StakedWithPythPush),
@@ -143,7 +139,7 @@ impl OraclePriceFeedAdapter {
                     PythLegacyPriceFeed::load_checked(account_info, clock.unix_timestamp, max_age)?,
                 ))
             }
-            OracleSetup::SwbDeprecated => {
+            OracleSetup::SwitchboardV2 => {
                 panic!("swb v2 is deprecated");
             }
             OracleSetup::PythPushOracle => {
@@ -334,7 +330,7 @@ impl OraclePriceFeedAdapter {
 
                 Ok(())
             }
-            OracleSetup::SwbDeprecated => {
+            OracleSetup::SwitchboardV2 => {
                 panic!("swb v2 is deprecated");
             }
             OracleSetup::PythPushOracle => {
@@ -1015,6 +1011,7 @@ mod tests {
     use fixed_macro::types::I80F48;
     use pretty_assertions::assert_eq;
 
+    use crate::constants::EXP_10;
     use crate::utils::hex_to_bytes;
 
     use super::*;

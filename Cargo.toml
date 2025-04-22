@@ -76,3 +76,6 @@ codegen-units = 8
 # Patch zerofrom and litemap:
 # cargo update -p zerofrom --precise 0.1.5
 # cargo update -p litemap --precise 0.7.4
+
+## To fix the Anchor idl generation bug:
+# cargo update -p proc-macro2 --precise 1.0.94
