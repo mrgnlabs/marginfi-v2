@@ -138,7 +138,7 @@ async fn marginfi_group_handle_bankruptcy_failure_no_debt(
 
     // User
 
-    let user_mfi_account_f = test_f.create_marginfi_account().await;
+    let mut user_mfi_account_f = test_f.create_marginfi_account().await;
     let sufficient_collateral_amount = test_f
         .get_sufficient_collateral_for_outflow(borrow_amount, &collateral_mint, &debt_mint)
         .await;
@@ -176,11 +176,9 @@ async fn marginfi_group_handle_bankruptcy_failure_no_debt(
     let collateral_bank_f = test_f.get_bank(&collateral_mint);
 
     // Artificially nullify the collateral to place the account in a bankrupt state
-    let mut user_mfi_account = user_mfi_account_f.load().await;
-    user_mfi_account.lending_account.balances[0]
-        .asset_shares
-        .value = 0_i128.to_le_bytes();
-    user_mfi_account_f.set_account(&user_mfi_account).await?;
+    user_mfi_account_f
+        .nullify_assets_for_bank(collateral_bank_f.key)
+        .await?;
 
     let res = test_f
         .marginfi_group
@@ -232,7 +230,7 @@ async fn marginfi_group_handle_bankruptcy_success(
 
     // User
 
-    let user_mfi_account_f = test_f.create_marginfi_account().await;
+    let mut user_mfi_account_f = test_f.create_marginfi_account().await;
     let sufficient_collateral_amount = test_f
         .get_sufficient_collateral_for_outflow(borrow_amount, &collateral_mint, &debt_mint)
         .await;
@@ -268,21 +266,10 @@ async fn marginfi_group_handle_bankruptcy_success(
     // -------------------------------------------------------------------------
 
     // Artificially nullify the collateral to place the account in a bankrupt state
-    let mut user_mfi_account = user_mfi_account_f.load().await;
-
-    // Due to balances sorting, collateral may be not at index 0 -> find its actual index first
-    let collateral_bank_f = test_f.get_bank(&collateral_mint).key;
-    let collateral_index = user_mfi_account
-        .lending_account
-        .balances
-        .iter()
-        .position(|b| b.bank_pk == collateral_bank_f)
-        .unwrap();
-
-    user_mfi_account.lending_account.balances[collateral_index]
-        .asset_shares
-        .value = 0_i128.to_le_bytes();
-    user_mfi_account_f.set_account(&user_mfi_account).await?;
+    let collateral_bank_pk = test_f.get_bank(&collateral_mint).key;
+    user_mfi_account_f
+        .nullify_assets_for_bank(collateral_bank_pk)
+        .await?;
 
     let debt_bank_f = test_f.get_bank(&debt_mint);
 
@@ -295,12 +282,12 @@ async fn marginfi_group_handle_bankruptcy_success(
     Ok(())
 }
 
-// #[test_case(10_000., BankMint::Usdc, BankMint::Sol)]
-// #[test_case(10_000., BankMint::UsdcSwb, BankMint::Sol)]
-// #[test_case(10_000., BankMint::Sol, BankMint::Usdc)]
-// #[test_case(10_000., BankMint::PyUSD, BankMint::SolSwb)]
-// #[test_case(10_000., BankMint::PyUSD, BankMint::T22WithFee)]
-// #[test_case(10_000., BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(10_000., BankMint::Usdc, BankMint::Sol)]
+#[test_case(10_000., BankMint::UsdcSwb, BankMint::Sol)]
+#[test_case(10_000., BankMint::Sol, BankMint::Usdc)]
+#[test_case(10_000., BankMint::PyUSD, BankMint::SolSwb)]
+#[test_case(10_000., BankMint::PyUSD, BankMint::T22WithFee)]
+#[test_case(10_000., BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(10_000., BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_group_handle_bankruptcy_success_fully_insured(
@@ -335,7 +322,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
 
     // User
 
-    let user_mfi_account_f = test_f.create_marginfi_account().await;
+    let mut user_mfi_account_f = test_f.create_marginfi_account().await;
     let sufficient_collateral_amount = test_f
         .get_sufficient_collateral_for_outflow(borrow_amount, &collateral_mint, &debt_mint)
         .await;
@@ -379,20 +366,11 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
         )
     );
 
-    let mut user_mfi_account = user_mfi_account_f.load().await;
-
-    // Due to balances sorting, collateral may be not at index 0 -> find its actual index first
-    let collateral_bank_f = test_f.get_bank(&collateral_mint).key;
-    let collateral_index = user_mfi_account
-        .lending_account
-        .balances
-        .iter()
-        .position(|b| b.is_active() && b.bank_pk == collateral_bank_f)
-        .unwrap();
-
     // Artificially nullify the collateral to place the account in a bankrupt state
-    user_mfi_account.lending_account.balances[collateral_index].asset_shares = I80F48::ZERO.into();
-    user_mfi_account_f.set_account(&user_mfi_account).await?;
+    let collateral_bank_pk = test_f.get_bank(&collateral_mint).key;
+    user_mfi_account_f
+        .nullify_assets_for_bank(collateral_bank_pk)
+        .await?;
 
     {
         let (insurance_vault, _) = test_f
@@ -441,7 +419,7 @@ async fn marginfi_group_handle_bankruptcy_success_fully_insured(
     );
 
     let user_mfi_account = user_mfi_account_f.load().await;
-    // Due to balances sorting, debt index may be not at index 1 -> find its actual index first
+    // Due to balances sorting, debt may be not at index 1 -> find its actual index first
     let debt_bank_f = test_f.get_bank(&debt_mint).key;
     let debt_index = user_mfi_account
         .lending_account
@@ -626,7 +604,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured(
 
     // User
 
-    let user_mfi_account_f = test_f.create_marginfi_account().await;
+    let mut user_mfi_account_f = test_f.create_marginfi_account().await;
     let sufficient_collateral_amount = test_f
         .get_sufficient_collateral_for_outflow(borrow_amount, &collateral_mint, &debt_mint)
         .await;
@@ -662,9 +640,10 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured(
     // -------------------------------------------------------------------------
 
     // Artificially nullify the collateral to place the account in a bankrupt state
-    let mut user_mfi_account = user_mfi_account_f.load().await;
-    user_mfi_account.lending_account.balances[0].asset_shares = I80F48::ZERO.into();
-    user_mfi_account_f.set_account(&user_mfi_account).await?;
+    let collateral_bank_pk = test_f.get_bank(&collateral_mint).key;
+    user_mfi_account_f
+        .nullify_assets_for_bank(collateral_bank_pk)
+        .await?;
 
     // Load up the insurance vault with the requested balance
     let insurance_vault = test_f.get_bank(&debt_mint).load().await.insurance_vault;
@@ -675,8 +654,17 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured(
         .await;
 
     let debt_bank_f = test_f.get_bank(&debt_mint);
-    let debt_bank = test_f.get_bank(&debt_mint).load().await;
+    let debt_bank = debt_bank_f.load().await;
     let collateral_bank = test_f.get_bank(&collateral_mint).load().await;
+
+    // Due to balances sorting, debt may be not at index 1 -> find it first
+    let user_mfi_account = user_mfi_account_f.load().await;
+    let debt_index = user_mfi_account
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == debt_bank_f.key)
+        .unwrap();
 
     let (pre_lp_collateral_amount, pre_user_debt_amount, pre_liquidity_vault_balance) = (
         collateral_bank.get_liability_amount(
@@ -685,7 +673,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured(
                 .into(),
         )?,
         debt_bank.get_liability_amount(
-            user_mfi_account_f.load().await.lending_account.balances[1]
+            user_mfi_account_f.load().await.lending_account.balances[debt_index]
                 .liability_shares
                 .into(),
         )?,
@@ -703,7 +691,7 @@ async fn marginfi_group_handle_bankruptcy_success_partially_insured(
 
     let borrower_mfi_account = user_mfi_account_f.load().await;
     let (post_user_debt_balance, post_liquidity_vault_balance) = (
-        borrower_mfi_account.lending_account.balances[1],
+        borrower_mfi_account.lending_account.balances[debt_index],
         debt_bank_f
             .get_vault_token_account(BankVaultType::Liquidity)
             .await
@@ -803,7 +791,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured(
 
     // User
 
-    let user_mfi_account_f = test_f.create_marginfi_account().await;
+    let mut user_mfi_account_f = test_f.create_marginfi_account().await;
     let sufficient_collateral_amount = test_f
         .get_sufficient_collateral_for_outflow(borrow_amount, &collateral_mint, &debt_mint)
         .await;
@@ -839,17 +827,27 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured(
     // -------------------------------------------------------------------------
 
     // Artificially nullify the collateral to place the account in a bankrupt state
-    let mut user_mfi_account = user_mfi_account_f.load().await;
-    user_mfi_account.lending_account.balances[0].asset_shares = I80F48::ZERO.into();
-    user_mfi_account_f.set_account(&user_mfi_account).await?;
+    let collateral_bank_pk = test_f.get_bank(&collateral_mint).key;
+    user_mfi_account_f
+        .nullify_assets_for_bank(collateral_bank_pk)
+        .await?;
 
     test_f
         .marginfi_group
         .try_handle_bankruptcy(test_f.get_bank(&debt_mint), &user_mfi_account_f)
         .await?;
 
+    // Due to balances sorting, debt may be not at index 1 -> find its actual index first
+    let debt_bank_f = test_f.get_bank(&debt_mint);
     let user_mfi_account = user_mfi_account_f.load().await;
-    let user_collateral_balance = user_mfi_account.lending_account.balances[1];
+    let debt_index = user_mfi_account
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == debt_bank_f.key)
+        .unwrap();
+
+    let user_collateral_balance = user_mfi_account.lending_account.balances[debt_index];
 
     assert_eq!(
         I80F48::from(user_collateral_balance.liability_shares),
@@ -857,7 +855,6 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured(
     );
 
     let lp_mfi_account = lp_mfi_account_f.load().await;
-    let debt_bank_f = test_f.get_bank(&debt_mint);
     let debt_bank = debt_bank_f.load().await;
 
     let actual_lender_collateral_amount = debt_bank.get_asset_amount(
@@ -948,7 +945,7 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
         .try_bank_deposit(lender_3_token_account.key, usdc_bank_f, 100_000, None)
         .await?;
 
-    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
+    let mut borrower_mfi_account_f = test_f.create_marginfi_account().await;
     let borrower_token_account_sol = test_f
         .sol_mint
         .create_token_account_and_mint_to(1_001)
@@ -961,13 +958,8 @@ async fn marginfi_group_handle_bankruptcy_success_not_insured_3_depositors() -> 
         .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 10_000)
         .await?;
 
-    let mut borrower_mfi_account = borrower_mfi_account_f.load().await;
-    borrower_mfi_account.lending_account.balances[0]
-        .asset_shares
-        .value = 0_i128.to_le_bytes();
-
     borrower_mfi_account_f
-        .set_account(&borrower_mfi_account)
+        .nullify_assets_for_bank(sol_bank_f.key)
         .await?;
 
     test_f

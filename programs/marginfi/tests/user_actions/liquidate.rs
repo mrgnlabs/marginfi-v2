@@ -57,7 +57,7 @@ async fn marginfi_account_liquidation_success(
 
     // Liquidatee
 
-    let (liquidatee_mfi_account_f, borrow_amount_actual) = {
+    let (liquidatee_mfi_account_f, borrow_amount_actual, collateral_index, debt_index) = {
         let liquidatee_mfi_account_f = test_f.create_marginfi_account().await;
         let liquidatee_wallet_balance = get_max_deposit_amount_pre_fee(deposit_amount);
         let liquidatee_collateral_token_account_f = test_f
@@ -70,33 +70,54 @@ async fn marginfi_account_liquidation_success(
             .mint
             .create_empty_token_account()
             .await;
+        let collateral_bank = test_f.get_bank(&collateral_mint);
         liquidatee_mfi_account_f
             .try_bank_deposit(
                 liquidatee_collateral_token_account_f.key,
-                test_f.get_bank(&collateral_mint),
+                collateral_bank,
                 deposit_amount,
                 None,
             )
             .await?;
+        let debt_bank = test_f.get_bank(&debt_mint);
         liquidatee_mfi_account_f
             .try_bank_borrow(
                 liquidatee_debt_token_account_f.key,
-                test_f.get_bank(&debt_mint),
+                debt_bank,
                 borrow_amount,
             )
             .await?;
 
         let liquidatee_mfi_ma = liquidatee_mfi_account_f.load().await;
+        // Due to balances sorting, collateral and debt may be not at indices 0 and 1, respectively -> determine them first
+        let collateral_index = liquidatee_mfi_ma
+            .lending_account
+            .balances
+            .iter()
+            .position(|b| b.is_active() && b.bank_pk == collateral_bank.key)
+            .unwrap();
+        let debt_index = liquidatee_mfi_ma
+            .lending_account
+            .balances
+            .iter()
+            .position(|b| b.is_active() && b.bank_pk == debt_bank.key)
+            .unwrap();
+
         let debt_bank = test_f.get_bank(&debt_mint).load().await;
         let borrow_amount_actual_native = debt_bank.get_liability_amount(
-            liquidatee_mfi_ma.lending_account.balances[1]
+            liquidatee_mfi_ma.lending_account.balances[debt_index]
                 .liability_shares
                 .into(),
         )?;
         let borrow_amount_actual = borrow_amount_actual_native.to_num::<f64>()
             / 10_f64.powf(debt_bank.mint_decimals as f64);
 
-        (liquidatee_mfi_account_f, borrow_amount_actual)
+        (
+            liquidatee_mfi_account_f,
+            borrow_amount_actual,
+            collateral_index,
+            debt_index,
+        )
     };
 
     // Liquidator
@@ -159,7 +180,7 @@ async fn marginfi_account_liquidation_success(
     // Check liquidator collateral balances
 
     let collateral_mint_liquidator_balance = collateral_bank.get_asset_amount(
-        liquidator_mfi_ma.lending_account.balances[1]
+        liquidator_mfi_ma.lending_account.balances[collateral_index]
             .asset_shares
             .into(),
     )?;
@@ -179,7 +200,7 @@ async fn marginfi_account_liquidation_success(
         f64
     ));
     let debt_mint_liquidator_balance = debt_bank.get_asset_amount(
-        liquidator_mfi_ma.lending_account.balances[0]
+        liquidator_mfi_ma.lending_account.balances[debt_index]
             .asset_shares
             .into(),
     )?;
@@ -199,7 +220,7 @@ async fn marginfi_account_liquidation_success(
         f64
     ));
     let debt_mint_liquidatee_balance = debt_bank.get_liability_amount(
-        liquidatee_mfi_ma.lending_account.balances[1]
+        liquidatee_mfi_ma.lending_account.balances[debt_index]
             .liability_shares
             .into(),
     )?;
@@ -216,7 +237,7 @@ async fn marginfi_account_liquidation_success(
     ));
     let collateral_mint_liquidatee_balance = collateral_bank
         .get_liability_amount(
-            liquidatee_mfi_ma.lending_account.balances[0]
+            liquidatee_mfi_ma.lending_account.balances[collateral_index]
                 .asset_shares
                 .into(),
         )
@@ -344,10 +365,28 @@ async fn marginfi_account_liquidation_success_many_balances() -> anyhow::Result<
     let depositor_ma = lender_mfi_account_f.load().await;
     let borrower_ma = borrower_mfi_account_f.load().await;
 
+    // Due to balances sorting, SOL and USDC may be not at indices 0 and 1, respectively -> determine them first
+    let sol_index = depositor_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == sol_bank_f.key)
+        .unwrap();
+    let usdc_index = depositor_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == usdc_bank_f.key)
+        .unwrap();
+
     // Depositors should have 1 SOL
     assert_eq!(
         sol_bank
-            .get_asset_amount(depositor_ma.lending_account.balances[1].asset_shares.into())
+            .get_asset_amount(
+                depositor_ma.lending_account.balances[sol_index]
+                    .asset_shares
+                    .into()
+            )
             .unwrap(),
         I80F48::from(native!(1, "SOL"))
     );
@@ -355,16 +394,37 @@ async fn marginfi_account_liquidation_success_many_balances() -> anyhow::Result<
     // Depositors should have 1990.25 USDC
     assert_eq_noise!(
         usdc_bank
-            .get_asset_amount(depositor_ma.lending_account.balances[0].asset_shares.into())
+            .get_asset_amount(
+                depositor_ma.lending_account.balances[usdc_index]
+                    .asset_shares
+                    .into()
+            )
             .unwrap(),
         I80F48::from(native!(1990.25, "USDC", f64)),
         native!(0.00001, "USDC", f64)
     );
 
+    let sol_index = borrower_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == sol_bank_f.key)
+        .unwrap();
+    let usdc_index = borrower_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == usdc_bank_f.key)
+        .unwrap();
+
     // Borrower should have 99 SOL
     assert_eq!(
         sol_bank
-            .get_asset_amount(borrower_ma.lending_account.balances[0].asset_shares.into())
+            .get_asset_amount(
+                borrower_ma.lending_account.balances[sol_index]
+                    .asset_shares
+                    .into()
+            )
             .unwrap(),
         I80F48::from(native!(99, "SOL"))
     );
@@ -373,7 +433,7 @@ async fn marginfi_account_liquidation_success_many_balances() -> anyhow::Result<
     assert_eq_noise!(
         usdc_bank
             .get_liability_amount(
-                borrower_ma.lending_account.balances[1]
+                borrower_ma.lending_account.balances[usdc_index]
                     .liability_shares
                     .into()
             )
@@ -466,10 +526,28 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
     let depositor_ma = lender_mfi_account_f.load().await;
     let borrower_ma = borrower_mfi_account_f.load().await;
 
+    // Due to balances sorting, SOL and USDC may be not at indices 0 and 1, respectively -> determine them first
+    let sol_index = depositor_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == sol_bank_f.key)
+        .unwrap();
+    let usdc_index = depositor_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == usdc_bank_f.key)
+        .unwrap();
+
     // Depositors should have 1 SOL
     assert_eq!(
         sol_bank
-            .get_asset_amount(depositor_ma.lending_account.balances[1].asset_shares.into())
+            .get_asset_amount(
+                depositor_ma.lending_account.balances[sol_index]
+                    .asset_shares
+                    .into()
+            )
             .unwrap(),
         I80F48::from(native!(1, "SOL"))
     );
@@ -477,7 +555,11 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
     // Depositors should have 1990.25 USDC
     assert_eq_noise!(
         usdc_bank
-            .get_asset_amount(depositor_ma.lending_account.balances[0].asset_shares.into())
+            .get_asset_amount(
+                depositor_ma.lending_account.balances[usdc_index]
+                    .asset_shares
+                    .into()
+            )
             .unwrap(),
         I80F48::from(native!(1990.25, "USDC", f64)),
         native!(0.01, "USDC", f64)
@@ -486,7 +568,11 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
     // Borrower should have 99 SOL
     assert_eq!(
         sol_bank
-            .get_asset_amount(borrower_ma.lending_account.balances[0].asset_shares.into())
+            .get_asset_amount(
+                borrower_ma.lending_account.balances[sol_index]
+                    .asset_shares
+                    .into()
+            )
             .unwrap(),
         I80F48::from(native!(99, "SOL"))
     );
@@ -495,7 +581,7 @@ async fn marginfi_account_liquidation_success_swb() -> anyhow::Result<()> {
     assert_eq_noise!(
         usdc_bank
             .get_liability_amount(
-                borrower_ma.lending_account.balances[1]
+                borrower_ma.lending_account.balances[usdc_index]
                     .liability_shares
                     .into()
             )
