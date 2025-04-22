@@ -5,11 +5,11 @@ use crate::{
         MarginfiAccount, RiskEngine, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
     },
 };
+use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
     instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT},
     sysvar::{self, instructions},
 };
-use anchor_lang::{prelude::*, Discriminator};
 
 pub fn lending_account_start_flashloan(
     ctx: Context<LendingAccountStartFlashloan>,
