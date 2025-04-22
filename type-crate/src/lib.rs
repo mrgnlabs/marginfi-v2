@@ -4,6 +4,7 @@ use types::FeeState;
 
 pub mod macros;
 pub mod types;
+pub mod constants;
 
 /// Just a sample function demonstrating usage.
 pub fn generic_fee_state() -> FeeState {
