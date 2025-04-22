@@ -70,7 +70,16 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
         .await?;
 
     let borrower_mfi_account = borrower_mfi_account_f.load().await;
-    let borrower_bank_account = borrower_mfi_account.lending_account.balances[1];
+
+    // Due to balances sorting, USDC may be not at index 1 -> determine its actual index first
+    let usdc_index = borrower_mfi_account
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == usdc_bank_f.key)
+        .unwrap();
+
+    let borrower_bank_account = borrower_mfi_account.lending_account.balances[usdc_index];
     let usdc_bank: Bank = usdc_bank_f.load().await;
     let liabilities =
         usdc_bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;
@@ -184,7 +193,15 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
     test_f.marginfi_group.try_collect_fees(usdc_bank_f).await?;
 
     let borrower_mfi_account = borrower_mfi_account_f.load().await;
-    let borrower_bank_account = borrower_mfi_account.lending_account.balances[1];
+    // Due to balances sorting, USDC may be not at index 0 -> determine its actual index first
+    let usdc_index = borrower_mfi_account
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == usdc_bank_f.key)
+        .unwrap();
+
+    let borrower_bank_account = borrower_mfi_account.lending_account.balances[usdc_index];
     let usdc_bank = usdc_bank_f.load().await;
     let liabilities =
         usdc_bank.get_liability_amount(borrower_bank_account.liability_shares.into())?;

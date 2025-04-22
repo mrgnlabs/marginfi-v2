@@ -931,18 +931,28 @@ async fn marginfi_account_liquidation_emode(
                 None,
             )
             .await?;
+        let debt_bank_f = test_f.get_bank(&debt_mint);
         liquidatee_mfi_account_f
             .try_bank_borrow(
                 liquidatee_debt_token_account_f.key,
-                test_f.get_bank(&debt_mint),
+                debt_bank_f,
                 borrow_amount,
             )
             .await?;
 
         let liquidatee_mfi_ma = liquidatee_mfi_account_f.load().await;
-        let debt_bank = test_f.get_bank(&debt_mint).load().await;
+
+        // Due to balances sorting, debt may be not at index 1 -> determine its actual index first
+        let debt_index = liquidatee_mfi_ma
+            .lending_account
+            .balances
+            .iter()
+            .position(|b| b.is_active() && b.bank_pk == debt_bank_f.key)
+            .unwrap();
+
+        let debt_bank = debt_bank_f.load().await;
         let borrow_amount_actual_native = debt_bank.get_liability_amount(
-            liquidatee_mfi_ma.lending_account.balances[1]
+            liquidatee_mfi_ma.lending_account.balances[debt_index]
                 .liability_shares
                 .into(),
         )?;

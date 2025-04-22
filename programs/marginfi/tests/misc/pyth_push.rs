@@ -215,10 +215,28 @@ async fn pyth_push_fullv_liquidate() -> anyhow::Result<()> {
     let depositor_ma = lender_mfi_account_f.load().await;
     let borrower_ma = borrower_mfi_account_f.load().await;
 
+    // Due to balances sorting, SOL and USDC may be not at indices 0 and 1, respectively -> determine them first
+    let sol_index = depositor_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == sol_bank_f.key)
+        .unwrap();
+    let usdc_index = depositor_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == usdc_bank_f.key)
+        .unwrap();
+
     // Depositors should have 1 SOL
     assert_eq!(
         sol_bank
-            .get_asset_amount(depositor_ma.lending_account.balances[1].asset_shares.into())
+            .get_asset_amount(
+                depositor_ma.lending_account.balances[sol_index]
+                    .asset_shares
+                    .into()
+            )
             .unwrap(),
         I80F48::from(native!(1, "SOL"))
     );
@@ -226,7 +244,11 @@ async fn pyth_push_fullv_liquidate() -> anyhow::Result<()> {
     // Depositors should have 1990.25 USDC
     assert_eq_noise!(
         usdc_bank
-            .get_asset_amount(depositor_ma.lending_account.balances[0].asset_shares.into())
+            .get_asset_amount(
+                depositor_ma.lending_account.balances[usdc_index]
+                    .asset_shares
+                    .into()
+            )
             .unwrap(),
         I80F48::from(native!(1990.25, "USDC", f64)),
         native!(0.00001, "USDC", f64)
@@ -235,7 +257,11 @@ async fn pyth_push_fullv_liquidate() -> anyhow::Result<()> {
     // Borrower should have 99 SOL
     assert_eq!(
         sol_bank
-            .get_asset_amount(borrower_ma.lending_account.balances[0].asset_shares.into())
+            .get_asset_amount(
+                borrower_ma.lending_account.balances[sol_index]
+                    .asset_shares
+                    .into()
+            )
             .unwrap(),
         I80F48::from(native!(99, "SOL"))
     );
@@ -244,7 +270,7 @@ async fn pyth_push_fullv_liquidate() -> anyhow::Result<()> {
     assert_eq_noise!(
         usdc_bank
             .get_liability_amount(
-                borrower_ma.lending_account.balances[1]
+                borrower_ma.lending_account.balances[usdc_index]
                     .liability_shares
                     .into()
             )
