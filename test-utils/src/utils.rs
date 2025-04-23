@@ -135,7 +135,7 @@ pub fn create_pyth_push_oracle_account(
     let mut data = vec![];
     let mut account_data = vec![];
 
-    data.extend_from_slice(&PriceUpdateV2::DISCRIMINATOR);
+    data.extend_from_slice(PriceUpdateV2::DISCRIMINATOR);
 
     price_update.serialize(&mut account_data).unwrap();
 
