@@ -179,9 +179,15 @@ describe("Withdraw staked asset", () => {
     const bankBefore = await user.mrgnBankrunProgram.account.bank.fetch(
       bankKeypairSol.publicKey
     );
+
+    // Note: the SOL balance may NOT be the last one in the list, due to sorting, so we have to find its position first
+    const solIndex = userAccBefore.lendingAccount.balances.findIndex(
+      (balance) => balance.bankPk.equals(bankKeypairSol.publicKey)
+    );
+
     const amtExpected =
       wrappedI80F48toBigNumber(
-        userAccBefore.lendingAccount.balances[1].liabilityShares
+        userAccBefore.lendingAccount.balances[solIndex].liabilityShares
       ).toNumber() *
       wrappedI80F48toBigNumber(bankBefore.liabilityShareValue).toNumber();
 

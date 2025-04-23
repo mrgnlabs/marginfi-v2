@@ -212,6 +212,11 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     );
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[1].active, 1);
-    assertKeysEqual(balances[1].bankPk, bankKeypairSol.publicKey);
+
+    // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
+    const borrowIndex = balances.findIndex(
+      (balance) => balance.bankPk.equals(bankKeypairSol.publicKey)
+    );
+    assert.notEqual(borrowIndex, -1);
   });
 });
