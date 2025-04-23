@@ -769,7 +769,7 @@ fn handle_bankruptcy_for_an_account(
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         handle_bankruptcy_ix
             .accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
@@ -923,7 +923,7 @@ fn make_bankruptcy_ix(
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         handle_bankruptcy_ix
             .accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
@@ -2128,7 +2128,7 @@ pub fn marginfi_account_deposit(
         }
         .data(),
     };
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -2215,7 +2215,7 @@ pub fn marginfi_account_withdraw(
         .data(),
     };
 
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -2310,7 +2310,7 @@ pub fn marginfi_account_borrow(
         data: marginfi::instruction::LendingAccountBorrow { amount }.data(),
     };
 
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -2432,7 +2432,7 @@ pub fn marginfi_account_liquidate(
 
     ix.accounts.extend(oracle_accounts);
 
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(liability_bank.mint, false));
     }

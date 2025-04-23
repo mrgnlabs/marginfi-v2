@@ -124,7 +124,7 @@ impl AccountsState {
                     true,
                     self.bump.alloc(rent.minimum_balance(data.len())),
                     data,
-                    &spl_token_2022::ID,
+                    &anchor_spl::token_2022::ID,
                     false,
                     Epoch::default(),
                 )
@@ -179,7 +179,7 @@ impl AccountsState {
                     true,
                     self.bump.alloc(rent.minimum_balance(data.len())),
                     data,
-                    &spl_token_2022::ID,
+                    &anchor_spl::token_2022::ID,
                     false,
                     Epoch::default(),
                 )

@@ -7,7 +7,6 @@ use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
     InstructionData, ToAccountMetas,
 };
-
 use fixed::types::I80F48;
 use marginfi::{
     bank_authority_seed,
@@ -275,7 +274,7 @@ impl BankFixture {
             dst_token_account: receiving_account.key,
         }
         .to_account_metas(Some(true));
-        if self.mint.token_program == spl_token_2022::ID {
+        if self.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(self.mint.key, false));
         }
 
@@ -320,7 +319,7 @@ impl BankFixture {
             dst_token_account: receiving_account.key,
         }
         .to_account_metas(Some(true));
-        if self.mint.token_program == spl_token_2022::ID {
+        if self.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(self.mint.key, false));
         }
 

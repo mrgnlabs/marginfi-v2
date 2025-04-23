@@ -687,7 +687,7 @@ impl PriceAdapter for SwitchboardPullPriceFeed {
 // (including bpf next-test) where the struct is "properly" aligned 16
 /// The same as PullFeedAccountData::parse but completely ignores input alignment.
 pub fn parse_swb_ignore_alignment<'info>(
-    data: Ref<'info, &mut [u8]>,
+    data: Ref<&mut [u8]>,
 ) -> MarginfiResult<Box<PullFeedAccountData>> {
     if data.len() < 8 {
         return err!(MarginfiError::SwitchboardInvalidAccount);

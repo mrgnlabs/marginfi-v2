@@ -7450,7 +7450,6 @@ dependencies = [
  "solana-program",
  "solana-program-test",
  "solana-sdk",
- "spl-token-2022 7.0.0",
  "spl-transfer-hook-interface 0.9.0",
  "static_assertions",
  "switchboard-on-demand",

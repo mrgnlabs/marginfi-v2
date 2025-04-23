@@ -84,7 +84,7 @@ impl MarginfiAccountFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -121,7 +121,7 @@ impl MarginfiAccountFixture {
                 .map(|acc| acc.map(|a| a.data))?)
         };
         let payer = self.ctx.borrow_mut().payer.pubkey();
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             // TODO: do that only if hook exists
             println!(
                 "[TODO] Adding extra account metas for execute for mint {:?}",
@@ -175,7 +175,7 @@ impl MarginfiAccountFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -247,7 +247,7 @@ impl MarginfiAccountFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -290,7 +290,7 @@ impl MarginfiAccountFixture {
             .make_bank_borrow_ix(destination_account, bank, ui_amount)
             .await;
 
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             let fetch_account_data_fn = |key| async move {
                 Ok(self
                     .ctx
@@ -353,7 +353,7 @@ impl MarginfiAccountFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -454,7 +454,7 @@ impl MarginfiAccountFixture {
         }
         .to_account_metas(Some(true));
 
-        if liab_bank_fixture.mint.token_program == spl_token_2022::ID {
+        if liab_bank_fixture.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(liab_bank_fixture.mint.key, false));
         }
 
@@ -489,7 +489,7 @@ impl MarginfiAccountFixture {
             .data(),
         };
 
-        if liab_bank_fixture.mint.token_program == spl_token_2022::ID {
+        if liab_bank_fixture.mint.token_program == anchor_spl::token_2022::ID {
             let payer = self.ctx.borrow().payer.pubkey();
             let fetch_account_data_fn = |key| async move {
                 Ok(self

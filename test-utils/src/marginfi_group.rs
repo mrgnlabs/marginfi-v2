@@ -544,7 +544,7 @@ impl MarginfiGroupFixture {
             fee_ata,
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -592,7 +592,7 @@ impl MarginfiGroupFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
