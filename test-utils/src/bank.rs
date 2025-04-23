@@ -22,8 +22,6 @@ use solana_program::instruction::Instruction;
 use solana_program::sysvar::clock::Clock;
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
-#[cfg(feature = "lip")]
-use solana_sdk::signature::Keypair;
 use solana_sdk::{signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 

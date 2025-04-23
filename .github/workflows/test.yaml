@@ -14,9 +14,9 @@ defaults:
     working-directory: .
 
 env:
-  RUST_TOOLCHAIN: 1.79.0
-  SOLANA_CLI_VERSION: 2.1.0
-  ANCHOR_CLI_VERSION: 0.31.0
+  RUST_TOOLCHAIN: 1.81.0
+  SOLANA_CLI_VERSION: 2.1.20
+  ANCHOR_CLI_VERSION: 0.31.1
   ANCHOR_SHA: e6d7dafe12da661a36ad1b4f3b5970e8986e5321
   CARGO_TERM_COLOR: always
 
@@ -129,18 +129,18 @@ jobs:
 
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
-          
+
       - name: Install Node.js dependencies
         run: yarn install
+
+      - name: Build transfer hook program
+        run: anchor build -p test_transfer_hook --no-idl
 
       - name: Build marginfi program
         run: anchor build -p marginfi -- --no-default-features
 
       - name: Build mocks program
         run: anchor build -p mocks
-
-      - name: Build transfer hook program
-        run: anchor build -p test_transfer_hook --no-idl
 
       # Handles extraneous (os error 2) that appears during testing in some versions of solana. See:
       # https://solana.stackexchange.com/questions/1648/error-no-such-file-or-directory-os-error-2-error-from-anchor-test
