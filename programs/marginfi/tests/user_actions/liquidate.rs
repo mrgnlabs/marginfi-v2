@@ -17,9 +17,9 @@ use test_case::test_case;
 
 #[test_case(100., 9.9, 1., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123., 122., 10., BankMint::SolEquivalent, BankMint::SolEqIsolated)]
-// t22 #[test_case(1_000., 999., 10., BankMint::Usdc, BankMint::T22WithFee)]
-// t22 #[test_case(2_000., 99., 1_000., BankMint::T22WithFee, BankMint::SolEquivalent)]
-// t22 #[test_case(2_000., 1_999., 2_000., BankMint::Usdc, BankMint::PyUSD)]
+#[test_case(1_000., 999., 10., BankMint::Usdc, BankMint::T22WithFee)]
+#[test_case(2_000., 99., 1_000., BankMint::T22WithFee, BankMint::SolEquivalent)]
+#[test_case(2_000., 1_999., 2_000., BankMint::Usdc, BankMint::PyUSD)]
 #[tokio::test]
 async fn marginfi_account_liquidation_success(
     deposit_amount: f64,
@@ -641,9 +641,9 @@ async fn marginfi_account_liquidation_failure_bank_not_liquidatable() -> anyhow:
 
 #[test_case(100., 9.9, 1., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123., 122., 1.23, BankMint::SolEquivalent, BankMint::SolEqIsolated)]
-// t22 #[test_case(1_000., 1900., 10., BankMint::Usdc, BankMint::T22WithFee)]
-// t22 #[test_case(2_000., 99., 20., BankMint::T22WithFee, BankMint::SolEquivalent)]
-// t22 #[test_case(2_000., 1_999., 20., BankMint::Usdc, BankMint::PyUSD)]
+#[test_case(1_000., 1900., 10., BankMint::Usdc, BankMint::T22WithFee)]
+#[test_case(2_000., 99., 20., BankMint::T22WithFee, BankMint::SolEquivalent)]
+#[test_case(2_000., 1_999., 20., BankMint::Usdc, BankMint::PyUSD)]
 #[tokio::test]
 async fn marginfi_account_liquidation_emode(
     deposit_amount: f64,

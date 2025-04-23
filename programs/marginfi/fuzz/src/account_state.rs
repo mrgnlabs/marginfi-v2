@@ -20,7 +20,7 @@ use marginfi::{
 use pyth_sdk_solana::state::{
     AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
 };
-use safe_transmute::{transmute_to_bytes, transmute_to_bytes_mut};
+use safe_transmute::transmute_to_bytes_mut;
 use solana_program::{
     bpf_loader, program_pack::Pack, stake_history::Epoch, system_program, sysvar,
 };
@@ -38,8 +38,7 @@ impl AccountsState {
 
     fn random_pubkey<'bump>(&'bump self) -> &Pubkey {
         #[allow(deprecated)]
-        self.bump
-            .alloc(Pubkey::new(transmute_to_bytes(&rand::random::<[u64; 4]>())))
+        self.bump.alloc(Pubkey::new_unique())
     }
 
     pub fn new_sol_account<'bump>(

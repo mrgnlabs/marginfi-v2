@@ -244,7 +244,7 @@ async fn flashloan_fail_missing_fe_ix() -> anyhow::Result<()> {
 
     ixs.insert(0, start_ix);
 
-    let mut ctx = test_f.context.borrow_mut();
+    let ctx = test_f.context.borrow_mut();
 
     let tx = Transaction::new_signed_with_payer(
         &ixs,
@@ -319,7 +319,7 @@ async fn flashloan_fail_missing_invalid_sysvar_ixs() -> anyhow::Result<()> {
     ixs.insert(0, start_ix);
     ixs.push(end_ix);
 
-    let mut ctx = test_f.context.borrow_mut();
+    let ctx = test_f.context.borrow_mut();
 
     let tx = Transaction::new_signed_with_payer(
         &ixs,
@@ -375,7 +375,7 @@ async fn flashloan_fail_invalid_end_fl_order() -> anyhow::Result<()> {
     ixs.insert(0, start_ix);
     ixs.insert(0, end_ix);
 
-    let mut ctx = test_f.context.borrow_mut();
+    let ctx = test_f.context.borrow_mut();
 
     let tx = Transaction::new_signed_with_payer(
         &ixs,
@@ -431,7 +431,7 @@ async fn flashloan_fail_invalid_end_fl_different_m_account() -> anyhow::Result<(
     ixs.insert(0, start_ix);
     ixs.push(end_ix);
 
-    let mut ctx = test_f.context.borrow_mut();
+    let ctx = test_f.context.borrow_mut();
 
     let tx = Transaction::new_signed_with_payer(
         &ixs,
@@ -488,7 +488,7 @@ async fn flashloan_fail_already_in_flashloan() -> anyhow::Result<()> {
     ixs.insert(0, start_ix.clone());
     ixs.push(end_ix);
 
-    let mut ctx = test_f.context.borrow_mut();
+    let ctx = test_f.context.borrow_mut();
 
     let tx = Transaction::new_signed_with_payer(
         &ixs,

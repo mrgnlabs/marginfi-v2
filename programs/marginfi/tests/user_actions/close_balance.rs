@@ -76,7 +76,7 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
 
     // Let a second go b
     {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
         // Advance clock by 1 second
         clock.unix_timestamp += 1;

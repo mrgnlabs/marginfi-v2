@@ -227,7 +227,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> P
 
 //     #[tokio::test]
 //     async fn invoke_hook() {
-//         let mut ctx = ProgramTest::new("transfer_hook", TEST_HOOK_ID, processor!(super::process))
+//         let ctx = ProgramTest::new("transfer_hook", TEST_HOOK_ID, processor!(super::process))
 //             .start_with_context()
 //             .await;
 

@@ -56,7 +56,7 @@ impl MintFixture {
         let ctx_ref = Rc::clone(&ctx);
         let keypair = mint_keypair.unwrap_or_else(Keypair::new);
         let mint = {
-            let mut ctx = ctx.borrow_mut();
+            let ctx = ctx.borrow_mut();
 
             let rent = ctx.banks_client.get_rent().await.unwrap();
 
@@ -116,7 +116,7 @@ impl MintFixture {
         let keypair = mint_keypair.unwrap_or_else(Keypair::new);
         let program = token_2022::ID;
         let mint = {
-            let mut ctx = ctx.borrow_mut();
+            let ctx = ctx.borrow_mut();
 
             let rent = ctx.banks_client.get_rent().await.unwrap();
 
@@ -327,7 +327,7 @@ impl MintFixture {
             ui_to_native!(ui_amount.into(), self.mint.decimals),
         );
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
         let tx = Transaction::new_signed_with_payer(
             &[mint_to_ix],
@@ -437,7 +437,7 @@ impl TokenAccountFixture {
 
     pub async fn new_account(&self) -> Pubkey {
         let keypair = Keypair::new();
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
         let ixs = Self::create_ixs(
             &self.ctx,
@@ -505,7 +505,7 @@ impl TokenAccountFixture {
                 .unwrap();
         }
 
-        let mut ctx = ctx.borrow_mut();
+        let ctx = ctx.borrow_mut();
         let account = ctx
             .banks_client
             .get_account(keypair.pubkey())
@@ -556,7 +556,7 @@ impl TokenAccountFixture {
         }
 
         // Now retrieve the account info for the newly created ATA
-        let mut ctx = ctx.borrow_mut();
+        let ctx = ctx.borrow_mut();
         let account = ctx
             .banks_client
             .get_account(ata_address)
@@ -629,7 +629,7 @@ pub async fn get_and_deserialize<T: AccountDeserialize>(
     ctx: Rc<RefCell<ProgramTestContext>>,
     pubkey: Pubkey,
 ) -> T {
-    let mut ctx = ctx.borrow_mut();
+    let ctx = ctx.borrow_mut();
     let account = ctx.banks_client.get_account(pubkey).await.unwrap().unwrap();
 
     T::try_deserialize(&mut account.data.as_slice()).unwrap()
@@ -638,7 +638,7 @@ pub async fn get_and_deserialize_t22<T: BaseState + Pack + Sealed>(
     ctx: Rc<RefCell<ProgramTestContext>>,
     pubkey: Pubkey,
 ) -> T {
-    let mut ctx = ctx.borrow_mut();
+    let ctx = ctx.borrow_mut();
     let account = ctx.banks_client.get_account(pubkey).await.unwrap().unwrap();
 
     StateWithExtensionsOwned::<T>::unpack(account.data)

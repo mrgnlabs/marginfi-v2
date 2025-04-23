@@ -19,8 +19,8 @@ use test_case::test_case;
 #[test_case(100., 9., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123456.0, 12345.599999999, BankMint::Usdc, BankMint::Sol)]
 #[test_case(1.0, 5.0, BankMint::Sol, BankMint::Usdc)]
-// t22 #[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
-// t22 #[test_case(36., 1.7, BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
+#[test_case(36., 1.7, BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(200., 1.1, BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_account_borrow_success(
@@ -211,8 +211,8 @@ async fn marginfi_account_borrow_success(
 #[test_case(100., 9., 10.000000001, BankMint::Usdc, BankMint::Sol)]
 #[test_case(123_456., 12_345.6, 12_345.9, BankMint::Usdc, BankMint::Sol)]
 #[test_case(1., 5., 11.98224, BankMint::Sol, BankMint::Usdc)]
-// t22 #[test_case(240., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
-// t22 #[test_case(36., 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(240., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
+#[test_case(36., 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(1., 100., 155.1, BankMint::SolSwbPull, BankMint::Usdc)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_account_borrow_failure_not_enough_collateral(
@@ -301,8 +301,8 @@ async fn marginfi_account_borrow_failure_not_enough_collateral(
 #[test_case(505., 500., 505.0000000001, BankMint::Usdc, BankMint::Sol)]
 #[test_case(12_345.6, 12_345.5, 12_345.9, BankMint::Usdc, BankMint::Sol)]
 #[test_case(0.91, 0.1, 0.98, BankMint::Sol, BankMint::Usdc)]
-// t22 #[test_case(505., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
-// t22 #[test_case(1.8, 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(505., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
+#[test_case(1.8, 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(1.5, 1.4, 1.6, BankMint::SolSwbPull, BankMint::Usdc)]
 #[tokio::test]
 async fn marginfi_account_borrow_failure_borrow_limit(

@@ -12,8 +12,8 @@ use test_case::test_case;
 
 #[test_case(BankMint::Usdc)]
 #[test_case(BankMint::Sol)]
-// t22 #[test_case(BankMint::PyUSD)]
-// t22 #[test_case(BankMint::T22WithFee)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::T22WithFee)]
 #[tokio::test]
 async fn marginfi_group_withdraw_fees_and_insurance_fund_as_admin_success(
     bank_mint: BankMint,
@@ -81,8 +81,8 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_admin_success(
 
 #[test_case(BankMint::Usdc)]
 #[test_case(BankMint::Sol)]
-// t22 #[test_case(BankMint::PyUSD)]
-// t22 #[test_case(BankMint::T22WithFee)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::T22WithFee)]
 #[tokio::test]
 async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
     bank_mint: BankMint,

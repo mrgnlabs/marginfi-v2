@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
-use bytemuck::Zeroable;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
+use bytemuck::Zeroable;
 
 use crate::{
     state::{

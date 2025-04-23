@@ -12,8 +12,8 @@ use test_case::test_case;
 #[test_case(100., 9., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123456., 12345.599999999, BankMint::Usdc, BankMint::Sol)]
 #[test_case(1., 1., BankMint::Sol, BankMint::Usdc)]
-// t22 #[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
-// t22 #[test_case(36., 20., BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
+#[test_case(36., 20., BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(200., 1.1, BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_account_repay_success(
@@ -142,8 +142,8 @@ async fn marginfi_account_repay_success(
 #[test_case(100., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123456., BankMint::Usdc, BankMint::Sol)]
 #[test_case(1., BankMint::Sol, BankMint::Usdc)]
-// t22 #[test_case(240., BankMint::PyUSD, BankMint::T22WithFee)]
-// t22 #[test_case(36., BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(240., BankMint::PyUSD, BankMint::T22WithFee)]
+#[test_case(36., BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(200., BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
 #[tokio::test]
 async fn marginfi_account_repay_all_success(
@@ -297,9 +297,9 @@ async fn marginfi_account_repay_all_success(
 #[test_case(100., 110., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123456., 123457., BankMint::Usdc, BankMint::Sol)]
 #[test_case(1., 1.000002, BankMint::Sol, BankMint::Usdc)]
-// t22 #[test_case(9834., 234749., BankMint::PyUSD, BankMint::SolSwb)]
-// t22 #[test_case(0.092, 240., BankMint::PyUSD, BankMint::T22WithFee)]
-// t22 #[test_case(1.7, 36., BankMint::T22WithFee, BankMint::Sol)]
+#[test_case(9834., 234749., BankMint::PyUSD, BankMint::Sol)]
+#[test_case(0.092, 240., BankMint::PyUSD, BankMint::T22WithFee)]
+#[test_case(1.7, 36., BankMint::T22WithFee, BankMint::Sol)]
 #[tokio::test]
 async fn marginfi_account_repay_failure_repaying_too_much(
     borrow_amount: f64,

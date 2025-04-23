@@ -14,11 +14,11 @@ use test_case::test_case;
 #[test_case(0.0, BankMint::Usdc)]
 #[test_case(1_000.0, BankMint::Usdc)]
 #[test_case(0.05, BankMint::Sol)]
-// t22 #[test_case(0.05, BankMint::PyUSD)]
-// t22 #[test_case(15_002.0, BankMint::PyUSD)]
-// t22 #[test_case(0.0, BankMint::T22WithFee)]
-// t22 #[test_case(0.05, BankMint::T22WithFee)]
-// t22 #[test_case(15_002.0, BankMint::T22WithFee)]
+#[test_case(0.05, BankMint::PyUSD)]
+#[test_case(15_002.0, BankMint::PyUSD)]
+#[test_case(0.0, BankMint::T22WithFee)]
+#[test_case(0.05, BankMint::T22WithFee)]
+#[test_case(15_002.0, BankMint::T22WithFee)]
 #[tokio::test]
 async fn marginfi_account_deposit_success(
     deposit_amount: f64,
@@ -101,9 +101,9 @@ async fn marginfi_account_deposit_success(
 
 #[test_case(1_000., 456., 2345., BankMint::Usdc)]
 #[test_case(1_000., 456., 2345., BankMint::Sol)]
-// t22 #[test_case(1_000., 456., 2345., BankMint::PyUSD)]
-// t22 #[test_case(1_000., 456., 2345., BankMint::T22WithFee)]
-// t22 #[test_case(1_000., 999.999999, 1000., BankMint::T22WithFee)]
+#[test_case(1_000., 456., 2345., BankMint::PyUSD)]
+#[test_case(1_000., 456., 2345., BankMint::T22WithFee)]
+#[test_case(1_000., 999.999999, 1000., BankMint::T22WithFee)]
 #[tokio::test]
 async fn marginfi_account_deposit_failure_capacity_exceeded(
     deposit_cap: f64,
@@ -154,75 +154,75 @@ async fn marginfi_account_deposit_failure_capacity_exceeded(
     Ok(())
 }
 
-// #[tokio::test]
-// async fn marginfi_account_deposit_failure_wrong_token_program() -> anyhow::Result<()> {
-//     // -------------------------------------------------------------------------
-//     // Setup
-//     // -------------------------------------------------------------------------
+#[tokio::test]
+async fn marginfi_account_deposit_failure_wrong_token_program() -> anyhow::Result<()> {
+    // -------------------------------------------------------------------------
+    // Setup
+    // -------------------------------------------------------------------------
 
-//     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-//     // User
+    // User
 
-//     let deposit_amount = 1_000.;
-//     let bank_mint = BankMint::T22WithFee;
+    let deposit_amount = 1_000.;
+    let bank_mint = BankMint::T22WithFee;
 
-//     let user_mfi_account_f = test_f.create_marginfi_account().await;
-//     let user_wallet_balance = get_max_deposit_amount_pre_fee(deposit_amount);
-//     let bank_f = test_f.get_bank(&bank_mint);
-//     let user_token_account = bank_f
-//         .mint
-//         .create_token_account_and_mint_to(user_wallet_balance)
-//         .await;
+    let user_mfi_account_f = test_f.create_marginfi_account().await;
+    let user_wallet_balance = get_max_deposit_amount_pre_fee(deposit_amount);
+    let bank_f = test_f.get_bank(&bank_mint);
+    let user_token_account = bank_f
+        .mint
+        .create_token_account_and_mint_to(user_wallet_balance)
+        .await;
 
-//     // -------------------------------------------------------------------------
-//     // Test
-//     // -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // Test
+    // -------------------------------------------------------------------------
 
-//     let marginfi_account = user_mfi_account_f.load().await;
+    let marginfi_account = user_mfi_account_f.load().await;
 
-//     let accounts = marginfi::accounts::LendingAccountDeposit {
-//         group: marginfi_account.group,
-//         marginfi_account: user_mfi_account_f.key,
-//         authority: test_f.context.borrow().payer.pubkey(),
-//         bank: bank_f.key,
-//         signer_token_account: user_token_account.key,
-//         liquidity_vault: bank_f.get_vault(BankVaultType::Liquidity).0,
-//         token_program: spl_token::ID,
-//     }
-//     .to_account_metas(Some(true));
+    let accounts = marginfi::accounts::LendingAccountDeposit {
+        group: marginfi_account.group,
+        marginfi_account: user_mfi_account_f.key,
+        authority: test_f.context.borrow().payer.pubkey(),
+        bank: bank_f.key,
+        signer_token_account: user_token_account.key,
+        liquidity_vault: bank_f.get_vault(BankVaultType::Liquidity).0,
+        token_program: spl_token::ID,
+    }
+    .to_account_metas(Some(true));
 
-//     let deposit_ix = Instruction {
-//         program_id: marginfi::id(),
-//         accounts,
-//         data: marginfi::instruction::LendingAccountDeposit {
-//             amount: native!(deposit_amount, bank_f.mint.mint.decimals, f64),
-//             deposit_up_to_limit: None,
-//         }
-//         .data(),
-//     };
+    let deposit_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts,
+        data: marginfi::instruction::LendingAccountDeposit {
+            amount: native!(deposit_amount, bank_f.mint.mint.decimals, f64),
+            deposit_up_to_limit: None,
+        }
+        .data(),
+    };
 
-//     let tx = {
-//         let ctx = test_f.context.borrow();
-//         Transaction::new_signed_with_payer(
-//             &[deposit_ix],
-//             Some(&ctx.payer.pubkey().clone()),
-//             &[&ctx.payer],
-//             ctx.last_blockhash,
-//         )
-//     };
+    let tx = {
+        let ctx = test_f.context.borrow();
+        Transaction::new_signed_with_payer(
+            &[deposit_ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        )
+    };
 
-//     let mut ctx = test_f.context.borrow_mut();
-//     let res = ctx.banks_client.process_transaction(tx).await;
-//     assert!(res.is_err());
+    let ctx = test_f.context.borrow_mut();
+    let res = ctx.banks_client.process_transaction(tx).await;
+    assert!(res.is_err());
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 #[test_case(1_000., 500., 800., 500., BankMint::Usdc)]
 #[test_case(1_000., 500., 800., 500., BankMint::Sol)]
-// t22 #[test_case(1_000., 500., 800., 500., BankMint::PyUSD)]
-// t22 #[test_case(1_000., 500., 800., 500., BankMint::T22WithFee)]
+#[test_case(1_000., 500., 800., 500., BankMint::PyUSD)]
+#[test_case(1_000., 500., 800., 500., BankMint::T22WithFee)]
 #[tokio::test]
 async fn marginfi_account_deposit_up_to_limit_success(
     deposit_cap: f64,
