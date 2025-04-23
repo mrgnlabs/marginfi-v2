@@ -76,12 +76,8 @@ impl Metrics {
 
     pub fn update_error(&mut self, error: &Error) {
         let error_name = match error {
-            Error::AnchorError(e) => {
-                e.error_name.clone()
-            }
-            Error::ProgramError(e) => {
-                e.program_error.to_string()
-            }
+            Error::AnchorError(e) => e.error_name.clone(),
+            Error::ProgramError(e) => e.program_error.to_string(),
         };
 
         let error_count = self.error_counts.entry(error_name).or_insert(0);
@@ -94,10 +90,18 @@ impl Metrics {
     }
 
     pub fn get_error_counts_string(&self) -> String {
-        let top_5_by_count = self.error_counts.iter().sorted_by_key(|(_, count)| *count).rev().take(5).collect::<Vec<_>>();
-        let top_5_by_count_str = top_5_by_count.iter().map(|(error, count)| {
-            format!("{}: {}", error, count)
-        }).collect::<Vec<_>>().join(", ");
+        let top_5_by_count = self
+            .error_counts
+            .iter()
+            .sorted_by_key(|(_, count)| *count)
+            .rev()
+            .take(5)
+            .collect::<Vec<_>>();
+        let top_5_by_count_str = top_5_by_count
+            .iter()
+            .map(|(error, count)| format!("{}: {}", error, count))
+            .collect::<Vec<_>>()
+            .join(", ");
 
         format!("Top 5 errors: {}", top_5_by_count_str)
     }

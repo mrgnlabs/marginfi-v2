@@ -73,5 +73,23 @@
                 "clear": true
             }
         },
+        {
+            "label": "Run Fuzz Tests",
+            "type": "shell",
+            "command": "cargo fmt && ./scripts/lint.sh && cd programs/marginfi/fuzz && python3 ./generate_corpus.py && cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            }
+        },
     ]
 }
