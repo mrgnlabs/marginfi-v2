@@ -686,7 +686,7 @@ impl PriceAdapter for SwitchboardPullPriceFeed {
 // (TargetAlignmentGreaterAndInputNotAligned) when bytemuck::from_bytes executes on any local system
 // (including bpf next-test) where the struct is "properly" aligned 16
 /// The same as PullFeedAccountData::parse but completely ignores input alignment.
-pub fn parse_swb_ignore_alignment<'info>(
+pub fn parse_swb_ignore_alignment(
     data: Ref<&mut [u8]>,
 ) -> MarginfiResult<Box<PullFeedAccountData>> {
     if data.len() < 8 {

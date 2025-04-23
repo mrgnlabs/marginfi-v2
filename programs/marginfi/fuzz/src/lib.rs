@@ -12,7 +12,6 @@ use anchor_lang::{
     prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer, Sysvar},
     Discriminator, Key,
 };
-use anchor_spl::token_2022::spl_token_2022;
 use arbitrary_helpers::{
     AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
 };
@@ -238,7 +237,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         let token_program = match initial_bank_config.token_type {
             TokenType::Tokenkeg => state.new_program(spl_token::id()),
             TokenType::Token22 | TokenType::Token22WithFee { .. } => {
-                state.new_program(anchor_spl::token_2022::ID())
+                state.new_program(anchor_spl::token_2022::ID)
             }
         };
 
