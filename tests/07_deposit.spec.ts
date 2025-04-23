@@ -10,6 +10,7 @@ import { AccountMeta, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
+  bankKeypairSol,
   bankKeypairUsdc,
   ecosystem,
   groupAdmin,
@@ -50,7 +51,12 @@ describe("Deposit funds", () => {
     depositAmountUsdc * 10 ** ecosystem.usdcDecimals
   );
 
-  it("(Fund user 0 and user 1 USDC/Token A token accounts", async () => {
+  const depositAmountSol = 10;
+  const depositAmountSol_native = new BN(
+    depositAmountSol * 10 ** ecosystem.wsolDecimals
+  );
+
+  it("(Fund user 0 and user 1 USDC/Token A/SOL token accounts", async () => {
     let tx = new Transaction();
     for (let i = 0; i < users.length; i++) {
       tx.add(
@@ -67,6 +73,14 @@ describe("Deposit funds", () => {
           users[i].usdcAccount,
           wallet.publicKey,
           10000 * 10 ** ecosystem.usdcDecimals
+        )
+      );
+      tx.add(
+        createMintToInstruction(
+          ecosystem.wsolMint.publicKey,
+          users[i].wsolAccount,
+          wallet.publicKey,
+          10000 * 10 ** ecosystem.wsolDecimals
         )
       );
     }
@@ -325,6 +339,54 @@ describe("Deposit funds", () => {
           withdrawAll: true,
         })
       )
+    );
+  });
+
+  it("(user 1) deposit SOL to bank - happy path", async () => {
+    const user = users[1];
+    const userSolBefore = await getTokenBalance(provider, user.wsolAccount);
+    if (verbose) {
+      console.log("user 1 SOL before: " + userSolBefore.toLocaleString());
+    }
+
+    const user1Account = user.accounts.get(USER_ACCOUNT);
+
+    await user.mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await depositIx(user.mrgnProgram, {
+          marginfiAccount: user1Account,
+          bank: bankKeypairSol.publicKey,
+          tokenAccount: user.wsolAccount,
+          amount: depositAmountSol_native,
+          depositUpToLimit: false,
+        })
+      )
+    );
+
+    const userAcc = await program.account.marginfiAccount.fetch(user1Account);
+    const balances = userAcc.lendingAccount.balances;
+    assert.equal(balances[1].active, 1);
+
+    // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
+    const depositIndex = balances.findIndex(
+      (balance) => balance.bankPk.equals(bankKeypairSol.publicKey)
+    );
+    
+    // Note: The first deposit issues shares 1:1 and the shares use the same decimals
+    assertI80F48Approx(balances[depositIndex].assetShares, depositAmountSol_native);
+    assertI80F48Equal(balances[depositIndex].liabilityShares, 0);
+    assertI80F48Equal(balances[depositIndex].emissionsOutstanding, 0);
+
+    let now = Math.floor(Date.now() / 1000);
+    assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
+
+    const userSolAfter = await getTokenBalance(provider, user.wsolAccount);
+    if (verbose) {
+      console.log("user 1 SOL after: " + userSolAfter.toLocaleString());
+    }
+    assert.equal(
+      userSolBefore - depositAmountSol_native.toNumber(),
+      userSolAfter
     );
   });
 });

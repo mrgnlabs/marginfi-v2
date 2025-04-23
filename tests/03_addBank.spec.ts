@@ -4,6 +4,7 @@ import { addBank, configureBankOracle } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
+  bankKeypairSol,
   bankKeypairUsdc,
   ecosystem,
   globalFeeWallet,
@@ -36,6 +37,8 @@ import {
 } from "./utils/pdas";
 import { assert } from "chai";
 import { printBufferGroups } from "./utils/tools";
+import { RiskTier } from "@mrgnlabs/marginfi-client-v2";
+import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
 describe("Lending pool add bank (add bank to group)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -212,6 +215,58 @@ describe("Lending pool add bank (add bank to group)", () => {
 
     if (verbose) {
       console.log("*init token A bank " + bankKey);
+    }
+  });
+
+  it("(admin) Add bank (SOL) - happy path", async () => {
+    let config = defaultBankConfig();
+    config.assetWeightInit = bigNumberToWrappedI80F48(0);
+    config.assetWeightMaint = bigNumberToWrappedI80F48(0);
+    config.riskTier = {
+      isolated: {
+        collateral: RiskTier.Isolated,
+        liquidationThreshold: 0.1,
+        liquidationPenalty: 0.1,
+      }
+    };
+
+    let bankKey = bankKeypairSol.publicKey;
+
+    // Example: packing the oracle config in the same tx as the bank init
+    const oracleMeta: AccountMeta = {
+      pubkey: oracles.wsolOracle.publicKey,
+      isSigner: false,
+      isWritable: false,
+    };
+    const config_ix = await program.methods
+      .lendingPoolConfigureBankOracle(
+        ORACLE_SETUP_PYTH_LEGACY,
+        oracles.wsolOracle.publicKey
+      )
+      .accountsPartial({
+        group: marginfiGroup.publicKey,
+        bank: bankKey,
+        admin: groupAdmin.wallet.publicKey,
+      })
+      .remainingAccounts([oracleMeta])
+      .instruction();
+
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
+      new Transaction().add(
+        await addBank(groupAdmin.mrgnProgram, {
+          marginfiGroup: marginfiGroup.publicKey,
+          feePayer: groupAdmin.wallet.publicKey,
+          bankMint: ecosystem.wsolMint.publicKey,
+          bank: bankKey,
+          config: config,
+        }),
+        config_ix
+      ),
+      [bankKeypairSol]
+    );
+
+    if (verbose) {
+      console.log("*init SOL bank " + bankKey);
     }
   });
 

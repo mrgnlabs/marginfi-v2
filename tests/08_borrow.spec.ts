@@ -10,9 +10,9 @@ import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
+  bankKeypairSol,
   bankKeypairUsdc,
   ecosystem,
-  groupAdmin,
   oracles,
   users,
   verbose,
@@ -25,13 +25,10 @@ import {
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { borrowIx } from "./utils/user-instructions";
+import { borrowIx, composeRemainingAccounts, repayIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { updatePriceAccount } from "./utils/pyth_mocks";
-import { bigNumberToWrappedI80F48, wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
-import { defaultBankConfigOptRaw } from "./utils/types";
-import { RiskTier } from "@mrgnlabs/marginfi-client-v2";
-import { configureBank } from "./utils/group-instructions";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("Borrow funds", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -43,6 +40,12 @@ describe("Borrow funds", () => {
   const borrowAmountUsdc = 5;
   const borrowAmountUsdc_native = new BN(
     borrowAmountUsdc * 10 ** ecosystem.usdcDecimals
+  );
+
+  // Used for isolated tier logic checks
+  const borrowAmountSol = borrowAmountUsdc * 0.01;
+  const borrowAmountSol_native = new BN(
+    borrowAmountSol * 10 ** ecosystem.wsolDecimals
   );
 
   it("Oracle data refreshes", async () => {
@@ -81,6 +84,25 @@ describe("Borrow funds", () => {
       },
       wallet
     );
+
+    const solPrice = BigInt(
+      oracles.wsolPrice * 10 ** oracles.wsolDecimals
+    );
+    await updatePriceAccount(
+      oracles.wsolOracle,
+      {
+        exponent: -oracles.wsolDecimals,
+        aggregatePriceInfo: {
+          price: solPrice,
+          conf: solPrice / BigInt(100), // 1% of the price
+        },
+        twap: {
+          // aka ema
+          valueComponent: solPrice,
+        },
+      },
+      wallet
+    );
   });
 
   it("(user 0) tries to borrow usdc with a bad oracle - should fail", async () => {
@@ -108,8 +130,53 @@ describe("Borrow funds", () => {
     }, "WrongOracleAccountKeys");
   });
 
-  it("(user 0) borrows USDC against their token A position - happy path", async () => {
+  it("(user 0) borrows SOL (isolated tier) against their token A position - happy path", async () => {
     const user = users[0];
+    const user0Account = user.accounts.get(USER_ACCOUNT);
+
+    await user.mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await borrowIx(user.mrgnProgram, {
+          marginfiAccount: user0Account,
+          bank: bankKeypairSol.publicKey,
+          tokenAccount: user.wsolAccount,
+          remaining: composeRemainingAccounts([
+            [bankKeypairSol.publicKey,
+            oracles.wsolOracle.publicKey],
+            [bankKeypairA.publicKey,
+            oracles.tokenAOracle.publicKey],
+          ]),
+          amount: borrowAmountSol_native,
+        })
+      )
+    );
+
+    // Note: this test is really simple - it only tests that it's possible to borrow funds in one isolated tier bank.
+    // All specifics and detailed numbers are checked in the next test (to not repeat here).
+  });
+
+  it("(user 0) repays their SOL (isolated tier) debt and borrows USDC against their token A position - happy path", async () => {
+    const user = users[0];
+    const userAccKey = user.accounts.get(USER_ACCOUNT);
+
+    await user.mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await repayIx(user.mrgnProgram, {
+          marginfiAccount: userAccKey,
+          bank: bankKeypairSol.publicKey,
+          tokenAccount: user.wsolAccount,
+          remaining: composeRemainingAccounts([
+            [bankKeypairSol.publicKey,
+            oracles.wsolOracle.publicKey],
+            [bankKeypairA.publicKey,
+            oracles.tokenAOracle.publicKey],
+          ]),
+          amount: new BN(0),
+          repayAll: true,
+        })
+      )
+    );
+
     const bank = bankKeypairUsdc.publicKey;
     const userUsdcBefore = await getTokenBalance(provider, user.usdcAccount);
     const bankBefore = await program.account.bank.fetch(bank);
@@ -117,15 +184,15 @@ describe("Borrow funds", () => {
       console.log("user 0 USDC before: " + userUsdcBefore.toLocaleString());
       console.log(
         "usdc fees owed to bank: " +
-          wrappedI80F48toBigNumber(
-            bankBefore.collectedGroupFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankBefore.collectedGroupFeesOutstanding
+        ).toString()
       );
       console.log(
         "usdc fees owed to program: " +
-          wrappedI80F48toBigNumber(
-            bankBefore.collectedProgramFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankBefore.collectedProgramFeesOutstanding
+        ).toString()
       );
     }
 
@@ -156,15 +223,15 @@ describe("Borrow funds", () => {
       console.log("user 0 USDC after: " + userUsdcAfter.toLocaleString());
       console.log(
         "usdc fees owed to bank: " +
-          wrappedI80F48toBigNumber(
-            bankAfter.collectedGroupFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankAfter.collectedGroupFeesOutstanding
+        ).toString()
       );
       console.log(
         "usdc fees owed to program: " +
-          wrappedI80F48toBigNumber(
-            bankAfter.collectedProgramFeesOutstanding
-          ).toString()
+        wrappedI80F48toBigNumber(
+          bankAfter.collectedProgramFeesOutstanding
+        ).toString()
       );
     }
 
@@ -206,63 +273,35 @@ describe("Borrow funds", () => {
       origination_fee_program
     );
   });
-  
-    it("(admin) vastly reduce Token A bank collateral ratio to induce liquidation", async () => {
-      const usdcBank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
-      console.log("Bank config BEFORE: ", usdcBank.config);
 
-      let config = defaultBankConfigOptRaw();
-      config.assetTag = usdcBank.config.assetTag;
-      //config.assetWeightInit = bigNumberToWrappedI80F48(0);
-      //config.assetWeightMaint = bigNumberToWrappedI80F48(0);
-      config.liabilityWeightInit = usdcBank.config.liabilityWeightInit;
-      config.liabilityWeightMaint = usdcBank.config.liabilityWeightMaint;
-      config.depositLimit = usdcBank.config.depositLimit;
-      config.borrowLimit = usdcBank.config.borrowLimit;
-      config.interestRateConfig = usdcBank.config.interestRateConfig;
-      config.operationalState = usdcBank.config.operationalState;
-      config.oracleMaxAge = usdcBank.config.oracleMaxAge;
-      config.riskTier = { isolated: {
-        collateral: RiskTier.Isolated,
-        liquidationThreshold: 0.1,
-        liquidationPenalty: 0.1,
-      } };
-      
-      await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
+  it("(user 0) tries to borrow SOL (isolated tier) against their token A position with active debt in USDC bank - should fail", async () => {
+    const user = users[0];
+    const user0Account = user.accounts.get(USER_ACCOUNT);
+
+    const borrowAmountSol = borrowAmountUsdc * 0.01;
+    const borrowAmountSol_native = new BN(
+      borrowAmountSol * 10 ** ecosystem.wsolDecimals
+    );
+
+    await expectFailedTxWithError(async () => {
+      await user.mrgnProgram.provider.sendAndConfirm(
         new Transaction().add(
-          await configureBank(groupAdmin.mrgnProgram, {
-            bank: bankKeypairA.publicKey,
-            bankConfigOpt: config,
+          await borrowIx(user.mrgnProgram, {
+            marginfiAccount: user0Account,
+            bank: bankKeypairSol.publicKey,
+            tokenAccount: user.wsolAccount,
+            remaining: composeRemainingAccounts([
+              [bankKeypairA.publicKey,
+              oracles.tokenAOracle.publicKey],
+              [bankKeypairUsdc.publicKey,
+              oracles.usdcOracle.publicKey],
+              [bankKeypairSol.publicKey,
+              oracles.wsolOracle.publicKey],
+            ]),
+            amount: borrowAmountSol_native,
           })
         )
       );
-
-      const usdcBankAfter = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
-      console.log("Bank config AFTER: ", usdcBankAfter.config);
-    });
-
-  // it("(user 0) tries to borrow usdc with a bad oracle - should fail", async () => {
-  //   const user = users[0];
-  //   const user0Account = user.accounts.get(USER_ACCOUNT);
-  //   const bank = bankKeypairUsdc.publicKey;
-  //   await expectFailedTxWithError(async () => {
-  //     await user.mrgnProgram.provider.sendAndConfirm(
-  //       new Transaction().add(
-  //         await borrowIx(user.mrgnProgram, {
-  //           marginfiAccount: user0Account,
-  //           bank: bank,
-  //           tokenAccount: user.usdcAccount,
-  //           remaining: [
-  //             bankKeypairA.publicKey,
-  //             oracles.tokenAOracle.publicKey,
-  //             bank,
-  //             oracles.fakeUsdc, // sneaky sneaky...
-  //           ],
-  //           amount: borrowAmountUsdc_native,
-  //         })
-  //       )
-  //     );
-  //     // Note: you can now see expected vs actual keys in the msg! logs just before this error.
-  //   }, "WrongOracleAccountKeys");
-  // });
+    }, "IsolatedAccountIllegalState");
+  });
 });

@@ -10,6 +10,7 @@ import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
+  bankKeypairSol,
   bankKeypairUsdc,
   ecosystem,
   oracles,
@@ -159,10 +160,10 @@ describe("Withdraw funds", () => {
     if (verbose) {
       console.log(
         "User 0 withdrew " +
-          withdrawAmountTokenA +
-          " token A (" +
-          withdrawExpected.toString() +
-          ") native"
+        withdrawAmountTokenA +
+        " token A (" +
+        withdrawExpected.toString() +
+        ") native"
       );
     }
 
@@ -232,10 +233,10 @@ describe("Withdraw funds", () => {
     if (verbose) {
       console.log(
         "User 0 repaid " +
-          repayAmountUsdc +
-          " usdc (" +
-          repayExpected.toString() +
-          ") native"
+        repayAmountUsdc +
+        " usdc (" +
+        repayExpected.toString() +
+        ") native"
       );
     }
 
@@ -475,6 +476,35 @@ describe("Withdraw funds", () => {
       bankAfter.totalAssetShares
     ).toNumber();
     assert.equal(bankSharesAfter, bankSharesBefore - withdrawExpected);
+  });
+
+  it("(user 1) withdraws all SOL balance - happy path", async () => {
+    // This is essentially the same test as the previous one but it's necessary to restore the state of the user 1
+    // account to only have a single USDC deposit. We don't repeat the checks for exact numbers here though.
+    const user = users[1];
+    const userAccKey = user.accounts.get(USER_ACCOUNT);
+    const bank = bankKeypairSol.publicKey;
+
+    await user.mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await withdrawIx(user.mrgnProgram, {
+          marginfiAccount: userAccKey,
+          bank: bank,
+          tokenAccount: user.wsolAccount,
+          remaining: [
+            bankKeypairUsdc.publicKey,
+            oracles.usdcOracle.publicKey],
+          amount: new BN(0),
+          withdrawAll: true,
+        })
+      )
+    );
+
+    const userAccAfter = await program.account.marginfiAccount.fetch(userAccKey);
+    const balancesAfter = userAccAfter.lendingAccount.balances;
+
+    // This balance is now inactive
+    assert.equal(balancesAfter[1].active, 0);
   });
 
   it("(user 0) restores previous Token A deposits and USDC borrows", async () => {
