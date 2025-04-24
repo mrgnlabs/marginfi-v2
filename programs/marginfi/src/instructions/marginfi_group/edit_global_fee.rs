@@ -3,9 +3,9 @@
 use crate::constants::FEE_STATE_SEED;
 use crate::state::fee_state;
 use crate::state::marginfi_group::WrappedI80F48;
+use crate::utils::wrapped_i80f48_to_f64;
 use anchor_lang::prelude::*;
 use fee_state::FeeState;
-use fixed::types::I80F48;
 
 pub fn edit_fee_state(
     ctx: Context<EditFeeState>,
@@ -22,10 +22,8 @@ pub fn edit_fee_state(
     fee_state.program_fee_fixed = program_fee_fixed;
     fee_state.program_fee_rate = program_fee_rate;
 
-    let fixed: I80F48 = fee_state.program_fee_fixed.into();
-    let rate: I80F48 = fee_state.program_fee_rate.into();
-    let fixed_f64: f64 = fixed.to_num();
-    let rate_f64: f64 = rate.to_num();
+    let fixed_f64: f64 = wrapped_i80f48_to_f64(fee_state.program_fee_fixed);
+    let rate_f64: f64 = wrapped_i80f48_to_f64(fee_state.program_fee_rate);
     msg!("admin set to: {:?} fee wallet: {:?}", admin, fee_wallet);
     msg!(
         "flat sol: {:?} fixed: {:?} rate: {:?}",

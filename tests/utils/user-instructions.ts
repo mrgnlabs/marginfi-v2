@@ -2,6 +2,7 @@ import { BN, Program } from "@coral-xyz/anchor";
 import { AccountMeta, PublicKey } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { deriveLiquidityVault } from "./pdas";
 
 export type AccountInitArgs = {
   marginfiGroup: PublicKey;

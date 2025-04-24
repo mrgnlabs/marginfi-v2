@@ -283,7 +283,6 @@ impl Eq for MarginfiError {}
 impl MarginfiError {
     pub fn is_oracle_error(&self) -> bool {
         match self {
-            // TODO check if this an exhaustive list...
             MarginfiError::WrongNumberOfOracleAccounts
             | MarginfiError::SwitchboardInvalidAccount
             | MarginfiError::PythPushInvalidAccount
@@ -301,7 +300,9 @@ impl MarginfiError {
             | MarginfiError::InvalidBankAccount
             | MarginfiError::MissingBankAccount
             | MarginfiError::MissingPythAccount
-            | MarginfiError::MissingPythOrBankAccount => true,
+            | MarginfiError::MissingPythOrBankAccount 
+            | MarginfiError::PythPushInvalidWindowSize
+            => true,
             _ => false,
         }
     }

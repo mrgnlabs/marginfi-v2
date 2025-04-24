@@ -15,7 +15,7 @@ use crate::{
     prelude::{MarginfiError, MarginfiResult},
     utils::NumTraitsWithTolerance,
 };
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, Discriminator};
 use anchor_spl::token_interface::Mint;
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
