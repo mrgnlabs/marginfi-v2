@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::pubkey;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use pyth_solana_receiver_sdk::price_update::VerificationLevel;
-use solana_program::pubkey;
 
 pub const LIQUIDITY_VAULT_AUTHORITY_SEED: &str = "liquidity_vault_auth";
 pub const INSURANCE_VAULT_AUTHORITY_SEED: &str = "insurance_vault_auth";
@@ -17,6 +17,12 @@ pub const STAKED_SETTINGS_SEED: &str = "staked_settings";
 
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
+
+/// Used for the health cache to track which version of the program generated it.
+/// * 0 = invalid
+/// * 1 = 0.1.3
+/// * others = invalid
+pub const PROGRAM_VERSION: u8 = 1;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {

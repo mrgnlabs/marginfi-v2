@@ -1,7 +1,15 @@
 [toolchain]
-anchor_version = "0.30.1"
-solana_version = "1.18.17"
+anchor_version = "0.31.1"
+solana_version = "2.1.20"
 # Getting "thread 'main' panicked at cli/src/lib.rs:545:18:"? Check your toolchain matches the above.
+
+[workspace]
+members = ["programs/marginfi", "programs/mocks", "programs/test_transfer_hook"]
+# exclude = [
+#   "programs/test_transfer_hook",
+#   "programs/liquidity-incentive-program",
+#   "programs/brick",
+# ]
 
 [features]
 resolution = true
@@ -14,7 +22,7 @@ mocks = "5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C"
 spl_single_pool = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE" # cloned from solana-labs repo (see below)
 
 [programs.mainnet]
-liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
+# liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
 marginfi = "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA"
 
 [registry]
@@ -33,6 +41,9 @@ test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.t
 
 # Pyth pull tests only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/p*.spec.ts --exit --require tests/rootHooks.ts"
+
+# Edmode tests only
+# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/e*.spec.ts --exit --require tests/rootHooks.ts"
 
 [test]
 startup_wait = 60000

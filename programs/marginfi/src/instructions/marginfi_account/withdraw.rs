@@ -1,6 +1,6 @@
 use crate::{
     bank_signer, check,
-    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, PROGRAM_VERSION},
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
     prelude::*,
     state::{
@@ -11,10 +11,10 @@ use crate::{
     utils,
 };
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset withdrawn
@@ -123,14 +123,16 @@ pub fn lending_account_withdraw<'info>(
 
     let mut health_cache = HealthCache::zeroed();
     health_cache.timestamp = clock.unix_timestamp;
+    health_cache.program_version = PROGRAM_VERSION;
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    RiskEngine::check_account_init_health(
+    let (risk_result, _engine) = RiskEngine::check_account_init_health(
         &marginfi_account,
         ctx.remaining_accounts,
         &mut Some(&mut health_cache),
-    )?;
+    );
+    risk_result?;
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 
@@ -162,7 +164,6 @@ pub struct LendingAccountWithdraw<'info> {
 
     /// CHECK: Seed constraint check
     #[account(
-        mut,
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             bank.key().as_ref(),

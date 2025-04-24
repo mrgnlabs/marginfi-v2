@@ -11,9 +11,7 @@ use test_case::test_case;
 
 #[test_case(100., 9., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123456., 12345.599999999, BankMint::Usdc, BankMint::Sol)]
-#[test_case(123456., 10000., BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(1., 1., BankMint::Sol, BankMint::Usdc)]
-#[test_case(128932., 9834., BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 20., BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(200., 1.1, BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
@@ -56,16 +54,19 @@ async fn marginfi_account_repay_success(
         .get_sufficient_collateral_for_outflow(borrow_amount, &collateral_mint, &debt_mint)
         .await;
     let user_wallet_balance = get_max_deposit_amount_pre_fee(sufficient_collateral_amount);
+
     let user_collateral_token_account_f = test_f
         .get_bank_mut(&collateral_mint)
         .mint
         .create_token_account_and_mint_to(user_wallet_balance)
         .await;
+
     let user_debt_token_account_f = test_f
         .get_bank_mut(&debt_mint)
         .mint
         .create_empty_token_account()
         .await;
+
     user_mfi_account_f
         .try_bank_deposit(
             user_collateral_token_account_f.key,
@@ -140,9 +141,7 @@ async fn marginfi_account_repay_success(
 
 #[test_case(100., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123456., BankMint::Usdc, BankMint::Sol)]
-#[test_case(123456., BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(1., BankMint::Sol, BankMint::Usdc)]
-#[test_case(128932., BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(200., BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
@@ -297,9 +296,8 @@ async fn marginfi_account_repay_all_success(
 
 #[test_case(100., 110., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123456., 123457., BankMint::Usdc, BankMint::Sol)]
-#[test_case(3000., 10000., BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(1., 1.000002, BankMint::Sol, BankMint::Usdc)]
-#[test_case(9834., 234749., BankMint::PyUSD, BankMint::SolSwb)]
+#[test_case(9834., 234749., BankMint::PyUSD, BankMint::Sol)]
 #[test_case(0.092, 240., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(1.7, 36., BankMint::T22WithFee, BankMint::Sol)]
 #[tokio::test]

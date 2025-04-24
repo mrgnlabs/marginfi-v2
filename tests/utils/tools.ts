@@ -84,3 +84,22 @@ export const dumpBankrunLogs = (result: BanksTransactionResultWithMeta) => {
     console.log(i + " " + result.meta.logMessages[i]);
   }
 };
+
+/**
+ * Decode an f64 from 8 bytes (little‑endian).
+ * @param bytes - either a Uint8Array or number[] of length 8
+ * @returns the decoded number
+ */
+export function bytesToF64(bytes: Uint8Array | number[]): number {
+  // Normalize to a Uint8Array
+  const u8: Uint8Array =
+    bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+
+  if (u8.length !== 8) {
+    throw new Error(`Invalid length ${u8.length}, expected exactly 8 bytes`);
+  }
+
+  // Create a DataView on the buffer (little‑endian)
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  return dv.getFloat64(0, /* littleEndian */ true);
+}

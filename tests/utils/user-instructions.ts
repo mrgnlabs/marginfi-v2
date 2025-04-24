@@ -360,11 +360,6 @@ export const liquidateIx = (
   args: LiquidateIxArgs
 ) => {
   const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
-    if (!(pubkey instanceof PublicKey)) {
-      console.error("Invalid remaining key:", pubkey);
-      throw new Error("remaining contains invalid keys");
-    }
-
     return { pubkey, isSigner: false, isWritable: false };
   });
 
@@ -402,11 +397,6 @@ export const healthPulse = (
   args: HealthPulseArgs
 ) => {
   const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
-    if (!(pubkey instanceof PublicKey)) {
-      console.error("Invalid remaining key:", pubkey);
-      throw new Error("remaining contains invalid keys");
-    }
-
     return { pubkey, isSigner: false, isWritable: false };
   });
 

@@ -38,15 +38,7 @@ impl TestSettings {
                 ..TestBankSetting::default()
             },
             TestBankSetting {
-                mint: BankMint::UsdcSwb,
-                ..TestBankSetting::default()
-            },
-            TestBankSetting {
                 mint: BankMint::Sol,
-                ..TestBankSetting::default()
-            },
-            TestBankSetting {
-                mint: BankMint::SolSwb,
                 ..TestBankSetting::default()
             },
             TestBankSetting {
@@ -77,23 +69,6 @@ impl TestSettings {
 
         Self {
             banks,
-            protocol_fees: false,
-        }
-    }
-
-    /// All banks with the same config, but USDC and SOL are using switchboard price oracls
-    pub fn all_banks_swb_payer_not_admin() -> Self {
-        Self {
-            banks: vec![
-                TestBankSetting {
-                    mint: BankMint::Usdc,
-                    config: Some(*DEFAULT_USDC_TEST_SW_BANK_CONFIG),
-                },
-                TestBankSetting {
-                    mint: BankMint::Sol,
-                    config: Some(*DEFAULT_SOL_TEST_SW_BANK_CONFIG),
-                },
-            ],
             protocol_fees: false,
         }
     }
@@ -181,9 +156,7 @@ pub struct TestBankSetting {
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum BankMint {
     Usdc,
-    UsdcSwb,
     Sol,
-    SolSwb,
     SolSwbPull,
     SolSwbOrigFee,
     SolEquivalent,
@@ -346,20 +319,6 @@ lazy_static! {
         oracle_keys: create_oracle_key_array(PYTH_MNDE_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
-    pub static ref DEFAULT_USDC_TEST_SW_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::SwitchboardV2,
-        deposit_limit: native!(1_000_000_000, "USDC"),
-        borrow_limit: native!(1_000_000_000, "USDC"),
-        oracle_keys: create_oracle_key_array(SWITCHBOARD_USDC_FEED),
-        ..*DEFAULT_TEST_BANK_CONFIG
-    };
-    pub static ref DEFAULT_SOL_TEST_SW_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::SwitchboardV2,
-        deposit_limit: native!(1_000_000, "SOL"),
-        borrow_limit: native!(1_000_000, "SOL"),
-        oracle_keys: create_oracle_key_array(SWITCHBOARD_SOL_FEED),
-        ..*DEFAULT_TEST_BANK_CONFIG
-    };
     pub static ref DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG: BankConfig = BankConfig {
         oracle_setup: OracleSetup::PythPushOracle,
         deposit_limit: native!(1_000_000, "SOL"),
@@ -424,17 +383,12 @@ pub const T22_WITH_FEE_MINT_DECIMALS: u8 = 6;
 pub const SOL_MINT_DECIMALS: u8 = 9;
 pub const MNDE_MINT_DECIMALS: u8 = 9;
 
-pub fn marginfi_entry(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
-    marginfi::entry(program_id, unsafe { core::mem::transmute(accounts) }, data)
-}
-
-#[cfg(feature = "lip")]
-pub fn lip_entry<'a, 'b, 'c, 'info>(
-    program_id: &'a Pubkey,
-    accounts: &'b [AccountInfo<'info>],
-    data: &'c [u8],
+pub fn marginfi_entry<'info>(
+    program_id: &Pubkey,
+    accounts: &'info [AccountInfo<'info>],
+    data: &[u8],
 ) -> ProgramResult {
-    liquidity_incentive_program::entry(program_id, unsafe { core::mem::transmute(accounts) }, data)
+    marginfi::entry(program_id, accounts, data)
 }
 
 impl TestFixture {
@@ -453,12 +407,6 @@ impl TestFixture {
         program.prefer_bpf(true);
         program.add_program("marginfi", marginfi::ID, None);
         program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
-        #[cfg(feature = "lip")]
-        program.add_program(
-            "liquidity_incentive_program",
-            liquidity_incentive_program::ID,
-            None,
-        );
 
         let usdc_keypair = Keypair::new();
         let pyusd_keypair = Keypair::new();
@@ -525,14 +473,6 @@ impl TestFixture {
             // create_pyth_price_account(mnde_keypair.pubkey(), 10.0, MNDE_MINT_DECIMALS.into(), None),
         );
         program.add_account(
-            SWITCHBOARD_USDC_FEED,
-            create_switchboard_price_feed(1, USDC_MINT_DECIMALS.into()),
-        );
-        program.add_account(
-            SWITCHBOARD_SOL_FEED,
-            create_switchboard_price_feed(10, SOL_MINT_DECIMALS.into()),
-        );
-        program.add_account(
             PYTH_PUSH_SOL_FULLV_FEED,
             create_pyth_push_oracle_account(
                 PYTH_PUSH_FULLV_FEED_ID,
@@ -583,7 +523,7 @@ impl TestFixture {
         let context = Rc::new(RefCell::new(program.start_with_context().await));
 
         {
-            let mut ctx = context.borrow_mut();
+            let ctx = context.borrow_mut();
             let mut clock: Clock = ctx.banks_client.get_sysvar().await.unwrap();
             clock.unix_timestamp = 0;
             ctx.set_sysvar(&clock);
@@ -643,9 +583,7 @@ impl TestFixture {
             for bank in test_settings.banks.iter() {
                 let (bank_mint, default_config) = match bank.mint {
                     BankMint::Usdc => (&usdc_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
-                    BankMint::UsdcSwb => (&usdc_mint_f, *DEFAULT_USDC_TEST_SW_BANK_CONFIG),
                     BankMint::Sol => (&sol_mint_f, *DEFAULT_SOL_TEST_BANK_CONFIG),
-                    BankMint::SolSwb => (&sol_mint_f, *DEFAULT_SOL_TEST_SW_BANK_CONFIG),
                     BankMint::SolSwbPull => {
                         (&sol_mint_f, *DEFAULT_SB_PULL_SOL_TEST_REAL_BANK_CONFIG)
                     }
@@ -897,10 +835,9 @@ pub fn get_mint_price(mint: BankMint) -> f64 {
         // For the T22 with fee variant, it's 50 cents
         BankMint::T22WithFee => 0.5,
         // For USDC-based and PYUSD mints, the price is roughly 1.0.
-        BankMint::Usdc | BankMint::UsdcSwb | BankMint::UsdcT22 | BankMint::PyUSD => 1.0,
+        BankMint::Usdc | BankMint::UsdcT22 | BankMint::PyUSD => 1.0,
         // For SOL and its equivalents, use the SOL price (here, roughly 10.0).
         BankMint::Sol
-        | BankMint::SolSwb
         | BankMint::SolSwbPull
         | BankMint::SolSwbOrigFee
         | BankMint::SolEquivalent

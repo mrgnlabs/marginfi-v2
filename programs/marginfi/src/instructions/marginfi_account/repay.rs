@@ -9,9 +9,9 @@ use crate::{
     utils,
 };
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
-use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset repaid

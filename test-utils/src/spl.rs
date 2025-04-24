@@ -1,4 +1,4 @@
-use crate::{transfer_hook::TEST_HOOK_ID, ui_to_native};
+use crate::ui_to_native;
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::{
@@ -24,6 +24,7 @@ use solana_cli_output::CliAccount;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     account::{AccountSharedData, ReadableAccount, WritableAccount},
+    commitment_config::CommitmentLevel,
     instruction::Instruction,
     native_token::LAMPORTS_PER_SOL,
     program_pack::{Pack, Sealed},
@@ -36,6 +37,7 @@ use spl_transfer_hook_interface::{
     get_extra_account_metas_address, instruction::initialize_extra_account_meta_list,
 };
 use std::{cell::RefCell, fs::File, io::Read, path::PathBuf, rc::Rc, str::FromStr};
+use transfer_hook::TEST_HOOK_ID;
 
 #[derive(Clone)]
 pub struct MintFixture {
@@ -54,7 +56,7 @@ impl MintFixture {
         let ctx_ref = Rc::clone(&ctx);
         let keypair = mint_keypair.unwrap_or_else(Keypair::new);
         let mint = {
-            let mut ctx = ctx.borrow_mut();
+            let ctx = ctx.borrow_mut();
 
             let rent = ctx.banks_client.get_rent().await.unwrap();
 
@@ -81,7 +83,10 @@ impl MintFixture {
                 ctx.last_blockhash,
             );
 
-            ctx.banks_client.process_transaction(tx).await.unwrap();
+            ctx.banks_client
+                .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+                .await
+                .unwrap();
 
             let mint_account = ctx
                 .banks_client
@@ -111,7 +116,7 @@ impl MintFixture {
         let keypair = mint_keypair.unwrap_or_else(Keypair::new);
         let program = token_2022::ID;
         let mint = {
-            let mut ctx = ctx.borrow_mut();
+            let ctx = ctx.borrow_mut();
 
             let rent = ctx.banks_client.get_rent().await.unwrap();
 
@@ -169,7 +174,10 @@ impl MintFixture {
                 ctx.last_blockhash,
             );
 
-            ctx.banks_client.process_transaction(tx).await.unwrap();
+            ctx.banks_client
+                .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+                .await
+                .unwrap();
 
             if extensions.contains(&SupportedExtension::TransferHook) {
                 ctx.banks_client
@@ -277,7 +285,7 @@ impl MintFixture {
         self.ctx
             .borrow_mut()
             .banks_client
-            .process_transaction(tx)
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
             .await
             .unwrap();
 
@@ -319,7 +327,7 @@ impl MintFixture {
             ui_to_native!(ui_amount.into(), self.mint.decimals),
         );
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
         let tx = Transaction::new_signed_with_payer(
             &[mint_to_ix],
@@ -328,7 +336,10 @@ impl MintFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await.unwrap();
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
+            .unwrap();
 
         token_account_f
     }
@@ -426,7 +437,7 @@ impl TokenAccountFixture {
 
     pub async fn new_account(&self) -> Pubkey {
         let keypair = Keypair::new();
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
         let ixs = Self::create_ixs(
             &self.ctx,
@@ -446,7 +457,10 @@ impl TokenAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await.unwrap();
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
+            .unwrap();
 
         keypair.pubkey()
     }
@@ -486,12 +500,12 @@ impl TokenAccountFixture {
 
             ctx.borrow_mut()
                 .banks_client
-                .process_transaction(tx)
+                .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
                 .await
                 .unwrap();
         }
 
-        let mut ctx = ctx.borrow_mut();
+        let ctx = ctx.borrow_mut();
         let account = ctx
             .banks_client
             .get_account(keypair.pubkey())
@@ -536,13 +550,13 @@ impl TokenAccountFixture {
 
             ctx.borrow_mut()
                 .banks_client
-                .process_transaction(tx)
+                .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
                 .await
                 .unwrap();
         }
 
         // Now retrieve the account info for the newly created ATA
-        let mut ctx = ctx.borrow_mut();
+        let ctx = ctx.borrow_mut();
         let account = ctx
             .banks_client
             .get_account(ata_address)
@@ -615,7 +629,7 @@ pub async fn get_and_deserialize<T: AccountDeserialize>(
     ctx: Rc<RefCell<ProgramTestContext>>,
     pubkey: Pubkey,
 ) -> T {
-    let mut ctx = ctx.borrow_mut();
+    let ctx = ctx.borrow_mut();
     let account = ctx.banks_client.get_account(pubkey).await.unwrap().unwrap();
 
     T::try_deserialize(&mut account.data.as_slice()).unwrap()
@@ -624,7 +638,7 @@ pub async fn get_and_deserialize_t22<T: BaseState + Pack + Sealed>(
     ctx: Rc<RefCell<ProgramTestContext>>,
     pubkey: Pubkey,
 ) -> T {
-    let mut ctx = ctx.borrow_mut();
+    let ctx = ctx.borrow_mut();
     let account = ctx.banks_client.get_account(pubkey).await.unwrap().unwrap();
 
     StateWithExtensionsOwned::<T>::unpack(account.data)

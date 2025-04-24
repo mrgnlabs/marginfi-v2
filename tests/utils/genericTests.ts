@@ -62,6 +62,10 @@ export const assertI80F48Equal = (
     throw new Error("Unsupported type for comparison");
   }
 
+  if (bigA.isNaN() || bigB.isNaN()) {
+    throw new Error("One of the values is NaN");
+  }
+
   assert.equal(bigA.toString(), bigB.toString());
 };
 
@@ -87,6 +91,10 @@ export const assertI80F48Approx = (
     bigB = wrappedI80F48toBigNumber(b);
   } else {
     throw new Error("Unsupported type for comparison");
+  }
+
+  if (bigA.isNaN() || bigB.isNaN()) {
+    throw new Error("One of the values is NaN");
   }
 
   const diff = bigA.minus(bigB).abs();
@@ -187,19 +195,26 @@ export const waitUntil = async (
  * Assert a bankrun Tx executed with `tryProcessTransaction` failed with the expected error code.
  * Throws an error if the tx succeeded or a different error was found.
  * @param result
- * @param expectedErrorCode - In hex, as you see in Anchor logs, e.g. for error 6047 pass `0x179f`
+ * @param expectedErrorCode - In hex or human readable number, as you see in Anchor logs, e.g. for
+ * error 6047 pass `0x179f` (a string) or 6047 (a number)
  */
 export const assertBankrunTxFailed = (
   result: BanksTransactionResultWithMeta,
-  expectedErrorCode: string
+  expectedErrorCode: string | number
 ) => {
-  expectedErrorCode = expectedErrorCode.toLocaleLowerCase();
-  assert(result.meta.logMessages.length > 0);
+  // Convert decimal number to hex string if necessary,
+  // otherwise assume it's already a hex string.
+  const codeHex =
+    typeof expectedErrorCode === "number"
+      ? "0x" + expectedErrorCode.toString(16)
+      : expectedErrorCode.toLocaleLowerCase();
+
+  assert(result.meta.logMessages.length > 0, "empty log");
   assert(result.result, "TX succeeded when it should have failed");
   const lastLog = result.meta.logMessages.pop();
   assert(
-    lastLog.includes(expectedErrorCode),
-    "\nExpected code " + expectedErrorCode + " but got: " + lastLog
+    lastLog.includes(codeHex),
+    "\nExpected code " + codeHex + " but got: " + lastLog
   );
 };
 

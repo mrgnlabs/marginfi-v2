@@ -57,7 +57,7 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
         .await?;
 
     {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
         // Advance clock by 1 year
         clock.unix_timestamp += 365 * 24 * 60 * 60;
@@ -152,7 +152,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
 
     // Advance clock by 1 minute
     {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
         clock.unix_timestamp += 60;
         ctx.set_sysvar(&clock);
