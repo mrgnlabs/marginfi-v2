@@ -6,7 +6,9 @@ import {
   banksClient,
   ecosystem,
   EMODE_INIT_RATE_LST_TO_LST,
+  EMODE_INIT_RATE_SOL_TO_LST,
   EMODE_MAINT_RATE_LST_TO_LST,
+  EMODE_MAINT_RATE_SOL_TO_LST,
   EMODE_SEED,
   emodeAdmin,
   emodeGroup,
@@ -19,10 +21,15 @@ import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
-import { assertBankrunTxFailed } from "./utils/genericTests";
+import {
+  assertBankrunTxFailed,
+  assertI80F48Approx,
+  expectFailedTxWithError,
+} from "./utils/genericTests";
 import { USER_ACCOUNT_E } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
+  CONF_INTERVAL_MULTIPLE,
   EMODE_APPLIES_TO_ISOLATED,
   EMODE_LST_TAG,
   EMODE_SOL_TAG,
@@ -37,8 +44,8 @@ import {
   repayIx,
 } from "./utils/user-instructions";
 import { configBankEmode } from "./utils/group-instructions";
+import { dumpBankrunLogs } from "./utils/tools";
 import { assert } from "chai";
-import { bytesToF64 } from "./utils/tools";
 
 const seed = new BN(EMODE_SEED);
 let usdcBank: PublicKey;
@@ -148,17 +155,13 @@ describe("Emode liquidation", () => {
     const cacheAfter = userAcc.healthCache;
     const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
     const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
-    const aValMaint = wrappedI80F48toBigNumber(cacheAfter.assetValueMaint);
-    const lValMaint = wrappedI80F48toBigNumber(cacheAfter.liabilityValueMaint);
     if (verbose) {
       console.log("---liquidator health state---");
       console.log("asset value: " + assetValue.toString());
       console.log("liab value: " + liabValue.toString());
-      console.log("asset value (maint): " + aValMaint.toString());
-      console.log("liab value (maint): " + lValMaint.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = bytesToF64(cacheAfter.prices[i]);
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -503,17 +506,13 @@ describe("Emode liquidation", () => {
     const cacheAfter = userAcc.healthCache;
     const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
     const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
-    const aValMaint = wrappedI80F48toBigNumber(cacheAfter.assetValueMaint);
-    const lValMaint = wrappedI80F48toBigNumber(cacheAfter.liabilityValueMaint);
     if (verbose) {
       console.log("---liquidator health state---");
       console.log("asset value: " + assetValue.toString());
       console.log("liab value: " + liabValue.toString());
-      console.log("asset value (maint): " + aValMaint.toString());
-      console.log("liab value (maint): " + lValMaint.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = bytesToF64(cacheAfter.prices[i]);
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -586,7 +585,7 @@ describe("Emode liquidation", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = bytesToF64(cacheAfter.prices[i]);
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -614,8 +613,6 @@ describe("Emode liquidation", () => {
   const logHealthCache = (header: string, healthCache: any) => {
     const av = wrappedI80F48toBigNumber(healthCache.assetValue);
     const lv = wrappedI80F48toBigNumber(healthCache.liabilityValue);
-    const aValMaint = wrappedI80F48toBigNumber(healthCache.assetValueMaint);
-    const lValMaint = wrappedI80F48toBigNumber(healthCache.liabilityValueMaint);
     console.log(`---${header}---`);
     if (healthCache.flags & HEALTH_CACHE_HEALTHY) {
       console.log("**HEALTHY**");
@@ -624,11 +621,9 @@ describe("Emode liquidation", () => {
     }
     console.log("asset value: " + av.toString());
     console.log("liab value: " + lv.toString());
-    console.log("asset value (maint): " + aValMaint.toString());
-    console.log("liab value (maint): " + lValMaint.toString());
     console.log("prices: ");
     healthCache.prices.forEach((priceWrapped: any, i: number) => {
-      const price = bytesToF64(priceWrapped);
+      const price = wrappedI80F48toBigNumber(priceWrapped).toNumber();
       if (price !== 0) {
         console.log(` [${i}] ${price}`);
       }

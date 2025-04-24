@@ -27,14 +27,12 @@ import {
   HEALTH_CACHE_ENGINE_OK,
   HEALTH_CACHE_HEALTHY,
   CONF_INTERVAL_MULTIPLE,
-  HEALTH_CACHE_ORACLE_OK,
 } from "./utils/types";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { createMintToInstruction } from "@solana/spl-token";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { accountInit, depositIx, healthPulse } from "./utils/user-instructions";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
-import { bytesToF64 } from "./utils/tools";
 
 const throwawayGroup = Keypair.generate();
 describe("Pyth pull oracles in localnet", () => {
@@ -243,7 +241,9 @@ describe("Pyth pull oracles in localnet", () => {
             acc.lendingAccount.balances[0].assetShares
           ).toNumber()
       );
-      console.log("price actual: " + bytesToF64(cache.prices[0]));
+      console.log(
+        "price actual: " + wrappedI80F48toBigNumber(cache.prices[0]).toNumber()
+      );
       console.log(
         "assets actual: " +
           wrappedI80F48toBigNumber(cache.assetValue).toNumber()
@@ -254,14 +254,11 @@ describe("Pyth pull oracles in localnet", () => {
       acc.lendingAccount.balances[0].assetShares,
       depositAmount * 10 ** ecosystem.lstAlphaDecimals
     );
-    assert.equal(
-      cache.flags,
-      HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
-    );
+    assertBNEqual(cache.flags, HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK);
     const priceExpected =
       oracles.lstAlphaPrice -
       oracles.lstAlphaPrice * oracles.confidenceValue * CONF_INTERVAL_MULTIPLE;
-    assert.approximately(bytesToF64(cache.prices[0]), priceExpected, 0.0001);
+    assertI80F48Approx(cache.prices[0], priceExpected);
     assertI80F48Approx(cache.assetValue, priceExpected * depositAmount);
   });
 });

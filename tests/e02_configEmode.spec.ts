@@ -2,7 +2,9 @@ import {
   AnchorProvider,
   BN,
   getProvider,
+  Program,
   Wallet,
+  workspace,
 } from "@coral-xyz/anchor";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { configBankEmode } from "./utils/group-instructions";
@@ -23,6 +25,7 @@ import {
 } from "./rootHooks";
 import {
   assertBankrunTxFailed,
+  assertBNApproximately,
   assertBNEqual,
   assertI80F48Approx,
   assertI80F48Equal,
@@ -32,6 +35,7 @@ import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { createMintToInstruction } from "@solana/spl-token";
+import { Marginfi } from "../target/types/marginfi";
 import { assert } from "chai";
 
 const seed = new BN(EMODE_SEED);
