@@ -300,9 +300,8 @@ impl MarginfiError {
             | MarginfiError::InvalidBankAccount
             | MarginfiError::MissingBankAccount
             | MarginfiError::MissingPythAccount
-            | MarginfiError::MissingPythOrBankAccount 
-            | MarginfiError::PythPushInvalidWindowSize
-            => true,
+            | MarginfiError::MissingPythOrBankAccount
+            | MarginfiError::PythPushInvalidWindowSize => true,
             _ => false,
         }
     }
