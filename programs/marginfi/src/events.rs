@@ -1,7 +1,4 @@
-use crate::{
-    state::{health_cache::HealthCache, marginfi_group::BankConfigOpt},
-    StakedSettingsEditConfig,
-};
+use crate::{state::marginfi_group::BankConfigOpt, StakedSettingsEditConfig};
 use anchor_lang::prelude::*;
 
 // Event headers
@@ -172,10 +169,4 @@ pub struct MarginfiAccountTransferAccountAuthorityEvent {
     pub header: AccountEventHeader,
     pub old_account_authority: Pubkey,
     pub new_account_authority: Pubkey,
-}
-
-#[event]
-pub struct HealthPulseEvent {
-    pub account: Pubkey,
-    pub health_cache: HealthCache,
 }

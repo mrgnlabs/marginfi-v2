@@ -24,7 +24,6 @@ import { deriveBankWithSeed } from "./utils/pdas";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { USER_ACCOUNT_E } from "./utils/mocks";
 import { accountInit, borrowIx, depositIx } from "./utils/user-instructions";
-import { bytesToF64 } from "./utils/tools";
 
 const seed = new BN(EMODE_SEED);
 let usdcBank: PublicKey;
@@ -231,7 +230,7 @@ describe("Emode borrowing", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = bytesToF64(cacheAfter.prices[i]);
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -340,7 +339,7 @@ describe("Emode borrowing", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = bytesToF64(cacheAfter.prices[i]);
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -409,7 +408,7 @@ describe("Emode borrowing", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = bytesToF64(cacheAfter.prices[i]);
+        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
