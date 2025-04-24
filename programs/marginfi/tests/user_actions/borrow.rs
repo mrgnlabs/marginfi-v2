@@ -197,8 +197,7 @@ async fn marginfi_account_borrow_success(
     for (i, bal) in marginfi_account.lending_account.balances.iter().enumerate() {
         let shares: I80F48 = bal.asset_shares.into();
         if bal.is_active() {
-            let price: I80F48 = health_cache.prices[i].into();
-            let price: f64 = price.to_num();
+            let price: f64 = f64::from_le_bytes(health_cache.prices[i]);
             if shares != I80F48::ZERO {
                 assert!(price >= (collateral_price_roughly * disc));
             } else {
