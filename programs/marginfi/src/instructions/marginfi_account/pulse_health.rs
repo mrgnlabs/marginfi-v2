@@ -84,7 +84,7 @@ pub fn lending_account_pulse_health<'info>(
 
     emit!(HealthPulseEvent {
         account: ctx.accounts.marginfi_account.key(),
-        health_cache: health_cache
+        health_cache
     });
 
     Ok(())

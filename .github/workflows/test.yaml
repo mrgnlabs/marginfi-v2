@@ -137,36 +137,10 @@ jobs:
         run: anchor build -p test_transfer_hook --no-idl
 
       - name: Build marginfi program
-        run: anchor build -p marginfi --no-idl -- --no-default-features
+        run: anchor build -p marginfi -- --no-default-features
 
       - name: Build mocks program
-        run: anchor build -p mocks --no-idl
-
-      - name: Build liquidity program
-        run: anchor build -p liquidity_incentive_program --no-idl
-
-      - name: Build brick
-        run: anchor build -p brick --no-idl
-
-      - name: Generate marginfi IDL and TS types
-        run: |
-          cd programs/marginfi
-          anchor idl build \
-            -o ../../target/idl/marginfi.json \
-            -t ../../target/types/marginfi.ts
-          cd ../..
-          echo "Current directory: $(pwd)"
-          ls -R .
-
-      - name: Generate mock program IDL and TS types
-        run: |
-          cd programs/marginfi
-          anchor idl build \
-            -o ../../target/idl/mocks.json \
-            -t ../../target/types/mocks.ts
-          cd ../..
-          echo "Current directory: $(pwd)"
-          ls -R .
+        run: anchor build -p mocks
 
       # Handles extraneous (os error 2) that appears during testing in some versions of solana. See:
       # https://solana.stackexchange.com/questions/1648/error-no-such-file-or-directory-os-error-2-error-from-anchor-test

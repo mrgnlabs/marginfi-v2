@@ -282,34 +282,31 @@ impl Eq for MarginfiError {}
 
 impl MarginfiError {
     pub fn is_oracle_error(&self) -> bool {
-        match self {
+        matches!(
+            self,
             MarginfiError::WrongNumberOfOracleAccounts
-            | MarginfiError::SwitchboardInvalidAccount
-            | MarginfiError::PythPushInvalidAccount
-            | MarginfiError::SwitchboardWrongAccountOwner
-            | MarginfiError::PythPushFeedIdNonHexCharacter
-            | MarginfiError::PythPushFeedIdMustBe32Bytes
-            | MarginfiError::PythPushInsufficientVerificationLevel
-            | MarginfiError::PythPushMismatchedFeedId
-            | MarginfiError::StakedPythPushWrongAccountOwner
-            | MarginfiError::PythPushWrongAccountOwner
-            | MarginfiError::WrongOracleAccountKeys
-            | MarginfiError::PythPushStalePrice
-            | MarginfiError::SwitchboardStalePrice
-            | MarginfiError::StakePoolValidationFailed
-            | MarginfiError::InvalidBankAccount
-            | MarginfiError::MissingBankAccount
-            | MarginfiError::MissingPythAccount
-            | MarginfiError::MissingPythOrBankAccount
-            | MarginfiError::PythPushInvalidWindowSize => true,
-            _ => false,
-        }
+                | MarginfiError::SwitchboardInvalidAccount
+                | MarginfiError::PythPushInvalidAccount
+                | MarginfiError::SwitchboardWrongAccountOwner
+                | MarginfiError::PythPushFeedIdNonHexCharacter
+                | MarginfiError::PythPushFeedIdMustBe32Bytes
+                | MarginfiError::PythPushInsufficientVerificationLevel
+                | MarginfiError::PythPushMismatchedFeedId
+                | MarginfiError::StakedPythPushWrongAccountOwner
+                | MarginfiError::PythPushWrongAccountOwner
+                | MarginfiError::WrongOracleAccountKeys
+                | MarginfiError::PythPushStalePrice
+                | MarginfiError::SwitchboardStalePrice
+                | MarginfiError::StakePoolValidationFailed
+                | MarginfiError::InvalidBankAccount
+                | MarginfiError::MissingBankAccount
+                | MarginfiError::MissingPythAccount
+                | MarginfiError::MissingPythOrBankAccount
+                | MarginfiError::PythPushInvalidWindowSize
+        )
     }
 
     pub fn is_risk_engine_rejection(&self) -> bool {
-        match self {
-            MarginfiError::RiskEngineInitRejected => true,
-            _ => false,
-        }
+        matches!(self, MarginfiError::RiskEngineInitRejected)
     }
 }
