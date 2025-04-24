@@ -82,7 +82,7 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
             )
         } else if instruction.program_id == system_program::ID {
             panic!("System program is not yet supported");
-        }else{
+        } else {
             panic!("program not supported");
         }
     }

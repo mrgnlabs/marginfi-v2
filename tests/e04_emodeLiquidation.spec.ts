@@ -7,6 +7,9 @@ import {
   ecosystem,
   EMODE_INIT_RATE_LST_TO_LST,
   EMODE_MAINT_RATE_LST_TO_LST,
+  EMODE_INIT_RATE_SOL_TO_LST,
+  EMODE_MAINT_RATE_LST_TO_LST,
+  EMODE_MAINT_RATE_SOL_TO_LST,
   EMODE_SEED,
   emodeAdmin,
   emodeGroup,
@@ -23,6 +26,15 @@ import { assertBankrunTxFailed } from "./utils/genericTests";
 import { USER_ACCOUNT_E } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
+import {
+  assertBankrunTxFailed,
+  assertI80F48Approx,
+  expectFailedTxWithError,
+} from "./utils/genericTests";
+import { USER_ACCOUNT_E } from "./utils/mocks";
+import { getBankrunBlockhash } from "./utils/spl-staking-utils";
+import {
+  CONF_INTERVAL_MULTIPLE,
   EMODE_APPLIES_TO_ISOLATED,
   EMODE_LST_TAG,
   EMODE_SOL_TAG,
@@ -39,6 +51,7 @@ import {
 import { configBankEmode } from "./utils/group-instructions";
 import { assert } from "chai";
 import { bytesToF64 } from "./utils/tools";
+import { dumpBankrunLogs } from "./utils/tools";
 
 const seed = new BN(EMODE_SEED);
 let usdcBank: PublicKey;
