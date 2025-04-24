@@ -1,6 +1,5 @@
 import {
   AnchorProvider,
-  BN,
   getProvider,
   Program,
   Wallet,
@@ -10,36 +9,20 @@ import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
-  bankKeypairSol,
   bankKeypairUsdc,
-  ecosystem,
   groupAdmin,
-  marginfiGroup,
   oracles,
   users,
   verbose,
 } from "./rootHooks";
-import {
-  assertBNApproximately,
-  assertBNEqual,
-  assertI80F48Approx,
-  assertI80F48Equal,
-  assertKeysEqual,
-  getTokenBalance,
-} from "./utils/genericTests";
 import { assert } from "chai";
-import { healthPulse, liquidateIx } from "./utils/user-instructions";
+import { healthPulse } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { updatePriceAccount } from "./utils/pyth_mocks";
-import {
-  bigNumberToWrappedI80F48,
-  wrappedI80F48toBigNumber,
-} from "@mrgnlabs/mrgn-common";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import {
   defaultBankConfigOptRaw,
   HEALTH_CACHE_ENGINE_OK,
   HEALTH_CACHE_HEALTHY,
-  HEALTH_CACHE_NONE,
   HEALTH_CACHE_ORACLE_OK,
   HEALTH_CACHE_PROGRAM_VERSION_0_1_3,
 } from "./utils/types";

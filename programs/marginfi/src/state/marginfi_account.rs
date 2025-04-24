@@ -588,11 +588,8 @@ impl<'info> RiskEngine<'_> {
             if let Some(health_cache) = health_cache {
                 // Note: We only record the Initial weighted price in cache, at some point we may
                 // record others.
-                match requirement_type {
-                    RequirementType::Initial => {
-                        health_cache.prices[i] = price.to_num::<f64>().to_le_bytes();
-                    }
-                    _ => {}
+                if let RequirementType::Initial = requirement_type {
+                    health_cache.prices[i] = price.to_num::<f64>().to_le_bytes();
                 }
             }
 
