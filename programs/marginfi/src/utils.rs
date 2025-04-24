@@ -3,7 +3,7 @@ use crate::{
     constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
     state::{
         marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType},
+        marginfi_group::{Bank, BankVaultType, WrappedI80F48},
     },
     MarginfiError, MarginfiResult,
 };
@@ -255,4 +255,10 @@ pub fn validate_bank_asset_tags(bank_a: &Bank, bank_b: &Bank) -> MarginfiResult 
     }
 
     Ok(())
+}
+
+pub fn wrapped_i80f48_to_f64(n: WrappedI80F48) -> f64 {
+    let as_i80: I80F48 = n.into();
+    let as_f64: f64 = as_i80.to_num();
+    as_f64
 }
