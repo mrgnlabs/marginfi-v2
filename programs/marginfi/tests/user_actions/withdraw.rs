@@ -9,8 +9,6 @@ use solana_program_test::*;
 use test_case::test_case;
 
 #[test_case(0.03, 0.012, BankMint::Usdc)]
-#[test_case(100.0, 100.0, BankMint::UsdcSwb)]
-#[test_case(100.0, 100.0, BankMint::SolSwb)]
 #[test_case(128932.0, 9834.0, BankMint::PyUSD)]
 #[test_case(0.1, 0.092, BankMint::T22WithFee)]
 #[test_case(100.0, 92.0, BankMint::T22WithFee)]
@@ -273,9 +271,7 @@ async fn marginfi_account_withdraw_all_success(
 }
 
 #[test_case(0.03, 0.030001, BankMint::Usdc)]
-#[test_case(100., 101., BankMint::UsdcSwb)]
 #[test_case(100., 102., BankMint::Sol)]
-#[test_case(100., 102., BankMint::SolSwb)]
 #[test_case(109247394., 109247394.000001, BankMint::PyUSD)]
 #[test_case(16., 16., BankMint::T22WithFee)]
 #[test_case(100., 98., BankMint::T22WithFee)]

@@ -27,6 +27,12 @@ else
     exit 1
 fi
 
+export CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS=true
+export CARGO_PROFILE_RELEASE_LTO=fat
+export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+export CARGO_PROFILE_RELEASE_OPT_LEVEL=3
+export CARGO_PROFILE_RELEASE_INCREMENTAL=false
+
 cmd="sudo $verify_bin build --library-name $program_lib_name -- $features"
 echo "Running: $cmd"
 eval "$cmd"

@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use solana_program::{clock::Clock, sysvar::Sysvar};
 
 use crate::{
     constants::PROGRAM_VERSION,

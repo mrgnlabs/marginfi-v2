@@ -1,6 +1,6 @@
 //! Program state processor
 use {
-    solana_program::{
+    anchor_lang::solana_program::{
         account_info::{next_account_info, AccountInfo},
         entrypoint::ProgramResult,
         msg,
@@ -28,7 +28,7 @@ use {
 pub static TEST_HOOK_ID: Pubkey = pubkey!("TRANSFERHKTRANSFERHKTRANSFERHKTRANSFERHKTRA");
 
 #[cfg(not(feature = "no-entrypoint"))]
-solana_program::entrypoint!(process);
+anchor_lang::solana_program::entrypoint!(process);
 
 #[allow(unused)]
 fn check_token_account_is_transferring(account_info: &AccountInfo) -> Result<(), ProgramError> {
@@ -227,7 +227,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> P
 
 //     #[tokio::test]
 //     async fn invoke_hook() {
-//         let mut ctx = ProgramTest::new("transfer_hook", TEST_HOOK_ID, processor!(super::process))
+//         let ctx = ProgramTest::new("transfer_hook", TEST_HOOK_ID, processor!(super::process))
 //             .start_with_context()
 //             .await;
 

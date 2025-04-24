@@ -49,9 +49,9 @@ import {
   repayIx,
 } from "./utils/user-instructions";
 import { configBankEmode } from "./utils/group-instructions";
+import { dumpBankrunLogs } from "./utils/tools";
 import { assert } from "chai";
 import { bytesToF64 } from "./utils/tools";
-import { dumpBankrunLogs } from "./utils/tools";
 
 const seed = new BN(EMODE_SEED);
 let usdcBank: PublicKey;

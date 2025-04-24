@@ -14,9 +14,9 @@ defaults:
     working-directory: .
 
 env:
-  RUST_TOOLCHAIN: 1.75.0
-  SOLANA_CLI_VERSION: 1.18.17
-  ANCHOR_CLI_VERSION: 0.30.1
+  RUST_TOOLCHAIN: 1.79.0
+  SOLANA_CLI_VERSION: 2.1.20
+  ANCHOR_CLI_VERSION: 0.31.1
   ANCHOR_SHA: e6d7dafe12da661a36ad1b4f3b5970e8986e5321
   CARGO_TERM_COLOR: always
 
@@ -125,13 +125,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "20.10.0"
+          node-version: "23.0.0"
 
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
 
       - name: Install Node.js dependencies
         run: yarn install
+
+      - name: Build transfer hook program
+        run: anchor build -p test_transfer_hook --no-idl
 
       - name: Build marginfi program
         run: anchor build -p marginfi --no-idl -- --no-default-features
@@ -191,19 +194,3 @@ jobs:
             echo "Test run completed successfully without extraneous errors."
             exit 0
           fi
-
-      # - name: Start Solana Test Validator
-      #   run: |
-      #     solana-test-validator --reset --limit-ledger-size 1000 \
-
-      # - name: Wait for Validator to Start
-      #   run: sleep 60
-
-      # - name: Deploy Liquidity Incentive Program
-      #   run: solana program deploy --program-id Lip1111111111111111111111111111111111111111 target/deploy/liquidity_incentive_program.so
-
-      # - name: Deploy Marginfi Program
-      #   run: solana program deploy --program-id 2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr target/deploy/marginfi.so
-
-      # - name: Deploy Mocks Program
-      #   run: solana program deploy --program-id 5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C target/deploy/mocks.so

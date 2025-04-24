@@ -69,7 +69,7 @@ async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Resu
     // Note: Sending this tx takes a very long time (longer than all the other tests combined)
     // because for some reason it takes longer for a signature verification fail to return than it
     // does for other errors. We simulate instead here for testing SPEEEEEED
-    let mut ctx = test_f.context.borrow_mut();
+    let ctx = test_f.context.borrow_mut();
     let res = ctx.banks_client.simulate_transaction(tx).await;
     let is_err = res.unwrap().result.unwrap().is_err();
 

@@ -74,7 +74,7 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
                 &new_account_infos,
                 &instruction.data,
             )
-        } else if instruction.program_id == spl_token_2022::ID {
+        } else if instruction.program_id == anchor_spl::token_2022::ID {
             spl_token_2022::processor::Processor::process(
                 &instruction.program_id,
                 &new_account_infos,

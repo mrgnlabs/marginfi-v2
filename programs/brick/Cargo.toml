@@ -19,4 +19,4 @@ test = []
 [dependencies]
 # Remove workspace = true if already defined in the root Cargo.toml
 anchor-lang = { workspace = true }
-solana-program = { workspace = true }
+# solana-program = { workspace = true }
