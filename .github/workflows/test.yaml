@@ -15,7 +15,7 @@ defaults:
 
 env:
   RUST_TOOLCHAIN: 1.75.0
-  SOLANA_CLI_VERSION: 1.18.11
+  SOLANA_CLI_VERSION: 1.18.17
   ANCHOR_CLI_VERSION: 0.30.1
   ANCHOR_SHA: e6d7dafe12da661a36ad1b4f3b5970e8986e5321
   CARGO_TERM_COLOR: always
@@ -130,16 +130,40 @@ jobs:
       - uses: ./.github/actions/setup-common/
       - uses: ./.github/actions/setup-anchor-cli/
 
-      - uses: ./.github/actions/build-workspace/
-
       - name: Install Node.js dependencies
         run: yarn install
 
       - name: Build marginfi program
-        run: anchor build -p marginfi -- --no-default-features
+        run: anchor build -p marginfi --no-idl -- --no-default-features
 
       - name: Build mocks program
-        run: anchor build -p mocks
+        run: anchor build -p mocks --no-idl
+
+      - name: Build liquidity program
+        run: anchor build -p liquidity_incentive_program --no-idl
+
+      - name: Build brick
+        run: anchor build -p brick --no-idl
+
+      - name: Generate marginfi IDL and TS types
+        run: |
+          cd programs/marginfi
+          anchor idl build \
+            -o ../../target/idl/marginfi.json \
+            -t ../../target/types/marginfi.ts
+          cd ../..
+          echo "Current directory: $(pwd)"
+          ls -R .
+
+      - name: Generate mock program IDL and TS types
+        run: |
+          cd programs/marginfi
+          anchor idl build \
+            -o ../../target/idl/mocks.json \
+            -t ../../target/types/mocks.ts
+          cd ../..
+          echo "Current directory: $(pwd)"
+          ls -R .
 
       # Handles extraneous (os error 2) that appears during testing in some versions of solana. See:
       # https://solana.stackexchange.com/questions/1648/error-no-such-file-or-directory-os-error-2-error-from-anchor-test

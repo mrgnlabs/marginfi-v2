@@ -18,6 +18,12 @@ pub const STAKED_SETTINGS_SEED: &str = "staked_settings";
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 
+/// Used for the health cache to track which version of the program generated it.
+/// * 0 = invalid
+/// * 1 = 0.1.3
+/// * others = invalid
+pub const PROGRAM_VERSION: u8 = 1;
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
         pub const PYTH_ID: Pubkey = pubkey!("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
