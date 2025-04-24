@@ -292,7 +292,7 @@ impl<'info> BankAccountWithPriceFeed<'_> {
 
     /// Returns value, the net asset value in $, and the price used to determine that value. In most
     /// cases, returns (value, price, 0). If there was an error loading the price feed, treats the
-    /// price as zero, and passes the the u32 argument that contains the error code, i.e. the return
+    /// price as zero, and passes the u32 argument that contains the error code, i.e. the return
     /// type is (0, 0, err_code). Other types of errors (e.g. math) will still throw.
     #[inline(always)]
     fn calc_weighted_asset_value(
