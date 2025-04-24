@@ -123,6 +123,8 @@ export type MockUser = {
 
 /** in mockUser.accounts, key used to get/set the users's account for group 0 */
 export const USER_ACCOUNT: string = "g0_acc";
+/** in mockUser.accounts, key used to get/set the users's account for the emode group */
+export const USER_ACCOUNT_E: string = "ge_acc";
 /** in mockUser.accounts, key used to get/set the users's LST ATA for validator 0 */
 export const LST_ATA = "v0_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */
@@ -326,17 +328,22 @@ export const createSimpleMint = async (
 
 export type Oracles = {
   wsolOracle: Keypair;
+  /** Default 150 */
   wsolPrice: number;
   wsolDecimals: number;
   usdcOracle: Keypair;
+  /** Default 1 */
   usdcPrice: number;
   usdcDecimals: number;
   tokenAOracle: Keypair;
+  /** Default 10 */
   tokenAPrice: number;
   tokenADecimals: number;
   tokenBOracle: Keypair;
+  /** Default 20 */
   tokenBPrice: number;
   tokenBDecimals: number;
+  /** Default 175 */
   lstAlphaPrice: number;
   lstAlphaDecimals: number;
   /** By default, oracle conf is this times price */

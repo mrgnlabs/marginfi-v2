@@ -50,6 +50,8 @@ export const printBuffers = false;
 export let globalProgramAdmin: MockUser = undefined;
 /** Administers the mrgnlend group and/or stake holder accounts */
 export let groupAdmin: MockUser = undefined;
+/** Administers the emode group configuration */
+export let emodeAdmin: MockUser = undefined;
 /** Administers valiator votes and withdraws */
 export let validatorAdmin: MockUser = undefined;
 export const users: MockUser[] = [];
@@ -65,8 +67,10 @@ export const INIT_POOL_ORIGINATION_FEE = 1000;
 export const PROGRAM_FEE_FIXED = 0.01;
 export const PROGRAM_FEE_RATE = 0.02;
 
-/** Group used for all happy-path tests */
+/** Group used for most regular e2e tests */
 export const marginfiGroup = Keypair.generate();
+/** Group used for e-mode tests */
+export const emodeGroup = Keypair.generate();
 /** Bank for USDC */
 export const bankKeypairUsdc = Keypair.generate();
 /** Bank for token A */
@@ -86,6 +90,13 @@ export const PYTH_ORACLE_FEED_SAMPLE = new PublicKey(
 export const PYTH_ORACLE_SAMPLE = new PublicKey(
   "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"
 );
+
+/** Banks in the emode test suite use this seed */
+export const EMODE_SEED = 44;
+export const EMODE_INIT_RATE_SOL_TO_LST = .9;
+export const EMODE_MAINT_RATE_SOL_TO_LST = .95;
+export const EMODE_INIT_RATE_LST_TO_LST = .8;
+export const EMODE_MAINT_RATE_LST_TO_LST = .85;
 
 /** keys copied into the bankrun instance */
 let copyKeys: PublicKey[] = [PYTH_ORACLE_FEED_SAMPLE, PYTH_ORACLE_SAMPLE];
@@ -209,15 +220,20 @@ export const mochaHooks = {
     };
 
     groupAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
+    emodeAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
     validatorAdmin = await setupTestUser(
       provider,
       wallet.payer,
       setupUserOptions
     );
     copyKeys.push(
+      groupAdmin.wsolAccount,
       groupAdmin.usdcAccount,
+      groupAdmin.tokenAAccount,
       groupAdmin.tokenBAccount,
-      groupAdmin.wallet.publicKey
+      groupAdmin.lstAlphaAccount,
+      groupAdmin.wallet.publicKey,
+      emodeAdmin.wallet.publicKey
     );
 
     for (let i = 0; i < numUsers; i++) {
@@ -249,7 +265,7 @@ export const mochaHooks = {
       ecosystem.tokenBDecimals,
       175,
       ecosystem.lstAlphaDecimals,
-      0.02, // confidnece interval
+      0.02, // confidence interval
       verbose
     );
     copyKeys.push(
@@ -318,6 +334,15 @@ export const mochaHooks = {
       new AnchorProvider(
         bankRunProvider.connection,
         new Wallet(validatorAdmin.wallet),
+        {}
+      )
+    );
+
+    emodeAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(emodeAdmin.wallet),
         {}
       )
     );

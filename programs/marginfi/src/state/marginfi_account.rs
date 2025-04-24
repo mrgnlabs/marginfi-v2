@@ -1,10 +1,11 @@
 use super::{
+    emode::{reconcile_emode_configs, EmodeConfig},
     health_cache::HealthCache,
     marginfi_group::{Bank, RiskTier, WrappedI80F48},
     price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
 };
 use crate::{
-    assert_struct_align, assert_struct_size, check,
+    assert_struct_align, assert_struct_size, check, check_eq,
     constants::{
         ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
         EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD,
@@ -14,14 +15,11 @@ use crate::{
     prelude::{MarginfiError, MarginfiResult},
     utils::NumTraitsWithTolerance,
 };
-use anchor_lang::{prelude::*, Discriminator};
+use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
-use std::{
-    cmp::{max, min},
-    ops::Not,
-};
+use std::cmp::{max, min};
 use type_layout::TypeLayout;
 
 assert_struct_size!(MarginfiAccount, 2304);
@@ -186,8 +184,8 @@ impl RequirementType {
     }
 }
 
-pub struct BankAccountWithPriceFeed<'a, 'info> {
-    bank: AccountInfo<'info>,
+pub struct BankAccountWithPriceFeed<'a> {
+    bank: Box<Bank>,
     price_feed: Box<MarginfiResult<OraclePriceFeedAdapter>>,
     balance: &'a Balance,
 }
@@ -197,11 +195,11 @@ pub enum BalanceSide {
     Liabilities,
 }
 
-impl<'info> BankAccountWithPriceFeed<'_, 'info> {
+impl<'info> BankAccountWithPriceFeed<'_> {
     pub fn load<'a>(
         lending_account: &'a LendingAccount,
         remaining_ais: &'info [AccountInfo<'info>],
-    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a, 'info>>> {
+    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
         let clock = Clock::get()?;
         let mut account_index = 0;
 
@@ -221,8 +219,9 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
 
                 // Determine number of accounts to process for this balance
                 let num_accounts = get_remaining_accounts_per_balance(balance)?;
-                check!(
-                    balance.bank_pk.eq(bank_ai.key),
+                check_eq!(
+                    balance.bank_pk,
+                    *bank_ai.key,
                     MarginfiError::InvalidBankAccount
                 );
                 let bank = bank_al.load()?;
@@ -240,7 +239,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 account_index += num_accounts;
 
                 Ok(BankAccountWithPriceFeed {
-                    bank: bank_ai.clone(),
+                    bank: Box::new(*bank),
                     price_feed: price_adapter,
                     balance,
                 })
@@ -261,50 +260,25 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
     ///    is exceeded.
     /// 4. Assets are only calculated for collateral risk tier.
     /// 5. Oracle errors are ignored for deposits in isolated risk tier.
-    fn calc_weighted_value<'a>(
-        &'a self,
+    fn calc_weighted_value(
+        &self,
         requirement_type: RequirementType,
-    ) -> MarginfiResult<(I80F48, I80F48, I80F48)>
-    where
-        'info: 'a,
-    {
+        emode_config: &EmodeConfig,
+    ) -> MarginfiResult<(I80F48, I80F48, I80F48)> {
         match self.balance.get_side() {
             Some(side) => {
-                // We want lifetime <'a> but we have <'info> and it's a pain to modify everything...
-                // To avoid an unsafe transmuation we just interpret the bank from bytes. Here we
-                // repeat some of the sanity checks from AccountLoader
-                if self.bank.owner != &Bank::owner() {
-                    panic!("bank owned by wrong program, this should never happen");
-                }
-                let bank_data = &self.bank.try_borrow_data()?;
-                if bank_data.len() < Bank::LEN + 8 {
-                    panic!("bank too short, this should never happen");
-                }
-                let bank_discrim: &[u8] = &bank_data[0..8];
-                if bank_discrim != Bank::DISCRIMINATOR {
-                    panic!("bad bank discriminator, this should never happen");
-                }
-                let bank_data: &[u8] = &bank_data[8..];
-                let bank = *bytemuck::from_bytes(bank_data);
-
-                // Our alternative is this transmute, which is probably fine because we are
-                // shortening 'info to 'a, but better not to tempt fate with transmute in case
-                // Anchor messes with lifetimes in a later version.
-
-                // let shorter_bank: &'a AccountInfo<'a> = unsafe { core::mem::transmute(&self.bank) };
-                // let bank_al = AccountLoader::<Bank>::try_from(&shorter_bank)?;
-                // let bank = bank_al.load()?;
+                let bank = &self.bank;
 
                 match side {
                     BalanceSide::Assets => {
                         let (value, price) =
-                            self.calc_weighted_asset_value(requirement_type, &bank)?;
+                            self.calc_weighted_asset_value(requirement_type, bank, emode_config)?;
                         Ok((value, I80F48::ZERO, price))
                     }
 
                     BalanceSide::Liabilities => {
                         let (value, price) =
-                            self.calc_weighted_liab_value(requirement_type, &bank)?;
+                            self.calc_weighted_liab_value(requirement_type, bank)?;
                         Ok((I80F48::ZERO, value, price))
                     }
                 }
@@ -315,10 +289,11 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
 
     /// Returns value, the net asset value in $, and the price used to determine that value.
     #[inline(always)]
-    fn calc_weighted_asset_value<'a>(
-        &'a self,
+    fn calc_weighted_asset_value(
+        &self,
         requirement_type: RequirementType,
-        bank: &'a Bank,
+        bank: &Bank,
+        emode_config: &EmodeConfig,
     ) -> MarginfiResult<(I80F48, I80F48)> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
@@ -334,9 +309,28 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
 
                 let price_feed = price_feed?;
 
-                let mut asset_weight = bank
-                    .config
-                    .get_weight(requirement_type, BalanceSide::Assets);
+                // If an emode entry exists for this bank's emode tag in the reconciled config of
+                // all borrowing banks, use its weight, otherwise use the weight designated on the
+                // collateral bank itself. If the bank's weight is higher, always use that weight.
+                let mut asset_weight =
+                    if let Some(emode_entry) = emode_config.find_with_tag(bank.emode.emode_tag) {
+                        let bank_weight = bank
+                            .config
+                            .get_weight(requirement_type, BalanceSide::Assets);
+                        let emode_weight = match requirement_type {
+                            RequirementType::Initial => I80F48::from(emode_entry.asset_weight_init),
+                            RequirementType::Maintenance => {
+                                I80F48::from(emode_entry.asset_weight_maint)
+                            }
+                            // Note: For equity (which is only used for bankruptcies) emode does not
+                            // apply, as the asset weight is always 1
+                            RequirementType::Equity => I80F48::ONE,
+                        };
+                        max(bank_weight, emode_weight)
+                    } else {
+                        bank.config
+                            .get_weight(requirement_type, BalanceSide::Assets)
+                    };
 
                 let lower_price = price_feed.get_price_of_type(
                     requirement_type.get_oracle_price_type(),
@@ -488,16 +482,17 @@ impl RiskRequirementType {
     }
 }
 
-pub struct RiskEngine<'a, 'info> {
+pub struct RiskEngine<'a> {
     marginfi_account: &'a MarginfiAccount,
-    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a, 'info>>,
+    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
+    emode_config: EmodeConfig,
 }
 
-impl<'info> RiskEngine<'_, 'info> {
+impl<'info> RiskEngine<'_> {
     pub fn new<'a>(
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
-    ) -> MarginfiResult<RiskEngine<'a, 'info>> {
+    ) -> MarginfiResult<RiskEngine<'a>> {
         check!(
             !marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
@@ -511,13 +506,22 @@ impl<'info> RiskEngine<'_, 'info> {
     fn new_no_flashloan_check<'a>(
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
-    ) -> MarginfiResult<RiskEngine<'a, 'info>> {
+    ) -> MarginfiResult<RiskEngine<'a>> {
         let bank_accounts_with_price =
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
+
+        // Load the reconciled Emode configuration for all banks where the user has borrowed
+        let emode_configs: Vec<EmodeConfig> = bank_accounts_with_price
+            .iter()
+            .filter(|b_w_p| !b_w_p.balance.is_empty(BalanceSide::Liabilities))
+            .map(|b_w_p| b_w_p.bank.emode.emode_config)
+            .collect();
+        let reconciled_emode_config = reconcile_emode_configs(emode_configs);
 
         Ok(RiskEngine {
             marginfi_account,
             bank_accounts_with_price,
+            emode_config: reconciled_emode_config,
         })
     }
 
@@ -555,7 +559,7 @@ impl<'info> RiskEngine<'_, 'info> {
         for (i, bank_account) in self.bank_accounts_with_price.iter().enumerate() {
             let requirement_type = requirement_type.to_weight_type();
             let (asset_val, liab_val, price) =
-                bank_account.calc_weighted_value(requirement_type)?;
+                bank_account.calc_weighted_value(requirement_type, &self.emode_config)?;
 
             if let Some(health_cache) = health_cache {
                 health_cache.prices[i] = price.into();
@@ -636,9 +640,7 @@ impl<'info> RiskEngine<'_, 'info> {
             .ok_or(MarginfiError::LendingAccountBalanceNotFound)?;
 
         check!(
-            liability_bank_balance
-                .is_empty(BalanceSide::Liabilities)
-                .not(),
+            !liability_bank_balance.is_empty(BalanceSide::Liabilities),
             MarginfiError::NoLiabilitiesInLiabilityBank
         );
 
@@ -692,9 +694,7 @@ impl<'info> RiskEngine<'_, 'info> {
             .unwrap();
 
         check!(
-            liability_bank_balance
-                .is_empty(BalanceSide::Liabilities)
-                .not(),
+            !liability_bank_balance.is_empty(BalanceSide::Liabilities),
             MarginfiError::ExhaustedLiability
         );
 
@@ -756,33 +756,20 @@ impl<'info> RiskEngine<'_, 'info> {
         Ok(())
     }
 
-    fn check_account_risk_tiers<'a>(&'a self) -> MarginfiResult
-    where
-        'info: 'a,
-    {
+    // TODO this function seems excessive relative to the trivial check it performs, it performs
+    // like 4x O(N) loops and should be optimized at minimum.
+    fn check_account_risk_tiers(&self) -> MarginfiResult {
         let balances_with_liablities = self
             .bank_accounts_with_price
             .iter()
-            .filter(|a| a.balance.is_empty(BalanceSide::Liabilities).not());
+            .filter(|a| !a.balance.is_empty(BalanceSide::Liabilities));
 
         let n_balances_with_liablities = balances_with_liablities.clone().count();
 
         let mut is_in_isolated_risk_tier = false;
 
         for a in balances_with_liablities {
-            if a.bank.owner != &Bank::owner() {
-                panic!("bank owned by wrong program, this should never happen");
-            }
-            let bank_data = a.bank.try_borrow_data()?;
-            if bank_data.len() < Bank::LEN + 8 {
-                panic!("bank too short, this should never happen");
-            }
-            let bank_discrim = &bank_data[0..8];
-            if bank_discrim != Bank::DISCRIMINATOR {
-                panic!("bad bank discriminator, this should never happen");
-            }
-            let bank_data = &bank_data[8..];
-            let bank: Bank = *bytemuck::from_bytes(bank_data);
+            let bank = &a.bank;
             if bank.config.risk_tier == RiskTier::Isolated {
                 is_in_isolated_risk_tier = true;
                 break;

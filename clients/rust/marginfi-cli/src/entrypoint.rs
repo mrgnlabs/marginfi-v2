@@ -103,6 +103,8 @@ pub enum GroupCommand {
         #[clap(long)]
         new_admin: Pubkey,
         #[clap(long)]
+        new_emode_admin: Pubkey,
+        #[clap(long)]
         is_arena_group: bool,
     },
     AddBank {
@@ -606,8 +608,11 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
 
         GroupCommand::Update {
             new_admin,
+            new_emode_admin,
             is_arena_group,
-        } => processor::group_configure(config, profile, new_admin, is_arena_group),
+        } => {
+            processor::group_configure(config, profile, new_admin, new_emode_admin, is_arena_group)
+        }
 
         GroupCommand::AddBank {
             mint: bank_mint,

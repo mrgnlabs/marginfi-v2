@@ -511,6 +511,7 @@ export const setupPythOracles = async (
     fakeUsdc: fakeUsdcPythOracle.publicKey,
     pythPullLst: lstPythPullOracle,
     pythPullLstOracleFeed: lstPythPullOracleFeed,
+    confidenceValue: oracleConfDefault
   };
   return oracles;
 };

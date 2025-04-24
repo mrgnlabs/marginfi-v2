@@ -26,6 +26,7 @@ import {
   ORACLE_SETUP_PYTH_PUSH,
   HEALTH_CACHE_ENGINE_OK,
   HEALTH_CACHE_HEALTHY,
+  CONF_INTERVAL_MULTIPLE,
 } from "./utils/types";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { createMintToInstruction } from "@solana/spl-token";
@@ -255,7 +256,8 @@ describe("Pyth pull oracles in localnet", () => {
     );
     assertBNEqual(cache.flags, HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK);
     const priceExpected =
-      oracles.lstAlphaPrice - oracles.lstAlphaPrice * oracles.confidenceValue;
+      oracles.lstAlphaPrice -
+      oracles.lstAlphaPrice * oracles.confidenceValue * CONF_INTERVAL_MULTIPLE;
     assertI80F48Approx(cache.prices[0], priceExpected);
     assertI80F48Approx(cache.assetValue, priceExpected * depositAmount);
   });

@@ -6,10 +6,12 @@ use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
 use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use anyhow::Result;
 use bytemuck::bytes_of;
+use fixed::types::I80F48;
 use marginfi::constants::{
     FEE_STATE_SEED, INIT_BANK_ORIGINATION_FEE_DEFAULT, PROTOCOL_FEE_FIXED_DEFAULT,
     PROTOCOL_FEE_RATE_DEFAULT,
 };
+use marginfi::state::emode::{EmodeEntry, MAX_EMODE_ENTRIES};
 use marginfi::state::fee_state::FeeState;
 use marginfi::state::marginfi_group::BankConfigCompact;
 use marginfi::state::price::OracleSetup;
@@ -75,7 +77,10 @@ impl MarginfiGroupFixture {
                 }
                 .to_account_metas(Some(true)),
                 data: marginfi::instruction::MarginfiGroupConfigure {
+                    // Payer is both admins in most test cases for simplicity,
+                    // generally this is not true in production
                     new_admin: admin,
+                    new_emode_admin: admin,
                     is_arena_group: false,
                 }
                 .data(),
@@ -152,7 +157,7 @@ impl MarginfiGroupFixture {
 
     /// Adds bank and configures the oracle.
     ///
-    /// Note: AddBank and LendingPoolConfigureBankOracle were seperated to handle a tx size issue in
+    /// Note: AddBank and LendingPoolConfigureBankOracle were separated to handle a tx size issue in
     /// squads. This test fixture packs both ixes into one tx as is typical outside of squads.
     pub async fn try_lending_pool_add_bank(
         &self,
@@ -229,7 +234,7 @@ impl MarginfiGroupFixture {
 
     /// Adds bank and configures the oracle.
     ///
-    /// Note: AddBank and LendingPoolConfigureBankOracle were seperated to handle a tx size issue in
+    /// Note: AddBank and LendingPoolConfigureBankOracle were separated to handle a tx size issue in
     /// squads. This test fixture packs both ixes into one tx as is typical outside of squads.
     pub async fn try_lending_pool_add_bank_with_seed(
         &self,
@@ -388,6 +393,74 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
+    #[allow(clippy::result_large_err)]
+    pub fn pad_emode_entries(
+        entries: &[EmodeEntry],
+    ) -> Result<[EmodeEntry; MAX_EMODE_ENTRIES], BanksClientError> {
+        if entries.len() > MAX_EMODE_ENTRIES {
+            return Err(BanksClientError::ClientError(
+                "wrong number of entries (max: 10)",
+            ));
+        }
+
+        let mut result = [EmodeEntry {
+            collateral_bank_emode_tag: 0,
+            flags: 0,
+            pad0: [0; 5],
+            asset_weight_init: I80F48::ZERO.into(),
+            asset_weight_maint: I80F48::ZERO.into(),
+        }; MAX_EMODE_ENTRIES];
+
+        result[..entries.len()].copy_from_slice(entries);
+
+        Ok(result)
+    }
+
+    pub fn make_lending_pool_configure_bank_emode_ix(
+        &self,
+        bank: &BankFixture,
+        emode_tag: u16,
+        entries: [EmodeEntry; MAX_EMODE_ENTRIES],
+    ) -> Instruction {
+        let accounts = marginfi::accounts::LendingPoolConfigureBankEmode {
+            bank: bank.key,
+            group: self.key,
+            emode_admin: self.ctx.borrow().payer.pubkey(),
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolConfigureBankEmode { emode_tag, entries }
+                .data(),
+        }
+    }
+
+    pub async fn try_lending_pool_configure_bank_emode(
+        &self,
+        bank: &BankFixture,
+        emode_tag: u16,
+        entries: &[EmodeEntry],
+    ) -> Result<(), BanksClientError> {
+        let padded_entries = Self::pad_emode_entries(entries)?;
+        let ix = self.make_lending_pool_configure_bank_emode_ix(bank, emode_tag, padded_entries);
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey().clone()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn try_accrue_interest(&self, bank: &BankFixture) -> Result<()> {
         let mut ctx = self.ctx.borrow_mut();
 
@@ -416,6 +489,7 @@ impl MarginfiGroupFixture {
     pub async fn try_update(
         &self,
         new_admin: Pubkey,
+        new_emode_admin: Pubkey,
         is_arena_group: bool,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
@@ -427,6 +501,7 @@ impl MarginfiGroupFixture {
             .to_account_metas(Some(true)),
             data: marginfi::instruction::MarginfiGroupConfigure {
                 new_admin,
+                new_emode_admin,
                 is_arena_group,
             }
             .data(),

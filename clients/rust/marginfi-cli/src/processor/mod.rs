@@ -261,6 +261,7 @@ pub fn group_configure(
     config: Config,
     profile: Profile,
     new_admin: Pubkey,
+    new_emode_admin: Pubkey,
     is_arena_group: bool,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
@@ -282,6 +283,7 @@ pub fn group_configure(
         })
         .args(marginfi::instruction::MarginfiGroupConfigure {
             new_admin,
+            new_emode_admin,
             is_arena_group,
         })
         .instructions()?;

@@ -27,8 +27,6 @@ import { USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 
 describe("Deposit funds (included staked assets)", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
-
   // User 0 has a USDC deposit position
   // User 1 has a SOL [0] and validator 0 Staked [1] deposit position
 

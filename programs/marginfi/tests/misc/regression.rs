@@ -674,7 +674,7 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
 
-    assert_eq!(bank._padding_0, [[0, 0]; 27]);
+    assert_eq!(bank._padding_0, [0; 8]);
     assert_eq!(bank._padding_1, [[0, 0]; 32]);
 
     Ok(())

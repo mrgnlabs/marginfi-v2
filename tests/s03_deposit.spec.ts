@@ -58,8 +58,12 @@ describe("Deposit funds (included staked assets)", () => {
     await banksClient.processTransaction(tx);
   });
 
-  it("Initialize user accounts", async () => {
+  it("Initialize user accounts (if needed)", async () => {
     for (let i = 0; i < users.length; i++) {
+      // ???: should we be recycling these between the main test suite and bankrun?
+      if (users[i].accounts.get(USER_ACCOUNT)) {
+        console.log("Warn: Over-writing user acc for user " + i);
+      }
       const userAccKeypair = Keypair.generate();
       const userAccount = userAccKeypair.publicKey;
       users[i].accounts.set(USER_ACCOUNT, userAccount);
