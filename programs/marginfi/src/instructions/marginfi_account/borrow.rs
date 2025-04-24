@@ -1,6 +1,6 @@
 use crate::{
     bank_signer, check,
-    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, PROGRAM_VERSION},
     events::{AccountEventHeader, LendingAccountBorrowEvent},
     math_error,
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
@@ -169,14 +169,17 @@ pub fn lending_account_borrow<'info>(
 
     let mut health_cache = HealthCache::zeroed();
     health_cache.timestamp = clock.unix_timestamp;
+    health_cache.program_version = PROGRAM_VERSION;
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    RiskEngine::check_account_init_health(
+    let (risk_result, _engine) = RiskEngine::check_account_init_health(
         &marginfi_account,
         ctx.remaining_accounts,
         &mut Some(&mut health_cache),
-    )?;
+    );
+    risk_result?;
+
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 

@@ -2,6 +2,7 @@ import {
   AnchorProvider,
   BN,
   getProvider,
+  Wallet,
   Program,
   Wallet,
   workspace,

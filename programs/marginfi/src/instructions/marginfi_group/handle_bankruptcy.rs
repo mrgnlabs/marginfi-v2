@@ -2,13 +2,14 @@ use crate::{
     bank_signer, check,
     constants::{
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PROGRAM_VERSION, ZERO_AMOUNT_THRESHOLD,
     },
     debug,
     events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent},
     math_error,
     prelude::MarginfiError,
     state::{
+        health_cache::HealthCache,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
         marginfi_group::{Bank, BankVaultType, MarginfiGroup},
     },
@@ -16,6 +17,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
+use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use std::cmp::{max, min};
 
@@ -53,7 +55,13 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?.check_account_bankrupt()?;
+    let mut health_cache = HealthCache::zeroed();
+    health_cache.timestamp = clock.unix_timestamp;
+    health_cache.program_version = PROGRAM_VERSION;
+    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?
+        .check_account_bankrupt(&mut Some(&mut health_cache))?;
+    health_cache.set_engine_ok(true);
+    marginfi_account.health_cache = health_cache;
 
     let mut bank = bank_loader.load_mut()?;
 

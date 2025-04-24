@@ -134,7 +134,9 @@ pub fn lending_account_end_flashloan<'info>(
 
     marginfi_account.unset_flag(ACCOUNT_IN_FLASHLOAN);
 
-    RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts, &mut None)?;
+    let (risk_result, _engine) =
+        RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts, &mut None);
+    risk_result?;
 
     Ok(())
 }
