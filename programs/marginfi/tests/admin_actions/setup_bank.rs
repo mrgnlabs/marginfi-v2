@@ -538,7 +538,7 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
     // Load bank and check that the emode settings got applied
     let loaded_bank: Bank = test_f.load_and_deserialize(&bank.key).await;
     let timestamp = {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let clock: Clock = ctx.banks_client.get_sysvar().await?;
         clock.unix_timestamp
     };
@@ -568,7 +568,7 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
     // Load bank and check that the emode settings got applied
     let loaded_bank: Bank = test_f.load_and_deserialize(&bank.key).await;
     let timestamp = {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let clock: Clock = ctx.banks_client.get_sysvar().await?;
         clock.unix_timestamp
     };

@@ -300,7 +300,7 @@ impl<'info> BankAccountWithPriceFeed<'_> {
         requirement_type: RequirementType,
         bank: &Bank,
         emode_config: &EmodeConfig,
-    ) -> MarginfiResult<(I80F48, I80F48)> {
+    ) -> MarginfiResult<(I80F48, I80F48, u32)> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
                 let (price_feed, err_code) = self.try_get_price_feed();
