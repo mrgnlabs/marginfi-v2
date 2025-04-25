@@ -71,8 +71,7 @@ pub fn lending_account_withdraw<'info>(
             BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
         let amount_pre_fee = if withdraw_all {
-            let amount = bank_account.withdraw_all()?;
-            amount
+            bank_account.withdraw_all()?
         } else {
             let amount_pre_fee = maybe_bank_mint
                 .as_ref()

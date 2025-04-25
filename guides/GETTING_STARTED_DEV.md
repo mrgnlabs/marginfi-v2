@@ -72,8 +72,10 @@ This is much slower than the remix test command, but stable on any system.
 This will throttle your CPU and may error sporadically as a reminder to buy a better CPU if you try to do anything else (like say, compile another Rust repo) while this is running. It is approximately 10x faster than test-program.sh, so use this one if you value your time and sanity. Feel free to add your flex below:
 
 Benchmarks:
-
-- 9700X: `Summary [   6.302s] 238 tests run: 238 passed, 0 skipped`
+|   CPU   | Summary |
+|---------|---------|
+| 9700X        | `[   6.302s] 238 tests run: 238 passed, 0 skipped` |
+| Apple M4 Pro | `[  11.038s] 225 tests run: 225 passed, 0 skipped` |
 
 ### To run just one Rust test:
 

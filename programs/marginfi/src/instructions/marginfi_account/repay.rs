@@ -62,8 +62,7 @@ pub fn lending_account_repay<'info>(
         BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
     let repay_amount_post_fee = if repay_all {
-        let amount = bank_account.repay_all()?;
-        amount
+        bank_account.repay_all()?
     } else {
         bank_account.repay(I80F48::from_num(amount))?;
 
