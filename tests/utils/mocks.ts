@@ -281,11 +281,11 @@ export const setupTestUser = async (
 export const getUserMarginfiProgram = (
   program: Program<Marginfi>,
   userWallet: Keypair | Wallet
-) => {
+): Program<Marginfi> => {
   const wallet =
     userWallet instanceof Keypair ? new Wallet(userWallet) : userWallet;
   const provider = new AnchorProvider(program.provider.connection, wallet, {});
-  const userProgram = new Program(program.idl, provider);
+  const userProgram = new Program<Marginfi>(program.idl, provider);
   return userProgram;
 };
 
