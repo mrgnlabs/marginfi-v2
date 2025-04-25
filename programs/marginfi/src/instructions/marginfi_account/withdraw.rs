@@ -72,7 +72,6 @@ pub fn lending_account_withdraw<'info>(
 
         let amount_pre_fee = if withdraw_all {
             let amount = bank_account.withdraw_all()?;
-            lending_account.ensure_no_gaps_in_lending_account();
             amount
         } else {
             let amount_pre_fee = maybe_bank_mint

@@ -63,7 +63,6 @@ pub fn lending_account_repay<'info>(
 
     let repay_amount_post_fee = if repay_all {
         let amount = bank_account.repay_all()?;
-        lending_account.ensure_no_gaps_in_lending_account();
         amount
     } else {
         bank_account.repay(I80F48::from_num(amount))?;

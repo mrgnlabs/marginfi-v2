@@ -854,18 +854,6 @@ impl LendingAccount {
         self.balances.iter().position(|b| !b.is_active())
     }
 
-    pub fn ensure_no_gaps_in_lending_account(&mut self) {
-        let mut last_active_index = 0;
-        for i in 0..self.balances.len() {
-            if self.balances[i].is_active() {
-                if last_active_index != i {
-                    self.balances.swap(last_active_index, i);
-                }
-                last_active_index += 1;
-            }
-        }
-    }
-
     pub fn sort_balances(&mut self) {
         // Sort all balances in descending order by bank_pk
         self.balances.sort_by(|a, b| b.bank_pk.cmp(&a.bank_pk));

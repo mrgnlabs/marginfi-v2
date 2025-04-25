@@ -37,7 +37,7 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
         BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
     bank_account.close_balance()?;
-    lending_account.ensure_no_gaps_in_lending_account();
+    lending_account.sort_balances();
 
     Ok(())
 }

@@ -6,9 +6,6 @@ pub fn lending_account_sort_balances<'info>(
     ctx: Context<'_, '_, 'info, 'info, SortBalances<'info>>,
 ) -> MarginfiResult {
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
-    marginfi_account
-        .lending_account
-        .ensure_no_gaps_in_lending_account();
     marginfi_account.lending_account.sort_balances();
     Ok(())
 }
