@@ -40,6 +40,12 @@ export type Ecosystem = {
   lstAlphaDecimals: number;
 };
 
+const WSOL_MINT_SEED = Buffer.from("WSOL_MINT_SEED_00000000000000000");
+const TOKEN_A_MINT_SEED = Buffer.from("TOKEN_A_MINT_SEED_00000000000000");
+const TOKEN_B_MINT_SEED = Buffer.from("TOKEN_B_MINT_SEED_00000000000000");
+const USDC_MINT_SEED = Buffer.from("USDC_MINT_SEED_00000000000000002");
+const LST_ALPHA_MINT_SEED = Buffer.from("LST_ALPHA_MINT_SEED_000000000000");
+
 /**
  * Random keypairs for all mints.
  *
@@ -48,11 +54,11 @@ export type Ecosystem = {
  */
 export const getGenericEcosystem = () => {
   const ecosystem: Ecosystem = {
-    wsolMint: Keypair.generate(),
-    tokenAMint: Keypair.generate(),
-    tokenBMint: Keypair.generate(),
-    usdcMint: Keypair.generate(),
-    lstAlphaMint: Keypair.generate(),
+    wsolMint: Keypair.fromSeed(WSOL_MINT_SEED),
+    tokenAMint: Keypair.fromSeed(TOKEN_A_MINT_SEED),
+    tokenBMint: Keypair.fromSeed(TOKEN_B_MINT_SEED),
+    usdcMint: Keypair.fromSeed(USDC_MINT_SEED),
+    lstAlphaMint: Keypair.fromSeed(LST_ALPHA_MINT_SEED),
     wsolDecimals: 9,
     tokenADecimals: 8,
     tokenBDecimals: 6,

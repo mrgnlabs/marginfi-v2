@@ -55,7 +55,7 @@ export let emodeAdmin: MockUser = undefined;
 /** Administers valiator votes and withdraws */
 export let validatorAdmin: MockUser = undefined;
 export const users: MockUser[] = [];
-export const numUsers = 4;
+export const numUsers = 5;
 
 export const validators: Validator[] = [];
 export const numValidators = 2;
@@ -68,15 +68,21 @@ export const PROGRAM_FEE_FIXED = 0.01;
 export const PROGRAM_FEE_RATE = 0.02;
 
 /** Group used for most regular e2e tests */
-export const marginfiGroup = Keypair.generate();
+const MARGINFI_GROUP_SEED = Buffer.from("MARGINFI_GROUP_SEED_000000000000");
+export const marginfiGroup = Keypair.fromSeed(MARGINFI_GROUP_SEED);
 /** Group used for e-mode tests */
-export const emodeGroup = Keypair.generate();
+const EMODE_GROUP_SEED = Buffer.from("EMODE_GROUP_SEED_000000000000000");
+export const emodeGroup = Keypair.fromSeed(EMODE_GROUP_SEED);
+
 /** Bank for USDC */
-export const bankKeypairUsdc = Keypair.generate();
+const USDC_SEED = Buffer.from("USDC_BANK_SEED_00000000000000000");
+export const bankKeypairUsdc = Keypair.fromSeed(USDC_SEED);
 /** Bank for token A */
-export const bankKeypairA = Keypair.generate();
+const TOKEN_A_SEED = Buffer.from("TOKEN_A_BANK_SEED_00000000000000");
+export const bankKeypairA = Keypair.fromSeed(TOKEN_A_SEED);
 /** Bank for "WSOL", which is treated the same as SOL */
-export const bankKeypairSol = Keypair.generate();
+const SOL_SEED = Buffer.from("SOL_BANK_SEED_000000000000000000");
+export const bankKeypairSol = Keypair.fromSeed(SOL_SEED);
 
 export let bankrunContext: ProgramTestContext;
 export let bankRunProvider: BankrunProvider;
@@ -93,10 +99,10 @@ export const PYTH_ORACLE_SAMPLE = new PublicKey(
 
 /** Banks in the emode test suite use this seed */
 export const EMODE_SEED = 44;
-export const EMODE_INIT_RATE_SOL_TO_LST = .9;
-export const EMODE_MAINT_RATE_SOL_TO_LST = .95;
-export const EMODE_INIT_RATE_LST_TO_LST = .8;
-export const EMODE_MAINT_RATE_LST_TO_LST = .85;
+export const EMODE_INIT_RATE_SOL_TO_LST = 0.9;
+export const EMODE_MAINT_RATE_SOL_TO_LST = 0.95;
+export const EMODE_INIT_RATE_LST_TO_LST = 0.8;
+export const EMODE_MAINT_RATE_LST_TO_LST = 0.85;
 
 /** keys copied into the bankrun instance */
 let copyKeys: PublicKey[] = [PYTH_ORACLE_FEED_SAMPLE, PYTH_ORACLE_SAMPLE];
@@ -237,6 +243,10 @@ export const mochaHooks = {
     );
 
     for (let i = 0; i < numUsers; i++) {
+      const WALLET_SEED = Buffer.from(
+        "SECRET_WALLET_" + i + "00000000000000000"
+      );
+      setupUserOptions.forceWallet = Keypair.fromSeed(WALLET_SEED);
       const user = await setupTestUser(
         provider,
         wallet.payer,
