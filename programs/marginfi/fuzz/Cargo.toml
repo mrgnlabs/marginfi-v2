@@ -56,3 +56,11 @@ members = ["."]
 
 [profile.release]
 debug = 1
+
+## Notes for usable lockfile generation in Solana land
+# Patch a version of half compatabile with fixed and Rust <=1.79:
+# cargo update -p half --precise 2.4.1
+# 
+# Patch zerofrom and litemap:
+# cargo update -p zerofrom --precise 0.1.5
+# cargo update -p litemap --precise 0.7.4

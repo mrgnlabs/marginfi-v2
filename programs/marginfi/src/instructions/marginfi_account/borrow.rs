@@ -169,7 +169,8 @@ pub fn lending_account_borrow<'info>(
 
     let mut health_cache = HealthCache::zeroed();
     health_cache.timestamp = clock.unix_timestamp;
-    health_cache.program_version = PROGRAM_VERSION;
+
+    marginfi_account.lending_account.sort_balances();
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
@@ -179,7 +180,7 @@ pub fn lending_account_borrow<'info>(
         &mut Some(&mut health_cache),
     );
     risk_result?;
-
+    health_cache.program_version = PROGRAM_VERSION;
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 

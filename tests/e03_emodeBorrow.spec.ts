@@ -23,15 +23,21 @@ import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { USER_ACCOUNT_E } from "./utils/mocks";
-import { accountInit, borrowIx, depositIx } from "./utils/user-instructions";
+import {
+  accountInit,
+  borrowIx,
+  composeRemainingAccounts,
+  depositIx,
+} from "./utils/user-instructions";
 import { bytesToF64 } from "./utils/tools";
 
+// Banks are listed here in the sorted-by-public-keys order - the same used in the lending account balances
 const seed = new BN(EMODE_SEED);
 let usdcBank: PublicKey;
-let stableBank: PublicKey;
-let solBank: PublicKey;
-let lstABank: PublicKey;
 let lstBBank: PublicKey;
+let stableBank: PublicKey;
+let lstABank: PublicKey;
+let solBank: PublicKey;
 
 describe("Emode borrowing", () => {
   before(async () => {
@@ -41,17 +47,11 @@ describe("Emode borrowing", () => {
       ecosystem.usdcMint.publicKey,
       seed
     );
-    [stableBank] = deriveBankWithSeed(
+    [lstBBank] = deriveBankWithSeed(
       bankrunProgram.programId,
       emodeGroup.publicKey,
-      ecosystem.usdcMint.publicKey,
+      ecosystem.lstAlphaMint.publicKey,
       seed.addn(1)
-    );
-    [solBank] = deriveBankWithSeed(
-      bankrunProgram.programId,
-      emodeGroup.publicKey,
-      ecosystem.wsolMint.publicKey,
-      seed
     );
     [lstABank] = deriveBankWithSeed(
       bankrunProgram.programId,
@@ -59,10 +59,16 @@ describe("Emode borrowing", () => {
       ecosystem.lstAlphaMint.publicKey,
       seed
     );
-    [lstBBank] = deriveBankWithSeed(
+    [solBank] = deriveBankWithSeed(
       bankrunProgram.programId,
       emodeGroup.publicKey,
-      ecosystem.lstAlphaMint.publicKey,
+      ecosystem.wsolMint.publicKey,
+      seed
+    );
+    [stableBank] = deriveBankWithSeed(
+      bankrunProgram.programId,
+      emodeGroup.publicKey,
+      ecosystem.usdcMint.publicKey,
       seed.addn(1)
     );
   });
@@ -206,12 +212,10 @@ describe("Emode borrowing", () => {
         marginfiAccount: userAccount,
         bank: lstABank,
         tokenAccount: user.lstAlphaAccount,
-        remaining: [
-          solBank,
-          oracles.wsolOracle.publicKey,
-          lstABank,
-          oracles.pythPullLst.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [solBank, oracles.wsolOracle.publicKey],
+          [lstABank, oracles.pythPullLst.publicKey],
+        ]),
         amount: new BN(lstBorrow * 10 ** ecosystem.lstAlphaDecimals),
       })
     );
@@ -260,20 +264,16 @@ describe("Emode borrowing", () => {
   it("(user 0) tries to borrow a trivial amount of USDC - fails, emode error", async () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_E);
-
     let tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
         bank: usdcBank,
         tokenAccount: user.usdcAccount,
-        remaining: [
-          solBank,
-          oracles.wsolOracle.publicKey,
-          lstABank,
-          oracles.pythPullLst.publicKey,
-          usdcBank,
-          oracles.usdcOracle.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [solBank, oracles.wsolOracle.publicKey],
+          [lstABank, oracles.pythPullLst.publicKey],
+          [usdcBank, oracles.usdcOracle.publicKey],
+        ]),
         amount: new BN(0.000001 * 10 ** ecosystem.usdcDecimals),
       })
     );
@@ -293,7 +293,7 @@ describe("Emode borrowing", () => {
    */
   const lstADeposit = 10;
   const lstBBorrow = 7.3;
-  it("(user 1) borrows LST A against LST B at a favorable rate - happy path", async () => {
+  it("(user 1) borrows LST B against LST A at a favorable rate - happy path", async () => {
     const user = users[1];
     const userAccount = user.accounts.get(USER_ACCOUNT_E);
 
@@ -315,12 +315,10 @@ describe("Emode borrowing", () => {
         marginfiAccount: userAccount,
         bank: lstBBank,
         tokenAccount: user.lstAlphaAccount,
-        remaining: [
-          lstABank,
-          oracles.pythPullLst.publicKey,
-          lstBBank,
-          oracles.pythPullLst.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [lstABank, oracles.pythPullLst.publicKey],
+          [lstBBank, oracles.pythPullLst.publicKey],
+        ]),
         amount: new BN(lstBBorrow * 10 ** ecosystem.lstAlphaDecimals),
       })
     );
@@ -381,14 +379,11 @@ describe("Emode borrowing", () => {
         marginfiAccount: userAccount,
         bank: solBank,
         tokenAccount: user.wsolAccount,
-        remaining: [
-          lstABank,
-          oracles.pythPullLst.publicKey,
-          lstBBank,
-          oracles.pythPullLst.publicKey,
-          solBank,
-          oracles.wsolOracle.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [lstABank, oracles.pythPullLst.publicKey],
+          [lstBBank, oracles.pythPullLst.publicKey],
+          [solBank, oracles.wsolOracle.publicKey],
+        ]),
         amount: new BN(0.000001 * 10 ** ecosystem.wsolDecimals),
       })
     );

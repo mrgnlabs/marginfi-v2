@@ -2,9 +2,9 @@
 use crate::constants::STAKED_SETTINGS_SEED;
 use crate::state::marginfi_group::{RiskTier, WrappedI80F48};
 use crate::state::staked_settings::StakedSettings;
+use crate::utils::wrapped_i80f48_to_f64;
 use crate::MarginfiGroup;
 use anchor_lang::prelude::*;
-use fixed::types::I80F48;
 
 pub fn initialize_staked_settings(
     ctx: Context<InitStakedSettings>,
@@ -29,10 +29,8 @@ pub fn initialize_staked_settings(
         staked_settings.oracle,
         staked_settings.oracle_max_age
     );
-    let init: I80F48 = staked_settings.asset_weight_init.into();
-    let maint: I80F48 = staked_settings.asset_weight_maint.into();
-    let init_f64: f64 = init.to_num();
-    let maint_f64: f64 = maint.to_num();
+    let init_f64: f64 = wrapped_i80f48_to_f64(staked_settings.asset_weight_init);
+    let maint_f64: f64 = wrapped_i80f48_to_f64(staked_settings.asset_weight_maint);
     msg!("asset weight init: {:?} maint: {:?}", init_f64, maint_f64);
     msg!(
         "deposit limit: {:?} value limit: {:?} risk tier: {:?}",

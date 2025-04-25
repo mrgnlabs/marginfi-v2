@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use anchor_lang::{
     prelude::{AccountInfo, AccountLoader, Pubkey},
@@ -80,38 +80,32 @@ impl<'info> UserAccount<'info> {
             AccountLoader::<MarginfiAccount>::try_from(&self.margin_account).unwrap();
         let marginfi_account = marginfi_account_al.load().unwrap();
 
-        let mut already_included_banks = HashSet::new();
-
-        let mut ais = marginfi_account
+        let mut bank_pks = marginfi_account
             .lending_account
             .balances
             .iter()
-            .filter(|a| a.is_active() && !exclude_banks.contains(&a.bank_pk))
-            .flat_map(|balance| {
-                let bank_accounts = bank_map.get(&balance.bank_pk).unwrap();
-                assert_eq!(balance.bank_pk, bank_accounts.bank.key());
+            .filter_map(|balance| balance.is_active().then_some(balance.bank_pk))
+            .collect::<Vec<_>>();
 
-                already_included_banks.insert(bank_accounts.bank.key());
+        for bank_pk in include_banks {
+            if !bank_pks.contains(&bank_pk) {
+                bank_pks.push(bank_pk);
+            }
+        }
 
+        bank_pks.retain(|bank_pk| !exclude_banks.contains(bank_pk));
+
+        // Sort all bank_pks in descending order
+        bank_pks.sort_by(|a, b| b.cmp(a));
+
+        let ais = bank_pks
+            .into_iter()
+            .flat_map(|bank_pk| {
+                let bank_accounts = bank_map.get(&bank_pk).unwrap();
+                assert_eq!(bank_pk, bank_accounts.bank.key());
                 [bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
             })
             .collect::<Vec<_>>();
-
-        let missing_banks = include_banks
-            .iter()
-            .filter(|key| !already_included_banks.contains(key))
-            .collect::<Vec<_>>();
-
-        let mut missing_bank_ais = missing_banks
-            .iter()
-            .flat_map(|key| {
-                let bank_accounts = bank_map.get(key).unwrap();
-
-                [bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
-            })
-            .collect::<Vec<AccountInfo>>();
-
-        ais.append(&mut missing_bank_ais);
 
         ais
     }

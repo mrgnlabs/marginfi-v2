@@ -269,6 +269,16 @@ pub mod marginfi {
         marginfi_account::lending_account_pulse_health(ctx)
     }
 
+    /// (Permissionless) Sorts the lending account balances in descending order and removes the "gaps"
+    /// (i.e. inactive balances in between the active ones), if any.
+    /// This is necessary to ensure any legacy marginfi accounts are compliant with the
+    /// "gapless and sorted" requirements we now have.
+    pub fn lending_account_sort_balances<'info>(
+        ctx: Context<'_, '_, 'info, 'info, SortBalances<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_sort_balances(ctx)
+    }
+
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees
     /// that are assessed to the protocol
     pub fn init_global_fee_state(

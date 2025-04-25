@@ -808,28 +808,27 @@ impl<'info> RiskEngine<'_> {
         Ok(())
     }
 
-    // TODO this function seems excessive relative to the trivial check it performs, it performs
-    // like 4x O(N) loops and should be optimized at minimum.
     fn check_account_risk_tiers(&self) -> MarginfiResult {
-        let balances_with_liablities = self
-            .bank_accounts_with_price
-            .iter()
-            .filter(|a| !a.balance.is_empty(BalanceSide::Liabilities));
+        let mut isolated_risk_count = 0;
+        let mut total_liability_balances = 0;
 
-        let n_balances_with_liablities = balances_with_liablities.clone().count();
+        for account in self.bank_accounts_with_price.iter() {
+            if account.balance.is_empty(BalanceSide::Liabilities) {
+                continue;
+            }
+            total_liability_balances += 1;
 
-        let mut is_in_isolated_risk_tier = false;
-
-        for a in balances_with_liablities {
-            let bank = &a.bank;
-            if bank.config.risk_tier == RiskTier::Isolated {
-                is_in_isolated_risk_tier = true;
-                break;
+            if account.bank.config.risk_tier == RiskTier::Isolated {
+                isolated_risk_count += 1;
+                // Early exit if we find more than one isolated risk tier with liabilities
+                if isolated_risk_count > 1 {
+                    break;
+                }
             }
         }
 
         check!(
-            !is_in_isolated_risk_tier || n_balances_with_liablities == 1,
+            isolated_risk_count == 0 || total_liability_balances == 1,
             MarginfiError::IsolatedAccountIllegalState
         );
 
@@ -853,6 +852,11 @@ pub struct LendingAccount {
 impl LendingAccount {
     pub fn get_first_empty_balance(&self) -> Option<usize> {
         self.balances.iter().position(|b| !b.is_active())
+    }
+
+    pub fn sort_balances(&mut self) {
+        // Sort all balances in descending order by bank_pk
+        self.balances.sort_by(|a, b| b.bank_pk.cmp(&a.bank_pk));
     }
 }
 

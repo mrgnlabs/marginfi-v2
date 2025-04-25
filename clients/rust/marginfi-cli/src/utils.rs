@@ -169,6 +169,9 @@ pub fn load_observation_account_metas(
 
     bank_pks.retain(|bank_pk| !exclude_banks.contains(bank_pk));
 
+    // Sort all bank_pks in descending order
+    bank_pks.sort_by(|a, b| b.cmp(a));
+
     let mut banks = vec![];
     for bank_pk in bank_pks.clone() {
         let bank = banks_map.get(&bank_pk).unwrap();

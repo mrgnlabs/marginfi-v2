@@ -155,7 +155,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 
     // Settle bad debt.
     // The liabilities of this account and global total liabilities are reduced by `bad_debt`
-    BankAccountWrapper::find_or_create(
+    BankAccountWrapper::find(
         &bank_loader.key(),
         &mut bank,
         &mut marginfi_account.lending_account,

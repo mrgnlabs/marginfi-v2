@@ -147,6 +147,8 @@ pub fn lending_account_liquidate<'info>(
         ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
     let liquidatee_remaining_accounts = &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
 
+    liquidatee_marginfi_account.lending_account.sort_balances();
+
     let pre_liquidation_health: I80F48 =
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
             .check_pre_liquidation_condition_and_get_account_health(
@@ -302,7 +304,7 @@ pub fn lending_account_liquidate<'info>(
             // Liquidatee receives liability payment
             let liab_bank_liquidity_authority_bump = liab_bank.liquidity_vault_authority_bump;
 
-            let mut liquidatee_liab_bank_account = BankAccountWrapper::find_or_create(
+            let mut liquidatee_liab_bank_account = BankAccountWrapper::find(
                 &ctx.accounts.liab_bank.key(),
                 &mut liab_bank,
                 &mut liquidatee_marginfi_account.lending_account,
@@ -389,6 +391,10 @@ pub fn lending_account_liquidate<'info>(
             )?;
 
     // TODO consider if health cache update here is worth blowing the extra CU
+
+    liquidator_marginfi_account.lending_account.sort_balances();
+
+    // Verify liquidator account health
     let (risk_result, _engine) = RiskEngine::check_account_init_health(
         &liquidator_marginfi_account,
         liquidator_remaining_accounts,

@@ -1,4 +1,3 @@
-use super::marginfi_group::BankConfig;
 use crate::{
     check, check_eq,
     constants::{
@@ -23,6 +22,8 @@ use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{
     CurrentResult, Discriminator, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID,
 };
+
+use super::marginfi_group::BankConfig;
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]

@@ -16,7 +16,10 @@ import {
   verbose,
 } from "./rootHooks";
 import { assert } from "chai";
-import { healthPulse } from "./utils/user-instructions";
+import {
+  composeRemainingAccounts,
+  healthPulse,
+} from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import {
@@ -43,12 +46,10 @@ describe("Health pulse", () => {
       new Transaction().add(
         await healthPulse(user.mrgnProgram, {
           marginfiAccount: acc,
-          remaining: [
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-            bankKeypairA.publicKey,
-            oracles.fakeUsdc, // sneaky sneaky
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey, oracles.fakeUsdc], // sneaky sneaky
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+          ]),
         })
       )
     );
@@ -101,12 +102,10 @@ describe("Health pulse", () => {
       new Transaction().add(
         await healthPulse(user.mrgnProgram, {
           marginfiAccount: acc,
-          remaining: [
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+          ]),
         })
       )
     );
@@ -154,8 +153,8 @@ describe("Health pulse", () => {
     // Note: Technically this is wrong, our test suite doesn't have any ema confidence for legacy
     // pyth oracles so the price uses the actual value. You can note that for an oracle with a valid
     // ema conf like LST the value here will be price - conf.
-    assert.approximately(bytesToF64(cA.prices[0]), oracles.usdcPrice, t);
-    assert.approximately(bytesToF64(cA.prices[1]), oracles.tokenAPrice, t);
+    assert.approximately(bytesToF64(cA.prices[0]), oracles.tokenAPrice, t);
+    assert.approximately(bytesToF64(cA.prices[1]), oracles.usdcPrice, t);
   });
 
   it("(user 0) health pulse in unhealthy state - happy path", async () => {
@@ -165,12 +164,10 @@ describe("Health pulse", () => {
       new Transaction().add(
         await healthPulse(user.mrgnProgram, {
           marginfiAccount: acc,
-          remaining: [
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+          ]),
         })
       )
     );
@@ -287,12 +284,10 @@ describe("Health pulse", () => {
       new Transaction().add(
         await healthPulse(user.mrgnProgram, {
           marginfiAccount: acc,
-          remaining: [
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+          ]),
         })
       )
     );

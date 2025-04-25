@@ -130,6 +130,8 @@ pub fn lending_account_deposit<'info>(
         amount: deposit_amount,
     });
 
+    marginfi_account.lending_account.sort_balances();
+
     Ok(())
 }
 

@@ -434,8 +434,14 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
             *DEFAULT_USDC_TEST_BANK_CONFIG,
         ),
         (
-            MintFixture::new(test_f.context.clone(), None, None).await,
-            *DEFAULT_SOL_TEST_BANK_CONFIG,
+            MintFixture::new_token_22(
+                test_f.context.clone(),
+                None,
+                None,
+                &[SupportedExtension::TransferFee],
+            )
+            .await,
+            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
         ),
     ];
 

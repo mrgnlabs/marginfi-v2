@@ -12,11 +12,7 @@ import {
   PYTH_ORACLE_FEED_SAMPLE,
   users,
 } from "./rootHooks";
-import {
-  assertBNEqual,
-  assertI80F48Approx,
-  assertKeysEqual,
-} from "./utils/genericTests";
+import { assertI80F48Approx, assertKeysEqual } from "./utils/genericTests";
 import { addBankWithSeed, groupInitialize } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { assert } from "chai";

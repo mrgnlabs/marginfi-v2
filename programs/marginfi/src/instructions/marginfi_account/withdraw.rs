@@ -66,11 +66,9 @@ pub fn lending_account_withdraw<'info>(
 
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
 
-        let mut bank_account = BankAccountWrapper::find(
-            &bank_loader.key(),
-            &mut bank,
-            &mut marginfi_account.lending_account,
-        )?;
+        let lending_account = &mut marginfi_account.lending_account;
+        let mut bank_account =
+            BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
         let amount_pre_fee = if withdraw_all {
             bank_account.withdraw_all()?
@@ -92,7 +90,7 @@ pub fn lending_account_withdraw<'info>(
             amount_pre_fee
         };
 
-        bank_account.withdraw_spl_transfer(
+        bank.withdraw_spl_transfer(
             amount_pre_fee,
             bank_liquidity_vault.to_account_info(),
             destination_token_account.to_account_info(),
@@ -123,7 +121,8 @@ pub fn lending_account_withdraw<'info>(
 
     let mut health_cache = HealthCache::zeroed();
     health_cache.timestamp = clock.unix_timestamp;
-    health_cache.program_version = PROGRAM_VERSION;
+
+    marginfi_account.lending_account.sort_balances();
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
@@ -133,6 +132,8 @@ pub fn lending_account_withdraw<'info>(
         &mut Some(&mut health_cache),
     );
     risk_result?;
+    health_cache.program_version = PROGRAM_VERSION;
+
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 

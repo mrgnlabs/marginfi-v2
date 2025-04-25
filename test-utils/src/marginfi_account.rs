@@ -1,6 +1,7 @@
 use super::{bank::BankFixture, prelude::*};
 use crate::ui_to_native;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
+use fixed::types::I80F48;
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankVaultType},
@@ -734,6 +735,9 @@ impl MarginfiAccountFixture {
         }
         bank_pks.retain(|bank_pk| !exclude_banks.contains(bank_pk));
 
+        // Sort all bank_pks in descending order
+        bank_pks.sort_by(|a, b| b.cmp(a));
+
         // Load all banks
         let mut banks = vec![];
         for bank_pk in bank_pks.clone() {
@@ -880,5 +884,19 @@ impl MarginfiAccountFixture {
         ctx.banks_client
             .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
             .await
+    }
+
+    pub async fn nullify_assets_for_bank(&mut self, bank_pk: Pubkey) -> anyhow::Result<()> {
+        let mut user_mfi_account: MarginfiAccount = self.load().await;
+
+        let balance_index = user_mfi_account
+            .lending_account
+            .balances
+            .iter()
+            .position(|b| b.is_active() && b.bank_pk == bank_pk)
+            .unwrap();
+
+        user_mfi_account.lending_account.balances[balance_index].asset_shares = I80F48::ZERO.into();
+        self.set_account(&user_mfi_account).await
     }
 }

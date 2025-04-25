@@ -227,7 +227,7 @@ export const assertBankrunTxFailed = (
  */
 export function logContainsError(logs: string[], errorCode: string): boolean {
   if (!logs || !Array.isArray(logs)) {
-    throw new Error("Invalid logs provided for verification.");
+    throw new Error("Invalid logs provided for verification:" + logs);
   }
 
   return logs.some((log) => log.includes(`Error Code: ${errorCode}`));
