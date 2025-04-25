@@ -61,7 +61,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
 
     // Let a year go by
     {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
         // Advance clock by 1 year
         clock.unix_timestamp += 365 * 24 * 60 * 60;

@@ -109,7 +109,7 @@ impl Metrics {
     pub fn get_print_string(&self) -> String {
         format!("Deposit\t{}\t{}\tWithd\t{}\t{}\tBorrow\t{}\t{}\tRepay\t{}\t{}\tLiq\t{}\t{}\tBank\t{}\t{}\tUpdate\t{}",
             self.deposit_s,
-            self.deposit_e,    
+            self.deposit_e,
             self.withdraw_s,
             self.withdraw_e,
             self.borrow_s,

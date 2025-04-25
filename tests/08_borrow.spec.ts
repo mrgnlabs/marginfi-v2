@@ -25,7 +25,11 @@ import {
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { borrowIx, composeRemainingAccounts, repayIx } from "./utils/user-instructions";
+import {
+  borrowIx,
+  composeRemainingAccounts,
+  repayIx,
+} from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { updatePriceAccount } from "./utils/pyth_mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
@@ -85,9 +89,7 @@ describe("Borrow funds", () => {
       wallet
     );
 
-    const solPrice = BigInt(
-      oracles.wsolPrice * 10 ** oracles.wsolDecimals
-    );
+    const solPrice = BigInt(oracles.wsolPrice * 10 ** oracles.wsolDecimals);
     await updatePriceAccount(
       oracles.wsolOracle,
       {
@@ -130,6 +132,31 @@ describe("Borrow funds", () => {
     }, "WrongOracleAccountKeys");
   });
 
+  it("(user 0) borrows USDC against their token A position - happy path", async () => {
+    const user = users[0];
+    const user0Account = user.accounts.get(USER_ACCOUNT);
+    const bank = bankKeypairUsdc.publicKey;
+    await expectFailedTxWithError(async () => {
+      await user.mrgnProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          await borrowIx(user.mrgnProgram, {
+            marginfiAccount: user0Account,
+            bank: bank,
+            tokenAccount: user.usdcAccount,
+            remaining: [
+              bankKeypairA.publicKey,
+              oracles.tokenAOracle.publicKey,
+              bank,
+              oracles.fakeUsdc, // sneaky sneaky...
+            ],
+            amount: borrowAmountUsdc_native,
+          })
+        )
+      );
+      // Note: you can now see expected vs actual keys in the msg! logs just before this error.
+    }, "WrongOracleAccountKeys");
+  });
+
   it("(user 0) borrows SOL (isolated tier) against their token A position - happy path", async () => {
     const user = users[0];
     const user0Account = user.accounts.get(USER_ACCOUNT);
@@ -141,10 +168,8 @@ describe("Borrow funds", () => {
           bank: bankKeypairSol.publicKey,
           tokenAccount: user.wsolAccount,
           remaining: composeRemainingAccounts([
-            [bankKeypairSol.publicKey,
-            oracles.wsolOracle.publicKey],
-            [bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey],
+            [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
           ]),
           amount: borrowAmountSol_native,
         })
@@ -166,10 +191,8 @@ describe("Borrow funds", () => {
           bank: bankKeypairSol.publicKey,
           tokenAccount: user.wsolAccount,
           remaining: composeRemainingAccounts([
-            [bankKeypairSol.publicKey,
-            oracles.wsolOracle.publicKey],
-            [bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey],
+            [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
           ]),
           amount: new BN(0),
           repayAll: true,
@@ -184,15 +207,15 @@ describe("Borrow funds", () => {
       console.log("user 0 USDC before: " + userUsdcBefore.toLocaleString());
       console.log(
         "usdc fees owed to bank: " +
-        wrappedI80F48toBigNumber(
-          bankBefore.collectedGroupFeesOutstanding
-        ).toString()
+          wrappedI80F48toBigNumber(
+            bankBefore.collectedGroupFeesOutstanding
+          ).toString()
       );
       console.log(
         "usdc fees owed to program: " +
-        wrappedI80F48toBigNumber(
-          bankBefore.collectedProgramFeesOutstanding
-        ).toString()
+          wrappedI80F48toBigNumber(
+            bankBefore.collectedProgramFeesOutstanding
+          ).toString()
       );
     }
 
@@ -223,23 +246,23 @@ describe("Borrow funds", () => {
       console.log("user 0 USDC after: " + userUsdcAfter.toLocaleString());
       console.log(
         "usdc fees owed to bank: " +
-        wrappedI80F48toBigNumber(
-          bankAfter.collectedGroupFeesOutstanding
-        ).toString()
+          wrappedI80F48toBigNumber(
+            bankAfter.collectedGroupFeesOutstanding
+          ).toString()
       );
       console.log(
         "usdc fees owed to program: " +
-        wrappedI80F48toBigNumber(
-          bankAfter.collectedProgramFeesOutstanding
-        ).toString()
+          wrappedI80F48toBigNumber(
+            bankAfter.collectedProgramFeesOutstanding
+          ).toString()
       );
     }
 
     assert.equal(balances[1].active, 1);
 
     // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
-    const borrowIndex = balances.findIndex(
-      (balance) => balance.bankPk.equals(bank)
+    const borrowIndex = balances.findIndex((balance) =>
+      balance.bankPk.equals(bank)
     );
 
     assertI80F48Equal(balances[borrowIndex].assetShares, 0);
@@ -249,7 +272,10 @@ describe("Borrow funds", () => {
     const amtUsdcWithFee_native = new BN(
       borrowAmountUsdc_native.toNumber() + originationFee_native
     );
-    assertI80F48Approx(balances[borrowIndex].liabilityShares, amtUsdcWithFee_native);
+    assertI80F48Approx(
+      balances[borrowIndex].liabilityShares,
+      amtUsdcWithFee_native
+    );
     assertI80F48Equal(balances[borrowIndex].emissionsOutstanding, 0);
 
     let now = Math.floor(Date.now() / 1000);
@@ -291,12 +317,9 @@ describe("Borrow funds", () => {
             bank: bankKeypairSol.publicKey,
             tokenAccount: user.wsolAccount,
             remaining: composeRemainingAccounts([
-              [bankKeypairA.publicKey,
-              oracles.tokenAOracle.publicKey],
-              [bankKeypairUsdc.publicKey,
-              oracles.usdcOracle.publicKey],
-              [bankKeypairSol.publicKey,
-              oracles.wsolOracle.publicKey],
+              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+              [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+              [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
             ]),
             amount: borrowAmountSol_native,
           })

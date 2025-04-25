@@ -1,6 +1,6 @@
 use crate::{
     bank_signer, check,
-    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, PROGRAM_VERSION},
     events::{AccountEventHeader, LendingAccountBorrowEvent},
     math_error,
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
@@ -12,10 +12,10 @@ use crate::{
     utils::{self, validate_asset_tags},
 };
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use solana_program::{clock::Clock, sysvar::Sysvar};
 
 /// 1. Accrue interest
 /// 2. Create the user's bank account for the asset borrowed if it does not exist yet
@@ -174,11 +174,13 @@ pub fn lending_account_borrow<'info>(
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    RiskEngine::check_account_init_health(
+    let (risk_result, _engine) = RiskEngine::check_account_init_health(
         &marginfi_account,
         ctx.remaining_accounts,
         &mut Some(&mut health_cache),
-    )?;
+    );
+    risk_result?;
+    health_cache.program_version = PROGRAM_VERSION;
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 

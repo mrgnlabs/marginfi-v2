@@ -4,7 +4,7 @@ use fixtures::{
 };
 use marginfi::errors::MarginfiError;
 use solana_program_test::tokio;
-use switchboard_solana::Clock;
+use solana_sdk::clock::Clock;
 
 #[tokio::test]
 async fn lending_account_close_balance() -> anyhow::Result<()> {
@@ -76,7 +76,7 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
 
     // Let a second go b
     {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
         // Advance clock by 1 second
         clock.unix_timestamp += 1;

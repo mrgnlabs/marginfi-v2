@@ -18,9 +18,7 @@ use test_case::test_case;
 
 #[test_case(100., 9., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123456.0, 12345.599999999, BankMint::Usdc, BankMint::Sol)]
-#[test_case(123456.0, 10000., BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(1.0, 5.0, BankMint::Sol, BankMint::Usdc)]
-#[test_case(128932.0, 9834.0, BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 1.7, BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(200., 1.1, BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
@@ -197,8 +195,7 @@ async fn marginfi_account_borrow_success(
     for (i, bal) in marginfi_account.lending_account.balances.iter().enumerate() {
         let shares: I80F48 = bal.asset_shares.into();
         if bal.is_active() {
-            let price: I80F48 = health_cache.prices[i].into();
-            let price: f64 = price.to_num();
+            let price: f64 = f64::from_le_bytes(health_cache.prices[i]);
             if shares != I80F48::ZERO {
                 assert!(price >= (collateral_price_roughly * disc));
             } else {
@@ -212,9 +209,7 @@ async fn marginfi_account_borrow_success(
 
 #[test_case(100., 9., 10.000000001, BankMint::Usdc, BankMint::Sol)]
 #[test_case(123_456., 12_345.6, 12_345.9, BankMint::Usdc, BankMint::Sol)]
-#[test_case(123_456., 10_000., 15_000., BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(1., 5., 11.98224, BankMint::Sol, BankMint::Usdc)]
-#[test_case(128_932., 10_000., 15_000.0, BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(240., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(1., 100., 155.1, BankMint::SolSwbPull, BankMint::Usdc)] // Sol @ ~ $153
@@ -304,9 +299,7 @@ async fn marginfi_account_borrow_failure_not_enough_collateral(
 
 #[test_case(505., 500., 505.0000000001, BankMint::Usdc, BankMint::Sol)]
 #[test_case(12_345.6, 12_345.5, 12_345.9, BankMint::Usdc, BankMint::Sol)]
-#[test_case(11_000., 10_000., 15_000., BankMint::UsdcSwb, BankMint::Sol)]
 #[test_case(0.91, 0.1, 0.98, BankMint::Sol, BankMint::Usdc)]
-#[test_case(11_000., 10_000., 15_000., BankMint::PyUSD, BankMint::SolSwb)]
 #[test_case(505., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(1.8, 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(1.5, 1.4, 1.6, BankMint::SolSwbPull, BankMint::Usdc)]

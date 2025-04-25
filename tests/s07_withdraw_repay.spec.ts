@@ -14,14 +14,9 @@ import {
 } from "./rootHooks";
 import { deriveBankWithSeed, deriveStakedSettings } from "./utils/pdas";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import {
-  wrappedI80F48toBigNumber,
-} from "@mrgnlabs/mrgn-common";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { assert } from "chai";
-import {
-  getTokenBalance,
-  assertI80F48Equal,
-} from "./utils/genericTests";
+import { getTokenBalance, assertI80F48Equal } from "./utils/genericTests";
 import { LST_ATA, USER_ACCOUNT } from "./utils/mocks";
 import {
   borrowIx,
@@ -72,12 +67,13 @@ describe("Withdraw staked asset", () => {
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
-          [validators[0].bank,
-          oracles.wsolOracle.publicKey,
-          validators[0].splMint,
-          validators[0].splSolPool],
-          [bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey],
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         amount: new BN(0.5 * 10 ** ecosystem.wsolDecimals),
       })
@@ -102,12 +98,13 @@ describe("Withdraw staked asset", () => {
         tokenAccount: userLstAta,
         amount: new BN(amtNative),
         remaining: composeRemainingAccounts([
-          [validators[0].bank,
-          oracles.wsolOracle.publicKey,
-          validators[0].splMint,
-          validators[0].splSolPool],
-          [bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey],
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
       })
     );
@@ -142,12 +139,13 @@ describe("Withdraw staked asset", () => {
         tokenAccount: user.wsolAccount,
         amount: new BN(amtNative),
         remaining: composeRemainingAccounts([
-          [validators[0].bank,
-          oracles.wsolOracle.publicKey,
-          validators[0].splMint,
-          validators[0].splSolPool],
-          [bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey],
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
       })
     );
@@ -198,12 +196,13 @@ describe("Withdraw staked asset", () => {
         tokenAccount: user.wsolAccount,
         amount: new BN(amtNative),
         remaining: composeRemainingAccounts([
-          [validators[0].bank,
-          oracles.wsolOracle.publicKey,
-          validators[0].splMint,
-          validators[0].splSolPool],
-          [bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey],
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         repayAll: true,
       })
@@ -251,12 +250,13 @@ describe("Withdraw staked asset", () => {
         tokenAccount: userLstAta,
         amount: new BN(amtNative),
         remaining: composeRemainingAccounts([
-          [validators[0].bank,
-          oracles.wsolOracle.publicKey,
-          validators[0].splMint,
-          validators[0].splSolPool],
-          [bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey],
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         withdrawAll: true,
       })

@@ -102,10 +102,8 @@ describe("Withdraw funds", () => {
             bank: bank,
             tokenAccount: user.tokenAAccount,
             remaining: composeRemainingAccounts([
-              [bankKeypairUsdc.publicKey,
-              oracles.fakeUsdc],
-              [bankKeypairA.publicKey,
-              oracles.tokenAOracle.publicKey],
+              [bankKeypairUsdc.publicKey, oracles.fakeUsdc],
+              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
             ]),
             amount: withdrawAmountTokenA_native,
           })
@@ -136,10 +134,8 @@ describe("Withdraw funds", () => {
           bank: bank,
           tokenAccount: user.tokenAAccount,
           remaining: composeRemainingAccounts([
-            [bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey],
-            [bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey],
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
           ]),
           amount: withdrawAmountTokenA_native,
         })
@@ -160,10 +156,10 @@ describe("Withdraw funds", () => {
     if (verbose) {
       console.log(
         "User 0 withdrew " +
-        withdrawAmountTokenA +
-        " token A (" +
-        withdrawExpected.toString() +
-        ") native"
+          withdrawAmountTokenA +
+          " token A (" +
+          withdrawExpected.toString() +
+          ") native"
       );
     }
 
@@ -211,10 +207,8 @@ describe("Withdraw funds", () => {
           bank: bank,
           tokenAccount: user.usdcAccount,
           remaining: composeRemainingAccounts([
-            [bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey],
-            [bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey],
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
           ]),
           amount: repayAmountUsdc_native,
         })
@@ -233,10 +227,10 @@ describe("Withdraw funds", () => {
     if (verbose) {
       console.log(
         "User 0 repaid " +
-        repayAmountUsdc +
-        " usdc (" +
-        repayExpected.toString() +
-        ") native"
+          repayAmountUsdc +
+          " usdc (" +
+          repayExpected.toString() +
+          ") native"
       );
     }
 
@@ -276,10 +270,8 @@ describe("Withdraw funds", () => {
             bank: bank,
             tokenAccount: user.usdcAccount,
             remaining: composeRemainingAccounts([
-              [bankKeypairUsdc.publicKey,
-              oracles.usdcOracle.publicKey],
-              [bankKeypairA.publicKey,
-              oracles.tokenAOracle.publicKey],
+              [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
             ]),
             amount: u64MAX_BN,
             repayAll: true,
@@ -349,10 +341,8 @@ describe("Withdraw funds", () => {
           bank: bank,
           tokenAccount: user.usdcAccount,
           remaining: composeRemainingAccounts([
-            [bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey],
-            [bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey],
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
           ]),
           amount: u64MAX_BN,
           repayAll: true,
@@ -429,6 +419,8 @@ describe("Withdraw funds", () => {
           remaining: [
             bankKeypairA.publicKey,
             oracles.tokenAOracle.publicKey,
+            bankKeypairUsdc.publicKey,
+            oracles.usdcOracle.publicKey,
           ],
           amount: withdrawAmountTokenA_native,
           withdrawAll: true,
@@ -491,16 +483,16 @@ describe("Withdraw funds", () => {
           marginfiAccount: userAccKey,
           bank: bank,
           tokenAccount: user.wsolAccount,
-          remaining: [
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey],
+          remaining: [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
           amount: new BN(0),
           withdrawAll: true,
         })
       )
     );
 
-    const userAccAfter = await program.account.marginfiAccount.fetch(userAccKey);
+    const userAccAfter = await program.account.marginfiAccount.fetch(
+      userAccKey
+    );
     const balancesAfter = userAccAfter.lendingAccount.balances;
 
     // This balance is now inactive
@@ -539,10 +531,8 @@ describe("Withdraw funds", () => {
           bank: bankKeypairUsdc.publicKey,
           tokenAccount: user.usdcAccount,
           remaining: composeRemainingAccounts([
-            [bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey],
-            [bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
           ]),
           amount: borrowAmountUsdc_native,
         })

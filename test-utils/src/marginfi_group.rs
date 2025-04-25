@@ -462,7 +462,7 @@ impl MarginfiGroupFixture {
     }
 
     pub async fn try_accrue_interest(&self, bank: &BankFixture) -> Result<()> {
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {
             program_id: marginfi::id(),
@@ -524,7 +524,7 @@ impl MarginfiGroupFixture {
     }
 
     pub async fn try_collect_fees(&self, bank: &BankFixture) -> Result<()> {
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
         let fee_ata = get_associated_token_address_with_program_id(
             &self.fee_wallet,
@@ -544,7 +544,7 @@ impl MarginfiGroupFixture {
             fee_ata,
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -592,7 +592,7 @@ impl MarginfiGroupFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -602,7 +602,7 @@ impl MarginfiGroupFixture {
                 .await,
         );
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {
             program_id: marginfi::id(),

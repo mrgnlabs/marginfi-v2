@@ -1,6 +1,6 @@
 [package]
 name = "marginfi"
-version = "0.1.2"
+version = "0.1.3"
 description = "Created with Anchor"
 edition = "2021"
 
@@ -24,43 +24,42 @@ debug = []
 staging = []
 
 [dependencies]
-solana-program = { workspace = true }
+# solana-program = { workspace = true }
 spl-transfer-hook-interface = { workspace = true }
-spl-tlv-account-resolution = { workspace = true }
+# spl-tlv-account-resolution = { workspace = true }
 
 anchor-lang = { workspace = true }
-anchor-lang-29 = { workspace = true }
 anchor-spl = { workspace = true }
 
 pyth-sdk-solana = { workspace = true }
 pyth-solana-receiver-sdk = { workspace = true }
 pythnet-sdk = { workspace = true }
-switchboard-solana = { workspace = true }
+# switchboard-solana = { workspace = true }
 switchboard-on-demand = { workspace = true }
-borsh = "0.10.3"
 
-bytemuck = "1.9.1"
+borsh = { workspace = true }
+bytemuck = { workspace = true }
+fixed = { workspace = true }
+fixed-macro = { workspace = true }
+lazy_static = { workspace = true }
+type-layout = { workspace = true }
+static_assertions = { workspace = true }
 cfg-if = "1.0.0"
-enum_dispatch = "0.3.11"
-fixed = "1.12.0"
-fixed-macro = "1.2.0"
-lazy_static = "1.4.0"
-static_assertions = "1.1.0"
-type-layout = "0.2.0"
+enum_dispatch = "0.3.13"
 solana-security-txt = "1.1.1"
 
 [dev-dependencies]
 solana-account-decoder = { workspace = true }
 solana-cli-output = { workspace = true }
 solana-program-test = { workspace = true }
-solana-logger = { workspace = true }
+# solana-logger = { workspace = true }
 solana-sdk = { workspace = true }
+fixtures = { workspace = true, package = "test-utilities" }
 
 anyhow = "1.0.66"
 assert_matches = "1.5.0"
 base64 = "0.21.0"
 bincode = "1.3.3"
-fixtures = { path = "../../test-utils", package = "test-utilities" }
 futures = "0.3.25"
 pretty_assertions = "1.2.1"
 rust_decimal = "*"

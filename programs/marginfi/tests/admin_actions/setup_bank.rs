@@ -13,8 +13,7 @@ use marginfi::{
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
-use solana_sdk::pubkey::Pubkey;
-use switchboard_solana::Clock;
+use solana_sdk::{clock::Clock, pubkey::Pubkey};
 use test_case::test_case;
 
 #[tokio::test]
@@ -30,14 +29,8 @@ async fn add_bank_success() -> anyhow::Result<()> {
             *DEFAULT_USDC_TEST_BANK_CONFIG,
         ),
         (
-            MintFixture::new_token_22(
-                test_f.context.clone(),
-                None,
-                None,
-                &[SupportedExtension::TransferFee],
-            )
-            .await,
-            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
+            MintFixture::new(test_f.context.clone(), None, None).await,
+            *DEFAULT_SOL_TEST_BANK_CONFIG,
         ),
         (
             MintFixture::new_from_file(&test_f.context.clone(), "src/fixtures/pyUSD.json"),
@@ -49,7 +42,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
         // Load the fee state before the start of the test
         let fee_balance_before: u64;
         {
-            let mut ctx = test_f.context.borrow_mut();
+            let ctx = test_f.context.borrow_mut();
             fee_balance_before = ctx
                 .banks_client
                 .get_account(fee_wallet)
@@ -133,7 +126,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
         // Load the fee state after the test
         let fee_balance_after: u64;
         {
-            let mut ctx = test_f.context.borrow_mut();
+            let ctx = test_f.context.borrow_mut();
             fee_balance_after = ctx
                 .banks_client
                 .get_account(fee_wallet)
@@ -163,14 +156,8 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             *DEFAULT_USDC_TEST_BANK_CONFIG,
         ),
         (
-            MintFixture::new_token_22(
-                test_f.context.clone(),
-                None,
-                None,
-                &[SupportedExtension::TransferFee],
-            )
-            .await,
-            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
+            MintFixture::new(test_f.context.clone(), None, None).await,
+            *DEFAULT_SOL_TEST_BANK_CONFIG,
         ),
         (
             MintFixture::new_from_file(&test_f.context.clone(), "src/fixtures/pyUSD.json"),
@@ -181,7 +168,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
     for (mint_f, bank_config) in mints {
         let fee_balance_before: u64;
         {
-            let mut ctx = test_f.context.borrow_mut();
+            let ctx = test_f.context.borrow_mut();
             fee_balance_before = ctx
                 .banks_client
                 .get_account(fee_wallet)
@@ -267,7 +254,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
 
         let fee_balance_after: u64;
         {
-            let mut ctx = test_f.context.borrow_mut();
+            let ctx = test_f.context.borrow_mut();
             fee_balance_after = ctx
                 .banks_client
                 .get_account(fee_wallet)
@@ -563,7 +550,7 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
     // Load bank and check that the emode settings got applied
     let loaded_bank: Bank = test_f.load_and_deserialize(&bank.key).await;
     let timestamp = {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let clock: Clock = ctx.banks_client.get_sysvar().await?;
         clock.unix_timestamp
     };
@@ -593,7 +580,7 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
     // Load bank and check that the emode settings got applied
     let loaded_bank: Bank = test_f.load_and_deserialize(&bank.key).await;
     let timestamp = {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let clock: Clock = ctx.banks_client.get_sysvar().await?;
         clock.unix_timestamp
     };

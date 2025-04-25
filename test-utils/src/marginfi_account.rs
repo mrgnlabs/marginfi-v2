@@ -10,8 +10,8 @@ use marginfi::state::{
 use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, signature::Keypair, signer::Signer,
-    transaction::Transaction,
+    commitment_config::CommitmentLevel, compute_budget::ComputeBudgetInstruction,
+    signature::Keypair, signer::Signer, transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
 
@@ -32,7 +32,7 @@ impl MarginfiAccountFixture {
         let account_key = Keypair::new();
 
         {
-            let mut ctx = ctx.borrow_mut();
+            let ctx = ctx.borrow_mut();
 
             let accounts = marginfi::accounts::MarginfiAccountInitialize {
                 marginfi_account: account_key.pubkey(),
@@ -53,7 +53,10 @@ impl MarginfiAccountFixture {
                 &[&ctx.payer, &account_key],
                 ctx.last_blockhash,
             );
-            ctx.banks_client.process_transaction(tx).await.unwrap();
+            ctx.banks_client
+                .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+                .await
+                .unwrap();
         }
 
         MarginfiAccountFixture {
@@ -82,7 +85,7 @@ impl MarginfiAccountFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -119,7 +122,7 @@ impl MarginfiAccountFixture {
                 .map(|acc| acc.map(|a| a.data))?)
         };
         let payer = self.ctx.borrow_mut().payer.pubkey();
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             // TODO: do that only if hook exists
             println!(
                 "[TODO] Adding extra account metas for execute for mint {:?}",
@@ -138,7 +141,7 @@ impl MarginfiAccountFixture {
             .await;
         }
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -146,7 +149,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }
@@ -171,7 +176,7 @@ impl MarginfiAccountFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -209,7 +214,7 @@ impl MarginfiAccountFixture {
             .make_bank_withdraw_ix(destination_account, bank, ui_amount, withdraw_all)
             .await;
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -217,7 +222,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }
@@ -241,7 +248,7 @@ impl MarginfiAccountFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -284,7 +291,7 @@ impl MarginfiAccountFixture {
             .make_bank_borrow_ix(destination_account, bank, ui_amount)
             .await;
 
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             let fetch_account_data_fn = |key| async move {
                 Ok(self
                     .ctx
@@ -312,7 +319,7 @@ impl MarginfiAccountFixture {
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
         let nonce_ix = ComputeBudgetInstruction::set_compute_unit_price(nonce);
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[compute_budget_ix, nonce_ix, ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -320,7 +327,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }
@@ -345,7 +354,7 @@ impl MarginfiAccountFixture {
             token_program: bank.get_token_program(),
         }
         .to_account_metas(Some(true));
-        if bank.mint.token_program == spl_token_2022::ID {
+        if bank.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
@@ -370,7 +379,7 @@ impl MarginfiAccountFixture {
         let ix = self
             .make_bank_repay_ix(funding_account, bank, ui_amount, repay_all)
             .await;
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -378,7 +387,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }
@@ -388,7 +399,7 @@ impl MarginfiAccountFixture {
         bank: &BankFixture,
     ) -> anyhow::Result<(), BanksClientError> {
         let marginfi_account = self.load().await;
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {
             program_id: marginfi::id(),
@@ -409,7 +420,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }
@@ -442,7 +455,7 @@ impl MarginfiAccountFixture {
         }
         .to_account_metas(Some(true));
 
-        if liab_bank_fixture.mint.token_program == spl_token_2022::ID {
+        if liab_bank_fixture.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(liab_bank_fixture.mint.key, false));
         }
 
@@ -477,7 +490,7 @@ impl MarginfiAccountFixture {
             .data(),
         };
 
-        if liab_bank_fixture.mint.token_program == spl_token_2022::ID {
+        if liab_bank_fixture.mint.token_program == anchor_spl::token_2022::ID {
             let payer = self.ctx.borrow().payer.pubkey();
             let fetch_account_data_fn = |key| async move {
                 Ok(self
@@ -519,7 +532,7 @@ impl MarginfiAccountFixture {
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[compute_budget_ix, ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -527,7 +540,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     pub async fn try_withdraw_emissions(
@@ -553,7 +568,7 @@ impl MarginfiAccountFixture {
             data: marginfi::instruction::LendingAccountWithdrawEmissions {}.data(),
         };
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -561,7 +576,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     /// Set a flag on the account
@@ -579,7 +596,7 @@ impl MarginfiAccountFixture {
             data: marginfi::instruction::SetAccountFlag { flag }.data(),
         };
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -587,7 +604,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     /// Unset a flag on the account
@@ -605,7 +624,7 @@ impl MarginfiAccountFixture {
             data: marginfi::instruction::UnsetAccountFlag { flag }.data(),
         };
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&ctx.payer.pubkey().clone()),
@@ -613,7 +632,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     pub async fn make_lending_account_start_flashloan_ix(&self, end_index: u64) -> Instruction {
@@ -671,7 +692,7 @@ impl MarginfiAccountFixture {
         ixs.insert(0, start_ix);
         ixs.push(end_ix);
 
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
 
         let tx = Transaction::new_signed_with_payer(
             &ixs,
@@ -680,7 +701,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     pub async fn load_observation_account_metas(
@@ -819,8 +842,10 @@ impl MarginfiAccountFixture {
         let tx = self
             .build_transfer_authority_tx(new_authority, signer_keypair)
             .await;
-        let mut ctx = self.ctx.borrow_mut();
-        ctx.banks_client.process_transaction(tx).await
+        let ctx = self.ctx.borrow_mut();
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     /// Use the client to get the transfer ix authority transaction
@@ -836,7 +861,7 @@ impl MarginfiAccountFixture {
     }
 
     pub async fn try_close_account(&self, nonce: u64) -> std::result::Result<(), BanksClientError> {
-        let mut ctx: std::cell::RefMut<ProgramTestContext> = self.ctx.borrow_mut();
+        let ctx: std::cell::RefMut<ProgramTestContext> = self.ctx.borrow_mut();
 
         let ix = Instruction {
             program_id: marginfi::id(),
@@ -856,7 +881,9 @@ impl MarginfiAccountFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 
     pub async fn nullify_assets_for_bank(&mut self, bank_pk: Pubkey) -> anyhow::Result<()> {

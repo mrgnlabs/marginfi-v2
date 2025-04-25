@@ -193,8 +193,8 @@ describe("Deposit funds (included staked assets)", () => {
     assert.equal(balances[1].active, 1);
 
     // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
-    const depositIndex = balances.findIndex(
-      (balance) => balance.bankPk.equals(validators[0].bank)
+    const depositIndex = balances.findIndex((balance) =>
+      balance.bankPk.equals(validators[0].bank)
     );
     assert.notEqual(depositIndex, -1);
   });
@@ -254,8 +254,8 @@ describe("Deposit funds (included staked assets)", () => {
     assert.equal(balances[0].active, 1);
 
     // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
-    const depositIndex = balances.findIndex(
-      (balance) => balance.bankPk.equals(validators[0].bank)
+    const depositIndex = balances.findIndex((balance) =>
+      balance.bankPk.equals(validators[0].bank)
     );
     assert.notEqual(depositIndex, -1);
   });

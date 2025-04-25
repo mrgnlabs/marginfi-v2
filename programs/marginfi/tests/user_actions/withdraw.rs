@@ -9,8 +9,6 @@ use solana_program_test::*;
 use test_case::test_case;
 
 #[test_case(0.03, 0.012, BankMint::Usdc)]
-#[test_case(100.0, 100.0, BankMint::UsdcSwb)]
-#[test_case(100.0, 100.0, BankMint::SolSwb)]
 #[test_case(128932.0, 9834.0, BankMint::PyUSD)]
 #[test_case(0.1, 0.092, BankMint::T22WithFee)]
 #[test_case(100.0, 92.0, BankMint::T22WithFee)]
@@ -161,8 +159,7 @@ async fn marginfi_account_withdraw_success(
     for (i, bal) in marginfi_account.lending_account.balances.iter().enumerate() {
         let shares: I80F48 = bal.asset_shares.into();
         if bal.is_active() {
-            let price: I80F48 = health_cache.prices[i].into();
-            let price: f64 = price.to_num();
+            let price: f64 = f64::from_le_bytes(health_cache.prices[i]);
             if shares != I80F48::ZERO {
                 assert!(price >= (collateral_price_roughly * disc));
             }
@@ -274,9 +271,7 @@ async fn marginfi_account_withdraw_all_success(
 }
 
 #[test_case(0.03, 0.030001, BankMint::Usdc)]
-#[test_case(100., 101., BankMint::UsdcSwb)]
 #[test_case(100., 102., BankMint::Sol)]
-#[test_case(100., 102., BankMint::SolSwb)]
 #[test_case(109247394., 109247394.000001, BankMint::PyUSD)]
 #[test_case(16., 16., BankMint::T22WithFee)]
 #[test_case(100., 98., BankMint::T22WithFee)]

@@ -25,7 +25,10 @@ import {
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { composeRemainingAccounts, liquidateIx } from "./utils/user-instructions";
+import {
+  composeRemainingAccounts,
+  liquidateIx,
+} from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { updatePriceAccount } from "./utils/pyth_mocks";
 import {
@@ -92,7 +95,7 @@ describe("Liquidate user", () => {
     const liabilityBankKey = bankKeypairUsdc.publicKey;
     console.log("asset bank key", assetBankKey.toString()); //6g
     console.log("liability bank key", liabilityBankKey.toString()); //47
-    
+
     const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT);
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT);
 
@@ -107,18 +110,15 @@ describe("Liquidate user", () => {
             remaining: [
               oracles.tokenAOracle.publicKey,
               oracles.usdcOracle.publicKey,
-              ...composeRemainingAccounts(
-                [[liabilityBankKey,
-                  oracles.fakeUsdc], // sneaky sneaky
-                  [assetBankKey,
-                    oracles.tokenAOracle.publicKey]]),
-              ...composeRemainingAccounts(
-                [[liabilityBankKey,
-                  oracles.usdcOracle.publicKey],
-                [assetBankKey,
-                  oracles.tokenAOracle.publicKey]]
-              )]
-            ,
+              ...composeRemainingAccounts([
+                [liabilityBankKey, oracles.fakeUsdc], // sneaky sneaky
+                [assetBankKey, oracles.tokenAOracle.publicKey],
+              ]),
+              ...composeRemainingAccounts([
+                [liabilityBankKey, oracles.usdcOracle.publicKey],
+                [assetBankKey, oracles.tokenAOracle.publicKey],
+              ]),
+            ],
             amount: liquidateAmountA_native,
           })
         )
@@ -144,19 +144,18 @@ describe("Liquidate user", () => {
             liabilityBankKey,
             liquidatorMarginfiAccount: liquidatorAccount,
             liquidateeMarginfiAccount: liquidateeAccount,
-            remaining: [oracles.tokenAOracle.publicKey,
-            oracles.usdcOracle.publicKey,
-            ...composeRemainingAccounts(
-              [[liabilityBankKey,
-                oracles.usdcOracle.publicKey],
-              [assetBankKey,
-                oracles.tokenAOracle.publicKey]]),
-            ...composeRemainingAccounts(
-              [[liabilityBankKey,
-                oracles.fakeUsdc], // sneaky sneaky
-              [assetBankKey,
-                oracles.tokenAOracle.publicKey]]
-            )],
+            remaining: [
+              oracles.tokenAOracle.publicKey,
+              oracles.usdcOracle.publicKey,
+              ...composeRemainingAccounts([
+                [liabilityBankKey, oracles.usdcOracle.publicKey],
+                [assetBankKey, oracles.tokenAOracle.publicKey],
+              ]),
+              ...composeRemainingAccounts([
+                [liabilityBankKey, oracles.fakeUsdc], // sneaky sneaky
+                [assetBankKey, oracles.tokenAOracle.publicKey],
+              ]),
+            ],
             amount: liquidateAmountA_native,
           })
         )
@@ -194,6 +193,8 @@ describe("Liquidate user", () => {
    *    [index 1] 5,050,000 (5.05) USDC (worth $5.05)
    * Note: $5.05 is 25.25% of $20, which is more than 10%, so liquidation is allowed
    *
+   * Health calc before: (2 * 9.788 * .1) - (5.05 * 1.0212) = -3.19946
+   *
    * Liquidator tries to repay .2 token A (worth $2) of liquidatee's debt, so liquidator's assets
    * increase by this value, while liquidatee's assets decrease by this value. Which also means that:
    *
@@ -207,6 +208,8 @@ describe("Liquidate user", () => {
    *
    * Insurance fund collects the difference
    *  USDC diff 1,869,036  - 1,822,457 = 46,579
+   *
+   * Health calc after: ((2-0.2) * 9.788 * .1) - ((5.05-1.8608) * 1.0212) = -1.49497104
    */
 
   it("(user 1) liquidate user 0 who borrowed USDC against their token A position - happy path", async () => {
@@ -313,19 +316,18 @@ describe("Liquidate user", () => {
           liabilityBankKey,
           liquidatorMarginfiAccount: liquidatorAccount,
           liquidateeMarginfiAccount: liquidateeAccount,
-          remaining:
-            [oracles.tokenAOracle.publicKey, oracles.usdcOracle.publicKey,
-              ...composeRemainingAccounts(
-                [[liabilityBankKey,
-                  oracles.usdcOracle.publicKey],
-                [assetBankKey,
-                  oracles.tokenAOracle.publicKey]]),
-              ...composeRemainingAccounts(
-                [[liabilityBankKey,
-                  oracles.usdcOracle.publicKey],
-                [assetBankKey,
-                  oracles.tokenAOracle.publicKey]]
-          )],
+          remaining: [
+            oracles.tokenAOracle.publicKey,
+            oracles.usdcOracle.publicKey,
+            ...composeRemainingAccounts([
+              [liabilityBankKey, oracles.usdcOracle.publicKey],
+              [assetBankKey, oracles.tokenAOracle.publicKey],
+            ]),
+            ...composeRemainingAccounts([
+              [liabilityBankKey, oracles.usdcOracle.publicKey],
+              [assetBankKey, oracles.tokenAOracle.publicKey],
+            ]),
+          ],
           amount: liquidateAmountA_native,
         })
       )

@@ -271,3 +271,42 @@ impl From<u32> for MarginfiError {
         }
     }
 }
+
+impl PartialEq for MarginfiError {
+    fn eq(&self, other: &Self) -> bool {
+        (*self as u32) == (*other as u32)
+    }
+}
+
+impl Eq for MarginfiError {}
+
+impl MarginfiError {
+    pub fn is_oracle_error(&self) -> bool {
+        matches!(
+            self,
+            MarginfiError::WrongNumberOfOracleAccounts
+                | MarginfiError::SwitchboardInvalidAccount
+                | MarginfiError::PythPushInvalidAccount
+                | MarginfiError::SwitchboardWrongAccountOwner
+                | MarginfiError::PythPushFeedIdNonHexCharacter
+                | MarginfiError::PythPushFeedIdMustBe32Bytes
+                | MarginfiError::PythPushInsufficientVerificationLevel
+                | MarginfiError::PythPushMismatchedFeedId
+                | MarginfiError::StakedPythPushWrongAccountOwner
+                | MarginfiError::PythPushWrongAccountOwner
+                | MarginfiError::WrongOracleAccountKeys
+                | MarginfiError::PythPushStalePrice
+                | MarginfiError::SwitchboardStalePrice
+                | MarginfiError::StakePoolValidationFailed
+                | MarginfiError::InvalidBankAccount
+                | MarginfiError::MissingBankAccount
+                | MarginfiError::MissingPythAccount
+                | MarginfiError::MissingPythOrBankAccount
+                | MarginfiError::PythPushInvalidWindowSize
+        )
+    }
+
+    pub fn is_risk_engine_rejection(&self) -> bool {
+        matches!(self, MarginfiError::RiskEngineInitRejected)
+    }
+}

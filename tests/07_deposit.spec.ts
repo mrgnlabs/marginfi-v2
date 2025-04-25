@@ -30,7 +30,7 @@ import { depositIx, withdrawIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { createMintToInstruction } from "@solana/spl-token";
 import { deriveBankWithSeed, deriveLiquidityVault } from "./utils/pdas";
-import { addBankWithSeed } from "./utils/group-instructions";
+import { addBank, addBankWithSeed } from "./utils/group-instructions";
 import {
   defaultBankConfig,
   ORACLE_SETUP_PYTH_LEGACY,

@@ -149,12 +149,12 @@ describe("Lending pool configure bank", () => {
         new Transaction().add(
           await configureBankOracle(groupAdmin.mrgnProgram, {
             bank: bankKey,
-            type: 2,
+            type: 3,
             oracle: oracles.tokenAOracle.publicKey,
           })
         )
       );
-    }, "InternalLogicError");
+    }, "PythPushInvalidAccount");
 
     await expectFailedTxWithMessage(async () => {
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(

@@ -7,6 +7,8 @@ import {
   ecosystem,
   EMODE_INIT_RATE_LST_TO_LST,
   EMODE_MAINT_RATE_LST_TO_LST,
+  EMODE_INIT_RATE_SOL_TO_LST,
+  EMODE_MAINT_RATE_SOL_TO_LST,
   EMODE_SEED,
   emodeAdmin,
   emodeGroup,
@@ -19,12 +21,11 @@ import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
-import {
-  assertBankrunTxFailed,
-} from "./utils/genericTests";
+import { assertBankrunTxFailed } from "./utils/genericTests";
 import { USER_ACCOUNT_E } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
+  CONF_INTERVAL_MULTIPLE,
   EMODE_APPLIES_TO_ISOLATED,
   EMODE_LST_TAG,
   EMODE_SOL_TAG,
@@ -42,6 +43,7 @@ import {
 import { configBankEmode } from "./utils/group-instructions";
 import { dumpBankrunLogs } from "./utils/tools";
 import { assert } from "chai";
+import { bytesToF64 } from "./utils/tools";
 
 // Banks are listed here in the sorted-by-public-keys order - the same used in the lending account balances
 const seed = new BN(EMODE_SEED);
@@ -132,12 +134,9 @@ describe("Emode liquidation", () => {
         bank: stableBank,
         tokenAccount: user.usdcAccount,
         remaining: composeRemainingAccounts([
-          [usdcBank,
-            oracles.usdcOracle.publicKey],
-          [solBank,
-            oracles.wsolOracle.publicKey],
-          [stableBank,
-            oracles.usdcOracle.publicKey],
+          [usdcBank, oracles.usdcOracle.publicKey],
+          [solBank, oracles.wsolOracle.publicKey],
+          [stableBank, oracles.usdcOracle.publicKey],
         ]),
         amount: new BN(0.0001 * 10 ** ecosystem.usdcDecimals),
       })
@@ -152,13 +151,17 @@ describe("Emode liquidation", () => {
     const cacheAfter = userAcc.healthCache;
     const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
     const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
+    const aValMaint = wrappedI80F48toBigNumber(cacheAfter.assetValueMaint);
+    const lValMaint = wrappedI80F48toBigNumber(cacheAfter.liabilityValueMaint);
     if (verbose) {
       console.log("---liquidator health state---");
       console.log("asset value: " + assetValue.toString());
       console.log("liab value: " + liabValue.toString());
+      console.log("asset value (maint): " + aValMaint.toString());
+      console.log("liab value (maint): " + lValMaint.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        const price = bytesToF64(cacheAfter.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -188,24 +191,20 @@ describe("Emode liquidation", () => {
           oracles.pythPullLst.publicKey, // liab oracle
           ...composeRemainingAccounts([
             // liquidator accounts
-            [usdcBank,
-              oracles.usdcOracle.publicKey],
-            [solBank,
-              oracles.wsolOracle.publicKey],
-            [stableBank,
-              oracles.usdcOracle.publicKey],
+            [usdcBank, oracles.usdcOracle.publicKey],
+            [solBank, oracles.wsolOracle.publicKey],
+            [stableBank, oracles.usdcOracle.publicKey],
             // Note: these accounts would be needed if the LST A position was created on the
             // liquidator due to the liablity repayment
-            [lstABank,
-              oracles.pythPullLst.publicKey]]),
+            [lstABank, oracles.pythPullLst.publicKey],
+          ]),
 
           ...composeRemainingAccounts([
             // liquidatee accounts
-            [solBank,
-              oracles.wsolOracle.publicKey],
-            [lstABank,
-              oracles.pythPullLst.publicKey],
-          ])],
+            [solBank, oracles.wsolOracle.publicKey],
+            [lstABank, oracles.pythPullLst.publicKey],
+          ]),
+        ],
         amount: new BN(0.001 * 10 ** ecosystem.wsolDecimals),
       })
     );
@@ -282,16 +281,12 @@ describe("Emode liquidation", () => {
     const liqAccountDataBefore = await processHealthPulse(
       liquidator,
       liquidatorAccount,
-      composeRemainingAccounts(
-        [
-          [usdcBank,
-            oracles.usdcOracle.publicKey],
-          [solBank,
-            oracles.wsolOracle.publicKey],
-          [stableBank,
-            oracles.usdcOracle.publicKey],
-          // Note: the LST A liability position doesn't exist yet
-        ])
+      composeRemainingAccounts([
+        [usdcBank, oracles.usdcOracle.publicKey],
+        [solBank, oracles.wsolOracle.publicKey],
+        [stableBank, oracles.usdcOracle.publicKey],
+        // Note: the LST A liability position doesn't exist yet
+      ])
     );
     const liqHealthCacheBefore = liqAccountDataBefore.healthCache;
     if (verbose) {
@@ -302,10 +297,8 @@ describe("Emode liquidation", () => {
       liquidatee,
       liquidateeAccount,
       composeRemainingAccounts([
-        [solBank,
-          oracles.wsolOracle.publicKey],
-        [lstABank,
-          oracles.pythPullLst.publicKey],
+        [solBank, oracles.wsolOracle.publicKey],
+        [lstABank, oracles.pythPullLst.publicKey],
       ])
     );
     const leeHealthCacheBefore = leeAccountDataBefore.healthCache;
@@ -325,21 +318,17 @@ describe("Emode liquidation", () => {
 
           ...composeRemainingAccounts([
             // liquidator accounts
-            [usdcBank,
-              oracles.usdcOracle.publicKey],
-            [solBank,
-              oracles.wsolOracle.publicKey],
-            [stableBank,
-              oracles.usdcOracle.publicKey],
-            [lstABank,
-              oracles.pythPullLst.publicKey]]),
+            [usdcBank, oracles.usdcOracle.publicKey],
+            [solBank, oracles.wsolOracle.publicKey],
+            [stableBank, oracles.usdcOracle.publicKey],
+            [lstABank, oracles.pythPullLst.publicKey],
+          ]),
           ...composeRemainingAccounts([
             // liquidatee accounts
-            [solBank,
-              oracles.wsolOracle.publicKey],
-            [lstABank,
-              oracles.pythPullLst.publicKey],
-          ])],
+            [solBank, oracles.wsolOracle.publicKey],
+            [lstABank, oracles.pythPullLst.publicKey],
+          ]),
+        ],
         amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
       })
     );
@@ -351,14 +340,10 @@ describe("Emode liquidation", () => {
       liquidator,
       liquidatorAccount,
       composeRemainingAccounts([
-        [usdcBank,
-          oracles.usdcOracle.publicKey],
-        [solBank,
-          oracles.wsolOracle.publicKey],
-        [stableBank,
-          oracles.usdcOracle.publicKey],
-        [lstABank,
-          oracles.pythPullLst.publicKey],
+        [usdcBank, oracles.usdcOracle.publicKey],
+        [solBank, oracles.wsolOracle.publicKey],
+        [stableBank, oracles.usdcOracle.publicKey],
+        [lstABank, oracles.pythPullLst.publicKey],
       ])
     );
     const liqHealthCache = liqAccountData.healthCache;
@@ -370,10 +355,8 @@ describe("Emode liquidation", () => {
       liquidatee,
       liquidateeAccount,
       composeRemainingAccounts([
-        [solBank,
-          oracles.wsolOracle.publicKey],
-        [lstABank,
-          oracles.pythPullLst.publicKey],
+        [solBank, oracles.wsolOracle.publicKey],
+        [lstABank, oracles.pythPullLst.publicKey],
       ])
     );
     const leeHealthCache = leeAccountData.healthCache;
@@ -441,21 +424,17 @@ describe("Emode liquidation", () => {
           oracles.pythPullLst.publicKey, // liab oracle
           ...composeRemainingAccounts([
             // liquidator accounts
-            [usdcBank,
-              oracles.usdcOracle.publicKey],
-            [solBank,
-              oracles.wsolOracle.publicKey],
-            [stableBank,
-              oracles.usdcOracle.publicKey],
-            [lstABank,
-              oracles.pythPullLst.publicKey]]),
+            [usdcBank, oracles.usdcOracle.publicKey],
+            [solBank, oracles.wsolOracle.publicKey],
+            [stableBank, oracles.usdcOracle.publicKey],
+            [lstABank, oracles.pythPullLst.publicKey],
+          ]),
 
           // liquidatee accounts
           ...composeRemainingAccounts([
-            [solBank,
-              oracles.wsolOracle.publicKey],
-            [lstABank,
-              oracles.pythPullLst.publicKey]]),
+            [solBank, oracles.wsolOracle.publicKey],
+            [lstABank, oracles.pythPullLst.publicKey],
+          ]),
         ],
         amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
       })
@@ -478,14 +457,11 @@ describe("Emode liquidation", () => {
         tokenAccount: user.usdcAccount,
         repayAll: true,
         remaining: composeRemainingAccounts([
-          [usdcBank,
-            oracles.usdcOracle.publicKey],
-          [solBank,
-            oracles.wsolOracle.publicKey],
-          [stableBank,
-            oracles.usdcOracle.publicKey],
-          [lstABank,
-            oracles.pythPullLst.publicKey]]),
+          [usdcBank, oracles.usdcOracle.publicKey],
+          [solBank, oracles.wsolOracle.publicKey],
+          [stableBank, oracles.usdcOracle.publicKey],
+          [lstABank, oracles.pythPullLst.publicKey],
+        ]),
         amount: new BN(0.0001 * 10 ** ecosystem.usdcDecimals),
       })
     );
@@ -493,26 +469,31 @@ describe("Emode liquidation", () => {
     tx.sign(user.wallet);
     await banksClient.processTransaction(tx);
 
-    const userAcc = await processHealthPulse(user, userAccount, composeRemainingAccounts([
-      [usdcBank,
-        oracles.usdcOracle.publicKey],
-      [solBank,
-        oracles.wsolOracle.publicKey],
-      // Note: stable is now closed
-      [lstABank,
-        oracles.pythPullLst.publicKey],
-    ]));
+    const userAcc = await processHealthPulse(
+      user,
+      userAccount,
+      composeRemainingAccounts([
+        [usdcBank, oracles.usdcOracle.publicKey],
+        [solBank, oracles.wsolOracle.publicKey],
+        // Note: stable is now closed
+        [lstABank, oracles.pythPullLst.publicKey],
+      ])
+    );
 
     const cacheAfter = userAcc.healthCache;
     const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
     const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
+    const aValMaint = wrappedI80F48toBigNumber(cacheAfter.assetValueMaint);
+    const lValMaint = wrappedI80F48toBigNumber(cacheAfter.liabilityValueMaint);
     if (verbose) {
       console.log("---liquidator health state---");
       console.log("asset value: " + assetValue.toString());
       console.log("liab value: " + liabValue.toString());
+      console.log("asset value (maint): " + aValMaint.toString());
+      console.log("liab value (maint): " + lValMaint.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        const price = bytesToF64(cacheAfter.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -545,20 +526,17 @@ describe("Emode liquidation", () => {
           oracles.pythPullLst.publicKey, // liab oracle
           ...composeRemainingAccounts([
             // liquidator accounts
-            [usdcBank,
-              oracles.usdcOracle.publicKey],
-            [solBank,
-              oracles.wsolOracle.publicKey],
+            [usdcBank, oracles.usdcOracle.publicKey],
+            [solBank, oracles.wsolOracle.publicKey],
             // Note: stable bank is closed
-            [lstABank,
-              oracles.pythPullLst.publicKey]]),
+            [lstABank, oracles.pythPullLst.publicKey],
+          ]),
           ...composeRemainingAccounts([
             // liquidatee accounts
-            [solBank,
-              oracles.wsolOracle.publicKey],
-            [lstABank,
-              oracles.pythPullLst.publicKey]
-          ])],
+            [solBank, oracles.wsolOracle.publicKey],
+            [lstABank, oracles.pythPullLst.publicKey],
+          ]),
+        ],
         amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
       })
     );
@@ -566,15 +544,16 @@ describe("Emode liquidation", () => {
     tx.sign(liquidator.wallet);
     await banksClient.processTransaction(tx);
 
-    const userAcc = await processHealthPulse(liquidator, liquidatorAccount, composeRemainingAccounts([
-      [usdcBank,
-        oracles.usdcOracle.publicKey],
-      [solBank,
-        oracles.wsolOracle.publicKey],
-      // Note: stable is now closed
-      [lstABank,
-        oracles.pythPullLst.publicKey],
-    ]));
+    const userAcc = await processHealthPulse(
+      liquidator,
+      liquidatorAccount,
+      composeRemainingAccounts([
+        [usdcBank, oracles.usdcOracle.publicKey],
+        [solBank, oracles.wsolOracle.publicKey],
+        // Note: stable is now closed
+        [lstABank, oracles.pythPullLst.publicKey],
+      ])
+    );
 
     const cacheAfter = userAcc.healthCache;
     const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
@@ -585,7 +564,7 @@ describe("Emode liquidation", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        const price = bytesToF64(cacheAfter.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -613,6 +592,8 @@ describe("Emode liquidation", () => {
   const logHealthCache = (header: string, healthCache: any) => {
     const av = wrappedI80F48toBigNumber(healthCache.assetValue);
     const lv = wrappedI80F48toBigNumber(healthCache.liabilityValue);
+    const aValMaint = wrappedI80F48toBigNumber(healthCache.assetValueMaint);
+    const lValMaint = wrappedI80F48toBigNumber(healthCache.liabilityValueMaint);
     console.log(`---${header}---`);
     if (healthCache.flags & HEALTH_CACHE_HEALTHY) {
       console.log("**HEALTHY**");
@@ -621,9 +602,11 @@ describe("Emode liquidation", () => {
     }
     console.log("asset value: " + av.toString());
     console.log("liab value: " + lv.toString());
+    console.log("asset value (maint): " + aValMaint.toString());
+    console.log("liab value (maint): " + lValMaint.toString());
     console.log("prices: ");
     healthCache.prices.forEach((priceWrapped: any, i: number) => {
-      const price = wrappedI80F48toBigNumber(priceWrapped).toNumber();
+      const price = bytesToF64(priceWrapped);
       if (price !== 0) {
         console.log(` [${i}] ${price}`);
       }

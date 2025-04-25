@@ -1,6 +1,4 @@
-import {
-  BN,
-} from "@coral-xyz/anchor";
+import { BN } from "@coral-xyz/anchor";
 import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import {
   bankrunContext,
@@ -20,16 +18,18 @@ import {
   assertBankrunTxFailed,
   assertI80F48Approx,
 } from "./utils/genericTests";
-import {
-  CONF_INTERVAL_MULTIPLE,
-} from "./utils/types";
+import { CONF_INTERVAL_MULTIPLE } from "./utils/types";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
-import {
-  wrappedI80F48toBigNumber,
-} from "@mrgnlabs/mrgn-common";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { USER_ACCOUNT_E } from "./utils/mocks";
-import { accountInit, borrowIx, composeRemainingAccounts, depositIx } from "./utils/user-instructions";
+import {
+  accountInit,
+  borrowIx,
+  composeRemainingAccounts,
+  depositIx,
+} from "./utils/user-instructions";
+import { bytesToF64 } from "./utils/tools";
 
 // Banks are listed here in the sorted-by-public-keys order - the same used in the lending account balances
 const seed = new BN(EMODE_SEED);
@@ -213,10 +213,8 @@ describe("Emode borrowing", () => {
         bank: lstABank,
         tokenAccount: user.lstAlphaAccount,
         remaining: composeRemainingAccounts([
-          [solBank,
-            oracles.wsolOracle.publicKey],
-          [lstABank,
-            oracles.pythPullLst.publicKey],
+          [solBank, oracles.wsolOracle.publicKey],
+          [lstABank, oracles.pythPullLst.publicKey],
         ]),
         amount: new BN(lstBorrow * 10 ** ecosystem.lstAlphaDecimals),
       })
@@ -237,7 +235,7 @@ describe("Emode borrowing", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        const price = bytesToF64(cacheAfter.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -266,19 +264,15 @@ describe("Emode borrowing", () => {
   it("(user 0) tries to borrow a trivial amount of USDC - fails, emode error", async () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_E);
-    
     let tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
         bank: usdcBank,
         tokenAccount: user.usdcAccount,
         remaining: composeRemainingAccounts([
-          [solBank,
-          oracles.wsolOracle.publicKey],
-          [lstABank,
-          oracles.pythPullLst.publicKey],
-          [usdcBank,
-          oracles.usdcOracle.publicKey],
+          [solBank, oracles.wsolOracle.publicKey],
+          [lstABank, oracles.pythPullLst.publicKey],
+          [usdcBank, oracles.usdcOracle.publicKey],
         ]),
         amount: new BN(0.000001 * 10 ** ecosystem.usdcDecimals),
       })
@@ -322,10 +316,8 @@ describe("Emode borrowing", () => {
         bank: lstBBank,
         tokenAccount: user.lstAlphaAccount,
         remaining: composeRemainingAccounts([
-          [lstABank,
-          oracles.pythPullLst.publicKey],
-          [lstBBank,
-          oracles.pythPullLst.publicKey],
+          [lstABank, oracles.pythPullLst.publicKey],
+          [lstBBank, oracles.pythPullLst.publicKey],
         ]),
         amount: new BN(lstBBorrow * 10 ** ecosystem.lstAlphaDecimals),
       })
@@ -346,7 +338,7 @@ describe("Emode borrowing", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        const price = bytesToF64(cacheAfter.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
@@ -388,12 +380,9 @@ describe("Emode borrowing", () => {
         bank: solBank,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
-          [lstABank,
-          oracles.pythPullLst.publicKey],
-          [lstBBank,
-          oracles.pythPullLst.publicKey],
-          [solBank,
-          oracles.wsolOracle.publicKey],
+          [lstABank, oracles.pythPullLst.publicKey],
+          [lstBBank, oracles.pythPullLst.publicKey],
+          [solBank, oracles.wsolOracle.publicKey],
         ]),
         amount: new BN(0.000001 * 10 ** ecosystem.wsolDecimals),
       })
@@ -415,7 +404,7 @@ describe("Emode borrowing", () => {
       console.log("liab value: " + liabValue.toString());
       console.log("prices: ");
       for (let i = 0; i < cacheAfter.prices.length; i++) {
-        const price = wrappedI80F48toBigNumber(cacheAfter.prices[i]).toNumber();
+        const price = bytesToF64(cacheAfter.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
