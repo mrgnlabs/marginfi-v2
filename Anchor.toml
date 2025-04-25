@@ -34,7 +34,7 @@ wallet = "~/.config/solana/id.json"
 
 # (remove RUST_LOG= to see bankRun logs)
 [scripts]
-test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.ts --exit --require tests/rootHooks.ts"
+# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.ts --exit --require tests/rootHooks.ts"
 
 # Staked collateral tests only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/s*.spec.ts --exit --require tests/rootHooks.ts"
@@ -43,7 +43,7 @@ test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.t
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/p*.spec.ts --exit --require tests/rootHooks.ts"
 
 # Edmode tests only
-# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/e*.spec.ts --exit --require tests/rootHooks.ts"
+test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/e*.spec.ts --exit --require tests/rootHooks.ts"
 
 [test]
 startup_wait = 60000
@@ -78,6 +78,14 @@ filename = "tests/fixtures/sol_pyth_price_feed.json"
 [[test.validator.account]]
 address = "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"
 filename = "tests/fixtures/sol_pyth_oracle.json"
+
+[[test.validator.account]]
+address = "7qoe1Xmd3WUfPFHQaMYMGwSJT2mU55t3d4C4ZXZ1GJmn"
+filename = "tests/fixtures/gappy_user3.json"
+
+[[test.validator.account]]
+address = "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
+filename = "tests/fixtures/gappy_user4.json"
 
 # To update:
 # clone https://github.com/solana-labs/solana-program-library/tree/master and run cargo build-sbf in spl_single_pool

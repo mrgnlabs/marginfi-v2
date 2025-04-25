@@ -1,4 +1,10 @@
+import { Program } from "@coral-xyz/anchor";
+import { MarginfiAccountRaw } from "@mrgnlabs/marginfi-client-v2";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { PublicKey } from "@solana/web3.js";
 import { BanksTransactionResultWithMeta } from "solana-bankrun";
+import { Marginfi } from "target/types/marginfi";
+import { bankrunProgram } from "tests/rootHooks";
 
 /**
  * Function to print bytes from a Buffer in groups with column labels and color highlighting for non-zero values
@@ -102,4 +108,47 @@ export function bytesToF64(bytes: Uint8Array | number[]): number {
   // Create a DataView on the buffer (little‑endian)
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
   return dv.getFloat64(0, /* littleEndian */ true);
+}
+
+/**
+ * Print account balances in a pretty table. If you're getting a type error here, due to a different
+ * client version. feel free to ts-ignore it.
+ */
+export function dumpAccBalances(
+  account: MarginfiAccountRaw 
+) {
+  let balances = account.lendingAccount.balances;
+  let activeBalances = [];
+  for (let i = 0; i < balances.length; i++) {
+    if (balances[i].active == 0) {
+      activeBalances.push({
+        "Bank PK": "empty",
+        Tag: "-",
+        "Liab Shares ": "-",
+        "Asset Shares": "-",
+        // Emissions: "-",
+      });
+      continue;
+    }
+
+    activeBalances.push({
+      "Bank PK": balances[i].bankPk.toString(),
+      // Tag: balances[i].bankAssetTag,
+      "Liab Shares ": formatNumber(
+        wrappedI80F48toBigNumber(balances[i].liabilityShares)
+      ),
+      "Asset Shares": formatNumber(
+        wrappedI80F48toBigNumber(balances[i].assetShares)
+      ),
+      // Emissions: formatNumber(
+      //   wrappedI80F48toBigNumber(balances[i].emissionsOutstanding)
+      // ),
+    });
+
+    function formatNumber(num) {
+      const number = parseFloat(num).toFixed(4);
+      return number === "0.0000" ? "-" : number;
+    }
+  }
+  console.table(activeBalances);
 }
