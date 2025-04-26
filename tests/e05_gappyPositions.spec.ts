@@ -1,5 +1,6 @@
 import { BN } from "@coral-xyz/anchor";
 import {
+  ComputeBudgetProgram,
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
@@ -167,20 +168,17 @@ describe("Liquidation with gaps in accounts", () => {
   });
 
   it("(gappy 4) liquidates gappy 3", async () => {
-    console.log("oracle lst: " + oracles.pythPullLst.publicKey);
-    console.log("oracle wsol: " + oracles.wsolOracle.publicKey);
-    console.log("oracle usdc: " + oracles.usdcOracle.publicKey);
-
     const gappy4Program = getUserMarginfiProgram(bankrunProgram, gappyUser4);
     let tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
       await liquidateIx(gappy4Program, {
         assetBankKey: lstABank,
         liabilityBankKey: usdcBank,
         liquidatorMarginfiAccount: gappy4Account,
         liquidateeMarginfiAccount: gappy3Account,
         remaining: [
-          oracles.usdcOracle.publicKey, // asset oracle
-          oracles.pythPullLst.publicKey, // liab oracle
+          oracles.pythPullLst.publicKey, // asset oracle
+          oracles.usdcOracle.publicKey, // liab oracle
 
           // gappy 4 (lend sol/lst A, borrow lst b)
           ...composeRemainingAccounts([
@@ -199,14 +197,11 @@ describe("Liquidation with gaps in accounts", () => {
             [lstABank, oracles.pythPullLst.publicKey],
           ]),
         ],
-        amount: new BN(0.1 * 10 ** ecosystem.lstAlphaDecimals),
+        amount: new BN(0.1 * 10 ** ecosystem.usdcDecimals),
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(gappyUser4);
-    let result = await banksClient.tryProcessTransaction(tx);
-    dumpBankrunLogs(result);
-
-    // TODO passing result...
+    await banksClient.tryProcessTransaction(tx);
   });
 });

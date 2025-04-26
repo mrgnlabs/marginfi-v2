@@ -730,7 +730,8 @@ pub fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpd
     let expected_discrim = <PriceUpdateV2 as anchor_lang::Discriminator>::DISCRIMINATOR;
 
     check_eq!(
-        discriminator, expected_discrim,
+        discriminator,
+        expected_discrim,
         MarginfiError::PythPushInvalidAccount
     );
 
