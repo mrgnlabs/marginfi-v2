@@ -257,10 +257,6 @@ export const mochaHooks = {
     );
 
     for (let i = 0; i < numUsers; i++) {
-      // const WALLET_SEED = Buffer.from(
-      //   "USER_WALLET_" + i + "0000000000000000000"
-      // );
-      // setupUserOptions.forceWallet = Keypair.fromSeed(WALLET_SEED);
       const user = await setupTestUser(
         provider,
         wallet.payer,
