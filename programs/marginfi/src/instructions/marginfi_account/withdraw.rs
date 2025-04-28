@@ -133,7 +133,6 @@ pub fn lending_account_withdraw<'info>(
     );
     risk_result?;
     health_cache.program_version = PROGRAM_VERSION;
-
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 

@@ -97,16 +97,29 @@ export const PYTH_ORACLE_FEED_SAMPLE = new PublicKey(
 export const PYTH_ORACLE_SAMPLE = new PublicKey(
   "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"
 );
+/** An account with gaps */
+export const GAPPY3_SAMPLE = new PublicKey(
+  "7qoe1Xmd3WUfPFHQaMYMGwSJT2mU55t3d4C4ZXZ1GJmn"
+);
+/** An account with gaps */
+export const GAPPY4_SAMPLE = new PublicKey(
+  "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
+);
 
 /** Banks in the emode test suite use this seed */
 export const EMODE_SEED = 44;
-export const EMODE_INIT_RATE_SOL_TO_LST = .9;
-export const EMODE_MAINT_RATE_SOL_TO_LST = .95;
-export const EMODE_INIT_RATE_LST_TO_LST = .8;
-export const EMODE_MAINT_RATE_LST_TO_LST = .85;
+export const EMODE_INIT_RATE_SOL_TO_LST = 0.9;
+export const EMODE_MAINT_RATE_SOL_TO_LST = 0.95;
+export const EMODE_INIT_RATE_LST_TO_LST = 0.8;
+export const EMODE_MAINT_RATE_LST_TO_LST = 0.85;
 
 /** keys copied into the bankrun instance */
-let copyKeys: PublicKey[] = [PYTH_ORACLE_FEED_SAMPLE, PYTH_ORACLE_SAMPLE];
+let copyKeys: PublicKey[] = [
+  PYTH_ORACLE_FEED_SAMPLE,
+  PYTH_ORACLE_SAMPLE,
+  GAPPY3_SAMPLE,
+  GAPPY4_SAMPLE,
+];
 
 export const mochaHooks = {
   beforeAll: async () => {

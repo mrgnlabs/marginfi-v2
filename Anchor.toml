@@ -79,6 +79,14 @@ filename = "tests/fixtures/sol_pyth_price_feed.json"
 address = "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"
 filename = "tests/fixtures/sol_pyth_oracle.json"
 
+[[test.validator.account]]
+address = "7qoe1Xmd3WUfPFHQaMYMGwSJT2mU55t3d4C4ZXZ1GJmn"
+filename = "tests/fixtures/gappy_user3.json"
+
+[[test.validator.account]]
+address = "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
+filename = "tests/fixtures/gappy_user4.json"
+
 # To update:
 # clone https://github.com/solana-labs/solana-program-library/tree/master and run cargo build-sbf in spl_single_pool
 [[test.genesis]]
