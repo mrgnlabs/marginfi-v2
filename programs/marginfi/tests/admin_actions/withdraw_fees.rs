@@ -1,12 +1,11 @@
 use anchor_lang::error::ErrorCode;
-use anchor_spl::{
-    associated_token::get_associated_token_address_with_program_id,
-    token_2022::spl_token_2022::extension::{
-        transfer_fee::TransferFeeConfig, BaseStateWithExtensions,
-    },
+use anchor_spl::token_2022::spl_token_2022::extension::{
+    transfer_fee::TransferFeeConfig, BaseStateWithExtensions,
 };
 use fixtures::{
-    assert_anchor_error, assert_custom_error, spl::TokenAccountFixture, test::{BankMint, TestFixture, TestSettings}
+    assert_anchor_error, assert_custom_error,
+    spl::TokenAccountFixture,
+    test::{BankMint, TestFixture, TestSettings},
 };
 use marginfi::errors::MarginfiError;
 use solana_program_test::tokio;
@@ -168,27 +167,9 @@ async fn marginfi_group_withdraw_fees_permissonless(bank_mint: BankMint) -> anyh
         .try_withdraw_fees_permissionless(&receiving_account, fee_vault_balance)
         .await;
     assert!(res.is_err());
-    assert_custom_error!(
-        res.unwrap_err(),
-        MarginfiError::InvalidFeesDestinationAccount
-    );
+    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
 
-    // Now set the destination account for the bank (note: the actual destination account will be ATA derived from this)
-    bank_f
-        .try_set_fees_destination_account(&receiving_account)
-        .await?;
-
-    // Withdrawal still fails because the destination account provided is not a canonical ATA for the one set for the bank
-    let res = bank_f
-        .try_withdraw_fees_permissionless(&receiving_account, fee_vault_balance)
-        .await;
-    assert!(res.is_err());
-    assert_custom_error!(
-        res.unwrap_err(),
-        MarginfiError::InvalidFeesDestinationAccount
-    );
-
-    // Now derive canonical ATA for the one set for the bank and use it in the next withdrawal attempt
+    // Now derive canonical ATA for the receiving account and set it as the fees destination for the bank
     let destination_ata = TokenAccountFixture::new_from_ata(
         test_f.context,
         &bank_f.mint.key,
@@ -196,6 +177,16 @@ async fn marginfi_group_withdraw_fees_permissonless(bank_mint: BankMint) -> anyh
         &receiving_account.token_program,
     )
     .await;
+    bank_f
+        .try_set_fees_destination_account(&destination_ata)
+        .await?;
+
+    // Withdrawal still fails because the destination account provided is not matching the one we set for the bank
+    let res = bank_f
+        .try_withdraw_fees_permissionless(&receiving_account, fee_vault_balance)
+        .await;
+    assert!(res.is_err());
+    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
 
     // Use proper destination account -> should succeed
     bank_f

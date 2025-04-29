@@ -314,7 +314,7 @@ impl BankFixture {
             bank: self.key,
             fee_vault: bank.fee_vault,
             fee_vault_authority,
-            dst_token_account: receiving_account.key,
+            fees_destination_account: receiving_account.key,
         }
         .to_account_metas(Some(true));
         if self.mint.token_program == anchor_spl::token_2022::ID {
