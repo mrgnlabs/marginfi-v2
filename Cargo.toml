@@ -45,6 +45,7 @@ switchboard-on-demand = "0.3.5"
 
 borsh = "1.5.7"
 bytemuck = "1.22.0"
+bs58 = "0.5.1"
 # Note: 1.29.0 and later require Rust 1.83+ which solana does not ship with (yet)
 fixed = "=1.28.0"
 fixed-macro = "1.2.0"
