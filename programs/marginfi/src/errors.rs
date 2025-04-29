@@ -156,6 +156,8 @@ pub enum MarginfiError {
     BadEmodeConfig,
     #[msg("TWAP window size does not match expected duration")] // 6076
     PythPushInvalidWindowSize,
+    #[msg("Invalid fees destination account")] // 6077
+    InvalidFeesDestinationAccount,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -267,6 +269,7 @@ impl From<u32> for MarginfiError {
             6074 => MarginfiError::ArenaSettingCannotChange,
             6075 => MarginfiError::BadEmodeConfig,
             6076 => MarginfiError::PythPushInvalidWindowSize,
+            6077 => MarginfiError::InvalidFeesDestinationAccount,
             _ => MarginfiError::InternalLogicError,
         }
     }

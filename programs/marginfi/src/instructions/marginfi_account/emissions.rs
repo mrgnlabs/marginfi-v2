@@ -170,7 +170,7 @@ pub struct MarginfiAccountUpdateEmissionsDestinationAccount<'info> {
 
     pub authority: Signer<'info>,
 
-    /// User's earned emissions will be sent to the cannonical ATA of this wallet.
+    /// User's earned emissions will be sent to the canonical ATA of this wallet.
     ///
     /// CHECK: Completely unchecked, user picks a destination without restrictions
     pub destination_account: AccountInfo<'info>,
@@ -197,7 +197,7 @@ pub fn lending_account_withdraw_emissions_permissionless<'info>(
         MarginfiError::InvalidEmissionsDestinationAccount
     );
 
-    // Ensure the destination is the cannonical ATA of the user-specified wallet
+    // Ensure the destination is the canonical ATA of the user-specified wallet
     let ata_expected = get_associated_token_address_with_program_id(
         emissions_dest_wallet,
         emissions_mint,
@@ -289,7 +289,7 @@ pub struct LendingAccountWithdrawEmissionsPermissionless<'info> {
     )]
     pub emissions_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// CHECK: Handler will validate this is cannonical ATA of the `emissions_destination_account`
+    /// CHECK: Handler will validate this is a canonical ATA of the `emissions_destination_account`
     /// registered on `marginfi_account`
     #[account(mut)]
     pub destination_account: Box<InterfaceAccount<'info, TokenAccount>>,

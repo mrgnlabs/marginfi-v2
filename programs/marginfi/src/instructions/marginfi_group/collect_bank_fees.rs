@@ -10,7 +10,7 @@ use crate::{
     state::marginfi_group::{Bank, BankVaultType, MarginfiGroup},
     MarginfiResult,
 };
-use crate::{check, utils, MarginfiError};
+use crate::{check, check_eq, utils, MarginfiError};
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
@@ -237,7 +237,7 @@ pub struct LendingPoolCollectBankFees<'info> {
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 
-    /// CHECK: Cannonical ATA of the `FeeState.global_fee_wallet` for the mint used by this bank
+    /// CHECK: Canonical ATA of the `FeeState.global_fee_wallet` for the mint used by this bank
     /// (validated in handler). Must already exist, may require initializing the ATA if it does not
     /// already exist prior to this ix.
     #[account(mut)]
@@ -394,6 +394,134 @@ pub struct LendingPoolWithdrawInsurance<'info> {
     pub insurance_vault_authority: AccountInfo<'info>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(mut)]
+    pub dst_token_account: AccountInfo<'info>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+/// Fees will be withdrawn to the canonical ATA of fees_destination_account
+pub fn lending_pool_update_fees_destination_account<'info>(
+    ctx: Context<'_, '_, 'info, 'info, LendingPoolUpdateFeesDestinationAccount<'info>>,
+) -> MarginfiResult {
+    let mut bank = ctx.accounts.bank.load_mut()?;
+
+    bank.fees_destination_account = ctx.accounts.destination_account.key();
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LendingPoolUpdateFeesDestinationAccount<'info> {
+    #[account(
+        has_one = admin
+    )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        mut,
+        has_one = group
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+
+    pub admin: Signer<'info>,
+
+    /// Bank fees will be sent to the canonical ATA of this wallet.
+    ///
+    /// CHECK: Completely unchecked, admin picks a destination without restrictions
+    pub destination_account: AccountInfo<'info>,
+}
+
+pub fn lending_pool_withdraw_fees_permissionless<'info>(
+    mut ctx: Context<'_, '_, 'info, 'info, LendingPoolWithdrawFeesPermissionless<'info>>,
+    amount: u64,
+) -> MarginfiResult {
+    let LendingPoolWithdrawFeesPermissionless {
+        bank: bank_loader,
+        fee_vault,
+        fee_vault_authority,
+        dst_token_account,
+        token_program,
+        ..
+    } = ctx.accounts;
+
+    let bank = bank_loader.load()?;
+
+    let fees_dest_wallet = &bank.fees_destination_account;
+    let fees_mint = &bank.mint;
+    let fees_token_program = &token_program.key();
+
+    // Ensure that the fees_destination_account was previously set by the group admin
+    check!(
+        !fees_dest_wallet.eq(&Pubkey::default()),
+        MarginfiError::InvalidFeesDestinationAccount
+    );
+
+    // Ensure the destination is the canonical ATA of the user-specified wallet
+    let ata_expected = get_associated_token_address_with_program_id(
+        fees_dest_wallet,
+        fees_mint,
+        fees_token_program,
+    );
+    check_eq!(
+        ata_expected,
+        dst_token_account.key(),
+        MarginfiError::InvalidFeesDestinationAccount
+    );
+
+    let maybe_bank_mint =
+        utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, fees_token_program)?;
+
+    bank.withdraw_spl_transfer(
+        amount,
+        fee_vault.to_account_info(),
+        dst_token_account.to_account_info(),
+        fee_vault_authority.to_account_info(),
+        maybe_bank_mint.as_ref(),
+        token_program.to_account_info(),
+        bank_signer!(
+            BankVaultType::Fee,
+            bank_loader.key(),
+            bank.fee_vault_authority_bump
+        ),
+        ctx.remaining_accounts,
+    )?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LendingPoolWithdrawFeesPermissionless<'info> {
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        has_one = group
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        mut,
+        seeds = [
+            FEE_VAULT_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.fee_vault_bump
+    )]
+    pub fee_vault: AccountInfo<'info>,
+
+    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
+    #[account(
+        seeds = [
+            FEE_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.fee_vault_authority_bump
+    )]
+    pub fee_vault_authority: AccountInfo<'info>,
+
+    /// CHECK: Handler will validate this is a canonical ATA of the `fees_destination_account`
+    /// registered on `bank`
     #[account(mut)]
     pub dst_token_account: AccountInfo<'info>,
 

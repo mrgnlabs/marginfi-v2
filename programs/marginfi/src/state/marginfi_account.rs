@@ -44,7 +44,7 @@ pub struct MarginfiAccount {
     ///   original owner can now call `set_account_transfer_authority`
     pub account_flags: u64, // 8
     /// Set with `update_emissions_destination_account`. Emissions rewards can be withdrawn to the
-    /// cannonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).
+    /// canonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).
     /// If pubkey default, the user has not opted into this feature, and must claim emissions
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32

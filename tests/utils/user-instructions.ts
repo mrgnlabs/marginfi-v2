@@ -135,7 +135,7 @@ export const withdrawEmissionsIx = (
 export type WithdrawEmissionsPermissionlessArgs = {
   marginfiAccount: PublicKey;
   bank: PublicKey;
-  /** Cannonical ATA of `emissions_destination_account` registered on `marginfiAccount` */
+  /** Canonical ATA of `emissions_destination_account` registered on `marginfiAccount` */
   tokenAccount: PublicKey;
 };
 
@@ -143,7 +143,7 @@ export type WithdrawEmissionsPermissionlessArgs = {
  * (Permissionless) Settles AND withdraws emissions to the user's given token account. The user must
  * have opted in to this feature by designating a wallet to receive claims with
  * `marginfi_account_update_emissions_destination_account`
- * * `tokenAccount`- must be cannonical ATA of `emissions_destination_account`
+ * * `tokenAccount`- must be canonical ATA of `emissions_destination_account`
  * @param program
  * @param args
  * @returns
@@ -177,7 +177,7 @@ export type UpdateEmissionsDestinationArgs = {
 
 /**
  * (Permissionless) Opt in to claim permissionless emissions. The designated account/wallet will
- * receive all the funds. Emissions go to the cannonical ATA of that account, and if the ATA doesn't
+ * receive all the funds. Emissions go to the canonical ATA of that account, and if the ATA doesn't
  * exist, they may still not get distributed. We (mrgn) might pay to open SOME atas, or we might
  * open some common ones when you opt in, or we might let the user pay and just let the tx fail it
  * it doesn't exist.
