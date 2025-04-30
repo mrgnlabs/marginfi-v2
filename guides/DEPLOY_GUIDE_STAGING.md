@@ -68,7 +68,8 @@ anchor idl authority \
 We'll assume the authority is `~/keys/staging-deploy.json`.
 
 Run:
-```anchor idl init \
+```
+anchor idl init \
   stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct \
   -f target/idl/marginfi.json \
   --provider.cluster <your rpc (a paid RPC is likely required here)> \
@@ -98,5 +99,4 @@ solana program deploy \
   --keypair ~/keys/staging-deploy.json \
   --fee-payer ~/keys/staging-deploy.json \
   --url <your_rpc_url (optional, omit this line to use api.mainnet-beta)>
-
 ```

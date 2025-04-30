@@ -1,6 +1,4 @@
-import {
-  BN,
-} from "@coral-xyz/anchor";
+import { BN } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
 import {
   bankKeypairSol,
@@ -13,10 +11,7 @@ import {
   users,
   validators,
 } from "./rootHooks";
-import {
-  assertBankrunTxFailed,
-  assertKeysEqual,
-} from "./utils/genericTests";
+import { assertBankrunTxFailed, assertKeysEqual } from "./utils/genericTests";
 import { assert } from "chai";
 import { borrowIx, composeRemainingAccounts } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
@@ -43,10 +38,8 @@ describe("Deposit funds (included staked assets)", () => {
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
-          [bankKeypairUsdc.publicKey,
-          oracles.usdcOracle.publicKey],
-          [bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey],
+          [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         amount: new BN(0.01 * 10 ** ecosystem.wsolDecimals),
       })
@@ -79,14 +72,14 @@ describe("Deposit funds (included staked assets)", () => {
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         remaining: composeRemainingAccounts([
-          [bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey],
-          [validators[0].bank,
-          oracles.wsolOracle.publicKey, // Note the Staked bank uses wsol oracle too
-          validators[0].splMint,
-          validators[0].splSolPool],
-          [bankKeypairUsdc.publicKey,
-          oracles.usdcOracle.publicKey],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey, // Note the Staked bank uses wsol oracle too
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
         ]),
         amount: new BN(0.1 * 10 ** ecosystem.usdcDecimals),
       })

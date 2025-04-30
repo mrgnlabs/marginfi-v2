@@ -415,20 +415,33 @@ export type BankAndOracles = PublicKey[]; // [bank, oracle, oracle_2...]
  * Prepares transaction remaining accounts by processing bank-oracle groups:
  * 1. Sorts groups in descending order by bank public key (pushes inactive accounts to end)
  * 2. Flattens the structure into a single public key array
- * 
- * @param banksAndOracles - Array where each element is a bank-oracle group:
- *                          [bankPubkey, oracle1Pubkey, oracle2Pubkey?, ...]
- *                          Note: SystemProgram keys (111..111) represent inactive accounts
- * @returns Flattened array of public keys with inactive accounts at the end,
- *          ready for transaction composition
+ *
+ * Stable on most JS implementations (this shouldn't matter since we do not generally have duplicate
+ * banks), in place, and uses the raw 32-byte value to sort in byte-wise lexicographical order (like
+ * Rust's b.key.cmp(&a.key))
+ *
+ * @param banksAndOracles - Array where each element is a bank-oracle group: [bankPubkey,
+ *                          oracle1Pubkey, oracle2Pubkey?, ...] Note: SystemProgram keys (111..111)
+ *                          represent inactive accounts
+ * @returns Flattened array of public keys with inactive accounts at the end, ready for transaction
+ *          composition
  */
 export const composeRemainingAccounts = (
-  banksAndOracles: BankAndOracles[]
+  banksAndOracles: PublicKey[][]
 ): PublicKey[] => {
-  // Sort in descending order to push SystemProgram keys (inactive) to end
-  banksAndOracles.sort((a, b) => 
-    b[0].toString().localeCompare(a[0].toString())
-  );
-  
+  banksAndOracles.sort((a, b) => {
+    const A = a[0].toBytes();
+    const B = b[0].toBytes();
+    // find the first differing byte
+    for (let i = 0; i < 32; i++) {
+      if (A[i] !== B[i]) {
+        // descending: bigger byte should come first
+        return B[i] - A[i];
+      }
+    }
+    return 0; // identical keys
+  });
+
+  // flatten out [bank, oracle…, oracle…] → [bank, oracle…, bank, oracle…, …]
   return banksAndOracles.flat();
 };
