@@ -577,7 +577,7 @@ impl SwitchboardPullPriceFeed {
         max_age: u64,
     ) -> MarginfiResult<Self> {
         let ai_data = ai.data.borrow();
-        let _vec = ai_data.to_vec();
+        // let _vec = ai_data.to_vec();
 
         check!(
             ai.owner.eq(&SWITCHBOARD_PULL_ID),
@@ -694,17 +694,15 @@ pub fn parse_swb_ignore_alignment(
         return err!(MarginfiError::SwitchboardInvalidAccount);
     }
 
-    let mut disc_bytes = [0u8; 8];
-    disc_bytes.copy_from_slice(&data[..8]);
-    if disc_bytes != PullFeedAccountData::DISCRIMINATOR {
+    if &data[..8] != PullFeedAccountData::DISCRIMINATOR {
         return err!(MarginfiError::SwitchboardInvalidAccount);
     }
 
-    let mut data_bytes: Box<[u8; 3200]> = Box::new([0u8; 3200]);
-    data_bytes.copy_from_slice(&data[8..3208]);
+    let feed = bytemuck::try_pod_read_unaligned::<PullFeedAccountData>(
+        &data[8..8 + std::mem::size_of::<PullFeedAccountData>()],
+    )
+    .map_err(|_| MarginfiError::SwitchboardInvalidAccount)?;
 
-    let feed = bytemuck::try_pod_read_unaligned::<PullFeedAccountData>(&*data_bytes)
-        .map_err(|_| MarginfiError::SwitchboardInvalidAccount)?;
     Ok(Box::new(feed))
 }
 
