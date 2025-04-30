@@ -71,12 +71,30 @@ pub fn lending_account_pulse_health<'info>(
                 &mut Some(&mut health_cache),
             );
         if liq_result.is_err() {
-            msg!("liquidation health check failed: this should never happen");
+            let err = liq_result.unwrap_err();
+            match err {
+                // Note: in the vastly majority of cases, this will be "HealthyAccount"
+                Error::AnchorError(anchor_error) => {
+                    health_cache.internal_liq_err = anchor_error.error_code_number;
+                }
+                Error::ProgramError(_) => {
+                    msg!("generic program error, this should never happen.")
+                }
+            }
         }
         let bankruptcy_result: MarginfiResult =
             engine.check_account_bankrupt(&mut Some(&mut health_cache));
         if bankruptcy_result.is_err() {
-            msg!("bankruptcy health check failed: this should never happen");
+            let err = bankruptcy_result.unwrap_err();
+            match err {
+                // Note: in the vastly majority of cases, this will be "AccountNotBankrupt"
+                Error::AnchorError(anchor_error) => {
+                    health_cache.internal_bankruptcy_err = anchor_error.error_code_number;
+                }
+                Error::ProgramError(_) => {
+                    msg!("generic program error, this should never happen.")
+                }
+            }
         }
     }
 

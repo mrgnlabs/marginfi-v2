@@ -7,13 +7,13 @@ pub mod prelude;
 pub mod state;
 pub mod utils;
 
-#[cfg(target_arch = "bpf")]
+#[cfg(target_os = "solana")]
 use anchor_lang::solana_program::entrypoint::{HEAP_LENGTH, HEAP_START_ADDRESS};
-#[cfg(target_arch = "bpf")]
+#[cfg(target_os = "solana")]
 use std::alloc::Layout;
-#[cfg(target_arch = "bpf")]
+#[cfg(target_os = "solana")]
 use std::mem::size_of;
-#[cfg(target_arch = "bpf")]
+#[cfg(target_os = "solana")]
 use std::ptr::null_mut;
 
 use anchor_lang::prelude::*;
@@ -35,7 +35,7 @@ cfg_if::cfg_if! {
     }
 }
 
-#[cfg(target_arch = "bpf")]
+#[cfg(target_os = "solana")]
 /// Custom heap allocator that exposes a move_cursor method. This allows us to manually deallocate
 /// space. NOTE: This is very unsafe, use wisely
 pub struct BumpAllocator {
@@ -43,7 +43,7 @@ pub struct BumpAllocator {
     pub len: usize,
 }
 
-#[cfg(target_arch = "bpf")]
+#[cfg(target_os = "solana")]
 impl BumpAllocator {
     const RESERVED_MEM: usize = 1 * size_of::<*mut u8>();
 
@@ -58,7 +58,7 @@ impl BumpAllocator {
         *pos_ptr = pos;
     }
 }
-#[cfg(target_arch = "bpf")]
+#[cfg(target_os = "solana")]
 unsafe impl std::alloc::GlobalAlloc for BumpAllocator {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
@@ -81,7 +81,7 @@ unsafe impl std::alloc::GlobalAlloc for BumpAllocator {
     unsafe fn dealloc(&self, _: *mut u8, _: Layout) {}
 }
 
-#[cfg(target_arch = "bpf")]
+#[cfg(target_os = "solana")]
 #[global_allocator]
 static A: BumpAllocator = BumpAllocator {
     start: HEAP_START_ADDRESS as usize,
