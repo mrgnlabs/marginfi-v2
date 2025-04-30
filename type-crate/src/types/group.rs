@@ -20,7 +20,7 @@ pub struct MarginfiGroup {
     // initialized prior to 0.1.2, a non-authoritative count of the number of banks initiated after
     // 0.1.2 went live.
     pub banks: u16,
-    pub pad0: [u8; 2],
+    pub pad0: [u8; 6],
     /// This admin can configure collateral ratios above (but not below) the collateral ratio of
     /// certain banks , e.g. allow SOL to count as 90% collateral when borrowing an LST instead of
     /// the default rate.
@@ -28,7 +28,6 @@ pub struct MarginfiGroup {
 
     pub _padding_0: [[u64; 2]; 24],
     pub _padding_1: [[u64; 2]; 32],
-    pub _padding_3: u64,
     pub _padding_4: u64,
 }
 
