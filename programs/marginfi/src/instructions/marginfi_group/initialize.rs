@@ -21,6 +21,8 @@ pub fn initialize_group(
 
     let fee_state = ctx.accounts.fee_state.load()?;
 
+    let clock = Clock::get()?;
+    marginfi_group.fee_state_cache.last_update = clock.unix_timestamp;
     marginfi_group.fee_state_cache.global_fee_wallet = fee_state.global_fee_wallet;
     marginfi_group.fee_state_cache.program_fee_fixed = fee_state.program_fee_fixed;
     marginfi_group.fee_state_cache.program_fee_rate = fee_state.program_fee_rate;

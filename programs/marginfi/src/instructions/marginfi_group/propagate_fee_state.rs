@@ -24,5 +24,8 @@ pub fn propagate_fee(ctx: Context<PropagateFee>) -> Result<()> {
     group.fee_state_cache.program_fee_fixed = fee_state.program_fee_fixed;
     group.fee_state_cache.program_fee_rate = fee_state.program_fee_rate;
 
+    let clock = Clock::get()?;
+    group.fee_state_cache.last_update = clock.unix_timestamp;
+
     Ok(())
 }
