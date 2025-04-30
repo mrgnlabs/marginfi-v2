@@ -22,7 +22,7 @@ client = []
 devnet = []
 mainnet-beta = []
 debug = []
-staging = []
+staging = ["custom-heap"]
 
 [dependencies]
 # solana-program = { workspace = true }

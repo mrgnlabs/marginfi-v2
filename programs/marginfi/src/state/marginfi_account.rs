@@ -13,8 +13,10 @@ use crate::{
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
-    utils::NumTraitsWithTolerance, A,
+    utils::NumTraitsWithTolerance,
 };
+#[cfg(target_arch = "bpf")]
+use crate::A;
 use anchor_lang::{prelude::*, Discriminator};
 use anchor_spl::token_interface::Mint;
 use bytemuck::{Pod, Zeroable};
@@ -522,6 +524,7 @@ impl<'info> RiskEngine<'_> {
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
         // Load the reconciled Emode configuration for all banks where the user has borrowed
+        #[cfg(target_arch = "bpf")]
         let heap_ptr_before = unsafe { A.pos() };
         let emode_configs: Vec<EmodeConfig> = bank_accounts_with_price
             .iter()
@@ -529,7 +532,10 @@ impl<'info> RiskEngine<'_> {
             .map(|b_w_p| b_w_p.bank.emode.emode_config)
             .collect();
         let reconciled_emode_config = reconcile_emode_configs(emode_configs);
-        unsafe { A.move_cursor(heap_ptr_before) };
+        #[cfg(target_arch = "bpf")]
+        unsafe {
+            A.move_cursor(heap_ptr_before)
+        };
 
         Ok(RiskEngine {
             marginfi_account,
