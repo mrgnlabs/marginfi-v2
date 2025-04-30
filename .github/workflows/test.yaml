@@ -137,7 +137,7 @@ jobs:
         run: anchor build -p test_transfer_hook --no-idl
 
       - name: Build marginfi program
-        run: anchor build -p marginfi -- --no-default-features
+        run: anchor build -p marginfi -- --no-default-features --features custom-heap
 
       - name: Build mocks program
         run: anchor build -p mocks

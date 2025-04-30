@@ -7,6 +7,12 @@ pub mod prelude;
 pub mod state;
 pub mod utils;
 
+use std::alloc::Layout;
+use std::mem::size_of;
+use std::ptr::null_mut;
+use anchor_lang::solana_program::entrypoint::HEAP_LENGTH;
+use anchor_lang::solana_program::entrypoint::HEAP_START_ADDRESS;
+
 use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
@@ -25,6 +31,55 @@ cfg_if::cfg_if! {
         declare_id!("2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr");
     }
 }
+
+/// Custom heap allocator that exposes a move_cursor method. This allows us to manually deallocate
+/// space. NOTE: This is very unsafe, use wisely
+pub struct BumpAllocator {
+    pub start: usize,
+    pub len: usize,
+}
+
+impl BumpAllocator {
+    const RESERVED_MEM: usize = 1 * size_of::<*mut u8>();
+
+    pub unsafe fn pos(&self) -> usize {
+        let pos_ptr = self.start as *mut usize;
+        *pos_ptr
+    }
+
+    /// ### This is very unsafe, use wisely
+    pub unsafe fn move_cursor(&self, pos: usize) {
+        let pos_ptr = self.start as *mut usize;
+        *pos_ptr = pos;
+    }
+}
+unsafe impl std::alloc::GlobalAlloc for BumpAllocator {
+    #[inline]
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let pos_ptr = self.start as *mut usize;
+
+        let mut pos = *pos_ptr;
+        if pos == 0 {
+            // First time, set starting position
+            pos = self.start + self.len;
+        }
+        pos = pos.saturating_sub(layout.size());
+        pos &= !(layout.align().wrapping_sub(1));
+        if pos < self.start + BumpAllocator::RESERVED_MEM {
+            return null_mut();
+        }
+        *pos_ptr = pos;
+        pos as *mut u8
+    }
+    #[inline]
+    unsafe fn dealloc(&self, _: *mut u8, _: Layout) {}
+}
+
+#[global_allocator]
+static A: BumpAllocator = BumpAllocator {
+    start: HEAP_START_ADDRESS as usize,
+    len: HEAP_LENGTH,
+};
 
 #[program]
 pub mod marginfi {

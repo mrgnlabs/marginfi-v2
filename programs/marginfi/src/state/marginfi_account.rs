@@ -13,7 +13,7 @@ use crate::{
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
-    utils::NumTraitsWithTolerance,
+    utils::NumTraitsWithTolerance, A,
 };
 use anchor_lang::{prelude::*, Discriminator};
 use anchor_spl::token_interface::Mint;
@@ -522,12 +522,14 @@ impl<'info> RiskEngine<'_> {
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
         // Load the reconciled Emode configuration for all banks where the user has borrowed
+        let heap_ptr_before = unsafe { A.pos() };
         let emode_configs: Vec<EmodeConfig> = bank_accounts_with_price
             .iter()
             .filter(|b_w_p| !b_w_p.balance.is_empty(BalanceSide::Liabilities))
             .map(|b_w_p| b_w_p.bank.emode.emode_config)
             .collect();
         let reconciled_emode_config = reconcile_emode_configs(emode_configs);
+        unsafe { A.move_cursor(heap_ptr_before) };
 
         Ok(RiskEngine {
             marginfi_account,
