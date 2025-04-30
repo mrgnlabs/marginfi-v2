@@ -67,7 +67,16 @@ anchor idl authority \
 ```
 We'll assume the authority is `~/keys/staging-deploy.json`.
 
-Run:
+If this is not the first staging deploy, use:
+```
+anchor idl upgrade \
+  stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct \
+  -f target/idl/marginfi.json \
+  --provider.cluster <your rpc (a paid RPC is likely required here)> \
+  --provider.wallet   ~/keys/staging-deploy.json
+```
+
+If this is the first IDl deploy, run:
 ```
 anchor idl init \
   stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct \

@@ -23,6 +23,22 @@ solana program set-buffer-authority <BUFFER> --new-buffer-authority <MULTISIG> -
 * Back up the current working program somewhere with `solana -um program dump MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA mfi_backup.so`
 * Click the pending upgrade to start a vote.
 * Execute after the vote passes.
+* Update the IDL with:
+```
+anchor idl upgrade \
+  MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA \
+  -f target/idl/marginfi.json \
+  --provider.cluster <your rpc (a paid RPC is likely required here)> \
+  --provider.wallet   ~/keys/mainnet-deploy.json
+```
+
+If you aren't sure who the IDL authority is, you can check with: 
+```
+anchor idl authority \    
+  MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA \
+  --provider.cluster <your rpc (https://api.mainnet-beta.solana.com is usually fine)> \
+  --provider.wallet   ~/keys/mainnet-deploy.json
+```
 
 ### Voters:
 
