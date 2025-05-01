@@ -146,24 +146,6 @@ describe("Pyth pull oracles in localnet", () => {
     const wallet = provider.wallet as Wallet;
     for (let i = 0; i < users.length; i++) {
       let tx = new Transaction();
-      // Note: WSOL is really just an spl token in this implementation, we don't simulate the
-      // exchange of SOL for WSOL, but that doesn't really matter.
-      tx.add(
-        createMintToInstruction(
-          ecosystem.wsolMint.publicKey,
-          users[i].wsolAccount,
-          wallet.publicKey,
-          100 * 10 ** ecosystem.wsolDecimals
-        )
-      );
-      tx.add(
-        createMintToInstruction(
-          ecosystem.usdcMint.publicKey,
-          users[i].usdcAccount,
-          wallet.publicKey,
-          10000 * 10 ** ecosystem.usdcDecimals
-        )
-      );
       tx.add(
         createMintToInstruction(
           ecosystem.lstAlphaMint.publicKey,
@@ -179,22 +161,6 @@ describe("Pyth pull oracles in localnet", () => {
 
     // Seed the admin with funds as well
     let tx = new Transaction();
-    tx.add(
-      createMintToInstruction(
-        ecosystem.wsolMint.publicKey,
-        groupAdmin.wsolAccount,
-        wallet.publicKey,
-        100 * 10 ** ecosystem.wsolDecimals
-      )
-    );
-    tx.add(
-      createMintToInstruction(
-        ecosystem.usdcMint.publicKey,
-        groupAdmin.usdcAccount,
-        wallet.publicKey,
-        10000 * 10 ** ecosystem.usdcDecimals
-      )
-    );
     tx.add(
       createMintToInstruction(
         ecosystem.lstAlphaMint.publicKey,
@@ -319,6 +285,8 @@ describe("Pyth pull oracles in localnet", () => {
 
       const tx = new Transaction();
       tx.add(
+        ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
         await borrowIx(user.mrgnBankrunProgram, {
           marginfiAccount: userAccount,
           bank: banks[i],
@@ -330,7 +298,7 @@ describe("Pyth pull oracles in localnet", () => {
       tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
       tx.sign(user.wallet);
       let result = await banksClient.tryProcessTransaction(tx);
-      //console.log("***********" + i + " ***********");
+      console.log("***********" + i + " ***********");
       //dumpBankrunLogs(result);
 
       // Throws if the error is not OOM.
@@ -344,7 +312,7 @@ describe("Pyth pull oracles in localnet", () => {
           oomAt = i + 1;
           console.warn(`⚠️ \t OOM during borrow on bank ${i}: \n`, logs);
           console.log("MAXIMUM ACCOUNTS BEFORE MEMORY FAILURE: " + oomAt);
-          return;
+          assert.ok(false);
         } else {
           // anything other than OOM should blow up the test
           throw new Error(
