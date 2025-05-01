@@ -74,6 +74,7 @@ Here we list recent deployments to staging/mainnet. The hash is always the first
 * 0.1.1: Feb 7, 2025 ~8:15am ET -- Hash: 03455c
 * 0.1.2: March 14, 2025 ~3:00pm ET -- Hash 65bbbe
 * 0.1.3: April 29, 2025 ~2:00pm ET -- Hash 1d8130
+* 0.1.3 memory hotfix: April 30, 2025 ~1:30pm ET -- (no hash)
 
 ### MAINNET
 

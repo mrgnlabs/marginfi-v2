@@ -15,14 +15,15 @@ use crate::{
     prelude::{MarginfiError, MarginfiResult},
     utils::NumTraitsWithTolerance,
 };
-#[cfg(target_os = "solana")]
-use crate::A;
 use anchor_lang::{prelude::*, Discriminator};
 use anchor_spl::token_interface::Mint;
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
 use std::cmp::{max, min};
 use type_layout::TypeLayout;
+
+#[cfg(target_os = "solana")]
+use crate::A;
 
 assert_struct_size!(MarginfiAccount, 2304);
 assert_struct_align!(MarginfiAccount, 8);
