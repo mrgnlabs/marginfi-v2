@@ -217,7 +217,8 @@ export const mochaHooks = {
     copyKeys.push(
       groupAdmin.usdcAccount,
       groupAdmin.tokenBAccount,
-      groupAdmin.wallet.publicKey
+      groupAdmin.wallet.publicKey,
+      groupAdmin.lstAlphaAccount,
     );
 
     for (let i = 0; i < numUsers; i++) {

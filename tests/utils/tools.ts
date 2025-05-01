@@ -1,3 +1,5 @@
+import { MarginfiAccountRaw } from "@mrgnlabs/marginfi-client-v2";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { BanksTransactionResultWithMeta } from "solana-bankrun";
 
 /**
@@ -84,3 +86,46 @@ export const dumpBankrunLogs = (result: BanksTransactionResultWithMeta) => {
     console.log(i + " " + result.meta.logMessages[i]);
   }
 };
+
+/**
+ * Print account balances in a pretty table. If you're getting a type error here, due to a different
+ * client version. feel free to ts-ignore it.
+ */
+export function dumpAccBalances(
+  account: MarginfiAccountRaw 
+) {
+  let balances = account.lendingAccount.balances;
+  let activeBalances = [];
+  for (let i = 0; i < balances.length; i++) {
+    if (balances[i].active == 0) {
+      activeBalances.push({
+        "Bank PK": "empty",
+        Tag: "-",
+        "Liab Shares ": "-",
+        "Asset Shares": "-",
+        // Emissions: "-",
+      });
+      continue;
+    }
+
+    activeBalances.push({
+      "Bank PK": balances[i].bankPk.toString(),
+      // Tag: balances[i].bankAssetTag,
+      "Liab Shares ": formatNumber(
+        wrappedI80F48toBigNumber(balances[i].liabilityShares)
+      ),
+      "Asset Shares": formatNumber(
+        wrappedI80F48toBigNumber(balances[i].assetShares)
+      ),
+      // Emissions: formatNumber(
+      //   wrappedI80F48toBigNumber(balances[i].emissionsOutstanding)
+      // ),
+    });
+
+    function formatNumber(num) {
+      const number = parseFloat(num).toFixed(4);
+      return number === "0.0000" ? "-" : number;
+    }
+  }
+  console.table(activeBalances);
+}
