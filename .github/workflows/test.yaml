@@ -71,6 +71,77 @@ jobs:
 
     - run: ./scripts/test-program.sh all --sane
 
+  fuzz:
+    name: Fuzz The marginfi Program
+    runs-on: ubuntu-latest
+    needs: [ test-unit ]
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./programs/marginfi/fuzz
+
+    steps:
+    - uses: actions/checkout@v3
+
+    # ─── Cache Cargo registry ─────────────────────────────────────────────
+    - name: Cache Cargo registry & index
+      uses: actions/cache@v3
+      id: cache-cargo-registry
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
+        key: cargo-registry-${{ runner.os }}-${{ hashFiles('programs/marginfi/fuzz/Cargo.lock') }}
+
+    # ─── Cache nightly Rust toolchain ───────────────────────────────
+    - name: Cache Rust nightly toolchain
+      uses: actions/cache@v3
+      id: cache-nightly
+      with:
+        path: ~/.rustup/toolchains/nightly-2024-06-05-x86_64-unknown-linux-gnu
+        key: rust-nightly-${{ runner.os }}-nightly-20240605
+
+    - name: Install nightly Rust + rust-src
+      if: steps.cache-nightly.outputs.cache-hit != 'true'
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: nightly-2024-06-05
+        components: rust-src
+
+    # 3) Cache cargo-fuzz binary
+    - name: Cache cargo-fuzz
+      uses: actions/cache@v3
+      id: cache-cargo-fuzz
+      with:
+        path: ~/.cargo/bin/cargo-fuzz
+        key: cargo-fuzz-${{ runner.os }}-nightly-20240605
+
+    - name: Install cargo-fuzz
+      if: steps.cache-cargo-fuzz.outputs.cache-hit != 'true'
+      run: cargo install cargo-fuzz --locked
+
+    # ─── Cache compiled fuzz target ─────────────────────────────────────────────
+    - name: Cache fuzz target build
+      uses: actions/cache@v3
+      id: cache-fuzz-build
+      with:
+        path: target/fuzz/lend
+        key: fuzz-build-${{ runner.os }}-${{ hashFiles('programs/marginfi/fuzz/**/*.rs') }}
+
+    - name: Generate corpus
+      run: python ./generate_corpus.py
+
+    - name: Run fuzz tests
+      run: |
+        cargo +nightly-2024-06-05 \
+          fuzz run lend -Zbuild-std \
+          --strip-dead-code --no-cfg-fuzzing \
+          -- -max_total_time=300
+    - name: Pass after fuzzing
+      run: echo "✅ Fuzzing completed"
+
   localnet-test-marginfi:
     name: Anchor Localnet Tests (Marginfi)
     runs-on: ubuntu-latest
