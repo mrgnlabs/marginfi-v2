@@ -1,7 +1,17 @@
-name: CI
+name: Test
+
 on:
-  push: { branches: [ main ] }
-  pull_request: { branches: [ '*' ] }
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - "*"
+
+defaults:
+  run:
+    shell: bash
+    working-directory: .
 
 env:
   RUST_TOOLCHAIN: 1.79.0
@@ -10,71 +20,16 @@ env:
   ANCHOR_SHA: e6d7dafe12da661a36ad1b4f3b5970e8986e5321
   CARGO_TERM_COLOR: always
 
-defaults:
-  run:
-    shell: bash
-    working-directory: .
-
 concurrency:
   group: build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
-# checkout step
-x-checkout-step: &checkout-step
-  uses: actions/checkout@v3
-  with:
-    fetch-depth: 1
-
-# common setup (Rust toolchain, clippy, rustfmt)
-x-setup-common-step: &setup-common-step
-  uses: ./.github/actions/setup-common/
-
-# Solana CLI
-x-setup-solana-step: &setup-solana-step
-  uses: ./.github/actions/setup-solana-cli/
-
-# Anchor CLI
-x-setup-anchor-step: &setup-anchor-step
-  uses: ./.github/actions/setup-anchor-cli/
-
-# Cache Cargo registry & index
-x-cache-cargo-step: &cache-cargo-step
-  name: Cache Cargo registry & index
-  uses: actions/cache@v3
-  with:
-    path: |
-      ~/.cargo/registry/index
-      ~/.cargo/registry/cache
-      ~/.cargo/git/db
-    key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-
-# Cache Anchor build outputs (target/)
-x-cache-anchor-build-step: &cache-anchor-build-step
-  name: Cache Anchor build output
-  uses: actions/cache@v3
-  with:
-    path: target/
-    key: anchor-build-${{ runner.os }}-${{ env.ANCHOR_CLI_VERSION }}-${{ env.ANCHOR_SHA }}-${{ hashFiles('programs/**/Cargo.lock') }}
-
-# Cache Yarn deps
-x-cache-yarn-step: &cache-yarn-step
-  name: Cache Yarn
-  uses: actions/cache@v3
-  with:
-    path: |
-      ~/.cache/yarn
-      node_modules
-    key: yarn-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
 
 jobs:
   lint:
     name: Rust Lint
     runs-on: ubuntu-latest
     steps:
-    - *checkout-step
-    - *setup-common-step
-    - *cache-cargo-step
-
+    - uses: ./.github/actions/base-setup/
     - run: cargo fmt -- --check
     - run: ./scripts/lint.sh
 
@@ -82,10 +37,7 @@ jobs:
     name: Rust Unit Tests
     runs-on: ubuntu-latest
     steps:
-    - *checkout-step
-    - *setup-common-step
-    - *cache-cargo-step
-
+    - uses: ./.github/actions/base-setup/
     - run: cargo test --lib
 
   build-and-test-workspace:
@@ -93,13 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ lint, test-unit ]
     steps:
-    - *checkout-step
-    - *setup-common-step
-    - *setup-solana-step
-    - *setup-anchor-step
-    - *cache-cargo-step
-    - *cache-anchor-build-step
-
+    - uses: ./.github/actions/base-setup/
     - uses: ./.github/actions/build-workspace/
     - run: ./scripts/test-program.sh all --sane
 
@@ -108,21 +54,25 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-test-workspace
     steps:
-    - *checkout-step
-    - *setup-solana-step
-    - *setup-anchor-step
-    - *cache-anchor-build-step
-    - *cache-yarn-step
+    - uses: ./.github/actions/base-setup/
 
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '23.0.0'
 
+    - name: Cache Yarn dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/yarn
+          node_modules
+        key: yarn-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
+
     - name: Install JS deps
       run: yarn install
 
-    - name: Build transfer-hook
+    - name: Build transfer hook
       run: anchor build -p test_transfer_hook --no-idl
 
     - name: Build marginfi
@@ -137,11 +87,13 @@ jobs:
           anchor test --skip-build 2>&1 | tee test_output.log
           return $?
         }
+
         run_tests; CODE=$?
         if [ $CODE -eq 139 ]; then
           echo "⚠️ Segfault—retrying once…"
           run_tests; CODE=$?
         fi
+
         if grep -q failing test_output.log; then exit 1; fi
         if grep -q "os error 2" test_output.log && [ $CODE -ne 139 ]; then exit 0; fi
         [ $CODE -eq 0 ]

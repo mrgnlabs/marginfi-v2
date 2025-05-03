@@ -1,0 +1,33 @@
+name: "Base Setup"
+description: "Checkout + Rust + Solana + Anchor + Cargo cache"
+runs:
+  using: "composite"
+  steps:
+  - name: Checkout repo
+    uses: actions/checkout@v3
+    with:
+      fetch-depth: 1
+
+  - name: Setup common (Rust + clippy + rustfmt)
+    uses: ./.github/actions/setup-common/
+
+  - name: Cache Cargo registry & index
+    uses: actions/cache@v3
+    with:
+      path: |
+        ~/.cargo/registry/index
+        ~/.cargo/registry/cache
+        ~/.cargo/git/db
+      key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+  - name: Setup Solana CLI
+    uses: ./.github/actions/setup-solana-cli/
+
+  - name: Setup Anchor CLI
+    uses: ./.github/actions/setup-anchor-cli/
+
+  - name: Cache Anchor build output
+    uses: actions/cache@v3
+    with:
+      path: target/
+      key: anchor-build-${{ runner.os }}-${{ env.ANCHOR_CLI_VERSION }}-${{ env.ANCHOR_SHA }}-${{ hashFiles('programs/**/Cargo.lock') }}
