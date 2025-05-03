@@ -407,7 +407,7 @@ describe("Pyth pull oracles in localnet", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(liquidator.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
-    dumpBankrunLogs(result);
+    //dumpBankrunLogs(result);
 
     // Throws if the error is not OOM.
     if (result.result) {
@@ -425,6 +425,8 @@ describe("Pyth pull oracles in localnet", () => {
       }
     }
   });
+
+  // TODO try these with switchboard oracles.
 
   async function addBankTest(options: {
     assetTag?: number;

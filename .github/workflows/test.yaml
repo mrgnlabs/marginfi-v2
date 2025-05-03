@@ -1,17 +1,7 @@
-name: Test
-
+name: CI
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - "*"
-
-defaults:
-  run:
-    shell: bash
-    working-directory: .
+  push:    { branches: [main] }
+  pull_request: { branches: ['*'] }
 
 env:
   RUST_TOOLCHAIN: 1.79.0
@@ -20,151 +10,151 @@ env:
   ANCHOR_SHA: e6d7dafe12da661a36ad1b4f3b5970e8986e5321
   CARGO_TERM_COLOR: always
 
+defaults:
+  run:
+    shell: bash
+    working-directory: .
+
 concurrency:
   group: build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+# ── Reusable step-blocks ────────────────────────────────────────────────────────
+# A: shallow checkout
+x-checkout: &checkout
+  - uses: actions/checkout@v3
+    with:
+      fetch-depth: 1
+
+# B: just Rust (fmt, clippy, unit tests)
+x-setup-rust: &setup-rust
+  - uses: ./.github/actions/setup-common/
+  - name: Cache Cargo registry & index
+    uses: actions/cache@v3
+    with:
+      path: |
+        ~/.cargo/registry/index
+        ~/.cargo/registry/cache
+        ~/.cargo/git/db
+      key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+# C: Rust + Solana + Anchor (integration & localnet tests)
+x-setup-solana-anchor: &setup-solana-anchor
+  - uses: ./.github/actions/setup-solana-cli/
+  - uses: ./.github/actions/setup-anchor-cli/
+
+# D: Cache your Anchor build outputs (target/)
+x-cache-anchor-build: &cache-anchor-build
+  - name: Cache Anchor build output
+    uses: actions/cache@v3
+    with:
+      path: target/
+      key: anchor-build-${{ runner.os }}-${{ env.ANCHOR_CLI_VERSION }}-${{ env.ANCHOR_SHA }}-${{ hashFiles('programs/**/Cargo.lock') }}
+
+# E: Cache your JS deps
+x-cache-yarn: &cache-yarn
+  - name: Cache Yarn
+    uses: actions/cache@v3
+    with:
+      path: |
+        ~/.cache/yarn
+        node_modules
+      key: yarn-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
+
+# ── Jobs ───────────────────────────────────────────────────────────────────────
 
 jobs:
   lint:
     name: Rust Lint
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v3
-
-      - uses: ./.github/actions/setup-common/
-      - uses: ./.github/actions/setup-anchor-cli/
-
-      # - uses: actions/cache@v2
-      #   name: Cache Cargo registry + index
-      #   id: cache-cargo-build
-      #   with:
-      #     path: |
-      #       ~/.cargo/bin/
-      #       ~/.cargo/registry/index/
-      #       ~/.cargo/registry/cache/
-      #       ~/.cargo/git/db/
-      #     key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-
+      <<: *checkout
+      <<: *setup-rust
       - run: cargo fmt -- --check
-
       - run: ./scripts/lint.sh
 
   test-unit:
     name: Rust Unit Tests
     runs-on: ubuntu-latest
-    # env:
-    #   RUSTUP_TOOLCHAIN: stable
     steps:
-      - uses: actions/checkout@v3
-
-      - uses: ./.github/actions/setup-common/
-      - uses: ./.github/actions/setup-anchor-cli/
-
-      # - uses: actions/cache@v2
-      #   name: Cache Cargo registry + index
-      #   id: cache-cargo-build
-      #   with:
-      #     path: |
-      #       ~/.cargo/bin/
-      #       ~/.cargo/registry/index/
-      #       ~/.cargo/registry/cache/
-      #       ~/.cargo/git/db/
-      #     key: cargo-${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-
+      <<: *checkout
+      <<: *setup-rust
       - run: cargo test --lib
 
   build-and-test-workspace:
-    name: Build And Test Anchor Programs
+    name: Build & Test Anchor Programs
     runs-on: ubuntu-latest
-
+    needs: [lint, test-unit]
     steps:
-      - uses: actions/checkout@v2
-
-      - uses: ./.github/actions/setup-common/
-      - uses: ./.github/actions/setup-anchor-cli/
+      <<: *checkout
+      <<: *setup-rust
+      <<: *setup-solana-anchor
+      <<: *cache-anchor-build
 
       - uses: ./.github/actions/build-workspace/
-
       - run: ./scripts/test-program.sh all --sane
-        shell: bash
 
   fuzz:
-    name: Fuzz The marginfi Program
+    name: Fuzz The Marginfi Program
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
         working-directory: ./programs/marginfi/fuzz
-
     steps:
-      - uses: actions/checkout@v3
-      # - name: cache dependencies
-      #   uses: Swatinem/rust-cache@v2
+      <<: *checkout
+      - name: Cache Rust toolchain + registry
+        uses: Swatinem/rust-cache@v2
       - name: Install full rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: nightly-2024-06-05
           components: rust-src
-      - name: Run fuzz tests in fuzz dir
-        run: |
-          python ./generate_corpus.py
-          cargo install cargo-fuzz --locked
-          cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300
-      - name: Pass after fuzzing
-        run: echo "Fuzzing completed"
+      - run: python ./generate_corpus.py
+      - run: cargo install cargo-fuzz --locked
+      - run: cargo +nightly-2024-06-05 \
+              fuzz run lend -Zbuild-std --strip-dead-code \
+              --no-cfg-fuzzing -- -max_total_time=300
+      - run: echo "✅ Fuzzing completed"
 
   localnet-test-marginfi:
-    name: Anchor localnet tests marginfi
+    name: Anchor Localnet Tests (Marginfi)
     runs-on: ubuntu-latest
-
+    needs: build-and-test-workspace
     steps:
-      - uses: actions/checkout@v3
+      <<: *checkout
+      <<: *setup-solana-anchor
+      <<: *cache-anchor-build
+      <<: *cache-yarn
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
-        with:
-          node-version: "23.0.0"
+        with: { node-version: '23.0.0' }
 
-      - uses: ./.github/actions/setup-common/
-      - uses: ./.github/actions/setup-anchor-cli/
-
-      - name: Install Node.js dependencies
+      - name: Install JS deps
         run: yarn install
 
-      - name: Build transfer hook program
+      - name: Build transfer-hook
         run: anchor build -p test_transfer_hook --no-idl
 
-      - name: Build marginfi program
+      - name: Build marginfi
         run: anchor build -p marginfi -- --no-default-features --features custom-heap
 
-      - name: Build mocks program
+      - name: Build mocks
         run: anchor build -p mocks
 
-      # Handles extraneous (os error 2) that appears during testing in some versions of solana. See:
-      # https://solana.stackexchange.com/questions/1648/error-no-such-file-or-directory-os-error-2-error-from-anchor-test
-      - name: Run Anchor tests
+      - name: Run Anchor tests (retry on segfault)
         run: |
-          set +e
-          anchor test --skip-build 2>&1 | tee test_output.log
-          ANCHOR_EXIT_CODE=$?
-          set -e
-
-          if grep -q "failing" test_output.log; then
-            echo "Real test failure detected."
-            exit 1
+          run_tests() {
+            anchor test --skip-build 2>&1 | tee test_output.log
+            return $?
+          }
+          run_tests; CODE=$?
+          if [ $CODE -eq 139 ]; then
+            echo "⚠️ Segfault—retrying once…"
+            run_tests; CODE=$?
           fi
-
-          if grep -q "No such file or directory (os error 2)" test_output.log; then
-            echo "Extraneous error detected, ignoring it..."
-            exit 0
-          fi
-
-          if [ $ANCHOR_EXIT_CODE -ne 0 ]; then
-            echo "Anchor test exited with code $ANCHOR_EXIT_CODE due to an unexpected error."
-            exit 1
-          else
-            echo "Test run completed successfully without extraneous errors."
-            exit 0
-          fi
+          if grep -q failing test_output.log; then exit 1; fi
+          if grep -q "os error 2" test_output.log && [ $CODE -ne 139 ]; then exit 0; fi
+          [ $CODE -eq 0 ]
