@@ -1,5 +1,13 @@
 name: "Base Setup"
-description: "Checkout + Rust + Solana + Anchor + Cargo cache"
+description: "Checkout + Rust + (optionally) Solana+Anchor + Cargo cache"
+
+# setting up anchor defaults to 'true'
+inputs:
+  include-anchor:
+    description: "Whether to also setup Solana & Anchor"
+    required: false
+    default: "true"
+
 runs:
   using: "composite"
   steps:
@@ -20,13 +28,18 @@ runs:
         ~/.cargo/git/db
       key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
+  # only run Solana & Anchor setup if include-anchor == 'true'
+  # unit tests and lint can skip this setup.
   - name: Setup Solana CLI
+    if: ${{ inputs.include-anchor == 'true' }}
     uses: ./.github/actions/setup-solana-cli/
 
   - name: Setup Anchor CLI
+    if: ${{ inputs.include-anchor == 'true' }}
     uses: ./.github/actions/setup-anchor-cli/
 
   - name: Cache Anchor build output
+    if: ${{ inputs.include-anchor == 'true' }}
     uses: actions/cache@v3
     with:
       path: target/
