@@ -53,9 +53,22 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: ./.github/actions/base-setup/
+    # TODO cache transfer hook and mocks here instead of rebuilding them each time...
     - uses: ./.github/actions/build-workspace/
-    - run: cargo install cargo-nextest --version "0.9.81" --locked
+    # ─── Cache cargo-nextest ─────────────────────────────────────────────
+    - name: Cache cargo-nextest binary
+      uses: actions/cache@v3
+      id: cache-nextest
+      with:
+        path: ~/.cargo/bin/cargo-nextest
+        key: cargo-nextest-${{ runner.os }}-v0.9.81
+
+    - name: Install cargo-nextest
+      if: steps.cache-nextest.outputs.cache-hit != 'true'
+      run: |
+        cargo install cargo-nextest --version "0.9.81" --locked
       shell: bash
+
     - run: ./scripts/test-program.sh all --sane
 
   localnet-test-marginfi:
@@ -70,40 +83,73 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: '23.0.0'
-
-    - name: Cache Yarn dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cache/yarn
-          node_modules
-        key: yarn-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
+        cache: 'yarn'
+        cache-dependency-path: '**/yarn.lock'
 
     - name: Install JS deps
-      run: yarn install
+      run: yarn install --frozen-lockfile --prefer-offline
+
+    # ─── Cache transfer hook ─────────────────────────────────────────────
+    - name: Cache transfer-hook build
+      uses: actions/cache@v3
+      id: cache-transfer
+      with:
+        path: target/deploy/test_transfer_hook.so
+        key: anchor-transfer-hook-${{ runner.os }}-${{ env.ANCHOR_SHA }}-${{ hashFiles('programs/test_transfer_hook/**/*') }}
 
     - name: Build transfer hook
+      if: steps.cache-transfer.outputs.cache-hit != 'true'
       run: anchor build -p test_transfer_hook --no-idl
 
+    # ─── Cache mocks program ─────────────────────────────────────────────
+    - name: Cache mocks build & IDL
+      uses: actions/cache@v3
+      id: cache-mocks
+      with:
+        path: |
+          target/deploy/mocks.so
+          target/idl/mocks.json
+          target/types/mocks.ts
+        key: anchor-mocks-${{ runner.os }}-${{ env.ANCHOR_SHA }}-${{ hashFiles('programs/mocks/**/*') }}
+
+    - name: Build mocks
+      if: steps.cache-mocks.outputs.cache-hit != 'true'
+      run: anchor build -p mocks
+
+    # ─── Marginfi always builds from scratch ─────────────────────────
     - name: Build marginfi
       run: anchor build -p marginfi -- --no-default-features --features custom-heap
 
-    - name: Build mocks
-      run: anchor build -p mocks
-
     - name: Run Anchor tests (retry on segfault)
       run: |
+        set +e
+
         run_tests() {
           anchor test --skip-build 2>&1 | tee test_output.log
           return $?
         }
 
-        run_tests; CODE=$?
+        run_tests
+        CODE=$?
+
         if [ $CODE -eq 139 ]; then
-          echo "⚠️ Segfault—retrying once…"
-          run_tests; CODE=$?
+          echo "⚠️ Segmentation fault detected. Retrying tests once…"
+          run_tests
+          CODE=$?
         fi
 
-        if grep -q failing test_output.log; then exit 1; fi
-        if grep -q "os error 2" test_output.log && [ $CODE -ne 139 ]; then exit 0; fi
-        [ $CODE -eq 0 ]
+        set -e
+
+        if grep -q "failing" test_output.log; then
+          echo "❌ Real test failure detected."
+          exit 1
+        fi
+
+        if grep -q "No such file or directory (os error 2)" test_output.log \
+          && [ $CODE -ne 139 ]; then
+          echo "ℹ️  Extraneous OS-error-2 detected; ignoring it."
+          exit 0
+        fi
+
+        echo "✅ Tests finished with exit code $CODE"
+        exit $CODE
