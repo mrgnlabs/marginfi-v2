@@ -1,16 +1,27 @@
 name: "Setup common"
 description: "Setup common"
+
 runs:
   using: "composite"
   steps:
+  # ─── System deps still always installed ────────────────────────────────
   - run: sudo apt-get update
     shell: bash
 
   - run: sudo apt-get install -y pkg-config build-essential libudev-dev
     shell: bash
 
-  - uses: actions-rs/toolchain@v1
-    name: Install minimal rust toolchain with clippy and rustfmt
+  # ─── Cache the Rust toolchain directory ────────────────────────────────
+  - name: Cache Rust toolchain
+    uses: actions/cache@v3
+    id: cache-rust-toolchain
+    with:
+      path: ~/.rustup/toolchains/${{ env.RUST_TOOLCHAIN }}-x86_64-unknown-linux-gnu
+      key: rust-toolchain-${{ runner.os }}-v${{ env.RUST_TOOLCHAIN }}
+
+  - name: Install minimal rust toolchain with clippy and rustfmt
+    if: steps.cache-rust-toolchain.outputs.cache-hit != 'true'
+    uses: actions-rs/toolchain@v1
     with:
       profile: minimal
       toolchain: ${{ env.RUST_TOOLCHAIN }}
