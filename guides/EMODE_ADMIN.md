@@ -38,7 +38,8 @@
 
 ## Emode Configuration Overview
 
-Emode can never reduce the weights of a bank, i.e. the bank's weight is always the minimum and attempts to configure an emode entry below the bank's weights will simply do nothing.
+Emode can never reduce the weights of a bank, i.e. the bank's weight is always the minimum and
+attempts to configure an emode entry below the bank's weights will simply do nothing.
 
 Users who borrow multiple emode assets at the same time get the LEAST FAVORABLE treatment between
 the borrowed assets, regardless of the amount of each asset borrowed. For example, if borrowing an
