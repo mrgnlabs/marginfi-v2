@@ -110,7 +110,7 @@ jobs:
         toolchain: nightly-2024-06-05
         components: rust-src
 
-    # 3) Cache cargo-fuzz binary
+    # ─── Cache cargo fuzz ----- ─────────────────────────────────────────────
     - name: Cache cargo-fuzz
       uses: actions/cache@v3
       id: cache-cargo-fuzz
@@ -189,7 +189,7 @@ jobs:
 
     # ─── Marginfi always builds from scratch ─────────────────────────
     - name: Build marginfi
-      run: anchor build -p marginfi -- --no-default-features --features custom-heap
+      run: anchor build -p marginfi -- --no-default-features
 
     - name: Run Anchor tests (retry on segfault)
       run: |

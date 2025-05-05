@@ -22,9 +22,6 @@ use fixed::types::I80F48;
 use std::cmp::{max, min};
 use type_layout::TypeLayout;
 
-// #[cfg(target_os = "solana")]
-// use crate::A;
-
 assert_struct_size!(MarginfiAccount, 2304);
 assert_struct_align!(MarginfiAccount, 8);
 #[account(zero_copy)]
@@ -525,21 +522,12 @@ impl<'info> RiskEngine<'_, 'info> {
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
         // Load the reconciled Emode configuration for all banks where the user has borrowed
-
-        // #[cfg(target_os = "solana")]
-        // let heap_ptr_before = unsafe { A.pos() };
-
         let reconciled_emode_config = reconcile_emode_configs(
             bank_accounts_with_price
                 .iter()
                 .filter(|b| !b.balance.is_empty(BalanceSide::Liabilities))
                 .map(|b| b.bank.load().unwrap().emode.emode_config),
         );
-
-        // #[cfg(target_os = "solana")]
-        // unsafe {
-        //     A.move_cursor(heap_ptr_before)
-        // };
 
         Ok(RiskEngine {
             marginfi_account,
