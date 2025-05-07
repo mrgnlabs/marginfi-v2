@@ -229,11 +229,6 @@ fn check_marginfi_group(
         .iter()
         .filter(|(_, bank)| bank.config.oracle_setup == OracleSetup::SwitchboardV2)
         .collect::<Vec<_>>();
-    // Pyth legacy is deprecated
-    let _pyth_oracles = banks
-        .iter()
-        .filter(|(_, bank)| bank.config.oracle_setup == OracleSetup::PythLegacy)
-        .collect::<Vec<_>>();
     let pyth_push_oracles = banks
         .iter()
         .filter(|(_, bank)| bank.config.oracle_setup == OracleSetup::PythPushOracle)

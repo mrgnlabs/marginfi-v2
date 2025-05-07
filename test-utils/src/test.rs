@@ -250,7 +250,7 @@ lazy_static! {
             ..Default::default()
         };
     pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythLegacy,
+        oracle_setup: OracleSetup::PythPushOracle,
         asset_weight_maint: I80F48!(1).into(),
         asset_weight_init: I80F48!(1).into(),
         liability_weight_init: I80F48!(1).into(),
@@ -335,7 +335,7 @@ lazy_static! {
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythLegacy,
+        oracle_setup: OracleSetup::PythPushOracle,
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_REAL_FEED),
@@ -343,7 +343,7 @@ lazy_static! {
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_USDC_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythLegacy,
+        oracle_setup: OracleSetup::PythPushOracle,
         deposit_limit: native!(1_000_000_000, "USDC"),
         borrow_limit: native!(1_000_000_000, "USDC"),
         oracle_keys: create_oracle_key_array(PYTH_USDC_REAL_FEED),

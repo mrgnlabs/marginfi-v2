@@ -187,7 +187,6 @@ unsafe impl Pod for BankOperationalState {}
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum OracleSetup {
     None,
-    PythLegacy,
     SwitchboardV2,
     PythPushOracle,
     SwitchboardPull,

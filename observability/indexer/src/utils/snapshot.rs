@@ -56,7 +56,6 @@ pub enum BankUpdateRoutingType {
 
 #[derive(Clone, Debug)]
 pub enum OracleData {
-    Pyth(PythLegacyPriceFeed),
     Switchboard(SwitchboardV2PriceFeed),
     PythPush(PythPushOraclePriceFeed),
     SwitchboardPull(SwitchboardPullPriceFeed),
@@ -225,12 +224,6 @@ impl Snapshot {
 
                 match bank.config.oracle_setup {
                     OracleSetup::None => (),
-                    OracleSetup::PythLegacy => {
-                        let oracle_address = bank.config.oracle_keys[0];
-                        self.routing_lookup
-                            .insert(oracle_address, AccountRoutingType::PriceFeedPyth);
-                        accounts_to_fetch.push(oracle_address);
-                    }
                     OracleSetup::SwitchboardV2 => {
                         let oracle_address = bank.config.oracle_keys[0];
                         self.routing_lookup
@@ -319,13 +312,6 @@ impl Snapshot {
             .get(account_pubkey)
             .expect("Account not found in routing lookup");
         match routing_info {
-            AccountRoutingType::PriceFeedPyth => {
-                let mut account = account.clone();
-                let ai = (account_pubkey, &mut account).into_account_info();
-                let pf = PythLegacyPriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
-                self.price_feeds
-                    .insert(*account_pubkey, OracleData::Pyth(pf));
-            }
             AccountRoutingType::Bank(bank_pk, BankUpdateRoutingType::LiquidityTokenAccount) => {
                 self.banks
                     .get_mut(bank_pk)
