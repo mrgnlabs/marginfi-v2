@@ -41,8 +41,6 @@ describe("Set up permissionless fee claiming", () => {
     externalWallet.publicKey
   );
 
-  before(async () => {});
-
   it("(user 0) tries to set a bogus claim destination - should fail", async () => {
     const user = users[0];
 
@@ -79,7 +77,7 @@ describe("Set up permissionless fee claiming", () => {
       ),
       await updateBankFeesDestinationAccount(admin.mrgnBankrunProgram, {
         bank: bankKeypairSol.publicKey,
-        destination: wsolAta, // sneaky sneaky
+        destination: wsolAta,
       })
     );
 
