@@ -66,6 +66,7 @@ describe("Compound interest demonstration", () => {
     for (let i = 0; i < banks.length; i += depositsPerTx) {
       const chunk = banks.slice(i, i + depositsPerTx);
       const tx = new Transaction();
+      let k = 0;
       for (const bank of chunk) {
         tx.add(
           await depositIx(user.mrgnBankrunProgram, {
@@ -78,9 +79,10 @@ describe("Compound interest demonstration", () => {
         );
         if (verbose) {
           console.log(
-            "seed bank " + i + " with liquidity " + depositAmount.toNumber()
+            "seed bank " + k + " with liquidity " + depositAmount.toNumber()
           );
         }
+        k++;
       }
       tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
       tx.sign(user.wallet);
