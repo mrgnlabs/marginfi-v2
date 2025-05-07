@@ -30,5 +30,8 @@ pub fn config_group_fee(ctx: Context<ConfigGroupFee>, enable_program_fee: bool) 
         flag_before
     );
 
+    let clock = Clock::get()?;
+    marginfi_group.fee_state_cache.last_update = clock.unix_timestamp;
+
     Ok(())
 }
