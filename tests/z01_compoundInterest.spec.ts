@@ -5,7 +5,7 @@ happens if nobody interacts with a bank vs if it gets frequent updates.
 This test must run last in the bankrun suite because it advances a lot of time, generating a lot of
 interest, which messes with other tests.
 
-The test demonstrates that interest earned is substantially dependeny 
+The test demonstrates that interest earned is slightly dependent on compounding schedule. 
 */
 import { BN } from "@coral-xyz/anchor";
 import {
@@ -47,7 +47,7 @@ let banks: PublicKey[] = [];
 let throwawayGroup: Keypair;
 
 const depositAmount = new BN(100 * 10 ** ecosystem.lstAlphaDecimals);
-const borrowAmount = new BN(10 * 10 ** ecosystem.lstAlphaDecimals);
+const borrowAmount = new BN(30 * 10 ** ecosystem.lstAlphaDecimals);
 
 describe("Compound interest demonstration", () => {
   it("init group, init banks, and fund banks", async () => {
@@ -80,12 +80,19 @@ describe("Compound interest demonstration", () => {
       tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
       tx.sign(user.wallet);
       await banksClient.tryProcessTransaction(tx);
+      if (verbose) {
+        console.log(
+          "seed bank " + i + "with liquidity " + depositAmount.toNumber()
+        );
+      }
     }
   });
 
   it("(user 0) Borrows from banks 1-3 against bank 0 to generate interest", async () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
+    // enough to borrow as much as we want...
+    const depositAmt = depositAmount.muln(3);
 
     const tx = new Transaction();
     tx.add(
@@ -93,13 +100,17 @@ describe("Compound interest demonstration", () => {
         marginfiAccount: userAccount,
         bank: banks[0],
         tokenAccount: user.lstAlphaAccount,
-        amount: depositAmount,
+        amount: depositAmt,
         depositUpToLimit: false,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     await banksClient.tryProcessTransaction(tx);
+
+    if (verbose) {
+      console.log("seed bank 0 with liquidity " + depositAmt.toNumber());
+    }
 
     for (let i = 1; i < banks.length; i += 1) {
       const remainingAccounts: PublicKey[][] = [];
@@ -123,6 +134,10 @@ describe("Compound interest demonstration", () => {
       tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
       tx.sign(user.wallet);
       await banksClient.processTransaction(tx);
+
+      if (verbose) {
+        console.log("borrow " + borrowAmount.toNumber() + " from bank " + i);
+      }
     }
   });
 
@@ -202,6 +217,8 @@ describe("Compound interest demonstration", () => {
   it("(user 0 - permissionless) Accrues on bank 1, weekly, for 51 more weeks (1 year total)", async () => {
     const user = users[0];
 
+    let prevAsset = bankValuesInitial[1];
+
     for (let week = 1; week <= 52; week++) {
       const now = Math.floor(Date.now() / 1000);
       const targetUnix = BigInt(now + ONE_WEEK_IN_SECONDS * week);
@@ -243,16 +260,20 @@ describe("Compound interest demonstration", () => {
         })
       );
 
-      // if (verbose) {
-      //   console.log("Value per share after accrue:");
-      //   bankValuesNWeek.forEach(({ asset, liability }, idx) =>
-      //     console.log(
-      //       `  Bank ${
-      //         idx
-      //       }: asset: ${asset}, liab: ${liability}`
-      //     )
-      //   );
-      // }
+      const currAsset = bankValuesNWeek[1].asset;
+      const weeklyRate = currAsset / prevAsset - 1;
+      const annualizedRate = weeklyRate * 52;
+      prevAsset = currAsset;
+
+      if (verbose) {
+        // print every 4 weeks to avoid spaming
+        if (week % 4 == 0) {
+          console.log(
+            ` week ${week} Bank 1: asset: ${bankValuesNWeek[1].asset}, liab: ${bankValuesNWeek[1].liability}`
+          );
+          console.log(`   annualized rate: ${annualizedRate}`);
+        }
+      }
       assert.notEqual(bankValuesNWeek[1].asset, bankValuesInitial[1]);
       // No change to the other two banks...
       assert.equal(bankValuesNWeek[2].asset, bankValuesInitial[2]);
@@ -304,8 +325,16 @@ describe("Compound interest demonstration", () => {
     assert.notEqual(bankValuesOneYear[1].asset, bankValuesOneYear[2].asset);
     assert.notEqual(bankValuesOneYear[1].asset, bankValuesOneYear[3].asset);
 
-    let bank = await bankrunProgram.account.bank.fetch(banks[0]);
-    const util = borrowAmount.toNumber() / depositAmount.toNumber();
+    let bank = await bankrunProgram.account.bank.fetch(banks[1]);
+    const util =
+      wrappedI80F48toBigNumber(bank.totalLiabilityShares).toNumber() /
+      wrappedI80F48toBigNumber(bank.totalAssetShares).toNumber();
+    const utilActual =
+      ((wrappedI80F48toBigNumber(bank.totalLiabilityShares).toNumber() *
+        wrappedI80F48toBigNumber(bank.liabilityShareValue).toNumber()) /
+        wrappedI80F48toBigNumber(bank.totalAssetShares).toNumber()) *
+      wrappedI80F48toBigNumber(bank.assetShareValue).toNumber();
+    //aka borrowAmount.toNumber() / depositAmount.toNumber();
     const optimalRate = wrappedI80F48toBigNumber(
       bank.config.interestRateConfig.optimalUtilizationRate
     ).toNumber();
@@ -321,7 +350,8 @@ describe("Compound interest demonstration", () => {
     if (verbose) {
       // Gather all rate metrics into an object for pretty printing
       const rateMetrics: Record<string, number> = {
-        Utilization: util,
+        "Utilization (shares only)": util,
+        "Utilization (actual w/ share value)": utilActual,
         "Optimal Utilization Rate": optimalRate,
         "Plateau Interest Rate": platRate,
         "Base Rate": baseRate,
@@ -359,10 +389,12 @@ describe("Compound interest demonstration", () => {
     if (verbose) {
       console.log("apy expected (1 year, compounding weekly): " + apy);
     }
+    // Note that the simple compounding is quite far off: the lending rate changes week-to-week as
+    // the actual utilization ratio (which INCLUDES the value/share) updates.
     assert.approximately(
       bankValuesOneYear[1].asset,
       bankValuesInitial[1] * (1 + apy),
-      bankValuesOneYear[1].asset * 0.01
+      bankValuesOneYear[1].asset * 0.1
     );
 
     const relativeIncrease =
@@ -375,6 +407,18 @@ describe("Compound interest demonstration", () => {
         `Weekly compounding yields ${relativeIncrease.toFixed(
           4
         )}% more than simple once annual compounding`
+      );
+    }
+
+    const naiveValue = bankValuesInitial[1] * (1 + apy);
+    const actualValue = bankValuesOneYear[1].asset;
+    const increasevsNaiveApy = ((actualValue - naiveValue) / naiveValue) * 100;
+
+    if (verbose) {
+      console.log(
+        `Weekly compounding yields ${increasevsNaiveApy.toFixed(
+          4
+        )}% more than naive weekly compounding`
       );
     }
   });
