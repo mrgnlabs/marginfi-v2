@@ -289,6 +289,19 @@ pub mod marginfi {
         marginfi_group::lending_pool_withdraw_fees(ctx, amount)
     }
 
+    pub fn lending_pool_withdraw_fees_permissionless<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolWithdrawFeesPermissionless<'info>>,
+        amount: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_withdraw_fees_permissionless(ctx, amount)
+    }
+
+    pub fn lending_pool_update_fees_destination_account<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolUpdateFeesDestinationAccount<'info>>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_update_fees_destination_account(ctx)
+    }
+
     pub fn lending_pool_withdraw_insurance<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingPoolWithdrawInsurance<'info>>,
         amount: u64,

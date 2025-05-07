@@ -21,7 +21,7 @@ use solana_program::instruction::Instruction;
 use solana_program::sysvar::clock::Clock;
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
-use solana_sdk::{signer::Signer, transaction::Transaction};
+use solana_sdk::{commitment_config::CommitmentLevel, signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 #[derive(Clone)]
@@ -282,6 +282,88 @@ impl BankFixture {
             program_id: marginfi::id(),
             accounts,
             data: marginfi::instruction::LendingPoolWithdrawFees { amount }.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    pub async fn try_withdraw_fees_permissionless(
+        &self,
+        receiving_account: &TokenAccountFixture,
+        amount: u64,
+    ) -> Result<(), BanksClientError> {
+        let bank = self.load().await;
+        let ctx = self.ctx.borrow_mut();
+        let (fee_vault_authority, _) = Pubkey::find_program_address(
+            bank_authority_seed!(BankVaultType::Fee, self.key),
+            &marginfi::id(),
+        );
+
+        let mut accounts = marginfi::accounts::LendingPoolWithdrawFeesPermissionless {
+            group: bank.group,
+            token_program: receiving_account.token_program,
+            bank: self.key,
+            fee_vault: bank.fee_vault,
+            fee_vault_authority,
+            fees_destination_account: receiving_account.key,
+        }
+        .to_account_metas(Some(true));
+        if self.mint.token_program == anchor_spl::token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(self.mint.key, false));
+        }
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolWithdrawFeesPermissionless { amount }.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn try_set_fees_destination_account(
+        &self,
+        destination_account: &TokenAccountFixture,
+    ) -> Result<(), BanksClientError> {
+        let bank = self.load().await;
+        let ctx = self.ctx.borrow_mut();
+        let signer_pk = ctx.payer.pubkey();
+
+        let mut accounts = marginfi::accounts::LendingPoolUpdateFeesDestinationAccount {
+            group: bank.group,
+            bank: self.key,
+            admin: signer_pk,
+            destination_account: destination_account.key,
+        }
+        .to_account_metas(Some(true));
+        if self.mint.token_program == anchor_spl::token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(self.mint.key, false));
+        }
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolUpdateFeesDestinationAccount.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(

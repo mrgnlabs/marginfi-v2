@@ -578,6 +578,99 @@ const padEmodeEntries = (entries: EmodeEntry[]): EmodeEntry[] => {
   return padded;
 };
 
+export type UpdateBankFeesDestinationAccountArgs = {
+  bank: PublicKey;
+  /** An ATA of the bank's mint. Otherwise, admin's choice! */
+  destination: PublicKey;
+};
+
+/**
+ * Set a destination for fees. Once set, anyone can sweep fees to this account in a permissionless
+ * way buy calling `withdrawFeesPermissionless`. Remember to run `collectBankFees` first.
+ * @param program 
+ * @param args 
+ * @returns 
+ */
+export const updateBankFeesDestinationAccount = (
+  program: Program<Marginfi>,
+  args: UpdateBankFeesDestinationAccountArgs
+) => {
+  const ix = program.methods
+    .lendingPoolUpdateFeesDestinationAccount()
+    .accounts({
+      // group: // implied from bank
+      bank: args.bank,
+      // admin: // implied from bank
+      destinationAccount: args.destination,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type WithdrawFeesPermissionlessArgs = {
+  bank: PublicKey;
+  amount: BN;
+};
+
+/** 
+ * Permissionless, move funds from the fee vault to the account the admin specified as the
+ * destination for fees.
+ */
+export const withdrawFeesPermissionless = (
+  program: Program<Marginfi>,
+  args: WithdrawFeesPermissionlessArgs
+) => {
+  const ix = program.methods
+    .lendingPoolWithdrawFeesPermissionless(args.amount)
+    .accounts({
+      // group: // implied from bank
+      bank: args.bank,
+      // fee_vault: // implied from bank
+      // fee_vault_authority: // implied from bank
+      // fee_destination_account: // implied from bank
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type CollectBankFeesArgs = {
+  bank: PublicKey;
+  feeAta: PublicKey;
+};
+
+/**
+ * Permissionless, collect bank fees into their respective vaults.
+ * @param program 
+ * @param args 
+ * @returns 
+ */
+export const collectBankFees = (
+  program: Program<Marginfi>,
+  args: CollectBankFeesArgs
+) => {
+  const ix = program.methods
+    .lendingPoolCollectBankFees()
+    .accounts({
+      // group: // implied from bank
+      bank: args.bank,
+      // liquidity_vault: // implied from bank
+      // liquidity_vault_authority: // implied from bank
+      // fee_vault: // implied from bank
+      // fee_vault_authority: // implied from bank
+      // insurance_vault: // implied from bank
+      // insurance_vault_authority: // implied from bank
+      // fee_state: // derived from constant seed
+      feeAta: args.feeAta,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .instruction();
+  
+  return ix;
+}
+
 export type AccrueInterestArgs = {
   bank: PublicKey;
 };

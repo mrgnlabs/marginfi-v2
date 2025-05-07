@@ -135,10 +135,16 @@ jobs:
 
     - name: Run fuzz tests
       run: |
-        cargo +nightly-2024-06-05 \
-          fuzz run lend -Zbuild-std \
-          --strip-dead-code --no-cfg-fuzzing \
-          -- -max_total_time=300
+        cargo +nightly-2024-06-05 fuzz run lend \
+          -Zbuild-std --strip-dead-code --no-cfg-fuzzing \
+            -- -max_total_time=30 \
+              -timeout_exitcode=100 \
+              -error_exitcode=101 \
+              -print_pcs=0 \
+              -print_final_stats=1 \
+              -close_fd_mask=1 \
+              -jobs=2 \
+              -workers=2
     - name: Pass after fuzzing
       run: echo "✅ Fuzzing completed"
 

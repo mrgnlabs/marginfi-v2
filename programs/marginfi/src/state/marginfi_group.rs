@@ -64,7 +64,6 @@ pub struct MarginfiGroup {
 
     pub _padding_0: [[u64; 2]; 24],
     pub _padding_1: [[u64; 2]; 32],
-    pub _padding_3: u64,
     pub _padding_4: u64,
 }
 
@@ -76,6 +75,7 @@ pub struct FeeStateCache {
     pub global_fee_wallet: Pubkey,
     pub program_fee_fixed: WrappedI80F48,
     pub program_fee_rate: WrappedI80F48,
+    pub last_update: i64,
 }
 
 impl MarginfiGroup {
@@ -164,6 +164,10 @@ impl MarginfiGroup {
             return err!(MarginfiError::ArenaBankLimit);
         }
         self.banks = self.banks.saturating_add(1);
+
+        let clock = Clock::get()?;
+        self.fee_state_cache.last_update = clock.unix_timestamp;
+
         Ok(())
     }
 }
@@ -521,15 +525,20 @@ pub struct Bank {
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
-    /// Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s cannonical ATA for `mint`
+    /// Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s canonical ATA for `mint`
     pub collected_program_fees_outstanding: WrappedI80F48,
 
     /// Controls this bank's emode configuration, which enables some banks to treat the assets of
     /// certain other banks more preferentially as collateral.
     pub emode: EmodeSettings,
 
+    /// Set with `update_fees_destination_account`. This should be an ATA for the bank's mint. If
+    /// pubkey default, the bank doesn't support this feature, and the fees must be collected
+    /// manually (withdraw_fees).
+    pub fees_destination_account: Pubkey, // 32
+
     pub _padding_0: [u8; 8],
-    pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
+    pub _padding_1: [[u64; 2]; 30], // 8 * 2 * 30 = 480B
 }
 
 impl Bank {
@@ -579,6 +588,7 @@ impl Bank {
             emissions_mint: Pubkey::default(),
             collected_program_fees_outstanding: I80F48::ZERO.into(),
             emode: EmodeSettings::zeroed(),
+            fees_destination_account: Pubkey::default(),
             ..Default::default()
         }
     }

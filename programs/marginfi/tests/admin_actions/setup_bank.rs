@@ -5,7 +5,7 @@ use marginfi::{
     constants::{
         FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
-    prelude::MarginfiError,
+    prelude::{MarginfiError, MarginfiGroup},
     state::{
         emode::{EmodeEntry, EMODE_ON},
         marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
@@ -38,7 +38,22 @@ async fn add_bank_success() -> anyhow::Result<()> {
         ),
     ];
 
+    let marginfi_group: MarginfiGroup = test_f
+        .load_and_deserialize(&test_f.marginfi_group.key)
+        .await;
+    let mut last_update = marginfi_group.fee_state_cache.last_update;
+    assert_eq!(last_update, 0);
+
     for (mint_f, bank_config) in mints {
+        // This is just to test that the group's last_update field is properly updated upon bank creation
+        {
+            let ctx = test_f.context.borrow_mut();
+            let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+            // Advance clock by 1 sec
+            clock.unix_timestamp += 1;
+            ctx.set_sysvar(&clock);
+        }
+
         // Load the fee state before the start of the test
         let fee_balance_before: u64;
         {
@@ -56,6 +71,12 @@ async fn add_bank_success() -> anyhow::Result<()> {
             .marginfi_group
             .try_lending_pool_add_bank(&mint_f, bank_config)
             .await;
+
+        let marginfi_group: MarginfiGroup = test_f
+            .load_and_deserialize(&test_f.marginfi_group.key)
+            .await;
+        assert_eq!(marginfi_group.fee_state_cache.last_update, last_update + 1);
+        last_update = marginfi_group.fee_state_cache.last_update;
 
         // Check bank
         let bank_f = res.unwrap();
@@ -85,6 +106,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             emissions_remaining,
             emissions_mint,
             collected_program_fees_outstanding,
+            fees_destination_account,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -115,9 +137,10 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
             assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
+            assert_eq!(fees_destination_account, Pubkey::default());
 
             assert_eq!(_padding_0, <[u8; 8] as Default>::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 30] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -214,6 +237,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             emissions_remaining,
             emissions_mint,
             collected_program_fees_outstanding,
+            fees_destination_account,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -244,9 +268,10 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
             assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
+            assert_eq!(fees_destination_account, Pubkey::default());
 
             assert_eq!(_padding_0, <[u8; 8] as Default>::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 30] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
