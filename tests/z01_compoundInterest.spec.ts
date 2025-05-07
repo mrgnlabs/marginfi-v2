@@ -76,15 +76,15 @@ describe("Compound interest demonstration", () => {
             depositUpToLimit: false,
           })
         );
+        if (verbose) {
+          console.log(
+            "seed bank " + i + " with liquidity " + depositAmount.toNumber()
+          );
+        }
       }
       tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
       tx.sign(user.wallet);
       await banksClient.tryProcessTransaction(tx);
-      if (verbose) {
-        console.log(
-          "seed bank " + i + "with liquidity " + depositAmount.toNumber()
-        );
-      }
     }
   });
 
@@ -109,7 +109,7 @@ describe("Compound interest demonstration", () => {
     await banksClient.tryProcessTransaction(tx);
 
     if (verbose) {
-      console.log("seed bank 0 with liquidity " + depositAmt.toNumber());
+      console.log("deposit bank 0 liquidity " + depositAmt.toNumber());
     }
 
     for (let i = 1; i < banks.length; i += 1) {
