@@ -329,7 +329,7 @@ describe("Emode liquidation", () => {
             [lstABank, oracles.pythPullLst.publicKey],
           ]),
         ],
-        amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
+        amount: new BN(0.1000001 * 10 ** ecosystem.wsolDecimals),
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -436,7 +436,7 @@ describe("Emode liquidation", () => {
             [lstABank, oracles.pythPullLst.publicKey],
           ]),
         ],
-        amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
+        amount: new BN(0.1000002 * 10 ** ecosystem.wsolDecimals),
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -537,7 +537,7 @@ describe("Emode liquidation", () => {
             [lstABank, oracles.pythPullLst.publicKey],
           ]),
         ],
-        amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
+        amount: new BN(0.1000003 * 10 ** ecosystem.wsolDecimals),
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

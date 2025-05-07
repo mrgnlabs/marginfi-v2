@@ -202,6 +202,6 @@ describe("Liquidation with gaps in accounts", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(gappyUser4);
-    await banksClient.tryProcessTransaction(tx);
+    await banksClient.processTransaction(tx);
   });
 });
