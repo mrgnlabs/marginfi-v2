@@ -667,6 +667,24 @@ export const collectBankFees = (
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .instruction();
+  
+  return ix;
+}
 
+export type AccrueInterestArgs = {
+  bank: PublicKey;
+};
+
+export const arrueInterest = (
+  program: Program<Marginfi>,
+  args: AccrueInterestArgs
+) => {
+  const ix = program.methods
+    .lendingPoolAccrueBankInterest()
+    .accounts({
+      // group: // implied from bank
+      bank: args.bank,
+    })
+    .instruction();
   return ix;
 };

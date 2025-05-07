@@ -14,15 +14,9 @@ import {
   verbose,
   ecosystem,
   oracles,
-  PYTH_ORACLE_SAMPLE,
-  PYTH_ORACLE_FEED_SAMPLE,
   users,
 } from "./rootHooks";
-import {
-  assertBankrunTxFailed,
-  assertI80F48Approx,
-  assertKeysEqual,
-} from "./utils/genericTests";
+import { assertKeysEqual } from "./utils/genericTests";
 import {
   addBankWithSeed,
   configureBank,
@@ -33,198 +27,43 @@ import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { assert } from "chai";
 import {
   defaultBankConfig,
-  ASSET_TAG_DEFAULT,
   ORACLE_SETUP_PYTH_PUSH,
-  HEALTH_CACHE_ENGINE_OK,
-  HEALTH_CACHE_HEALTHY,
-  CONF_INTERVAL_MULTIPLE,
-  HEALTH_CACHE_ORACLE_OK,
   I80F48_ZERO,
   ORACLE_SETUP_PYTH_LEGACY,
   defaultBankConfigOptRaw,
 } from "./utils/types";
 import { deriveBankWithSeed } from "./utils/pdas";
-import { createMintToInstruction, getAccount } from "@solana/spl-token";
-import { USER_ACCOUNT } from "./utils/mocks";
+import { createMintToInstruction } from "@solana/spl-token";
 import {
   accountInit,
   borrowIx,
   composeRemainingAccounts,
   depositIx,
-  healthPulse,
   liquidateIx,
 } from "./utils/user-instructions";
-import {
-  bigNumberToWrappedI80F48,
-  wrappedI80F48toBigNumber,
-} from "@mrgnlabs/mrgn-common";
-import { bytesToF64, dumpAccBalances, dumpBankrunLogs } from "./utils/tools";
+import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
+import { dumpAccBalances } from "./utils/tools";
+import { genericMultiBankTestSetup } from "./genericSetups";
 
 /** Banks in this test use a "random" seed so their key is non-deterministic. */
-let startingSeed: number = Math.floor(Math.random() * 16000);
+let startingSeed: number;
 
 /** This is the program-enforced maximum enforced number of balances per account. */
 const MAX_BALANCES = 16;
-const USER_ACCOUNT_THROWAWAY = "throwaway_account";
+const USER_ACCOUNT_THROWAWAY = "throwaway_account1";
 
 let banks: PublicKey[] = [];
+let throwawayGroup: Keypair;
 
-const throwawayGroup = Keypair.generate();
-describe("Pyth pull oracles in localnet", () => {
-  it("(admin) Init group - happy path", async () => {
-    let tx = new Transaction();
-
-    tx.add(
-      await groupInitialize(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: throwawayGroup.publicKey,
-        admin: groupAdmin.wallet.publicKey,
-      })
+describe("Limits on number of accounts (mostly to diagnose memory issues)", () => {
+  it("init group, init banks, and fund banks", async () => {
+    const result = await genericMultiBankTestSetup(
+      MAX_BALANCES,
+      USER_ACCOUNT_THROWAWAY
     );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet, throwawayGroup);
-    await banksClient.processTransaction(tx);
-
-    let group = await bankrunProgram.account.marginfiGroup.fetch(
-      throwawayGroup.publicKey
-    );
-    assertKeysEqual(group.admin, groupAdmin.wallet.publicKey);
-    if (verbose) {
-      console.log("*init group: " + throwawayGroup.publicKey);
-      console.log(" group admin: " + group.admin);
-    }
-  });
-
-  it("(admin) Set the emode admin - happy path", async () => {
-    let tx = new Transaction().add(
-      await groupConfigure(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: throwawayGroup.publicKey,
-        newEmodeAdmin: groupAdmin.wallet.publicKey,
-      })
-    );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet);
-    await banksClient.processTransaction(tx);
-
-    let group = await bankrunProgram.account.marginfiGroup.fetch(
-      throwawayGroup.publicKey
-    );
-    assertKeysEqual(group.emodeAdmin, groupAdmin.wallet.publicKey);
-  });
-
-  it("(admin) Add 16 banks (asset doesn't matter)", async () => {
-    const promises: Promise<any>[] = [];
-    for (let i = 0; i < MAX_BALANCES; i++) {
-      const seed = startingSeed + i;
-      promises.push(
-        addBankTest({
-          bankMint: ecosystem.lstAlphaMint.publicKey,
-          oracle: oracles.pythPullLstOracleFeed.publicKey,
-          oracleMeta: {
-            pubkey: oracles.pythPullLst.publicKey, // NOTE: Price V2 update
-            isSigner: false,
-            isWritable: false,
-          },
-          oracleSetup: "PULL",
-          feedOracle: oracles.pythPullLstOracleFeed.publicKey,
-          seed: new BN(seed),
-          verboseMessage: `*init LST #${seed}:`,
-        })
-      );
-      const [bank] = deriveBankWithSeed(
-        bankrunProgram.programId,
-        throwawayGroup.publicKey,
-        ecosystem.lstAlphaMint.publicKey,
-        new BN(seed)
-      );
-      banks.push(bank);
-    }
-    await Promise.all(promises);
-  });
-
-  it("(Fund users/admin USDC/WSOL/LST token accounts", async () => {
-    const provider = getProvider() as AnchorProvider;
-    const wallet = provider.wallet as Wallet;
-    for (let i = 0; i < users.length; i++) {
-      let tx = new Transaction();
-      tx.add(
-        createMintToInstruction(
-          ecosystem.lstAlphaMint.publicKey,
-          users[i].lstAlphaAccount,
-          wallet.publicKey,
-          10000 * 10 ** ecosystem.lstAlphaDecimals
-        )
-      );
-      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-      tx.sign(wallet.payer);
-      await banksClient.processTransaction(tx);
-    }
-
-    // Seed the admin with funds as well
-    let tx = new Transaction();
-    tx.add(
-      createMintToInstruction(
-        ecosystem.lstAlphaMint.publicKey,
-        groupAdmin.lstAlphaAccount,
-        wallet.publicKey,
-        10000 * 10 ** ecosystem.lstAlphaDecimals
-      )
-    );
-
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(wallet.payer);
-    await banksClient.processTransaction(tx);
-  });
-
-  it("Initialize user accounts (if needed)", async () => {
-    for (let i = 0; i < users.length; i++) {
-      const userAccKeypair = Keypair.generate();
-      const userAccount = userAccKeypair.publicKey;
-      if (users[i].accounts.get(USER_ACCOUNT_THROWAWAY)) {
-        if (verbose) {
-          console.log("Skipped creating user " + i);
-        }
-        continue;
-      } else {
-        if (verbose) {
-          console.log("user [" + i + "]: " + userAccount);
-        }
-        users[i].accounts.set(USER_ACCOUNT_THROWAWAY, userAccount);
-      }
-
-      let userinitTx: Transaction = new Transaction();
-      userinitTx.add(
-        await accountInit(users[i].mrgnBankrunProgram, {
-          marginfiGroup: throwawayGroup.publicKey,
-          marginfiAccount: userAccount,
-          authority: users[i].wallet.publicKey,
-          feePayer: users[i].wallet.publicKey,
-        })
-      );
-      userinitTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-      userinitTx.sign(users[i].wallet, userAccKeypair);
-      await banksClient.processTransaction(userinitTx);
-    }
-
-    if (groupAdmin.accounts.get(USER_ACCOUNT_THROWAWAY)) {
-      console.log("Skipped creating admin account");
-      return;
-    }
-    const userAccKeypair = Keypair.generate();
-    const userAccount = userAccKeypair.publicKey;
-    groupAdmin.accounts.set(USER_ACCOUNT_THROWAWAY, userAccount);
-
-    let userinitTx: Transaction = new Transaction();
-    userinitTx.add(
-      await accountInit(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: throwawayGroup.publicKey,
-        marginfiAccount: userAccount,
-        authority: groupAdmin.wallet.publicKey,
-        feePayer: groupAdmin.wallet.publicKey,
-      })
-    );
-    userinitTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    userinitTx.sign(groupAdmin.wallet, userAccKeypair);
-    await banksClient.processTransaction(userinitTx);
+    startingSeed = result.startingSeed;
+    banks = result.banks;
+    throwawayGroup = result.throwawayGroup;
   });
 
   it("(admin) Seeds liquidity in all banks - validates 16 deposits is possible", async () => {
@@ -427,84 +266,4 @@ describe("Pyth pull oracles in localnet", () => {
   });
 
   // TODO try these with switchboard oracles.
-
-  async function addBankTest(options: {
-    assetTag?: number;
-    bankMint: PublicKey;
-    oracle: PublicKey;
-    oracleMeta: AccountMeta;
-    // For banks (like LST) that need a different oracle setup (pull vs legacy)
-    oracleSetup?: "LEGACY" | "PULL";
-    // Optional feed oracle in case the instruction requires it (i.e. for pull)
-    feedOracle?: PublicKey;
-    // Function to adjust the seed (for example, seed.addn(1))
-    seed: BN;
-    verboseMessage: string;
-  }) {
-    const {
-      assetTag,
-      bankMint,
-      oracle,
-      oracleMeta,
-      oracleSetup = "LEGACY",
-      feedOracle,
-      seed,
-      verboseMessage,
-    } = options;
-
-    const config = defaultBankConfig();
-    config.assetWeightInit = bigNumberToWrappedI80F48(0.5);
-    config.assetWeightMaint = bigNumberToWrappedI80F48(0.6);
-
-    // The default limit is somewhat small for SOL/LST with 9 decimals, so we bump it here.
-    config.depositLimit = new BN(100_000_000_000_000);
-    config.borrowLimit = new BN(100_000_000_000_000);
-    // We don't want origination fees messing with debt here
-    config.interestRateConfig.protocolOriginationFee = I80F48_ZERO;
-    if (assetTag) {
-      config.assetTag = assetTag;
-    }
-
-    // Calculate bank key using the (optionally modified) seed
-    const [bankKey] = deriveBankWithSeed(
-      bankrunProgram.programId,
-      throwawayGroup.publicKey,
-      bankMint,
-      seed
-    );
-
-    const setupType =
-      oracleSetup === "PULL"
-        ? ORACLE_SETUP_PYTH_PUSH
-        : ORACLE_SETUP_PYTH_LEGACY;
-    const targetOracle = feedOracle ?? oracle;
-    const config_ix = await groupAdmin.mrgnProgram.methods
-      .lendingPoolConfigureBankOracle(setupType, targetOracle)
-      .accountsPartial({
-        group: throwawayGroup.publicKey,
-        bank: bankKey,
-        admin: groupAdmin.wallet.publicKey,
-      })
-      .remainingAccounts([oracleMeta])
-      .instruction();
-
-    const addBankIx = await addBankWithSeed(groupAdmin.mrgnBankrunProgram, {
-      marginfiGroup: throwawayGroup.publicKey,
-      feePayer: groupAdmin.wallet.publicKey,
-      bankMint: bankMint,
-      bank: bankKey,
-      config: config,
-      seed,
-    });
-
-    const tx = new Transaction();
-    tx.add(addBankIx, config_ix);
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet);
-    await banksClient.processTransaction(tx);
-
-    if (verbose) {
-      console.log(`${verboseMessage} ${bankKey}`);
-    }
-  }
 });
