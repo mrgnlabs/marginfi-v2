@@ -591,7 +591,7 @@ export type UpdateBankFeesDestinationAccountArgs = {
  * @param args 
  * @returns 
  */
-export const updateBankFeesDesintationAccount = (
+export const updateBankFeesDestinationAccount = (
   program: Program<Marginfi>,
   args: UpdateBankFeesDestinationAccountArgs
 ) => {

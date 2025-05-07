@@ -6,9 +6,6 @@
 import { AnchorProvider, BN, getProvider, Wallet } from "@coral-xyz/anchor";
 import {
   Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
   Transaction,
 } from "@solana/web3.js";
 import {
@@ -20,10 +17,7 @@ import {
   ecosystem,
   globalFeeWallet,
   groupAdmin,
-  numUsers,
   users,
-  validators,
-  verbose,
 } from "./rootHooks";
 import {
   assertBankrunTxFailed,
@@ -32,42 +26,24 @@ import {
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import {
-  settleEmissionsIx,
-  updateEmissionsDestination,
-  withdrawEmissionsIx,
-  withdrawEmissionsPermissionlessIx,
-} from "./utils/user-instructions";
-import { USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
-  createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddressSync,
-  wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
 import {
-  EMISSIONS_FLAG_BORROW_ACTIVE,
-  EMISSIONS_FLAG_LENDING_ACTIVE,
   u64MAX_BN,
 } from "./utils/types";
 import {
   collectBankFees,
-  setupEmissions,
-  updateBankFeesDesintationAccount,
+  updateBankFeesDestinationAccount,
   withdrawFeesPermissionless,
 } from "./utils/group-instructions";
-import { getEpochAndSlot } from "./utils/stake-utils";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
-  createMintToInstruction,
 } from "@solana/spl-token";
-import { dumpBankrunLogs } from "./utils/tools";
 import { deriveFeeVault } from "./utils/pdas";
 
 describe("Set up permissionless fee claiming", () => {
-  const provider = getProvider() as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
-
   /// Some wallet the admin wants to use to claim. This could also be their own wallet, user can
   /// pick arbitrarily.
   const externalWallet: Keypair = Keypair.generate();
@@ -82,7 +58,7 @@ describe("Set up permissionless fee claiming", () => {
     const user = users[0];
 
     let tx = new Transaction().add(
-      await updateBankFeesDesintationAccount(user.mrgnBankrunProgram, {
+      await updateBankFeesDestinationAccount(user.mrgnBankrunProgram, {
         bank: bankKeypairSol.publicKey,
         destination: user.wsolAccount, // sneaky sneaky
       })
@@ -112,7 +88,7 @@ describe("Set up permissionless fee claiming", () => {
         externalWallet.publicKey,
         ecosystem.wsolMint.publicKey
       ),
-      await updateBankFeesDesintationAccount(admin.mrgnBankrunProgram, {
+      await updateBankFeesDestinationAccount(admin.mrgnBankrunProgram, {
         bank: bankKeypairSol.publicKey,
         destination: wsolAta, // sneaky sneaky
       })

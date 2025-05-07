@@ -423,8 +423,6 @@ pub struct LendingPoolUpdateFeesDestinationAccount<'info> {
     pub admin: Signer<'info>,
 
     /// Bank fees will be sent to this account which must be an ATA of the bank's mint.
-    ///
-    /// CHECK: Completely unchecked, admin picks a destination without restrictions
     #[account(
         constraint = destination_account.mint == bank.load()?.mint
             @ MarginfiError::InvalidFeesDestinationAccount
