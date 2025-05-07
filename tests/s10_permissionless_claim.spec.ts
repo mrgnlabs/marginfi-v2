@@ -170,4 +170,5 @@ describe("Set up permissionless fee claiming", () => {
     // The fee vault should be empty now.
     assert.equal(feeVaultBalance, 0);
   });
+  
 });
