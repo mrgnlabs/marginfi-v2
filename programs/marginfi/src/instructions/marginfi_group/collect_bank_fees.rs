@@ -402,7 +402,7 @@ pub fn lending_pool_update_fees_destination_account<'info>(
 ) -> MarginfiResult {
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    let old_dst = bank.fees_destination_account.clone();
+    let old_dst = bank.fees_destination_account;
     let new_dst = ctx.accounts.destination_account.key();
     bank.fees_destination_account = new_dst;
     msg!("fees_destination_account: {:?} was: {:?}", new_dst, old_dst);
