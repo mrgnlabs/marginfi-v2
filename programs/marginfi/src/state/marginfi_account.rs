@@ -184,8 +184,8 @@ impl RequirementType {
     }
 }
 
-pub struct BankAccountWithPriceFeed<'a> {
-    bank: Box<Bank>,
+pub struct BankAccountWithPriceFeed<'a, 'info> {
+    bank: AccountLoader<'info, Bank>,
     price_feed: Box<MarginfiResult<OraclePriceFeedAdapter>>,
     balance: &'a Balance,
 }
@@ -195,11 +195,11 @@ pub enum BalanceSide {
     Liabilities,
 }
 
-impl<'info> BankAccountWithPriceFeed<'_> {
+impl<'info> BankAccountWithPriceFeed<'_, 'info> {
     pub fn load<'a>(
         lending_account: &'a LendingAccount,
         remaining_ais: &'info [AccountInfo<'info>],
-    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a>>> {
+    ) -> MarginfiResult<Vec<BankAccountWithPriceFeed<'a, 'info>>> {
         let clock = Clock::get()?;
         let mut account_index = 0;
 
@@ -239,7 +239,7 @@ impl<'info> BankAccountWithPriceFeed<'_> {
                 account_index += num_accounts;
 
                 Ok(BankAccountWithPriceFeed {
-                    bank: Box::new(*bank),
+                    bank: bank_al.clone(),
                     price_feed: price_adapter,
                     balance,
                 })
@@ -270,7 +270,7 @@ impl<'info> BankAccountWithPriceFeed<'_> {
     ) -> MarginfiResult<(I80F48, I80F48, I80F48, u32)> {
         match self.balance.get_side() {
             Some(side) => {
-                let bank = &self.bank;
+                let bank = &self.bank.load()?;
 
                 match side {
                     BalanceSide::Assets => {
@@ -493,17 +493,17 @@ impl RiskRequirementType {
     }
 }
 
-pub struct RiskEngine<'a> {
+pub struct RiskEngine<'a, 'info> {
     marginfi_account: &'a MarginfiAccount,
-    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a>>,
+    bank_accounts_with_price: Vec<BankAccountWithPriceFeed<'a, 'info>>,
     emode_config: EmodeConfig,
 }
 
-impl<'info> RiskEngine<'_> {
+impl<'info> RiskEngine<'_, 'info> {
     pub fn new<'a>(
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
-    ) -> MarginfiResult<RiskEngine<'a>> {
+    ) -> MarginfiResult<RiskEngine<'a, 'info>> {
         check!(
             !marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
@@ -517,17 +517,17 @@ impl<'info> RiskEngine<'_> {
     fn new_no_flashloan_check<'a>(
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
-    ) -> MarginfiResult<RiskEngine<'a>> {
+    ) -> MarginfiResult<RiskEngine<'a, 'info>> {
         let bank_accounts_with_price =
             BankAccountWithPriceFeed::load(&marginfi_account.lending_account, remaining_ais)?;
 
         // Load the reconciled Emode configuration for all banks where the user has borrowed
-        let emode_configs: Vec<EmodeConfig> = bank_accounts_with_price
-            .iter()
-            .filter(|b_w_p| !b_w_p.balance.is_empty(BalanceSide::Liabilities))
-            .map(|b_w_p| b_w_p.bank.emode.emode_config)
-            .collect();
-        let reconciled_emode_config = reconcile_emode_configs(emode_configs);
+        let reconciled_emode_config = reconcile_emode_configs(
+            bank_accounts_with_price
+                .iter()
+                .filter(|b| !b.balance.is_empty(BalanceSide::Liabilities))
+                .map(|b| b.bank.load().unwrap().emode.emode_config),
+        );
 
         Ok(RiskEngine {
             marginfi_account,
@@ -546,7 +546,7 @@ impl<'info> RiskEngine<'_> {
         marginfi_account: &'a MarginfiAccount,
         remaining_ais: &'info [AccountInfo<'info>],
         health_cache: &mut Option<&mut HealthCache>,
-    ) -> (MarginfiResult, Option<RiskEngine<'a>>) {
+    ) -> (MarginfiResult, Option<RiskEngine<'a, 'info>>) {
         if marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN) {
             // Note: All risk, including the health cache, is not applicable during flashloans
             return (Ok(()), None);
@@ -818,7 +818,8 @@ impl<'info> RiskEngine<'_> {
             }
             total_liability_balances += 1;
 
-            if account.bank.config.risk_tier == RiskTier::Isolated {
+            let bank = account.bank.load()?;
+            if bank.config.risk_tier == RiskTier::Isolated {
                 isolated_risk_count += 1;
                 // Early exit if we find more than one isolated risk tier with liabilities
                 if isolated_risk_count > 1 {
