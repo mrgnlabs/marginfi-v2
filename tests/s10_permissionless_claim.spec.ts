@@ -1,13 +1,8 @@
-/**
+/*
  * Here we test the permissionless withdrawal of bank fees. This is unrelated to staked collateral
  * and could execute in any test suite that has earned some fees.
  */
-
-import { AnchorProvider, BN, getProvider, Wallet } from "@coral-xyz/anchor";
-import {
-  Keypair,
-  Transaction,
-} from "@solana/web3.js";
+import { Keypair, Transaction } from "@solana/web3.js";
 import {
   bankKeypairSol,
   bankrunContext,
@@ -27,20 +22,14 @@ import {
 } from "./utils/genericTests";
 import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import {
-  getAssociatedTokenAddressSync,
-} from "@mrgnlabs/mrgn-common";
-import {
-  u64MAX_BN,
-} from "./utils/types";
+import { getAssociatedTokenAddressSync } from "@mrgnlabs/mrgn-common";
+import { u64MAX_BN } from "./utils/types";
 import {
   collectBankFees,
   updateBankFeesDestinationAccount,
   withdrawFeesPermissionless,
 } from "./utils/group-instructions";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-} from "@solana/spl-token";
+import { createAssociatedTokenAccountIdempotentInstruction } from "@solana/spl-token";
 import { deriveFeeVault } from "./utils/pdas";
 
 describe("Set up permissionless fee claiming", () => {
@@ -146,5 +135,4 @@ describe("Set up permissionless fee claiming", () => {
     // The fee vault should be empty now.
     assert.equal(feeVaultBalance, 0);
   });
-  
 });
