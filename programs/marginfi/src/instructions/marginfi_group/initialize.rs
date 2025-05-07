@@ -21,8 +21,13 @@ pub fn initialize_group(
 
     let fee_state = ctx.accounts.fee_state.load()?;
 
-    let clock = Clock::get()?;
-    marginfi_group.fee_state_cache.last_update = clock.unix_timestamp;
+    // The fuzzer should ignore this because the "Clock" mock sysvar doesn't load until after the
+    // group is init. Eventually we might fix the fuzzer to load the clock first...
+    #[cfg(not(feature = "client"))]
+    {
+        let clock = Clock::get()?;
+        marginfi_group.fee_state_cache.last_update = clock.unix_timestamp;
+    }
     marginfi_group.fee_state_cache.global_fee_wallet = fee_state.global_fee_wallet;
     marginfi_group.fee_state_cache.program_fee_fixed = fee_state.program_fee_fixed;
     marginfi_group.fee_state_cache.program_fee_rate = fee_state.program_fee_rate;

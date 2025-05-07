@@ -43,6 +43,22 @@ And possibly:
 
 `rustup component add rust-src --toolchain nightly-2024-06-05-x86_64-unknown-linux-gnu`
 
-Run with `cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300`
+Run with `cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300 -timeout_exitcode=100 -error_exitcode=101`
+
+If your machine has 8 cores, yolo with:
+```
+cargo +nightly-2024-06-05 fuzz run lend \
+-Zbuild-std --strip-dead-code --no-cfg-fuzzing \
+  -- -max_total_time=30 \
+     -timeout_exitcode=100 \
+     -error_exitcode=101 \
+     -print_pcs=0 \
+     -print_final_stats=1 \
+     -close_fd_mask=1 \
+     -jobs=8 \
+     -workers=8
+```
+(this will crush your machine for 30 seconds instead, but 30 * 8 = 240 ~= 300 so you are getting the
+same number of tests more or less.)
 
 To rerun some tests after a failure: `cargo +nightly-2024-06-05 fuzz run -Zbuild-std lend artifacts/lend/crash-ae5084b9433152babdaf7dcd75781eacd7ea55c7`, replacing  the hash after crash- with the one you see in the terminal.
