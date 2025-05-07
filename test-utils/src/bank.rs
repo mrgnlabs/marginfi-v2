@@ -21,7 +21,7 @@ use solana_program::instruction::Instruction;
 use solana_program::sysvar::clock::Clock;
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
-use solana_sdk::{signer::Signer, transaction::Transaction};
+use solana_sdk::{commitment_config::CommitmentLevel, signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 #[derive(Clone)]
@@ -334,7 +334,9 @@ impl BankFixture {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
 
         Ok(())
     }

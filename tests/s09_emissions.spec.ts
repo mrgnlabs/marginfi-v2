@@ -8,9 +8,7 @@ import {
   AnchorProvider,
   BN,
   getProvider,
-  Program,
   Wallet,
-  workspace,
 } from "@coral-xyz/anchor";
 import {
   Keypair,
@@ -19,35 +17,26 @@ import {
   SystemProgram,
   Transaction,
 } from "@solana/web3.js";
-import { Marginfi } from "../target/types/marginfi";
 import {
-  bankKeypairA,
-  bankKeypairSol,
-  bankKeypairUsdc,
   bankrunContext,
   bankrunProgram,
   bankRunProvider,
   banksClient,
   ecosystem,
   groupAdmin,
-  marginfiGroup,
   numUsers,
-  oracles,
   users,
   validators,
   verbose,
 } from "./rootHooks";
 import {
   assertBankrunTxFailed,
-  assertBNApproximately,
-  assertI80F48Equal,
   assertKeyDefault,
   assertKeysEqual,
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
 import {
-  liquidateIx,
   settleEmissionsIx,
   updateEmissionsDestination,
   withdrawEmissionsIx,
@@ -56,27 +45,19 @@ import {
 import { USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
-  bigNumberToWrappedI80F48,
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddressSync,
-  getMint,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
 import {
-  defaultStakedInterestSettings,
   EMISSIONS_FLAG_BORROW_ACTIVE,
   EMISSIONS_FLAG_LENDING_ACTIVE,
-  StakedSettingsEdit,
 } from "./utils/types";
 import {
-  editStakedSettings,
-  propagateStakedSettings,
   setupEmissions,
 } from "./utils/group-instructions";
-import { deriveStakedSettings } from "./utils/pdas";
-import { getEpochAndSlot, getStakeAccount } from "./utils/stake-utils";
+import { getEpochAndSlot } from "./utils/stake-utils";
 import { createMintToInstruction } from "@solana/spl-token";
-import { dumpBankrunLogs } from "./utils/tools";
 
 describe("Set up emissions on staked collateral assets", () => {
   const provider = getProvider() as AnchorProvider;

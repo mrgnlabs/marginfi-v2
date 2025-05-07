@@ -197,7 +197,6 @@ pub struct LendingPoolCollectBankFees<'info> {
     )]
     pub liquidity_vault_authority: AccountInfo<'info>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         mut,
         seeds = [
@@ -208,7 +207,6 @@ pub struct LendingPoolCollectBankFees<'info> {
     )]
     pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         mut,
         seeds = [
@@ -217,9 +215,8 @@ pub struct LendingPoolCollectBankFees<'info> {
         ],
         bump = bank.load()?.insurance_vault_bump
     )]
-    pub insurance_vault: AccountInfo<'info>,
+    pub insurance_vault: InterfaceAccount<'info, TokenAccount>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         mut,
         seeds = [
@@ -228,7 +225,7 @@ pub struct LendingPoolCollectBankFees<'info> {
         ],
         bump = bank.load()?.fee_vault_bump
     )]
-    pub fee_vault: AccountInfo<'info>,
+    pub fee_vault: InterfaceAccount<'info, TokenAccount>,
 
     // Note: there is just one FeeState per program, so no further check is required.
     #[account(
@@ -295,7 +292,6 @@ pub struct LendingPoolWithdrawFees<'info> {
 
     pub admin: Signer<'info>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         mut,
         seeds = [
@@ -304,7 +300,7 @@ pub struct LendingPoolWithdrawFees<'info> {
         ],
         bump = bank.load()?.fee_vault_bump
     )]
-    pub fee_vault: AccountInfo<'info>,
+    pub fee_vault: InterfaceAccount<'info, TokenAccount>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -318,7 +314,7 @@ pub struct LendingPoolWithdrawFees<'info> {
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(mut)]
-    pub dst_token_account: AccountInfo<'info>,
+    pub dst_token_account: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }
@@ -381,7 +377,7 @@ pub struct LendingPoolWithdrawInsurance<'info> {
         ],
         bump = bank.load()?.insurance_vault_bump
     )]
-    pub insurance_vault: AccountInfo<'info>,
+    pub insurance_vault: InterfaceAccount<'info, TokenAccount>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -395,7 +391,7 @@ pub struct LendingPoolWithdrawInsurance<'info> {
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(mut)]
-    pub dst_token_account: AccountInfo<'info>,
+    pub dst_token_account: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }
@@ -405,14 +401,6 @@ pub fn lending_pool_update_fees_destination_account<'info>(
     ctx: Context<'_, '_, 'info, 'info, LendingPoolUpdateFeesDestinationAccount<'info>>,
 ) -> MarginfiResult {
     let mut bank = ctx.accounts.bank.load_mut()?;
-
-    check!(
-        !ctx.accounts
-            .destination_account
-            .key()
-            .eq(&Pubkey::default()),
-        MarginfiError::InvalidFeesDestinationAccount
-    );
 
     bank.fees_destination_account = ctx.accounts.destination_account.key();
 
@@ -434,10 +422,14 @@ pub struct LendingPoolUpdateFeesDestinationAccount<'info> {
 
     pub admin: Signer<'info>,
 
-    /// Bank fees will be sent to this wallet.
+    /// Bank fees will be sent to this account which must be an ATA of the bank's mint.
     ///
     /// CHECK: Completely unchecked, admin picks a destination without restrictions
-    pub destination_account: AccountInfo<'info>,
+    #[account(
+        constraint = destination_account.mint == bank.load()?.mint
+            @ MarginfiError::InvalidFeesDestinationAccount
+    )]
+    pub destination_account: InterfaceAccount<'info, TokenAccount>,
 }
 
 pub fn lending_pool_withdraw_fees_permissionless<'info>(
@@ -455,6 +447,8 @@ pub fn lending_pool_withdraw_fees_permissionless<'info>(
 
     let bank = bank_loader.load()?;
 
+    // Withdraw all if there aren't enough funds to facilitate the withdraw as requested.
+    let amount = u64::min(amount, fee_vault.amount);
     let fees_token_program = &token_program.key();
 
     let maybe_bank_mint =
@@ -488,7 +482,6 @@ pub struct LendingPoolWithdrawFeesPermissionless<'info> {
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
         mut,
         seeds = [
@@ -497,7 +490,7 @@ pub struct LendingPoolWithdrawFeesPermissionless<'info> {
         ],
         bump = bank.load()?.fee_vault_bump
     )]
-    pub fee_vault: AccountInfo<'info>,
+    pub fee_vault: InterfaceAccount<'info, TokenAccount>,
 
     /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
     #[account(
@@ -509,9 +502,12 @@ pub struct LendingPoolWithdrawFeesPermissionless<'info> {
     )]
     pub fee_vault_authority: AccountInfo<'info>,
 
-    /// CHECK: ⋐ ͡⋄ ω ͡⋄ ⋑
-    #[account(mut)]
-    pub fees_destination_account: AccountInfo<'info>,
+    #[account(
+        mut,
+        constraint = fees_destination_account.mint == bank.load()?.mint
+            @ MarginfiError::InvalidFeesDestinationAccount
+    )]
+    pub fees_destination_account: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }
