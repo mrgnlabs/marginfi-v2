@@ -144,7 +144,7 @@ describe("Compound interest demonstration", () => {
   });
 
   let bankValuesInitial: number[] = [];
-  it("print the value per share at the start", async () => {
+  it("grab the value per share at the start", async () => {
     bankValuesInitial = await Promise.all(
       [0, 1, 2, 3].map((i) =>
         bankrunProgram.account.bank
@@ -172,7 +172,7 @@ describe("Compound interest demonstration", () => {
     bankrunContext.setClock(newClock);
   });
 
-  it("(user 0 - permissionless) Accrues interest on bank 1", async () => {
+  it("(user 0 - permissionless) Accrues interest on bank 1 ONLY", async () => {
     const user = users[0];
 
     const tx = new Transaction();
@@ -205,7 +205,7 @@ describe("Compound interest demonstration", () => {
     );
 
     if (verbose) {
-      console.log("Value per share after first accrue (1 week):");
+      console.log("Value per share after first week:");
       bankValuesOneWeek.forEach(({ asset, liability }, idx) =>
         console.log(`  Bank ${idx}: asset: ${asset}, liab: ${liability}`)
       );

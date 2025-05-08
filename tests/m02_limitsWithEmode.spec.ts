@@ -19,6 +19,7 @@ import {
 import { assertKeysEqual } from "./utils/genericTests";
 import {
   addBankWithSeed,
+  configBankEmode,
   configureBank,
   groupConfigure,
   groupInitialize,
@@ -31,6 +32,7 @@ import {
   I80F48_ZERO,
   ORACLE_SETUP_PYTH_LEGACY,
   defaultBankConfigOptRaw,
+  newEmodeEntry,
 } from "./utils/types";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { createMintToInstruction } from "@solana/spl-token";
@@ -50,12 +52,12 @@ let startingSeed: number;
 
 /** This is the program-enforced maximum enforced number of balances per account. */
 const MAX_BALANCES = 16;
-const USER_ACCOUNT_THROWAWAY = "throwaway_account1";
+const USER_ACCOUNT_THROWAWAY = "throwaway_account3";
 
 let banks: PublicKey[] = [];
 let throwawayGroup: Keypair;
 
-describe("Limits on number of accounts (mostly to diagnose memory issues)", () => {
+describe("Limits on number of accounts, with emode in effect", () => {
   it("init group, init banks, and fund banks", async () => {
     const result = await genericMultiBankTestSetup(
       MAX_BALANCES,
@@ -64,6 +66,55 @@ describe("Limits on number of accounts (mostly to diagnose memory issues)", () =
     startingSeed = result.startingSeed;
     banks = result.banks;
     throwawayGroup = result.throwawayGroup;
+  });
+
+  it("(admin) set the group admin as the emode admin too", async () => {
+    const tx = new Transaction();
+    tx.add(
+      await groupConfigure(groupAdmin.mrgnBankrunProgram, {
+        marginfiGroup: throwawayGroup.publicKey,
+        newAdmin: groupAdmin.wallet.publicKey,
+        newEmodeAdmin: groupAdmin.wallet.publicKey,
+        isArena: false,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet);
+    await banksClient.processTransaction(tx);
+  });
+
+  it("(emode admin) Configures bank emodes - happy path", async () => {
+    for (let bankIndex = 0; bankIndex < banks.length; bankIndex++) {
+      const bank = banks[bankIndex];
+
+      // pick 10 unique, random tags from 0..MAX_BALANCES-1 (excluding the last bank)
+      const entryTags = [...Array(MAX_BALANCES - 1).keys()] // [0,1,2,…,14]
+        .sort(() => Math.random() - 0.5) // shuffle
+        .slice(0, 10); // take first 10
+
+      // build the 10 entries for this bank with random tags and values
+      const entries = entryTags.map((entryTag) =>
+        newEmodeEntry(
+          entryTag,
+          1, // applies to isolated doesn't matter here
+          bigNumberToWrappedI80F48(Math.random() * 0.3 + 0.6), // random 0.6–0.9
+          bigNumberToWrappedI80F48(Math.random() * 0.1 + 0.9) // random 0.9–1.0
+        )
+      );
+
+      // construct & send the tx for this bank
+      const tx = new Transaction();
+      tx.add(
+        await configBankEmode(groupAdmin.mrgnBankrunProgram, {
+          bank,
+          tag: bankIndex, // bank’s own tag = its index
+          entries,
+        })
+      );
+      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+      tx.sign(groupAdmin.wallet);
+      await banksClient.processTransaction(tx);
+    }
   });
 
   it("(admin) Seeds liquidity in all banks - validates 16 deposits is possible", async () => {
@@ -245,7 +296,7 @@ describe("Limits on number of accounts (mostly to diagnose memory issues)", () =
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(liquidator.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
-    //dumpBankrunLogs(result);
+    // dumpBankrunLogs(result);
 
     // Throws if the error is not OOM.
     if (result.result) {
