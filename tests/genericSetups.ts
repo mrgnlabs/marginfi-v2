@@ -180,13 +180,16 @@ export const genericMultiBankTestSetup = async (
 };
 
 /**
- * Sets up a generic bank for the provided group. 
+ * Sets up a generic bank for the provided group.
  * * deposit/borrow limit = 100_000_000_000_000
  * * protocolOriginationFee = 0
+ * * all fees = 0
+ * * Plataeu rate = 20%
+ * * Optimal rate = 80%
  * * asset tag over-rides if provided.
  * * otherwise uses `defaultBankConfig()`
- * @param throwawayGroup 
- * @param options 
+ * @param throwawayGroup
+ * @param options
  */
 async function addGenericBank(
   throwawayGroup: Keypair,
@@ -224,6 +227,9 @@ async function addGenericBank(
   config.borrowLimit = new BN(100_000_000_000_000);
   // We don't want origination fees messing with debt here
   config.interestRateConfig.protocolOriginationFee = I80F48_ZERO;
+  config.interestRateConfig.plateauInterestRate = bigNumberToWrappedI80F48(0.2);
+  config.interestRateConfig.optimalUtilizationRate =
+    bigNumberToWrappedI80F48(0.8);
   if (assetTag) {
     config.assetTag = assetTag;
   }

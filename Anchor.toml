@@ -48,6 +48,9 @@ test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.t
 # Multiple account limits test only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/m*.spec.ts --exit --require tests/rootHooks.ts"
 
+# Compound interest only
+# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/z*.spec.ts --exit --require tests/rootHooks.ts"
+
 [test]
 startup_wait = 60000
 shutdown_wait = 2000

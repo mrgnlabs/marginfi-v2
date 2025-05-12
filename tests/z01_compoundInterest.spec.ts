@@ -154,6 +154,20 @@ describe("Compound interest demonstration", () => {
           )
       )
     );
+
+    // Log some bank info:
+    const b = await bankrunProgram.account.bank.fetch(banks[1]);
+    const int = b.config.interestRateConfig;
+    if (verbose) {
+      console.log(
+        "Plateu rate:" +
+          wrappedI80F48toBigNumber(int.plateauInterestRate).toNumber()
+      );
+      console.log(
+        "Optimal rate:" +
+          wrappedI80F48toBigNumber(int.optimalUtilizationRate).toNumber()
+      );
+    }
   });
 
   it("One week elapses", async () => {
@@ -268,10 +282,16 @@ describe("Compound interest demonstration", () => {
       prevAsset = currAsset;
 
       if (verbose) {
+        const b = await bankrunProgram.account.bank.fetch(banks[1]);
+        const utilActual =
+          ((wrappedI80F48toBigNumber(b.totalLiabilityShares).toNumber() *
+            wrappedI80F48toBigNumber(b.liabilityShareValue).toNumber()) /
+            wrappedI80F48toBigNumber(b.totalAssetShares).toNumber()) *
+          wrappedI80F48toBigNumber(b.assetShareValue).toNumber();
         // print every 4 weeks to avoid spaming
         if (week % 4 == 0) {
           console.log(
-            ` week ${week} Bank 1: asset: ${bankValuesNWeek[1].asset}, liab: ${bankValuesNWeek[1].liability}`
+            ` week ${week} Bank 1: asset: ${bankValuesNWeek[1].asset}, liab: ${bankValuesNWeek[1].liability} util: ${utilActual}`
           );
           console.log(`   annualized rate: ${annualizedRate}`);
         }
