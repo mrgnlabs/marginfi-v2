@@ -633,7 +633,7 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         bank.config.operational_state,
         BankOperationalState::Operational
     );
-    assert_eq!(bank.config.oracle_setup, OracleSetup::PythPushOracle);
+    assert_eq!(bank.config.oracle_setup, OracleSetup::SwitchboardPull);
     assert_eq!(
         bank.config.oracle_keys,
         [

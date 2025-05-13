@@ -5,7 +5,6 @@ use fixed::types::I80F48;
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankVaultType},
-    price::OracleSetup,
 };
 use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
