@@ -5,8 +5,7 @@ use crate::{
 
 use anchor_lang::prelude::*;
 use bincode::deserialize;
-use pyth_sdk_solana::state::SolanaPriceAccount;
-use pyth_solana_receiver_sdk::price_update::VerificationLevel;
+use pyth_solana_receiver_sdk::price_update::{PriceUpdateV2, VerificationLevel};
 use solana_sdk::{account::AccountSharedData, entrypoint::ProgramResult};
 
 use fixed_macro::types::I80F48;
@@ -320,7 +319,6 @@ lazy_static! {
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythPushOracle,
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_PUSH_FULLV_FEED_ID.into()),
@@ -328,14 +326,12 @@ lazy_static! {
     };
     /// This banks orale always has an insufficient verification level.
     pub static ref DEFAULT_SOL_TEST_PYTH_PUSH_PARTV_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythPushOracle,
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_PUSH_PARTV_FEED_ID.into()),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_SOL_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythPushOracle,
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_SOL_REAL_FEED),
@@ -343,14 +339,12 @@ lazy_static! {
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_USDC_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythPushOracle,
         deposit_limit: native!(1_000_000_000, "USDC"),
         borrow_limit: native!(1_000_000_000, "USDC"),
         oracle_keys: create_oracle_key_array(PYTH_USDC_REAL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_PYTH_PUSH_SOL_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
-        oracle_setup: OracleSetup::PythPushOracle,
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
         oracle_keys: create_oracle_key_array(PYTH_PUSH_REAL_SOL_FEED_ID.into()),
@@ -409,7 +403,6 @@ impl TestFixture {
         program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
 
         let usdc_keypair = Keypair::new();
-        let pyusd_keypair = Keypair::new();
         let sol_keypair = Keypair::new();
         let sol_equivalent_keypair = Keypair::new();
         let mnde_keypair = Keypair::new();
@@ -418,59 +411,63 @@ impl TestFixture {
 
         program.add_account(
             PYTH_USDC_FEED,
-            create_pyth_legacy_oracle_account(
-                usdc_keypair.pubkey(),
+            create_pyth_push_oracle_account(
+                PYTH_USDC_FEED.to_bytes(),
                 1.0,
                 USDC_MINT_DECIMALS.into(),
                 None,
-            ), // create_pyth_price_account(usdc_keypair.pubkey(), 1.0, USDC_MINT_DECIMALS.into(), None),
+                VerificationLevel::Full,
+            ),
         );
         program.add_account(
             PYTH_PYUSD_FEED,
-            create_pyth_legacy_oracle_account(
-                pyusd_keypair.pubkey(),
+            create_pyth_push_oracle_account(
+                PYTH_PYUSD_FEED.to_bytes(),
                 1.0,
                 PYUSD_MINT_DECIMALS.into(),
                 None,
+                VerificationLevel::Full,
             ),
         );
         program.add_account(
             PYTH_T22_WITH_FEE_FEED,
-            create_pyth_legacy_oracle_account(
-                t22_with_fee_keypair.pubkey(),
+            create_pyth_push_oracle_account(
+                PYTH_T22_WITH_FEE_FEED.to_bytes(),
                 0.5,
                 T22_WITH_FEE_MINT_DECIMALS.into(),
                 None,
+                VerificationLevel::Full,
             ),
         );
         program.add_account(
             PYTH_SOL_FEED,
-            create_pyth_legacy_oracle_account(
-                sol_keypair.pubkey(),
+            create_pyth_push_oracle_account(
+                PYTH_SOL_FEED.to_bytes(),
                 10.0,
                 SOL_MINT_DECIMALS.into(),
                 None,
+                VerificationLevel::Full,
             ),
-            // create_pyth_price_account(sol_keypair.pubkey(), 10.0, SOL_MINT_DECIMALS.into(), None),
         );
         program.add_account(
             PYTH_SOL_EQUIVALENT_FEED,
-            create_pyth_legacy_oracle_account(
-                sol_equivalent_keypair.pubkey(),
+            create_pyth_push_oracle_account(
+                PYTH_SOL_EQUIVALENT_FEED.to_bytes(),
                 10.0,
                 SOL_MINT_DECIMALS.into(),
                 None,
+                VerificationLevel::Full,
             ),
         );
         program.add_account(
             PYTH_MNDE_FEED,
-            create_pyth_legacy_oracle_account(
-                mnde_keypair.pubkey(),
+            create_pyth_push_oracle_account(
+                PYTH_MNDE_FEED.to_bytes(),
                 10.0,
                 MNDE_MINT_DECIMALS.into(),
                 None,
+                VerificationLevel::Full,
             ),
-            // create_pyth_price_account(mnde_keypair.pubkey(), 10.0, MNDE_MINT_DECIMALS.into(), None),
         );
         program.add_account(
             PYTH_PUSH_SOL_FULLV_FEED,
@@ -730,17 +727,23 @@ impl TestFixture {
             .unwrap();
 
         let data = account.data.as_mut_slice();
-        let mut data: SolanaPriceAccount =
-            *pyth_sdk_solana::state::load_price_account(data).unwrap();
+        let mut price_update = PriceUpdateV2::deserialize(&mut &data[8..]).unwrap();
 
-        data.timestamp = timestamp;
-        data.prev_timestamp = timestamp;
+        price_update.price_message.publish_time = timestamp;
+        price_update.price_message.prev_publish_time = timestamp;
 
-        let bytes = bytemuck::bytes_of(&data);
+        let mut data = vec![];
+        let mut account_data = vec![];
+
+        data.extend_from_slice(PriceUpdateV2::DISCRIMINATOR);
+
+        price_update.serialize(&mut account_data).unwrap();
+
+        data.extend_from_slice(&account_data);
 
         let mut aso = AccountSharedData::from(account);
 
-        aso.set_data_from_slice(bytes);
+        aso.set_data_from_slice(data.as_slice());
 
         ctx.set_account(&address, &aso);
     }

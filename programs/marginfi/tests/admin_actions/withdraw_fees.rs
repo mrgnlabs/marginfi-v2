@@ -3,11 +3,10 @@ use anchor_spl::token_2022::spl_token_2022::extension::{
     transfer_fee::TransferFeeConfig, BaseStateWithExtensions,
 };
 use fixtures::{
-    assert_anchor_error, assert_custom_error,
+    assert_anchor_error,
     spl::TokenAccountFixture,
     test::{BankMint, TestFixture, TestSettings},
 };
-use marginfi::errors::MarginfiError;
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 use test_case::test_case;

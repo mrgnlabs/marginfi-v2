@@ -15,7 +15,7 @@ use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 pub use pyth_sdk_solana;
-use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
+use pyth_sdk_solana::Price;
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use std::{cell::Ref, cmp::min};
@@ -41,10 +41,10 @@ impl OracleSetup {
     pub fn from_u8(value: u8) -> Option<Self> {
         match value {
             0 => Some(Self::None),
-            2 => Some(Self::SwitchboardV2),
-            3 => Some(Self::PythPushOracle),
-            4 => Some(Self::SwitchboardPull),
-            5 => Some(Self::StakedWithPythPush),
+            1 => Some(Self::SwitchboardV2),
+            2 => Some(Self::PythPushOracle),
+            3 => Some(Self::SwitchboardPull),
+            4 => Some(Self::StakedWithPythPush),
             _ => None,
         }
     }
@@ -788,20 +788,10 @@ fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResu
     Ok(price)
 }
 
-/// Load and validate a pyth price feed account.
-fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
-    check!(ai.owner.eq(&PYTH_ID), MarginfiError::InternalLogicError);
-    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
-        .map_err(|_| MarginfiError::InternalLogicError)?;
-    Ok(price_feed)
-}
-
 #[cfg(test)]
 mod tests {
-    use fixed_macro::types::I80F48;
     use pretty_assertions::assert_eq;
 
-    use crate::constants::EXP_10;
     use crate::utils::hex_to_bytes;
 
     use super::*;
