@@ -228,7 +228,7 @@ describe("Lending pool add bank (add bank to group)", () => {
         collateral: RiskTier.Isolated,
         liquidationThreshold: 0.1,
         liquidationPenalty: 0.1,
-      }
+      },
     };
 
     let bankKey = bankKeypairSol.publicKey;
@@ -361,8 +361,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Equal(bonkInterest.protocolOriginationFee, 0);
 
     assert.deepEqual(bonkConfig.operationalState, { operational: {} });
-    assert.deepEqual(bonkConfig.oracleSetup, { 
-      pythPushOracle: {} });
+    assert.deepEqual(bonkConfig.oracleSetup, {
+      pythPushOracle: {},
+    });
     // roughly 26.41 billion BONK with 5 decimals.
     assertBNEqual(bonkConfig.borrowLimit, 2_640_570_785_700_000);
     assert.deepEqual(bonkConfig.riskTier, { collateral: {} });

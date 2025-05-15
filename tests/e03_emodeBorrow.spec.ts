@@ -40,6 +40,8 @@ let lstABank: PublicKey;
 let solBank: PublicKey;
 
 describe("Emode borrowing", () => {
+  const confidence = ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
+
   before(async () => {
     [usdcBank] = deriveBankWithSeed(
       bankrunProgram.programId,
@@ -243,7 +245,10 @@ describe("Emode borrowing", () => {
     }
 
     const assetsExpected =
-      oracles.wsolPrice * solDeposit * EMODE_INIT_RATE_SOL_TO_LST;
+      oracles.wsolPrice *
+      (1.0 - confidence) *
+      solDeposit *
+      EMODE_INIT_RATE_SOL_TO_LST;
     assertI80F48Approx(cacheAfter.assetValue, assetsExpected);
 
     const liabsExpected =

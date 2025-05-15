@@ -16,22 +16,19 @@ import {
   emodeGroup,
   groupAdmin,
   oracles,
-  users,
 } from "./rootHooks";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { assertKeysEqual } from "./utils/genericTests";
-import { dumpAccBalances, dumpBankrunLogs } from "./utils/tools";
+import { dumpAccBalances } from "./utils/tools";
 import { defaultBankConfigOptRaw } from "./utils/types";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { configureBank } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
-  borrowIx,
   composeRemainingAccounts,
-  depositIx,
   liquidateIx,
 } from "./utils/user-instructions";
-import { getUserMarginfiProgram, USER_ACCOUNT_E } from "./utils/mocks";
+import { getUserMarginfiProgram } from "./utils/mocks";
 
 // Banks are listed here in the sorted-by-public-keys order - the same used in the lending account balances
 const seed = new BN(EMODE_SEED);
@@ -51,14 +48,6 @@ const gappy4Account = new PublicKey(
 );
 let gappyUser3: Keypair;
 let gappyUser4: Keypair;
-
-/** USDC funding for the liquidator (user 2) */
-const liquidator_usdc: number = 10;
-/** SOL funding for the liquidator (user 2) */
-const liquidator_sol: number = 0.1;
-
-const REDUCED_INIT_SOL_LST_RATE = 0.85;
-const REDUCED_MAINT_SOL_LST_RATE = 0.9;
 
 describe("Liquidation with gaps in accounts", () => {
   before(async () => {

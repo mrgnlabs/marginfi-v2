@@ -1,7 +1,4 @@
-import {
-  Program,
-  workspace,
-} from "@coral-xyz/anchor";
+import { Program, workspace } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -148,8 +145,16 @@ describe("Health pulse", () => {
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
     assert.equal(cA.programVersion, HEALTH_CACHE_PROGRAM_VERSION_0_1_3);
-    assert.approximately(bytesToF64(cA.prices[0]), oracles.tokenAPrice * (1.0 - confidence), t);
-    assert.approximately(bytesToF64(cA.prices[1]), oracles.usdcPrice * (1.0 - confidence), t);
+    assert.approximately(
+      bytesToF64(cA.prices[0]),
+      oracles.tokenAPrice * (1.0 - confidence),
+      t
+    );
+    assert.approximately(
+      bytesToF64(cA.prices[1]),
+      oracles.usdcPrice * (1.0 - confidence),
+      t
+    );
   });
 
   it("(user 0) health pulse in unhealthy state - happy path", async () => {

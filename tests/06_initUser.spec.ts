@@ -29,9 +29,7 @@ describe("Initialize user account", () => {
         feePayer: users[0].wallet.publicKey,
       })
     );
-    await users[0].mrgnProgram.provider.sendAndConfirm(tx, [
-      accountKeypair,
-    ]);
+    await users[0].mrgnProgram.provider.sendAndConfirm(tx, [accountKeypair]);
 
     const userAcc = await program.account.marginfiAccount.fetch(accountKey);
     assertKeysEqual(userAcc.group, marginfiGroup.publicKey);
@@ -62,8 +60,6 @@ describe("Initialize user account", () => {
         feePayer: users[1].wallet.publicKey,
       })
     );
-    await users[1].mrgnProgram.provider.sendAndConfirm(tx, [
-      accountKeypair,
-    ]);
+    await users[1].mrgnProgram.provider.sendAndConfirm(tx, [accountKeypair]);
   });
 });

@@ -9,12 +9,7 @@ import {
 import { Transaction } from "@solana/web3.js";
 import { setupEmissions, updateEmissions } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
-import {
-  bankKeypairUsdc,
-  ecosystem,
-  groupAdmin,
-  verbose,
-} from "./rootHooks";
+import { bankKeypairUsdc, ecosystem, groupAdmin, verbose } from "./rootHooks";
 import {
   assertBNEqual,
   assertI80F48Approx,

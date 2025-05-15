@@ -150,14 +150,8 @@ describe("Init e-mode enabled group and banks", () => {
     seed: BN;
     verboseMessage: string;
   }) {
-    const {
-      assetTag,
-      bankMint,
-      oracleFeed,
-      oracleMeta,
-      seed,
-      verboseMessage,
-    } = options;
+    const { assetTag, bankMint, oracleFeed, oracleMeta, seed, verboseMessage } =
+      options;
 
     // Set configuration; override assetTag if provided
     const config = defaultBankConfig();

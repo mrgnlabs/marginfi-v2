@@ -7,8 +7,6 @@ import {
   ecosystem,
   EMODE_INIT_RATE_LST_TO_LST,
   EMODE_MAINT_RATE_LST_TO_LST,
-  EMODE_INIT_RATE_SOL_TO_LST,
-  EMODE_MAINT_RATE_SOL_TO_LST,
   EMODE_SEED,
   emodeAdmin,
   emodeGroup,
@@ -25,7 +23,6 @@ import { assertBankrunTxFailed } from "./utils/genericTests";
 import { USER_ACCOUNT_E } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
-  CONF_INTERVAL_MULTIPLE,
   EMODE_APPLIES_TO_ISOLATED,
   EMODE_LST_TAG,
   EMODE_SOL_TAG,
@@ -41,7 +38,6 @@ import {
   composeRemainingAccounts,
 } from "./utils/user-instructions";
 import { configBankEmode } from "./utils/group-instructions";
-import { dumpBankrunLogs } from "./utils/tools";
 import { assert } from "chai";
 import { bytesToF64 } from "./utils/tools";
 

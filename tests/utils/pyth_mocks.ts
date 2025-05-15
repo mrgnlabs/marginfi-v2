@@ -283,7 +283,7 @@ export const setupPythOracles = async (
     fakeUsdc: fakeUsdcPythPullOracle.publicKey,
     fakeUsdcFeed: fakeUsdcPythPullOracleFeed.publicKey,
     pythPullLst: lstPythPullOracle,
-    pythPullLstOracleFeed: lstPythPullOracleFeed
+    pythPullLstOracleFeed: lstPythPullOracleFeed,
   };
   return oracles;
 };

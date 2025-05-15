@@ -2,12 +2,7 @@ import { BN, Program, workspace } from "@coral-xyz/anchor";
 import { configureBank, configureBankOracle } from "./utils/group-instructions";
 import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
-import {
-  bankKeypairUsdc,
-  groupAdmin,
-  oracles,
-  users,
-} from "./rootHooks";
+import { bankKeypairUsdc, groupAdmin, oracles, users } from "./rootHooks";
 import {
   assertBNEqual,
   assertI80F48Approx,
