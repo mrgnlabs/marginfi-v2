@@ -18,7 +18,7 @@ import {
   assertBankrunTxFailed,
   assertI80F48Approx,
 } from "./utils/genericTests";
-import { CONF_INTERVAL_MULTIPLE } from "./utils/types";
+import { CONF_INTERVAL_MULTIPLE, ORACLE_CONF_INTERVAL } from "./utils/types";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
@@ -249,7 +249,7 @@ describe("Emode borrowing", () => {
     const liabsExpected =
       oracles.lstAlphaPrice *
       lstBorrow *
-      (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
+      (1 + ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE) *
       1; // Note: Liability weight 1 for banks in this test
     assertI80F48Approx(
       cacheAfter.liabilityValue,
@@ -289,7 +289,7 @@ describe("Emode borrowing", () => {
    * .8 * 1750 / 175 = 8 LST B borrowed
    *
    * And with the confidence adjustment:
-   * - (0.8 * 1750 * (1 - 0.02 * 2.12)) / (175 * 1.0424) ~= 7.34919416731 LST
+   * - (0.8 * 1750 * (1 - 0.01 * 2.12)) / (175 * 1.0424) ~= 7.34919416731 LST
    */
   const lstADeposit = 10;
   const lstBBorrow = 7.3;
@@ -345,18 +345,18 @@ describe("Emode borrowing", () => {
       }
     }
 
-    // (0.8 * 1750 * (1 - 0.02 * 2.12))
+    // (0.8 * 1750 * (1 - 0.01 * 2.12))
     const assetsExpected =
       oracles.lstAlphaPrice *
       lstADeposit *
       EMODE_INIT_RATE_LST_TO_LST *
-      (1 - oracles.confidenceValue * CONF_INTERVAL_MULTIPLE);
+      (1 - ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE);
     assertI80F48Approx(cacheAfter.assetValue, assetsExpected);
 
     const liabsExpected =
       oracles.lstAlphaPrice *
       lstBBorrow *
-      (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
+      (1 + ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE) *
       1; // Note: Liability weight 1 for banks in this test
     assertI80F48Approx(
       cacheAfter.liabilityValue,
@@ -411,18 +411,18 @@ describe("Emode borrowing", () => {
       }
     }
 
-    // (0.8 * 1750 * (1 - 0.02 * 2.12))
+    // (0.8 * 1750 * (1 - 0.01 * 2.12))
     const assetsExpected =
       oracles.lstAlphaPrice *
       lstADeposit *
       EMODE_INIT_RATE_LST_TO_LST *
-      (1 - oracles.confidenceValue * CONF_INTERVAL_MULTIPLE);
+      (1 - ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE);
     assertI80F48Approx(cacheAfter.assetValue, assetsExpected);
 
     const liabsExpected =
       oracles.lstAlphaPrice *
         lstBBorrow *
-        (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
+        (1 + ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE) *
         1 +
       wsolBorrow * oracles.wsolPrice; // Close enough for wsol value, the amount is trivial
     assertI80F48Approx(

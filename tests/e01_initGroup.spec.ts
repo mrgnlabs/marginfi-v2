@@ -22,7 +22,6 @@ import {
   ASSET_TAG_SOL,
   defaultBankConfig,
   I80F48_ZERO,
-  ORACLE_SETUP_PYTH_LEGACY,
   ORACLE_SETUP_PYTH_PUSH,
 } from "./utils/types";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
@@ -74,7 +73,7 @@ describe("Init e-mode enabled group and banks", () => {
   it("(admin) Add bank (USDC)", async () => {
     await addBankTest({
       bankMint: ecosystem.usdcMint.publicKey,
-      oracle: oracles.usdcOracle.publicKey,
+      oracleFeed: oracles.usdcOracleFeed.publicKey,
       oracleMeta: {
         pubkey: oracles.usdcOracle.publicKey,
         isSigner: false,
@@ -88,7 +87,7 @@ describe("Init e-mode enabled group and banks", () => {
   it("(admin) Add bank (also a stablecoin)", async () => {
     await addBankTest({
       bankMint: ecosystem.usdcMint.publicKey,
-      oracle: oracles.usdcOracle.publicKey,
+      oracleFeed: oracles.usdcOracleFeed.publicKey,
       oracleMeta: {
         pubkey: oracles.usdcOracle.publicKey,
         isSigner: false,
@@ -103,7 +102,7 @@ describe("Init e-mode enabled group and banks", () => {
     await addBankTest({
       assetTag: ASSET_TAG_SOL,
       bankMint: ecosystem.wsolMint.publicKey,
-      oracle: oracles.wsolOracle.publicKey,
+      oracleFeed: oracles.wsolOracleFeed.publicKey,
       oracleMeta: {
         pubkey: oracles.wsolOracle.publicKey,
         isSigner: false,
@@ -117,14 +116,12 @@ describe("Init e-mode enabled group and banks", () => {
   it("(admin) Add bank (LST)", async () => {
     await addBankTest({
       bankMint: ecosystem.lstAlphaMint.publicKey,
-      oracle: oracles.pythPullLstOracleFeed.publicKey,
+      oracleFeed: oracles.pythPullLstOracleFeed.publicKey,
       oracleMeta: {
         pubkey: oracles.pythPullLst.publicKey, // NOTE: Price V2 update
         isSigner: false,
         isWritable: false,
       },
-      oracleSetup: "PULL",
-      feedOracle: oracles.pythPullLstOracleFeed.publicKey,
       seed: seed,
       verboseMessage: "*init LST A bank:",
     });
@@ -133,14 +130,12 @@ describe("Init e-mode enabled group and banks", () => {
   it("(admin) Add another bank (also an LST)", async () => {
     await addBankTest({
       bankMint: ecosystem.lstAlphaMint.publicKey,
-      oracle: oracles.pythPullLstOracleFeed.publicKey,
+      oracleFeed: oracles.pythPullLstOracleFeed.publicKey,
       oracleMeta: {
         pubkey: oracles.pythPullLst.publicKey, // NOTE: Price V2 update
         isSigner: false,
         isWritable: false,
       },
-      oracleSetup: "PULL",
-      feedOracle: oracles.pythPullLstOracleFeed.publicKey,
       seed: seed.addn(1),
       verboseMessage: "*init LST B bank:",
     });
@@ -149,12 +144,8 @@ describe("Init e-mode enabled group and banks", () => {
   async function addBankTest(options: {
     assetTag?: number;
     bankMint: PublicKey;
-    oracle: PublicKey;
+    oracleFeed: PublicKey;
     oracleMeta: AccountMeta;
-    // For banks (like LST) that need a different oracle setup (pull vs legacy)
-    oracleSetup?: "LEGACY" | "PULL";
-    // Optional feed oracle in case the instruction requires it (i.e. for pull)
-    feedOracle?: PublicKey;
     // Function to adjust the seed (for example, seed.addn(1))
     seed: BN;
     verboseMessage: string;
@@ -162,10 +153,8 @@ describe("Init e-mode enabled group and banks", () => {
     const {
       assetTag,
       bankMint,
-      oracle,
+      oracleFeed,
       oracleMeta,
-      oracleSetup = "LEGACY",
-      feedOracle,
       seed,
       verboseMessage,
     } = options;
@@ -192,13 +181,9 @@ describe("Init e-mode enabled group and banks", () => {
       seed
     );
 
-    const setupType =
-      oracleSetup === "PULL"
-        ? ORACLE_SETUP_PYTH_PUSH
-        : ORACLE_SETUP_PYTH_LEGACY;
-    const targetOracle = feedOracle ?? oracle;
+    const setupType = ORACLE_SETUP_PYTH_PUSH;
     const config_ix = await groupAdmin.mrgnProgram.methods
-      .lendingPoolConfigureBankOracle(setupType, targetOracle)
+      .lendingPoolConfigureBankOracle(setupType, oracleFeed)
       .accountsPartial({
         group: emodeGroup.publicKey,
         bank: bankKey,

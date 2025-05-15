@@ -357,8 +357,6 @@ export type Oracles = {
   /** Default 175 */
   lstAlphaPrice: number;
   lstAlphaDecimals: number;
-  /** By default, oracle conf is this times price */
-  confidenceValue: number;
   /** Same initial price/decimals as USDC, but different key. */
   fakeUsdc: PublicKey;
   fakeUsdcFeed: PublicKey;

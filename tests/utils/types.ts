@@ -49,6 +49,7 @@ export const HEALTH_CACHE_ORACLE_OK = 4;
 export const HEALTH_CACHE_PROGRAM_VERSION_0_1_3 = 1;
 /** Confidence intervals are multiplied by this constant internally */
 export const CONF_INTERVAL_MULTIPLE = 2.12;
+export const ORACLE_CONF_INTERVAL = 0.01;
 
 // By convention, all tags must be in 13375p34k (kidding, but only sorta)
 export const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
