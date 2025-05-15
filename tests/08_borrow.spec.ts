@@ -3,7 +3,6 @@ import {
   BN,
   getProvider,
   Program,
-  Wallet,
   workspace,
 } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
@@ -31,13 +30,11 @@ import {
   repayIx,
 } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { updatePriceAccount } from "./utils/pyth_mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("Borrow funds", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
   const provider = getProvider() as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
 
   // Bank has 100 USDC available to borrow
   // User has 2 Token A (worth $20) deposited
@@ -51,61 +48,6 @@ describe("Borrow funds", () => {
   const borrowAmountSol_native = new BN(
     borrowAmountSol * 10 ** ecosystem.wsolDecimals
   );
-
-  it("Oracle data refreshes", async () => {
-    const usdcPrice = BigInt(oracles.usdcPrice * 10 ** oracles.usdcDecimals);
-    await updatePriceAccount(
-      oracles.usdcOracle,
-      {
-        exponent: -oracles.usdcDecimals,
-        aggregatePriceInfo: {
-          price: usdcPrice,
-          conf: usdcPrice / BigInt(100), // 1% of the price
-        },
-        twap: {
-          // aka ema
-          valueComponent: usdcPrice,
-        },
-      },
-      wallet
-    );
-
-    const tokenAPrice = BigInt(
-      oracles.tokenAPrice * 10 ** oracles.tokenADecimals
-    );
-    await updatePriceAccount(
-      oracles.tokenAOracle,
-      {
-        exponent: -oracles.tokenADecimals,
-        aggregatePriceInfo: {
-          price: tokenAPrice,
-          conf: tokenAPrice / BigInt(100), // 1% of the price
-        },
-        twap: {
-          // aka ema
-          valueComponent: tokenAPrice,
-        },
-      },
-      wallet
-    );
-
-    const solPrice = BigInt(oracles.wsolPrice * 10 ** oracles.wsolDecimals);
-    await updatePriceAccount(
-      oracles.wsolOracle,
-      {
-        exponent: -oracles.wsolDecimals,
-        aggregatePriceInfo: {
-          price: solPrice,
-          conf: solPrice / BigInt(100), // 1% of the price
-        },
-        twap: {
-          // aka ema
-          valueComponent: solPrice,
-        },
-      },
-      wallet
-    );
-  });
 
   it("(user 0) tries to borrow usdc with a bad oracle - should fail", async () => {
     const user = users[0];
@@ -129,7 +71,7 @@ describe("Borrow funds", () => {
         )
       );
       // Note: you can now see expected vs actual keys in the msg! logs just before this error.
-    }, "WrongOracleAccountKeys");
+    }, "PythPushMismatchedFeedId");
   });
 
   it("(user 0) borrows SOL (isolated tier) against their token A position - happy path", async () => {

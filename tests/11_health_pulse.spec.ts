@@ -89,7 +89,7 @@ describe("Health pulse", () => {
     // no error, the risk engine didn't reject this even with the bad oracle because there are no
     // liabilities, so any asset balance is valid!
     assert.equal(cacheAfter.mrgnErr, 0);
-    assert.equal(cacheAfter.internalErr, 6052); // (WrongOracleAccountKeys)
+    assert.equal(cacheAfter.internalErr, 6055); // (PythPushMismatchedFeedId)
     assert.equal(cacheAfter.errIndex, 1);
     // The fake usdc price is set to zero due to the bad oracle
     assert.approximately(bytesToF64(cacheAfter.prices[1]), 0, t);

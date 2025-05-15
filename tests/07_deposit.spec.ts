@@ -30,10 +30,10 @@ import { depositIx, withdrawIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { createMintToInstruction } from "@solana/spl-token";
 import { deriveBankWithSeed, deriveLiquidityVault } from "./utils/pdas";
-import { addBank, addBankWithSeed } from "./utils/group-instructions";
+import { addBankWithSeed } from "./utils/group-instructions";
 import {
   defaultBankConfig,
-  ORACLE_SETUP_PYTH_LEGACY,
+  ORACLE_SETUP_PYTH_PUSH,
   u64MAX_BN,
 } from "./utils/types";
 
@@ -208,8 +208,8 @@ describe("Deposit funds", () => {
         }),
         await program.methods
           .lendingPoolConfigureBankOracle(
-            ORACLE_SETUP_PYTH_LEGACY,
-            oracles.tokenAOracle.publicKey
+            ORACLE_SETUP_PYTH_PUSH,
+            oracles.tokenAOracleFeed.publicKey
           )
           .accountsPartial({
             group: marginfiGroup.publicKey,

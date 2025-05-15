@@ -152,7 +152,7 @@ describe("Lending pool configure bank", () => {
           await configureBankOracle(groupAdmin.mrgnProgram, {
             bank: bankKey,
             type: 3,
-            oracle: oracles.tokenAOracleFeed.publicKey, // sneaky-sneaky
+            oracle: oracles.tokenAOracleFeed.publicKey, // sneaky sneaky
             feed: oracles.tokenAOracleFeed.publicKey,
           })
         )
