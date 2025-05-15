@@ -329,115 +329,110 @@ export const setupPythOracles = async (
     wsolPyth: boolean;
   }
 ) => {
-  let wsolPythOracle = await createPriceAccount(wallet);
-  let price = BigInt(wsolPrice * 10 ** wsolDecimals);
+  let wsolPythPullOracle = Keypair.generate();
+  let wsolPythPullOracleFeed = Keypair.generate();
+  let wsolNativePrice = wsolPrice * 10 ** wsolDecimals;
+  let wsolConfidence = wsolNativePrice * oracleConfDefault;
   if (skips && skips.wsol) {
     // do nothing
   } else {
-    await updatePriceAccount(
-      wsolPythOracle,
-      {
-        exponent: -wsolDecimals,
-        aggregatePriceInfo: {
-          price: price,
-          conf: price / BigInt(100), // 1% of the price
-        },
-        twap: {
-          valueComponent: price,
-        },
-      },
-      wallet
+    wsolPythPullOracleFeed = await initBlankOracleFeed(wallet);
+    wsolPythPullOracle = await initOrUpdatePriceUpdateV2(
+      wallet,
+      wsolPythPullOracleFeed.publicKey,
+      new BN(wsolNativePrice),
+      new BN(wsolConfidence),
+      new BN(wsolNativePrice),
+      new BN(wsolConfidence),
+      new BN(0),
+      -wsolDecimals
     );
   }
 
-  let usdcPythOracle = await createPriceAccount(wallet);
-  price = BigInt(usdcPrice * 10 ** usdcDecimals);
+  let usdcPythPullOracle = Keypair.generate();
+  let usdcPythPullOracleFeed = Keypair.generate();
+  let usdcNativePrice = usdcPrice * 10 ** usdcDecimals;
+  let usdcConfidence = usdcNativePrice * oracleConfDefault;
   if (skips && skips.usdc) {
     // do nothing
   } else {
-    await updatePriceAccount(
-      usdcPythOracle,
-      {
-        exponent: -usdcDecimals,
-        aggregatePriceInfo: {
-          price: price,
-          conf: price / BigInt(100), // 1% of the price
-        },
-        twap: {
-          valueComponent: price,
-        },
-      },
-      wallet
+    usdcPythPullOracleFeed = await initBlankOracleFeed(wallet);
+    usdcPythPullOracle = await initOrUpdatePriceUpdateV2(
+      wallet,
+      usdcPythPullOracleFeed.publicKey,
+      new BN(usdcNativePrice),
+      new BN(usdcConfidence),
+      new BN(usdcNativePrice),
+      new BN(usdcConfidence),
+      new BN(0),
+      -usdcDecimals
     );
   }
 
-  let fakeUsdcPythOracle = await createPriceAccount(wallet);
-  price = BigInt(usdcPrice * 10 ** usdcDecimals);
+  let fakeUsdcPythPullOracle = Keypair.generate();
+  let fakeUsdcPythPullOracleFeed = Keypair.generate();
+  let fakeUsdcNativePrice = usdcPrice * 10 ** usdcDecimals;
+  let fakeUsdcConfidence = fakeUsdcNativePrice * oracleConfDefault;
   if (skips && skips.usdc) {
     // do nothing
   } else {
-    await updatePriceAccount(
-      fakeUsdcPythOracle,
-      {
-        exponent: -usdcDecimals,
-        aggregatePriceInfo: {
-          price: price,
-          conf: price / BigInt(100), // 1% of the price
-        },
-        twap: {
-          valueComponent: price,
-        },
-      },
-      wallet
+    fakeUsdcPythPullOracleFeed = await initBlankOracleFeed(wallet);
+    fakeUsdcPythPullOracle = await initOrUpdatePriceUpdateV2(
+      wallet,
+      fakeUsdcPythPullOracleFeed.publicKey,
+      new BN(fakeUsdcNativePrice),
+      new BN(fakeUsdcConfidence),
+      new BN(fakeUsdcNativePrice),
+      new BN(fakeUsdcConfidence),
+      new BN(0),
+      -usdcDecimals
     );
   }
 
-  let tokenAPythOracle = await createPriceAccount(wallet);
-  price = BigInt(tokenAPrice * 10 ** tokenADecimals);
+  let tokenAPythPullOracle = Keypair.generate();
+  let tokenAPythPullOracleFeed = Keypair.generate();
+  let tokenANativePrice = tokenAPrice * 10 ** tokenADecimals;
+  let tokenAConfidence = tokenANativePrice * oracleConfDefault;
   if (skips && skips.a) {
     // do nothing
   } else {
-    await updatePriceAccount(
-      tokenAPythOracle,
-      {
-        exponent: -tokenADecimals,
-        aggregatePriceInfo: {
-          price: price,
-          conf: price / BigInt(100), // 1% of the price
-        },
-        twap: {
-          valueComponent: price,
-        },
-      },
-      wallet
+    tokenAPythPullOracleFeed = await initBlankOracleFeed(wallet);
+    tokenAPythPullOracle = await initOrUpdatePriceUpdateV2(
+      wallet,
+      tokenAPythPullOracleFeed.publicKey,
+      new BN(tokenANativePrice),
+      new BN(tokenAConfidence),
+      new BN(tokenANativePrice),
+      new BN(tokenAConfidence),
+      new BN(0),
+      -tokenADecimals
     );
   }
 
-  let tokenBPythOracle = await createPriceAccount(wallet);
-  price = BigInt(tokenBPrice * 10 ** tokenBDecimals);
+  let tokenBPythPullOracle = Keypair.generate();
+  let tokenBPythPullOracleFeed = Keypair.generate();
+  let tokenBNativePrice = tokenBPrice * 10 ** tokenBDecimals;
+  let tokenBConfidence = tokenBNativePrice * oracleConfDefault;
   if (skips && skips.b) {
     // do nothing
   } else {
-    await updatePriceAccount(
-      tokenBPythOracle,
-      {
-        exponent: -tokenBDecimals,
-        aggregatePriceInfo: {
-          price: price,
-          conf: price / BigInt(100), // 1% of the price
-        },
-        twap: {
-          valueComponent: price,
-        },
-      },
-      wallet
+    tokenBPythPullOracleFeed = await initBlankOracleFeed(wallet);
+    tokenBPythPullOracle = await initOrUpdatePriceUpdateV2(
+      wallet,
+      tokenBPythPullOracleFeed.publicKey,
+      new BN(tokenBNativePrice),
+      new BN(tokenBConfidence),
+      new BN(tokenBNativePrice),
+      new BN(tokenBConfidence),
+      new BN(0),
+      -tokenBDecimals
     );
   }
 
   let lstPythPullOracle = Keypair.generate();
   let lstPythPullOracleFeed = Keypair.generate();
   let priceAlpha = lstAlphaPrice * 10 ** lstAlphaDecimals;
-  let confAlpha = lstAlphaPrice * oracleConfDefault * 10 ** lstAlphaDecimals;
+  let confAlpha = priceAlpha * oracleConfDefault;
   if (skips && skips.wsolPyth) {
     // do nothing
   } else {
@@ -455,12 +450,12 @@ export const setupPythOracles = async (
   }
 
   if (verbose) {
-    console.log("Mock Pyth price oracles:");
-    console.log("wsol price:    \t" + wsolPythOracle.publicKey);
-    console.log("usdc price:    \t" + usdcPythOracle.publicKey);
-    console.log("token a price: \t" + tokenAPythOracle.publicKey);
-    console.log("token b price: \t" + tokenBPythOracle.publicKey);
-    console.log("lst pyth pull  \t" + lstPythPullOracle.publicKey);
+    console.log("Mock Pyth Pull price oracles:");
+    console.log("wsol:    \t" + wsolPythPullOracle.publicKey);
+    console.log("usdc:    \t" + usdcPythPullOracle.publicKey);
+    console.log("token a: \t" + tokenAPythPullOracle.publicKey);
+    console.log("token b: \t" + tokenBPythPullOracle.publicKey);
+    console.log("lst:     \t" + lstPythPullOracle.publicKey);
     console.log(
       "Price of 1 wsol.......$" +
         wsolPrice +
@@ -494,13 +489,17 @@ export const setupPythOracles = async (
     console.log("");
   }
   let oracles: Oracles = {
-    wsolOracle: wsolPythOracle,
+    wsolOracle: wsolPythPullOracle,
+    wsolOracleFeed: wsolPythPullOracleFeed,
     wsolDecimals: wsolDecimals,
-    usdcOracle: usdcPythOracle,
+    usdcOracle: usdcPythPullOracle,
+    usdcOracleFeed: usdcPythPullOracleFeed,
     usdcDecimals: usdcDecimals,
-    tokenAOracle: tokenAPythOracle,
+    tokenAOracle: tokenAPythPullOracle,
+    tokenAOracleFeed: tokenAPythPullOracleFeed,
     tokenADecimals: tokenADecimals,
-    tokenBOracle: tokenBPythOracle,
+    tokenBOracle: tokenBPythPullOracle,
+    tokenBOracleFeed: tokenBPythPullOracleFeed,
     tokenBDecimals: tokenBDecimals,
     wsolPrice: wsolPrice,
     usdcPrice: usdcPrice,
@@ -508,7 +507,8 @@ export const setupPythOracles = async (
     tokenBPrice: tokenBPrice,
     lstAlphaPrice: lstAlphaPrice,
     lstAlphaDecimals: lstAlphaDecimals,
-    fakeUsdc: fakeUsdcPythOracle.publicKey,
+    fakeUsdc: fakeUsdcPythPullOracle.publicKey,
+    fakeUsdcFeed: fakeUsdcPythPullOracleFeed.publicKey,
     pythPullLst: lstPythPullOracle,
     pythPullLstOracleFeed: lstPythPullOracleFeed,
     confidenceValue: oracleConfDefault

@@ -232,15 +232,14 @@ export const configureBankOracle = (
   program: Program<Marginfi>,
   args: ConfigureBankOracleArgs
 ) => {
-  const metaKey = args.feed ?? args.oracle;
   const oracleMeta: AccountMeta = {
-    pubkey: metaKey,
+    pubkey: args.oracle,
     isSigner: false,
     isWritable: false,
   };
 
   const ix = program.methods
-    .lendingPoolConfigureBankOracle(args.type, args.oracle)
+    .lendingPoolConfigureBankOracle(args.type, args.feed ?? args.oracle)
     .accounts({
       bank: args.bank,
     })

@@ -29,6 +29,7 @@ use super::marginfi_group::BankConfig;
 #[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub enum OracleSetup {
     None,
+    PythLegacy,
     SwitchboardV2,
     PythPushOracle,
     SwitchboardPull,
@@ -41,10 +42,11 @@ impl OracleSetup {
     pub fn from_u8(value: u8) -> Option<Self> {
         match value {
             0 => Some(Self::None),
-            1 => Some(Self::SwitchboardV2),
-            2 => Some(Self::PythPushOracle),
-            3 => Some(Self::SwitchboardPull),
-            4 => Some(Self::StakedWithPythPush),
+            1 => Some(Self::PythLegacy), // Deprecated
+            2 => Some(Self::SwitchboardV2), // Deprecated
+            3 => Some(Self::PythPushOracle),
+            4 => Some(Self::SwitchboardPull),
+            5 => Some(Self::StakedWithPythPush),
             _ => None,
         }
     }
@@ -120,6 +122,9 @@ impl OraclePriceFeedAdapter {
     ) -> MarginfiResult<Self> {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
+            OracleSetup::PythLegacy => {
+                panic!("pyth legacy is deprecated");
+            }
             OracleSetup::SwitchboardV2 => {
                 panic!("swb v2 is deprecated");
             }
@@ -250,6 +255,9 @@ impl OraclePriceFeedAdapter {
     ) -> MarginfiResult {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
+            OracleSetup::PythLegacy => {
+                panic!("pyth legacy is deprecated");
+            }
             OracleSetup::SwitchboardV2 => {
                 panic!("swb v2 is deprecated");
             }
@@ -639,8 +647,9 @@ impl PythPushOraclePriceFeed {
     pub fn check_ai_and_feed_id(ai: &AccountInfo, feed_id: &FeedId) -> MarginfiResult {
         let price_feed_account = load_price_update_v2_checked(ai)?;
 
-        check!(
-            &price_feed_account.price_message.feed_id.eq(feed_id),
+        check_eq!(
+            &price_feed_account.price_message.feed_id,
+            feed_id,
             MarginfiError::PythPushMismatchedFeedId
         );
 

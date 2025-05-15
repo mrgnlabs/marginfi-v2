@@ -24,12 +24,6 @@ pub fn lending_pool_configure_bank_oracle(
         bank.config.oracle_setup = setup_type;
         bank.config.oracle_keys[0] = oracle;
 
-        msg!(
-            "setting oracle to type: {:?} key: {:?}",
-            bank.config.oracle_setup,
-            bank.config.oracle_keys[0]
-        );
-
         bank.config
             .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
 

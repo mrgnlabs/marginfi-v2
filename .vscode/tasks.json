@@ -4,7 +4,7 @@
         {
             "label": "Setup & Run Anchor Tests",
             "type": "shell",
-            "command": "./scripts/build-workspace.sh && yarn install && anchor build -p marginfi -- --no-default-features && anchor build -p mocks && anchor build -p liquidity_incentive_program -- --no-default-features && anchor test --skip-build",
+            "command": "./scripts/build-workspace.sh && yarn install && anchor build -p marginfi -- --no-default-features && anchor build -p mocks && anchor test --skip-build",
             "problemMatcher": [],
             "group": {
                 "kind": "test",

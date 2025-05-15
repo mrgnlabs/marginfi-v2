@@ -3,7 +3,6 @@ import {
   InterestRateConfig,
   InterestRateConfigRaw,
   OperationalState,
-  OracleSetupRaw,
   RiskTier,
   RiskTierRaw,
 } from "@mrgnlabs/marginfi-client-v2";
@@ -32,7 +31,6 @@ export const ASSET_TAG_SOL = 1;
 export const ASSET_TAG_STAKED = 2;
 
 export const ORACLE_SETUP_NONE = 0;
-export const ORACLE_SETUP_PYTH_LEGACY = 1;
 export const ORACLE_SETUP_SWITCHBOARD_v2 = 2;
 /**
  * Yes, it should technically be called "pull", but this is what we call it on-chain, and
