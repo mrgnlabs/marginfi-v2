@@ -56,6 +56,7 @@ async fn marginfi_group_create_success() -> anyhow::Result<()> {
     // we send a config to disable them, to simplify testing)
     assert_eq!(marginfi_group.program_fees_enabled(), true);
     assert_eq!(marginfi_group.is_arena_group(), false);
+    assert_eq!(marginfi_group.fee_state_cache.last_update, 0);
 
     Ok(())
 }

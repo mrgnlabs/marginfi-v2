@@ -11,7 +11,7 @@ pub struct MarginfiGroup {
     /// Bitmask for group settings flags.
     /// * 0: `PROGRAM_FEES_ENABLED` If set, program-level fees are enabled.
     /// * 1: `ARENA_GROUP` If set, this is an arena group, which can only have two banks
-    /// * Bits 1-63: Reserved for future use.
+    /// * Bits 2-63: Reserved for future use.
     pub group_flags: u64,
     /// Caches information from the global `FeeState` so the FeeState can be omitted on certain ixes
     pub fee_state_cache: FeeStateCache,
@@ -28,7 +28,6 @@ pub struct MarginfiGroup {
 
     pub _padding_0: [[u64; 2]; 24],
     pub _padding_1: [[u64; 2]; 32],
-    pub _padding_3: u64,
     pub _padding_4: u64,
 }
 
@@ -43,4 +42,5 @@ pub struct FeeStateCache {
     pub global_fee_wallet: Pubkey,
     pub program_fee_fixed: WrappedI80F48,
     pub program_fee_rate: WrappedI80F48,
+    pub last_update: i64,
 }

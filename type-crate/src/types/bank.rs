@@ -71,8 +71,14 @@ pub struct Bank {
     /// certain other banks more preferentially as collateral.
     pub emode: EmodeSettings,
 
+    /// Set with `update_fees_destination_account`. Fees can be withdrawn to the
+    /// canonical ATA of this wallet without the admin's input (withdraw_fees_permissionless).
+    /// If pubkey default, the bank doesn't support this feature, and the fees must be collected
+    /// manually (withdraw_fees).
+    pub fees_destination_account: Pubkey, // 32
+
     pub _padding_0: [u8; 8],
-    pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
+    pub _padding_1: [[u64; 2]; 30], // 8 * 2 * 30 = 480B
 }
 
 impl Bank {

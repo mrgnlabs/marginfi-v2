@@ -87,10 +87,12 @@ pub struct HealthCache {
     /// Since 0.1.3, the version will be encoded here. See PROGRAM_VERSION.
     pub program_version: u8,
     pub pad0: [u8; 2],
+    pub internal_liq_err: u32,
+    pub internal_bankruptcy_err: u32,
     // Note: the largest on-chain deployed cache was 304 bytes so all future caches must be at least
     // this big to avoid data corruption in the empty space.
     pub reserved0: [u8; 32],
-    pub reserved1: [u8; 24],
+    pub reserved1: [u8; 16],
 }
 
 impl HealthCache {

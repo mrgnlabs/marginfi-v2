@@ -64,7 +64,6 @@ pub struct MarginfiGroup {
 
     pub _padding_0: [[u64; 2]; 24],
     pub _padding_1: [[u64; 2]; 32],
-    pub _padding_3: u64,
     pub _padding_4: u64,
 }
 
@@ -76,6 +75,7 @@ pub struct FeeStateCache {
     pub global_fee_wallet: Pubkey,
     pub program_fee_fixed: WrappedI80F48,
     pub program_fee_rate: WrappedI80F48,
+    pub last_update: i64,
 }
 
 impl MarginfiGroup {
@@ -164,6 +164,10 @@ impl MarginfiGroup {
             return err!(MarginfiError::ArenaBankLimit);
         }
         self.banks = self.banks.saturating_add(1);
+
+        let clock = Clock::get()?;
+        self.fee_state_cache.last_update = clock.unix_timestamp;
+
         Ok(())
     }
 }

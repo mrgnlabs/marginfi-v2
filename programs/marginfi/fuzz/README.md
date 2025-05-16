@@ -33,16 +33,35 @@ The framework uses the arbitrary library to generate a random sequence of action
 
 Run `python3 ./generate_corpus.py`. You may use python if you don't have python3 installed, or you may need to install python.
 
-Build with `cargo build`. 
+Build with `cargo build`.
 
-If this fails, you probably need to update your Rust toolchain: 
+If this fails, you probably need to update your Rust toolchain:
 
 `rustup install nightly-2024-06-05`
 
-And possibly: 
+And possibly:
 
 `rustup component add rust-src --toolchain nightly-2024-06-05-x86_64-unknown-linux-gnu`
 
-Run with `cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300`
+Run with `cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300 -timeout_exitcode=100 -error_exitcode=101`
 
-To rerun some tests after a failure: `cargo +nightly-2024-06-05 fuzz run -Zbuild-std lend artifacts/lend/crash-ae5084b9433152babdaf7dcd75781eacd7ea55c7`, replacing  the hash after crash- with the one you see in the terminal.
+If your machine has 8 cores, yolo with:
+
+```
+cargo +nightly-2024-06-05 fuzz run lend \
+-Zbuild-std --strip-dead-code --no-cfg-fuzzing \
+  -- -max_total_time=30 \
+     -timeout_exitcode=100 \
+     -error_exitcode=101 \
+     -print_pcs=0 \
+     -print_final_stats=1 \
+     -close_fd_mask=1 \
+     -jobs=8 \
+     -workers=8
+```
+
+This will crush your machine for 30 seconds instead, but 30 \* 8 = 240 ~= 300 so you are getting the
+same number of tests more or less. You will only get stdError instead of having your console spammed
+for an hour with buffered stdOut.
+
+To rerun some tests after a failure: `cargo +nightly-2024-06-05 fuzz run -Zbuild-std lend artifacts/lend/crash-ae5084b9433152babdaf7dcd75781eacd7ea55c7`, replacing the hash after crash- with the one you see in the terminal.

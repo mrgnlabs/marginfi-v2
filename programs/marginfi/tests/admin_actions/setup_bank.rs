@@ -5,7 +5,7 @@ use marginfi::{
     constants::{
         FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
-    prelude::MarginfiError,
+    prelude::{MarginfiError, MarginfiGroup},
     state::{
         emode::{EmodeEntry, EMODE_ON},
         marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
@@ -38,7 +38,22 @@ async fn add_bank_success() -> anyhow::Result<()> {
         ),
     ];
 
+    let marginfi_group: MarginfiGroup = test_f
+        .load_and_deserialize(&test_f.marginfi_group.key)
+        .await;
+    let mut last_update = marginfi_group.fee_state_cache.last_update;
+    assert_eq!(last_update, 0);
+
     for (mint_f, bank_config) in mints {
+        // This is just to test that the group's last_update field is properly updated upon bank creation
+        {
+            let ctx = test_f.context.borrow_mut();
+            let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+            // Advance clock by 1 sec
+            clock.unix_timestamp += 1;
+            ctx.set_sysvar(&clock);
+        }
+
         // Load the fee state before the start of the test
         let fee_balance_before: u64;
         {
@@ -56,6 +71,12 @@ async fn add_bank_success() -> anyhow::Result<()> {
             .marginfi_group
             .try_lending_pool_add_bank(&mint_f, bank_config)
             .await;
+
+        let marginfi_group: MarginfiGroup = test_f
+            .load_and_deserialize(&test_f.marginfi_group.key)
+            .await;
+        assert_eq!(marginfi_group.fee_state_cache.last_update, last_update + 1);
+        last_update = marginfi_group.fee_state_cache.last_update;
 
         // Check bank
         let bank_f = res.unwrap();

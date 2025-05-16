@@ -1,8 +1,7 @@
-/**
+/*
  * Here we test the permissionless withdrawal of bank fees. This is unrelated to staked collateral
  * and could execute in any test suite that has earned some fees.
  */
-
 import { Keypair, Transaction } from "@solana/web3.js";
 import {
   bankKeypairSol,
@@ -42,8 +41,6 @@ describe("Set up permissionless fee claiming", () => {
     externalWallet.publicKey
   );
 
-  before(async () => {});
-
   it("(user 0) tries to set a bogus claim destination - should fail", async () => {
     const user = users[0];
 
@@ -80,7 +77,7 @@ describe("Set up permissionless fee claiming", () => {
       ),
       await updateBankFeesDestinationAccount(admin.mrgnBankrunProgram, {
         bank: bankKeypairSol.publicKey,
-        destination: wsolAta, // sneaky sneaky
+        destination: wsolAta,
       })
     );
 

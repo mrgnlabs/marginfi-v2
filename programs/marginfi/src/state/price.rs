@@ -381,15 +381,14 @@ impl SwitchboardPullPriceFeed {
         max_age: u64,
     ) -> MarginfiResult<Self> {
         let ai_data = ai.data.borrow();
-        let _vec = ai_data.to_vec();
 
         check!(
             ai.owner.eq(&SWITCHBOARD_PULL_ID),
             MarginfiError::SwitchboardWrongAccountOwner
         );
 
-        let feed = parse_swb_ignore_alignment(ai_data)?;
-        let lite_feed = Box::new(LitePullFeedAccountData::from(&*feed));
+        let feed: PullFeedAccountData = parse_swb_ignore_alignment(ai_data)?;
+        let lite_feed = LitePullFeedAccountData::from(&feed);
         // TODO restore when swb fixes alignment issue in crate.
         // let feed = PullFeedAccountData::parse(ai_data)
         //     .map_err(|_| MarginfiError::SwitchboardInvalidAccount)?;
@@ -400,7 +399,9 @@ impl SwitchboardPullPriceFeed {
             return err!(MarginfiError::SwitchboardStalePrice);
         }
 
-        Ok(Self { feed: lite_feed })
+        Ok(Self {
+            feed: Box::new(lite_feed),
+        })
     }
 
     fn check_ais(ai: &AccountInfo) -> MarginfiResult {
@@ -491,25 +492,21 @@ impl PriceAdapter for SwitchboardPullPriceFeed {
 // (TargetAlignmentGreaterAndInputNotAligned) when bytemuck::from_bytes executes on any local system
 // (including bpf next-test) where the struct is "properly" aligned 16
 /// The same as PullFeedAccountData::parse but completely ignores input alignment.
-pub fn parse_swb_ignore_alignment(
-    data: Ref<&mut [u8]>,
-) -> MarginfiResult<Box<PullFeedAccountData>> {
+pub fn parse_swb_ignore_alignment(data: Ref<&mut [u8]>) -> MarginfiResult<PullFeedAccountData> {
     if data.len() < 8 {
         return err!(MarginfiError::SwitchboardInvalidAccount);
     }
 
-    let mut disc_bytes = [0u8; 8];
-    disc_bytes.copy_from_slice(&data[..8]);
-    if disc_bytes != PullFeedAccountData::DISCRIMINATOR {
+    if data[..8] != PullFeedAccountData::DISCRIMINATOR {
         return err!(MarginfiError::SwitchboardInvalidAccount);
     }
 
-    let mut data_bytes: Box<[u8; 3200]> = Box::new([0u8; 3200]);
-    data_bytes.copy_from_slice(&data[8..3208]);
+    let feed = bytemuck::try_pod_read_unaligned::<PullFeedAccountData>(
+        &data[8..8 + std::mem::size_of::<PullFeedAccountData>()],
+    )
+    .map_err(|_| MarginfiError::SwitchboardInvalidAccount)?;
 
-    let feed = bytemuck::try_pod_read_unaligned::<PullFeedAccountData>(&*data_bytes)
-        .map_err(|_| MarginfiError::SwitchboardInvalidAccount)?;
-    Ok(Box::new(feed))
+    Ok(feed)
 }
 
 pub fn load_price_update_v2_checked(ai: &AccountInfo) -> MarginfiResult<PriceUpdateV2> {
