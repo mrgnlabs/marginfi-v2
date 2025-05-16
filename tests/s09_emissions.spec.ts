@@ -4,12 +4,7 @@
  * staked collateral.
  */
 
-import {
-  AnchorProvider,
-  BN,
-  getProvider,
-  Wallet,
-} from "@coral-xyz/anchor";
+import { AnchorProvider, BN, getProvider, Wallet } from "@coral-xyz/anchor";
 import {
   Keypair,
   LAMPORTS_PER_SOL,
@@ -52,9 +47,7 @@ import {
   EMISSIONS_FLAG_BORROW_ACTIVE,
   EMISSIONS_FLAG_LENDING_ACTIVE,
 } from "./utils/types";
-import {
-  setupEmissions,
-} from "./utils/group-instructions";
+import { setupEmissions } from "./utils/group-instructions";
 import { getEpochAndSlot } from "./utils/stake-utils";
 import { createMintToInstruction } from "@solana/spl-token";
 

@@ -42,7 +42,7 @@ impl OracleSetup {
     pub fn from_u8(value: u8) -> Option<Self> {
         match value {
             0 => Some(Self::None),
-            1 => Some(Self::PythLegacy), // Deprecated
+            1 => Some(Self::PythLegacy),    // Deprecated
             2 => Some(Self::SwitchboardV2), // Deprecated
             3 => Some(Self::PythPushOracle),
             4 => Some(Self::SwitchboardPull),
@@ -210,11 +210,22 @@ impl OraclePriceFeedAdapter {
 
                 let account_info = &ais[0];
 
-                check_eq!(
-                    account_info.owner,
-                    &pyth_solana_receiver_sdk::id(),
-                    MarginfiError::StakedPythPushWrongAccountOwner
-                );
+                if live!() {
+                    check_eq!(
+                        account_info.owner,
+                        &pyth_solana_receiver_sdk::id(),
+                        MarginfiError::StakedPythPushWrongAccountOwner
+                    );
+                } else {
+                    // On localnet, allow the mock program ID OR the real one (for regression tests against
+                    // actual mainnet accounts).
+                    // * Note: Typically price updates are owned by `pyth_solana_receiver_sdk` and the oracle
+                    // feed account itself is owned by PYTH ID. On localnet, the mock program may own both for
+                    // simplicity.
+                    let owner_ok = account_info.owner.eq(&PYTH_ID)
+                        || account_info.owner.eq(&pyth_solana_receiver_sdk::id());
+                    check!(owner_ok, MarginfiError::StakedPythPushWrongAccountOwner);
+                }
 
                 let price_feed_id = bank_config.get_pyth_push_oracle_feed_id().unwrap();
                 let mut feed = PythPushOraclePriceFeed::load_checked(
