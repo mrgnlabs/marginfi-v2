@@ -181,9 +181,6 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     const user = users[2];
     const userAccount = user.accounts.get(USER_ACCOUNT);
     const userLstAta = user.accounts.get(LST_ATA);
-    console.log(
-      "oracles.wsolOracle.publicKey: " + oracles.wsolOracle.publicKey
-    );
     let tx = new Transaction().add(
       // TODO if we find a way to make stake appreciate on localnet, remove...
       await depositIx(user.mrgnBankrunProgram, {
