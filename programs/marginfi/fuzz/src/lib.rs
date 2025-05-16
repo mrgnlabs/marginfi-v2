@@ -318,7 +318,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     &[ails(oracle.clone())],
                     configure_bumps,
                 ),
-                1,
+                3,
                 oracle_feed,
             )
             .unwrap();
