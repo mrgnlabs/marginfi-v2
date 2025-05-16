@@ -3,7 +3,6 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use futures::future::try_join_all;
 use marginfi::state::{marginfi_account::MarginfiAccount, marginfi_group::Bank};
-use pyth_sdk_solana::PriceFeed;
 use serde::{Deserialize, Serialize};
 use solana_client::{client_error::ClientError, nonblocking::rpc_client::RpcClient};
 use solana_sdk::{
@@ -59,23 +58,6 @@ pub const EXP_10_I80F48: [I80F48; 15] = [
     I80F48!(10_000_000_000_000),
     I80F48!(100_000_000_000_000),
 ];
-
-#[inline(always)]
-pub fn pyth_price_to_fixed(price_feed: &PriceFeed) -> anyhow::Result<I80F48> {
-    let price = I80F48::from_num(price_feed.get_ema_price_unchecked().price);
-    let exponent = price_feed.get_ema_price_unchecked().expo;
-    let scaling_factor = EXP_10_I80F48[exponent.unsigned_abs() as usize];
-
-    let price = if exponent == 0 {
-        price
-    } else if exponent < 0 {
-        price.checked_div(scaling_factor).unwrap()
-    } else {
-        price.checked_mul(scaling_factor).unwrap()
-    };
-
-    Ok(price)
-}
 
 pub async fn get_multiple_accounts_chunked(
     rpc_client: &RpcClient,

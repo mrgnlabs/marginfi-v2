@@ -14,9 +14,7 @@ use anchor_spl::token::Mint;
 use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
-pub use pyth_sdk_solana;
-use pyth_sdk_solana::Price;
-use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
+use pyth_solana_receiver_sdk::price_update::{self, FeedId, Price, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{
