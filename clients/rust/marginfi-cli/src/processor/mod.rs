@@ -15,7 +15,7 @@ use {
         },
     },
     anchor_client::{
-        anchor_lang::{InstructionData, ToAccountMetas},
+        anchor_lang::{AnchorDeserialize, InstructionData, ToAccountMetas},
         Cluster,
     },
     anchor_spl::token_2022::spl_token_2022,
@@ -34,17 +34,20 @@ use {
                 Bank, BankConfigCompact, BankConfigOpt, BankOperationalState, BankVaultType,
                 InterestRateConfig, WrappedI80F48,
             },
-            price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter, PythPushOraclePriceFeed},
+            price::{
+                parse_swb_ignore_alignment, LitePullFeedAccountData, OraclePriceFeedAdapter,
+                OracleSetup, PriceAdapter, PythPushOraclePriceFeed,
+            },
         },
         utils::NumTraitsWithTolerance,
     },
-    pyth_sdk_solana::state::{load_price_account, SolanaPriceAccount},
+    pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{
         rpc_client::RpcClient,
         rpc_filter::{Memcmp, RpcFilterType},
     },
     solana_sdk::{
-        account::ReadableAccount,
+        account::{ReadableAccount, WritableAccount},
         account_info::IntoAccountInfo,
         clock::Clock,
         commitment_config::CommitmentLevel,
@@ -63,13 +66,14 @@ use {
         get_associated_token_address, instruction::create_associated_token_account_idempotent,
     },
     std::{
+        cell::RefCell,
         collections::HashMap,
         fs, io,
         mem::size_of,
         ops::{Neg, Not},
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
-    switchboard_solana::AggregatorAccountData,
+    switchboard_on_demand::PullFeedAccountData,
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1308,7 +1312,8 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             )
         })
         .partition(|(setup, _, _, _)| match setup {
-            // OracleSetup::SwitchboardV2 => false, TODO: will be fixed as part of cli reviving
+            OracleSetup::PythPushOracle => true,
+            OracleSetup::SwitchboardPull => false,
             _ => panic!("Unknown oracle setup"),
         });
 
@@ -1357,9 +1362,9 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(pyth_max_age)
             .map(|((maybe_account, mint), max_age)| {
                 let account = maybe_account.unwrap();
-                let pa: SolanaPriceAccount = *load_price_account(account.data()).unwrap();
+                let price_update = PriceUpdateV2::deserialize(&mut &account.data()[8..]).unwrap();
 
-                (mint, pa, max_age)
+                (mint, price_update, max_age)
             })
             .collect::<Vec<_>>();
 
@@ -1377,10 +1382,13 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(swb_mints)
             .zip(swb_max_age)
             .map(|((maybe_account, mint), max_age)| {
-                let account = maybe_account.unwrap();
-                let pa = *AggregatorAccountData::new_from_bytes(account.data()).unwrap();
+                let mut account = maybe_account.unwrap();
+                let data = account.data_as_mut_slice();
+                let cell = RefCell::new(data);
+                let feed: PullFeedAccountData = parse_swb_ignore_alignment(cell.borrow()).unwrap();
+                let lite_feed = LitePullFeedAccountData::from(&feed);
 
-                (mint, pa, max_age)
+                (mint, lite_feed, max_age)
             })
             .collect::<Vec<_>>();
 
@@ -1391,18 +1399,13 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 
         let mut pyth_ages = pyth_feed_accounts
             .iter()
-            .map(|(mint, pa, _)| ((now - pa.get_publish_time()) as f64 / 60f64, *mint))
+            .map(|(mint, pa, _)| ((now - pa.price_message.publish_time) as f64 / 60f64, *mint))
             .collect::<Vec<_>>();
         pyth_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
 
         let mut swb_ages = swb_feed_accounts
             .iter()
-            .map(|(mint, pa, _)| {
-                (
-                    (now - pa.latest_confirmed_round.round_open_timestamp) as f64 / 60f64,
-                    *mint,
-                )
-            })
+            .map(|(mint, pa, _)| ((now - pa.last_update_timestamp) as f64 / 60f64, *mint))
             .collect::<Vec<_>>();
         swb_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
 
@@ -2561,107 +2564,4 @@ pub fn marginfi_account_close(profile: &Profile, config: &Config) -> Result<()> 
     };
 
     Ok(())
-}
-/// LIP
-///
-
-#[cfg(feature = "lip")]
-pub fn process_list_lip_campaigns(config: &Config) {
-    use liquidity_incentive_program::state::Campaign;
-
-    let campaings = config.lip_program.accounts::<Campaign>(vec![]).unwrap();
-
-    print!("Found {} campaigns", campaings.len());
-
-    campaings.iter().for_each(|(address, campaign)| {
-        let bank = config
-            .mfi_program
-            .account::<Bank>(campaign.marginfi_bank_pk)
-            .unwrap();
-
-        print!(
-            r#"
-Campaign: {}
-Bank: {}
-Mint: {}
-Total Capacity: {}
-Remaining Capacity: {}
-Lockup Period: {} days
-Max Rewards: {}
-"#,
-            address,
-            campaign.marginfi_bank_pk,
-            bank.mint,
-            campaign.max_deposits as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
-            campaign.remaining_capacity as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
-            campaign.lockup_period / (24 * 60 * 60),
-            campaign.max_rewards as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
-        );
-    });
-}
-
-#[cfg(feature = "lip")]
-pub fn process_list_deposits(config: &Config) {
-    use liquidity_incentive_program::state::{Campaign, Deposit};
-    use solana_sdk::clock::SECONDS_PER_DAY;
-
-    let mut deposits = config.lip_program.accounts::<Deposit>(vec![]).unwrap();
-    let campaings = HashMap::<Pubkey, Campaign>::from_iter(
-        config.lip_program.accounts::<Campaign>(vec![]).unwrap(),
-    );
-    let banks =
-        HashMap::<Pubkey, Bank>::from_iter(config.mfi_program.accounts::<Bank>(vec![]).unwrap());
-
-    deposits.sort_by(|(_, a), (_, b)| a.start_time.cmp(&b.start_time));
-
-    deposits.iter().for_each(|(address, deposit)| {
-        let campaign = campaings.get(&deposit.campaign).unwrap();
-        let bank = banks.get(&campaign.marginfi_bank_pk).unwrap();
-
-        let time_now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        let end_time = deposit.start_time as u64 + campaign.lockup_period;
-        let maturity_string = {
-            if time_now > end_time {
-                "mature".to_owned()
-            } else {
-                let days_to_maturity = end_time.saturating_sub(time_now) / SECONDS_PER_DAY;
-                format!("mature in {} days", days_to_maturity)
-            }
-        };
-
-        println!(
-            r#"
-Deposit: {},
-Campaign: {},
-Asset Mint: {},
-Owner: {},
-Amount: {},
-Deposit start {}, end {} ({})
-"#,
-            address,
-            deposit.campaign,
-            bank.mint,
-            deposit.owner,
-            deposit.amount as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
-            timestamp_to_string(deposit.start_time),
-            timestamp_to_string(end_time as i64),
-            maturity_string,
-        )
-    })
-}
-
-#[cfg(feature = "lip")]
-fn timestamp_to_string(timestamp: i64) -> String {
-    use chrono::{DateTime, Utc};
-
-    DateTime::<Utc>::from_naive_utc_and_offset(
-        DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc(),
-        Utc,
-    )
-    .format("%Y-%m-%d %H:%M:%S")
-    .to_string()
 }
