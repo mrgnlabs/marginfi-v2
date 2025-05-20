@@ -299,7 +299,7 @@ pub enum BankCommand {
         bank_pk: Pubkey,
         #[clap(
             long,
-            help = "Bank oracle type (0 = Pyth Legacy, 1 = Switchboardv2, 3 = Pyth Pull, 4 = Switchboard Pull, 5 = Staked Pyth Pull"
+            help = "Bank oracle type (3 = Pyth Pull, 4 = Switchboard Pull, 5 = Staked Pyth Pull)"
         )]
         oracle_type: u8,
         #[clap(long, help = "Bank oracle account (or feed if using Pyth Pull")]

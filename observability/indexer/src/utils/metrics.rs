@@ -481,10 +481,6 @@ impl MarginfiAccountMetrics {
         let price_feeds =
             HashMap::from_iter(snapshot.price_feeds.iter().map(|(oracle_pk, oracle_data)| {
                 match oracle_data {
-                    OracleData::Switchboard(pf) => (
-                        *oracle_pk,
-                        OraclePriceFeedAdapter::SwitchboardV2(pf.clone()),
-                    ),
                     OracleData::PythPush(pf) => (
                         *oracle_pk,
                         OraclePriceFeedAdapter::PythPushOracle(pf.clone()),

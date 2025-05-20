@@ -14,7 +14,7 @@ use anchor_spl::token::Mint;
 use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
-use pyth_solana_receiver_sdk::price_update::{self, FeedId, Price, PriceUpdateV2};
+use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{
@@ -77,25 +77,8 @@ pub trait PriceAdapter {
 #[enum_dispatch(PriceAdapter)]
 #[cfg_attr(feature = "client", derive(Clone))]
 pub enum OraclePriceFeedAdapter {
-    SwitchboardV2(SwitchboardV2PriceFeed),
     PythPushOracle(PythPushOraclePriceFeed),
     SwitchboardPull(SwitchboardPullPriceFeed),
-}
-
-#[cfg_attr(feature = "client", derive(Clone, Debug))]
-pub struct SwitchboardV2PriceFeed {
-    _ema_price: Box<Price>,
-    _price: Box<Price>,
-}
-
-impl PriceAdapter for SwitchboardV2PriceFeed {
-    fn get_price_of_type(
-        &self,
-        _price_type: OraclePriceType,
-        _bias: Option<PriceBias>,
-    ) -> MarginfiResult<I80F48> {
-        panic!("swb v2 is deprecated");
-    }
 }
 
 impl OraclePriceFeedAdapter {
