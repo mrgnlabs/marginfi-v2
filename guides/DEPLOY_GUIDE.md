@@ -81,3 +81,4 @@ Here we list recent deployments to staging/mainnet. The hash is always the first
 * 0.1.0-alpha mainnet on Fev 3, 2024 ~2:45ET -- Hash: ea5d15
 * 0.1.1: Feb 17, 2025 ~3:00pm ET -- Hash: 03455c
 * 0.1.2: April 14, 2025 ~1:00pm ET -- Hash 65bbbe
+* 0.1.3: May 27, 2025 ~1:00pm ET -- Hash ae9adb7
