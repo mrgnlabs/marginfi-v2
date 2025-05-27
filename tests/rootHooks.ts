@@ -50,6 +50,8 @@ export const printBuffers = false;
 export let globalProgramAdmin: MockUser = undefined;
 /** Administers the mrgnlend group and/or stake holder accounts */
 export let groupAdmin: MockUser = undefined;
+/** Administers the emode group configuration */
+export let emodeAdmin: MockUser = undefined;
 /** Administers valiator votes and withdraws */
 export let validatorAdmin: MockUser = undefined;
 export const users: MockUser[] = [];
@@ -65,14 +67,23 @@ export const INIT_POOL_ORIGINATION_FEE = 1000;
 export const PROGRAM_FEE_FIXED = 0.01;
 export const PROGRAM_FEE_RATE = 0.02;
 
-/** Group used for all happy-path tests */
-export const marginfiGroup = Keypair.generate();
+// All groups and banks below need to be deterministic to ensure the same ordering of balances in lending accounts
+/** Group used for most regular e2e tests */
+const MARGINFI_GROUP_SEED = Buffer.from("MARGINFI_GROUP_SEED_000000000000");
+export const marginfiGroup = Keypair.fromSeed(MARGINFI_GROUP_SEED);
+/** Group used for e-mode tests */
+const EMODE_GROUP_SEED = Buffer.from("EMODE_GROUP_SEED_000000000000000");
+export const emodeGroup = Keypair.fromSeed(EMODE_GROUP_SEED);
+
 /** Bank for USDC */
-export const bankKeypairUsdc = Keypair.generate();
+const USDC_SEED = Buffer.from("USDC_BANK_SEED_00000000000000000");
+export const bankKeypairUsdc = Keypair.fromSeed(USDC_SEED);
 /** Bank for token A */
-export const bankKeypairA = Keypair.generate();
+const TOKEN_A_SEED = Buffer.from("TOKEN_A_BANK_SEED_00000000000000");
+export const bankKeypairA = Keypair.fromSeed(TOKEN_A_SEED);
 /** Bank for "WSOL", which is treated the same as SOL */
-export const bankKeypairSol = Keypair.generate();
+const SOL_SEED = Buffer.from("SOL_BANK_SEED_000000000000000000");
+export const bankKeypairSol = Keypair.fromSeed(SOL_SEED);
 
 export let bankrunContext: ProgramTestContext;
 export let bankRunProvider: BankrunProvider;
@@ -86,9 +97,29 @@ export const PYTH_ORACLE_FEED_SAMPLE = new PublicKey(
 export const PYTH_ORACLE_SAMPLE = new PublicKey(
   "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"
 );
+/** An account with gaps */
+export const GAPPY3_SAMPLE = new PublicKey(
+  "7qoe1Xmd3WUfPFHQaMYMGwSJT2mU55t3d4C4ZXZ1GJmn"
+);
+/** An account with gaps */
+export const GAPPY4_SAMPLE = new PublicKey(
+  "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
+);
+
+/** Banks in the emode test suite use this seed */
+export const EMODE_SEED = 44;
+export const EMODE_INIT_RATE_SOL_TO_LST = 0.9;
+export const EMODE_MAINT_RATE_SOL_TO_LST = 0.95;
+export const EMODE_INIT_RATE_LST_TO_LST = 0.8;
+export const EMODE_MAINT_RATE_LST_TO_LST = 0.85;
 
 /** keys copied into the bankrun instance */
-let copyKeys: PublicKey[] = [PYTH_ORACLE_FEED_SAMPLE, PYTH_ORACLE_SAMPLE];
+let copyKeys: PublicKey[] = [
+  PYTH_ORACLE_FEED_SAMPLE,
+  PYTH_ORACLE_SAMPLE,
+  GAPPY3_SAMPLE,
+  GAPPY4_SAMPLE,
+];
 
 export const mochaHooks = {
   beforeAll: async () => {
@@ -209,15 +240,20 @@ export const mochaHooks = {
     };
 
     groupAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
+    emodeAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
     validatorAdmin = await setupTestUser(
       provider,
       wallet.payer,
       setupUserOptions
     );
     copyKeys.push(
+      groupAdmin.wsolAccount,
       groupAdmin.usdcAccount,
+      groupAdmin.tokenAAccount,
       groupAdmin.tokenBAccount,
-      groupAdmin.wallet.publicKey
+      groupAdmin.lstAlphaAccount,
+      groupAdmin.wallet.publicKey,
+      emodeAdmin.wallet.publicKey
     );
 
     for (let i = 0; i < numUsers; i++) {
@@ -249,7 +285,7 @@ export const mochaHooks = {
       ecosystem.tokenBDecimals,
       175,
       ecosystem.lstAlphaDecimals,
-      0.02, // confidnece interval
+      0.02, // confidence interval
       verbose
     );
     copyKeys.push(
@@ -318,6 +354,15 @@ export const mochaHooks = {
       new AnchorProvider(
         bankRunProvider.connection,
         new Wallet(validatorAdmin.wallet),
+        {}
+      )
+    );
+
+    emodeAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(emodeAdmin.wallet),
         {}
       )
     );

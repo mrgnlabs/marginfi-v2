@@ -1,5 +1,6 @@
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr};
 
+use anchor_lang::solana_program::pubkey;
 use anchor_lang::AccountDeserialize;
 use anyhow::bail;
 use base64::{prelude::BASE64_STANDARD, Engine};
@@ -16,9 +17,8 @@ use marginfi::{
 };
 use solana_account_decoder::UiAccountData;
 use solana_cli_output::CliAccount;
-use solana_program::pubkey;
 use solana_program_test::tokio;
-use switchboard_solana::Pubkey;
+use solana_sdk::pubkey::Pubkey;
 
 #[tokio::test]
 async fn account_field_values_reg() -> anyhow::Result<()> {
@@ -673,9 +673,10 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from(bank.collected_program_fees_outstanding),
         I80F48::from_str("0").unwrap()
     );
+    assert_eq!(bank.fees_destination_account, Pubkey::default());
 
-    assert_eq!(bank._padding_0, [[0, 0]; 27]);
-    assert_eq!(bank._padding_1, [[0, 0]; 32]);
+    assert_eq!(bank._padding_0, [0; 8]);
+    assert_eq!(bank._padding_1, [[0, 0]; 30]);
 
     Ok(())
 }

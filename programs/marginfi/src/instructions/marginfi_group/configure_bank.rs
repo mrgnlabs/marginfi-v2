@@ -38,6 +38,7 @@ pub fn lending_pool_configure_bank(
     } else {
         // Settings are not frozen, everything updates
         bank.configure(&bank_config)?;
+        msg!("Bank configured!");
 
         if bank_config.oracle_max_age.is_some() {
             bank.config.validate_oracle_age()?;

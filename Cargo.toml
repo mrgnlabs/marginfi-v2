@@ -1,45 +1,82 @@
 [workspace]
 resolver = "2"
-members = ["programs/*", "clients/rust/*", "tools/*"]
+members = [
+    "programs/marginfi",
+    "test-utils",
+    "programs/mocks",
+    "programs/test_transfer_hook",
+]
+# exclude = [
+#   "programs/liquidity-incentive-program",
+#   "programs/brick",
+# ]
 
 [workspace.dependencies]
-solana-cli-output = "=1.18.17"
-solana-client = "=1.18.17"
-solana-sdk = "=1.18.17"
-solana-logger = "=1.18.17"
-solana-program = "=1.18.17"
-solana-program-test = "=1.18.17"
-solana-account-decoder = "=1.18.17"
-solana-measure = "=1.18.17"
-solana-metrics = "=1.18.17"
-solana-transaction-status = "=1.18.17"
-solana-address-lookup-table-program = "=1.18.17"
-spl-token = "4.0.0"
-spl-associated-token-account = "2.2.0"
-spl-transfer-hook-interface = "0.6.3"
-spl-tlv-account-resolution = "0.6.3"
-spl-discriminator = "0.2.2"
-spl-token-2022 = "3.0.2"
+solana-cli-output = "=2.1.20"
+solana-client = "=2.1.20"
+solana-sdk = "=2.1.20"
+solana-logger = "=2.1.20"
+solana-program = "=2.1.20"
+solana-program-test = "=2.1.20"
+solana-account-decoder = "=2.1.20"
+# solana-measure = "=2.1.20"
+# solana-metrics = "=2.1.20"
+# solana-transaction-status = "=2.1.20"
+# solana-address-lookup-table-program = "=2.1.20"
+spl-token = "8.0.0"
+# spl-associated-token-account = "2.2.0"
+spl-transfer-hook-interface = "0.9.0"
+spl-tlv-account-resolution = "0.9.0"
+# spl-discriminator = "0.2.2"
+spl-token-2022 = { version = "7.0.0", features = ["no-entrypoint"] }
 
-anchor-lang = { git = "https://github.com/mrgnlabs/anchor.git", rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
-anchor-lang-29 = { version = "0.29.0", package = "anchor-lang" }
-anchor-spl = { git = "https://github.com/mrgnlabs/anchor.git", features = [
-  "token_2022",
-], rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
-anchor-client = { git = "https://github.com/mrgnlabs/anchor.git", rev = "fdcf299dc55ecf7cfa8c4d598aecb1363b99c02d" }
+anchor-lang = { version = "0.31.1" }
+anchor-spl = { version = "0.31.1", features = ["token_2022"] }
+anchor-client = { version = "0.31.1" }
 
-pyth-sdk-solana = "=0.10.1"
-pyth-solana-receiver-sdk = "0.3.0"
-switchboard-solana = "0.29.0"
-switchboard-on-demand = "0.1.14"
-borsh = "0.10.3"
+fixtures = { path = "test-utils", package = "test-utilities" }
+marginfi = { path = "programs/marginfi", package = "marginfi" }
+transfer_hook = { path = "programs/test_transfer_hook", package = "test_transfer_hook" }
+
+pyth-sdk-solana = "=0.10.4"
+pyth-solana-receiver-sdk = "0.6.0"
+pythnet-sdk = "2.3.1"
+switchboard-on-demand = "0.3.5"
+
+borsh = "1.5.7"
+bytemuck = "1.22.0"
+bs58 = "0.5.1"
+# Note: 1.29.0 and later require Rust 1.83+ which solana does not ship with (yet)
+fixed = "=1.28.0"
+fixed-macro = "1.2.0"
+lazy_static = "1.4.0"
+type-layout = "0.2.0"
+static_assertions = "1.1.0"
 
 [profile.release]
-overflow-checks = true
-lto = "fat"
-codegen-units = 1
+overflow-checks = false
+lto = "off"
+codegen-units = 8
 
-[profile.release.build-override]
-opt-level = 3
-incremental = false
-codegen-units = 1
+## Build options for release (build-program-verifiable should use these through env settings)
+# [profile.release]
+# overflow-checks = true
+# lto = "fat"
+# codegen-units = 1
+
+# [profile.release.build-override]
+# opt-level = 3
+# incremental = false
+# codegen-units = 1
+
+
+## Notes for usable lockfile generation in Solana land
+# OUTDATED Patch a version of half compatabile with fixed and Rust <=1.79:
+# cargo update -p half --precise 2.4.1
+# 
+# OUTDATED Patch zerofrom and litemap:
+# cargo update -p zerofrom --precise 0.1.5
+# cargo update -p litemap --precise 0.7.4
+
+## To fix the Anchor idl generation bug:
+# cargo update -p proc-macro2 --precise 1.0.95

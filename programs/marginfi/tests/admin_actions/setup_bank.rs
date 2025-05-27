@@ -5,12 +5,15 @@ use marginfi::{
     constants::{
         FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
-    prelude::MarginfiError,
-    state::marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
+    prelude::{MarginfiError, MarginfiGroup},
+    state::{
+        emode::{EmodeEntry, EMODE_ON},
+        marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
+    },
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
-use solana_sdk::pubkey::Pubkey;
+use solana_sdk::{clock::Clock, pubkey::Pubkey};
 use test_case::test_case;
 
 #[tokio::test]
@@ -26,14 +29,8 @@ async fn add_bank_success() -> anyhow::Result<()> {
             *DEFAULT_USDC_TEST_BANK_CONFIG,
         ),
         (
-            MintFixture::new_token_22(
-                test_f.context.clone(),
-                None,
-                None,
-                &[SupportedExtension::TransferFee],
-            )
-            .await,
-            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
+            MintFixture::new(test_f.context.clone(), None, None).await,
+            *DEFAULT_SOL_TEST_BANK_CONFIG,
         ),
         (
             MintFixture::new_from_file(&test_f.context.clone(), "src/fixtures/pyUSD.json"),
@@ -41,11 +38,26 @@ async fn add_bank_success() -> anyhow::Result<()> {
         ),
     ];
 
+    let marginfi_group: MarginfiGroup = test_f
+        .load_and_deserialize(&test_f.marginfi_group.key)
+        .await;
+    let mut last_update = marginfi_group.fee_state_cache.last_update;
+    assert_eq!(last_update, 0);
+
     for (mint_f, bank_config) in mints {
+        // This is just to test that the group's last_update field is properly updated upon bank creation
+        {
+            let ctx = test_f.context.borrow_mut();
+            let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+            // Advance clock by 1 sec
+            clock.unix_timestamp += 1;
+            ctx.set_sysvar(&clock);
+        }
+
         // Load the fee state before the start of the test
         let fee_balance_before: u64;
         {
-            let mut ctx = test_f.context.borrow_mut();
+            let ctx = test_f.context.borrow_mut();
             fee_balance_before = ctx
                 .banks_client
                 .get_account(fee_wallet)
@@ -59,6 +71,12 @@ async fn add_bank_success() -> anyhow::Result<()> {
             .marginfi_group
             .try_lending_pool_add_bank(&mint_f, bank_config)
             .await;
+
+        let marginfi_group: MarginfiGroup = test_f
+            .load_and_deserialize(&test_f.marginfi_group.key)
+            .await;
+        assert_eq!(marginfi_group.fee_state_cache.last_update, last_update + 1);
+        last_update = marginfi_group.fee_state_cache.last_update;
 
         // Check bank
         let bank_f = res.unwrap();
@@ -88,6 +106,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             emissions_remaining,
             emissions_mint,
             collected_program_fees_outstanding,
+            fees_destination_account,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -118,9 +137,10 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
             assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
+            assert_eq!(fees_destination_account, Pubkey::default());
 
-            assert_eq!(_padding_0, <[[u64; 2]; 27] as Default>::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
+            assert_eq!(_padding_0, <[u8; 8] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 30] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -129,7 +149,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
         // Load the fee state after the test
         let fee_balance_after: u64;
         {
-            let mut ctx = test_f.context.borrow_mut();
+            let ctx = test_f.context.borrow_mut();
             fee_balance_after = ctx
                 .banks_client
                 .get_account(fee_wallet)
@@ -159,14 +179,8 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             *DEFAULT_USDC_TEST_BANK_CONFIG,
         ),
         (
-            MintFixture::new_token_22(
-                test_f.context.clone(),
-                None,
-                None,
-                &[SupportedExtension::TransferFee],
-            )
-            .await,
-            *DEFAULT_T22_WITH_FEE_TEST_BANK_CONFIG,
+            MintFixture::new(test_f.context.clone(), None, None).await,
+            *DEFAULT_SOL_TEST_BANK_CONFIG,
         ),
         (
             MintFixture::new_from_file(&test_f.context.clone(), "src/fixtures/pyUSD.json"),
@@ -177,7 +191,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
     for (mint_f, bank_config) in mints {
         let fee_balance_before: u64;
         {
-            let mut ctx = test_f.context.borrow_mut();
+            let ctx = test_f.context.borrow_mut();
             fee_balance_before = ctx
                 .banks_client
                 .get_account(fee_wallet)
@@ -223,6 +237,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             emissions_remaining,
             emissions_mint,
             collected_program_fees_outstanding,
+            fees_destination_account,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -253,9 +268,10 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
             assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
+            assert_eq!(fees_destination_account, Pubkey::default());
 
-            assert_eq!(_padding_0, <[[u64; 2]; 27] as Default>::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 32] as Default>::default());
+            assert_eq!(_padding_0, <[u8; 8] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 30] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -263,7 +279,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
 
         let fee_balance_after: u64;
         {
-            let mut ctx = test_f.context.borrow_mut();
+            let ctx = test_f.context.borrow_mut();
             fee_balance_after = ctx
                 .banks_client
                 .get_account(fee_wallet)
@@ -430,7 +446,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, true)
+        .try_update(group_before.admin, group_before.emode_admin, true)
         .await;
     assert!(res.is_ok());
     let group_after = test_f.marginfi_group.load().await;
@@ -479,7 +495,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, false)
+        .try_update(group_before.admin, group_before.emode_admin, false)
         .await;
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaSettingCannotChange);
@@ -524,11 +540,145 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
     let group_before = test_f.marginfi_group.load().await;
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, true)
+        .try_update(group_before.admin, group_before.emode_admin, true)
         .await;
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaBankLimit);
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::T22WithFee)]
+#[test_case(BankMint::SolSwbPull)]
+#[tokio::test]
+async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let bank = test_f.get_bank(&bank_mint);
+    let old_bank = bank.load().await;
+
+    assert_eq!(old_bank.emode.flags, 0u64);
+    assert_eq!(old_bank.emode.emode_tag, 0u16);
+
+    // First try to enable emode without any entries
+    let empty_emode_tag = 1u16;
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, empty_emode_tag, &[])
+        .await;
+    assert!(res.is_ok());
+
+    // Load bank and check that the emode settings got applied
+    let loaded_bank: Bank = test_f.load_and_deserialize(&bank.key).await;
+    let timestamp = {
+        let ctx = test_f.context.borrow_mut();
+        let clock: Clock = ctx.banks_client.get_sysvar().await?;
+        clock.unix_timestamp
+    };
+
+    assert_eq!(loaded_bank.emode.flags, 0u64); // EMODE_ON is still not set because there are no entries
+    assert_eq!(loaded_bank.emode.emode_tag, empty_emode_tag);
+    assert_eq!(loaded_bank.emode.timestamp, timestamp);
+    assert_eq!(old_bank.emode.emode_config, loaded_bank.emode.emode_config); // config stays the same
+    assert_eq!(old_bank.config, loaded_bank.config); // everything else also stays the same
+
+    // Now update the tag and add some entries
+    let emode_tag = 2u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag, // sharing the same tag is allowed
+        flags: 1,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: loaded_bank.config.asset_weight_init,
+        asset_weight_maint: loaded_bank.config.asset_weight_maint,
+    }];
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await;
+    assert!(res.is_ok());
+
+    // Load bank and check that the emode settings got applied
+    let loaded_bank: Bank = test_f.load_and_deserialize(&bank.key).await;
+    let timestamp = {
+        let ctx = test_f.context.borrow_mut();
+        let clock: Clock = ctx.banks_client.get_sysvar().await?;
+        clock.unix_timestamp
+    };
+
+    assert_eq!(loaded_bank.emode.flags, EMODE_ON);
+    assert_eq!(loaded_bank.emode.emode_tag, emode_tag);
+    assert_eq!(loaded_bank.emode.timestamp, timestamp);
+    // Due to sorting by tag, the newly added entry is the last one
+    let last_entry_index = loaded_bank.emode.emode_config.entries.len() - 1;
+    assert_eq!(
+        loaded_bank.emode.emode_config.entries[last_entry_index],
+        emode_entries[0]
+    );
+    // All other entries are still "inactive"
+    for i in 0..last_entry_index {
+        assert_eq!(
+            loaded_bank.emode.emode_config.entries[i].collateral_bank_emode_tag,
+            0
+        );
+    }
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::T22WithFee)]
+#[test_case(BankMint::SolSwbPull)]
+#[tokio::test]
+async fn configure_bank_emode_invalid_args(bank_mint: BankMint) -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&bank_mint);
+
+    // Try to set an emode config with invalid weight params -> should fail
+    let emode_tag = 1u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 1,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: I80F48!(1.0).into(),
+        asset_weight_maint: I80F48!(0.9).into(),
+    }];
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await;
+    assert!(res.is_err());
+
+    // Try to set an emode config with duplicate entries -> should fail
+    let emode_tag = 2u16;
+    let emode_entries = vec![
+        EmodeEntry {
+            collateral_bank_emode_tag: emode_tag,
+            flags: 1,
+            pad0: [0, 0, 0, 0, 0],
+            asset_weight_init: I80F48!(0.9).into(),
+            asset_weight_maint: I80F48!(1.0).into(),
+        },
+        EmodeEntry {
+            collateral_bank_emode_tag: emode_tag,
+            flags: 0,
+            pad0: [0, 0, 0, 0, 0],
+            asset_weight_init: I80F48!(0.5).into(),
+            asset_weight_maint: I80F48!(0.9).into(),
+        },
+    ];
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await;
+    assert!(res.is_err());
 
     Ok(())
 }

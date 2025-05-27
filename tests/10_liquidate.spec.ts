@@ -13,28 +13,29 @@ import {
   bankKeypairUsdc,
   ecosystem,
   groupAdmin,
-  marginfiGroup,
   oracles,
   users,
   verbose,
 } from "./rootHooks";
 import {
   assertBNApproximately,
-  assertI80F48Approx,
   assertI80F48Equal,
   assertKeysEqual,
   expectFailedTxWithError,
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { liquidateIx } from "./utils/user-instructions";
+import {
+  composeRemainingAccounts,
+  liquidateIx,
+} from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { updatePriceAccount } from "./utils/pyth_mocks";
 import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
-import { defaultBankConfigOptRaw } from "./utils/types";
+import { CONF_INTERVAL_MULTIPLE, defaultBankConfigOptRaw } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
 
 describe("Liquidate user", () => {
@@ -42,7 +43,7 @@ describe("Liquidate user", () => {
   const provider = getProvider() as AnchorProvider;
   const wallet = provider.wallet as Wallet;
 
-  const confidenceInterval = 0.0212; // 1% confidence * CONF_INTERVAL_MULTIPLE
+  const confidenceInterval = 0.01 * CONF_INTERVAL_MULTIPLE;
   const liquidateAmountA = 0.2;
   const liquidateAmountA_native = new BN(
     liquidateAmountA * 10 ** ecosystem.tokenADecimals
@@ -92,6 +93,9 @@ describe("Liquidate user", () => {
 
     const assetBankKey = bankKeypairA.publicKey;
     const liabilityBankKey = bankKeypairUsdc.publicKey;
+    console.log("asset bank key", assetBankKey.toString()); //6g
+    console.log("liability bank key", liabilityBankKey.toString()); //47
+
     const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT);
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT);
 
@@ -106,14 +110,14 @@ describe("Liquidate user", () => {
             remaining: [
               oracles.tokenAOracle.publicKey,
               oracles.usdcOracle.publicKey,
-              liabilityBankKey,
-              oracles.fakeUsdc, // sneaky sneaky
-              assetBankKey,
-              oracles.tokenAOracle.publicKey,
-              assetBankKey,
-              oracles.tokenAOracle.publicKey,
-              liabilityBankKey,
-              oracles.usdcOracle.publicKey,
+              ...composeRemainingAccounts([
+                [liabilityBankKey, oracles.fakeUsdc], // sneaky sneaky
+                [assetBankKey, oracles.tokenAOracle.publicKey],
+              ]),
+              ...composeRemainingAccounts([
+                [liabilityBankKey, oracles.usdcOracle.publicKey],
+                [assetBankKey, oracles.tokenAOracle.publicKey],
+              ]),
             ],
             amount: liquidateAmountA_native,
           })
@@ -143,14 +147,14 @@ describe("Liquidate user", () => {
             remaining: [
               oracles.tokenAOracle.publicKey,
               oracles.usdcOracle.publicKey,
-              liabilityBankKey,
-              oracles.usdcOracle.publicKey,
-              assetBankKey,
-              oracles.tokenAOracle.publicKey,
-              assetBankKey,
-              oracles.tokenAOracle.publicKey,
-              liabilityBankKey,
-              oracles.fakeUsdc, // sneaky sneaky
+              ...composeRemainingAccounts([
+                [liabilityBankKey, oracles.usdcOracle.publicKey],
+                [assetBankKey, oracles.tokenAOracle.publicKey],
+              ]),
+              ...composeRemainingAccounts([
+                [liabilityBankKey, oracles.fakeUsdc], // sneaky sneaky
+                [assetBankKey, oracles.tokenAOracle.publicKey],
+              ]),
             ],
             amount: liquidateAmountA_native,
           })
@@ -189,6 +193,8 @@ describe("Liquidate user", () => {
    *    [index 1] 5,050,000 (5.05) USDC (worth $5.05)
    * Note: $5.05 is 25.25% of $20, which is more than 10%, so liquidation is allowed
    *
+   * Health calc before: (2 * 9.788 * .1) - (5.05 * 1.0212) = -3.19946
+   *
    * Liquidator tries to repay .2 token A (worth $2) of liquidatee's debt, so liquidator's assets
    * increase by this value, while liquidatee's assets decrease by this value. Which also means that:
    *
@@ -202,6 +208,8 @@ describe("Liquidate user", () => {
    *
    * Insurance fund collects the difference
    *  USDC diff 1,869,036  - 1,822,457 = 46,579
+   *
+   * Health calc after: ((2-0.2) * 9.788 * .1) - ((5.05-1.8608) * 1.0212) = -1.49497104
    */
 
   it("(user 1) liquidate user 0 who borrowed USDC against their token A position - happy path", async () => {
@@ -227,7 +235,7 @@ describe("Liquidate user", () => {
       liquidateeMarginfiAccount.lendingAccount.balances;
     const liquidatorBalances =
       liquidatorMarginfiAccount.lendingAccount.balances;
-    const liabilitySharesBefore = liquidateeBalances[1].liabilityShares;
+    const liabilitySharesBefore = liquidateeBalances[0].liabilityShares;
     assertI80F48Equal(liquidatorBalances[1].assetShares, 0);
 
     const insuranceVaultBalance = await getTokenBalance(
@@ -237,7 +245,7 @@ describe("Liquidate user", () => {
     assert.equal(insuranceVaultBalance, 0);
 
     const sharesA = wrappedI80F48toBigNumber(
-      liquidateeBalances[0].assetShares
+      liquidateeBalances[1].assetShares
     ).toNumber();
     const shareValueA = wrappedI80F48toBigNumber(
       assetBankBefore.assetShareValue
@@ -311,14 +319,14 @@ describe("Liquidate user", () => {
           remaining: [
             oracles.tokenAOracle.publicKey,
             oracles.usdcOracle.publicKey,
-            liabilityBankKey,
-            oracles.usdcOracle.publicKey,
-            assetBankKey,
-            oracles.tokenAOracle.publicKey,
-            assetBankKey,
-            oracles.tokenAOracle.publicKey,
-            liabilityBankKey,
-            oracles.usdcOracle.publicKey,
+            ...composeRemainingAccounts([
+              [liabilityBankKey, oracles.usdcOracle.publicKey],
+              [assetBankKey, oracles.tokenAOracle.publicKey],
+            ]),
+            ...composeRemainingAccounts([
+              [liabilityBankKey, oracles.usdcOracle.publicKey],
+              [assetBankKey, oracles.tokenAOracle.publicKey],
+            ]),
           ],
           amount: liquidateAmountA_native,
         })
@@ -350,12 +358,16 @@ describe("Liquidate user", () => {
     assertI80F48Equal(liquidateeBalancesAfter[0].liabilityShares, 0);
     assertI80F48Equal(liquidateeBalancesAfter[1].assetShares, 0);
 
-    assertI80F48Equal(liquidatorBalancesAfter[0].liabilityShares, 0);
+    assert.equal(liquidatorBalancesAfter[1].active, 1);
+    assertKeysEqual(liquidatorBalancesAfter[1].bankPk, liabilityBankKey);
+    assertKeysEqual(liquidatorBalancesAfter[0].bankPk, assetBankKey);
+
+    assertI80F48Equal(liquidatorBalancesAfter[1].liabilityShares, 0);
     assertI80F48Equal(
-      liquidatorBalancesAfter[1].assetShares,
+      liquidatorBalancesAfter[0].assetShares,
       liquidateAmountA_native
     );
-    assertI80F48Equal(liquidatorBalancesAfter[1].liabilityShares, 0);
+    assertI80F48Equal(liquidatorBalancesAfter[0].liabilityShares, 0);
 
     const insuranceVaultBalanceAfter = await getTokenBalance(
       provider,
@@ -429,9 +441,6 @@ describe("Liquidate user", () => {
           ).toString()
       );
     }
-
-    assert.equal(liquidatorBalancesAfter[1].active, 1);
-    assertKeysEqual(liquidatorBalancesAfter[1].bankPk, assetBankKey);
 
     let now = Math.floor(Date.now() / 1000);
     assertBNApproximately(liquidatorBalancesAfter[0].lastUpdate, now, 2);

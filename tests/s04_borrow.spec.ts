@@ -1,10 +1,5 @@
-import {
-  BN,
-  Program,
-  workspace,
-} from "@coral-xyz/anchor";
+import { BN } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
-import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairSol,
   bankKeypairUsdc,
@@ -12,23 +7,17 @@ import {
   bankrunProgram,
   banksClient,
   ecosystem,
-  marginfiGroup,
   oracles,
   users,
   validators,
 } from "./rootHooks";
-import {
-  assertBankrunTxFailed,
-  assertKeysEqual,
-} from "./utils/genericTests";
+import { assertBankrunTxFailed, assertKeysEqual } from "./utils/genericTests";
 import { assert } from "chai";
-import { borrowIx } from "./utils/user-instructions";
+import { borrowIx, composeRemainingAccounts } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 
 describe("Deposit funds (included staked assets)", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
-
   // User 0 has a USDC deposit position
   // User 1 has a SOL [0] and validator 0 Staked [1] deposit position
 
@@ -36,17 +25,22 @@ describe("Deposit funds (included staked assets)", () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
+    const userAccBefore = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    const balancesBefore = userAccBefore.lendingAccount.balances;
+    assert.equal(balancesBefore[1].active, 0);
+    assertKeysEqual(balancesBefore[0].bankPk, bankKeypairUsdc.publicKey);
+
     let tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
-        remaining: [
-          bankKeypairUsdc.publicKey,
-          oracles.usdcOracle.publicKey,
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+        ]),
         amount: new BN(0.01 * 10 ** ecosystem.wsolDecimals),
       })
     );
@@ -59,7 +53,10 @@ describe("Deposit funds (included staked assets)", () => {
     );
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[1].active, 1);
-    assertKeysEqual(balances[1].bankPk, bankKeypairSol.publicKey);
+
+    // Note: the newly added SOL balance is at index 0 because of the sorting by bank pubkey
+    assertKeysEqual(balances[0].bankPk, bankKeypairSol.publicKey);
+    assertKeysEqual(balances[1].bankPk, bankKeypairUsdc.publicKey);
   });
 
   // Note: Borrowing STAKED assets is generally forbidden (their borrow cap is set to 0)
@@ -74,16 +71,16 @@ describe("Deposit funds (included staked assets)", () => {
         marginfiAccount: userAccount,
         bank: bankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
-        remaining: [
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-          validators[0].bank,
-          oracles.wsolOracle.publicKey, // Note the Staked bank uses wsol oracle too
-          validators[0].splMint,
-          validators[0].splSolPool,
-          bankKeypairUsdc.publicKey,
-          oracles.usdcOracle.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey, // Note the Staked bank uses wsol oracle too
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+        ]),
         amount: new BN(0.1 * 10 ** ecosystem.usdcDecimals),
       })
     );

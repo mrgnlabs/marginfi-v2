@@ -4,14 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-idl-build = []
+idl-build = ["anchor-lang/idl-build"]
 no-entrypoint = []
+no-idl = []
 
 [lib]
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-solana-program = { workspace = true }
+# solana-program = { workspace = true }
+anchor-lang = { workspace = true }
 spl-token-2022 = { workspace = true, features = ["no-entrypoint"] }
 spl-transfer-hook-interface = { workspace = true }
 spl-tlv-account-resolution = { workspace = true }

@@ -10,6 +10,7 @@ import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
+  bankKeypairSol,
   bankKeypairUsdc,
   ecosystem,
   oracles,
@@ -24,6 +25,7 @@ import {
 import { assert } from "chai";
 import {
   borrowIx,
+  composeRemainingAccounts,
   depositIx,
   repayIx,
   withdrawEmissionsIx,
@@ -99,12 +101,10 @@ describe("Withdraw funds", () => {
             marginfiAccount: userAccKey,
             bank: bank,
             tokenAccount: user.tokenAAccount,
-            remaining: [
-              bankKeypairA.publicKey,
-              oracles.tokenAOracle.publicKey,
-              bankKeypairUsdc.publicKey,
-              oracles.fakeUsdc,
-            ],
+            remaining: composeRemainingAccounts([
+              [bankKeypairUsdc.publicKey, oracles.fakeUsdc],
+              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+            ]),
             amount: withdrawAmountTokenA_native,
           })
         )
@@ -133,12 +133,10 @@ describe("Withdraw funds", () => {
           marginfiAccount: userAccKey,
           bank: bank,
           tokenAccount: user.tokenAAccount,
-          remaining: [
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+          ]),
           amount: withdrawAmountTokenA_native,
         })
       )
@@ -208,12 +206,10 @@ describe("Withdraw funds", () => {
           marginfiAccount: userAccKey,
           bank: bank,
           tokenAccount: user.usdcAccount,
-          remaining: [
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+          ]),
           amount: repayAmountUsdc_native,
         })
       )
@@ -273,12 +269,10 @@ describe("Withdraw funds", () => {
             marginfiAccount: userAccKey,
             bank: bank,
             tokenAccount: user.usdcAccount,
-            remaining: [
-              bankKeypairA.publicKey,
-              oracles.tokenAOracle.publicKey,
-              bankKeypairUsdc.publicKey,
-              oracles.usdcOracle.publicKey,
-            ],
+            remaining: composeRemainingAccounts([
+              [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+            ]),
             amount: u64MAX_BN,
             repayAll: true,
           })
@@ -346,12 +340,10 @@ describe("Withdraw funds", () => {
           marginfiAccount: userAccKey,
           bank: bank,
           tokenAccount: user.usdcAccount,
-          remaining: [
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+          ]),
           amount: u64MAX_BN,
           repayAll: true,
         })
@@ -388,6 +380,7 @@ describe("Withdraw funds", () => {
     assert.approximately(sharesAfter, sharesBefore - actualOwed, 2);
     // This balance is now inactive
     assert.equal(balancesAfter[1].active, 0);
+    assertKeysEqual(balancesAfter[0].bankPk, bankKeypairA.publicKey);
 
     // The bank has also lost the same amount of shares...
     const bankSharesBefore = wrappedI80F48toBigNumber(
@@ -477,6 +470,35 @@ describe("Withdraw funds", () => {
     assert.equal(bankSharesAfter, bankSharesBefore - withdrawExpected);
   });
 
+  it("(user 1) withdraws all SOL balance - happy path", async () => {
+    // This is essentially the same test as the previous one but it's necessary to restore the state of the user 1
+    // account to only have a single USDC deposit. We don't repeat the checks for exact numbers here though.
+    const user = users[1];
+    const userAccKey = user.accounts.get(USER_ACCOUNT);
+    const bank = bankKeypairSol.publicKey;
+
+    await user.mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await withdrawIx(user.mrgnProgram, {
+          marginfiAccount: userAccKey,
+          bank: bank,
+          tokenAccount: user.wsolAccount,
+          remaining: [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+          amount: new BN(0),
+          withdrawAll: true,
+        })
+      )
+    );
+
+    const userAccAfter = await program.account.marginfiAccount.fetch(
+      userAccKey
+    );
+    const balancesAfter = userAccAfter.lendingAccount.balances;
+
+    // This balance is now inactive
+    assert.equal(balancesAfter[1].active, 0);
+  });
+
   it("(user 0) restores previous Token A deposits and USDC borrows", async () => {
     const user = users[0];
     const userAcc = user.accounts.get(USER_ACCOUNT);
@@ -508,12 +530,10 @@ describe("Withdraw funds", () => {
           marginfiAccount: userAcc,
           bank: bankKeypairUsdc.publicKey,
           tokenAccount: user.usdcAccount,
-          remaining: [
-            bankKeypairA.publicKey,
-            oracles.tokenAOracle.publicKey,
-            bankKeypairUsdc.publicKey,
-            oracles.usdcOracle.publicKey,
-          ],
+          remaining: composeRemainingAccounts([
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+          ]),
           amount: borrowAmountUsdc_native,
         })
       )

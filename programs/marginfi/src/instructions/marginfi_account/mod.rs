@@ -8,6 +8,7 @@ mod initialize;
 mod liquidate;
 mod pulse_health;
 mod repay;
+mod sort_balances;
 mod transfer_authority;
 mod withdraw;
 
@@ -21,5 +22,6 @@ pub use initialize::*;
 pub use liquidate::*;
 pub use pulse_health::*;
 pub use repay::*;
+pub use sort_balances::*;
 pub use transfer_authority::*;
 pub use withdraw::*;

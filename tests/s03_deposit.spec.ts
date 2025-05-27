@@ -58,8 +58,12 @@ describe("Deposit funds (included staked assets)", () => {
     await banksClient.processTransaction(tx);
   });
 
-  it("Initialize user accounts", async () => {
+  it("Initialize user accounts (if needed)", async () => {
     for (let i = 0; i < users.length; i++) {
+      // ???: should we be recycling these between the main test suite and bankrun?
+      if (users[i].accounts.get(USER_ACCOUNT)) {
+        console.log("Warn: Over-writing user acc for user " + i);
+      }
       const userAccKeypair = Keypair.generate();
       const userAccount = userAccKeypair.publicKey;
       users[i].accounts.set(USER_ACCOUNT, userAccount);
@@ -187,7 +191,12 @@ describe("Deposit funds (included staked assets)", () => {
     );
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[1].active, 1);
-    assertKeysEqual(balances[1].bankPk, validators[0].bank);
+
+    // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
+    const depositIndex = balances.findIndex((balance) =>
+      balance.bankPk.equals(validators[0].bank)
+    );
+    assert.notEqual(depositIndex, -1);
   });
 
   it("(user 1) cannot deposit to regular banks (USDC) with staked assets - should fail", async () => {
@@ -243,6 +252,11 @@ describe("Deposit funds (included staked assets)", () => {
     );
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[0].active, 1);
-    assertKeysEqual(balances[0].bankPk, validators[0].bank);
+
+    // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
+    const depositIndex = balances.findIndex((balance) =>
+      balance.bankPk.equals(validators[0].bank)
+    );
+    assert.notEqual(depositIndex, -1);
   });
 });

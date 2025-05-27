@@ -1,11 +1,10 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
 import { configureBank, configureBankOracle } from "./utils/group-instructions";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairUsdc,
   groupAdmin,
-  marginfiGroup,
   oracles,
   users,
 } from "./rootHooks";
@@ -150,12 +149,12 @@ describe("Lending pool configure bank", () => {
         new Transaction().add(
           await configureBankOracle(groupAdmin.mrgnProgram, {
             bank: bankKey,
-            type: 2,
+            type: 3,
             oracle: oracles.tokenAOracle.publicKey,
           })
         )
       );
-    }, "InternalLogicError");
+    }, "PythPushInvalidAccount");
 
     await expectFailedTxWithMessage(async () => {
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(

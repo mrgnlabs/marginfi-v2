@@ -261,6 +261,7 @@ pub fn group_configure(
     config: Config,
     profile: Profile,
     new_admin: Pubkey,
+    new_emode_admin: Pubkey,
     is_arena_group: bool,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
@@ -282,6 +283,7 @@ pub fn group_configure(
         })
         .args(marginfi::instruction::MarginfiGroupConfigure {
             new_admin,
+            new_emode_admin,
             is_arena_group,
         })
         .instructions()?;
@@ -767,7 +769,7 @@ fn handle_bankruptcy_for_an_account(
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         handle_bankruptcy_ix
             .accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
@@ -921,7 +923,7 @@ fn make_bankruptcy_ix(
         data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
     };
 
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         handle_bankruptcy_ix
             .accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
@@ -2126,7 +2128,7 @@ pub fn marginfi_account_deposit(
         }
         .data(),
     };
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -2213,7 +2215,7 @@ pub fn marginfi_account_withdraw(
         .data(),
     };
 
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -2308,7 +2310,7 @@ pub fn marginfi_account_borrow(
         data: marginfi::instruction::LendingAccountBorrow { amount }.data(),
     };
 
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(bank.mint, false));
     }
@@ -2430,7 +2432,7 @@ pub fn marginfi_account_liquidate(
 
     ix.accounts.extend(oracle_accounts);
 
-    if token_program == spl_token_2022::ID {
+    if token_program == anchor_spl::token_2022::ID {
         ix.accounts
             .push(AccountMeta::new_readonly(liability_bank.mint, false));
     }

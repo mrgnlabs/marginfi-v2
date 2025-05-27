@@ -1,8 +1,8 @@
+use anchor_lang::solana_program::{instruction::Instruction, system_program};
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixtures::prelude::*;
 use marginfi::{constants::FEE_STATE_SEED, prelude::MarginfiGroup};
 use pretty_assertions::assert_eq;
-use solana_program::{instruction::Instruction, system_program};
 use solana_program_test::*;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
 
@@ -56,6 +56,7 @@ async fn marginfi_group_create_success() -> anyhow::Result<()> {
     // we send a config to disable them, to simplify testing)
     assert_eq!(marginfi_group.program_fees_enabled(), true);
     assert_eq!(marginfi_group.is_arena_group(), false);
+    assert_eq!(marginfi_group.fee_state_cache.last_update, 0);
 
     Ok(())
 }

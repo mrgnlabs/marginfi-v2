@@ -91,7 +91,7 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_update(Pubkey::new_unique(), false)
+        .try_update(Pubkey::new_unique(), Pubkey::new_unique(), false)
         .await?;
 
     let bank = test_f.get_bank(&BankMint::Usdc);
@@ -141,36 +141,27 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
         )
         .await?;
 
-    let borrower_account = test_f.create_marginfi_account().await;
+    let mut borrower_account = test_f.create_marginfi_account().await;
     let borrower_deposit_account = test_f
         .sol_mint
         .create_token_account_and_mint_to(1_001)
         .await;
 
+    let collateral_bank = test_f.get_bank(&BankMint::Sol);
     borrower_account
-        .try_bank_deposit(
-            borrower_deposit_account.key,
-            test_f.get_bank(&BankMint::Sol),
-            1_001,
-            None,
-        )
+        .try_bank_deposit(borrower_deposit_account.key, collateral_bank, 1_001, None)
         .await?;
 
     let borrower_borrow_account = test_f.usdc_mint.create_empty_token_account().await;
 
+    let debt_bank = test_f.get_bank(&BankMint::Usdc);
     borrower_account
-        .try_bank_borrow(
-            borrower_borrow_account.key,
-            test_f.get_bank(&BankMint::Usdc),
-            10_000,
-        )
+        .try_bank_borrow(borrower_borrow_account.key, debt_bank, 10_000)
         .await?;
 
-    let mut borrower_mfi_account = borrower_account.load().await;
-    borrower_mfi_account.lending_account.balances[0]
-        .asset_shares
-        .value = 0_i128.to_le_bytes();
-    borrower_account.set_account(&borrower_mfi_account).await?;
+    borrower_account
+        .nullify_assets_for_bank(collateral_bank.key)
+        .await?;
 
     {
         let (insurance_vault, _) = test_f
@@ -196,7 +187,7 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
 
     test_f
         .marginfi_group
-        .try_update(Pubkey::new_unique(), false)
+        .try_update(Pubkey::new_unique(), Pubkey::new_unique(), false)
         .await?;
 
     let res = test_f
@@ -209,6 +200,10 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
     // Check borrower account is disabled and shares are
     let borrower_marginfi_account = borrower_account.load().await;
     assert!(borrower_marginfi_account.get_flag(ACCOUNT_DISABLED));
+    assert_eq!(
+        borrower_marginfi_account.lending_account.balances[0].liability_shares,
+        I80F48!(0.0).into()
+    );
     assert_eq!(
         borrower_marginfi_account.lending_account.balances[1].liability_shares,
         I80F48!(0.0).into()

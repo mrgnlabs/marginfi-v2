@@ -135,7 +135,7 @@ export const withdrawEmissionsIx = (
 export type WithdrawEmissionsPermissionlessArgs = {
   marginfiAccount: PublicKey;
   bank: PublicKey;
-  /** Cannonical ATA of `emissions_destination_account` registered on `marginfiAccount` */
+  /** Canonical ATA of `emissions_destination_account` registered on `marginfiAccount` */
   tokenAccount: PublicKey;
 };
 
@@ -143,7 +143,7 @@ export type WithdrawEmissionsPermissionlessArgs = {
  * (Permissionless) Settles AND withdraws emissions to the user's given token account. The user must
  * have opted in to this feature by designating a wallet to receive claims with
  * `marginfi_account_update_emissions_destination_account`
- * * `tokenAccount`- must be cannonical ATA of `emissions_destination_account`
+ * * `tokenAccount`- must be canonical ATA of `emissions_destination_account`
  * @param program
  * @param args
  * @returns
@@ -177,7 +177,7 @@ export type UpdateEmissionsDestinationArgs = {
 
 /**
  * (Permissionless) Opt in to claim permissionless emissions. The designated account/wallet will
- * receive all the funds. Emissions go to the cannonical ATA of that account, and if the ATA doesn't
+ * receive all the funds. Emissions go to the canonical ATA of that account, and if the ATA doesn't
  * exist, they may still not get distributed. We (mrgn) might pay to open SOME atas, or we might
  * open some common ones when you opt in, or we might let the user pay and just let the tx fail it
  * it doesn't exist.
@@ -360,11 +360,6 @@ export const liquidateIx = (
   args: LiquidateIxArgs
 ) => {
   const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
-    if (!(pubkey instanceof PublicKey)) {
-      console.error("Invalid remaining key:", pubkey);
-      throw new Error("remaining contains invalid keys");
-    }
-
     return { pubkey, isSigner: false, isWritable: false };
   });
 
@@ -402,11 +397,6 @@ export const healthPulse = (
   args: HealthPulseArgs
 ) => {
   const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
-    if (!(pubkey instanceof PublicKey)) {
-      console.error("Invalid remaining key:", pubkey);
-      throw new Error("remaining contains invalid keys");
-    }
-
     return { pubkey, isSigner: false, isWritable: false };
   });
 
@@ -417,4 +407,41 @@ export const healthPulse = (
     })
     .remainingAccounts(oracleMeta)
     .instruction();
+};
+
+export type BankAndOracles = PublicKey[]; // [bank, oracle, oracle_2...]
+
+/**
+ * Prepares transaction remaining accounts by processing bank-oracle groups:
+ * 1. Sorts groups in descending order by bank public key (pushes inactive accounts to end)
+ * 2. Flattens the structure into a single public key array
+ *
+ * Stable on most JS implementations (this shouldn't matter since we do not generally have duplicate
+ * banks), in place, and uses the raw 32-byte value to sort in byte-wise lexicographical order (like
+ * Rust's b.key.cmp(&a.key))
+ *
+ * @param banksAndOracles - Array where each element is a bank-oracle group: [bankPubkey,
+ *                          oracle1Pubkey, oracle2Pubkey?, ...] Note: SystemProgram keys (111..111)
+ *                          represent inactive accounts
+ * @returns Flattened array of public keys with inactive accounts at the end, ready for transaction
+ *          composition
+ */
+export const composeRemainingAccounts = (
+  banksAndOracles: PublicKey[][]
+): PublicKey[] => {
+  banksAndOracles.sort((a, b) => {
+    const A = a[0].toBytes();
+    const B = b[0].toBytes();
+    // find the first differing byte
+    for (let i = 0; i < 32; i++) {
+      if (A[i] !== B[i]) {
+        // descending: bigger byte should come first
+        return B[i] - A[i];
+      }
+    }
+    return 0; // identical keys
+  });
+
+  // flatten out [bank, oracle…, oracle…] → [bank, oracle…, bank, oracle…, …]
+  return banksAndOracles.flat();
 };

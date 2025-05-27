@@ -27,5 +27,5 @@ staging = []
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }
 
-bytemuck = { version = "1.9.1", features = ["derive"] }
-static_assertions = "1.1.0"
+bytemuck = { workspace = true, features = ["derive"] }
+static_assertions = { workspace = true }

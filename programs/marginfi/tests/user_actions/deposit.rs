@@ -12,10 +12,8 @@ use solana_sdk::{instruction::Instruction, signer::Signer};
 use test_case::test_case;
 
 #[test_case(0.0, BankMint::Usdc)]
-#[test_case(0.05, BankMint::UsdcSwb)]
 #[test_case(1_000.0, BankMint::Usdc)]
 #[test_case(0.05, BankMint::Sol)]
-#[test_case(15_002.0, BankMint::SolSwb)]
 #[test_case(0.05, BankMint::PyUSD)]
 #[test_case(15_002.0, BankMint::PyUSD)]
 #[test_case(0.0, BankMint::T22WithFee)]
@@ -102,9 +100,7 @@ async fn marginfi_account_deposit_success(
 }
 
 #[test_case(1_000., 456., 2345., BankMint::Usdc)]
-#[test_case(1_000., 456., 2345., BankMint::UsdcSwb)]
 #[test_case(1_000., 456., 2345., BankMint::Sol)]
-#[test_case(1_000., 456., 2345., BankMint::SolSwb)]
 #[test_case(1_000., 456., 2345., BankMint::PyUSD)]
 #[test_case(1_000., 456., 2345., BankMint::T22WithFee)]
 #[test_case(1_000., 999.999999, 1000., BankMint::T22WithFee)]
@@ -216,7 +212,7 @@ async fn marginfi_account_deposit_failure_wrong_token_program() -> anyhow::Resul
         )
     };
 
-    let mut ctx = test_f.context.borrow_mut();
+    let ctx = test_f.context.borrow_mut();
     let res = ctx.banks_client.process_transaction(tx).await;
     assert!(res.is_err());
 

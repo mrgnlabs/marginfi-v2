@@ -61,7 +61,7 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
 
     // Let a year go by
     {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
         // Advance clock by 1 year
         clock.unix_timestamp += 365 * 24 * 60 * 60;
@@ -77,11 +77,19 @@ async fn automatic_interest_payments() -> anyhow::Result<()> {
     let borrower_mfi_account = borrower_mfi_account_f.load().await;
     let lender_mfi_account = lender_mfi_account_f.load().await;
 
+    // Due to balances sorting, SOL may be not at index 1 -> determine its actual index first
+    let sol_index = borrower_mfi_account
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == sol_bank_f.key)
+        .unwrap();
+
     // Verify that interest accrued matches on both sides
     assert_eq_noise!(
         sol_bank
             .get_liability_amount(
-                borrower_mfi_account.lending_account.balances[1]
+                borrower_mfi_account.lending_account.balances[sol_index]
                     .liability_shares
                     .into()
             )

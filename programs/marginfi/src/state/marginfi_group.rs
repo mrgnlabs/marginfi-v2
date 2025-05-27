@@ -1,4 +1,5 @@
 use super::{
+    emode::EmodeSettings,
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
@@ -32,10 +33,7 @@ use fixed::types::I80F48;
 use pyth_solana_receiver_sdk::price_update::FeedId;
 #[cfg(feature = "client")]
 use std::fmt::Display;
-use std::{
-    fmt::{Debug, Formatter},
-    ops::Not,
-};
+use std::fmt::{Debug, Formatter};
 use type_layout::TypeLayout;
 
 pub const PROGRAM_FEES_ENABLED: u64 = 1;
@@ -59,10 +57,13 @@ pub struct MarginfiGroup {
     // 0.1.2 went live.
     pub banks: u16,
     pub pad0: [u8; 6],
+    /// This admin can configure collateral ratios above (but not below) the collateral ratio of
+    /// certain banks , e.g. allow SOL to count as 90% collateral when borrowing an LST instead of
+    /// the default rate.
+    pub emode_admin: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 26],
+    pub _padding_0: [[u64; 2]; 24],
     pub _padding_1: [[u64; 2]; 32],
-    pub _padding_3: u64,
     pub _padding_4: u64,
 }
 
@@ -74,6 +75,7 @@ pub struct FeeStateCache {
     pub global_fee_wallet: Pubkey,
     pub program_fee_fixed: WrappedI80F48,
     pub program_fee_rate: WrappedI80F48,
+    pub last_update: i64,
 }
 
 impl MarginfiGroup {
@@ -84,6 +86,20 @@ impl MarginfiGroup {
         } else {
             msg!("Set admin from {:?} to {:?}", self.admin, new_admin);
             self.admin = new_admin;
+        }
+    }
+
+    pub fn update_emode_admin(&mut self, new_emode_admin: Pubkey) {
+        if self.emode_admin == new_emode_admin {
+            msg!("No change to emode admin: {:?}", new_emode_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set emode admin from {:?} to {:?}",
+                self.admin,
+                new_emode_admin
+            );
+            self.emode_admin = new_emode_admin;
         }
     }
 
@@ -148,6 +164,10 @@ impl MarginfiGroup {
             return err!(MarginfiError::ArenaBankLimit);
         }
         self.banks = self.banks.saturating_add(1);
+
+        let clock = Clock::get()?;
+        self.fee_state_cache.last_update = clock.unix_timestamp;
+
         Ok(())
     }
 }
@@ -499,17 +519,26 @@ pub struct Bank {
     /// - FREEZE_SETTINGS: 8
     ///
     pub flags: u64,
-    /// Emissions APR.
-    /// Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens (bank mint) (native amount) per 1 YEAR.
+    /// Emissions APR. Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens
+    /// (bank mint) (native amount) per 1 YEAR.
     pub emissions_rate: u64,
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
-    /// Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s cannonical ATA for `mint`
+    /// Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s canonical ATA for `mint`
     pub collected_program_fees_outstanding: WrappedI80F48,
 
-    pub _padding_0: [[u64; 2]; 27],
-    pub _padding_1: [[u64; 2]; 32], // 16 * 2 * 32 = 1024B
+    /// Controls this bank's emode configuration, which enables some banks to treat the assets of
+    /// certain other banks more preferentially as collateral.
+    pub emode: EmodeSettings,
+
+    /// Set with `update_fees_destination_account`. This should be an ATA for the bank's mint. If
+    /// pubkey default, the bank doesn't support this feature, and the fees must be collected
+    /// manually (withdraw_fees).
+    pub fees_destination_account: Pubkey, // 32
+
+    pub _padding_0: [u8; 8],
+    pub _padding_1: [[u64; 2]; 30], // 8 * 2 * 30 = 480B
 }
 
 impl Bank {
@@ -558,6 +587,8 @@ impl Bank {
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
             collected_program_fees_outstanding: I80F48::ZERO.into(),
+            emode: EmodeSettings::zeroed(),
+            fees_destination_account: Pubkey::default(),
             ..Default::default()
         }
     }
@@ -601,10 +632,12 @@ impl Bank {
             let total_deposits_amount = self.get_asset_amount(self.total_asset_shares.into())?;
             let deposit_limit = I80F48::from_num(self.config.deposit_limit);
 
-            check!(
-                total_deposits_amount < deposit_limit,
-                crate::prelude::MarginfiError::BankAssetCapacityExceeded
-            )
+            if total_deposits_amount >= deposit_limit {
+                let deposits_num: f64 = total_deposits_amount.to_num();
+                let limit_num: f64 = deposit_limit.to_num();
+                msg!("deposits: {:?} deposit lim: {:?}", deposits_num, limit_num);
+                return err!(MarginfiError::BankAssetCapacityExceeded);
+            }
         }
 
         Ok(())
@@ -662,16 +695,17 @@ impl Bank {
             .ok_or_else(math_error!())?
             .into();
 
-        if bypass_borrow_limit.not() && shares.is_positive() && self.config.is_borrow_limit_active()
-        {
+        if !bypass_borrow_limit && shares.is_positive() && self.config.is_borrow_limit_active() {
             let total_liability_amount =
                 self.get_liability_amount(self.total_liability_shares.into())?;
             let borrow_limit = I80F48::from_num(self.config.borrow_limit);
 
-            check!(
-                total_liability_amount < borrow_limit,
-                crate::prelude::MarginfiError::BankLiabilityCapacityExceeded
-            )
+            if total_liability_amount >= borrow_limit {
+                let liab_num: f64 = total_liability_amount.to_num();
+                let borrow_num: f64 = borrow_limit.to_num();
+                msg!("amt: {:?} borrow lim: {:?}", liab_num, borrow_num);
+                return err!(MarginfiError::BankLiabilityCapacityExceeded);
+            }
         }
 
         Ok(())
@@ -681,10 +715,12 @@ impl Bank {
         let total_assets = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
 
-        check!(
-            total_assets >= total_liabilities,
-            crate::prelude::MarginfiError::IllegalUtilizationRatio
-        );
+        if total_assets < total_liabilities {
+            let assets_num: f64 = total_assets.to_num();
+            let liabs_num: f64 = total_liabilities.to_num();
+            msg!("assets: {:?} liabs: {:?}", assets_num, liabs_num);
+            return err!(MarginfiError::IllegalUtilizationRatio);
+        }
 
         Ok(())
     }
@@ -761,7 +797,7 @@ impl Bank {
         #[cfg(not(feature = "client"))] bank: Pubkey,
     ) -> MarginfiResult<()> {
         #[cfg(all(not(feature = "client"), feature = "debug"))]
-        solana_program::log::sol_log_compute_units();
+        anchor_lang::solana_program::log::sol_log_compute_units();
 
         let time_delta: u64 = (current_timestamp - self.last_update).try_into().unwrap();
         if time_delta == 0 {
@@ -845,7 +881,7 @@ impl Bank {
         #[cfg(not(feature = "client"))]
         {
             #[cfg(feature = "debug")]
-            solana_program::log::sol_log_compute_units();
+            anchor_lang::solana_program::log::sol_log_compute_units();
 
             emit!(LendingPoolBankAccrueInterestEvent {
                 header: GroupEventHeader {
@@ -1446,6 +1482,10 @@ impl BankConfig {
 
         check!(
             asset_init_w >= I80F48::ZERO && asset_init_w <= I80F48::ONE,
+            MarginfiError::InvalidConfig
+        );
+        check!(
+            asset_maint_w <= (I80F48::ONE + I80F48::ONE),
             MarginfiError::InvalidConfig
         );
         check!(asset_maint_w >= asset_init_w, MarginfiError::InvalidConfig);

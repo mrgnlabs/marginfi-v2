@@ -16,7 +16,7 @@ pub struct FeeState {
     /// Can modify fees
     pub global_fee_admin: Pubkey,
     /// The base wallet for all protocol fees. All SOL fees go to this wallet. All non-SOL fees go
-    /// to the cannonical ATA of this wallet for that asset.
+    /// to the canonical ATA of this wallet for that asset.
     pub global_fee_wallet: Pubkey,
     // Reserved for future use, forces 8-byte alignment
     pub placeholder0: u64,

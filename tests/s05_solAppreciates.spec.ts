@@ -1,35 +1,26 @@
-import {
-  AnchorProvider,
-  BN,
-  getProvider,
-  Program,
-  Wallet,
-  workspace,
-} from "@coral-xyz/anchor";
+import { AnchorProvider, BN, getProvider, Wallet } from "@coral-xyz/anchor";
 import { LAMPORTS_PER_SOL, SystemProgram, Transaction } from "@solana/web3.js";
-import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairSol,
   bankrunContext,
   bankrunProgram,
-  bankRunProvider,
   banksClient,
   ecosystem,
-  marginfiGroup,
   oracles,
   users,
   validators,
-  verbose,
 } from "./rootHooks";
-import { assertBankrunTxFailed, assertKeysEqual } from "./utils/genericTests";
+import { assertBankrunTxFailed } from "./utils/genericTests";
 import { assert } from "chai";
-import { borrowIx, depositIx } from "./utils/user-instructions";
+import {
+  borrowIx,
+  composeRemainingAccounts,
+  depositIx,
+} from "./utils/user-instructions";
 import { LST_ATA, USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import { getEpochAndSlot, getStakeActivation } from "./utils/stake-utils";
 
 describe("Borrow power grows as v0 Staked SOL gains value from appreciation", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
   const provider = getProvider() as AnchorProvider;
   const wallet = provider.wallet as Wallet;
 
@@ -48,14 +39,15 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
         marginfiAccount: userAccount,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
-        remaining: [
-          validators[0].bank,
-          oracles.wsolOracle.publicKey,
-          validators[0].splMint,
-          validators[0].splSolPool,
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+        ]),
         amount: new BN(1.1 * 10 ** ecosystem.wsolDecimals),
       })
     );
@@ -98,14 +90,15 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
         marginfiAccount: userAccount,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
-        remaining: [
-          validators[0].bank,
-          oracles.wsolOracle.publicKey,
-          validators[1].splMint, // Bad mint
-          validators[0].splSolPool,
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[1].splMint, // Bad mint
+            validators[0].splSolPool,
+          ],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+        ]),
         amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
       })
     );
@@ -125,14 +118,15 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
         marginfiAccount: userAccount,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
-        remaining: [
-          validators[0].bank,
-          oracles.wsolOracle.publicKey,
-          validators[0].splMint,
-          validators[1].splSolPool, // Bad pool
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[0].splMint,
+            validators[1].splSolPool,
+          ], // Bad pool
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+        ]),
         amount: new BN(0.2 * 10 ** ecosystem.wsolDecimals),
       })
     );
@@ -153,14 +147,15 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
         marginfiAccount: userAccount,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
-        remaining: [
-          validators[0].bank,
-          oracles.wsolOracle.publicKey,
-          validators[0].splMint,
-          validators[0].splSolPool,
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+        ]),
         // Note: We use a different (slightly higher) amount, so Bankrun treats this as a different
         // tx. Using the exact same values as above can cause the test to fail on faster machines
         // because the same tx was already sent for this blockhash (i.e. "this transaction has
@@ -198,14 +193,15 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
         marginfiAccount: userAccount,
         bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
-        remaining: [
-          validators[0].bank,
-          oracles.wsolOracle.publicKey,
-          validators[0].splMint,
-          validators[0].splSolPool,
-          bankKeypairSol.publicKey,
-          oracles.wsolOracle.publicKey,
-        ],
+        remaining: composeRemainingAccounts([
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+        ]),
         amount: new BN(1.113 * 10 ** ecosystem.wsolDecimals),
       })
     );
@@ -218,6 +214,11 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     );
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[1].active, 1);
-    assertKeysEqual(balances[1].bankPk, bankKeypairSol.publicKey);
+
+    // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
+    const borrowIndex = balances.findIndex((balance) =>
+      balance.bankPk.equals(bankKeypairSol.publicKey)
+    );
+    assert.notEqual(borrowIndex, -1);
   });
 });

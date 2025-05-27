@@ -12,7 +12,6 @@ use anchor_lang::{
     prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer, Sysvar},
     Discriminator, Key,
 };
-use anchor_spl::token_2022::spl_token_2022;
 use arbitrary_helpers::{
     AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
 };
@@ -238,7 +237,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         let token_program = match initial_bank_config.token_type {
             TokenType::Tokenkeg => state.new_program(spl_token::id()),
             TokenType::Token22 | TokenType::Token22WithFee { .. } => {
-                state.new_program(spl_token_2022::id())
+                state.new_program(anchor_spl::token_2022::ID)
             }
         };
 
@@ -406,7 +405,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         ]);
 
         let mut remaining_accounts: Vec<AccountInfo> = vec![];
-        if bank.token_program.key() == spl_token_2022::ID {
+        if bank.token_program.key() == anchor_spl::token_2022::ID {
             remaining_accounts.push(ails(bank.mint.clone()));
         }
 
@@ -480,7 +479,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         ]);
 
         let mut remaining_accounts = vec![];
-        if bank.token_program.key() == spl_token_2022::ID {
+        if bank.token_program.key() == anchor_spl::token_2022::ID {
             remaining_accounts.push(ails(bank.mint.clone()));
         }
 
@@ -573,7 +572,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         };
 
         let mut remaining_accounts = vec![];
-        if bank.token_program.key() == spl_token_2022::ID {
+        if bank.token_program.key() == anchor_spl::token_2022::ID {
             remaining_accounts.push(ails(bank.mint.clone()));
         }
         remaining_accounts.extend(marginfi_account.get_remaining_accounts(
@@ -658,7 +657,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         sort_balances(airls(&marginfi_account.margin_account));
 
         let mut remaining_accounts = vec![];
-        if bank.token_program.key() == spl_token_2022::ID {
+        if bank.token_program.key() == anchor_spl::token_2022::ID {
             remaining_accounts.push(ails(bank.mint.clone()));
         }
         remaining_accounts.extend(marginfi_account.get_remaining_accounts(
@@ -777,7 +776,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         ]);
 
         let mut remaining_accounts = vec![];
-        if liab_bank.token_program.key() == spl_token_2022::ID {
+        if liab_bank.token_program.key() == anchor_spl::token_2022::ID {
             remaining_accounts.push(ails(liab_bank.mint.clone()));
         }
         remaining_accounts.extend(vec![asset_bank.oracle.clone(), liab_bank.oracle.clone()]);
@@ -880,7 +879,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         ]);
 
         let mut remaining_accounts = vec![];
-        if bank.token_program.key() == spl_token_2022::ID {
+        if bank.token_program.key() == anchor_spl::token_2022::ID {
             remaining_accounts.push(ails(bank.mint.clone()));
         }
         remaining_accounts.extend(marginfi_account.get_remaining_accounts(

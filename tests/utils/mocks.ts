@@ -40,19 +40,26 @@ export type Ecosystem = {
   lstAlphaDecimals: number;
 };
 
+const WSOL_MINT_SEED = Buffer.from("WSOL_MINT_SEED_00000000000000000");
+const TOKEN_A_MINT_SEED = Buffer.from("TOKEN_A_MINT_SEED_00000000000000");
+const TOKEN_B_MINT_SEED = Buffer.from("TOKEN_B_MINT_SEED_00000000000000");
+const USDC_MINT_SEED = Buffer.from("USDC_MINT_SEED_00000000000000002");
+const LST_ALPHA_MINT_SEED = Buffer.from("LST_ALPHA_MINT_SEED_000000000000");
+
 /**
- * Random keypairs for all mints.
+ * Deterministic keypairs for all mints.
+ * Determinism is necessary for the lending account balances order (based on sorting) to stay the same between different runs
  *
  * 6 Decimals for usdc. 9 decimals for sol. 8 decimals to token A, 6 for token B
  * @returns
  */
 export const getGenericEcosystem = () => {
   const ecosystem: Ecosystem = {
-    wsolMint: Keypair.generate(),
-    tokenAMint: Keypair.generate(),
-    tokenBMint: Keypair.generate(),
-    usdcMint: Keypair.generate(),
-    lstAlphaMint: Keypair.generate(),
+    wsolMint: Keypair.fromSeed(WSOL_MINT_SEED),
+    tokenAMint: Keypair.fromSeed(TOKEN_A_MINT_SEED),
+    tokenBMint: Keypair.fromSeed(TOKEN_B_MINT_SEED),
+    usdcMint: Keypair.fromSeed(USDC_MINT_SEED),
+    lstAlphaMint: Keypair.fromSeed(LST_ALPHA_MINT_SEED),
     wsolDecimals: 9,
     tokenADecimals: 8,
     tokenBDecimals: 6,
@@ -123,6 +130,8 @@ export type MockUser = {
 
 /** in mockUser.accounts, key used to get/set the users's account for group 0 */
 export const USER_ACCOUNT: string = "g0_acc";
+/** in mockUser.accounts, key used to get/set the users's account for the emode group */
+export const USER_ACCOUNT_E: string = "ge_acc";
 /** in mockUser.accounts, key used to get/set the users's LST ATA for validator 0 */
 export const LST_ATA = "v0_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */
@@ -272,11 +281,11 @@ export const setupTestUser = async (
 export const getUserMarginfiProgram = (
   program: Program<Marginfi>,
   userWallet: Keypair | Wallet
-) => {
+): Program<Marginfi> => {
   const wallet =
     userWallet instanceof Keypair ? new Wallet(userWallet) : userWallet;
   const provider = new AnchorProvider(program.provider.connection, wallet, {});
-  const userProgram = new Program(program.idl, provider);
+  const userProgram = new Program<Marginfi>(program.idl, provider);
   return userProgram;
 };
 
@@ -326,17 +335,22 @@ export const createSimpleMint = async (
 
 export type Oracles = {
   wsolOracle: Keypair;
+  /** Default 150 */
   wsolPrice: number;
   wsolDecimals: number;
   usdcOracle: Keypair;
+  /** Default 1 */
   usdcPrice: number;
   usdcDecimals: number;
   tokenAOracle: Keypair;
+  /** Default 10 */
   tokenAPrice: number;
   tokenADecimals: number;
   tokenBOracle: Keypair;
+  /** Default 20 */
   tokenBPrice: number;
   tokenBDecimals: number;
+  /** Default 175 */
   lstAlphaPrice: number;
   lstAlphaDecimals: number;
   /** By default, oracle conf is this times price */

@@ -7,9 +7,19 @@ pub mod prelude;
 pub mod state;
 pub mod utils;
 
+// #[cfg(target_os = "solana")]
+// use anchor_lang::solana_program::entrypoint::{HEAP_LENGTH, HEAP_START_ADDRESS};
+// #[cfg(target_os = "solana")]
+// use std::alloc::Layout;
+// #[cfg(target_os = "solana")]
+// use std::mem::size_of;
+// #[cfg(target_os = "solana")]
+// use std::ptr::null_mut;
+
 use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
+use state::emode::{EmodeEntry, MAX_EMODE_ENTRIES};
 use state::marginfi_group::WrappedI80F48;
 use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
@@ -25,6 +35,59 @@ cfg_if::cfg_if! {
     }
 }
 
+// #[cfg(target_os = "solana")]
+// /// Custom heap allocator that exposes a move_cursor method. This allows us to manually deallocate
+// /// space. NOTE: This is very unsafe, use wisely
+// pub struct BumpAllocator {
+//     pub start: usize,
+//     pub len: usize,
+// }
+
+// #[cfg(target_os = "solana")]
+// impl BumpAllocator {
+//     const RESERVED_MEM: usize = 1 * size_of::<*mut u8>();
+
+//     pub unsafe fn pos(&self) -> usize {
+//         let pos_ptr = self.start as *mut usize;
+//         *pos_ptr
+//     }
+
+//     /// ### This is very unsafe, use wisely
+//     pub unsafe fn move_cursor(&self, pos: usize) {
+//         let pos_ptr = self.start as *mut usize;
+//         *pos_ptr = pos;
+//     }
+// }
+// #[cfg(target_os = "solana")]
+// unsafe impl std::alloc::GlobalAlloc for BumpAllocator {
+//     #[inline]
+//     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+//         let pos_ptr = self.start as *mut usize;
+
+//         let mut pos = *pos_ptr;
+//         if pos == 0 {
+//             // First time, set starting position
+//             pos = self.start + self.len;
+//         }
+//         pos = pos.saturating_sub(layout.size());
+//         pos &= !(layout.align().wrapping_sub(1));
+//         if pos < self.start + BumpAllocator::RESERVED_MEM {
+//             return null_mut();
+//         }
+//         *pos_ptr = pos;
+//         pos as *mut u8
+//     }
+//     #[inline]
+//     unsafe fn dealloc(&self, _: *mut u8, _: Layout) {}
+// }
+
+// #[cfg(target_os = "solana")]
+// #[global_allocator]
+// static A: BumpAllocator = BumpAllocator {
+//     start: HEAP_START_ADDRESS as usize,
+//     len: HEAP_LENGTH,
+// };
+
 #[program]
 pub mod marginfi {
     use super::*;
@@ -39,9 +102,10 @@ pub mod marginfi {
     pub fn marginfi_group_configure(
         ctx: Context<MarginfiGroupConfigure>,
         new_admin: Pubkey,
+        new_emode_admin: Pubkey,
         is_arena_group: bool,
     ) -> MarginfiResult {
-        marginfi_group::configure(ctx, new_admin, is_arena_group)
+        marginfi_group::configure(ctx, new_admin, new_emode_admin, is_arena_group)
     }
 
     pub fn lending_pool_add_bank(
@@ -82,6 +146,14 @@ pub mod marginfi {
         oracle: Pubkey,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
+    }
+
+    pub fn lending_pool_configure_bank_emode(
+        ctx: Context<LendingPoolConfigureBankEmode>,
+        emode_tag: u16,
+        entries: [EmodeEntry; MAX_EMODE_ENTRIES],
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
     }
 
     pub fn lending_pool_setup_emissions(
@@ -217,6 +289,19 @@ pub mod marginfi {
         marginfi_group::lending_pool_withdraw_fees(ctx, amount)
     }
 
+    pub fn lending_pool_withdraw_fees_permissionless<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolWithdrawFeesPermissionless<'info>>,
+        amount: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_withdraw_fees_permissionless(ctx, amount)
+    }
+
+    pub fn lending_pool_update_fees_destination_account<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolUpdateFeesDestinationAccount<'info>>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_update_fees_destination_account(ctx)
+    }
+
     pub fn lending_pool_withdraw_insurance<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingPoolWithdrawInsurance<'info>>,
         amount: u64,
@@ -257,6 +342,16 @@ pub mod marginfi {
         ctx: Context<'_, '_, 'info, 'info, PulseHealth<'info>>,
     ) -> MarginfiResult {
         marginfi_account::lending_account_pulse_health(ctx)
+    }
+
+    /// (Permissionless) Sorts the lending account balances in descending order and removes the "gaps"
+    /// (i.e. inactive balances in between the active ones), if any.
+    /// This is necessary to ensure any legacy marginfi accounts are compliant with the
+    /// "gapless and sorted" requirements we now have.
+    pub fn lending_account_sort_balances<'info>(
+        ctx: Context<'_, '_, 'info, 'info, SortBalances<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_sort_balances(ctx)
     }
 
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees

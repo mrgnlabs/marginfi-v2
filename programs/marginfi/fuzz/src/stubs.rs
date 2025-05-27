@@ -74,7 +74,7 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
                 &new_account_infos,
                 &instruction.data,
             )
-        } else if instruction.program_id == spl_token_2022::ID {
+        } else if instruction.program_id == anchor_spl::token_2022::ID {
             spl_token_2022::processor::Processor::process(
                 &instruction.program_id,
                 &new_account_infos,
@@ -82,7 +82,7 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
             )
         } else if instruction.program_id == system_program::ID {
             panic!("System program is not yet supported");
-        }else{
+        } else {
             panic!("program not supported");
         }
     }

@@ -34,6 +34,10 @@ export const ASSET_TAG_STAKED = 2;
 export const ORACLE_SETUP_NONE = 0;
 export const ORACLE_SETUP_PYTH_LEGACY = 1;
 export const ORACLE_SETUP_SWITCHBOARD_v2 = 2;
+/**
+ * Yes, it should technically be called "pull", but this is what we call it on-chain, and
+ * consistency is king...
+ * */
 export const ORACLE_SETUP_PYTH_PUSH = 3;
 export const ORACLE_SETUP_SWITCHBOARD_PULL = 4;
 export const ORACLE_SETUP_STAKED_WITH_PYTH_PUSH = 5;
@@ -41,7 +45,17 @@ export const ORACLE_SETUP_STAKED_WITH_PYTH_PUSH = 5;
 export const HEALTH_CACHE_NONE = 0;
 export const HEALTH_CACHE_HEALTHY = 1;
 export const HEALTH_CACHE_ENGINE_OK = 2;
+export const HEALTH_CACHE_ORACLE_OK = 4;
 
+/** For 0.1.3, this is how the cache represents the version */
+export const HEALTH_CACHE_PROGRAM_VERSION_0_1_3 = 1;
+/** Confidence intervals are multiplied by this constant internally */
+export const CONF_INTERVAL_MULTIPLE = 2.12;
+
+// By convention, all tags must be in 13375p34k (kidding, but only sorta)
+export const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
+export const EMODE_SOL_TAG = 501;
+export const EMODE_LST_TAG = 157;
 
 /**
  * The default bank config has
@@ -84,15 +98,16 @@ export const defaultBankConfigOpt = () => {
     assetWeightMaint: new BigNumber(1),
     liabilityWeightInit: new BigNumber(1),
     liabilityWeightMaint: new BigNumber(1),
-    depositLimit: new BigNumber(1_000_000_000),
-    borrowLimit: new BigNumber(1_000_000_000),
+    depositLimit: new BigNumber(1000000000),
+    borrowLimit: new BigNumber(1000000000),
     riskTier: RiskTier.Collateral,
-    totalAssetValueInitLimit: new BigNumber(100_000_000_000),
+    totalAssetValueInitLimit: new BigNumber(100000000000),
     interestRateConfig: defaultInterestRateConfig(),
     operationalState: OperationalState.Operational,
-    oracle: null,
+    // oracle: null,
     oracleMaxAge: 240,
     permissionlessBadDebtSettlement: null,
+    assetTag: ASSET_TAG_DEFAULT
   };
 
   return bankConfigOpt;
@@ -282,4 +297,30 @@ export interface StakedSettingsEdit {
 
   oracleMaxAge: number | null;
   riskTier: { collateral: {} } | { isolated: {} } | null;
+}
+
+export const MAX_EMODE_ENTRIES = 10;
+export const EMODE_APPLIES_TO_ISOLATED = 1;
+
+export type EmodeEntry = {
+  collateralBankEmodeTag: number;
+  flags: number;
+  pad0: number[];
+  assetWeightInit: WrappedI80F48;
+  assetWeightMaint: WrappedI80F48;
+};
+
+export function newEmodeEntry(
+  collateralBankEmodeTag: number,
+  flags: number,
+  assetWeightInit: WrappedI80F48,
+  assetWeightMaint: WrappedI80F48
+): EmodeEntry {
+  return {
+    collateralBankEmodeTag,
+    flags,
+    pad0: [0, 0, 0, 0, 0],
+    assetWeightInit,
+    assetWeightMaint,
+  };
 }

@@ -368,19 +368,15 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
         )
         .await?;
 
-    let borrower_account = test_f.create_marginfi_account().await;
+    let mut borrower_account = test_f.create_marginfi_account().await;
     let borrower_deposit_account = test_f
         .sol_mint
         .create_token_account_and_mint_to(1_001)
         .await;
 
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
     borrower_account
-        .try_bank_deposit(
-            borrower_deposit_account.key,
-            test_f.get_bank(&BankMint::Sol),
-            1_001,
-            None,
-        )
+        .try_bank_deposit(borrower_deposit_account.key, sol_bank_f, 1_001, None)
         .await?;
 
     let borrower_borrow_account = test_f.usdc_mint.create_empty_token_account().await;
@@ -393,12 +389,9 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
         )
         .await?;
 
-    let mut borrower_mfi_account = borrower_account.load().await;
-    borrower_mfi_account.lending_account.balances[0]
-        .asset_shares
-        .value = 0_i128.to_le_bytes();
-    borrower_account.set_account(&borrower_mfi_account).await?;
-
+    borrower_account
+        .nullify_assets_for_bank(sol_bank_f.key)
+        .await?;
     {
         let (insurance_vault, _) = test_f
             .get_bank(&BankMint::Usdc)

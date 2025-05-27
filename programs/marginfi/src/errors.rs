@@ -152,6 +152,12 @@ pub enum MarginfiError {
     ArenaBankLimit,
     #[msg("Arena groups cannot return to non-arena status")] // 6074
     ArenaSettingCannotChange,
+    #[msg("The Emode config was invalid")] // 6075
+    BadEmodeConfig,
+    #[msg("TWAP window size does not match expected duration")] // 6076
+    PythPushInvalidWindowSize,
+    #[msg("Invalid fees destination account")] // 6077
+    InvalidFeesDestinationAccount,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -177,6 +183,9 @@ impl From<pyth_solana_receiver_sdk::error::GetPriceError> for MarginfiError {
             }
             pyth_solana_receiver_sdk::error::GetPriceError::FeedIdNonHexCharacter => {
                 MarginfiError::PythPushFeedIdNonHexCharacter
+            }
+            pyth_solana_receiver_sdk::error::GetPriceError::InvalidWindowSize => {
+                MarginfiError::PythPushInvalidWindowSize
             }
         }
     }
@@ -256,7 +265,51 @@ impl From<u32> for MarginfiError {
             6070 => MarginfiError::TooSeverePayoff,
             6071 => MarginfiError::TooSevereLiquidation,
             6072 => MarginfiError::WorseHealthPostLiquidation,
+            6073 => MarginfiError::ArenaBankLimit,
+            6074 => MarginfiError::ArenaSettingCannotChange,
+            6075 => MarginfiError::BadEmodeConfig,
+            6076 => MarginfiError::PythPushInvalidWindowSize,
+            6077 => MarginfiError::InvalidFeesDestinationAccount,
             _ => MarginfiError::InternalLogicError,
         }
+    }
+}
+
+impl PartialEq for MarginfiError {
+    fn eq(&self, other: &Self) -> bool {
+        (*self as u32) == (*other as u32)
+    }
+}
+
+impl Eq for MarginfiError {}
+
+impl MarginfiError {
+    pub fn is_oracle_error(&self) -> bool {
+        matches!(
+            self,
+            MarginfiError::WrongNumberOfOracleAccounts
+                | MarginfiError::SwitchboardInvalidAccount
+                | MarginfiError::PythPushInvalidAccount
+                | MarginfiError::SwitchboardWrongAccountOwner
+                | MarginfiError::PythPushFeedIdNonHexCharacter
+                | MarginfiError::PythPushFeedIdMustBe32Bytes
+                | MarginfiError::PythPushInsufficientVerificationLevel
+                | MarginfiError::PythPushMismatchedFeedId
+                | MarginfiError::StakedPythPushWrongAccountOwner
+                | MarginfiError::PythPushWrongAccountOwner
+                | MarginfiError::WrongOracleAccountKeys
+                | MarginfiError::PythPushStalePrice
+                | MarginfiError::SwitchboardStalePrice
+                | MarginfiError::StakePoolValidationFailed
+                | MarginfiError::InvalidBankAccount
+                | MarginfiError::MissingBankAccount
+                | MarginfiError::MissingPythAccount
+                | MarginfiError::MissingPythOrBankAccount
+                | MarginfiError::PythPushInvalidWindowSize
+        )
+    }
+
+    pub fn is_risk_engine_rejection(&self) -> bool {
+        matches!(self, MarginfiError::RiskEngineInitRejected)
     }
 }

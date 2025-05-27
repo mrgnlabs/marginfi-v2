@@ -7,7 +7,6 @@ use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
     InstructionData, ToAccountMetas,
 };
-
 use fixed::types::I80F48;
 use marginfi::{
     bank_authority_seed,
@@ -22,9 +21,7 @@ use solana_program::instruction::Instruction;
 use solana_program::sysvar::clock::Clock;
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
-#[cfg(feature = "lip")]
-use solana_sdk::signature::Keypair;
-use solana_sdk::{signer::Signer, transaction::Transaction};
+use solana_sdk::{commitment_config::CommitmentLevel, signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 #[derive(Clone)]
@@ -146,68 +143,6 @@ impl BankFixture {
         Ok(())
     }
 
-    #[cfg(feature = "lip")]
-    pub async fn try_create_campaign(
-        &self,
-        lockup_period: u64,
-        max_deposits: u64,
-        max_rewards: u64,
-        reward_funding_account: Pubkey,
-    ) -> Result<crate::lip::LipCampaignFixture, BanksClientError> {
-        use crate::prelude::lip::*;
-
-        let campaign_key = Keypair::new();
-
-        let bank = self.load().await;
-
-        let ix = Instruction {
-            program_id: liquidity_incentive_program::id(),
-            accounts: liquidity_incentive_program::accounts::CreateCampaign {
-                campaign: campaign_key.pubkey(),
-                campaign_reward_vault: get_reward_vault_address(campaign_key.pubkey()).0,
-                campaign_reward_vault_authority: get_reward_vault_authority(campaign_key.pubkey())
-                    .0,
-                asset_mint: bank.mint,
-                marginfi_bank: self.key,
-                admin: self.ctx.borrow().payer.pubkey(),
-                funding_account: reward_funding_account,
-                rent: solana_program::sysvar::rent::id(),
-                token_program: self.get_token_program(),
-                system_program: solana_program::system_program::id(),
-            }
-            .to_account_metas(Some(true)),
-            data: liquidity_incentive_program::instruction::CreateCampaign {
-                lockup_period,
-                max_deposits,
-                max_rewards,
-            }
-            .data(),
-        };
-
-        let tx = {
-            let ctx = self.ctx.borrow_mut();
-
-            Transaction::new_signed_with_payer(
-                &[ix],
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer, &campaign_key],
-                ctx.last_blockhash,
-            )
-        };
-
-        self.ctx
-            .borrow_mut()
-            .banks_client
-            .process_transaction(tx)
-            .await?;
-
-        Ok(crate::lip::LipCampaignFixture::new(
-            self.ctx.clone(),
-            self.clone(),
-            campaign_key.pubkey(),
-        ))
-    }
-
     pub async fn try_setup_emissions(
         &self,
         flags: u64,
@@ -322,7 +257,7 @@ impl BankFixture {
         amount: u64,
     ) -> Result<(), BanksClientError> {
         let bank = self.load().await;
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
         let signer_pk = ctx.payer.pubkey();
         let (fee_vault_authority, _) = Pubkey::find_program_address(
             bank_authority_seed!(BankVaultType::Fee, self.key),
@@ -339,7 +274,7 @@ impl BankFixture {
             dst_token_account: receiving_account.key,
         }
         .to_account_metas(Some(true));
-        if self.mint.token_program == spl_token_2022::ID {
+        if self.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(self.mint.key, false));
         }
 
@@ -361,13 +296,95 @@ impl BankFixture {
         Ok(())
     }
 
+    pub async fn try_withdraw_fees_permissionless(
+        &self,
+        receiving_account: &TokenAccountFixture,
+        amount: u64,
+    ) -> Result<(), BanksClientError> {
+        let bank = self.load().await;
+        let ctx = self.ctx.borrow_mut();
+        let (fee_vault_authority, _) = Pubkey::find_program_address(
+            bank_authority_seed!(BankVaultType::Fee, self.key),
+            &marginfi::id(),
+        );
+
+        let mut accounts = marginfi::accounts::LendingPoolWithdrawFeesPermissionless {
+            group: bank.group,
+            token_program: receiving_account.token_program,
+            bank: self.key,
+            fee_vault: bank.fee_vault,
+            fee_vault_authority,
+            fees_destination_account: receiving_account.key,
+        }
+        .to_account_metas(Some(true));
+        if self.mint.token_program == anchor_spl::token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(self.mint.key, false));
+        }
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolWithdrawFeesPermissionless { amount }.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn try_set_fees_destination_account(
+        &self,
+        destination_account: &TokenAccountFixture,
+    ) -> Result<(), BanksClientError> {
+        let bank = self.load().await;
+        let ctx = self.ctx.borrow_mut();
+        let signer_pk = ctx.payer.pubkey();
+
+        let mut accounts = marginfi::accounts::LendingPoolUpdateFeesDestinationAccount {
+            group: bank.group,
+            bank: self.key,
+            admin: signer_pk,
+            destination_account: destination_account.key,
+        }
+        .to_account_metas(Some(true));
+        if self.mint.token_program == anchor_spl::token_2022::ID {
+            accounts.push(AccountMeta::new_readonly(self.mint.key, false));
+        }
+
+        let ix = Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolUpdateFeesDestinationAccount.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+
+        Ok(())
+    }
+
     pub async fn try_withdraw_insurance(
         &self,
         receiving_account: &TokenAccountFixture,
         amount: u64,
     ) -> Result<(), BanksClientError> {
         let bank = self.load().await;
-        let mut ctx = self.ctx.borrow_mut();
+        let ctx = self.ctx.borrow_mut();
         let signer_pk = ctx.payer.pubkey();
         let (insurance_vault_authority, _) = Pubkey::find_program_address(
             bank_authority_seed!(BankVaultType::Insurance, self.key),
@@ -384,7 +401,7 @@ impl BankFixture {
             dst_token_account: receiving_account.key,
         }
         .to_account_metas(Some(true));
-        if self.mint.token_program == spl_token_2022::ID {
+        if self.mint.token_program == anchor_spl::token_2022::ID {
             accounts.push(AccountMeta::new_readonly(self.mint.key, false));
         }
 
