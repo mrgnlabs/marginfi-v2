@@ -174,7 +174,6 @@ describe("Emode borrowing", () => {
     await banksClient.processTransaction(tx);
   });
 
-  // TODO why isn't the SOL pricing getting a confidence discount (legacy oracle issue)?
   /*
    * SOL is worth $150, and LST is worth $175. Against a 10 SOL position, worth $1500, with a
    * `EMODE_INIT_RATE_SOL_TO_LST` of 90% we expect to borrow .9 * 1500 / 175 ~= 7.71428571429 LST.
@@ -187,7 +186,7 @@ describe("Emode borrowing", () => {
    * Note: the liability weight was assumed to be 1 in the calculations above, emode never modifies
    * liability weights.
    *
-   * Note: To derive the conf bands above, the confidence of Pyth Legacy is 1%, and Pyth Pull is 2%,
+   * Note: To derive the conf bands above, the confidence of Pyth Pull is 1%,
    * and we apply a 2.12 constant multiplier, see health pulse printout for actual internal pricing.
    */
   it("(user 0) borrows LST A against SOL at a favorable rate - happy path", async () => {

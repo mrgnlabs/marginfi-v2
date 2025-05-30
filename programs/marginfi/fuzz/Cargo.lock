@@ -2742,7 +2742,7 @@ dependencies = [
 
 [[package]]
 name = "marginfi"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -6235,7 +6235,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ca4c74a4ed3fb456292142125e19a72b1cb6c5cd29da557bf4d239cac8552c5"
 dependencies = [
  "bytemuck",
- "num-derive 0.4.2",
  "num-derive",
  "num-traits",
  "solana-log-collector",
