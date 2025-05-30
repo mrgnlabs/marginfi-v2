@@ -674,7 +674,7 @@ export type AccrueInterestArgs = {
   bank: PublicKey;
 };
 
-export const arrueInterest = (
+export const accrueInterest = (
   program: Program<Marginfi>,
   args: AccrueInterestArgs
 ) => {
