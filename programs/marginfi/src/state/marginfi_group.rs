@@ -1,4 +1,5 @@
 use super::{
+    bank_cache::BankCache,
     emode::EmodeSettings,
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
@@ -17,7 +18,7 @@ use crate::{
     debug, math_error,
     prelude::MarginfiError,
     set_if_some,
-    state::marginfi_account::calc_value,
+    state::{bank_cache::ComputedInterestRates, marginfi_account::calc_value},
     MarginfiResult,
 };
 use crate::{
@@ -356,20 +357,21 @@ impl InterestRateCalc {
         let fee_ir = insurance_fee_rate + group_fee_rate + protocol_fee_rate;
         let fee_fixed = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
 
-        let base_rate = self.interest_rate_curve(utilization_ratio)?;
+        let base_rate_apr = self.interest_rate_curve(utilization_ratio)?;
 
         // Lending rate is adjusted for utilization ratio to symmetrize payments between borrowers and depositors.
-        let lending_rate_apr = base_rate.checked_mul(utilization_ratio)?;
+        let lending_rate_apr = base_rate_apr.checked_mul(utilization_ratio)?;
 
         // Borrowing rate is adjusted for fees.
         // borrowing_rate = base_rate + base_rate * rate_fee + total_fixed_fee_apr
-        let borrowing_rate_apr = base_rate
+        let borrowing_rate_apr = base_rate_apr
             .checked_mul(I80F48::ONE.checked_add(fee_ir)?)?
             .checked_add(fee_fixed)?;
 
-        let group_fee_apr = calc_fee_rate(base_rate, group_fee_rate, group_fee_fixed)?;
-        let insurance_fee_apr = calc_fee_rate(base_rate, insurance_fee_rate, insurance_fee_fixed)?;
-        let protocol_fee_apr = calc_fee_rate(base_rate, protocol_fee_rate, protocol_fee_fixed)?;
+        let group_fee_apr = calc_fee_rate(base_rate_apr, group_fee_rate, group_fee_fixed)?;
+        let insurance_fee_apr =
+            calc_fee_rate(base_rate_apr, insurance_fee_rate, insurance_fee_fixed)?;
+        let protocol_fee_apr = calc_fee_rate(base_rate_apr, protocol_fee_rate, protocol_fee_fixed)?;
 
         assert!(lending_rate_apr >= I80F48::ZERO);
         assert!(borrowing_rate_apr >= I80F48::ZERO);
@@ -379,6 +381,7 @@ impl InterestRateCalc {
 
         // TODO: Add liquidation discount check
         Some(ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr,
             borrowing_rate_apr,
             group_fee_apr,
@@ -434,15 +437,6 @@ pub struct Fees {
     pub group_fee_fixed: I80F48,
     pub protocol_fee_rate: I80F48,
     pub protocol_fee_fixed: I80F48,
-}
-
-#[derive(Debug, Clone)]
-pub struct ComputedInterestRates {
-    pub lending_rate_apr: I80F48,
-    pub borrowing_rate_apr: I80F48,
-    pub group_fee_apr: I80F48,
-    pub insurance_fee_apr: I80F48,
-    pub protocol_fee_apr: I80F48,
 }
 
 #[derive(AnchorDeserialize, AnchorSerialize, Default, Clone, Debug, PartialEq, Eq, TypeLayout)]
@@ -537,8 +531,9 @@ pub struct Bank {
     /// manually (withdraw_fees).
     pub fees_destination_account: Pubkey, // 32
 
+    pub cache: BankCache,
     pub _padding_0: [u8; 8],
-    pub _padding_1: [[u64; 2]; 30], // 8 * 2 * 30 = 480B
+    pub _padding_1: [[u64; 2]; 20], // 8 * 2 * 20 = 320B
 }
 
 impl Bank {
@@ -843,14 +838,31 @@ impl Bank {
             &ir_calc,
             self.asset_share_value.into(),
             self.liability_share_value.into(),
+            &self.cache,
         )
         .ok_or_else(math_error!())?;
 
         debug!("deposit share value: {}\nliability share value: {}\nfees collected: {}\ninsurance collected: {}",
             asset_share_value, liability_share_value, group_fees_collected, insurance_fees_collected);
 
+        self.cache.accumulated_since_last_update = asset_share_value
+            .checked_sub(I80F48::from(self.asset_share_value))
+            .and_then(|v| v.checked_mul(I80F48::from(self.total_asset_shares)))
+            .ok_or_else(math_error!())?
+            .into();
         self.asset_share_value = asset_share_value.into();
         self.liability_share_value = liability_share_value.into();
+
+        let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
+        let total_liabilities_amount =
+            self.get_liability_amount(self.total_liability_shares.into())?;
+        let utilization_rate = total_liabilities_amount
+            .checked_div(total_assets_amount)
+            .ok_or_else(math_error!())?;
+        let interest_rates = ir_calc
+            .calc_interest_rate(utilization_rate)
+            .ok_or_else(math_error!())?;
+        self.cache.update_interest_rates(&interest_rates);
 
         if group_fees_collected > I80F48::ZERO {
             self.collected_group_fees_outstanding = {
@@ -1105,15 +1117,22 @@ fn calc_interest_rate_accrual_state_changes(
     interest_rate_calc: &InterestRateCalc,
     asset_share_value: I80F48,
     liability_share_value: I80F48,
+    bank_cache: &BankCache,
 ) -> Option<InterestRateStateChanges> {
-    let utilization_rate = total_liabilities_amount.checked_div(total_assets_amount)?;
-    let computed_rates = interest_rate_calc.calc_interest_rate(utilization_rate)?;
+    let interest_rates = if bank_cache == &BankCache::default() {
+        // If the cache is empty, we need to calculate the interest rates
+        let utilization_rate = total_liabilities_amount.checked_div(total_assets_amount)?;
+        debug!(
+            "Utilization rate: {}, time delta {}s",
+            utilization_rate, time_delta
+        );
+        interest_rate_calc.calc_interest_rate(utilization_rate)?
+    } else {
+        // If the cache is not empty, we can use the cached interest rates
+        bank_cache.get_interest_rates()
+    };
 
-    debug!(
-        "Utilization rate: {}, time delta {}s",
-        utilization_rate, time_delta
-    );
-    debug!("{:#?}", computed_rates);
+    debug!("{:#?}", interest_rates);
 
     let ComputedInterestRates {
         lending_rate_apr,
@@ -1121,7 +1140,8 @@ fn calc_interest_rate_accrual_state_changes(
         group_fee_apr,
         insurance_fee_apr,
         protocol_fee_apr,
-    } = computed_rates;
+        ..
+    } = interest_rates;
 
     Some(InterestRateStateChanges {
         new_asset_share_value: calc_accrued_interest_payment_per_period(
@@ -1770,6 +1790,7 @@ mod tests {
         };
 
         let ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr: lending_apr,
             borrowing_rate_apr: borrow_apr,
             group_fee_apr: group_fees_apr,
@@ -1780,6 +1801,7 @@ mod tests {
             .calc_interest_rate(I80F48!(0.6))
             .unwrap();
 
+        assert_eq_with_tolerance!(base_rate_apr, I80F48!(0.4), I80F48!(0.001));
         assert_eq_with_tolerance!(lending_apr, I80F48!(0.24), I80F48!(0.001));
         assert_eq_with_tolerance!(borrow_apr, I80F48!(0.41), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
@@ -1802,6 +1824,7 @@ mod tests {
         };
 
         let ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr: lending_apr,
             borrowing_rate_apr: borrow_apr,
             group_fee_apr: group_fees_apr,
@@ -1812,6 +1835,7 @@ mod tests {
             .calc_interest_rate(I80F48!(0.5))
             .unwrap();
 
+        assert_eq_with_tolerance!(base_rate_apr, I80F48!(0.4), I80F48!(0.001));
         assert_eq_with_tolerance!(lending_apr, I80F48!(0.2), I80F48!(0.001));
         assert_eq_with_tolerance!(borrow_apr, I80F48!(0.45), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
@@ -1848,6 +1872,7 @@ mod tests {
         };
 
         let ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr: lending_apr,
             borrowing_rate_apr: borrow_apr,
             group_fee_apr: group_fees_apr,
@@ -1858,6 +1883,7 @@ mod tests {
             .calc_interest_rate(I80F48!(0.7))
             .unwrap();
 
+        assert_eq_with_tolerance!(base_rate_apr, I80F48!(1.7), I80F48!(0.001));
         assert_eq_with_tolerance!(lending_apr, I80F48!(1.19), I80F48!(0.001));
         assert_eq_with_tolerance!(borrow_apr, I80F48!(1.88), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
@@ -1944,6 +1970,7 @@ mod tests {
         group.fee_state_cache.program_fee_rate = PROTOCOL_FEE_RATE_DEFAULT.into();
 
         let ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr: lending_apr,
             borrowing_rate_apr: borrow_apr,
             group_fee_apr,
@@ -1955,6 +1982,7 @@ mod tests {
             .expect("interest rate calculation failed");
 
         println!("ur: {}", ur);
+        println!("base_apr: {}", base_rate_apr);
         println!("lending_apr: {}", lending_apr);
         println!("borrow_apr: {}", borrow_apr);
         println!("group_fee_apr: {}", group_fee_apr);
@@ -1983,6 +2011,7 @@ mod tests {
         let ur = I80F48!(207_112_621_602) / I80F48!(10_000_000_000_000);
 
         let ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr: lending_apr,
             borrowing_rate_apr: borrow_apr,
             group_fee_apr,
@@ -1994,6 +2023,7 @@ mod tests {
             .expect("interest rate calculation failed");
 
         println!("ur: {}", ur);
+        println!("base_apr: {}", base_rate_apr);
         println!("lending_apr: {}", lending_apr);
         println!("borrow_apr: {}", borrow_apr);
         println!("group_fee_apr: {}", group_fee_apr);
@@ -2035,6 +2065,8 @@ mod tests {
         let old_total_liability_amount = liab_share_value * total_liability_shares;
         let old_total_asset_amount = asset_share_value * total_asset_shares;
 
+        let bank_cache = BankCache::default();
+
         let InterestRateStateChanges {
             new_asset_share_value,
             new_liability_share_value: new_liab_share_value,
@@ -2042,12 +2074,13 @@ mod tests {
             group_fees_collected,
             protocol_fees_collected,
         } = calc_interest_rate_accrual_state_changes(
-            3600,
+            0,
             total_asset_shares,
             total_liability_shares,
             &ir_config.create_interest_rate_calculator(&group),
             asset_share_value,
             liab_share_value,
+            &bank_cache,
         )
         .unwrap();
 

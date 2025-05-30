@@ -7,6 +7,7 @@ use marginfi::{
     },
     prelude::{MarginfiError, MarginfiGroup},
     state::{
+        bank_cache::BankCache,
         emode::{EmodeEntry, EMODE_ON},
         marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
     },
@@ -107,6 +108,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             emissions_mint,
             collected_program_fees_outstanding,
             fees_destination_account,
+            cache,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -138,9 +140,10 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
             assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
             assert_eq!(fees_destination_account, Pubkey::default());
+            assert_eq!(cache, BankCache::default());
 
             assert_eq!(_padding_0, <[u8; 8] as Default>::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 30] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 20] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -238,6 +241,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             emissions_mint,
             collected_program_fees_outstanding,
             fees_destination_account,
+            cache,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -269,9 +273,10 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
             assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
             assert_eq!(fees_destination_account, Pubkey::default());
+            assert_eq!(cache, BankCache::default());
 
             assert_eq!(_padding_0, <[u8; 8] as Default>::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 30] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 20] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);

@@ -3,22 +3,28 @@ use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_eq_noise, native, prelude::*};
-use marginfi::state::marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig};
+use marginfi::state::{
+    bank_cache::ComputedInterestRates,
+    marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, MarginfiGroup},
+};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> {
+    let optimal_utilization_rate = I80F48!(0.9);
+    let plateau_interest_rate = I80F48!(0.9);
+    let interest_rate_config = InterestRateConfig {
+        optimal_utilization_rate: optimal_utilization_rate.into(),
+        plateau_interest_rate: plateau_interest_rate.into(),
+        ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
+    };
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
                 mint: BankMint::Usdc,
                 config: Some(BankConfig {
-                    interest_rate_config: InterestRateConfig {
-                        optimal_utilization_rate: I80F48!(0.9).into(),
-                        plateau_interest_rate: I80F48!(1).into(),
-                        ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
-                    },
+                    interest_rate_config,
                     ..*DEFAULT_USDC_TEST_BANK_CONFIG
                 }),
             },
@@ -90,29 +96,87 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
 
     assert_eq_noise!(
         liabilities,
-        I80F48::from(native!(180, "USDC")),
+        I80F48::from(native!(171, "USDC")),
         I80F48!(100)
     );
-    assert_eq_noise!(assets, I80F48::from(native!(190, "USDC")), I80F48!(100));
+    assert_eq_noise!(assets, I80F48::from(native!(181, "USDC")), I80F48!(100));
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.accumulated_since_last_update),
+        I80F48::from(native!(81, "USDC")),
+        I80F48!(100)
+    );
+
+    let total_liabilities =
+        usdc_bank.get_liability_amount(usdc_bank.total_liability_shares.into())?;
+    let total_assets = usdc_bank.get_asset_amount(usdc_bank.total_asset_shares.into())?;
+    let ur = total_liabilities.checked_div(total_assets).unwrap();
+
+    let ComputedInterestRates {
+        base_rate_apr,
+        lending_rate_apr,
+        borrowing_rate_apr,
+        group_fee_apr,
+        insurance_fee_apr,
+        protocol_fee_apr,
+    } = interest_rate_config
+        .create_interest_rate_calculator(&MarginfiGroup::default())
+        .calc_interest_rate(ur)
+        .unwrap();
+
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.base_rate),
+        base_rate_apr,
+        I80F48!(0.0001)
+    );
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.borrowing_rate),
+        borrowing_rate_apr,
+        I80F48!(0.0001)
+    );
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.lending_rate),
+        lending_rate_apr,
+        I80F48!(0.0001)
+    );
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.group_fee),
+        group_fee_apr,
+        I80F48!(0.0001)
+    );
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.insurance_fee),
+        insurance_fee_apr,
+        I80F48!(0.0001)
+    );
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.protocol_fee),
+        protocol_fee_apr,
+        I80F48!(0.0001)
+    );
 
     Ok(())
 }
 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> {
+    let optimal_utilization_rate = I80F48!(0.9);
+    let plateau_interest_rate = I80F48!(1);
+    let protocol_fixed_fee_apr = I80F48!(0.01);
+    let insurance_fee_fixed_apr = I80F48!(0.01);
+    let interest_rate_config = InterestRateConfig {
+        optimal_utilization_rate: optimal_utilization_rate.into(),
+        plateau_interest_rate: plateau_interest_rate.into(),
+        protocol_fixed_fee_apr: protocol_fixed_fee_apr.into(),
+        insurance_fee_fixed_apr: insurance_fee_fixed_apr.into(),
+        ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
+    };
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
                 mint: BankMint::Usdc,
                 config: Some(BankConfig {
                     deposit_limit: native!(1_000_000_000, "USDC"),
-                    interest_rate_config: InterestRateConfig {
-                        optimal_utilization_rate: I80F48!(0.9).into(),
-                        plateau_interest_rate: I80F48!(1).into(),
-                        protocol_fixed_fee_apr: I80F48!(0.01).into(),
-                        insurance_fee_fixed_apr: I80F48!(0.01).into(),
-                        ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
-                    },
+                    interest_rate_config,
                     ..*DEFAULT_USDC_TEST_BANK_CONFIG
                 }),
             },
@@ -222,6 +286,59 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
 
     assert_eq!(protocol_fees.balance().await, 1712328);
     assert_eq!(insurance_fees.balance().await, 1712328);
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.accumulated_since_last_update),
+        I80F48!(171232876),
+        I80F48!(1)
+    );
+
+    let total_liabilities =
+        usdc_bank.get_liability_amount(usdc_bank.total_liability_shares.into())?;
+    let total_assets = usdc_bank.get_asset_amount(usdc_bank.total_asset_shares.into())?;
+    let ur = total_liabilities.checked_div(total_assets).unwrap();
+
+    let ComputedInterestRates {
+        base_rate_apr,
+        lending_rate_apr,
+        borrowing_rate_apr,
+        group_fee_apr,
+        insurance_fee_apr,
+        protocol_fee_apr,
+    } = interest_rate_config
+        .create_interest_rate_calculator(&MarginfiGroup::default())
+        .calc_interest_rate(ur)
+        .unwrap();
+
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.base_rate),
+        base_rate_apr,
+        I80F48!(0.0001)
+    );
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.borrowing_rate),
+        borrowing_rate_apr,
+        I80F48!(0.0001)
+    );
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.lending_rate),
+        lending_rate_apr,
+        I80F48!(0.0001)
+    );
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.group_fee),
+        group_fee_apr,
+        I80F48!(0.0001)
+    );
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.insurance_fee),
+        insurance_fee_apr,
+        I80F48!(0.0001)
+    );
+    assert_eq_noise!(
+        I80F48::from(usdc_bank.cache.interest_rates.protocol_fee),
+        protocol_fee_apr,
+        I80F48!(0.0001)
+    );
 
     Ok(())
 }
