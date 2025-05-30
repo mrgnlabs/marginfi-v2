@@ -5,7 +5,6 @@ use fixed::types::I80F48;
 use marginfi::state::{
     marginfi_account::MarginfiAccount,
     marginfi_group::{Bank, BankVaultType},
-    price::OracleSetup,
 };
 use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
@@ -464,12 +463,8 @@ impl MarginfiAccountFixture {
             .map(|config| {
                 AccountMeta::new_readonly(
                     {
-                        match config.oracle_setup {
-                            OracleSetup::PythPushOracle => {
-                                get_oracle_id_from_feed_id(config.oracle_keys[0]).unwrap()
-                            }
-                            _ => config.oracle_keys[0],
-                        }
+                        get_oracle_id_from_feed_id(config.oracle_keys[0])
+                            .unwrap_or(config.oracle_keys[0])
                     },
                     false,
                 )
@@ -752,12 +747,7 @@ impl MarginfiAccountFixture {
             .flat_map(|(bank, bank_pk)| {
                 let oracle_key = {
                     let oracle_key = bank.config.oracle_keys[0];
-                    match bank.config.oracle_setup {
-                        OracleSetup::PythPushOracle => {
-                            get_oracle_id_from_feed_id(oracle_key).unwrap()
-                        }
-                        _ => oracle_key,
-                    }
+                    get_oracle_id_from_feed_id(oracle_key).unwrap_or(oracle_key)
                 };
 
                 vec![

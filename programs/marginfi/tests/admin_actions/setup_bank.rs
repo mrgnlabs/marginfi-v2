@@ -308,7 +308,7 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
         .try_lending_pool_add_bank(
             &bank_asset_mint_fixture,
             BankConfig {
-                oracle_setup: marginfi::state::price::OracleSetup::PythLegacy,
+                oracle_setup: marginfi::state::price::OracleSetup::PythPushOracle,
                 oracle_keys: create_oracle_key_array(INEXISTENT_PYTH_USDC_FEED),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
@@ -316,7 +316,7 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::PythPushWrongAccountOwner);
 
     Ok(())
 }

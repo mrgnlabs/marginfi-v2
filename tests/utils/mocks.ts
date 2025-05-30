@@ -335,28 +335,31 @@ export const createSimpleMint = async (
 
 export type Oracles = {
   wsolOracle: Keypair;
+  wsolOracleFeed: Keypair;
   /** Default 150 */
   wsolPrice: number;
   wsolDecimals: number;
   usdcOracle: Keypair;
+  usdcOracleFeed: Keypair;
   /** Default 1 */
   usdcPrice: number;
   usdcDecimals: number;
   tokenAOracle: Keypair;
+  tokenAOracleFeed: Keypair;
   /** Default 10 */
   tokenAPrice: number;
   tokenADecimals: number;
   tokenBOracle: Keypair;
+  tokenBOracleFeed: Keypair;
   /** Default 20 */
   tokenBPrice: number;
   tokenBDecimals: number;
   /** Default 175 */
   lstAlphaPrice: number;
   lstAlphaDecimals: number;
-  /** By default, oracle conf is this times price */
-  confidenceValue: number;
   /** Same initial price/decimals as USDC, but different key. */
   fakeUsdc: PublicKey;
+  fakeUsdcFeed: PublicKey;
   /** Pyth pull oracle price feed that uses a SOL-like price and SOL decimals */
   pythPullLst: Keypair;
   /** the feed ID that pythPullLst oracle uses. */

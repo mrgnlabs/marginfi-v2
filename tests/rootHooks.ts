@@ -285,7 +285,6 @@ export const mochaHooks = {
       ecosystem.tokenBDecimals,
       175,
       ecosystem.lstAlphaDecimals,
-      0.02, // confidence interval
       verbose
     );
     copyKeys.push(

@@ -21,7 +21,6 @@ import {
   defaultBankConfig,
   I80F48_ZERO,
   ORACLE_SETUP_PYTH_PUSH,
-  ORACLE_SETUP_PYTH_LEGACY,
 } from "./utils/types";
 
 /**
@@ -76,7 +75,6 @@ export const genericMultiBankTestSetup = async (
             isSigner: false,
             isWritable: false,
           },
-          oracleSetup: "PULL",
           feedOracle: oracles.pythPullLstOracleFeed.publicKey,
           seed: new BN(seed),
           verboseMessage: verbose ? `*init LST #${seed}:` : undefined,
@@ -198,8 +196,6 @@ async function addGenericBank(
     bankMint: PublicKey;
     oracle: PublicKey;
     oracleMeta: AccountMeta;
-    // For banks (like LST) that need a different oracle setup (pull vs legacy)
-    oracleSetup?: "LEGACY" | "PULL";
     // Optional feed oracle in case the instruction requires it (i.e. for pull)
     feedOracle?: PublicKey;
     // Function to adjust the seed (for example, seed.addn(1))
@@ -212,7 +208,6 @@ async function addGenericBank(
     bankMint,
     oracle,
     oracleMeta,
-    oracleSetup = "LEGACY",
     feedOracle,
     seed,
     verboseMessage,
@@ -242,8 +237,7 @@ async function addGenericBank(
     seed
   );
 
-  const setupType =
-    oracleSetup === "PULL" ? ORACLE_SETUP_PYTH_PUSH : ORACLE_SETUP_PYTH_LEGACY;
+  const setupType = ORACLE_SETUP_PYTH_PUSH;
   const targetOracle = feedOracle ?? oracle;
   const config_ix = await groupAdmin.mrgnProgram.methods
     .lendingPoolConfigureBankOracle(setupType, targetOracle)

@@ -3,7 +3,6 @@ import {
   BN,
   getProvider,
   Program,
-  Wallet,
   workspace,
 } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
@@ -30,7 +29,6 @@ import {
   liquidateIx,
 } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { updatePriceAccount } from "./utils/pyth_mocks";
 import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
@@ -41,51 +39,12 @@ import { configureBank } from "./utils/group-instructions";
 describe("Liquidate user", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
   const provider = getProvider() as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
 
   const confidenceInterval = 0.01 * CONF_INTERVAL_MULTIPLE;
   const liquidateAmountA = 0.2;
   const liquidateAmountA_native = new BN(
     liquidateAmountA * 10 ** ecosystem.tokenADecimals
   );
-
-  it("oracle data refreshes", async () => {
-    const usdcPrice = BigInt(oracles.usdcPrice * 10 ** oracles.usdcDecimals);
-    await updatePriceAccount(
-      oracles.usdcOracle,
-      {
-        exponent: -oracles.usdcDecimals,
-        aggregatePriceInfo: {
-          price: usdcPrice,
-          conf: usdcPrice / BigInt(100), // 1% of the price
-        },
-        twap: {
-          // aka ema
-          valueComponent: usdcPrice,
-        },
-      },
-      wallet
-    );
-
-    const tokenAPrice = BigInt(
-      oracles.tokenAPrice * 10 ** oracles.tokenADecimals
-    );
-    await updatePriceAccount(
-      oracles.tokenAOracle,
-      {
-        exponent: -oracles.tokenADecimals,
-        aggregatePriceInfo: {
-          price: tokenAPrice,
-          conf: tokenAPrice / BigInt(100), // 1% of the price
-        },
-        twap: {
-          // aka ema
-          valueComponent: tokenAPrice,
-        },
-      },
-      wallet
-    );
-  });
 
   it("(user 1) tries to sneak in a bad oracle for itself - should fail", async () => {
     const liquidatee = users[0];
@@ -160,7 +119,7 @@ describe("Liquidate user", () => {
           })
         )
       );
-    }, "WrongOracleAccountKeys");
+    }, "PythPushMismatchedFeedId");
   });
 
   it("(admin) vastly reduce Token A bank collateral ratio to induce liquidation", async () => {

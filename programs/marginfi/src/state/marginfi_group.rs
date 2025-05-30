@@ -10,8 +10,8 @@ use crate::{
     constants::{
         EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
-        LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, MAX_SWB_ORACLE_AGE,
-        ORACLE_MIN_AGE, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, SECONDS_PER_YEAR,
+        LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, ORACLE_MIN_AGE,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, SECONDS_PER_YEAR,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
@@ -1548,8 +1548,7 @@ impl BankConfig {
     #[inline]
     pub fn get_oracle_max_age(&self) -> u64 {
         match (self.oracle_max_age, self.oracle_setup) {
-            (0, OracleSetup::SwitchboardV2) => MAX_SWB_ORACLE_AGE,
-            (0, OracleSetup::PythLegacy | OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
+            (0, OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
             (n, _) => n as u64,
         }
     }

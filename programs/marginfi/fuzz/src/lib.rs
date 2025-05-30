@@ -216,10 +216,9 @@ impl<'state> MarginfiFuzzContext<'state> {
         let (_fee_state_key, fee_state_bump) =
             Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
 
-        let oracle = state.new_oracle_account(
+        let (oracle, oracle_feed) = state.new_oracle_account(
             rent.clone(),
             initial_bank_config.oracle_native_price as i64,
-            *mint.key,
             initial_bank_config.mint_decimals as i32,
         );
 
@@ -319,8 +318,8 @@ impl<'state> MarginfiFuzzContext<'state> {
                     &[ails(oracle.clone())],
                     configure_bumps,
                 ),
-                1,
-                oracle.key(),
+                3,
+                oracle_feed,
             )
             .unwrap();
         }
@@ -1048,9 +1047,10 @@ fn initialize_fee_state<'a>(
 
 #[cfg(test)]
 mod tests {
+    use anchor_lang::AnchorDeserialize;
     use fixed::types::I80F48;
     use marginfi::state::marginfi_account::RiskEngine;
-    use pyth_sdk_solana::state::PriceAccount;
+    use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
     use super::*;
     #[test]
@@ -1263,8 +1263,8 @@ mod tests {
 
         let new_price = {
             let data = a.banks[0].oracle.try_borrow_data().unwrap();
-            let data = bytemuck::from_bytes::<PriceAccount>(&data);
-            data.ema_price.val
+            let price_update = PriceUpdateV2::deserialize(&mut &data[8..]).unwrap();
+            price_update.price_message.ema_price
         };
 
         assert_eq!(new_price, 1100);
@@ -1278,18 +1278,17 @@ mod tests {
 
         let initial_timestamp = {
             let data = a.banks[0].oracle.try_borrow_data().unwrap();
-            let data = bytemuck::from_bytes::<PriceAccount>(&data);
-            data.timestamp
+            let price_update = PriceUpdateV2::deserialize(&mut &data[8..]).unwrap();
+            price_update.price_message.publish_time
         };
         assert_eq!(initial_timestamp, 0);
 
         a.banks[0].refresh_oracle(123_456).unwrap();
 
         let updated_timestamp_via_0_10 = {
-            let pf =
-                pyth_sdk_solana::load_price_feed_from_account_info(&a.banks[0].oracle).unwrap();
-
-            pf.get_ema_price_unchecked().publish_time
+            let data = a.banks[0].oracle.try_borrow_data().unwrap();
+            let price_update = PriceUpdateV2::deserialize(&mut &data[8..]).unwrap();
+            price_update.price_message.publish_time
         };
         assert_eq!(updated_timestamp_via_0_10, 123_456);
     }
