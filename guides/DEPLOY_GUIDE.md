@@ -28,8 +28,20 @@ solana program set-buffer-authority <BUFFER> --new-buffer-authority <MULTISIG> -
 anchor idl upgrade \
   MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA \
   -f target/idl/marginfi.json \
-  --provider.cluster <your rpc (a paid RPC is likely required here)> \
-  --provider.wallet   ~/keys/mainnet-deploy.json
+  --provider.cluster <your paid rpc> \
+  --provider.wallet ~/keys/staging-admin.json 
+```
+
+If you are getting `RequireGteViolated`, close the old IDL and open a new one:
+```
+anchor idl close MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA \
+  --provider.cluster <your paid rpc> \
+  --provider.wallet ~/keys/staging-admin.json
+
+anchor idl init MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA \
+  -f target/idl/marginfi.json \
+  --provider.cluster <your paid rpc> \
+  --provider.wallet ~/keys/staging-admin.json
 ```
 
 If you aren't sure who the IDL authority is, you can check with: 
@@ -37,8 +49,10 @@ If you aren't sure who the IDL authority is, you can check with:
 anchor idl authority \    
   MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA \
   --provider.cluster <your rpc (https://api.mainnet-beta.solana.com is usually fine)> \
-  --provider.wallet   ~/keys/mainnet-deploy.json
+  --provider.wallet   ~/keys/staging-admin.json
 ```
+Note that "staging admin" i.e. `H5U6dy9ch6puEFPY3t8jEaVQnVfYPUDANQkA4XG6peUo` owns the idl authority as of May 2025.
+
 
 ### Voters:
 
@@ -81,3 +95,4 @@ Here we list recent deployments to staging/mainnet. The hash is always the first
 * 0.1.0-alpha mainnet on Fev 3, 2024 ~2:45ET -- Hash: ea5d15
 * 0.1.1: Feb 17, 2025 ~3:00pm ET -- Hash: 03455c
 * 0.1.2: April 14, 2025 ~1:00pm ET -- Hash 65bbbe
+* 0.1.3: May 27, 2025 ~1:00pm ET -- Hash ae9adb7

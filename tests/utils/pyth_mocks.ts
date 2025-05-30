@@ -284,6 +284,7 @@ export const setupPythOracles = async (
     fakeUsdcFeed: fakeUsdcPythPullOracleFeed.publicKey,
     pythPullLst: lstPythPullOracle,
     pythPullLstOracleFeed: lstPythPullOracleFeed,
+    confidenceValue: oracleConfDefault
   };
   return oracles;
 };

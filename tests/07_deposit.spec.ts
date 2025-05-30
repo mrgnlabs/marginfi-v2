@@ -297,6 +297,8 @@ describe("Deposit funds", () => {
     const depositIndex = balances.findIndex((balance) =>
       balance.bankPk.equals(bankKey)
     );
+    let now = Math.floor(Date.now() / 1000);
+    assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
 
     assertI80F48Approx(balances[depositIndex].assetShares, expected);
     let now = Math.floor(Date.now() / 1000);

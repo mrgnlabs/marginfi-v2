@@ -81,6 +81,22 @@ pub enum OraclePriceFeedAdapter {
     SwitchboardPull(SwitchboardPullPriceFeed),
 }
 
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
+pub struct SwitchboardV2PriceFeed {
+    _ema_price: Box<Price>,
+    _price: Box<Price>,
+}
+
+impl PriceAdapter for SwitchboardV2PriceFeed {
+    fn get_price_of_type(
+        &self,
+        _price_type: OraclePriceType,
+        _bias: Option<PriceBias>,
+    ) -> MarginfiResult<I80F48> {
+        panic!("swb v2 is deprecated");
+    }
+}
+
 impl OraclePriceFeedAdapter {
     pub fn try_from_bank_config<'info>(
         bank_config: &BankConfig,
@@ -790,6 +806,7 @@ fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResu
 mod tests {
     use pretty_assertions::assert_eq;
 
+    use crate::constants::EXP_10;
     use crate::utils::hex_to_bytes;
 
     use super::*;
