@@ -1,8 +1,4 @@
-import {
-  BN,
-  Program,
-  workspace,
-} from "@coral-xyz/anchor";
+import { BN, Program, workspace } from "@coral-xyz/anchor";
 import { LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -25,7 +21,10 @@ import {
   getTokenBalance,
 } from "./utils/genericTests";
 import { assert } from "chai";
-import { composeRemainingAccounts, liquidateIx } from "./utils/user-instructions";
+import {
+  composeRemainingAccounts,
+  liquidateIx,
+} from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
@@ -34,7 +33,9 @@ import {
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
 import {
+  CONF_INTERVAL_MULTIPLE,
   defaultStakedInterestSettings,
+  ORACLE_CONF_INTERVAL,
   StakedSettingsEdit,
 } from "./utils/types";
 import {
@@ -54,7 +55,7 @@ describe("Liquidate user (including staked assets)", () => {
     );
   });
 
-  const confidenceInterval = 0.0212; // 1% confidence * CONF_INTERVAL_MULTIPLE
+  const confidenceInterval = ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
   const liquidateAmountSol = 0.1;
   const liquidateAmountSol_native = new BN(
     liquidateAmountSol * 10 ** ecosystem.wsolDecimals
@@ -125,13 +126,13 @@ describe("Liquidate user (including staked assets)", () => {
     assert.equal(insuranceVaultBalance, 0);
 
     // Due to non-deterministic value of the staked SOL bank pubkey, we need to determine the order of the balances here (since they're always sorted by pubkey)
-    const stakedSolBankIndex = liquidateeBalances.findIndex(
-      (balance) => balance.bankPk.equals(validators[0].bank)
+    const stakedSolBankIndex = liquidateeBalances.findIndex((balance) =>
+      balance.bankPk.equals(validators[0].bank)
     );
-    const solBankIndex = liquidateeBalances.findIndex(
-      (balance) => balance.bankPk.equals(bankKeypairSol.publicKey)
+    const solBankIndex = liquidateeBalances.findIndex((balance) =>
+      balance.bankPk.equals(bankKeypairSol.publicKey)
     );
-   
+
     const sharesStaked = wrappedI80F48toBigNumber(
       liquidateeBalances[stakedSolBankIndex].assetShares
     ).toNumber();
@@ -200,7 +201,9 @@ describe("Liquidate user (including staked assets)", () => {
       );
       console.log(
         "user 1 (liquidator) staked asset shares: " +
-          wrappedI80F48toBigNumber(liquidatorBalances[stakedSolBankIndex].assetShares).toString()
+          wrappedI80F48toBigNumber(
+            liquidatorBalances[stakedSolBankIndex].assetShares
+          ).toString()
       );
       console.log(
         "user 1 (liquidator) staked liability shares: " +
@@ -211,7 +214,7 @@ describe("Liquidate user (including staked assets)", () => {
     }
 
     const defaultSettings = defaultStakedInterestSettings(
-      oracles.wsolOracle.publicKey
+      oracles.wsolOracleFeed.publicKey
     );
     const settings: StakedSettingsEdit = {
       oracle: defaultSettings.oracle,
@@ -230,12 +233,12 @@ describe("Liquidate user (including staked assets)", () => {
       await propagateStakedSettings(bankrunProgram, {
         settings: settingsKey,
         bank: assetBankKey,
-        oracle: defaultSettings.oracle,
+        oracle: oracles.wsolOracle.publicKey,
       })
     );
     editTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     editTx.sign(groupAdmin.wallet);
-    await banksClient.processTransaction(editTx);
+    await banksClient.tryProcessTransaction(editTx);
 
     const stakedLowPrice = stakedPrice * (1 - confidenceInterval); // see top of test
     const wsolHighPrice = oracles.wsolPrice * (1 + confidenceInterval); // see top of test
@@ -255,20 +258,24 @@ describe("Liquidate user (including staked assets)", () => {
           validators[0].splMint,
           validators[0].splSolPool,
           oracles.wsolOracle.publicKey,
-          ...composeRemainingAccounts(
-            [[liabilityBankKey,
-              oracles.wsolOracle.publicKey],
-            [assetBankKey,
+          ...composeRemainingAccounts([
+            [liabilityBankKey, oracles.wsolOracle.publicKey],
+            [
+              assetBankKey,
               oracles.wsolOracle.publicKey,
               validators[0].splMint,
-              validators[0].splSolPool]]),
-          ...composeRemainingAccounts(
-            [[assetBankKey,
+              validators[0].splSolPool,
+            ],
+          ]),
+          ...composeRemainingAccounts([
+            [
+              assetBankKey,
               oracles.wsolOracle.publicKey,
               validators[0].splMint,
-              validators[0].splSolPool],
-            [liabilityBankKey,
-              oracles.wsolOracle.publicKey]]),
+              validators[0].splSolPool,
+            ],
+            [liabilityBankKey, oracles.wsolOracle.publicKey],
+          ]),
         ],
         amount: liquidateAmountSol_native,
       })
@@ -296,19 +303,27 @@ describe("Liquidate user (including staked assets)", () => {
 
     assertI80F48Equal(
       liquidateeBalancesAfter[stakedSolBankIndex].assetShares,
-      wrappedI80F48toBigNumber(liquidateeBalances[stakedSolBankIndex].assetShares).toNumber() -
-        liquidateAmountSol_native.toNumber()
+      wrappedI80F48toBigNumber(
+        liquidateeBalances[stakedSolBankIndex].assetShares
+      ).toNumber() - liquidateAmountSol_native.toNumber()
     );
-    assertI80F48Equal(liquidateeBalancesAfter[stakedSolBankIndex].liabilityShares, 0);
+    assertI80F48Equal(
+      liquidateeBalancesAfter[stakedSolBankIndex].liabilityShares,
+      0
+    );
     assertI80F48Equal(liquidateeBalancesAfter[solBankIndex].assetShares, 0);
 
     assertI80F48Equal(liquidatorBalancesAfter[solBankIndex].liabilityShares, 0);
     assertI80F48Equal(
       liquidatorBalancesAfter[stakedSolBankIndex].assetShares,
-      wrappedI80F48toBigNumber(liquidatorBalances[stakedSolBankIndex].assetShares).toNumber() +
-        liquidateAmountSol_native.toNumber()
+      wrappedI80F48toBigNumber(
+        liquidatorBalances[stakedSolBankIndex].assetShares
+      ).toNumber() + liquidateAmountSol_native.toNumber()
     );
-    assertI80F48Equal(liquidatorBalancesAfter[stakedSolBankIndex].liabilityShares, 0);
+    assertI80F48Equal(
+      liquidatorBalancesAfter[stakedSolBankIndex].liabilityShares,
+      0
+    );
 
     const insuranceVaultBalanceAfter = await getTokenBalance(
       bankRunProvider,

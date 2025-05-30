@@ -38,7 +38,6 @@ fixtures = { path = "test-utils", package = "test-utilities" }
 marginfi = { path = "programs/marginfi", package = "marginfi" }
 transfer_hook = { path = "programs/test_transfer_hook", package = "test_transfer_hook" }
 
-pyth-sdk-solana = "=0.10.4"
 pyth-solana-receiver-sdk = "0.6.0"
 pythnet-sdk = "2.3.1"
 switchboard-on-demand = "0.3.5"

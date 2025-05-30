@@ -11,9 +11,7 @@ import {
   banksClient,
   bankrunProgram,
 } from "./rootHooks";
-import {
-  propagateStakedSettings,
-} from "./utils/group-instructions";
+import { propagateStakedSettings } from "./utils/group-instructions";
 import { deriveBankWithSeed, deriveStakedSettings } from "./utils/pdas";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
@@ -50,7 +48,7 @@ describe("Edit and propagate staked settings", () => {
 
   it("(admin) edits some settings - happy path", async () => {
     const settings: StakedSettingsEdit = {
-      oracle: oracles.usdcOracle.publicKey,
+      oracle: oracles.usdcOracleFeed.publicKey,
       assetWeightInit: bigNumberToWrappedI80F48(0.2),
       assetWeightMaint: bigNumberToWrappedI80F48(0.3),
       depositLimit: new BN(42),
@@ -78,7 +76,7 @@ describe("Edit and propagate staked settings", () => {
       settingsKey
     );
     assertKeysEqual(settingsAcc.key, settingsKey);
-    assertKeysEqual(settingsAcc.oracle, oracles.usdcOracle.publicKey);
+    assertKeysEqual(settingsAcc.oracle, oracles.usdcOracleFeed.publicKey);
     assertI80F48Approx(settingsAcc.assetWeightInit, 0.2);
     assertI80F48Approx(settingsAcc.assetWeightMaint, 0.3);
     assertBNEqual(settingsAcc.depositLimit, 42);
@@ -98,11 +96,11 @@ describe("Edit and propagate staked settings", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet); // just to the pay the fee
-    let result = await banksClient.tryProcessTransaction(tx);
+    await banksClient.tryProcessTransaction(tx);
 
     const bank = await bankrunProgram.account.bank.fetch(bankKey);
     const config = bank.config;
-    assertKeysEqual(config.oracleKeys[0], oracles.usdcOracle.publicKey);
+    assertKeysEqual(config.oracleKeys[0], oracles.usdcOracleFeed.publicKey);
     assertI80F48Approx(config.assetWeightInit, 0.2);
     assertI80F48Approx(config.assetWeightMaint, 0.3);
     assertBNEqual(config.depositLimit, 42);
@@ -113,7 +111,7 @@ describe("Edit and propagate staked settings", () => {
 
   it("(admin) sets a bad oracle - fails at propagation", async () => {
     const settings: StakedSettingsEdit = {
-      oracle: PublicKey.default,
+      oracle: oracles.wsolOracleFeed.publicKey,
       assetWeightInit: null,
       assetWeightMaint: null,
       depositLimit: null,
@@ -138,7 +136,7 @@ describe("Edit and propagate staked settings", () => {
     let settingsAcc = await bankrunProgram.account.stakedSettings.fetch(
       settingsKey
     );
-    assertKeysEqual(settingsAcc.oracle, PublicKey.default);
+    assertKeysEqual(settingsAcc.oracle, oracles.wsolOracleFeed.publicKey);
 
     tx = new Transaction();
     tx.add(
@@ -152,13 +150,13 @@ describe("Edit and propagate staked settings", () => {
     tx.sign(groupAdmin.wallet); // just to the pay the fee
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // 6000 (InternalLogicError)
-    assertBankrunTxFailed(result, "0x1770");
+    // 6053 (PythPushWrongAccountOwner)
+    assertBankrunTxFailed(result, "0x17a5");
   });
 
   it("(admin) restores default settings - happy path", async () => {
     const defaultSettings = defaultStakedInterestSettings(
-      oracles.wsolOracle.publicKey
+      oracles.wsolOracleFeed.publicKey
     );
     const settings: StakedSettingsEdit = {
       oracle: defaultSettings.oracle,
@@ -183,7 +181,7 @@ describe("Edit and propagate staked settings", () => {
       await propagateStakedSettings(bankrunProgram, {
         settings: settingsKey,
         bank: bankKey,
-        oracle: defaultSettings.oracle,
+        oracle: oracles.wsolOracle.publicKey,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

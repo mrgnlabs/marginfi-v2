@@ -25,7 +25,7 @@ import {
 import {
   ASSET_TAG_DEFAULT,
   defaultBankConfig,
-  ORACLE_SETUP_PYTH_LEGACY,
+  ORACLE_SETUP_PYTH_PUSH,
 } from "./utils/types";
 import {
   deriveLiquidityVaultAuthority,
@@ -73,8 +73,9 @@ describe("Lending pool add bank (add bank to group)", () => {
       new Transaction().add(
         await configureBankOracle(groupAdmin.mrgnProgram, {
           bank: bankKey,
-          type: ORACLE_SETUP_PYTH_LEGACY,
+          type: ORACLE_SETUP_PYTH_PUSH,
           oracle: oracles.usdcOracle.publicKey,
+          feed: oracles.usdcOracleFeed.publicKey,
         })
       )
     );
@@ -109,7 +110,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertKeysEqual(bank.group, marginfiGroup.publicKey);
 
     // Keys and bumps...
-    assertKeysEqual(config.oracleKeys[0], oracles.usdcOracle.publicKey);
+    assertKeysEqual(config.oracleKeys[0], oracles.usdcOracleFeed.publicKey);
 
     const [_liqAuth, liqAuthBump] = deriveLiquidityVaultAuthority(id, bankKey);
     const [liquidityVault, liqVaultBump] = deriveLiquidityVault(id, bankKey);
@@ -165,7 +166,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Approx(interest.protocolOriginationFee, 0.01, tolerance);
 
     assert.deepEqual(config.operationalState, { operational: {} });
-    assert.deepEqual(config.oracleSetup, { pythLegacy: {} });
+    assert.deepEqual(config.oracleSetup, { pythPushOracle: {} });
     assertBNEqual(config.borrowLimit, 100_000_000_000);
     assert.deepEqual(config.riskTier, { collateral: {} });
     assert.equal(config.assetTag, ASSET_TAG_DEFAULT);
@@ -187,8 +188,8 @@ describe("Lending pool add bank (add bank to group)", () => {
     };
     const config_ix = await program.methods
       .lendingPoolConfigureBankOracle(
-        ORACLE_SETUP_PYTH_LEGACY,
-        oracles.tokenAOracle.publicKey
+        ORACLE_SETUP_PYTH_PUSH,
+        oracles.tokenAOracleFeed.publicKey
       )
       .accountsPartial({
         group: marginfiGroup.publicKey,
@@ -227,7 +228,7 @@ describe("Lending pool add bank (add bank to group)", () => {
         collateral: RiskTier.Isolated,
         liquidationThreshold: 0.1,
         liquidationPenalty: 0.1,
-      }
+      },
     };
 
     let bankKey = bankKeypairSol.publicKey;
@@ -240,8 +241,8 @@ describe("Lending pool add bank (add bank to group)", () => {
     };
     const config_ix = await program.methods
       .lendingPoolConfigureBankOracle(
-        ORACLE_SETUP_PYTH_LEGACY,
-        oracles.wsolOracle.publicKey
+        ORACLE_SETUP_PYTH_PUSH,
+        oracles.wsolOracleFeed.publicKey
       )
       .accountsPartial({
         group: marginfiGroup.publicKey,
@@ -360,7 +361,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Equal(bonkInterest.protocolOriginationFee, 0);
 
     assert.deepEqual(bonkConfig.operationalState, { operational: {} });
-    assert.deepEqual(bonkConfig.oracleSetup, { pythPushOracle: {} });
+    assert.deepEqual(bonkConfig.oracleSetup, {
+      pythPushOracle: {},
+    });
     // roughly 26.41 billion BONK with 5 decimals.
     assertBNEqual(bonkConfig.borrowLimit, 2_640_570_785_700_000);
     assert.deepEqual(bonkConfig.riskTier, { collateral: {} });

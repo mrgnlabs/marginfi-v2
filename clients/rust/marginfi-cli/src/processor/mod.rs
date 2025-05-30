@@ -1308,8 +1308,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             )
         })
         .partition(|(setup, _, _, _)| match setup {
-            OracleSetup::PythLegacy => true,
-            OracleSetup::SwitchboardV2 => false,
+            // OracleSetup::SwitchboardV2 => false, TODO: will be fixed as part of cli reviving
             _ => panic!("Unknown oracle setup"),
         });
 

@@ -44,7 +44,11 @@ describe("Config group", () => {
     await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
         await groupAdmin.mrgnProgram.methods
-          .marginfiGroupConfigure(groupAdmin.wallet.publicKey, PublicKey.default, false)
+          .marginfiGroupConfigure(
+            groupAdmin.wallet.publicKey,
+            PublicKey.default,
+            false
+          )
           .accountsPartial({
             marginfiGroup: marginfiGroup.publicKey,
             admin: newAdmin.publicKey,

@@ -35,9 +35,7 @@ import {
   ASSET_TAG_STAKED,
   defaultBankConfig,
   defaultStakedInterestSettings,
-  I80F48_ONE,
-  ORACLE_SETUP_PYTH_LEGACY,
-  SINGLE_POOL_PROGRAM_ID,
+  ORACLE_SETUP_PYTH_PUSH,
 } from "./utils/types";
 import { assert } from "chai";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
@@ -83,7 +81,7 @@ describe("Init group and add banks with asset category flags", () => {
 
   it("(admin) Init staked settings for group - opts in to use staked collateral", async () => {
     const settings = defaultStakedInterestSettings(
-      oracles.wsolOracle.publicKey
+      oracles.wsolOracleFeed.publicKey
     );
     let tx = new Transaction();
 
@@ -110,7 +108,7 @@ describe("Init group and add banks with asset category flags", () => {
       settingsKey
     );
     assertKeysEqual(settingsAcc.key, settingsKey);
-    assertKeysEqual(settingsAcc.oracle, oracles.wsolOracle.publicKey);
+    assertKeysEqual(settingsAcc.oracle, oracles.wsolOracleFeed.publicKey);
     assertI80F48Approx(settingsAcc.assetWeightInit, 0.8);
     assertI80F48Approx(settingsAcc.assetWeightMaint, 0.9);
     assertBNEqual(settingsAcc.depositLimit, 1_000_000_000_000);
@@ -129,7 +127,10 @@ describe("Init group and add banks with asset category flags", () => {
       isWritable: false,
     };
     const config_ix = await groupAdmin.mrgnProgram.methods
-      .lendingPoolConfigureBankOracle(ORACLE_SETUP_PYTH_LEGACY, oracle)
+      .lendingPoolConfigureBankOracle(
+        ORACLE_SETUP_PYTH_PUSH,
+        oracles.usdcOracleFeed.publicKey
+      )
       .accountsPartial({
         group: marginfiGroup.publicKey,
         bank: bankKey,
@@ -172,7 +173,10 @@ describe("Init group and add banks with asset category flags", () => {
       isWritable: false,
     };
     const config_ix = await groupAdmin.mrgnProgram.methods
-      .lendingPoolConfigureBankOracle(ORACLE_SETUP_PYTH_LEGACY, oracle)
+      .lendingPoolConfigureBankOracle(
+        ORACLE_SETUP_PYTH_PUSH,
+        oracles.wsolOracleFeed.publicKey
+      )
       .accountsPartial({
         group: marginfiGroup.publicKey,
         bank: bankKey,
@@ -409,8 +413,8 @@ describe("Init group and add banks with asset category flags", () => {
     tx.sign(users[0].wallet);
 
     let result = await banksClient.tryProcessTransaction(tx);
-    // Note: WrongOracleAccountKeys
-    assertBankrunTxFailed(result, "0x17a4");
+    // Note: PythPushMismatchedFeedId
+    assertBankrunTxFailed(result, "0x17a7");
   });
 
   it("(permissionless) Add staked collateral bank (validator 0) - happy path", async () => {
