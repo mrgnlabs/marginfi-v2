@@ -154,20 +154,6 @@ describe("Compound interest demonstration", () => {
           )
       )
     );
-
-    // Log some bank info:
-    const b = await bankrunProgram.account.bank.fetch(banks[1]);
-    const int = b.config.interestRateConfig;
-    if (verbose) {
-      console.log(
-        "Plateu rate:" +
-          wrappedI80F48toBigNumber(int.plateauInterestRate).toNumber()
-      );
-      console.log(
-        "Optimal rate:" +
-          wrappedI80F48toBigNumber(int.optimalUtilizationRate).toNumber()
-      );
-    }
   });
 
   it("One week elapses", async () => {
