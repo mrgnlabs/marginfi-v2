@@ -63,11 +63,6 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: AccountCommand,
     },
-    #[cfg(feature = "lip")]
-    Lip {
-        #[clap(subcommand)]
-        subcmd: LipCommand,
-    },
     //
     // InspectSwitchboardFeed { switchboard_feed: Pubkey },
     ShowOracleAges {
@@ -454,13 +449,6 @@ pub enum AccountCommand {
     },
 }
 
-#[derive(Debug, Parser)]
-#[cfg(feature = "lip")]
-pub enum LipCommand {
-    ListCampaigns,
-    ListDeposits,
-}
-
 pub fn entry(opts: Opts) -> Result<()> {
     env_logger::init();
 
@@ -473,8 +461,6 @@ pub fn entry(opts: Opts) -> Result<()> {
 
         Command::PatchIdl { idl_path } => patch_marginfi_idl(idl_path),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
-        #[cfg(feature = "lip")]
-        Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
 
         Command::InspectSize {} => inspect_size(),
 
@@ -1004,22 +990,6 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
             process_set_user_flag(config, &profile, account_pk, flag)
         }
     }?;
-
-    Ok(())
-}
-
-#[cfg(feature = "lip")]
-fn process_lip_subcmd(
-    subcmd: LipCommand,
-    cfg_override: &GlobalOptions,
-) -> Result<(), anyhow::Error> {
-    let profile = load_profile()?;
-    let config = profile.get_config(Some(cfg_override))?;
-
-    match subcmd {
-        LipCommand::ListCampaigns => processor::process_list_lip_campaigns(&config),
-        LipCommand::ListDeposits => processor::process_list_deposits(&config),
-    }
 
     Ok(())
 }
