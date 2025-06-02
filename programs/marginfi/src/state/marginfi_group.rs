@@ -818,7 +818,6 @@ impl Bank {
                 insurance_collected: 0.,
             });
 
-            self.cache = BankCache::default();
             return Ok(());
         }
         let ir_calc = self
@@ -905,9 +904,17 @@ impl Bank {
     ///
     /// Should be called in the end of each instruction calling `accrue_interest` to ensure the cache is up to date.
     pub fn update_bank_cache(&mut self, group: &MarginfiGroup) -> MarginfiResult<()> {
+        msg!("Updating bank cache");
+        anchor_lang::solana_program::log::sol_log_compute_units();
+
         let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities_amount =
             self.get_liability_amount(self.total_liability_shares.into())?;
+
+            if (total_assets_amount == I80F48::ZERO) || (total_liabilities_amount == I80F48::ZERO) {
+            self.cache = BankCache::default();
+            return Ok(());
+        }
 
         let ir_calc = self
             .config

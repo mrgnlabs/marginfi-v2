@@ -125,8 +125,8 @@ pub fn lending_account_liquidate<'info>(
         &*ctx.accounts.liab_bank.load()?,
         ctx.accounts.token_program.key,
     )?;
-    {
         let group = &*marginfi_group_loader.load()?;
+    {
         ctx.accounts.asset_bank.load_mut()?.accrue_interest(
             current_timestamp,
             group,
@@ -413,7 +413,7 @@ pub fn lending_account_liquidate<'info>(
             signer: Some(ctx.accounts.authority.key()),
             marginfi_account: liquidator_marginfi_account_loader.key(),
             marginfi_account_authority: liquidator_marginfi_account.authority,
-            marginfi_group: ctx.accounts.group.key(),
+            marginfi_group: marginfi_group_loader.key(),
         },
         liquidatee_marginfi_account: liquidatee_marginfi_account_loader.key(),
         liquidatee_marginfi_account_authority: liquidatee_marginfi_account.authority,
