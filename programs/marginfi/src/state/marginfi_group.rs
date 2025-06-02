@@ -791,7 +791,7 @@ impl Bank {
         group: &MarginfiGroup,
         #[cfg(not(feature = "client"))] bank: Pubkey,
     ) -> MarginfiResult<()> {
-        #[cfg(all(not(feature = "client"), feature = "debug"))]
+        //#[cfg(all(not(feature = "client"), feature = "debug"))]
         anchor_lang::solana_program::log::sol_log_compute_units();
 
         let time_delta: u64 = (current_timestamp - self.last_update).try_into().unwrap();

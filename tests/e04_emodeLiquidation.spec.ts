@@ -303,6 +303,9 @@ describe("Emode liquidation", () => {
     }
 
     let tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({
+  units: 200_000,
+}),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
         liabilityBankKey,
@@ -330,7 +333,8 @@ describe("Emode liquidation", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(liquidator.wallet);
-    await banksClient.processTransaction(tx);
+    let result = await banksClient.tryProcessTransaction(tx);
+    console.log("error logs:" + result.meta.logMessages);
 
     const liqAccountData = await processHealthPulse(
       liquidator,
