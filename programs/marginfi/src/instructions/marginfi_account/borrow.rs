@@ -165,6 +165,7 @@ pub fn lending_account_borrow<'info>(
             // Update the bank's group fees
             bank.collected_group_fees_outstanding = bank_fees_after.into();
         }
+        bank.update_bank_cache(group)?;
     }
 
     let mut health_cache = HealthCache::zeroed();

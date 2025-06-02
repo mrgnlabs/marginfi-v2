@@ -353,6 +353,12 @@ pub fn lending_account_liquidate<'info>(
                 .ok_or(MarginfiError::MathError)?
                 .into();
 
+            asset_bank
+            .update_bank_cache(group)?;
+
+        liab_bank
+            .update_bank_cache(group)?;
+
         (
             LiquidationBalances {
                 liquidatee_asset_balance: liquidatee_asset_pre_balance.to_num::<f64>(),

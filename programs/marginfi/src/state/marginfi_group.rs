@@ -818,6 +818,7 @@ impl Bank {
                 insurance_collected: 0.,
             });
 
+            self.cache = BankCache::default();
             return Ok(());
         }
         let ir_calc = self
@@ -852,17 +853,6 @@ impl Bank {
             .into();
         self.asset_share_value = asset_share_value.into();
         self.liability_share_value = liability_share_value.into();
-
-        let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
-        let total_liabilities_amount =
-            self.get_liability_amount(self.total_liability_shares.into())?;
-        let utilization_rate = total_liabilities_amount
-            .checked_div(total_assets_amount)
-            .ok_or_else(math_error!())?;
-        let interest_rates = ir_calc
-            .calc_interest_rate(utilization_rate)
-            .ok_or_else(math_error!())?;
-        self.cache.update_interest_rates(&interest_rates);
 
         if group_fees_collected > I80F48::ZERO {
             self.collected_group_fees_outstanding = {
@@ -908,6 +898,30 @@ impl Bank {
             });
         }
 
+        Ok(())
+    }
+
+    /// Updates bank cache with the actual values for interest/fee rates.
+    ///
+    /// Should be called in the end of each instruction calling `accrue_interest` to ensure the cache is up to date.
+    pub fn update_bank_cache(&mut self, group: &MarginfiGroup) -> MarginfiResult<()> {
+        let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
+        let total_liabilities_amount =
+            self.get_liability_amount(self.total_liability_shares.into())?;
+
+        let ir_calc = self
+            .config
+            .interest_rate_config
+            .create_interest_rate_calculator(group);
+
+        let utilization_rate = total_liabilities_amount
+            .checked_div(total_assets_amount)
+            .ok_or_else(math_error!())?;
+        let interest_rates = ir_calc
+            .calc_interest_rate(utilization_rate)
+            .ok_or_else(math_error!())?;
+
+        self.cache.update_interest_rates(&interest_rates);
         Ok(())
     }
 

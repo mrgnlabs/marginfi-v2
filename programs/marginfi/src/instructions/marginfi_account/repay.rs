@@ -50,9 +50,10 @@ pub fn lending_account_repay<'info>(
         MarginfiError::AccountDisabled
     );
 
+    let group = &marginfi_group_loader.load()?;
     bank.accrue_interest(
         clock.unix_timestamp,
-        &*marginfi_group_loader.load()?,
+        group,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -90,6 +91,8 @@ pub fn lending_account_repay<'info>(
         token_program.to_account_info(),
         ctx.remaining_accounts,
     )?;
+
+    bank.update_bank_cache(group)?;
 
     emit!(LendingAccountRepayEvent {
         header: AccountEventHeader {

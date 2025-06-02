@@ -762,7 +762,7 @@ impl<'info> RiskEngine<'_, 'info> {
             MarginfiError::TooSevereLiquidation
         );
 
-        if account_health <= pre_liquidation_health {
+        if account_health < pre_liquidation_health {
             msg!(
                 "post_liquidation_health: {} ({} - {}), pre_liquidation_health: {}",
                 account_health,
