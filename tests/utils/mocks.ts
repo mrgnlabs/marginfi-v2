@@ -136,6 +136,10 @@ export const USER_ACCOUNT_E: string = "ge_acc";
 export const LST_ATA = "v0_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */
 export const STAKE_ACC = "v0_stakeAcc";
+/** in mockUser.accounts, key used to get/set the users's LST ATA for validator 1 */
+export const LST_ATA_v1 = "v1_lstAta";
+/** in mockUser.accounts, key used to get/set the users's LST stake account for validator 1 */
+export const STAKE_ACC_v1 = "v1_stakeAcc";
 
 /**
  * Options to skip various parts of mock user setup

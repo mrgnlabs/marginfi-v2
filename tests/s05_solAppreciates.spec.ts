@@ -17,8 +17,9 @@ import {
   composeRemainingAccounts,
   depositIx,
 } from "./utils/user-instructions";
-import { LST_ATA, USER_ACCOUNT } from "./utils/mocks";
+import { LST_ATA, LST_ATA_v1, USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
+import { dumpBankrunLogs } from "./utils/tools";
 
 describe("Borrow power grows as v0 Staked SOL gains value from appreciation", () => {
   const provider = getProvider() as AnchorProvider;
@@ -220,5 +221,57 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
       balance.bankPk.equals(bankKeypairSol.publicKey)
     );
     assert.notEqual(borrowIndex, -1);
+  });
+
+  it("(user 2) deposits to another staked bank - should succeed", async () => {
+    const user = users[2];
+    const userAccount = user.accounts.get(USER_ACCOUNT);
+    const userLstAta = user.accounts.get(LST_ATA_v1);
+
+    let tx = new Transaction().add(
+      await depositIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: validators[1].bank,
+        tokenAccount: userLstAta,
+        // some nominal amount...
+        amount: new BN(0.000001 * 10 ** ecosystem.wsolDecimals),
+        depositUpToLimit: false,
+      })
+    );
+
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+  });
+
+  it("(user 2) borrows with two active positions - happy path", async () => {
+    const user = users[2];
+    const userAccount = user.accounts.get(USER_ACCOUNT);
+    let tx = new Transaction().add(
+      await borrowIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: bankKeypairSol.publicKey,
+        tokenAccount: user.wsolAccount,
+        remaining: composeRemainingAccounts([
+          [
+            validators[0].bank,
+            oracles.wsolOracle.publicKey,
+            validators[0].splMint,
+            validators[0].splSolPool,
+          ],
+          [
+            validators[1].bank,
+            oracles.wsolOracle.publicKey,
+            validators[1].splMint,
+            validators[1].splSolPool,
+          ],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+        ]),
+        amount: new BN(0.00001 * 10 ** ecosystem.wsolDecimals),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
   });
 });
