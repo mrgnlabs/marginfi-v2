@@ -4,7 +4,7 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_eq_noise, native, prelude::*};
 use marginfi::state::{
-    bank_cache::ComputedInterestRates,
+    bank_cache::{apr_to_u32, ComputedInterestRates},
     marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, MarginfiGroup},
 };
 use pretty_assertions::assert_eq;
@@ -62,11 +62,12 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
         .try_bank_borrow(borrower_token_account_usdc.key, usdc_bank_f, 90)
         .await?;
 
+    let time_delta = 365 * 24 * 60 * 60;
     {
         let ctx = test_f.context.borrow_mut();
         let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
         // Advance clock by 1 year
-        clock.unix_timestamp += 365 * 24 * 60 * 60;
+        clock.unix_timestamp += time_delta;
         ctx.set_sysvar(&clock);
     }
 
@@ -100,6 +101,7 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
         I80F48!(100)
     );
     assert_eq_noise!(assets, I80F48::from(native!(181, "USDC")), I80F48!(100));
+    assert_eq!(usdc_bank.cache.interest_accumulated_for, time_delta as u32,);
     assert_eq_noise!(
         I80F48::from(usdc_bank.cache.accumulated_since_last_update),
         I80F48::from(native!(81, "USDC")),
@@ -115,44 +117,18 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
         base_rate_apr,
         lending_rate_apr,
         borrowing_rate_apr,
-        group_fee_apr,
-        insurance_fee_apr,
-        protocol_fee_apr,
+        ..
     } = interest_rate_config
         .create_interest_rate_calculator(&MarginfiGroup::default())
         .calc_interest_rate(ur)
         .unwrap();
 
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.base_rate),
-        base_rate_apr,
-        I80F48!(0.0001)
+    assert_eq!(usdc_bank.cache.base_rate, apr_to_u32(base_rate_apr));
+    assert_eq!(
+        usdc_bank.cache.borrowing_rate,
+        apr_to_u32(borrowing_rate_apr)
     );
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.borrowing_rate),
-        borrowing_rate_apr,
-        I80F48!(0.0001)
-    );
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.lending_rate),
-        lending_rate_apr,
-        I80F48!(0.0001)
-    );
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.group_fee),
-        group_fee_apr,
-        I80F48!(0.0001)
-    );
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.insurance_fee),
-        insurance_fee_apr,
-        I80F48!(0.0001)
-    );
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.protocol_fee),
-        protocol_fee_apr,
-        I80F48!(0.0001)
-    );
+    assert_eq!(usdc_bank.cache.lending_rate, apr_to_u32(lending_rate_apr));
 
     Ok(())
 }
@@ -224,10 +200,11 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
         .await?;
 
     // Advance clock by 1 minute
+    let time_delta = 60;
     {
         let ctx = test_f.context.borrow_mut();
         let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
-        clock.unix_timestamp += 60;
+        clock.unix_timestamp += time_delta;
         ctx.set_sysvar(&clock);
     }
 
@@ -286,6 +263,7 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
 
     assert_eq!(protocol_fees.balance().await, 1712328);
     assert_eq!(insurance_fees.balance().await, 1712328);
+    assert_eq!(usdc_bank.cache.interest_accumulated_for, time_delta as u32,);
     assert_eq_noise!(
         I80F48::from(usdc_bank.cache.accumulated_since_last_update),
         I80F48!(171232876),
@@ -301,44 +279,18 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
         base_rate_apr,
         lending_rate_apr,
         borrowing_rate_apr,
-        group_fee_apr,
-        insurance_fee_apr,
-        protocol_fee_apr,
+        ..
     } = interest_rate_config
         .create_interest_rate_calculator(&MarginfiGroup::default())
         .calc_interest_rate(ur)
         .unwrap();
 
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.base_rate),
-        base_rate_apr,
-        I80F48!(0.0001)
+    assert_eq!(usdc_bank.cache.base_rate, apr_to_u32(base_rate_apr));
+    assert_eq!(
+        usdc_bank.cache.borrowing_rate,
+        apr_to_u32(borrowing_rate_apr)
     );
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.borrowing_rate),
-        borrowing_rate_apr,
-        I80F48!(0.0001)
-    );
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.lending_rate),
-        lending_rate_apr,
-        I80F48!(0.0001)
-    );
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.group_fee),
-        group_fee_apr,
-        I80F48!(0.0001)
-    );
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.insurance_fee),
-        insurance_fee_apr,
-        I80F48!(0.0001)
-    );
-    assert_eq_noise!(
-        I80F48::from(usdc_bank.cache.interest_rates.protocol_fee),
-        protocol_fee_apr,
-        I80F48!(0.0001)
-    );
+    assert_eq!(usdc_bank.cache.lending_rate, apr_to_u32(lending_rate_apr));
 
     Ok(())
 }

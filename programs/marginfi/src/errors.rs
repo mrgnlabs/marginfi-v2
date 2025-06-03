@@ -158,6 +158,10 @@ pub enum MarginfiError {
     PythPushInvalidWindowSize,
     #[msg("Invalid fees destination account")] // 6077
     InvalidFeesDestinationAccount,
+    #[msg("Zero asset price")] // 6078
+    ZeroAssetPrice,
+    #[msg("Zero liability price")] // 6079
+    ZeroLiabilityPrice,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -270,6 +274,8 @@ impl From<u32> for MarginfiError {
             6075 => MarginfiError::BadEmodeConfig,
             6076 => MarginfiError::PythPushInvalidWindowSize,
             6077 => MarginfiError::InvalidFeesDestinationAccount,
+            6078 => MarginfiError::ZeroAssetPrice,
+            6079 => MarginfiError::ZeroLiabilityPrice,
             _ => MarginfiError::InternalLogicError,
         }
     }

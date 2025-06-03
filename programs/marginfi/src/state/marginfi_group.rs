@@ -838,7 +838,6 @@ impl Bank {
             &ir_calc,
             self.asset_share_value.into(),
             self.liability_share_value.into(),
-            &self.cache,
         )
         .ok_or_else(math_error!())?;
 
@@ -850,6 +849,7 @@ impl Bank {
             .and_then(|v| v.checked_mul(I80F48::from(self.total_asset_shares)))
             .ok_or_else(math_error!())?
             .into();
+        self.cache.interest_accumulated_for = time_delta.min(u32::MAX as u64) as u32;
         self.asset_share_value = asset_share_value.into();
         self.liability_share_value = liability_share_value.into();
 
@@ -1135,20 +1135,14 @@ fn calc_interest_rate_accrual_state_changes(
     interest_rate_calc: &InterestRateCalc,
     asset_share_value: I80F48,
     liability_share_value: I80F48,
-    bank_cache: &BankCache,
 ) -> Option<InterestRateStateChanges> {
-    let interest_rates = if bank_cache == &BankCache::default() {
-        // If the cache is empty, we need to calculate the interest rates
-        let utilization_rate = total_liabilities_amount.checked_div(total_assets_amount)?;
-        debug!(
-            "Utilization rate: {}, time delta {}s",
-            utilization_rate, time_delta
-        );
-        interest_rate_calc.calc_interest_rate(utilization_rate)?
-    } else {
-        // If the cache is not empty, we can use the cached interest rates
-        bank_cache.get_interest_rates()
-    };
+    // If the cache is empty, we need to calculate the interest rates
+    let utilization_rate = total_liabilities_amount.checked_div(total_assets_amount)?;
+    debug!(
+        "Utilization rate: {}, time delta {}s",
+        utilization_rate, time_delta
+    );
+    let interest_rates = interest_rate_calc.calc_interest_rate(utilization_rate)?;
 
     debug!("{:#?}", interest_rates);
 
@@ -2083,8 +2077,6 @@ mod tests {
         let old_total_liability_amount = liab_share_value * total_liability_shares;
         let old_total_asset_amount = asset_share_value * total_asset_shares;
 
-        let bank_cache = BankCache::default();
-
         let InterestRateStateChanges {
             new_asset_share_value,
             new_liability_share_value: new_liab_share_value,
@@ -2098,7 +2090,6 @@ mod tests {
             &ir_config.create_interest_rate_calculator(&group),
             asset_share_value,
             liab_share_value,
-            &bank_cache,
         )
         .unwrap();
 

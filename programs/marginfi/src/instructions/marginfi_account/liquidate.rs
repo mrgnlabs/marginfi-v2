@@ -170,6 +170,10 @@ pub fn lending_account_liquidate<'info>(
                 Some(&ctx.accounts.liab_bank.key()),
                 &mut None,
             )?;
+    msg!(
+        "Liquidatee pre-liquidation health: {}",
+        pre_liquidation_health
+    );
 
     // ##Accounting changes##
 
@@ -188,6 +192,7 @@ pub fn lending_account_liquidate<'info>(
             )?;
             asset_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?
         };
+        check!(asset_price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
         let liab_bank_remaining_accounts_len = get_remaining_accounts_per_bank(&liab_bank)? - 1;
@@ -201,6 +206,7 @@ pub fn lending_account_liquidate<'info>(
             )?;
             liab_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?
         };
+        check!(liab_price > I80F48::ZERO, MarginfiError::ZeroLiabilityPrice);
 
         let final_discount: I80F48 =
             I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
@@ -291,7 +297,8 @@ pub fn lending_account_liquidate<'info>(
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
             msg!(
-                "Liquidatee assets pre: {}, post: {}",
+                "Liquidatee assets ({}) pre: {}, post: {}",
+                ctx.accounts.asset_bank.key(),
                 pre_balance,
                 post_balance
             );
