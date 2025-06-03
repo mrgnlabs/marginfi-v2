@@ -19,7 +19,6 @@ solana-transaction-status = { workspace = true }
 solana-account-decoder = { workspace = true }
 anchor-client = { workspace = true }
 
-pyth-sdk-solana = { workspace = true }
 spl-token = { workspace = true }
 
 marginfi = { path = "../../programs/marginfi", features = [

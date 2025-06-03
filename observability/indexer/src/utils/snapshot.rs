@@ -56,8 +56,6 @@ pub enum BankUpdateRoutingType {
 
 #[derive(Clone, Debug)]
 pub enum OracleData {
-    Pyth(PythLegacyPriceFeed),
-    Switchboard(SwitchboardV2PriceFeed),
     PythPush(PythPushOraclePriceFeed),
     SwitchboardPull(SwitchboardPullPriceFeed),
 }
@@ -69,12 +67,6 @@ impl OracleData {
         bias: Option<PriceBias>,
     ) -> I80F48 {
         match self {
-            OracleData::Pyth(price_feed) => price_feed
-                .get_price_of_type(oracle_price_type, bias)
-                .unwrap(),
-            OracleData::Switchboard(price_feed) => price_feed
-                .get_price_of_type(oracle_price_type, bias)
-                .unwrap(),
             OracleData::PythPush(price_feed) => price_feed
                 .get_price_of_type(oracle_price_type, bias)
                 .unwrap(),
@@ -225,18 +217,6 @@ impl Snapshot {
 
                 match bank.config.oracle_setup {
                     OracleSetup::None => (),
-                    OracleSetup::PythLegacy => {
-                        let oracle_address = bank.config.oracle_keys[0];
-                        self.routing_lookup
-                            .insert(oracle_address, AccountRoutingType::PriceFeedPyth);
-                        accounts_to_fetch.push(oracle_address);
-                    }
-                    OracleSetup::SwitchboardV2 => {
-                        let oracle_address = bank.config.oracle_keys[0];
-                        self.routing_lookup
-                            .insert(oracle_address, AccountRoutingType::PriceFeedSwitchboard);
-                        accounts_to_fetch.push(oracle_address);
-                    }
                     OracleSetup::PythPushOracle => {
                         let feed_id = bank.config.oracle_keys[0].to_bytes();
                         let (pyth_sponsored_oracle_address, _) =
@@ -319,13 +299,6 @@ impl Snapshot {
             .get(account_pubkey)
             .expect("Account not found in routing lookup");
         match routing_info {
-            AccountRoutingType::PriceFeedPyth => {
-                let mut account = account.clone();
-                let ai = (account_pubkey, &mut account).into_account_info();
-                let pf = PythLegacyPriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
-                self.price_feeds
-                    .insert(*account_pubkey, OracleData::Pyth(pf));
-            }
             AccountRoutingType::Bank(bank_pk, BankUpdateRoutingType::LiquidityTokenAccount) => {
                 self.banks
                     .get_mut(bank_pk)
@@ -359,13 +332,6 @@ impl Snapshot {
                     *account_pubkey,
                     MarginfiGroup::try_deserialize(&mut (&account.data as &[u8])).unwrap(),
                 );
-            }
-            AccountRoutingType::PriceFeedSwitchboard => {
-                let mut account = account.clone();
-                let ai = (account_pubkey, &mut account).into_account_info();
-                let pf = SwitchboardV2PriceFeed::load_checked(&ai, 0, u64::MAX).unwrap();
-                self.price_feeds
-                    .insert(*account_pubkey, OracleData::Switchboard(pf));
             }
             AccountRoutingType::PriceFeedPythPushOracle => {
                 let mut account = account.clone();

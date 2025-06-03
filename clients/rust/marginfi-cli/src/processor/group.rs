@@ -2,11 +2,9 @@ use crate::{config::Config, profile::Profile, utils};
 use anyhow::Result;
 use log::{debug, info, warn};
 use marginfi::state::marginfi_group::Bank;
-use solana_address_lookup_table_program::{
-    instruction::{create_lookup_table, extend_lookup_table},
-    state::AddressLookupTable,
-};
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
+use solana_sdk::address_lookup_table::instruction::{create_lookup_table, extend_lookup_table};
+use solana_sdk::address_lookup_table::state::AddressLookupTable;
 use solana_sdk::{
     account::Account, pubkey::Pubkey, signer::Signer, system_program, transaction::Transaction,
 };

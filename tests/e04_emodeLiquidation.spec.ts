@@ -7,8 +7,6 @@ import {
   ecosystem,
   EMODE_INIT_RATE_LST_TO_LST,
   EMODE_MAINT_RATE_LST_TO_LST,
-  EMODE_INIT_RATE_SOL_TO_LST,
-  EMODE_MAINT_RATE_SOL_TO_LST,
   EMODE_SEED,
   emodeAdmin,
   emodeGroup,
@@ -25,7 +23,6 @@ import { assertBankrunTxFailed } from "./utils/genericTests";
 import { USER_ACCOUNT_E } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import {
-  CONF_INTERVAL_MULTIPLE,
   EMODE_APPLIES_TO_ISOLATED,
   EMODE_LST_TAG,
   EMODE_SOL_TAG,
@@ -41,7 +38,6 @@ import {
   composeRemainingAccounts,
 } from "./utils/user-instructions";
 import { configBankEmode } from "./utils/group-instructions";
-import { dumpBankrunLogs } from "./utils/tools";
 import { assert } from "chai";
 import { bytesToF64 } from "./utils/tools";
 
@@ -58,8 +54,8 @@ const liquidator_usdc: number = 10;
 /** SOL funding for the liquidator (user 2) */
 const liquidator_sol: number = 0.1;
 
-const REDUCED_INIT_SOL_LST_RATE = 0.85;
-const REDUCED_MAINT_SOL_LST_RATE = 0.9;
+const REDUCED_INIT_SOL_LST_RATE = 0.8;
+const REDUCED_MAINT_SOL_LST_RATE = 0.85;
 
 describe("Emode liquidation", () => {
   before(async () => {
@@ -262,10 +258,10 @@ describe("Emode liquidation", () => {
   // In terms of what we actually see in the health pulse:
   // * Because liquidator has other borrows, they get no emode benefit on the sol they obtained.
   //   The SOL bank's actual asset weight is 0.5, so Liquidator's asset value increases by
-  //   ($15 * 0.5) = $7.5
+  //   ($14.682 * 0.5) = $7.341
   // * The liability weight is 100%, so liquidator repays ($14.31495 * 1) = $14.31495
   // * Liquidatee loses the same asset amount, but WITH an emode benefit, so liquidatee sees a
-  //   drop of ($14.682 * 0.85) = $12.75 and a reduction of $13.9479 in debt
+  //   drop of ($14.682 * 0.80) = $11.7456 and a reduction of $13.9479 in debt
 
   // In health terms the liquidator has lost money! In real terms the liquidator has gained $
   // value $15 - $14.31495 = $0.68505
@@ -390,9 +386,9 @@ describe("Emode liquidation", () => {
       leeHealthCache.liabilityValue
     ).toNumber();
 
-    assert.approximately(liqAvAfter - liqAvBefore, 7.5, 0.001);
+    assert.approximately(liqAvAfter - liqAvBefore, 7.341, 0.001);
     assert.approximately(liqLvAfter - liqLvBefore, 14.31495, 0.001);
-    assert.approximately(leeAvAfter - leeAvBefore, -12.75, 0.001);
+    assert.approximately(leeAvAfter - leeAvBefore, -11.7456, 0.001);
     assert.approximately(leeLvAfter - leeLvBefore, -13.9479, 0.001);
   });
 
@@ -400,9 +396,9 @@ describe("Emode liquidation", () => {
   // portfolio, due to emode, a position might be more valuable than when the liquidator acquires
   // it, which can make their account unhealthy and cause liquidation to fail.
   //
-  // Here the liquidator has $20 in collateral at the end of the previous test and ~$14.31 in
-  // liabilties. Repeating the 7.5 and 14.31495 repayment above, the liquidator would end up with 20
-  // + 7.5 = $27.5 in assets and 14.31495 + 14.31495 = $28.62 in liabilities, so the liquidator has
+  // Here the liquidator has $19.576 in collateral at the end of the previous test and $14.315 in
+  // liabilties. Repeating the 7.341 and 14.31495 repayment above, the liquidator would end up with 19.576
+  // + 7.341 = $26.917 in assets and 14.31495 + 14.31495 = $28.63 in liabilities, so the liquidator has
   // put themselves in an unhealthy state!
   it("(liquidator) renders their own account unhealthy due to liquidation - should fail", async () => {
     const liquidatee = users[0];

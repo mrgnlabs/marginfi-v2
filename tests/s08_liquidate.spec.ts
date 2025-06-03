@@ -33,7 +33,9 @@ import {
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
 import {
+  CONF_INTERVAL_MULTIPLE,
   defaultStakedInterestSettings,
+  ORACLE_CONF_INTERVAL,
   StakedSettingsEdit,
 } from "./utils/types";
 import {
@@ -53,7 +55,7 @@ describe("Liquidate user (including staked assets)", () => {
     );
   });
 
-  const confidenceInterval = 0.0212; // 1% confidence * CONF_INTERVAL_MULTIPLE
+  const confidenceInterval = ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
   const liquidateAmountSol = 0.1;
   const liquidateAmountSol_native = new BN(
     liquidateAmountSol * 10 ** ecosystem.wsolDecimals
@@ -218,7 +220,7 @@ describe("Liquidate user (including staked assets)", () => {
     }
 
     const defaultSettings = defaultStakedInterestSettings(
-      oracles.wsolOracle.publicKey
+      oracles.wsolOracleFeed.publicKey
     );
     const settings: StakedSettingsEdit = {
       oracle: defaultSettings.oracle,
@@ -237,12 +239,12 @@ describe("Liquidate user (including staked assets)", () => {
       await propagateStakedSettings(bankrunProgram, {
         settings: settingsKey,
         bank: assetBankKey,
-        oracle: defaultSettings.oracle,
+        oracle: oracles.wsolOracle.publicKey,
       })
     );
     editTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     editTx.sign(groupAdmin.wallet);
-    await banksClient.processTransaction(editTx);
+    await banksClient.tryProcessTransaction(editTx);
 
     const stakedLowPrice = stakedPrice * (1 - confidenceInterval); // see top of test
     const wsolHighPrice = oracles.wsolPrice * (1 + confidenceInterval); // see top of test
@@ -326,6 +328,12 @@ describe("Liquidate user (including staked assets)", () => {
     assertI80F48Equal(liquidateeBalancesAfter[solBankIndexLiqee].assetShares, 0);
 
     assertI80F48Equal(liquidatorBalancesAfter[solBankIndexLiq].liabilityShares, 0);
+    assertI80F48Equal(
+      liquidatorBalancesAfter[stakedSolBankIndexLiq].assetShares,
+      wrappedI80F48toBigNumber(
+        liquidatorBalances[stakedSolBankIndexLiq].assetShares
+      ).toNumber() + liquidateAmountSol_native.toNumber()
+    );
     assertI80F48Equal(
       liquidatorBalancesAfter[stakedSolBankIndexLiq].assetShares,
       wrappedI80F48toBigNumber(

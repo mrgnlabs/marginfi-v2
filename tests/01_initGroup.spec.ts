@@ -42,9 +42,7 @@ describe("Init group", () => {
       })
     );
 
-    await groupAdmin.mrgnProgram.provider.sendAndConfirm(tx, [
-      marginfiGroup,
-    ]);
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm(tx, [marginfiGroup]);
 
     let group = await program.account.marginfiGroup.fetch(
       marginfiGroup.publicKey

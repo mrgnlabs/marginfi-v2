@@ -2,11 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::Discriminator;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
-use marginfi::constants::PYTH_ID;
 use marginfi::constants::SWITCHBOARD_PULL_ID;
-use pyth_sdk_solana::state::{
-    AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
-};
 use pyth_solana_receiver_sdk::price_update::FeedId;
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use pyth_solana_receiver_sdk::price_update::VerificationLevel;
@@ -46,55 +42,6 @@ where
         accounts: accounts.to_account_metas(Some(true)),
         data: ix_data,
     }
-}
-
-pub fn create_pyth_legacy_price_account_from_bytes(data: Vec<u8>) -> Account {
-    Account {
-        lamports: 1_000_000,
-        data,
-        owner: PYTH_ID,
-        executable: false,
-        rent_epoch: 361,
-    }
-}
-
-pub fn create_pyth_legacy_oracle_account(
-    mint: Pubkey,
-    ui_price: f64,
-    mint_decimals: i32,
-    timestamp: Option<i64>,
-) -> Account {
-    let native_price = (ui_price * 10_f64.powf(mint_decimals as f64)) as i64;
-    let data = bytemuck::bytes_of(&SolanaPriceAccount {
-        prod: mint,
-        agg: PriceInfo {
-            conf: 0,
-            price: native_price,
-            status: PriceStatus::Trading,
-            ..Default::default()
-        },
-        expo: -mint_decimals,
-        prev_price: native_price,
-        magic: MAGIC,
-        ver: VERSION_2,
-        atype: AccountType::Price as u32,
-        timestamp: 0,
-        ema_price: Rational {
-            val: native_price,
-            numer: native_price,
-            denom: 1,
-        },
-        prev_timestamp: timestamp.unwrap_or(0),
-        ema_conf: Rational {
-            val: 0,
-            numer: 0,
-            denom: 1,
-        },
-        ..Default::default()
-    })
-    .to_vec();
-
-    create_pyth_legacy_price_account_from_bytes(data)
 }
 
 pub fn create_pyth_push_oracle_account_from_bytes(data: Vec<u8>) -> Account {
