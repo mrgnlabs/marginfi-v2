@@ -94,7 +94,7 @@
         {
             "label": "Run Fuzz Tests",
             "type": "shell",
-            "command": "cargo fmt && ./scripts/lint.sh && cd programs/marginfi/fuzz && python3 ./generate_corpus.py && cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing -- -max_total_time=300",
+            "command": "cargo fmt && ./scripts/lint.sh && cd programs/marginfi/fuzz && python3 ./generate_corpus.py && cargo +nightly-2024-06-05 fuzz run lend -Zbuild-std --strip-dead-code --no-cfg-fuzzing artifacts/lend/crash-4102ac1d02017d342df6b10a6dd9f892783baea9 -- -max_total_time=300",
             "problemMatcher": [],
             "group": {
                 "kind": "test",

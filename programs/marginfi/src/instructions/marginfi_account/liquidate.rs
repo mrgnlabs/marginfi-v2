@@ -89,6 +89,21 @@ pub fn lending_account_liquidate<'info>(
         MarginfiError::SameAssetAndLiabilityBanks
     );
 
+    msg!("LIQUIDATION AMOUNT: {}", asset_amount);
+    msg!("LIQUIDATION ASSET BANK: {}", ctx.accounts.asset_bank.key());
+    msg!(
+        "LIQUIDATION LIABILITY BANK: {}",
+        ctx.accounts.liab_bank.key()
+    );
+    msg!(
+        "LIQUIDATOR MARGINFI ACCOUNT: {}",
+        ctx.accounts.liquidator_marginfi_account.key()
+    );
+    msg!(
+        "LIQUIDATEE MARGINFI ACCOUNT: {}",
+        ctx.accounts.liquidatee_marginfi_account.key()
+    );
+
     // Liquidators must repay debts in allowed asset types. A SOL debt can be repaid in any asset. A
     // Staked Collateral debt must be repaid in SOL or staked collateral. A Default asset debt can
     // be repaid in any Default asset or SOL.
@@ -125,7 +140,7 @@ pub fn lending_account_liquidate<'info>(
         &*ctx.accounts.liab_bank.load()?,
         ctx.accounts.token_program.key,
     )?;
-        let group = &*marginfi_group_loader.load()?;
+    let group = &*marginfi_group_loader.load()?;
     {
         ctx.accounts.asset_bank.load_mut()?.accrue_interest(
             current_timestamp,
@@ -224,8 +239,8 @@ pub fn lending_account_liquidate<'info>(
         );
 
         debug!(
-            "liab_quantity_liq: {}, liab_q_final: {}, asset_amount: {}, insurance_fund_fee: {}",
-            liab_amount_liquidator, liab_amount_final, asset_amount, insurance_fund_fee
+            "liab_quantity_liq: {}, liab_q_final: {}, asset_amount: {}, insurance_fund_fee: {}, liab_price: {}, asset_price: {}",
+            liab_amount_liquidator, liab_amount_final, asset_amount, insurance_fund_fee, liab_price, asset_price
         );
 
         // Liquidator pays off liability
@@ -245,6 +260,12 @@ pub fn lending_account_liquidate<'info>(
             let post_balance: I80F48 = bank_account
                 .bank
                 .get_liability_amount(bank_account.balance.liability_shares.into())?;
+
+            msg!(
+                "Liquidator liability pre: {}, post: {}",
+                pre_balance,
+                post_balance
+            );
 
             (pre_balance, post_balance)
         };
@@ -269,6 +290,11 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
+            msg!(
+                "Liquidatee assets pre: {}, post: {}",
+                pre_balance,
+                post_balance
+            );
             (pre_balance, post_balance)
         };
 
@@ -290,6 +316,11 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
+            msg!(
+                "Liquidator assets pre: {}, post: {}",
+                pre_balance,
+                post_balance
+            );
             (pre_balance, post_balance)
         };
 
@@ -341,6 +372,11 @@ pub fn lending_account_liquidate<'info>(
                 ctx.remaining_accounts,
             )?;
 
+            msg!(
+                "Liquidatee liabs pre: {}, post: {}",
+                liquidatee_liability_pre_balance,
+                liquidatee_liability_post_balance
+            );
             (
                 liquidatee_liability_pre_balance,
                 liquidatee_liability_post_balance,
@@ -353,11 +389,9 @@ pub fn lending_account_liquidate<'info>(
                 .ok_or(MarginfiError::MathError)?
                 .into();
 
-            asset_bank
-            .update_bank_cache(group)?;
+        asset_bank.update_bank_cache(group)?;
 
-        liab_bank
-            .update_bank_cache(group)?;
+        liab_bank.update_bank_cache(group)?;
 
         (
             LiquidationBalances {
