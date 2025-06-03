@@ -1,5 +1,5 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
+import { ComputeBudgetProgram, LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairSol,
@@ -44,6 +44,7 @@ import {
 } from "./utils/group-instructions";
 import { deriveStakedSettings } from "./utils/pdas";
 import { getStakeAccount } from "./utils/stake-utils";
+import { dumpBankrunLogs } from "./utils/tools";
 
 describe("Liquidate user (including staked assets)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -254,6 +255,7 @@ describe("Liquidate user (including staked assets)", () => {
       10 ** oracles.wsolDecimals;
 
     let tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
         liabilityBankKey,
@@ -325,9 +327,15 @@ describe("Liquidate user (including staked assets)", () => {
       liquidateeBalancesAfter[stakedSolBankIndexLiqee].liabilityShares,
       0
     );
-    assertI80F48Equal(liquidateeBalancesAfter[solBankIndexLiqee].assetShares, 0);
+    assertI80F48Equal(
+      liquidateeBalancesAfter[solBankIndexLiqee].assetShares,
+      0
+    );
 
-    assertI80F48Equal(liquidatorBalancesAfter[solBankIndexLiq].liabilityShares, 0);
+    assertI80F48Equal(
+      liquidatorBalancesAfter[solBankIndexLiq].liabilityShares,
+      0
+    );
     assertI80F48Equal(
       liquidatorBalancesAfter[stakedSolBankIndexLiq].assetShares,
       wrappedI80F48toBigNumber(
