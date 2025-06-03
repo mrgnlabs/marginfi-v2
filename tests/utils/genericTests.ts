@@ -288,3 +288,21 @@ export async function expectFailedTxWithMessage(
   }
   assert.ok(failed, "Transaction succeeded when it should have failed");
 }
+
+/**
+ * Converts an APR value (as a number) into a `u32`-compatible integer representation,
+ * assuming the maximum APR is 1000% (i.e. 10.0). Values above 1000% are clamped to u32::MAX.
+ *
+ * The mapping is linear: 0 → 0, 10.0 → u32::MAX.
+ *
+ * @param value - APR as a number (expected to be >= 0)
+ * @returns A u32-style number in the range [0, 4294967295]
+ */
+export function aprToU32(value: number): number {
+  const MAX_PERCENT = 10.0;
+  const MAX_U32 = 0xffffffff; // 2^32 - 1
+
+  const clamped = Math.min(value, MAX_PERCENT);
+  const ratio = clamped / MAX_PERCENT;
+  return Math.floor(ratio * MAX_U32);
+}

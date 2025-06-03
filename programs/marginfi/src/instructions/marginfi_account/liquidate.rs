@@ -89,21 +89,6 @@ pub fn lending_account_liquidate<'info>(
         MarginfiError::SameAssetAndLiabilityBanks
     );
 
-    msg!("LIQUIDATION AMOUNT: {}", asset_amount);
-    msg!("LIQUIDATION ASSET BANK: {}", ctx.accounts.asset_bank.key());
-    msg!(
-        "LIQUIDATION LIABILITY BANK: {}",
-        ctx.accounts.liab_bank.key()
-    );
-    msg!(
-        "LIQUIDATOR MARGINFI ACCOUNT: {}",
-        ctx.accounts.liquidator_marginfi_account.key()
-    );
-    msg!(
-        "LIQUIDATEE MARGINFI ACCOUNT: {}",
-        ctx.accounts.liquidatee_marginfi_account.key()
-    );
-
     // Liquidators must repay debts in allowed asset types. A SOL debt can be repaid in any asset. A
     // Staked Collateral debt must be repaid in SOL or staked collateral. A Default asset debt can
     // be repaid in any Default asset or SOL.
@@ -170,10 +155,6 @@ pub fn lending_account_liquidate<'info>(
                 Some(&ctx.accounts.liab_bank.key()),
                 &mut None,
             )?;
-    msg!(
-        "Liquidatee pre-liquidation health: {}",
-        pre_liquidation_health
-    );
 
     // ##Accounting changes##
 
@@ -267,12 +248,6 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_liability_amount(bank_account.balance.liability_shares.into())?;
 
-            msg!(
-                "Liquidator liability pre: {}, post: {}",
-                pre_balance,
-                post_balance
-            );
-
             (pre_balance, post_balance)
         };
 
@@ -296,12 +271,6 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            msg!(
-                "Liquidatee assets ({}) pre: {}, post: {}",
-                ctx.accounts.asset_bank.key(),
-                pre_balance,
-                post_balance
-            );
             (pre_balance, post_balance)
         };
 
@@ -323,11 +292,6 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            msg!(
-                "Liquidator assets pre: {}, post: {}",
-                pre_balance,
-                post_balance
-            );
             (pre_balance, post_balance)
         };
 
@@ -379,11 +343,6 @@ pub fn lending_account_liquidate<'info>(
                 ctx.remaining_accounts,
             )?;
 
-            msg!(
-                "Liquidatee liabs pre: {}, post: {}",
-                liquidatee_liability_pre_balance,
-                liquidatee_liability_post_balance
-            );
             (
                 liquidatee_liability_pre_balance,
                 liquidatee_liability_post_balance,

@@ -36,6 +36,7 @@ import {
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { genericMultiBankTestSetup } from "./genericSetups";
 import { Clock } from "solana-bankrun";
+import { aprToU32, assertBNEqual } from "./utils/genericTests";
 
 /** Banks in this test use a "random" seed so their key is non-deterministic. */
 let startingSeed: number;
@@ -293,6 +294,7 @@ describe("Compound interest demonstration", () => {
     const user = users[0];
 
     const tx = new Transaction();
+    let bankBefore = await bankrunProgram.account.bank.fetch(banks[2]);
     tx.add(
       await accrueInterest(user.mrgnBankrunProgram, {
         bank: banks[2],
@@ -407,40 +409,20 @@ describe("Compound interest demonstration", () => {
       }
     }
 
-    assert.approximately(
-      wrappedI80F48toBigNumber(bank.cache.interestRates.baseRate).toNumber(),
-      baseRate,
-      0.00001
+    assert.equal(
+      bank.cache.interestAccumulatedFor,
+      bank.lastUpdate.toNumber() - bankBefore.lastUpdate.toNumber()
     );
-    assert.approximately(
-      wrappedI80F48toBigNumber(bank.cache.interestRates.lendingRate).toNumber(),
-      lendingRate,
-      0.00001
-    );
-    assert.approximately(
+    assert.equal(
       wrappedI80F48toBigNumber(
-        bank.cache.interestRates.borrowingRate
+        bank.cache.accumulatedSinceLastUpdate
       ).toNumber(),
-      borrowRate,
-      0.00001
+      (bankValuesOneYear[2].asset - bankValuesInitial[2]) *
+        wrappedI80F48toBigNumber(bankBefore.totalAssetShares).toNumber()
     );
-    assert.approximately(
-      wrappedI80F48toBigNumber(bank.cache.interestRates.groupFee).toNumber(),
-      groupRate,
-      0.00001
-    );
-    assert.approximately(
-      wrappedI80F48toBigNumber(
-        bank.cache.interestRates.insuranceFee
-      ).toNumber(),
-      insuranceRate,
-      0.00001
-    );
-    assert.approximately(
-      wrappedI80F48toBigNumber(bank.cache.interestRates.protocolFee).toNumber(),
-      protocolRate,
-      0.00001
-    );
+    assert.equal(bank.cache.baseRate, aprToU32(baseRate));
+    assert.equal(bank.cache.lendingRate, aprToU32(lendingRate));
+    assert.equal(bank.cache.borrowingRate, aprToU32(borrowRate));
 
     // Banks 2/3 got simple interest over 1 year...
     assert.approximately(

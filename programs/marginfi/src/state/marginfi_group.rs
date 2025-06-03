@@ -2084,7 +2084,7 @@ mod tests {
             group_fees_collected,
             protocol_fees_collected,
         } = calc_interest_rate_accrual_state_changes(
-            0,
+            3600,
             total_asset_shares,
             total_liability_shares,
             &ir_config.create_interest_rate_calculator(&group),

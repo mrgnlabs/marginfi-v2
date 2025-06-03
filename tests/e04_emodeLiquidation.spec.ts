@@ -304,7 +304,7 @@ describe("Emode liquidation", () => {
 
     let tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({
-        units: 210_000,
+        units: 220_000,
       }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
@@ -414,7 +414,7 @@ describe("Emode liquidation", () => {
 
     let tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({
-        units: 210_000,
+        units: 220_000,
       }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
@@ -518,6 +518,9 @@ describe("Emode liquidation", () => {
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT_E);
 
     let tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({
+        units: 210_000,
+      }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
         liabilityBankKey,

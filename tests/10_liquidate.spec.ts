@@ -5,7 +5,7 @@ import {
   Program,
   workspace,
 } from "@coral-xyz/anchor";
-import { Transaction } from "@solana/web3.js";
+import { ComputeBudgetProgram, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
@@ -270,6 +270,9 @@ describe("Liquidate user", () => {
 
     await liquidator.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({
+        units: 210_000,
+      }),
         await liquidateIx(liquidator.mrgnProgram, {
           assetBankKey,
           liabilityBankKey,

@@ -36,7 +36,7 @@ describe("Initialize user account", () => {
     assertKeysEqual(userAcc.authority, users[0].wallet.publicKey);
     const balances = userAcc.lendingAccount.balances;
     for (let i = 0; i < balances.length; i++) {
-      assert.equal(balances[i].active, false);
+      assert.equal(balances[i].active, 0);
       assertKeyDefault(balances[i].bankPk);
       assertI80F48Equal(balances[i].assetShares, 0);
       assertI80F48Equal(balances[i].liabilityShares, 0);
