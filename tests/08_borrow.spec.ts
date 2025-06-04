@@ -53,25 +53,29 @@ describe("Borrow funds", () => {
     const user = users[0];
     const user0Account = user.accounts.get(USER_ACCOUNT);
     const bank = bankKeypairUsdc.publicKey;
-    await expectFailedTxWithError(async () => {
-      await user.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await borrowIx(user.mrgnProgram, {
-            marginfiAccount: user0Account,
-            bank: bank,
-            tokenAccount: user.usdcAccount,
-            remaining: [
-              bankKeypairA.publicKey,
-              oracles.tokenAOracle.publicKey,
-              bank,
-              oracles.fakeUsdc, // sneaky sneaky...
-            ],
-            amount: borrowAmountUsdc_native,
-          })
-        )
-      );
-      // Note: you can now see expected vs actual keys in the msg! logs just before this error.
-    }, "PythPushMismatchedFeedId");
+    await expectFailedTxWithError(
+      async () => {
+        await user.mrgnProgram.provider.sendAndConfirm(
+          new Transaction().add(
+            await borrowIx(user.mrgnProgram, {
+              marginfiAccount: user0Account,
+              bank: bank,
+              tokenAccount: user.usdcAccount,
+              remaining: [
+                bankKeypairA.publicKey,
+                oracles.tokenAOracle.publicKey,
+                bank,
+                oracles.fakeUsdc, // sneaky sneaky...
+              ],
+              amount: borrowAmountUsdc_native,
+            })
+          )
+        );
+        // Note: you can now see expected vs actual keys in the msg! logs just before this error.
+      },
+      "PythPushMismatchedFeedId",
+      6055
+    );
   });
 
   it("(user 0) borrows SOL (isolated tier) against their token A position - happy path", async () => {
@@ -226,22 +230,26 @@ describe("Borrow funds", () => {
       borrowAmountSol * 10 ** ecosystem.wsolDecimals
     );
 
-    await expectFailedTxWithError(async () => {
-      await user.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await borrowIx(user.mrgnProgram, {
-            marginfiAccount: user0Account,
-            bank: bankKeypairSol.publicKey,
-            tokenAccount: user.wsolAccount,
-            remaining: composeRemainingAccounts([
-              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
-              [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
-              [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
-            ]),
-            amount: borrowAmountSol_native,
-          })
-        )
-      );
-    }, "IsolatedAccountIllegalState");
+    await expectFailedTxWithError(
+      async () => {
+        await user.mrgnProgram.provider.sendAndConfirm(
+          new Transaction().add(
+            await borrowIx(user.mrgnProgram, {
+              marginfiAccount: user0Account,
+              bank: bankKeypairSol.publicKey,
+              tokenAccount: user.wsolAccount,
+              remaining: composeRemainingAccounts([
+                [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+                [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+                [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+              ]),
+              amount: borrowAmountSol_native,
+            })
+          )
+        );
+      },
+      "IsolatedAccountIllegalState",
+      6029
+    );
   });
 });
