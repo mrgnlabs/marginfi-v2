@@ -96,7 +96,7 @@ impl MarginfiGroup {
         } else {
             msg!(
                 "Set emode admin from {:?} to {:?}",
-                self.admin,
+                self.emode_admin,
                 new_emode_admin
             );
             self.emode_admin = new_emode_admin;
