@@ -9,13 +9,16 @@ pub fn lending_pool_accrue_bank_interest(
 ) -> MarginfiResult {
     let clock = Clock::get()?;
     let mut bank = ctx.accounts.bank.load_mut()?;
+    let group = &ctx.accounts.group.load()?;
 
     bank.accrue_interest(
         clock.unix_timestamp,
-        &*ctx.accounts.group.load()?,
+        group,
         #[cfg(not(feature = "client"))]
         ctx.accounts.bank.key(),
     )?;
+
+    bank.update_bank_cache(group)?;
 
     Ok(())
 }

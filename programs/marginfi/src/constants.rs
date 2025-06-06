@@ -69,7 +69,6 @@ pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 /// unreliable, and we want to restrict pools from picking an oracle that is effectively unusable
 pub const ORACLE_MIN_AGE: u16 = 30;
 pub const MAX_PYTH_ORACLE_AGE: u64 = 60;
-pub const MAX_SWB_ORACLE_AGE: u64 = 3 * 60;
 
 /// Range that contains 95% price data distribution
 ///

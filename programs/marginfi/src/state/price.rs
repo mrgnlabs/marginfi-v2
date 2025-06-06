@@ -14,8 +14,6 @@ use anchor_spl::token::Mint;
 use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
-pub use pyth_sdk_solana;
-use pyth_sdk_solana::{state::SolanaPriceAccount, Price, PriceFeed};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use std::{cell::Ref, cmp::min};
@@ -42,8 +40,8 @@ impl OracleSetup {
     pub fn from_u8(value: u8) -> Option<Self> {
         match value {
             0 => Some(Self::None),
-            1 => Some(Self::PythLegacy),
-            2 => Some(Self::SwitchboardV2),
+            1 => Some(Self::PythLegacy),    // Deprecated
+            2 => Some(Self::SwitchboardV2), // Deprecated
             3 => Some(Self::PythPushOracle),
             4 => Some(Self::SwitchboardPull),
             5 => Some(Self::StakedWithPythPush),
@@ -79,26 +77,8 @@ pub trait PriceAdapter {
 #[enum_dispatch(PriceAdapter)]
 #[cfg_attr(feature = "client", derive(Clone))]
 pub enum OraclePriceFeedAdapter {
-    PythLegacy(PythLegacyPriceFeed),
-    SwitchboardV2(SwitchboardV2PriceFeed),
     PythPushOracle(PythPushOraclePriceFeed),
     SwitchboardPull(SwitchboardPullPriceFeed),
-}
-
-#[cfg_attr(feature = "client", derive(Clone, Debug))]
-pub struct SwitchboardV2PriceFeed {
-    _ema_price: Box<Price>,
-    _price: Box<Price>,
-}
-
-impl PriceAdapter for SwitchboardV2PriceFeed {
-    fn get_price_of_type(
-        &self,
-        _price_type: OraclePriceType,
-        _bias: Option<PriceBias>,
-    ) -> MarginfiResult<I80F48> {
-        panic!("swb v2 is deprecated");
-    }
 }
 
 impl OraclePriceFeedAdapter {
@@ -124,21 +104,7 @@ impl OraclePriceFeedAdapter {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
             OracleSetup::PythLegacy => {
-                check!(ais.len() == 1, MarginfiError::WrongNumberOfOracleAccounts);
-                if ais[0].key != &bank_config.oracle_keys[0] {
-                    msg!(
-                        "Expected oracle key: {:?}, got: {:?}",
-                        bank_config.oracle_keys[0],
-                        ais[0].key
-                    );
-                    return Err(error!(MarginfiError::WrongOracleAccountKeys));
-                }
-
-                let account_info = &ais[0];
-
-                Ok(OraclePriceFeedAdapter::PythLegacy(
-                    PythLegacyPriceFeed::load_checked(account_info, clock.unix_timestamp, max_age)?,
-                ))
+                panic!("pyth legacy is deprecated");
             }
             OracleSetup::SwitchboardV2 => {
                 panic!("swb v2 is deprecated");
@@ -223,79 +189,48 @@ impl OraclePriceFeedAdapter {
                 // division last to avoid precision loss. Division does not need to be
                 // decimal-adjusted because both SOL and stake positions use 9 decimals
 
-                // Note: mainnet/staging/devnet use "push" oracles, localnet uses legacy
-                if cfg!(any(
-                    feature = "mainnet-beta",
-                    feature = "staging",
-                    feature = "devnet"
-                )) {
-                    let account_info = &ais[0];
+                let account_info = &ais[0];
 
+                if live!() {
                     check_eq!(
                         account_info.owner,
                         &pyth_solana_receiver_sdk::id(),
                         MarginfiError::StakedPythPushWrongAccountOwner
                     );
-
-                    let price_feed_id = bank_config.get_pyth_push_oracle_feed_id().unwrap();
-                    let mut feed = PythPushOraclePriceFeed::load_checked(
-                        account_info,
-                        price_feed_id,
-                        clock,
-                        max_age,
-                    )?;
-                    let adjusted_price = (feed.price.price as i128)
-                        .checked_mul(sol_pool_adjusted_balance as i128)
-                        .ok_or_else(math_error!())?
-                        .checked_div(lst_supply as i128)
-                        .ok_or_else(math_error!())?;
-                    feed.price.price = adjusted_price.try_into().unwrap();
-
-                    let adjusted_ema_price = (feed.ema_price.price as i128)
-                        .checked_mul(sol_pool_adjusted_balance as i128)
-                        .ok_or_else(math_error!())?
-                        .checked_div(lst_supply as i128)
-                        .ok_or_else(math_error!())?;
-                    feed.ema_price.price = adjusted_ema_price.try_into().unwrap();
-
-                    let price = OraclePriceFeedAdapter::PythPushOracle(feed);
-                    Ok(price)
                 } else {
-                    // Localnet only
-
-                    if ais[0].key != &bank_config.oracle_keys[0] {
-                        msg!(
-                            "Expected oracle key: {:?}, got: {:?}",
-                            bank_config.oracle_keys[0],
-                            ais[0].key
-                        );
-                        return Err(error!(MarginfiError::WrongOracleAccountKeys));
-                    }
-
-                    let account_info = &ais[0];
-                    let mut feed = PythLegacyPriceFeed::load_checked(
-                        account_info,
-                        clock.unix_timestamp,
-                        max_age,
-                    )?;
-
-                    let adjusted_price = (feed.price.price as i128)
-                        .checked_mul(sol_pool_adjusted_balance as i128)
-                        .ok_or_else(math_error!())?
-                        .checked_div(lst_supply as i128)
-                        .ok_or_else(math_error!())?;
-                    feed.price.price = adjusted_price.try_into().unwrap();
-
-                    let adjusted_ema_price = (feed.ema_price.price as i128)
-                        .checked_mul(sol_pool_adjusted_balance as i128)
-                        .ok_or_else(math_error!())?
-                        .checked_div(lst_supply as i128)
-                        .ok_or_else(math_error!())?;
-                    feed.ema_price.price = adjusted_ema_price.try_into().unwrap();
-
-                    let price = OraclePriceFeedAdapter::PythLegacy(feed);
-                    Ok(price)
+                    // On localnet, allow the mock program ID OR the real one (for regression tests against
+                    // actual mainnet accounts).
+                    // * Note: Typically price updates are owned by `pyth_solana_receiver_sdk` and the oracle
+                    // feed account itself is owned by PYTH ID. On localnet, the mock program may own both for
+                    // simplicity.
+                    let owner_ok = account_info.owner.eq(&PYTH_ID)
+                        || account_info.owner.eq(&pyth_solana_receiver_sdk::id());
+                    check!(owner_ok, MarginfiError::StakedPythPushWrongAccountOwner);
                 }
+
+                let price_feed_id = bank_config.get_pyth_push_oracle_feed_id().unwrap();
+                let mut feed = PythPushOraclePriceFeed::load_checked(
+                    account_info,
+                    price_feed_id,
+                    clock,
+                    max_age,
+                )?;
+                let adjusted_price = (feed.price.price as i128)
+                    .checked_mul(sol_pool_adjusted_balance as i128)
+                    .ok_or_else(math_error!())?
+                    .checked_div(lst_supply as i128)
+                    .ok_or_else(math_error!())?;
+                feed.price.price = adjusted_price.try_into().unwrap();
+
+                let adjusted_ema_price = (feed.ema_price.price as i128)
+                    .checked_mul(sol_pool_adjusted_balance as i128)
+                    .ok_or_else(math_error!())?
+                    .checked_div(lst_supply as i128)
+                    .ok_or_else(math_error!())?;
+                feed.ema_price.price = adjusted_ema_price.try_into().unwrap();
+
+                let price = OraclePriceFeedAdapter::PythPushOracle(feed);
+                Ok(price)
             }
         }
     }
@@ -313,23 +248,7 @@ impl OraclePriceFeedAdapter {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
             OracleSetup::PythLegacy => {
-                check!(
-                    oracle_ais.len() == 1,
-                    MarginfiError::WrongNumberOfOracleAccounts
-                );
-
-                if oracle_ais[0].key != &bank_config.oracle_keys[0] {
-                    msg!(
-                        "Expected oracle key: {:?}, got: {:?}",
-                        bank_config.oracle_keys[0],
-                        oracle_ais[0].key
-                    );
-                    return Err(error!(MarginfiError::WrongOracleAccountKeys));
-                }
-
-                PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
-
-                Ok(())
+                panic!("pyth legacy is deprecated");
             }
             OracleSetup::SwitchboardV2 => {
                 panic!("swb v2 is deprecated");
@@ -372,25 +291,10 @@ impl OraclePriceFeedAdapter {
                         MarginfiError::WrongNumberOfOracleAccounts
                     );
 
-                    // Note: mainnet/staging/devnet use "push" oracles, localnet uses legacy
-                    if live!() {
-                        PythPushOraclePriceFeed::check_ai_and_feed_id(
-                            &oracle_ais[0],
-                            bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-                        )?;
-                    } else {
-                        // Localnet only
-                        if oracle_ais[0].key != &bank_config.oracle_keys[0] {
-                            msg!(
-                                "Expected oracle key: {:?}, got: {:?}",
-                                bank_config.oracle_keys[0],
-                                oracle_ais[0].key
-                            );
-                            return Err(error!(MarginfiError::WrongOracleAccountKeys));
-                        }
-
-                        PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
-                    }
+                    PythPushOraclePriceFeed::check_ai_and_feed_id(
+                        &oracle_ais[0],
+                        bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+                    )?;
 
                     let lst_mint = lst_mint.unwrap();
                     let stake_pool = stake_pool.unwrap();
@@ -436,129 +340,12 @@ impl OraclePriceFeedAdapter {
                         oracle_ais.len() == 1,
                         MarginfiError::WrongNumberOfOracleAccounts
                     );
-                    // Note: mainnet/staging/devnet use push oracles, localnet uses legacy push
-                    if live!() {
-                        PythPushOraclePriceFeed::check_ai_and_feed_id(
-                            &oracle_ais[0],
-                            bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-                        )?;
-                    } else {
-                        // Localnet only
-                        PythLegacyPriceFeed::check_ais(&oracle_ais[0])?;
-                    }
+                    PythPushOraclePriceFeed::check_ai_and_feed_id(
+                        &oracle_ais[0],
+                        bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+                    )?;
 
                     Ok(())
-                }
-            }
-        }
-    }
-}
-
-#[cfg_attr(feature = "client", derive(Clone, Debug))]
-pub struct PythLegacyPriceFeed {
-    ema_price: Box<Price>,
-    price: Box<Price>,
-}
-
-impl PythLegacyPriceFeed {
-    pub fn load_checked(ai: &AccountInfo, current_time: i64, max_age: u64) -> MarginfiResult<Self> {
-        let price_feed = load_pyth_price_feed(ai)?;
-
-        // Note: mainnet/staging/devnet use oracle age, localnet ignores oracle age
-        let ema_price = if live!() {
-            price_feed
-                .get_ema_price_no_older_than(current_time, max_age)
-                .ok_or(MarginfiError::InternalLogicError)?
-        } else {
-            price_feed.get_ema_price_unchecked()
-        };
-
-        let price = if live!() {
-            price_feed
-                .get_price_no_older_than(current_time, max_age)
-                .ok_or(MarginfiError::InternalLogicError)?
-        } else {
-            price_feed.get_price_unchecked()
-        };
-
-        Ok(Self {
-            ema_price: Box::new(ema_price),
-            price: Box::new(price),
-        })
-    }
-
-    fn check_ais(ai: &AccountInfo) -> MarginfiResult {
-        load_pyth_price_feed(ai)?;
-        Ok(())
-    }
-
-    fn get_confidence_interval(&self, use_ema: bool) -> MarginfiResult<I80F48> {
-        let price = if use_ema {
-            &self.ema_price
-        } else {
-            &self.price
-        };
-
-        let conf_interval =
-            pyth_price_components_to_i80f48(I80F48::from_num(price.conf), price.expo)?
-                .checked_mul(CONF_INTERVAL_MULTIPLE)
-                .ok_or_else(math_error!())?;
-
-        // Cap confidence interval to 5% of price
-        let price = pyth_price_components_to_i80f48(I80F48::from_num(price.price), price.expo)?;
-
-        let max_conf_interval = price
-            .checked_mul(MAX_CONF_INTERVAL)
-            .ok_or_else(math_error!())?;
-
-        assert!(
-            max_conf_interval >= I80F48::ZERO,
-            "Negative max confidence interval"
-        );
-
-        assert!(
-            conf_interval >= I80F48::ZERO,
-            "Negative confidence interval"
-        );
-
-        Ok(min(conf_interval, max_conf_interval))
-    }
-
-    #[inline(always)]
-    fn get_ema_price(&self) -> MarginfiResult<I80F48> {
-        pyth_price_components_to_i80f48(I80F48::from_num(self.ema_price.price), self.ema_price.expo)
-    }
-
-    #[inline(always)]
-    fn get_unweighted_price(&self) -> MarginfiResult<I80F48> {
-        pyth_price_components_to_i80f48(I80F48::from_num(self.price.price), self.price.expo)
-    }
-}
-
-impl PriceAdapter for PythLegacyPriceFeed {
-    fn get_price_of_type(
-        &self,
-        price_type: OraclePriceType,
-        bias: Option<PriceBias>,
-    ) -> MarginfiResult<I80F48> {
-        let price = match price_type {
-            OraclePriceType::TimeWeighted => self.get_ema_price()?,
-            OraclePriceType::RealTime => self.get_unweighted_price()?,
-        };
-
-        match bias {
-            None => Ok(price),
-            Some(price_bias) => {
-                let confidence_interval = self
-                    .get_confidence_interval(matches!(price_type, OraclePriceType::TimeWeighted))?;
-
-                match price_bias {
-                    PriceBias::Low => Ok(price
-                        .checked_sub(confidence_interval)
-                        .ok_or_else(math_error!())?),
-                    PriceBias::High => Ok(price
-                        .checked_add(confidence_interval)
-                        .ok_or_else(math_error!())?),
                 }
             }
         }
@@ -849,8 +636,9 @@ impl PythPushOraclePriceFeed {
     pub fn check_ai_and_feed_id(ai: &AccountInfo, feed_id: &FeedId) -> MarginfiResult {
         let price_feed_account = load_price_update_v2_checked(ai)?;
 
-        check!(
-            &price_feed_account.price_message.feed_id.eq(feed_id),
+        check_eq!(
+            &price_feed_account.price_message.feed_id,
+            feed_id,
             MarginfiError::PythPushMismatchedFeedId
         );
 
@@ -998,237 +786,13 @@ fn pyth_price_components_to_i80f48(price: I80F48, exponent: i32) -> MarginfiResu
     Ok(price)
 }
 
-/// Load and validate a pyth price feed account.
-fn load_pyth_price_feed(ai: &AccountInfo) -> MarginfiResult<PriceFeed> {
-    check!(ai.owner.eq(&PYTH_ID), MarginfiError::InternalLogicError);
-    let price_feed = SolanaPriceAccount::account_info_to_feed(ai)
-        .map_err(|_| MarginfiError::InternalLogicError)?;
-    Ok(price_feed)
-}
-
 #[cfg(test)]
 mod tests {
-    use fixed_macro::types::I80F48;
     use pretty_assertions::assert_eq;
 
-    use crate::constants::EXP_10;
     use crate::utils::hex_to_bytes;
 
     use super::*;
-
-    #[test]
-    fn pyth_conf_interval_cap() {
-        // Define a price with a 10% confidence interval
-        let high_confidence_price = Box::new(Price {
-            price: 100i64 * EXP_10[6] as i64,
-            conf: 10u64 * EXP_10[6] as u64,
-            expo: -6,
-            publish_time: 0,
-        });
-
-        // Define a price with a 1% confidence interval
-        let low_confidence_price = Box::new(Price {
-            price: 100i64 * EXP_10[6] as i64,
-            conf: EXP_10[6] as u64,
-            expo: -6,
-            publish_time: 0,
-        });
-
-        // Initialize PythEmaPriceFeed with high confidence price as EMA
-        let pyth_adapter = PythLegacyPriceFeed {
-            ema_price: high_confidence_price,
-            price: low_confidence_price,
-        };
-
-        // Test confidence interval when using EMA price (high confidence)
-        let high_conf_interval = pyth_adapter.get_confidence_interval(true).unwrap();
-        // The confidence interval should be capped at 5%
-        assert_eq!(high_conf_interval, I80F48!(5.00000000000007));
-
-        // Test confidence interval when not using EMA price (low confidence)
-        let low_conf_interval = pyth_adapter.get_confidence_interval(false).unwrap();
-        // The confidence interval should be the calculated value (2.12%)
-        assert_eq!(low_conf_interval, I80F48!(2.12));
-    }
-
-    #[test]
-    fn pyth_and_pyth_push_cmp() {
-        fn get_prices(
-            price: i64,
-            conf: u64,
-        ) -> (Price, pyth_solana_receiver_sdk::price_update::Price) {
-            let legacy_price = Price {
-                price,
-                conf,
-                expo: -6,
-                publish_time: 0,
-            };
-
-            let push_price = pyth_solana_receiver_sdk::price_update::Price {
-                price,
-                conf,
-                exponent: -6,
-                publish_time: 0,
-            };
-
-            assert_eq!(legacy_price.price, push_price.price);
-            assert_eq!(legacy_price.conf, push_price.conf);
-            assert_eq!(legacy_price.expo, push_price.exponent);
-            assert_eq!(legacy_price.publish_time, push_price.publish_time);
-
-            (legacy_price, push_price)
-        }
-
-        let (legacy_price, push_price) =
-            get_prices(100i64 * EXP_10[6] as i64, 10u64 * EXP_10[6] as u64);
-
-        let (legacy_ema, push_price_ema) =
-            get_prices(99i64 * EXP_10[6] as i64, 4u64 * EXP_10[6] as u64);
-
-        let pyth_legacy = PythLegacyPriceFeed {
-            ema_price: Box::new(legacy_ema),
-            price: Box::new(legacy_price),
-        };
-
-        let pyth_push = PythPushOraclePriceFeed {
-            ema_price: Box::new(push_price_ema),
-            price: Box::new(push_price),
-        };
-
-        assert_eq!(
-            pyth_legacy.get_ema_price().unwrap(),
-            pyth_push.get_ema_price().unwrap()
-        );
-        assert_eq!(
-            pyth_legacy.get_unweighted_price().unwrap(),
-            pyth_push.get_unweighted_price().unwrap()
-        );
-
-        assert_eq!(
-            pyth_legacy.get_confidence_interval(true).unwrap(),
-            pyth_push.get_confidence_interval(true).unwrap()
-        );
-
-        assert_eq!(
-            pyth_legacy.get_confidence_interval(false).unwrap(),
-            pyth_push.get_confidence_interval(false).unwrap()
-        );
-
-        assert_eq!(
-            pyth_legacy
-                .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
-                .unwrap(),
-            pyth_push
-                .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
-                .unwrap()
-        );
-
-        // Test high bias ema
-        assert_eq!(
-            pyth_legacy
-                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
-                .unwrap(),
-            pyth_push
-                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
-                .unwrap()
-        );
-
-        // Test low bias ema
-        assert_eq!(
-            pyth_legacy
-                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
-                .unwrap(),
-            pyth_push
-                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
-                .unwrap()
-        );
-
-        // Test no bias real time
-        assert_eq!(
-            pyth_legacy
-                .get_price_of_type(OraclePriceType::RealTime, None)
-                .unwrap(),
-            pyth_push
-                .get_price_of_type(OraclePriceType::RealTime, None)
-                .unwrap()
-        );
-
-        // new pricees with very wide confidence
-        let (legacy_price, push_price) =
-            get_prices(100i64 * EXP_10[6] as i64, 100u64 * EXP_10[6] as u64);
-
-        let (legacy_ema, push_price_ema) =
-            get_prices(99i64 * EXP_10[6] as i64, 88u64 * EXP_10[6] as u64);
-
-        let pyth_legacy = PythLegacyPriceFeed {
-            ema_price: Box::new(legacy_ema),
-            price: Box::new(legacy_price),
-        };
-
-        let pyth_push = PythPushOraclePriceFeed {
-            ema_price: Box::new(push_price_ema),
-            price: Box::new(push_price),
-        };
-
-        // Test high bias ema
-        assert_eq!(
-            pyth_legacy.get_ema_price().unwrap(),
-            pyth_push.get_ema_price().unwrap()
-        );
-        assert_eq!(
-            pyth_legacy.get_unweighted_price().unwrap(),
-            pyth_push.get_unweighted_price().unwrap()
-        );
-
-        assert_eq!(
-            pyth_legacy.get_confidence_interval(true).unwrap(),
-            pyth_push.get_confidence_interval(true).unwrap()
-        );
-
-        assert_eq!(
-            pyth_legacy.get_confidence_interval(false).unwrap(),
-            pyth_push.get_confidence_interval(false).unwrap()
-        );
-
-        assert_eq!(
-            pyth_legacy
-                .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
-                .unwrap(),
-            pyth_push
-                .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
-                .unwrap()
-        );
-
-        // Test high bias ema
-        assert_eq!(
-            pyth_legacy
-                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
-                .unwrap(),
-            pyth_push
-                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))
-                .unwrap()
-        );
-
-        // Test low bias ema
-        assert_eq!(
-            pyth_legacy
-                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
-                .unwrap(),
-            pyth_push
-                .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))
-                .unwrap()
-        );
-
-        // Test no bias real time
-        assert_eq!(
-            pyth_legacy
-                .get_price_of_type(OraclePriceType::RealTime, None)
-                .unwrap(),
-            pyth_push
-                .get_price_of_type(OraclePriceType::RealTime, None)
-                .unwrap()
-        );
-    }
 
     use anchor_lang::solana_program::account_info::AccountInfo;
     use std::cell::RefCell;
