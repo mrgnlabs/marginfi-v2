@@ -235,20 +235,32 @@ export function logContainsError(logs: string[], errorCode: string): boolean {
 
 /**
  * Asserts that the contained transaction failed with the given error code. Fails if the tx did not
- * fail or fails with the wrong error code.
+ * fail or fails with the wrong error code (if logs are undefined, searches for error number instead).
  *
  * Invalid if not awaited. MAKE SURE TO CALL WITH AWAIT.
  * @param transactionFn
- * @param errorCode
+ * @param errorCode - an enum value of the error, e.g. "CannotCloseOutstandingEmissions"
+ * @param errorNumber - the error code as a number, e.g. 6033
  */
 export async function expectFailedTxWithError(
   transactionFn: () => Promise<void>,
-  errorCode: string
+  errorCode: string,
+  errorNumber: number
 ): Promise<void> {
   let failed = false;
   try {
     await transactionFn();
   } catch (err) {
+    if (!err.logs || !Array.isArray(err.logs)) {
+      // If logs are not available, check for error number
+      const parsedNumber = extractCustomErrorCode(err.toString());
+      assert.equal(
+        parsedNumber,
+        errorNumber,
+        `Expected error code ${errorNumber} but got ${parsedNumber}`
+      );
+      return;
+    }
     assert.ok(
       logContainsError(err.logs, errorCode),
       `Expected error code '${errorCode}' was not found in logs. Log dump: ${err.logs}`
@@ -256,6 +268,11 @@ export async function expectFailedTxWithError(
     failed = true;
   }
   assert.ok(failed, "Transaction succeeded when it should have failed");
+}
+
+function extractCustomErrorCode(errorMessage) {
+  const match = errorMessage.match(/"Custom":\s*(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
 }
 
 /**

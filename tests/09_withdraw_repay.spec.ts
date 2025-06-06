@@ -197,23 +197,28 @@ describe("Withdraw funds", () => {
     const user = users[0];
     const userAccKey = user.accounts.get(USER_ACCOUNT);
     const bank = bankKeypairUsdc.publicKey;
-    await expectFailedTxWithError(async () => {
-      await user.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await repayIx(user.mrgnProgram, {
-            marginfiAccount: userAccKey,
-            bank: bank,
-            tokenAccount: user.usdcAccount,
-            remaining: composeRemainingAccounts([
-              [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
-              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
-            ]),
-            amount: u64MAX_BN,
-            repayAll: true,
-          })
-        )
-      );
-    }, "CannotCloseOutstandingEmissions");
+
+    await expectFailedTxWithError(
+      async () => {
+        await user.mrgnProgram.provider.sendAndConfirm(
+          new Transaction().add(
+            await repayIx(user.mrgnProgram, {
+              marginfiAccount: userAccKey,
+              bank: bank,
+              tokenAccount: user.usdcAccount,
+              remaining: composeRemainingAccounts([
+                [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+                [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+              ]),
+              amount: u64MAX_BN,
+              repayAll: true,
+            })
+          )
+        );
+      },
+      "CannotCloseOutstandingEmissions",
+      6033
+    );
   });
 
   it("(user 0) claims emissions (in token B) before repaying their balance - happy path", async () => {
