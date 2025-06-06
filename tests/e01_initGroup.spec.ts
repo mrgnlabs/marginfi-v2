@@ -190,7 +190,6 @@ describe("Init e-mode enabled group and banks", () => {
       marginfiGroup: emodeGroup.publicKey,
       feePayer: groupAdmin.wallet.publicKey,
       bankMint: bankMint,
-      bank: bankKey,
       config: config,
       seed,
     });

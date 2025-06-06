@@ -141,18 +141,22 @@ describe("Lending pool configure bank", () => {
 
   it("(admin) update oracle to invalid state - should fail", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
-    await expectFailedTxWithError(async () => {
-      await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
-        new Transaction().add(
-          await configureBankOracle(groupAdmin.mrgnProgram, {
-            bank: bankKey,
-            type: 3,
-            oracle: oracles.tokenAOracleFeed.publicKey, // sneaky sneaky
-            feed: oracles.tokenAOracleFeed.publicKey,
-          })
-        )
-      );
-    }, "PythPushInvalidAccount");
+    await expectFailedTxWithError(
+      async () => {
+        await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
+          new Transaction().add(
+            await configureBankOracle(groupAdmin.mrgnProgram, {
+              bank: bankKey,
+              type: 3,
+              oracle: oracles.tokenAOracleFeed.publicKey, // sneaky sneaky
+              feed: oracles.tokenAOracleFeed.publicKey,
+            })
+          )
+        );
+      },
+      "PythPushInvalidAccount",
+      6060
+    );
 
     await expectFailedTxWithMessage(async () => {
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -210,18 +214,22 @@ describe("Lending pool configure bank", () => {
   it("(attacker) tries to change oracle  - should fail with generic signature failure", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
 
-    await expectFailedTxWithError(async () => {
-      await users[0].mrgnProgram.provider.sendAndConfirm!(
-        new Transaction().add(
-          await configureBankOracle(users[0].mrgnProgram, {
-            bank: bankKey,
-            type: 3,
-            oracle: oracles.wsolOracle.publicKey,
-            feed: oracles.wsolOracleFeed.publicKey,
-          })
-        )
-      );
-    }, "ConstraintHasOne");
+    await expectFailedTxWithError(
+      async () => {
+        await users[0].mrgnProgram.provider.sendAndConfirm!(
+          new Transaction().add(
+            await configureBankOracle(users[0].mrgnProgram, {
+              bank: bankKey,
+              type: 3,
+              oracle: oracles.wsolOracle.publicKey,
+              feed: oracles.wsolOracleFeed.publicKey,
+            })
+          )
+        );
+      },
+      "ConstraintHasOne",
+      2001
+    );
 
     await expectFailedTxWithMessage(async () => {
       await users[0].mrgnProgram!.provider.sendAndConfirm!(

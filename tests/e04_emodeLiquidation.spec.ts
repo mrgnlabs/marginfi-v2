@@ -1,5 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { ComputeBudgetProgram, PublicKey, Transaction } from "@solana/web3.js";
 import {
   bankrunContext,
   bankrunProgram,
@@ -303,6 +303,9 @@ describe("Emode liquidation", () => {
     }
 
     let tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({
+        units: 220_000,
+      }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
         liabilityBankKey,
@@ -410,6 +413,9 @@ describe("Emode liquidation", () => {
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT_E);
 
     let tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({
+        units: 220_000,
+      }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
         liabilityBankKey,
@@ -512,6 +518,9 @@ describe("Emode liquidation", () => {
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT_E);
 
     let tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({
+        units: 210_000,
+      }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
         liabilityBankKey,

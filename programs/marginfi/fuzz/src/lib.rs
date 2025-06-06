@@ -836,7 +836,8 @@ impl<'state> MarginfiFuzzContext<'state> {
                     MarginfiError::ExhaustedLiability.into(),
                     MarginfiError::TooSevereLiquidation.into(),
                     MarginfiError::AccountDisabled.into(),
-                    MarginfiError::MathError.into(), // TODO: would be best to avoid this one
+                    MarginfiError::ZeroAssetPrice.into(),
+                    MarginfiError::ZeroLiabilityPrice.into(),
                 ]
                 .contains(&error),
                 "Unexpected liquidate error: {:?}",

@@ -9,6 +9,7 @@ use fixed::types::I80F48;
 use marginfi::{
     constants::ASSET_TAG_DEFAULT,
     state::{
+        bank_cache::BankCache,
         health_cache::HealthCache,
         marginfi_account::MarginfiAccount,
         marginfi_group::{Bank, BankOperationalState, RiskTier},
@@ -674,9 +675,10 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(bank.fees_destination_account, Pubkey::default());
+    assert_eq!(bank.cache, BankCache::default());
 
     assert_eq!(bank._padding_0, [0; 8]);
-    assert_eq!(bank._padding_1, [[0, 0]; 30]);
+    assert_eq!(bank._padding_1, [[0, 0]; 20]);
 
     Ok(())
 }

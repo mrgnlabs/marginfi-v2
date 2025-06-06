@@ -253,7 +253,6 @@ async function addGenericBank(
     marginfiGroup: throwawayGroup.publicKey,
     feePayer: groupAdmin.wallet.publicKey,
     bankMint: bankMint,
-    bank: bankKey,
     config: config,
     seed,
   });
