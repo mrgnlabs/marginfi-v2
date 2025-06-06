@@ -201,7 +201,6 @@ describe("Deposit funds", () => {
           marginfiGroup: marginfiGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          bank: bankKey,
           // globalFeeWallet: globalFeeWallet,
           config: config,
           seed: seed,
