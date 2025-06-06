@@ -535,4 +535,32 @@ describe("Init group and add banks with asset category flags", () => {
     // Timing is annoying to test in bankrun context due to clock warping
     // assert.approximately(now, bank.lastUpdate.toNumber(), 2);
   });
+
+  it("(permissionless) Add staked collateral bank (validator 1) - happy path", async () => {
+    const [bankKey] = deriveBankWithSeed(
+      program.programId,
+      marginfiGroup.publicKey,
+      validators[1].splMint,
+      new BN(0)
+    );
+    validators[1].bank = bankKey;
+
+    let tx = new Transaction();
+    tx.add(
+      await addBankPermissionless(groupAdmin.mrgnBankrunProgram, {
+        marginfiGroup: marginfiGroup.publicKey,
+        feePayer: groupAdmin.wallet.publicKey,
+        pythOracle: oracles.wsolOracle.publicKey,
+        stakePool: validators[1].splPool,
+        seed: new BN(0),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet);
+    await banksClient.processTransaction(tx);
+
+    if (verbose) {
+      console.log("*init LST bank " + validators[1].bank + " (validator 1)");
+    }
+  });
 });
