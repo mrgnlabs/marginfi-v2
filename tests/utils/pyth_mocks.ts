@@ -1,69 +1,12 @@
-// TODO the Price struct has changed a bit since this copy-pasta was generated some time ago,
-// however price and ema price/expo/conf are in the same spot, so if those are all you need, there's
-// no need to update (all modern changes are backwards compatible, new versions of Pyth on-chain
-// will still deserialize the price data)
-
-// Adapated from PsyLend, Jet labs, etc
-import { BN, Program, Wallet, workspace } from "@coral-xyz/anchor";
-import { Keypair, PublicKey } from "@solana/web3.js";
-import { Oracles, createMockAccount, storeMockAccount } from "./mocks";
-import { Mocks } from "../../target/types/mocks";
+// Adapted from PsyLend, Jet labs, etc
+import { BN, Wallet } from "@coral-xyz/anchor";
+import { Keypair } from "@solana/web3.js";
+import { Oracles } from "./mocks";
 import {
   initBlankOracleFeed,
   initOrUpdatePriceUpdateV2,
 } from "./pyth-pull-mocks";
 import { ORACLE_CONF_INTERVAL } from "./types";
-/** Copied from `@pythnetwork/client": "^2.19.0"`, used as a discriminator */
-const Magic = 2712847316;
-
-/**
- * As long as it's large enough, any size is fine.
- */
-const PYTH_ACCOUNT_SIZE = 3312;
-
-export interface Price {
-  version?: number;
-  type?: number;
-  size?: number;
-  priceType?: string;
-  exponent?: number;
-  currentSlot?: bigint;
-  validSlot?: bigint;
-  twap?: Ema;
-  productAccountKey?: PublicKey;
-  nextPriceAccountKey?: PublicKey;
-  aggregatePriceUpdaterAccountKey?: PublicKey;
-  aggregatePriceInfo?: PriceInfo;
-  priceComponents?: PriceComponent[];
-}
-
-export interface PriceInfo {
-  price?: bigint;
-  conf?: bigint;
-  status?: number;
-  corpAct?: number;
-  pubSlot?: bigint;
-}
-
-export interface PriceComponent {
-  publisher?: PublicKey;
-  agg?: PriceInfo;
-  latest?: PriceInfo;
-}
-
-export interface Product {
-  version?: number;
-  atype?: number;
-  size?: number;
-  priceAccount?: PublicKey;
-  attributes?: Record<string, string>;
-}
-
-export interface Ema {
-  valueComponent?: bigint;
-  numerator?: bigint;
-  denominator?: bigint;
-}
 
 /**
  * Set up mock usdc and wsol oracles
@@ -100,7 +43,7 @@ export const setupPythOracles = async (
     a: boolean;
     b: boolean;
     wsolPyth: boolean;
-  }
+  },
 ) => {
   let wsolPythPullOracle = Keypair.generate();
   let wsolPythPullOracleFeed = Keypair.generate();
@@ -118,7 +61,7 @@ export const setupPythOracles = async (
       new BN(wsolNativePrice),
       new BN(wsolConfidence),
       new BN(0),
-      -wsolDecimals
+      -wsolDecimals,
     );
   }
 
@@ -138,7 +81,7 @@ export const setupPythOracles = async (
       new BN(usdcNativePrice),
       new BN(usdcConfidence),
       new BN(0),
-      -usdcDecimals
+      -usdcDecimals,
     );
   }
 
@@ -158,7 +101,7 @@ export const setupPythOracles = async (
       new BN(fakeUsdcNativePrice),
       new BN(fakeUsdcConfidence),
       new BN(0),
-      -usdcDecimals
+      -usdcDecimals,
     );
   }
 
@@ -178,7 +121,7 @@ export const setupPythOracles = async (
       new BN(tokenANativePrice),
       new BN(tokenAConfidence),
       new BN(0),
-      -tokenADecimals
+      -tokenADecimals,
     );
   }
 
@@ -198,7 +141,7 @@ export const setupPythOracles = async (
       new BN(tokenBNativePrice),
       new BN(tokenBConfidence),
       new BN(0),
-      -tokenBDecimals
+      -tokenBDecimals,
     );
   }
 
@@ -218,7 +161,7 @@ export const setupPythOracles = async (
       new BN(priceAlpha),
       new BN(confAlpha),
       new BN(0),
-      -lstAlphaDecimals
+      -lstAlphaDecimals,
     );
   }
 
@@ -233,31 +176,31 @@ export const setupPythOracles = async (
       "Price of 1 wsol.......$" +
         wsolPrice +
         "\t  one token in native decimals: " +
-        (1 * 10 ** wsolDecimals).toLocaleString()
+        (1 * 10 ** wsolDecimals).toLocaleString(),
     );
     console.log(
       "Price of 1 usdc.......$" +
         usdcPrice +
         "\t  one token in native decimals: " +
-        (1 * 10 ** usdcDecimals).toLocaleString()
+        (1 * 10 ** usdcDecimals).toLocaleString(),
     );
     console.log(
       "Price of 1 token A....$" +
         tokenAPrice +
         "\t  one token in native decimals: " +
-        (1 * 10 ** tokenADecimals).toLocaleString()
+        (1 * 10 ** tokenADecimals).toLocaleString(),
     );
     console.log(
       "Price of 1 token B....$" +
         tokenBPrice +
         "\t  one token in native decimals: " +
-        (1 * 10 ** tokenBDecimals).toLocaleString()
+        (1 * 10 ** tokenBDecimals).toLocaleString(),
     );
     console.log(
       "Price of 1 LST alpha..$" +
         lstAlphaPrice +
         "\t  one token in native decimals: " +
-        (1 * 10 ** lstAlphaDecimals).toLocaleString()
+        (1 * 10 ** lstAlphaDecimals).toLocaleString(),
     );
     console.log("");
   }
