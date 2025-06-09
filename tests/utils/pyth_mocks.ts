@@ -165,6 +165,8 @@ export const setupPythOracles = async (
     );
   }
 
+  // testy test test
+
   if (verbose) {
     console.log("Mock Pyth Pull price oracles:");
     console.log("wsol:    \t" + wsolPythPullOracle.publicKey);
