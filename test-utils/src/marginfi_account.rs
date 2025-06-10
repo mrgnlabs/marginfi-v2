@@ -863,15 +863,14 @@ impl MarginfiAccountFixture {
         new_account_keypair: &Keypair,
         global_fee_wallet: Pubkey,
     ) -> Transaction {
-        self
-            .build_transfer_authority_tx(
-                new_marginfi_account,
-                new_authority,
-                signer_keypair,
-                new_account_keypair,
-                global_fee_wallet,
-            )
-            .await
+        self.build_transfer_authority_tx(
+            new_marginfi_account,
+            new_authority,
+            signer_keypair,
+            new_account_keypair,
+            global_fee_wallet,
+        )
+        .await
     }
 
     pub async fn try_close_account(&self, nonce: u64) -> std::result::Result<(), BanksClientError> {

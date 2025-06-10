@@ -56,6 +56,12 @@ export const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
 export const EMODE_SOL_TAG = 501;
 export const EMODE_LST_TAG = 157;
 
+/** In marginfiAccount.flags, indicates an account is disabled and cannot be used. */
+export const ACCOUNT_DISABLED = 1;
+
+/** In lamports, charged when transfering to a new account */
+export const ACCOUNT_TRANSFER_FEE = 100000;
+
 /**
  * The default bank config has
  * * all weights are 1

@@ -40,8 +40,6 @@ export type TransferAccountAuthorityArgs = {
   oldAccount: PublicKey;
   newAccount: PublicKey;
   newAuthority: PublicKey;
-  marginfiGroup: PublicKey;
-  feePayer: PublicKey;
   globalFeeWallet: PublicKey;
 };
 
@@ -54,11 +52,10 @@ export const transferAccountAuthorityIx = (
     .accounts({
       oldMarginfiAccount: args.oldAccount,
       newMarginfiAccount: args.newAccount,
-      group: args.marginfiGroup,
-      authority: args.feePayer,
+      // group: args.marginfiGroup,  // implied from oldMarginfiAccount
+      // authority: args.feePayer, // implied from oldMarginfiAccount
       newAuthority: args.newAuthority,
       globalFeeWallet: args.globalFeeWallet,
-      feePayer: args.feePayer,
     })
     .instruction();
 

@@ -1,4 +1,5 @@
 use crate::{
+    check_eq,
     constants::ACCOUNT_TRANSFER_FEE,
     events::{AccountEventHeader, MarginfiAccountTransferAccountAuthorityEvent},
     prelude::*,
@@ -8,7 +9,13 @@ use anchor_lang::prelude::*;
 use bytemuck::Zeroable;
 
 pub fn transfer_account_authority(ctx: Context<TransferAccountAuthority>) -> MarginfiResult {
-    // The global fee wallet claims a (nominal) fee
+    // Validate the global fee wallet and claim a nominal fee
+    let group = ctx.accounts.group.load()?;
+    check_eq!(
+        ctx.accounts.global_fee_wallet.key(),
+        group.fee_state_cache.global_fee_wallet,
+        MarginfiError::InvalidFeeAta
+    );
     anchor_lang::system_program::transfer(ctx.accounts.transfer_fee(), ACCOUNT_TRANSFER_FEE)?;
 
     let mut old_account = ctx.accounts.old_marginfi_account.load_mut()?;
@@ -39,10 +46,12 @@ pub fn transfer_account_authority(ctx: Context<TransferAccountAuthority>) -> Mar
 
 #[derive(Accounts)]
 pub struct TransferAccountAuthority<'info> {
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
     #[account(
-        mut, 
-        has_one = authority, 
-        has_one = group
+        mut,
+        has_one = group,
+        has_one = authority
     )]
     pub old_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -53,17 +62,17 @@ pub struct TransferAccountAuthority<'info> {
     )]
     pub new_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    pub group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(mut)]
     pub authority: Signer<'info>,
 
     /// CHECK: WARN: New authority is completely unchecked
-    pub new_authority: AccountInfo<'info>,
+    pub new_authority: UncheckedAccount<'info>,
+
+    // TODO add the global fee state as account here and validate the wallet in constraints.
 
     /// CHECK: Validated against group fee state cache
     #[account(mut)]
-    pub global_fee_wallet: AccountInfo<'info>,
+    pub global_fee_wallet: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
