@@ -811,8 +811,7 @@ impl MarginfiAccountFixture {
                 authority: signer.pubkey(),
                 new_authority,
                 global_fee_wallet,
-                fee_payer: signer.pubkey(),
-                system_program: system_program::id(),
+                system_program: system_program::ID,
             }
             .to_account_metas(None),
             data: marginfi::instruction::TransferAccountAuthority {}.data(),

@@ -85,7 +85,7 @@ async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Resu
         .get_tx_transfer_account_authority(
             new_account.pubkey(),
             new_authority.pubkey(),
-            Some(signer.clone()),
+            Some(signer),
             &new_account,
             test_f.marginfi_group.fee_wallet,
         )
