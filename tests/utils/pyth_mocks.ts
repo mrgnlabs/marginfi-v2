@@ -1,4 +1,3 @@
-// Adapted from PsyLend, Jet labs, etc
 import { BN, Wallet } from "@coral-xyz/anchor";
 import { Keypair } from "@solana/web3.js";
 import { Oracles } from "./mocks";
