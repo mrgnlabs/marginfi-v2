@@ -181,3 +181,11 @@ pub const ASSET_TAG_SOL: u8 = 1;
 /// Staked SOL assets. Accounts with a STAKED position can only deposit other STAKED assets or SOL
 /// (`ASSET_TAG_SOL`) and can only borrow SOL (`ASSET_TAG_SOL`)
 pub const ASSET_TAG_STAKED: u8 = 2;
+
+// TODO move this to the global fee wallet eventually
+/// A nominal fee paid to the global wallet when intiating an account transfer. Primarily intended
+/// to avoid spammming account migration, which is mildly annoying to backend systems that track the
+/// state of accounts.
+/// * Should be ~ $0.01 or around that magnitude
+/// * In lamports
+pub const ACCOUNT_TRANSFER_FEE: u64 = 100_000;
