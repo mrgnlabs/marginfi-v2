@@ -48,8 +48,10 @@ pub struct MarginfiAccount {
     /// If pubkey default, the user has not opted into this feature, and must claim emissions
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
+    /// If this account was migrated from another one, store the original account key
+    pub migrated_from: Pubkey, // 32
     pub health_cache: HealthCache,
-    pub _padding0: [u64; 21],
+    pub _padding0: [u64; 17],
 }
 
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;
@@ -82,6 +84,7 @@ impl MarginfiAccount {
         self.authority = authority;
         self.group = group;
         self.emissions_destination_account = Pubkey::default();
+        self.migrated_from = Pubkey::default();
     }
 
     /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
@@ -1570,8 +1573,9 @@ mod test {
                 _padding: [0; 8],
             },
             account_flags: ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
+            migrated_from: Pubkey::default(),
             health_cache: HealthCache::zeroed(),
-            _padding0: [0; 21],
+            _padding0: [0; 17],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED));

@@ -36,6 +36,35 @@ export const accountInit = (
   return ix;
 };
 
+export type TransferAccountAuthorityArgs = {
+  oldAccount: PublicKey;
+  newAccount: PublicKey;
+  newAuthority: PublicKey;
+  marginfiGroup: PublicKey;
+  feePayer: PublicKey;
+  globalFeeWallet: PublicKey;
+};
+
+export const transferAccountAuthorityIx = (
+  program: Program<Marginfi>,
+  args: TransferAccountAuthorityArgs
+) => {
+  const ix = program.methods
+    .transferAccountAuthority()
+    .accounts({
+      oldMarginfiAccount: args.oldAccount,
+      newMarginfiAccount: args.newAccount,
+      group: args.marginfiGroup,
+      authority: args.feePayer,
+      newAuthority: args.newAuthority,
+      globalFeeWallet: args.globalFeeWallet,
+      feePayer: args.feePayer,
+    })
+    .instruction();
+
+  return ix;
+};
+
 export type DepositArgs = {
   marginfiAccount: PublicKey;
   bank: PublicKey;

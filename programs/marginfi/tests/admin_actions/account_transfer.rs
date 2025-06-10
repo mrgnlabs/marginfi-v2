@@ -1,6 +1,7 @@
 use fixtures::{assert_custom_error, test::TestFixture};
 use marginfi::{
-    errors::MarginfiError, state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
+    errors::MarginfiError,
+    state::marginfi_account::{MarginfiAccount, ACCOUNT_TRANSFER_AUTHORITY_ALLOWED},
 };
 use solana_program_test::tokio;
 use solana_sdk::{signature::Keypair, signer::Signer};
@@ -14,10 +15,17 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
     let test_f = TestFixture::new(None).await;
     // Default account with no flags set
     let marginfi_account = test_f.create_marginfi_account().await;
-    let new_authority = Keypair::new().pubkey();
+    let new_authority = Keypair::new();
+    let new_account = Keypair::new();
 
     let res = marginfi_account
-        .try_transfer_account_authority(new_authority, None)
+        .try_transfer_account_authority(
+            new_account.pubkey(),
+            new_authority.pubkey(),
+            None,
+            &new_account,
+            test_f.marginfi_group.fee_wallet,
+        )
         .await;
 
     // Check transfer authority is unchanged
@@ -41,16 +49,26 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
     let account = marginfi_account.load().await;
     assert!(account.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED));
 
-    let new_authority_2 = Keypair::new().pubkey();
+    let new_authority_2 = Keypair::new();
+    let new_account_2 = Keypair::new();
     let res = marginfi_account
-        .try_transfer_account_authority(new_authority_2, None)
+        .try_transfer_account_authority(
+            new_account_2.pubkey(),
+            new_authority_2.pubkey(),
+            None,
+            &new_account_2,
+            test_f.marginfi_group.fee_wallet,
+        )
         .await;
 
     assert!(res.is_ok());
 
     // Check transfer authority
-    let account = marginfi_account.load().await;
-    assert_eq!(account.authority, new_authority_2);
+    let new_acc: MarginfiAccount = test_f
+        .load_and_deserialize(&new_account_2.pubkey())
+        .await;
+    assert_eq!(new_acc.authority, new_authority_2.pubkey());
+    assert_eq!(new_acc.migrated_from, marginfi_account.key);
 
     Ok(())
 }
@@ -59,11 +77,18 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
 async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
     let marginfi_account = test_f.create_marginfi_account().await;
-    let new_authority = Keypair::new().pubkey();
+    let new_authority = Keypair::new();
+    let new_account = Keypair::new();
     let signer = Keypair::new();
 
     let tx = marginfi_account
-        .get_tx_transfer_account_authority(new_authority, Some(signer))
+        .get_tx_transfer_account_authority(
+            new_account.pubkey(),
+            new_authority.pubkey(),
+            Some(signer.clone()),
+            &new_account,
+            test_f.marginfi_group.fee_wallet,
+        )
         .await;
 
     // Note: Sending this tx takes a very long time (longer than all the other tests combined)

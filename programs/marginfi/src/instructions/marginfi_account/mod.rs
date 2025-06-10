@@ -9,7 +9,7 @@ mod liquidate;
 mod pulse_health;
 mod repay;
 mod sort_balances;
-mod transfer_authority;
+mod transfer_account;
 mod withdraw;
 
 pub use borrow::*;
@@ -23,5 +23,5 @@ pub use liquidate::*;
 pub use pulse_health::*;
 pub use repay::*;
 pub use sort_balances::*;
-pub use transfer_authority::*;
+pub use transfer_account::*;
 pub use withdraw::*;
