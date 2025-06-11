@@ -317,10 +317,10 @@ pub mod marginfi {
         marginfi_group::unset_account_flag(ctx, flag)
     }
 
-    pub fn transfer_account_authority(
-        ctx: Context<TransferAccountAuthority>,
+    pub fn transfer_to_new_account(
+        ctx: Context<TransferToNewAccount>,
     ) -> MarginfiResult {
-        marginfi_account::transfer_account_authority(ctx)
+        marginfi_account::transfer_to_new_account(ctx)
     }
 
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {

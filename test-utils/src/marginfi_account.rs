@@ -788,7 +788,7 @@ impl MarginfiAccountFixture {
         mem::size_of::<MarginfiAccount>() + 8
     }
 
-    async fn build_transfer_authority_tx(
+    async fn build_transfer_account(
         &self,
         new_marginfi_account: Pubkey,
         new_authority: Pubkey,
@@ -796,15 +796,13 @@ impl MarginfiAccountFixture {
         new_account_keypair: &Keypair,
         global_fee_wallet: Pubkey,
     ) -> Transaction {
-        // Load account details
         let marginfi_account = self.load().await;
         let ctx = self.ctx.borrow();
         let signer = signer_keypair.unwrap_or_else(|| ctx.payer.insecure_clone());
 
-        // Create the transfer authority instruction
-        let transfer_account_authority_ix = Instruction {
+        let transfer_account_ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::TransferAccountAuthority {
+            accounts: marginfi::accounts::TransferToNewAccount {
                 old_marginfi_account: self.key,
                 new_marginfi_account,
                 group: marginfi_account.group,
@@ -814,12 +812,11 @@ impl MarginfiAccountFixture {
                 system_program: system_program::ID,
             }
             .to_account_metas(None),
-            data: marginfi::instruction::TransferAccountAuthority {}.data(),
+            data: marginfi::instruction::TransferToNewAccount {}.data(),
         };
 
-        // Build and sign the transaction
         Transaction::new_signed_with_payer(
-            &[transfer_account_authority_ix],
+            &[transfer_account_ix],
             Some(&signer.pubkey()),
             &[&signer, new_account_keypair],
             ctx.last_blockhash,
@@ -829,7 +826,7 @@ impl MarginfiAccountFixture {
     /// Use the client to send the transfer ix authority transaction
     /// Pass the new authority as an argument
     /// Optional: use a different signer (for negative test case)
-    pub async fn try_transfer_account_authority(
+    pub async fn try_transfer_account(
         &self,
         new_marginfi_account: Pubkey,
         new_authority: Pubkey,
@@ -838,7 +835,7 @@ impl MarginfiAccountFixture {
         global_fee_wallet: Pubkey,
     ) -> std::result::Result<(), BanksClientError> {
         let tx = self
-            .build_transfer_authority_tx(
+            .build_transfer_account(
                 new_marginfi_account,
                 new_authority,
                 signer_keypair,
@@ -855,7 +852,7 @@ impl MarginfiAccountFixture {
     /// Use the client to get the transfer ix authority transaction
     /// Pass the new authority as an argument
     /// Optional: use a different signer (for negative test case)
-    pub async fn get_tx_transfer_account_authority(
+    pub async fn get_tx_transfer_account(
         &self,
         new_marginfi_account: Pubkey,
         new_authority: Pubkey,
@@ -863,7 +860,7 @@ impl MarginfiAccountFixture {
         new_account_keypair: &Keypair,
         global_fee_wallet: Pubkey,
     ) -> Transaction {
-        self.build_transfer_authority_tx(
+        self.build_transfer_account(
             new_marginfi_account,
             new_authority,
             signer_keypair,

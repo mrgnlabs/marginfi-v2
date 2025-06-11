@@ -48,7 +48,7 @@ export const transferAccountAuthorityIx = (
   args: TransferAccountAuthorityArgs
 ) => {
   const ix = program.methods
-    .transferAccountAuthority()
+    .transferToNewAccount()
     .accounts({
       oldMarginfiAccount: args.oldAccount,
       newMarginfiAccount: args.newAccount,

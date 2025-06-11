@@ -1,17 +1,13 @@
-use fixtures::{assert_custom_error, test::TestFixture};
-use marginfi::{
-    errors::MarginfiError,
-    state::marginfi_account::{MarginfiAccount, ACCOUNT_TRANSFER_AUTHORITY_ALLOWED},
-};
+use fixtures::test::TestFixture;
+use marginfi::state::marginfi_account::{MarginfiAccount, ACCOUNT_DISABLED};
 use solana_program_test::tokio;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
 // Test transfer account authority.
-// No transfer flag set -- tx should fail.
-// Set the flag and try again -- tx should succeed.
+// No transfer flag set -- no longer matters, tx should succeed.
 // RUST_BACKTRACE=1 cargo test-bpf marginfi_account_authority_transfer_no_flag_set -- --exact
 #[tokio::test]
-async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()> {
+async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
     // Default account with no flags set
     let marginfi_account = test_f.create_marginfi_account().await;
@@ -19,7 +15,7 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
     let new_account = Keypair::new();
 
     let res = marginfi_account
-        .try_transfer_account_authority(
+        .try_transfer_account(
             new_account.pubkey(),
             new_authority.pubkey(),
             None,
@@ -27,54 +23,24 @@ async fn marginfi_account_authority_transfer_no_flag_set() -> anyhow::Result<()>
             test_f.marginfi_group.fee_wallet,
         )
         .await;
-
-    // Check transfer authority is unchanged
-    let account = marginfi_account.load().await;
-    assert_eq!(account.authority, test_f.payer());
-
-    // Assert the response is an error due to the lack of the correct flag
-    assert!(res.is_err());
-    assert_custom_error!(
-        res.unwrap_err(),
-        MarginfiError::IllegalAccountAuthorityTransfer
-    );
-
-    // set the flag on the account
-    marginfi_account
-        .try_set_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED)
-        .await
-        .unwrap();
-
-    // Check transfer authority flag
-    let account = marginfi_account.load().await;
-    assert!(account.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED));
-
-    let new_authority_2 = Keypair::new();
-    let new_account_2 = Keypair::new();
-    let res = marginfi_account
-        .try_transfer_account_authority(
-            new_account_2.pubkey(),
-            new_authority_2.pubkey(),
-            None,
-            &new_account_2,
-            test_f.marginfi_group.fee_wallet,
-        )
-        .await;
-
     assert!(res.is_ok());
 
-    // Check transfer authority
-    let new_acc: MarginfiAccount = test_f
-        .load_and_deserialize(&new_account_2.pubkey())
-        .await;
-    assert_eq!(new_acc.authority, new_authority_2.pubkey());
-    assert_eq!(new_acc.migrated_from, marginfi_account.key);
+    // Old account still has the old authority, but is now now inactive
+    let account_old = marginfi_account.load().await;
+    assert_eq!(account_old.authority, test_f.payer());
+    assert_eq!(account_old.account_flags, ACCOUNT_DISABLED);
+
+    // The new account has the new authority
+    let account_new: MarginfiAccount = test_f.load_and_deserialize(&new_account.pubkey()).await;
+    assert_eq!(account_new.authority, new_authority.pubkey());
+    // Old account is recorded as the migration source
+    assert_eq!(account_new.migrated_from, marginfi_account.key);
 
     Ok(())
 }
 
 #[tokio::test]
-async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Result<()> {
+async fn marginfi_account_transfer_not_account_owner() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
     let marginfi_account = test_f.create_marginfi_account().await;
     let new_authority = Keypair::new();
@@ -82,7 +48,7 @@ async fn marginfi_account_authority_transfer_not_account_owner() -> anyhow::Resu
     let signer = Keypair::new();
 
     let tx = marginfi_account
-        .get_tx_transfer_account_authority(
+        .get_tx_transfer_account(
             new_account.pubkey(),
             new_authority.pubkey(),
             Some(signer),

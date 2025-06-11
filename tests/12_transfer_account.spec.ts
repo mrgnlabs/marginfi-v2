@@ -77,8 +77,6 @@ describe("Transfer account authority", () => {
   // Here the user wants to retain ownership but move all their positions to a new account for some
   // reason (mostly this use-case applies to integrators that use accounts for whatever use-case)
   it("(user 0) migrate an account with positions to a new account - happy path", async () => {
-    // users[0].accounts.set(USER_ACCOUNT, oldAcc.publicKey);
-
     const oldAccKey = users[0].accounts.get(USER_ACCOUNT);
     const oldAccBefore = await program.account.marginfiAccount.fetch(oldAccKey);
     dumpAccBalances(oldAccBefore);
@@ -140,7 +138,7 @@ describe("Transfer account authority", () => {
     );
 
     await expectFailedTxWithMessage(async () => {
-      await users[0].mrgnProgram.provider.sendAndConfirm!(tx, [newAccKeypair]);
+      await users[0].mrgnProgram.provider.sendAndConfirm(tx, [newAccKeypair]);
     }, "InvalidFeeAta");
   });
 

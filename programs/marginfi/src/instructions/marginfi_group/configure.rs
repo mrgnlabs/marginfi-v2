@@ -1,7 +1,7 @@
 use crate::check;
 use crate::events::{GroupEventHeader, MarginfiGroupConfigureEvent};
 use crate::prelude::MarginfiError;
-use crate::state::marginfi_account::{MarginfiAccount, ACCOUNT_TRANSFER_AUTHORITY_ALLOWED};
+use crate::state::marginfi_account::{MarginfiAccount, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED};
 use crate::{state::marginfi_group::MarginfiGroup, MarginfiResult};
 use anchor_lang::prelude::*;
 
@@ -61,7 +61,7 @@ pub struct MarginfiGroupConfigure<'info> {
 /// 0b1000 is a valid flag
 /// 0b01100 is a valid flag
 /// 0b0101 is not a valid flag
-const CONFIGURABLE_FLAGS: u64 = ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
+const CONFIGURABLE_FLAGS: u64 = ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
 
 fn flag_can_be_set(flag: u64) -> bool {
     // If bitwise AND operation between flag and its bitwise NOT of CONFIGURABLE_FLAGS is 0,
@@ -79,6 +79,7 @@ pub fn set_account_flag(ctx: Context<SetAccountFlag>, flag: u64) -> MarginfiResu
     Ok(())
 }
 
+// TODO this ix currently does nothing because the only settable flag is deprecated.
 #[derive(Accounts)]
 pub struct SetAccountFlag<'info> {
     #[account(
@@ -125,7 +126,7 @@ pub struct UnsetAccountFlag<'info> {
 mod tests {
     use crate::state::marginfi_account::{
         ACCOUNT_DISABLED, ACCOUNT_FLAG_DEPRECATED, ACCOUNT_IN_FLASHLOAN,
-        ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
+        ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
     };
 
     #[test]
@@ -134,13 +135,14 @@ mod tests {
         let flag2 = ACCOUNT_FLAG_DEPRECATED + ACCOUNT_IN_FLASHLOAN;
         let flag3 = ACCOUNT_IN_FLASHLOAN + ACCOUNT_DISABLED + ACCOUNT_FLAG_DEPRECATED;
         let flag4 = ACCOUNT_DISABLED + ACCOUNT_IN_FLASHLOAN;
-        let flag5 = ACCOUNT_FLAG_DEPRECATED + ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
-        let flag6 = ACCOUNT_DISABLED + ACCOUNT_FLAG_DEPRECATED + ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
+        let flag5 = ACCOUNT_FLAG_DEPRECATED + ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
+        let flag6 =
+            ACCOUNT_DISABLED + ACCOUNT_FLAG_DEPRECATED + ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
         let flag7 = ACCOUNT_DISABLED
             + ACCOUNT_FLAG_DEPRECATED
             + ACCOUNT_IN_FLASHLOAN
-            + ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
-        let flag8 = ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
+            + ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
+        let flag8 = ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
 
         // Malformed flags should fail
         assert!(!super::flag_can_be_set(flag1));

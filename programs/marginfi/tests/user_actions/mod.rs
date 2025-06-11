@@ -19,7 +19,7 @@ use marginfi::{
     prelude::*,
     state::marginfi_account::{
         BankAccountWrapper, ACCOUNT_DISABLED, ACCOUNT_FLAG_DEPRECATED, ACCOUNT_IN_FLASHLOAN,
-        ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
+        ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
     },
 };
 use pretty_assertions::assert_eq;
@@ -502,12 +502,12 @@ async fn account_flags() -> anyhow::Result<()> {
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlag);
 
     let res = mfi_account_f
-        .try_set_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED)
+        .try_set_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED)
         .await;
 
     assert!(res.is_ok());
     let acc = mfi_account_f.load().await;
-    assert_eq!(acc.account_flags, ACCOUNT_TRANSFER_AUTHORITY_ALLOWED);
+    assert_eq!(acc.account_flags, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED);
 
     Ok(())
 }

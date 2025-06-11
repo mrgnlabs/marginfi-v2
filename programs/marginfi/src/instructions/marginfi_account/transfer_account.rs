@@ -1,14 +1,14 @@
 use crate::{
     check_eq,
     constants::ACCOUNT_TRANSFER_FEE,
-    events::{AccountEventHeader, MarginfiAccountTransferAccountAuthorityEvent},
+    events::{AccountEventHeader, MarginfiAccountTransferToNewAccount},
     prelude::*,
     state::marginfi_account::{LendingAccount, MarginfiAccount, ACCOUNT_DISABLED},
 };
 use anchor_lang::prelude::*;
 use bytemuck::Zeroable;
 
-pub fn transfer_account_authority(ctx: Context<TransferAccountAuthority>) -> MarginfiResult {
+pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
     // Validate the global fee wallet and claim a nominal fee
     let group = ctx.accounts.group.load()?;
     check_eq!(
@@ -30,13 +30,14 @@ pub fn transfer_account_authority(ctx: Context<TransferAccountAuthority>) -> Mar
     old_account.lending_account = LendingAccount::zeroed();
     old_account.set_flag(ACCOUNT_DISABLED);
 
-    emit!(MarginfiAccountTransferAccountAuthorityEvent {
+    emit!(MarginfiAccountTransferToNewAccount {
         header: AccountEventHeader {
             signer: Some(ctx.accounts.authority.key()),
             marginfi_account: ctx.accounts.new_marginfi_account.key(),
             marginfi_account_authority: ctx.accounts.new_authority.key(),
             marginfi_group: ctx.accounts.group.key(),
         },
+        old_account: ctx.accounts.old_marginfi_account.key(),
         old_account_authority: ctx.accounts.authority.key(),
         new_account_authority: ctx.accounts.new_authority.key(),
     });
@@ -45,7 +46,7 @@ pub fn transfer_account_authority(ctx: Context<TransferAccountAuthority>) -> Mar
 }
 
 #[derive(Accounts)]
-pub struct TransferAccountAuthority<'info> {
+pub struct TransferToNewAccount<'info> {
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -68,8 +69,6 @@ pub struct TransferAccountAuthority<'info> {
     /// CHECK: WARN: New authority is completely unchecked
     pub new_authority: UncheckedAccount<'info>,
 
-    // TODO add the global fee state as account here and validate the wallet in constraints.
-
     /// CHECK: Validated against group fee state cache
     #[account(mut)]
     pub global_fee_wallet: UncheckedAccount<'info>,
@@ -77,7 +76,7 @@ pub struct TransferAccountAuthority<'info> {
     pub system_program: Program<'info, System>,
 }
 
-impl<'info> TransferAccountAuthority<'info> {
+impl<'info> TransferToNewAccount<'info> {
     fn transfer_fee(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, anchor_lang::system_program::Transfer<'info>> {
