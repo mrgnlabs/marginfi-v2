@@ -317,9 +317,7 @@ pub mod marginfi {
         marginfi_group::unset_account_flag(ctx, flag)
     }
 
-    pub fn transfer_to_new_account(
-        ctx: Context<TransferToNewAccount>,
-    ) -> MarginfiResult {
+    pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
         marginfi_account::transfer_to_new_account(ctx)
     }
 
