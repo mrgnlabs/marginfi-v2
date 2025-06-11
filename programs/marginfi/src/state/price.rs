@@ -409,17 +409,13 @@ impl SwitchboardPullPriceFeed {
         let price: I80F48 = I80F48::from_num(sw_result.value)
             .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
             .ok_or_else(math_error!())?;
-
-        // WARNING: Adding a line like the following will cause the entire project to silently fail
-        // to build, resulting in `Program not deployed` errors downstream when testing
-
-        // msg!("recorded price: {:?}", price);
-
         Ok(price)
     }
 
     fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
-        let std_div: I80F48 = I80F48::from_num(self.feed.result.std_dev);
+        let std_div: I80F48 = I80F48::from_num(self.feed.result.std_dev)
+            .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
+            .ok_or_else(math_error!())?;
 
         let conf_interval = std_div
             .checked_mul(STD_DEV_MULTIPLE)
