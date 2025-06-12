@@ -767,7 +767,7 @@ impl MarginfiAccountFixture {
         )
     }
 
-    /// Use the client to send the transfer ix authority transaction
+    /// Build and send the “transfer TransferToNewAccount transaction.
     /// Pass the new authority as an argument
     /// Optional: use a different signer (for negative test case)
     pub async fn try_transfer_account(
@@ -793,7 +793,7 @@ impl MarginfiAccountFixture {
             .await
     }
 
-    /// Use the client to get the transfer ix authority transaction
+    /// Build (but don’t send) the “transfer TransferToNewAccount transaction.
     /// Pass the new authority as an argument
     /// Optional: use a different signer (for negative test case)
     pub async fn get_tx_transfer_account(

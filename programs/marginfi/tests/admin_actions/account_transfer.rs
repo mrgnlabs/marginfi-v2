@@ -25,7 +25,7 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
         .await;
     assert!(res.is_ok());
 
-    // Old account still has the old authority, but is now now inactive
+    // Old account still has the old authority, but is now inactive
     let account_old = marginfi_account.load().await;
     assert_eq!(account_old.authority, test_f.payer());
     assert_eq!(account_old.account_flags, ACCOUNT_DISABLED);
