@@ -576,62 +576,6 @@ impl MarginfiAccountFixture {
             .await
     }
 
-    /// Set a flag on the account
-    ///
-    /// Function assumes signer is group admin
-    pub async fn try_set_flag(&self, flag: u64) -> std::result::Result<(), BanksClientError> {
-        let ix = Instruction {
-            program_id: marginfi::id(),
-            accounts: marginfi::accounts::SetAccountFlag {
-                group: self.load().await.group,
-                marginfi_account: self.key,
-                admin: self.ctx.borrow().payer.pubkey(),
-            }
-            .to_account_metas(Some(true)),
-            data: marginfi::instruction::SetAccountFlag { flag }.data(),
-        };
-
-        let ctx = self.ctx.borrow_mut();
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&ctx.payer.pubkey().clone()),
-            &[&ctx.payer],
-            ctx.last_blockhash,
-        );
-
-        ctx.banks_client
-            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
-            .await
-    }
-
-    /// Unset a flag on the account
-    ///
-    /// Function assumes signer is group admin
-    pub async fn try_unset_flag(&self, flag: u64) -> std::result::Result<(), BanksClientError> {
-        let ix = Instruction {
-            program_id: marginfi::id(),
-            accounts: marginfi::accounts::UnsetAccountFlag {
-                group: self.load().await.group,
-                marginfi_account: self.key,
-                admin: self.ctx.borrow().payer.pubkey(),
-            }
-            .to_account_metas(Some(true)),
-            data: marginfi::instruction::UnsetAccountFlag { flag }.data(),
-        };
-
-        let ctx = self.ctx.borrow_mut();
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&ctx.payer.pubkey().clone()),
-            &[&ctx.payer],
-            ctx.last_blockhash,
-        );
-
-        ctx.banks_client
-            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
-            .await
-    }
-
     pub async fn make_lending_account_start_flashloan_ix(&self, end_index: u64) -> Instruction {
         Instruction {
             program_id: marginfi::id(),

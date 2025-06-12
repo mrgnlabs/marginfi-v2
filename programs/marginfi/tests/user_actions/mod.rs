@@ -479,35 +479,3 @@ async fn emissions_setup_t22_with_fee() -> anyhow::Result<()> {
 
     Ok(())
 }
-
-#[tokio::test]
-async fn account_flags() -> anyhow::Result<()> {
-    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
-
-    let mfi_account_f = test_f.create_marginfi_account().await;
-
-    let res = mfi_account_f.try_set_flag(ACCOUNT_FLAG_DEPRECATED).await;
-
-    assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlag);
-
-    let res = mfi_account_f.try_set_flag(ACCOUNT_DISABLED).await;
-
-    assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlag);
-
-    let res = mfi_account_f.try_unset_flag(ACCOUNT_IN_FLASHLOAN).await;
-
-    assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalFlag);
-
-    let res = mfi_account_f
-        .try_set_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED)
-        .await;
-
-    assert!(res.is_ok());
-    let acc = mfi_account_f.load().await;
-    assert_eq!(acc.account_flags, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED);
-
-    Ok(())
-}
