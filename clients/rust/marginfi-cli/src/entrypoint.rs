@@ -8,7 +8,7 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
-use marginfi::state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
+use marginfi::state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
 use marginfi::{
     prelude::*,
     state::{
@@ -979,7 +979,7 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
 
             if account_migration_enabled {
                 println!("Setting account migration flag");
-                flag |= ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
+                flag |= ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
             }
 
             if flag == 0 {

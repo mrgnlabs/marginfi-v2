@@ -168,8 +168,9 @@ pub struct LendingAccountLiquidateEvent {
 }
 
 #[event]
-pub struct MarginfiAccountTransferAccountAuthorityEvent {
+pub struct MarginfiAccountTransferToNewAccount {
     pub header: AccountEventHeader,
+    pub old_account: Pubkey,
     pub old_account_authority: Pubkey,
     pub new_account_authority: Pubkey,
 }
