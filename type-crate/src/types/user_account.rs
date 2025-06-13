@@ -27,8 +27,9 @@ pub struct MarginfiAccount {
     /// If pubkey default, the user has not opted into this feature, and must claim emissions
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
+    pub migrated_from: Pubkey,                 // 32
     pub health_cache: HealthCache,
-    pub _padding0: [u64; 21],
+    pub _padding0: [u64; 17],
 }
 
 impl MarginfiAccount {

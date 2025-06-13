@@ -104,3 +104,29 @@ Update Node
 ### All the tests are failing in Rust and/or TS
 
 Make sure you build the correct version, Rust requires the mainnet version (default features), TS wants localnet (no features)
+
+
+### Program not deployed errors, when build seemingly worked otherwise
+
+Adding a msg! that tries to print any I80F48 without first converting it to a float or similar will
+cause the entire project to silently fail to build, resulting in `Program not deployed` errors
+downstream when testing
+
+```
+msg!("recorded price: {:?}", price);
+```
+
+### Metadata corruption
+Seeing this:
+
+```
+error[E0786]: found invalid metadata files for crate `transfer_hook`
+ --> test-utils/src/lib.rs:9:9
+  |
+9 | pub use transfer_hook;
+  |         ^^^^^^^^^^^^^
+  |
+  = note: corrupt metadata encountered in /home/fish/mrgn/marginfi-v2/marginfi-v2/target/debug/deps/libtest_transfer_hook.rlib
+```
+
+Just `anchor clean` and rebuild. This is particularly likely to occur when switching between build environments e.g. cargo test --lib then anchor build because the former does not use SBF and the latter does.

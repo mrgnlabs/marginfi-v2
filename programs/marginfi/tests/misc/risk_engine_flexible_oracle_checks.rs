@@ -25,6 +25,9 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
     test_f.set_time(0);
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;
+    test_f
+        .set_pyth_oracle_timestamp(PYTH_SOL_EQUIVALENT_FEED, 0)
+        .await;
     test_f.advance_time(120).await;
 
     // Fund SOL lender
@@ -63,27 +66,12 @@ async fn re_one_oracle_stale_failure() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
+    // Note that the error is RiskEngineInitRejected, and not PythPushStalePrice because
+    // we're ignoring the stale oracle errors for the collateral banks. This is because
+    // the most important thing is to have enough collateral (in non-stale banks) in total.
     assert_custom_error!(res.unwrap_err(), MarginfiError::RiskEngineInitRejected);
 
-    // Make SOL feed not stale
-    usdc_bank
-        .update_config(
-            BankConfigOpt {
-                oracle_max_age: Some(200),
-                ..Default::default()
-            },
-            None,
-        )
-        .await?;
-    sol_bank
-        .update_config(
-            BankConfigOpt {
-                oracle_max_age: Some(200),
-                ..Default::default()
-            },
-            None,
-        )
-        .await?;
+    // Make SOLE feed not stale
     sol_eq_bank
         .update_config(
             BankConfigOpt {
@@ -117,6 +105,9 @@ async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
     test_f.set_time(0);
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;
+    test_f
+        .set_pyth_oracle_timestamp(PYTH_SOL_EQUIVALENT_FEED, 0)
+        .await;
     test_f.advance_time(120).await;
 
     // Fund SOL lender
@@ -155,6 +146,9 @@ async fn re_one_oracle_stale_success() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
+    // Note that the error is RiskEngineInitRejected, and not PythPushStalePrice because
+    // we're ignoring the stale oracle errors for the collateral banks. This is because
+    // the most important thing is to have enough collateral (in non-stale banks) in total.
     assert_custom_error!(res.unwrap_err(), MarginfiError::RiskEngineInitRejected);
 
     // Borrow SOL
@@ -209,7 +203,7 @@ async fn re_one_oracle_stale_failure_2() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::PythPushStalePrice);
 
     // Make SOL oracle not stale
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
@@ -314,7 +308,7 @@ async fn re_liquidaiton_fail() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::PythPushStalePrice);
 
     // Make borrower asset bank not stale
     test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, 120).await;
@@ -412,7 +406,7 @@ async fn re_bankruptcy_fail() -> anyhow::Result<()> {
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::PythPushStalePrice);
 
     // Make borrower liablity bank not stale
     test_f.set_pyth_oracle_timestamp(PYTH_USDC_FEED, 120).await;

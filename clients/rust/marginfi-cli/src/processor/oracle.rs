@@ -1,5 +1,5 @@
 use crate::config::Config;
-use borsh::BorshDeserialize;
+use anchor_client::anchor_lang::AnchorDeserialize;
 use chrono::{DateTime, Local, TimeZone};
 use fixed::types::I80F48;
 use marginfi::{

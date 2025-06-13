@@ -203,7 +203,10 @@ impl MarginfiGroupFixture {
             if bank_config.oracle_setup == OracleSetup::PythPushOracle
                 || bank_config.oracle_setup == OracleSetup::StakedWithPythPush
             {
-                Some(get_oracle_id_from_feed_id(bank_config.oracle_keys[0]).unwrap())
+                Some(
+                    get_oracle_id_from_feed_id(bank_config.oracle_keys[0])
+                        .unwrap_or(bank_config.oracle_keys[0]),
+                )
             } else {
                 None
             }
@@ -293,11 +296,8 @@ impl MarginfiGroupFixture {
             if bank_config.oracle_setup == OracleSetup::PythPushOracle
                 || bank_config.oracle_setup == OracleSetup::StakedWithPythPush
             {
-                let id = get_oracle_id_from_feed_id(bank_config.oracle_keys[0]);
-                if id.is_none() {
-                    panic!("Unsupported Pyth feed ID, this should never happen");
-                }
-                id
+                get_oracle_id_from_feed_id(bank_config.oracle_keys[0])
+                    .or(Some(bank_config.oracle_keys[0]))
             } else {
                 None
             }

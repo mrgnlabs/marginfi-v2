@@ -64,10 +64,11 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     marginfi_account.health_cache = health_cache;
 
     let mut bank = bank_loader.load_mut()?;
+    let group = &marginfi_group_loader.load()?;
 
     bank.accrue_interest(
         clock.unix_timestamp,
-        &*marginfi_group_loader.load()?,
+        group,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -161,6 +162,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         &mut marginfi_account.lending_account,
     )?
     .repay(bad_debt)?;
+
+    bank.update_bank_cache(group)?;
 
     marginfi_account.set_flag(ACCOUNT_DISABLED);
 

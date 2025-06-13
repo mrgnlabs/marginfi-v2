@@ -1,30 +1,20 @@
 import { BN, Program } from "@coral-xyz/anchor";
-import { AccountMeta, PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { AccountMeta, PublicKey } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import {
-  deriveBankWithSeed,
-  deriveFeeVault,
-  deriveFeeVaultAuthority,
-  deriveInsuranceVault,
-  deriveInsuranceVaultAuthority,
-  deriveLiquidityVault,
-  deriveLiquidityVaultAuthority,
   deriveStakedSettings,
 } from "./pdas";
 import {
   BankConfig,
   BankConfigOptWithAssetTag,
   EmodeEntry,
-  I80F48_ONE,
   I80F48_ZERO,
   MAX_EMODE_ENTRIES,
-  newEmodeEntry,
   SINGLE_POOL_PROGRAM_ID,
   StakedSettingsConfig,
   StakedSettingsEdit,
 } from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { BankConfigOptRaw } from "@mrgnlabs/marginfi-client-v2";
 import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
 export const MAX_ORACLE_KEYS = 5;
@@ -89,7 +79,6 @@ export type AddBankWithSeedArgs = {
   marginfiGroup: PublicKey;
   feePayer: PublicKey;
   bankMint: PublicKey;
-  bank: PublicKey;
   config: BankConfig;
   seed?: BN;
 };
@@ -232,15 +221,14 @@ export const configureBankOracle = (
   program: Program<Marginfi>,
   args: ConfigureBankOracleArgs
 ) => {
-  const metaKey = args.feed ?? args.oracle;
   const oracleMeta: AccountMeta = {
-    pubkey: metaKey,
+    pubkey: args.oracle,
     isSigner: false,
     isWritable: false,
   };
 
   const ix = program.methods
-    .lendingPoolConfigureBankOracle(args.type, args.oracle)
+    .lendingPoolConfigureBankOracle(args.type, args.feed ?? args.oracle)
     .accounts({
       bank: args.bank,
     })
@@ -675,7 +663,7 @@ export type AccrueInterestArgs = {
   bank: PublicKey;
 };
 
-export const arrueInterest = (
+export const accrueInterest = (
   program: Program<Marginfi>,
   args: AccrueInterestArgs
 ) => {

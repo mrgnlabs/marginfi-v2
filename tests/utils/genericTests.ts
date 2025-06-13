@@ -235,20 +235,32 @@ export function logContainsError(logs: string[], errorCode: string): boolean {
 
 /**
  * Asserts that the contained transaction failed with the given error code. Fails if the tx did not
- * fail or fails with the wrong error code.
+ * fail or fails with the wrong error code (if logs are undefined, searches for error number instead).
  *
  * Invalid if not awaited. MAKE SURE TO CALL WITH AWAIT.
  * @param transactionFn
- * @param errorCode
+ * @param errorCode - an enum value of the error, e.g. "CannotCloseOutstandingEmissions"
+ * @param errorNumber - the error code as a number, e.g. 6033
  */
 export async function expectFailedTxWithError(
   transactionFn: () => Promise<void>,
-  errorCode: string
+  errorCode: string,
+  errorNumber: number
 ): Promise<void> {
   let failed = false;
   try {
     await transactionFn();
   } catch (err) {
+    if (!err.logs || !Array.isArray(err.logs)) {
+      // If logs are not available, check for error number
+      const parsedNumber = extractCustomErrorCode(err.toString());
+      assert.equal(
+        parsedNumber,
+        errorNumber,
+        `Expected error code ${errorNumber} but got ${parsedNumber}`
+      );
+      return;
+    }
     assert.ok(
       logContainsError(err.logs, errorCode),
       `Expected error code '${errorCode}' was not found in logs. Log dump: ${err.logs}`
@@ -256,6 +268,11 @@ export async function expectFailedTxWithError(
     failed = true;
   }
   assert.ok(failed, "Transaction succeeded when it should have failed");
+}
+
+function extractCustomErrorCode(errorMessage) {
+  const match = errorMessage.match(/"Custom":\s*(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
 }
 
 /**
@@ -287,4 +304,22 @@ export async function expectFailedTxWithMessage(
     failed = true;
   }
   assert.ok(failed, "Transaction succeeded when it should have failed");
+}
+
+/**
+ * Converts an APR value (as a number) into a `u32`-compatible integer representation,
+ * assuming the maximum APR is 1000% (i.e. 10.0). Values above 1000% are clamped to u32::MAX.
+ *
+ * The mapping is linear: 0 → 0, 10.0 → u32::MAX.
+ *
+ * @param value - APR as a number (expected to be >= 0)
+ * @returns A u32-style number in the range [0, 4294967295]
+ */
+export function aprToU32(value: number): number {
+  const MAX_PERCENT = 10.0;
+  const MAX_U32 = 0xffffffff; // 2^32 - 1
+
+  const clamped = Math.min(value, MAX_PERCENT);
+  const ratio = clamped / MAX_PERCENT;
+  return Math.floor(ratio * MAX_U32);
 }

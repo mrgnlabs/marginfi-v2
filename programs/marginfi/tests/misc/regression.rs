@@ -9,6 +9,7 @@ use fixed::types::I80F48;
 use marginfi::{
     constants::ASSET_TAG_DEFAULT,
     state::{
+        bank_cache::BankCache,
         health_cache::HealthCache,
         marginfi_account::MarginfiAccount,
         marginfi_group::{Bank, BankOperationalState, RiskTier},
@@ -49,7 +50,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(account.account_flags, 0);
     // health cache doesn't exist on these old accounts, but it also doesn't matter since it's read-only
     assert_eq!(account.health_cache, HealthCache::zeroed());
-    assert_eq!(account._padding0, [0; 21]);
+    assert_eq!(account._padding0, [0; 17]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.is_active());
@@ -126,7 +127,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("3T1kGHp7CrdeW9Qj1t8NMc2Ks233RyvzVhoaUPWoBEFK")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 21]);
+    assert_eq!(account._padding0, [0; 17]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.is_active());
@@ -203,7 +204,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("7hmfVTuXc7HeX3YQjpiCXGVQuTeXonzjp795jorZukVR")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 21]);
+    assert_eq!(account._padding0, [0; 17]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(!balance_1.is_active());
@@ -674,9 +675,10 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(bank.fees_destination_account, Pubkey::default());
+    assert_eq!(bank.cache, BankCache::default());
 
     assert_eq!(bank._padding_0, [0; 8]);
-    assert_eq!(bank._padding_1, [[0, 0]; 30]);
+    assert_eq!(bank._padding_1, [[0, 0]; 20]);
 
     Ok(())
 }

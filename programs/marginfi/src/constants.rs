@@ -69,7 +69,6 @@ pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 /// unreliable, and we want to restrict pools from picking an oracle that is effectively unusable
 pub const ORACLE_MIN_AGE: u16 = 30;
 pub const MAX_PYTH_ORACLE_AGE: u64 = 60;
-pub const MAX_SWB_ORACLE_AGE: u64 = 3 * 60;
 
 /// Range that contains 95% price data distribution
 ///
@@ -182,3 +181,11 @@ pub const ASSET_TAG_SOL: u8 = 1;
 /// Staked SOL assets. Accounts with a STAKED position can only deposit other STAKED assets or SOL
 /// (`ASSET_TAG_SOL`) and can only borrow SOL (`ASSET_TAG_SOL`)
 pub const ASSET_TAG_STAKED: u8 = 2;
+
+// TODO move this to the global fee wallet eventually
+/// A nominal fee paid to the global wallet when intiating an account transfer. Primarily intended
+/// to avoid spamming account migration, which is mildly annoying to backend systems that track the
+/// state of accounts.
+/// * Should be ~ $0.01 or around that magnitude
+/// * In lamports
+pub const ACCOUNT_TRANSFER_FEE: u64 = 100_000;

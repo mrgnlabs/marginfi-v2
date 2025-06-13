@@ -1,10 +1,4 @@
-import {
-  AnchorProvider,
-  getProvider,
-  Program,
-  Wallet,
-  workspace,
-} from "@coral-xyz/anchor";
+import { Program, workspace } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -23,21 +17,22 @@ import {
 import { USER_ACCOUNT } from "./utils/mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import {
+  CONF_INTERVAL_MULTIPLE,
   defaultBankConfigOptRaw,
   HEALTH_CACHE_ENGINE_OK,
   HEALTH_CACHE_HEALTHY,
   HEALTH_CACHE_ORACLE_OK,
   HEALTH_CACHE_PROGRAM_VERSION_0_1_3,
+  ORACLE_CONF_INTERVAL,
 } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
 import { bytesToF64 } from "./utils/tools";
 
 describe("Health pulse", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
-  const provider = getProvider() as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
   /** Tolerance for float inaccuracy */
   const t = 0.00001;
+  const confidence = ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
 
   it("(user 1) health pulse with bad oracle - cache notes the missing price", async () => {
     const user = users[1];
@@ -89,7 +84,7 @@ describe("Health pulse", () => {
     // no error, the risk engine didn't reject this even with the bad oracle because there are no
     // liabilities, so any asset balance is valid!
     assert.equal(cacheAfter.mrgnErr, 0);
-    assert.equal(cacheAfter.internalErr, 6052); // (WrongOracleAccountKeys)
+    assert.equal(cacheAfter.internalErr, 6055); // (PythPushMismatchedFeedId)
     assert.equal(cacheAfter.errIndex, 1);
     // The fake usdc price is set to zero due to the bad oracle
     assert.approximately(bytesToF64(cacheAfter.prices[1]), 0, t);
@@ -150,11 +145,16 @@ describe("Health pulse", () => {
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
     assert.equal(cA.programVersion, HEALTH_CACHE_PROGRAM_VERSION_0_1_3);
-    // Note: Technically this is wrong, our test suite doesn't have any ema confidence for legacy
-    // pyth oracles so the price uses the actual value. You can note that for an oracle with a valid
-    // ema conf like LST the value here will be price - conf.
-    assert.approximately(bytesToF64(cA.prices[0]), oracles.tokenAPrice, t);
-    assert.approximately(bytesToF64(cA.prices[1]), oracles.usdcPrice, t);
+    assert.approximately(
+      bytesToF64(cA.prices[0]),
+      oracles.tokenAPrice * (1.0 - confidence),
+      t
+    );
+    assert.approximately(
+      bytesToF64(cA.prices[1]),
+      oracles.usdcPrice * (1.0 - confidence),
+      t
+    );
   });
 
   it("(user 0) health pulse in unhealthy state - happy path", async () => {
@@ -243,23 +243,25 @@ describe("Health pulse", () => {
       HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
     assert.equal(cacheAfter.mrgnErr, 6009); // RiskEngineInitRejected
+    const adjustedAssetPrice = oracles.tokenAPrice * (1.0 - confidence);
+    const adjustedLiabPrice = oracles.usdcPrice * (1.0 + confidence);
     assert.approximately(
       bytesToF64(cacheAfter.prices[0]),
-      oracles.tokenAPrice,
+      adjustedAssetPrice,
       t
     );
     assert.approximately(
       bytesToF64(cacheAfter.prices[1]),
-      oracles.usdcPrice,
+      adjustedLiabPrice,
       t
     );
     assert.approximately(
-      (expectedValue * oracles.tokenAPrice) / 10 ** oracles.tokenADecimals,
+      (expectedValue * adjustedAssetPrice) / 10 ** oracles.tokenADecimals,
       assetValue.toNumber(),
       0.01
     );
     assert.approximately(
-      (expectedDebt * oracles.usdcPrice) / 10 ** oracles.usdcDecimals,
+      (expectedDebt * adjustedLiabPrice) / 10 ** oracles.usdcDecimals,
       liabValue.toNumber(),
       0.01
     );
@@ -360,23 +362,27 @@ describe("Health pulse", () => {
       cacheAfter.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
+
+    const adjustedAssetPrice = oracles.tokenAPrice * (1.0 - confidence);
+    const adjustedLiabPrice = oracles.usdcPrice * (1.0 + confidence);
+
     assert.approximately(
       bytesToF64(cacheAfter.prices[0]),
-      oracles.tokenAPrice,
+      adjustedAssetPrice,
       t
     );
     assert.approximately(
       bytesToF64(cacheAfter.prices[1]),
-      oracles.usdcPrice,
+      adjustedLiabPrice,
       t
     );
     assert.approximately(
-      (expectedValue * oracles.tokenAPrice) / 10 ** oracles.tokenADecimals,
+      (expectedValue * adjustedAssetPrice) / 10 ** oracles.tokenADecimals,
       assetValue.toNumber(),
       0.01
     );
     assert.approximately(
-      (expectedDebt * oracles.usdcPrice) / 10 ** oracles.usdcDecimals,
+      (expectedDebt * adjustedLiabPrice) / 10 ** oracles.usdcDecimals,
       liabValue.toNumber(),
       0.01
     );

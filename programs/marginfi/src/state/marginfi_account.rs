@@ -48,14 +48,16 @@ pub struct MarginfiAccount {
     /// If pubkey default, the user has not opted into this feature, and must claim emissions
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
+    /// If this account was migrated from another one, store the original account key
+    pub migrated_from: Pubkey, // 32
     pub health_cache: HealthCache,
-    pub _padding0: [u64; 21],
+    pub _padding0: [u64; 17],
 }
 
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;
 pub const ACCOUNT_IN_FLASHLOAN: u64 = 1 << 1;
 pub const ACCOUNT_FLAG_DEPRECATED: u64 = 1 << 2;
-pub const ACCOUNT_TRANSFER_AUTHORITY_ALLOWED: u64 = 1 << 3;
+pub const ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED: u64 = 1 << 3;
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
 pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
@@ -82,6 +84,7 @@ impl MarginfiAccount {
         self.authority = authority;
         self.group = group;
         self.emissions_destination_account = Pubkey::default();
+        self.migrated_from = Pubkey::default();
     }
 
     /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
@@ -116,7 +119,8 @@ impl MarginfiAccount {
 
     pub fn set_new_account_authority_checked(&mut self, new_authority: Pubkey) -> MarginfiResult {
         // check if new account authority flag is set
-        if !self.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED) || self.get_flag(ACCOUNT_DISABLED) {
+        if !self.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED) || self.get_flag(ACCOUNT_DISABLED)
+        {
             return Err(MarginfiError::IllegalAccountAuthorityTransfer.into());
         }
 
@@ -125,7 +129,7 @@ impl MarginfiAccount {
         self.authority = new_authority;
 
         // unset flag after updating the account authority
-        self.unset_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED);
+        self.unset_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED);
 
         msg!(
             "Transferred account authority from {:?} to {:?} in group {:?}",
@@ -1569,12 +1573,13 @@ mod test {
                 }; 16],
                 _padding: [0; 8],
             },
-            account_flags: ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
+            account_flags: ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+            migrated_from: Pubkey::default(),
             health_cache: HealthCache::zeroed(),
-            _padding0: [0; 21],
+            _padding0: [0; 17],
         };
 
-        assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED));
+        assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));
 
         match acc.set_new_account_authority_checked(new_authority.into()) {
             Ok(_) => (),
