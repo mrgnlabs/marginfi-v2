@@ -39,8 +39,9 @@ pub struct EmodeSettings {
 
     /// Unix timestamp from the system clock when emode state was last updated
     pub timestamp: i64,
-    /// EMODE_ON (1) - If set, at least one entry is configured
-    /// 2, 4, 8, etc, Reserved for future use
+    /// * EMODE_ON (1) - If set, at least one entry is configured. Never update this flag manually,
+    /// it should always be equivalent to `EmodeConfig.has_entries`
+    /// * 2, 4, 8, etc, Reserved for future use
     pub flags: u64,
 
     pub emode_config: EmodeConfig,
@@ -117,7 +118,7 @@ impl EmodeSettings {
             );
             check!(
                 asset_maint_w <= (I80F48::ONE + I80F48::ONE),
-                MarginfiError::InvalidConfig
+                MarginfiError::BadEmodeConfig
             );
             check!(asset_maint_w >= asset_init_w, MarginfiError::BadEmodeConfig);
         }
@@ -149,8 +150,10 @@ impl EmodeSettings {
     pub fn is_enabled(&self) -> bool {
         self.flags & EMODE_ON != 0
     }
-    pub fn set_emode_enabled(&mut self, enabled: bool) {
-        if enabled {
+
+    /// Sets EMODE on flag if configuration has any entries, removes the flag if it has no entries.
+    pub fn update_emode_enabled(&mut self) {
+        if self.emode_config.has_entries() {
             self.flags |= EMODE_ON;
         } else {
             self.flags &= !EMODE_ON;
