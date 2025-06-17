@@ -945,40 +945,12 @@ fn make_bankruptcy_ix(
 }
 
 pub fn process_set_user_flag(
-    config: Config,
-    profile: &Profile,
-    marginfi_account_pk: Pubkey,
-    flag: u64,
+    _config: Config,
+    _profile: &Profile,
+    _marginfi_account_pk: Pubkey,
+    _flag: u64,
 ) -> Result<()> {
-    let rpc_client = config.mfi_program.rpc();
-
-    let ix = Instruction {
-        accounts: marginfi::accounts::SetAccountFlag {
-            marginfi_account: marginfi_account_pk,
-            group: profile.marginfi_group.unwrap(),
-            admin: config.authority(),
-        }
-        .to_account_metas(Some(true)),
-        data: marginfi::instruction::SetAccountFlag { flag }.data(),
-        program_id: config.program_id,
-    };
-
-    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-
-    let signing_keypairs = config.get_signers(false);
-
-    let message = Message::new(&[ix], Some(&config.authority()));
-
-    let mut transaction = Transaction::new_unsigned(message);
-
-    transaction.partial_sign(&signing_keypairs, recent_blockhash);
-
-    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
-        Ok(sig) => println!("User flag set (sig: {})", sig),
-        Err(err) => println!("Error during user flag set:\n{:#?}", err),
-    };
-
-    Ok(())
+    panic!("deprecated");
 }
 
 pub fn initialize_fee_state(

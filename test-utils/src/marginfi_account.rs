@@ -576,62 +576,6 @@ impl MarginfiAccountFixture {
             .await
     }
 
-    /// Set a flag on the account
-    ///
-    /// Function assumes signer is group admin
-    pub async fn try_set_flag(&self, flag: u64) -> std::result::Result<(), BanksClientError> {
-        let ix = Instruction {
-            program_id: marginfi::id(),
-            accounts: marginfi::accounts::SetAccountFlag {
-                group: self.load().await.group,
-                marginfi_account: self.key,
-                admin: self.ctx.borrow().payer.pubkey(),
-            }
-            .to_account_metas(Some(true)),
-            data: marginfi::instruction::SetAccountFlag { flag }.data(),
-        };
-
-        let ctx = self.ctx.borrow_mut();
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&ctx.payer.pubkey().clone()),
-            &[&ctx.payer],
-            ctx.last_blockhash,
-        );
-
-        ctx.banks_client
-            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
-            .await
-    }
-
-    /// Unset a flag on the account
-    ///
-    /// Function assumes signer is group admin
-    pub async fn try_unset_flag(&self, flag: u64) -> std::result::Result<(), BanksClientError> {
-        let ix = Instruction {
-            program_id: marginfi::id(),
-            accounts: marginfi::accounts::UnsetAccountFlag {
-                group: self.load().await.group,
-                marginfi_account: self.key,
-                admin: self.ctx.borrow().payer.pubkey(),
-            }
-            .to_account_metas(Some(true)),
-            data: marginfi::instruction::UnsetAccountFlag { flag }.data(),
-        };
-
-        let ctx = self.ctx.borrow_mut();
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&ctx.payer.pubkey().clone()),
-            &[&ctx.payer],
-            ctx.last_blockhash,
-        );
-
-        ctx.banks_client
-            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
-            .await
-    }
-
     pub async fn make_lending_account_start_flashloan_ix(&self, end_index: u64) -> Instruction {
         Instruction {
             program_id: marginfi::id(),
@@ -788,49 +732,60 @@ impl MarginfiAccountFixture {
         mem::size_of::<MarginfiAccount>() + 8
     }
 
-    async fn build_transfer_authority_tx(
+    async fn build_transfer_account(
         &self,
+        new_marginfi_account: Pubkey,
         new_authority: Pubkey,
         signer_keypair: Option<Keypair>,
+        new_account_keypair: &Keypair,
+        global_fee_wallet: Pubkey,
     ) -> Transaction {
-        // Load account details
         let marginfi_account = self.load().await;
         let ctx = self.ctx.borrow();
         let signer = signer_keypair.unwrap_or_else(|| ctx.payer.insecure_clone());
 
-        // Create the transfer authority instruction
-        let transfer_account_authority_ix = Instruction {
+        let transfer_account_ix = Instruction {
             program_id: marginfi::id(),
-            accounts: marginfi::accounts::MarginfiAccountSetAccountAuthority {
-                marginfi_account: self.key,
+            accounts: marginfi::accounts::TransferToNewAccount {
+                old_marginfi_account: self.key,
+                new_marginfi_account,
+                group: marginfi_account.group,
                 authority: signer.pubkey(),
                 new_authority,
-                fee_payer: signer.pubkey(),
-                group: marginfi_account.group,
+                global_fee_wallet,
+                system_program: system_program::ID,
             }
             .to_account_metas(None),
-            data: marginfi::instruction::SetNewAccountAuthority {}.data(),
+            data: marginfi::instruction::TransferToNewAccount {}.data(),
         };
 
-        // Build and sign the transaction
         Transaction::new_signed_with_payer(
-            &[transfer_account_authority_ix],
+            &[transfer_account_ix],
             Some(&signer.pubkey()),
-            &[&signer],
+            &[&signer, new_account_keypair],
             ctx.last_blockhash,
         )
     }
 
-    /// Use the client to send the transfer ix authority transaction
+    /// Build and send the “transfer TransferToNewAccount transaction.
     /// Pass the new authority as an argument
     /// Optional: use a different signer (for negative test case)
-    pub async fn try_transfer_account_authority(
+    pub async fn try_transfer_account(
         &self,
+        new_marginfi_account: Pubkey,
         new_authority: Pubkey,
         signer_keypair: Option<Keypair>,
+        new_account_keypair: &Keypair,
+        global_fee_wallet: Pubkey,
     ) -> std::result::Result<(), BanksClientError> {
         let tx = self
-            .build_transfer_authority_tx(new_authority, signer_keypair)
+            .build_transfer_account(
+                new_marginfi_account,
+                new_authority,
+                signer_keypair,
+                new_account_keypair,
+                global_fee_wallet,
+            )
             .await;
         let ctx = self.ctx.borrow_mut();
         ctx.banks_client
@@ -838,16 +793,25 @@ impl MarginfiAccountFixture {
             .await
     }
 
-    /// Use the client to get the transfer ix authority transaction
+    /// Build (but don’t send) the “transfer TransferToNewAccount transaction.
     /// Pass the new authority as an argument
     /// Optional: use a different signer (for negative test case)
-    pub async fn get_tx_transfer_account_authority(
+    pub async fn get_tx_transfer_account(
         &self,
+        new_marginfi_account: Pubkey,
         new_authority: Pubkey,
         signer_keypair: Option<Keypair>,
+        new_account_keypair: &Keypair,
+        global_fee_wallet: Pubkey,
     ) -> Transaction {
-        self.build_transfer_authority_tx(new_authority, signer_keypair)
-            .await
+        self.build_transfer_account(
+            new_marginfi_account,
+            new_authority,
+            signer_keypair,
+            new_account_keypair,
+            global_fee_wallet,
+        )
+        .await
     }
 
     pub async fn try_close_account(&self, nonce: u64) -> std::result::Result<(), BanksClientError> {
