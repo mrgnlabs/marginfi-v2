@@ -127,16 +127,30 @@ impl OraclePriceFeedAdapter {
                     check!(owner_ok, MarginfiError::PythPushWrongAccountOwner);
                 }
 
-                let price_feed_id = bank_config.get_pyth_push_oracle_feed_id().unwrap();
+                if bank_config.is_pyth_push_migrated() {
+                    require_keys_eq!(
+                        *account_info.key,
+                        bank_config.oracle_keys[0],
+                        MarginfiError::WrongOracleAccountKeys
+                    );
 
-                Ok(OraclePriceFeedAdapter::PythPushOracle(
-                    PythPushOraclePriceFeed::load_checked(
-                        account_info,
-                        price_feed_id,
-                        clock,
-                        max_age,
-                    )?,
-                ))
+                    Ok(OraclePriceFeedAdapter::PythPushOracle(
+                        PythPushOraclePriceFeed::load_checked_infer(account_info, clock, max_age)?,
+                    ))
+                } else {
+                    let price_feed_id = bank_config.get_pyth_push_oracle_feed_id().unwrap();
+
+                    PythPushOraclePriceFeed::check_ai_and_feed_id(account_info, price_feed_id)?;
+
+                    Ok(OraclePriceFeedAdapter::PythPushOracle(
+                        PythPushOraclePriceFeed::load_checked(
+                            account_info,
+                            price_feed_id,
+                            clock,
+                            max_age,
+                        )?,
+                    ))
+                }
             }
             OracleSetup::SwitchboardPull => {
                 check!(ais.len() == 1, MarginfiError::WrongNumberOfOracleAccounts);
@@ -259,12 +273,22 @@ impl OraclePriceFeedAdapter {
                     MarginfiError::WrongNumberOfOracleAccounts
                 );
 
-                PythPushOraclePriceFeed::check_ai_and_feed_id(
-                    &oracle_ais[0],
-                    bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-                )?;
+                if bank_config.is_pyth_push_migrated() {
+                    require_keys_eq!(
+                        oracle_ais[0].key(),
+                        bank_config.oracle_keys[0],
+                        MarginfiError::WrongOracleAccountKeys
+                    );
+                    load_price_update_v2_checked(&oracle_ais[0])?;
+                    Ok(())
+                } else {
+                    PythPushOraclePriceFeed::check_ai_and_feed_id(
+                        &oracle_ais[0],
+                        bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+                    )?;
 
-                Ok(())
+                    Ok(())
+                }
             }
             OracleSetup::SwitchboardPull => {
                 check!(
@@ -643,6 +667,50 @@ impl PythPushOraclePriceFeed {
         );
 
         Ok(())
+    }
+
+    pub fn load_checked_infer(
+        ai: &AccountInfo,
+        clock: &Clock,
+        max_age: u64,
+    ) -> MarginfiResult<Self> {
+        let price_feed_account = load_price_update_v2_checked(ai)?;
+        let feed_id = &price_feed_account.price_message.feed_id;
+
+        let price = price_feed_account
+            .get_price_no_older_than_with_custom_verification_level(
+                clock,
+                max_age,
+                feed_id,
+                MIN_PYTH_PUSH_VERIFICATION_LEVEL,
+            )
+            .map_err(|e| {
+                debug!("Pyth push oracle error: {:?}", e);
+                let error: MarginfiError = e.into();
+                error
+            })?;
+
+        let ema_price = {
+            let price_update::PriceFeedMessage {
+                exponent,
+                publish_time,
+                ema_price,
+                ema_conf,
+                ..
+            } = price_feed_account.price_message;
+
+            pyth_solana_receiver_sdk::price_update::Price {
+                price: ema_price,
+                conf: ema_conf,
+                exponent,
+                publish_time,
+            }
+        };
+
+        Ok(Self {
+            price: Box::new(price),
+            ema_price: Box::new(ema_price),
+        })
     }
 
     fn get_confidence_interval(&self, use_ema: bool) -> MarginfiResult<I80F48> {

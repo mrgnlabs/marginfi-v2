@@ -119,8 +119,9 @@ pub struct BankConfig {
     /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
     /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
     pub asset_tag: u8,
+    pub config_flags: u8,
 
-    pub _pad1: [u8; 6],
+    pub _pad1: [u8; 5],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,

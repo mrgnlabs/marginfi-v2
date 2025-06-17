@@ -95,6 +95,8 @@ pub fn lending_pool_add_bank_permissionless(
     );
     bank.config.oracle_setup = OracleSetup::StakedWithPythPush;
     bank.config.oracle_keys[0] = settings.oracle;
+    bank.config
+        .update_config_flag(true, PYTH_PUSH_MIGRATED_FLAG);
 
     log_pool_info(&bank);
 

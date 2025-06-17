@@ -649,13 +649,13 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank.config.borrow_limit, 2000000000000);
     assert_eq!(bank.config.risk_tier, RiskTier::Collateral);
     assert_eq!(bank.config.asset_tag, ASSET_TAG_DEFAULT);
-    assert_eq!(bank.config._pad1, [0; 6]);
+    assert_eq!(bank.config._pad1, [0; 5]);
     assert_eq!(bank.config.total_asset_value_init_limit, 0);
     assert_eq!(bank.config.oracle_max_age, 300);
     assert_eq!(bank.config._padding0, [0; 6]);
     assert_eq!(bank.config._padding1, [0; 32]);
 
-    assert_eq!(bank.flags, 2);
+    assert!(bank.config.is_pyth_push_migrated());
 
     assert_eq!(
         I80F48::from(bank.emissions_rate),

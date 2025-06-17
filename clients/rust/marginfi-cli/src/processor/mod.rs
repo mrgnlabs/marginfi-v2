@@ -2417,21 +2417,17 @@ pub fn marginfi_account_liquidate(
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
 
-    let oracle_accounts = vec![asset_bank.config, liability_bank.config]
-        .into_iter()
-        .map(|bank_config| {
-            let oracle_key = bank_to_oracle_key(&bank_config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
-            AccountMeta::new_readonly(oracle_key, false)
-        });
+    let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
+        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
+        AccountMeta::new_readonly(oracle_key, false)
+    });
 
     ix.accounts.extend(oracle_accounts);
 
-    let oracle_accounts = vec![asset_bank.config, liability_bank.config]
-        .into_iter()
-        .map(|bank_config| {
-            let oracle_key = bank_to_oracle_key(&bank_config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
-            AccountMeta::new_readonly(oracle_key, false)
-        });
+    let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
+        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
+        AccountMeta::new_readonly(oracle_key, false)
+    });
 
     ix.accounts.extend(oracle_accounts);
 

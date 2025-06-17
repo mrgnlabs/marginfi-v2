@@ -1427,8 +1427,9 @@ pub struct BankConfig {
     /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
     /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
     pub asset_tag: u8,
+    pub config_flags: u8,
 
-    pub _pad1: [u8; 6],
+    pub _pad1: [u8; 5],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1464,7 +1465,8 @@ impl Default for BankConfig {
             _pad0: [0; 6],
             risk_tier: RiskTier::Isolated,
             asset_tag: ASSET_TAG_DEFAULT,
-            _pad1: [0; 6],
+            config_flags: 0,
+            _pad1: [0; 5],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
             _padding0: [0; 6],
@@ -1549,6 +1551,20 @@ impl BankConfig {
     #[inline]
     pub fn is_borrow_limit_active(&self) -> bool {
         self.borrow_limit != u64::MAX
+    }
+
+    #[inline]
+    pub fn is_pyth_push_migrated(&self) -> bool {
+        (self.config_flags & crate::constants::PYTH_PUSH_MIGRATED_FLAG) != 0
+    }
+
+    #[inline]
+    pub fn update_config_flag(&mut self, value: bool, flag: u8) {
+        if value {
+            self.config_flags |= flag;
+        } else {
+            self.config_flags &= !flag;
+        }
     }
 
     /// * lst_mint, stake_pool, sol_pool - required only if configuring

@@ -325,26 +325,26 @@ lazy_static! {
     pub static ref DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
-        oracle_keys: create_oracle_key_array(PYTH_PUSH_FULLV_FEED_ID.into()),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_SOL_FULLV_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     /// This banks orale always has an insufficient verification level.
     pub static ref DEFAULT_SOL_TEST_PYTH_PUSH_PARTV_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
-        oracle_keys: create_oracle_key_array(PYTH_PUSH_PARTV_FEED_ID.into()),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_SOL_PARTV_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_USDC_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000_000, "USDC"),
         borrow_limit: native!(1_000_000_000, "USDC"),
-        oracle_keys: create_oracle_key_array(PYTH_PUSH_REAL_USDC_FEED_ID.into()),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_USDC_REAL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_PYTH_PUSH_SOL_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
-        oracle_keys: create_oracle_key_array(PYTH_PUSH_REAL_SOL_FEED_ID.into()),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_SOL_REAL_FEED),
         oracle_max_age: 100,
         ..*DEFAULT_TEST_BANK_CONFIG
     };

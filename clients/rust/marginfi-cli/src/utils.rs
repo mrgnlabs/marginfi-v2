@@ -70,11 +70,15 @@ pub fn bank_to_oracle_key(bank_config: &BankConfig, shard_id: u16) -> Pubkey {
 
     match bank_config.oracle_setup {
         marginfi::state::price::OracleSetup::PythPushOracle => {
-            PythPushOraclePriceFeed::find_oracle_address(
-                shard_id,
-                bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-            )
-            .0
+            if bank_config.is_pyth_push_migrated() {
+                *oracle_key_or_price_feed_id
+            } else {
+                PythPushOraclePriceFeed::find_oracle_address(
+                    shard_id,
+                    bank_config.get_pyth_push_oracle_feed_id().unwrap(),
+                )
+                .0
+            }
         }
         _ => *oracle_key_or_price_feed_id,
     }

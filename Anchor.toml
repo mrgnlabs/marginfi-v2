@@ -92,6 +92,10 @@ filename = "tests/fixtures/gappy_user3.json"
 [[test.validator.account]]
 address = "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
 filename = "tests/fixtures/gappy_user4.json"
+[[test.validator.account]]
+address = "SomeAddress55"
+filename = "tests/fixtures/pre_pyth_migration_bank55.json"
+
 
 # To update:
 # clone https://github.com/solana-labs/solana-program-library/tree/master and run cargo build-sbf in spl_single_pool
