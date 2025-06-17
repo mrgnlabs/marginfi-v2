@@ -92,9 +92,10 @@ filename = "tests/fixtures/gappy_user3.json"
 [[test.validator.account]]
 address = "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
 filename = "tests/fixtures/gappy_user4.json"
+
 [[test.validator.account]]
-address = "SomeAddress55"
-filename = "tests/fixtures/pre_pyth_migration_bank55.json"
+address = "HwN3xXdLJ1VFYbWLbknbSjwvmBeodoxGbqpSbCQMkH8D"
+filename = "tests/fixtures/pre_migration_bank1.json"
 
 
 # To update:
