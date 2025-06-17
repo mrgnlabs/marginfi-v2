@@ -19,6 +19,7 @@ pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> Resul
     bank.config.total_asset_value_init_limit = settings.total_asset_value_init_limit;
     bank.config.oracle_max_age = settings.oracle_max_age;
     bank.config.risk_tier = settings.risk_tier;
+    bank.config.config_flags = settings.config_flags;
 
     // Only validate the oracle info if it has changed
     if oracle_before != oracle_after {

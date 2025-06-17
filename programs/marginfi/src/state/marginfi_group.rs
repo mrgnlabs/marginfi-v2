@@ -12,7 +12,7 @@ use crate::{
         EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, ORACLE_MIN_AGE,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, SECONDS_PER_YEAR,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_PUSH_MIGRATED, SECONDS_PER_YEAR,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
@@ -1301,7 +1301,12 @@ pub struct BankConfigCompact {
     /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
     pub asset_tag: u8,
 
-    pub _pad0: [u8; 6],
+    /// Flags for various config options
+    /// * 1 - Always set set if bank created in 0.1.4 or later, or if migrated to the new oracle
+    ///   setup from a prior version. Not set in 0.1.3 or earlier banks that have not yet migrated.
+    /// * 2, 4, 8, 16, etc - reserved for future use.
+    pub config_flags: u8,
+    pub _pad0: [u8; 5],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1328,7 +1333,8 @@ impl Default for BankConfigCompact {
             borrow_limit: 0,
             interest_rate_config: InterestRateConfigCompact::default(),
             operational_state: BankOperationalState::Paused,
-            _pad0: [0; 6],
+            config_flags: PYTH_PUSH_MIGRATED,
+            _pad0: [0; 5],
             risk_tier: RiskTier::Isolated,
             asset_tag: ASSET_TAG_DEFAULT,
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
@@ -1360,7 +1366,8 @@ impl From<BankConfigCompact> for BankConfig {
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             asset_tag: config.asset_tag,
-            _pad1: [0; 6],
+            config_flags: config.config_flags,
+            _pad1: [0; 5],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
             _padding0: [0; 6],
@@ -1382,7 +1389,8 @@ impl From<BankConfig> for BankConfigCompact {
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             asset_tag: config.asset_tag,
-            _pad0: [0; 6],
+            config_flags: PYTH_PUSH_MIGRATED,
+            _pad0: [0; 5],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
         }
@@ -1427,6 +1435,11 @@ pub struct BankConfig {
     /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
     /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
     pub asset_tag: u8,
+
+    /// Flags for various config options
+    /// * 1 - Always set set if bank created in 0.1.4 or later, or if migrated to the new oracle
+    ///   setup from a prior version. Not set in 0.1.3 or earlier banks that have not yet migrated.
+    /// * 2, 4, 8, 16, etc - reserved for future use.
     pub config_flags: u8,
 
     pub _pad1: [u8; 5],
@@ -1553,12 +1566,10 @@ impl BankConfig {
         self.borrow_limit != u64::MAX
     }
 
-    #[inline]
     pub fn is_pyth_push_migrated(&self) -> bool {
-        (self.config_flags & crate::constants::PYTH_PUSH_MIGRATED_FLAG) != 0
+        (self.config_flags & PYTH_PUSH_MIGRATED) != 0
     }
 
-    #[inline]
     pub fn update_config_flag(&mut self, value: bool, flag: u8) {
         if value {
             self.config_flags |= flag;

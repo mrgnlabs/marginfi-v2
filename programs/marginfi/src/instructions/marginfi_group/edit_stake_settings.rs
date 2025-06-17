@@ -1,3 +1,4 @@
+use crate::constants::PYTH_PUSH_MIGRATED;
 use crate::events::EditStakedSettingsEvent;
 // Used by the group admin to edit the default features of staked collateral banks. Remember to
 // propagate afterwards.
@@ -15,6 +16,10 @@ pub fn edit_staked_settings(
     // require_keys_eq!(group.admin, ctx.accounts.admin.key());
 
     set_if_some!(staked_settings.oracle, settings.oracle);
+    if settings.oracle.is_some() {
+        staked_settings.config_flags = PYTH_PUSH_MIGRATED;
+    }
+
     set_if_some!(
         staked_settings.asset_weight_init,
         settings.asset_weight_init

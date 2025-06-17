@@ -315,6 +315,7 @@ impl OraclePriceFeedAdapter {
                         MarginfiError::WrongNumberOfOracleAccounts
                     );
 
+                    // TODO support migrated pyth feeds
                     PythPushOraclePriceFeed::check_ai_and_feed_id(
                         &oracle_ais[0],
                         bank_config.get_pyth_push_oracle_feed_id().unwrap(),

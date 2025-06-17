@@ -25,7 +25,7 @@ use {
     marginfi::{
         constants::{
             EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
-            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID, ZERO_AMOUNT_THRESHOLD,
+            PYTH_SPONSORED_SHARD_ID, ZERO_AMOUNT_THRESHOLD,
         },
         prelude::*,
         state::{
@@ -2418,14 +2418,14 @@ pub fn marginfi_account_liquidate(
     };
 
     let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
-        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
+        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_SPONSORED_SHARD_ID);
         AccountMeta::new_readonly(oracle_key, false)
     });
 
     ix.accounts.extend(oracle_accounts);
 
     let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
-        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
+        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_SPONSORED_SHARD_ID);
         AccountMeta::new_readonly(oracle_key, false)
     });
 

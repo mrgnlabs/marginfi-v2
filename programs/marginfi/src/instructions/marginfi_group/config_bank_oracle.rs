@@ -2,7 +2,7 @@ use crate::constants::FREEZE_SETTINGS;
 use crate::events::{GroupEventHeader, LendingPoolBankConfigureOracleEvent};
 use crate::state::price::OracleSetup;
 use crate::{
-    constants::PYTH_PUSH_MIGRATED_FLAG,
+    constants::PYTH_PUSH_MIGRATED,
     state::marginfi_group::{Bank, MarginfiGroup},
     MarginfiResult,
 };
@@ -26,8 +26,7 @@ pub fn lending_pool_configure_bank_oracle(
         bank.config.oracle_keys[0] = oracle;
 
         if setup_type == OracleSetup::PythPushOracle {
-            bank.config
-                .update_config_flag(true, PYTH_PUSH_MIGRATED_FLAG);
+            bank.config.update_config_flag(true, PYTH_PUSH_MIGRATED);
         }
 
         msg!(

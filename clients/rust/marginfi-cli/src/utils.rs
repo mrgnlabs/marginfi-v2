@@ -8,7 +8,7 @@ use {
         bank_authority_seed, bank_seed,
         constants::{
             EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED,
-            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID,
+            PYTH_SPONSORED_SHARD_ID,
         },
         state::{
             marginfi_account::MarginfiAccount,
@@ -186,7 +186,7 @@ pub fn load_observation_account_metas(
         .iter()
         .zip(bank_pks.iter())
         .flat_map(|(bank, bank_pk)| {
-            let oracle_key = bank_to_oracle_key(&bank.config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
+            let oracle_key = bank_to_oracle_key(&bank.config, PYTH_SPONSORED_SHARD_ID);
 
             vec![
                 AccountMeta {
