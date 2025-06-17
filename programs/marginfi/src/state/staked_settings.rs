@@ -2,10 +2,7 @@ use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 
-use crate::{
-    assert_struct_align, assert_struct_size, check, constants::PYTH_PUSH_MIGRATED, MarginfiError,
-    MarginfiResult,
-};
+use crate::{assert_struct_align, assert_struct_size, check, MarginfiError, MarginfiResult};
 
 use super::marginfi_group::{RiskTier, WrappedI80F48};
 
@@ -35,11 +32,7 @@ pub struct StakedSettings {
 
     pub oracle_max_age: u16,
     pub risk_tier: RiskTier,
-    /// Flags for various config options
-    /// * 1 - Always set set if settings created in 0.1.4 or later. If created in 0.1.3 or earlier,
-    ///   set the next time the oracle is updated.
-    pub config_flags: u8,
-    _pad0: [u8; 4],
+    _pad0: [u8; 5],
 
     /// The following values are irrelevant because staked collateral positions do not support
     /// borrowing.
@@ -114,8 +107,7 @@ impl Default for StakedSettings {
             total_asset_value_init_limit: 1_000_000,
             oracle_max_age: 10,
             risk_tier: RiskTier::Collateral,
-            config_flags: PYTH_PUSH_MIGRATED,
-            _pad0: [0; 4],
+            _pad0: [0; 5],
             _reserved0: [0; 8],
             _reserved1: [0; 32],
             _reserved2: [0; 64],

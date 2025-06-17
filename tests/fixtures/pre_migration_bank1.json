@@ -8,7 +8,7 @@
     ],
     "owner": "2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr",
     "executable": false,
-    "rentEpoch": 18446744073709552000,
+    "rentEpoch": 18446744073709551615,
     "space": 1864
   }
 }

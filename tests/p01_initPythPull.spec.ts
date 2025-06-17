@@ -8,7 +8,7 @@ import {
   verbose,
   ecosystem,
   oracles,
-  PYTH_ORACLE_SAMPLE,
+  // PYTH_ORACLE_SAMPLE, // no longer used. After 0.1.4, Pyth uses the feed directly.
   PYTH_ORACLE_FEED_SAMPLE,
   users,
 } from "./rootHooks";
@@ -68,7 +68,7 @@ describe("Pyth pull oracles in localnet", () => {
       seed
     );
     const oracleMeta: AccountMeta = {
-      pubkey: PYTH_ORACLE_FEED_SAMPLE, // NOTE: This is the FEED (price V2)
+      pubkey: PYTH_ORACLE_FEED_SAMPLE,
       isSigner: false,
       isWritable: false,
     };
@@ -83,10 +83,9 @@ describe("Pyth pull oracles in localnet", () => {
         seed,
       }),
       await groupAdmin.mrgnProgram.methods
-        // Note: This is the ORACLE (feed id)
         .lendingPoolConfigureBankOracle(
           ORACLE_SETUP_PYTH_PUSH,
-          PYTH_ORACLE_SAMPLE
+          PYTH_ORACLE_FEED_SAMPLE
         )
         .accountsPartial({
           group: throwawayGroup.publicKey,
@@ -118,7 +117,7 @@ describe("Pyth pull oracles in localnet", () => {
       seed
     );
     const oracleMeta: AccountMeta = {
-      pubkey: oracles.pythPullLst.publicKey, // NOTE: This is the Price V2 update
+      pubkey: oracles.pythPullLst.publicKey,
       isSigner: false,
       isWritable: false,
     };
@@ -133,10 +132,9 @@ describe("Pyth pull oracles in localnet", () => {
         seed: seed,
       }),
       await groupAdmin.mrgnProgram.methods
-        // Note: This is the feed id
         .lendingPoolConfigureBankOracle(
           ORACLE_SETUP_PYTH_PUSH,
-          oracles.pythPullLstOracleFeed.publicKey
+          oracles.pythPullLst.publicKey
         )
         .accountsPartial({
           group: throwawayGroup.publicKey,

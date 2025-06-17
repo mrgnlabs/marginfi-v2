@@ -1437,8 +1437,9 @@ pub struct BankConfig {
     pub asset_tag: u8,
 
     /// Flags for various config options
-    /// * 1 - Always set set if bank created in 0.1.4 or later, or if migrated to the new oracle
-    ///   setup from a prior version. Not set in 0.1.3 or earlier banks that have not yet migrated.
+    /// * 1 - Always set set if bank created in 0.1.4 or later, or if migrated to the new pyth
+    ///   oracle setup from a prior version. Not set in 0.1.3 or earlier banks using pyth that have
+    ///   not yet migrated. Does nothing for banks that use switchboard.
     /// * 2, 4, 8, 16, etc - reserved for future use.
     pub config_flags: u8,
 
