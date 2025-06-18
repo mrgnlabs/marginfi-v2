@@ -33,7 +33,10 @@ import { accountInit, depositIx, healthPulse } from "./utils/user-instructions";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { bytesToF64 } from "./utils/tools";
 
-const throwawayGroup = Keypair.generate();
+const GROUP_SEED = Buffer.from("MARGINFI_GROUP_SEED_000000000pxx");
+const throwawayGroup = Keypair.fromSeed(GROUP_SEED);
+const BANK_SEED = 42;
+
 describe("Pyth pull oracles in localnet", () => {
   it("(admin) Init group - happy path", async () => {
     let tx = new Transaction();
@@ -60,7 +63,7 @@ describe("Pyth pull oracles in localnet", () => {
 
   it("(admin) Add 'LST' bank with mainnet pyth pull oracles (Jup's Sol oracle)", async () => {
     let setConfig = defaultBankConfig();
-    const seed = new BN(42);
+    const seed = new BN(BANK_SEED);
     const [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
       throwawayGroup.publicKey,
@@ -109,7 +112,7 @@ describe("Pyth pull oracles in localnet", () => {
 
   it("(admin) Add 'LST' bank with mock pyth pull oracles", async () => {
     let setConfig = defaultBankConfig();
-    const seed = new BN(43);
+    const seed = new BN(BANK_SEED + 1);
     const [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
       throwawayGroup.publicKey,
@@ -200,7 +203,7 @@ describe("Pyth pull oracles in localnet", () => {
     const depositAmount = 2;
     const userAcc = user.accounts.get(USER_ACCOUNT);
 
-    const seed = new BN(43);
+    const seed = new BN(BANK_SEED + 1);
     const [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
       throwawayGroup.publicKey,
