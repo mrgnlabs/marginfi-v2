@@ -32,7 +32,7 @@ interface PriceUpdateV2 {
  *
  * Note: The first 8 bytes are assumed to be the Anchor account discriminator.
  */
-function decodePriceUpdateV2(base64Data: string): PriceUpdateV2 {
+export function decodePriceUpdateV2(base64Data: string): PriceUpdateV2 {
   const buffer = Buffer.from(base64Data, "base64");
   let offset = 0;
 

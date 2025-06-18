@@ -190,7 +190,7 @@ describe("Pyth pull oracles in localnet", () => {
         ecosystem.lstAlphaMint.publicKey,
         user.lstAlphaAccount,
         wallet.publicKey,
-        10 * 10 ** ecosystem.lstAlphaDecimals
+        20 * 10 ** ecosystem.lstAlphaDecimals
       )
     );
     fundUserTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
