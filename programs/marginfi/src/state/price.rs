@@ -3,6 +3,7 @@ use crate::{
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10_I80F48, MAX_CONF_INTERVAL, MIN_PYTH_PUSH_VERIFICATION_LEVEL,
         NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID, STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID,
+        U32_MAX, U32_MAX_DIV_10,
     },
     debug, live, math_error,
     prelude::*,
@@ -16,7 +17,7 @@ use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
-use std::{cell::Ref, cmp::min};
+use std::{cell::Ref, cmp::min, u32};
 use switchboard_on_demand::{
     CurrentResult, Discriminator, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID,
 };
@@ -71,7 +72,16 @@ pub trait PriceAdapter {
         &self,
         oracle_price_type: OraclePriceType,
         bias: Option<PriceBias>,
+        oracle_max_confidence: u32,
     ) -> MarginfiResult<I80F48>;
+
+    fn get_price_of_type_ignore_conf(
+        &self,
+        t: OraclePriceType,
+        b: Option<PriceBias>,
+    ) -> MarginfiResult<I80F48> {
+        self.get_price_of_type(t, b, u32::MAX)
+    }
 }
 
 #[enum_dispatch(PriceAdapter)]
@@ -412,17 +422,35 @@ impl SwitchboardPullPriceFeed {
         Ok(price)
     }
 
-    fn get_confidence_interval(&self) -> MarginfiResult<I80F48> {
-        let std_div: I80F48 = I80F48::from_num(self.feed.result.std_dev)
+    fn get_confidence_interval(&self, oracle_max_confidence: u32) -> MarginfiResult<I80F48> {
+        let conf_interval: I80F48 = I80F48::from_num(self.feed.result.std_dev)
             .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
-            .ok_or_else(math_error!())?;
-
-        let conf_interval = std_div
+            .ok_or_else(math_error!())?
             .checked_mul(STD_DEV_MULTIPLE)
             .ok_or_else(math_error!())?;
 
         let price = self.get_price()?;
 
+        // Fail the price fetch if confidence > price * oracle_max_confidence
+        let oracle_max_confidence = if oracle_max_confidence > 0 {
+            I80F48::from_num(oracle_max_confidence)
+        } else {
+            // The default max confidence is 10%
+            U32_MAX_DIV_10
+        };
+        let max_conf = price
+            .checked_mul(oracle_max_confidence)
+            .ok_or_else(math_error!())?
+            .checked_div(U32_MAX)
+            .ok_or_else(math_error!())?;
+        if conf_interval > max_conf {
+            let conf_interval = conf_interval.to_num::<f64>();
+            let max_conf = max_conf.to_num::<f64>();
+            msg!("conf was {:?}, but max is {:?}", conf_interval, max_conf);
+            return err!(MarginfiError::OracleMaxConfidenceExceeded);
+        }
+
+        // Clamp confidence to 5% of the price regardless
         let max_conf_interval = price
             .checked_mul(MAX_CONF_INTERVAL)
             .ok_or_else(math_error!())?;
@@ -446,12 +474,13 @@ impl PriceAdapter for SwitchboardPullPriceFeed {
         &self,
         _price_type: OraclePriceType,
         bias: Option<PriceBias>,
+        oracle_max_confidence: u32,
     ) -> MarginfiResult<I80F48> {
         let price = self.get_price()?;
 
         match bias {
             Some(price_bias) => {
-                let confidence_interval = self.get_confidence_interval()?;
+                let confidence_interval = self.get_confidence_interval(oracle_max_confidence)?;
 
                 match price_bias {
                     PriceBias::Low => Ok(price
@@ -641,7 +670,11 @@ impl PythPushOraclePriceFeed {
         Ok(())
     }
 
-    fn get_confidence_interval(&self, use_ema: bool) -> MarginfiResult<I80F48> {
+    fn get_confidence_interval(
+        &self,
+        use_ema: bool,
+        oracle_max_confidence: u32,
+    ) -> MarginfiResult<I80F48> {
         let price = if use_ema {
             &self.ema_price
         } else {
@@ -653,15 +686,34 @@ impl PythPushOraclePriceFeed {
                 .checked_mul(CONF_INTERVAL_MULTIPLE)
                 .ok_or_else(math_error!())?;
 
-        // Cap confidence interval to 5% of price
         let price = pyth_price_components_to_i80f48(I80F48::from_num(price.price), price.exponent)?;
 
-        let max_conf_interval = price
+        // Fail the price fetch if confidence > price * oracle_max_confidence
+        let oracle_max_confidence = if oracle_max_confidence > 0 {
+            I80F48::from_num(oracle_max_confidence)
+        } else {
+            // The default max confidence is 10%
+            U32_MAX_DIV_10
+        };
+        let max_conf = price
+            .checked_mul(oracle_max_confidence)
+            .ok_or_else(math_error!())?
+            .checked_div(U32_MAX)
+            .ok_or_else(math_error!())?;
+        if conf_interval > max_conf {
+            let conf_interval = conf_interval.to_num::<f64>();
+            let max_conf = max_conf.to_num::<f64>();
+            msg!("conf was {:?}, but max is {:?}", conf_interval, max_conf);
+            return err!(MarginfiError::OracleMaxConfidenceExceeded);
+        }
+
+        // Cap confidence interval to 5% of price regardless
+        let capped_conf_interval = price
             .checked_mul(MAX_CONF_INTERVAL)
             .ok_or_else(math_error!())?;
 
         assert!(
-            max_conf_interval >= I80F48::ZERO,
+            capped_conf_interval >= I80F48::ZERO,
             "Negative max confidence interval"
         );
 
@@ -670,7 +722,7 @@ impl PythPushOraclePriceFeed {
             "Negative confidence interval"
         );
 
-        Ok(min(conf_interval, max_conf_interval))
+        Ok(min(conf_interval, capped_conf_interval))
     }
 
     #[inline(always)]
@@ -703,6 +755,7 @@ impl PriceAdapter for PythPushOraclePriceFeed {
         &self,
         price_type: OraclePriceType,
         bias: Option<PriceBias>,
+        oracle_max_confidence: u32,
     ) -> MarginfiResult<I80F48> {
         let price = match price_type {
             OraclePriceType::TimeWeighted => self.get_ema_price()?,
@@ -712,8 +765,10 @@ impl PriceAdapter for PythPushOraclePriceFeed {
         match bias {
             None => Ok(price),
             Some(price_bias) => {
-                let confidence_interval = self
-                    .get_confidence_interval(matches!(price_type, OraclePriceType::TimeWeighted))?;
+                let confidence_interval = self.get_confidence_interval(
+                    matches!(price_type, OraclePriceType::TimeWeighted),
+                    oracle_max_confidence,
+                )?;
 
                 match price_bias {
                     PriceBias::Low => Ok(price
@@ -823,7 +878,7 @@ mod tests {
         let feed: SwitchboardPullPriceFeed =
             SwitchboardPullPriceFeed::load_checked(&ai, current_timestamp, max_age).unwrap();
         let price: I80F48 = feed.get_price().unwrap();
-        let conf: I80F48 = feed.get_confidence_interval().unwrap();
+        let conf: I80F48 = feed.get_confidence_interval(0).unwrap();
 
         let target_price: I80F48 = I80F48::from_num(155.59);
         let price_tolerance: I80F48 = target_price * I80F48::from_num(0.0001);
@@ -840,12 +895,12 @@ mod tests {
         assert!(exp_conf >= min_exp_conf && exp_conf <= max_exp_conf);
 
         let price_bias_none: I80F48 = feed
-            .get_price_of_type(OraclePriceType::RealTime, None)
+            .get_price_of_type(OraclePriceType::RealTime, None, 0)
             .unwrap();
         assert_eq!(price, price_bias_none);
 
         let price_bias_low: I80F48 = feed
-            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
+            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low), 0)
             .unwrap();
         let target_price_low: I80F48 = target_price.checked_sub(exp_conf).unwrap();
         let min_price: I80F48 = target_price_low.checked_sub(price_tolerance).unwrap();
@@ -853,7 +908,7 @@ mod tests {
         assert!(price_bias_low >= min_price && price_bias_low <= max_price);
 
         let price_bias_high: I80F48 = feed
-            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))
+            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High), 0)
             .unwrap();
         let target_price_high: I80F48 = target_price.checked_add(exp_conf).unwrap();
         let min_price: I80F48 = target_price_high.checked_sub(price_tolerance).unwrap();
@@ -890,7 +945,7 @@ mod tests {
         let feed: SwitchboardPullPriceFeed =
             SwitchboardPullPriceFeed::load_checked(&ai, current_timestamp, max_age).unwrap();
         let price: I80F48 = feed.get_price().unwrap();
-        let conf: I80F48 = feed.get_confidence_interval().unwrap();
+        let conf: I80F48 = feed.get_confidence_interval(0).unwrap();
 
         let target_price: I80F48 = I80F48::from_num(177.351466043);
         let price_tolerance: I80F48 = target_price * I80F48::from_num(0.0001);
@@ -907,12 +962,12 @@ mod tests {
         assert!(exp_conf >= min_exp_conf && exp_conf <= max_exp_conf);
 
         let price_bias_none: I80F48 = feed
-            .get_price_of_type(OraclePriceType::RealTime, None)
+            .get_price_of_type(OraclePriceType::RealTime, None, 0)
             .unwrap();
         assert_eq!(price, price_bias_none);
 
         let price_bias_low: I80F48 = feed
-            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))
+            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low), 0)
             .unwrap();
         let target_price_low: I80F48 = target_price.checked_sub(exp_conf).unwrap();
         let min_price: I80F48 = target_price_low.checked_sub(price_tolerance).unwrap();
@@ -920,7 +975,7 @@ mod tests {
         assert!(price_bias_low >= min_price && price_bias_low <= max_price);
 
         let price_bias_high: I80F48 = feed
-            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))
+            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High), 0)
             .unwrap();
         let target_price_high: I80F48 = target_price.checked_add(exp_conf).unwrap();
         let min_price: I80F48 = target_price_high.checked_sub(price_tolerance).unwrap();

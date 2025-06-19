@@ -14,7 +14,7 @@ import { assert } from "chai";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
   ASSET_TAG_SOL,
-  BankConfigOptWithAssetTag,
+  BankConfigOptRaw,
   defaultBankConfigOptRaw,
   FREEZE_SETTINGS,
   InterestRateConfigRawWithOrigination,
@@ -36,7 +36,7 @@ describe("Lending pool configure bank", () => {
       protocolOriginationFee: bigNumberToWrappedI80F48(0.7),
     };
 
-    let bankConfigOpt: BankConfigOptWithAssetTag = {
+    let bankConfigOpt: BankConfigOptRaw = {
       assetWeightInit: bigNumberToWrappedI80F48(0.6),
       assetWeightMaint: bigNumberToWrappedI80F48(0.7),
       liabilityWeightInit: bigNumberToWrappedI80F48(1.9),
@@ -53,6 +53,7 @@ describe("Lending pool configure bank", () => {
       oracleMaxAge: 150,
       permissionlessBadDebtSettlement: null,
       freezeSettings: null,
+      oracleMaxConfidence: 420000
     };
 
     await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -90,6 +91,7 @@ describe("Lending pool configure bank", () => {
     assert.equal(config.assetTag, ASSET_TAG_SOL);
     assertBNEqual(config.totalAssetValueInitLimit, 15000);
     assert.equal(config.oracleMaxAge, 150);
+    assert.equal(config.oracleMaxConfidence, 420000);
   });
 
   it("(admin) Restore default settings to bank (USDC)", async () => {

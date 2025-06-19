@@ -279,7 +279,7 @@ describe("Liquidate user", () => {
     await liquidator.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
         ComputeBudgetProgram.setComputeUnitLimit({
-          units: 210_000,
+          units: 250_000,
         }),
         await liquidateIx(liquidator.mrgnProgram, {
           assetBankKey,

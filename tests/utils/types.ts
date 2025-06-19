@@ -16,6 +16,7 @@ export const I80F48_ZERO = bigNumberToWrappedI80F48(0);
 export const I80F48_ONE = bigNumberToWrappedI80F48(1);
 /** Equivalent in value to u64::MAX in Rust */
 export const u64MAX_BN = new BN("18446744073709551615");
+export const u32_MAX: number = 4294967295;
 export const SINGLE_POOL_PROGRAM_ID = new PublicKey(
   "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE"
 );
@@ -89,6 +90,8 @@ export const defaultBankConfig = () => {
     assetTag: ASSET_TAG_DEFAULT,
     totalAssetValueInitLimit: new BN(1_000_000_000_000),
     oracleMaxAge: 240,
+    // Note: banks that use 0 (all created prior to 0.1.4) will fall back to the default (10%)
+    oracleMaxConfidence: 0,
   };
   return config;
 };
@@ -112,7 +115,7 @@ export const defaultBankConfigOpt = () => {
     // oracle: null,
     oracleMaxAge: 240,
     permissionlessBadDebtSettlement: null,
-    assetTag: ASSET_TAG_DEFAULT
+    assetTag: ASSET_TAG_DEFAULT,
   };
 
   return bankConfigOpt;
@@ -128,13 +131,13 @@ export const defaultBankConfigOptRaw = () => {
     assetWeightMaint: I80F48_ONE,
     liabilityWeightInit: I80F48_ONE,
     liabilityWeightMaint: I80F48_ONE,
-    depositLimit: new BN(1_000_000_000),
-    borrowLimit: new BN(1_000_000_000),
+    depositLimit: new BN(1000000000),
+    borrowLimit: new BN(1000000000),
     riskTier: {
       collateral: undefined,
     },
     assetTag: ASSET_TAG_DEFAULT,
-    totalAssetValueInitLimit: new BN(100_000_000_000),
+    totalAssetValueInitLimit: new BN(100000000000),
     interestRateConfig: defaultInterestRateConfigRaw(),
     operationalState: {
       operational: undefined,
@@ -142,6 +145,7 @@ export const defaultBankConfigOptRaw = () => {
     oracleMaxAge: 240,
     permissionlessBadDebtSettlement: null,
     freezeSettings: null,
+    oracleMaxConfidence: 0
   };
 
   return bankConfigOpt;
@@ -207,11 +211,6 @@ export const defaultStakedInterestSettings = (oracle: PublicKey) => {
 };
 
 // TODO remove when package updates
-export type BankConfigOptWithAssetTag = BankConfigOptRaw & {
-  assetTag: number | null;
-};
-
-// TODO remove when package updates
 export type InterestRateConfigRawWithOrigination = InterestRateConfigRaw & {
   protocolOriginationFee: WrappedI80F48;
 };
@@ -247,10 +246,11 @@ export type BankConfig = {
   assetTag: number;
   totalAssetValueInitLimit: BN;
   oracleMaxAge: number;
+  /** A u32, e.g. for 100% pass u32::MAX */
+  oracleMaxConfidence: number;
 };
 
 // TODO remove when package updates
-/** Adds origination fee to interestRateConfig and freezeSettings */
 export type BankConfigOptRaw = {
   assetWeightInit: WrappedI80F48 | null;
   assetWeightMaint: WrappedI80F48 | null;
@@ -261,7 +261,7 @@ export type BankConfigOptRaw = {
   depositLimit: BN | null;
   borrowLimit: BN | null;
   riskTier: { collateral: {} } | { isolated: {} } | null;
-  assetTag: number;
+  assetTag: number | null;
   totalAssetValueInitLimit: BN | null;
 
   interestRateConfig: InterestRateConfigRawWithOrigination | null;
@@ -271,6 +271,7 @@ export type BankConfigOptRaw = {
     | { reduceOnly: {} }
     | null;
 
+  oracleMaxConfidence: number | null;
   oracleMaxAge: number | null;
   permissionlessBadDebtSettlement: boolean | null;
   freezeSettings: boolean | null;

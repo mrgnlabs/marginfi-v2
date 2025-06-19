@@ -1315,6 +1315,12 @@ pub struct BankConfigCompact {
 
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
+
+    /// From 0-100%, if the confidence exceeds this value, the oracle is considered invalid. Note:
+    /// the confidence adjustment is capped at 5% regardless of this value.
+    /// * 0% = use the default (10%)
+    /// * A %, as u32, e.g. 100% = u32::MAX, 50% = u32::MAX/2, etc.
+    pub oracle_max_confidence: u32,
 }
 
 impl Default for BankConfigCompact {
@@ -1333,6 +1339,7 @@ impl Default for BankConfigCompact {
             asset_tag: ASSET_TAG_DEFAULT,
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
+            oracle_max_confidence: 0,
         }
     }
 }
@@ -1363,7 +1370,8 @@ impl From<BankConfigCompact> for BankConfig {
             _pad1: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
-            _padding0: [0; 6],
+            _padding0: [0; 2],
+            oracle_max_confidence: config.oracle_max_confidence,
             _padding1: [0; 32],
         }
     }
@@ -1385,6 +1393,7 @@ impl From<BankConfig> for BankConfigCompact {
             _pad0: [0; 6],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
+            oracle_max_confidence: config.oracle_max_confidence,
         }
     }
 }
@@ -1443,8 +1452,15 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
 
-    // Note: 6 bytes of padding to next 8 byte alignment, then end padding
-    pub _padding0: [u8; 6],
+    // pad to next 4-byte alignment to meet u32's requirements.
+    pub _padding0: [u8; 2],
+
+    /// From 0-100%, if the confidence exceeds this value, the oracle is considered invalid. Note:
+    /// the confidence adjustment is capped at 5% regardless of this value.
+    /// * 0 falls back to using the default 10% instead, i.e., U32_MAX_DIV_10
+    /// * A %, as u32, e.g. 100% = u32::MAX, 50% = u32::MAX/2, etc.
+    pub oracle_max_confidence: u32,
+
     pub _padding1: [u8; 32],
 }
 
@@ -1467,7 +1483,8 @@ impl Default for BankConfig {
             _pad1: [0; 6],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
-            _padding0: [0; 6],
+            _padding0: [0; 2],
+            oracle_max_confidence: 0,
             _padding1: [0; 32],
         }
     }
@@ -1653,6 +1670,8 @@ pub struct BankConfigOpt {
     pub asset_tag: Option<u8>,
 
     pub total_asset_value_init_limit: Option<u64>,
+
+    pub oracle_max_confidence: Option<u32>,
 
     pub oracle_max_age: Option<u16>,
 

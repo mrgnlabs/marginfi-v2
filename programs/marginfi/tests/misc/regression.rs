@@ -652,7 +652,9 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank.config._pad1, [0; 6]);
     assert_eq!(bank.config.total_asset_value_init_limit, 0);
     assert_eq!(bank.config.oracle_max_age, 300);
-    assert_eq!(bank.config._padding0, [0; 6]);
+    assert_eq!(bank.config._padding0, [0; 2]);
+    // Note: legacy banks that have a 0 value here will use 10%
+    assert_eq!(bank.config.oracle_max_confidence, 0);
     assert_eq!(bank.config._padding1, [0; 32]);
 
     assert_eq!(bank.flags, 2);

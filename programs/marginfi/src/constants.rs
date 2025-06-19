@@ -78,6 +78,8 @@ pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(2.12);
 pub const STD_DEV_MULTIPLE: I80F48 = I80F48!(1.96);
 /// Maximum confidence interval allowed
 pub const MAX_CONF_INTERVAL: I80F48 = I80F48!(0.05);
+pub const U32_MAX: I80F48 = I80F48!(4_294_967_295);
+pub const U32_MAX_DIV_10: I80F48 = I80F48!(429_496_730);
 
 pub const USDC_EXPONENT: i32 = 6;
 
