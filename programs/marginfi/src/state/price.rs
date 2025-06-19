@@ -637,8 +637,8 @@ impl PythPushOraclePriceFeed {
         max_age: u64,
     ) -> MarginfiResult<Self> {
         let price_feed_account = load_price_update_v2_checked(ai)?;
-        let feed_id = if feed_id.is_some() {
-            feed_id.unwrap()
+        let feed_id = if let Some(id) = feed_id {
+            id
         } else {
             &price_feed_account.price_message.feed_id
         };
