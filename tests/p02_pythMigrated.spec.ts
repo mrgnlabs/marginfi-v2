@@ -34,8 +34,11 @@ import { addBankWithSeed, groupInitialize } from "./utils/group-instructions";
 import { defaultBankConfig, ORACLE_SETUP_PYTH_PUSH } from "./utils/types";
 import { dumpBankrunLogs } from "./utils/tools";
 import { createMintToInstruction } from "@solana/spl-token";
-import { assertKeysEqual } from "./utils/genericTests";
-import { decodePriceUpdateV2, initOrUpdatePriceUpdateV2 } from "./utils/pyth-pull-mocks";
+import { assertBankrunTxFailed, assertKeysEqual } from "./utils/genericTests";
+import {
+  decodePriceUpdateV2,
+  initOrUpdatePriceUpdateV2,
+} from "./utils/pyth-pull-mocks";
 
 const seed: number = 789;
 const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_1234000000p2");
@@ -110,7 +113,7 @@ describe("Pyth push oracle migration", () => {
     await banksClient.processTransaction(tx);
     if (verbose) console.log("init bank: " + throwawayBank);
 
-    // Init user accounts ande
+    // Init user accounts, fund both banks to enable borrows.
     for (let i = 0; i < 2; i++) {
       const u = users[i];
       const kp = Keypair.generate();
@@ -173,7 +176,9 @@ describe("Pyth push oracle migration", () => {
     assertKeysEqual(bank.group, throwawayGroup.publicKey);
 
     console.log("lst oracle: " + oracles.pythPullLst.publicKey);
-    let oracleAcc = await bankrunProgram.provider.connection.getAccountInfo(oracles.pythPullLst.publicKey);
+    let oracleAcc = await bankrunProgram.provider.connection.getAccountInfo(
+      oracles.pythPullLst.publicKey
+    );
     const base64Data = oracleAcc.data.toString("base64");
     const priceUpdate = decodePriceUpdateV2(base64Data);
     const feed_id = priceUpdate.price_message.feed_id.toString();
@@ -193,17 +198,38 @@ describe("Pyth push oracle migration", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
-    let result = await banksClient.tryProcessTransaction(tx);
-    dumpBankrunLogs(result);
+    await banksClient.processTransaction(tx);
+
+    const acc = await bankrunProgram.account.marginfiAccount.fetch(userAcc);
+    assert.equal(acc.lendingAccount.balances[1].active, 1);
   });
 
-  it("(admin) migrates oracle", async () => {
+  it("(admin) tries to migrate to bad oracle - should fail", async () => {
     let tx = new Transaction().add(
-      await bankrunProgram.methods
-        .migratePythPushOracle() // TODO add to instructions
+      await groupAdmin.mrgnBankrunProgram.methods
+        .migratePythPushOracle()
         .accounts({
           bank: preMigrationBank,
-          oracle: oracles.wsolOracle.publicKey,
+          oracle: oracles.wsolOracle.publicKey, // sneaky sneaky
+        })
+        .instruction()
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
+    // On mainnet, should fail with 6052 WrongOracleAccountKeys. On localnet, fails the later
+    // feed_id validation in `check_ai_and_feed_id`, resulting in 6055 (PythPushMismatchedFeedId)
+    assertBankrunTxFailed(result, 6055);
+  });
+
+  it("(admin) migrates oracle - happy path", async () => {
+    // TODO add to instructions
+    let tx = new Transaction().add(
+      await groupAdmin.mrgnBankrunProgram.methods
+        .migratePythPushOracle()
+        .accounts({
+          bank: preMigrationBank,
+          oracle: oracles.pythPullLst.publicKey,
         })
         .instruction()
     );

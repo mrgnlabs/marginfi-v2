@@ -380,9 +380,10 @@ export type Oracles = {
 export const createMockAccount = async (
   program: Program<Mocks>,
   space: number,
-  wallet: Wallet
+  wallet: Wallet,
+  keypair?: Keypair
 ) => {
-  const newAccount = Keypair.generate();
+  const newAccount = keypair ?? Keypair.generate();
   const createTx = new Transaction().add(
     SystemProgram.createAccount({
       fromPubkey: wallet.publicKey,

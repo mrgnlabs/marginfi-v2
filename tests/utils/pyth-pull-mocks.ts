@@ -142,7 +142,10 @@ export async function initOrUpdatePriceUpdateV2(
   ema_conf: BN,
   slot: BN,
   exponent: number,
-  existingAccount?: Keypair
+  // User after setup to update existing account
+  existingAccount?: Keypair,
+  // Use to give a deterministic keypair during initial setup instead of a random one
+  oracleKeypair?: Keypair
 ) {
   const space = 134;
   // Compute publish times.
@@ -204,7 +207,12 @@ export async function initOrUpdatePriceUpdateV2(
     await storeMockAccount(mockProgram, wallet, existingAccount, 0, buf);
     return existingAccount;
   } else {
-    let account = await createMockAccount(mockProgram, space, wallet);
+    let account = await createMockAccount(
+      mockProgram,
+      space,
+      wallet,
+      oracleKeypair
+    );
     await storeMockAccount(mockProgram, wallet, account, 0, buf);
     return account;
   }
@@ -218,13 +226,13 @@ export async function initOrUpdatePriceUpdateV2(
  * @param wallet
  * @returns
  */
-export async function initBlankOracleFeed(wallet: Wallet) {
+export async function initBlankOracleFeed(wallet: Wallet, keypair?: Keypair) {
   const space = 300;
   const buf = Buffer.alloc(space);
 
   // Write the buffer to the mock account
   const mockProgram: Program<Mocks> = workspace.Mocks;
-  let account = await createMockAccount(mockProgram, space, wallet);
+  let account = await createMockAccount(mockProgram, space, wallet, keypair);
   await storeMockAccount(mockProgram, wallet, account, 0, buf);
 
   return account;
