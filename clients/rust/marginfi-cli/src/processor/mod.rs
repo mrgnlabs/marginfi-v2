@@ -36,7 +36,7 @@ use {
             },
             price::{
                 parse_swb_ignore_alignment, LitePullFeedAccountData, OraclePriceFeedAdapter,
-                OracleSetup, PriceAdapter, PythPushOraclePriceFeed,
+                OracleSetup, PriceAdapter,
             },
         },
         utils::NumTraitsWithTolerance,
@@ -1688,26 +1688,7 @@ pub fn bank_configure_oracle(
     let configure_bank_ixs_builder = config.mfi_program.request();
     let signing_keypairs = config.get_signers(false);
 
-    let mut extra_accounts = vec![];
-
-    extra_accounts.push(AccountMeta::new_readonly(oracle, false));
-
-    // TODO remove in 0.1.5
-    //  // Pyth pull oracles pass the feed instead, all other kinds pass the key itself
-    // let mut passed_oracle = oracle;
-    // let setup_type =
-    //     OracleSetup::from_u8(setup).unwrap_or_else(|| panic!("unsupported oracle type"));
-
-    // if setup_type == OracleSetup::PythPushOracle || setup_type == OracleSetup::StakedWithPythPush {
-    //     let oracle_address = oracle;
-    //     let mut account = rpc_client.get_account(&oracle_address)?;
-    //     let ai = (&oracle_address, &mut account).into_account_info();
-    //     let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai)?;
-
-    //     let feed_id_as_pubkey = Pubkey::new_from_array(feed_id);
-
-    //     passed_oracle = feed_id_as_pubkey;
-    // }
+    let extra_accounts = vec![AccountMeta::new_readonly(oracle, false)];
 
     let mut configure_bank_ixs = configure_bank_ixs_builder
         .accounts(marginfi::accounts::LendingPoolConfigureBankOracle {
