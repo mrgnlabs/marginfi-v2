@@ -93,6 +93,15 @@ filename = "tests/fixtures/gappy_user3.json"
 address = "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
 filename = "tests/fixtures/gappy_user4.json"
 
+[[test.validator.account]]
+address = "A5qx1NMxfb3zywMuuo276KntUQk2zA3r3q6ZNwVBbMZC"
+filename = "tests/fixtures/pre_migration_bank1.json"
+
+[[test.validator.account]]
+address = "CMTyrgnFkmC6ZUpKivZ2MAatqCq7tMFL4iWWzHrYABBt"
+filename = "tests/fixtures/pre_migration_bank1_vault.json"
+
+
 # To update:
 # clone https://github.com/solana-labs/solana-program-library/tree/master and run cargo build-sbf in spl_single_pool
 [[test.genesis]]

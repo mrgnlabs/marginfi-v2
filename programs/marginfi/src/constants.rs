@@ -101,6 +101,10 @@ pub const EMISSIONS_FLAG_LENDING_ACTIVE: u64 = 1 << 1;
 pub const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG: u64 = 1 << 2;
 pub const FREEZE_SETTINGS: u64 = 1 << 3;
 
+/// True if bank created in 0.1.4 or later, or if migrated to the new oracle setup from a prior
+/// version. False otherwise.
+pub const PYTH_PUSH_MIGRATED: u8 = 1 << 0;
+
 pub(crate) const EMISSION_FLAGS: u64 = EMISSIONS_FLAG_BORROW_ACTIVE | EMISSIONS_FLAG_LENDING_ACTIVE;
 pub(crate) const GROUP_FLAGS: u64 = PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS;
 
@@ -170,8 +174,10 @@ pub const PROTOCOL_FEE_RATE_DEFAULT: I80F48 = I80F48!(0.025);
 pub const PROTOCOL_FEE_FIXED_DEFAULT: I80F48 = I80F48!(0.01);
 
 pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
-pub const PYTH_PUSH_PYTH_SPONSORED_SHARD_ID: u16 = 0;
-pub const PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
+/// Pyth Pull Oracles sponsored by Pyth use this shard ID.
+pub const PYTH_SPONSORED_SHARD_ID: u16 = 0;
+/// Pyth Pull Oracles sponsored by Marginfi use this shard ID.
+pub const MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
 
 /// A regular asset that can be comingled with any other regular asset or with `ASSET_TAG_SOL`
 pub const ASSET_TAG_DEFAULT: u8 = 0;

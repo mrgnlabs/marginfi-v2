@@ -125,8 +125,8 @@ describe("Liquidate user", () => {
           )
         );
       },
-      "PythPushMismatchedFeedId",
-      6055
+      "WrongOracleAccountKeys",
+      6052
     );
   });
 

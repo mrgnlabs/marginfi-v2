@@ -402,6 +402,31 @@ export const liquidateIx = (
     .instruction();
 };
 
+export type MigratePythArgs = {
+  bank: PublicKey;
+  oracle: PublicKey;
+};
+
+export const migratePythArgs = (
+  program: Program<Marginfi>,
+  args: MigratePythArgs
+) => {
+  const oracleMeta: AccountMeta = {
+    pubkey: args.oracle,
+    isSigner: false,
+    isWritable: false,
+  };
+
+  return program.methods
+    .migratePythPushOracle()
+    .accounts({
+      bank: args.bank,
+      oracle: args.oracle,
+    })
+    .remainingAccounts([oracleMeta])
+    .instruction();
+};
+
 export type HealthPulseArgs = {
   marginfiAccount: PublicKey;
   remaining: PublicKey[];

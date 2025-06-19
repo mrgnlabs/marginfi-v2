@@ -72,10 +72,13 @@ This is much slower than the remix test command, but stable on any system.
 This will throttle your CPU and may error sporadically as a reminder to buy a better CPU if you try to do anything else (like say, compile another Rust repo) while this is running. It is approximately 10x faster than test-program.sh, so use this one if you value your time and sanity. Feel free to add your flex below:
 
 Benchmarks:
-|   CPU   | Summary |
+| CPU | Summary |
 |---------|---------|
-| 9700X        | `[   6.302s] 238 tests run: 238 passed, 0 skipped` |
+| 9700X | `[   6.302s] 238 tests run: 238 passed, 0 skipped` |
 | Apple M4 Pro | `[  11.038s] 225 tests run: 225 passed, 0 skipped` |
+
+0.1.4
+| 9700X | `[  12.203s] 226 tests run: 226 passed, 0 skipped`
 
 ### To run just one Rust test:
 
@@ -94,6 +97,7 @@ build, then run it. It may take a very long time and use a very large amount of 
 Typically, we run this to see if there are errors, and close it early if there are not, there is
 typically no need to wait for the suite to finish locally.
 
+See the Readme within the Fuzz directory for more details.
 
 ## Common issues
 
@@ -104,7 +108,6 @@ Update Node
 ### All the tests are failing in Rust and/or TS
 
 Make sure you build the correct version, Rust requires the mainnet version (default features), TS wants localnet (no features)
-
 
 ### Program not deployed errors, when build seemingly worked otherwise
 
@@ -117,6 +120,7 @@ msg!("recorded price: {:?}", price);
 ```
 
 ### Metadata corruption
+
 Seeing this:
 
 ```

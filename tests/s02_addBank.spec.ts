@@ -81,7 +81,7 @@ describe("Init group and add banks with asset category flags", () => {
 
   it("(admin) Init staked settings for group - opts in to use staked collateral", async () => {
     const settings = defaultStakedInterestSettings(
-      oracles.wsolOracleFeed.publicKey
+      oracles.wsolOracle.publicKey
     );
     let tx = new Transaction();
 
@@ -108,7 +108,7 @@ describe("Init group and add banks with asset category flags", () => {
       settingsKey
     );
     assertKeysEqual(settingsAcc.key, settingsKey);
-    assertKeysEqual(settingsAcc.oracle, oracles.wsolOracleFeed.publicKey);
+    assertKeysEqual(settingsAcc.oracle, oracles.wsolOracle.publicKey);
     assertI80F48Approx(settingsAcc.assetWeightInit, 0.8);
     assertI80F48Approx(settingsAcc.assetWeightMaint, 0.9);
     assertBNEqual(settingsAcc.depositLimit, 1_000_000_000_000);
@@ -129,7 +129,7 @@ describe("Init group and add banks with asset category flags", () => {
     const config_ix = await groupAdmin.mrgnProgram.methods
       .lendingPoolConfigureBankOracle(
         ORACLE_SETUP_PYTH_PUSH,
-        oracles.usdcOracleFeed.publicKey
+        oracles.usdcOracle.publicKey
       )
       .accountsPartial({
         group: marginfiGroup.publicKey,
@@ -175,7 +175,7 @@ describe("Init group and add banks with asset category flags", () => {
     const config_ix = await groupAdmin.mrgnProgram.methods
       .lendingPoolConfigureBankOracle(
         ORACLE_SETUP_PYTH_PUSH,
-        oracles.wsolOracleFeed.publicKey
+        oracles.wsolOracle.publicKey
       )
       .accountsPartial({
         group: marginfiGroup.publicKey,
@@ -413,8 +413,8 @@ describe("Init group and add banks with asset category flags", () => {
     tx.sign(users[0].wallet);
 
     let result = await banksClient.tryProcessTransaction(tx);
-    // Note: PythPushMismatchedFeedId
-    assertBankrunTxFailed(result, "0x17a7");
+    // Note: WrongOracleAccountKeys
+    assertBankrunTxFailed(result, 6052);
   });
 
   it("(permissionless) Add staked collateral bank (validator 0) - happy path", async () => {

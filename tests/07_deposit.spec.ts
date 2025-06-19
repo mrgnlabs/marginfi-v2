@@ -208,7 +208,7 @@ describe("Deposit funds", () => {
         await program.methods
           .lendingPoolConfigureBankOracle(
             ORACLE_SETUP_PYTH_PUSH,
-            oracles.tokenAOracleFeed.publicKey
+            oracles.tokenAOracle.publicKey
           )
           .accountsPartial({
             group: marginfiGroup.publicKey,

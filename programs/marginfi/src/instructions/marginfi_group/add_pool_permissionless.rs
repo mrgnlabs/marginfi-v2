@@ -5,7 +5,7 @@ use crate::{
     constants::{
         ASSET_TAG_STAKED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        SPL_SINGLE_POOL_ID,
+        PYTH_PUSH_MIGRATED, SPL_SINGLE_POOL_ID,
     },
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     log_pool_info,
@@ -72,7 +72,8 @@ pub fn lending_pool_add_bank_permissionless(
         borrow_limit: 0,
         risk_tier: settings.risk_tier,
         asset_tag: ASSET_TAG_STAKED,
-        _pad0: [0; 6],
+        config_flags: PYTH_PUSH_MIGRATED,
+        _pad0: [0; 5],
         total_asset_value_init_limit: settings.total_asset_value_init_limit,
         oracle_max_age: settings.oracle_max_age,
     };
@@ -95,6 +96,7 @@ pub fn lending_pool_add_bank_permissionless(
     );
     bank.config.oracle_setup = OracleSetup::StakedWithPythPush;
     bank.config.oracle_keys[0] = settings.oracle;
+    bank.config.update_config_flag(true, PYTH_PUSH_MIGRATED);
 
     log_pool_info(&bank);
 

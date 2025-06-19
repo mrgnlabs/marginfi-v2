@@ -1,9 +1,7 @@
 import { BN, Program } from "@coral-xyz/anchor";
 import { AccountMeta, PublicKey } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
-import {
-  deriveStakedSettings,
-} from "./pdas";
+import { deriveStakedSettings } from "./pdas";
 import {
   BankConfig,
   BankConfigOptWithAssetTag,
@@ -44,6 +42,7 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
       borrowLimit: args.config.borrowLimit,
       riskTier: args.config.riskTier,
       assetTag: args.config.assetTag,
+      configFlags: args.config.configFlags,
       pad0: [0, 0, 0, 0, 0, 0],
       totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
       oracleMaxAge: args.config.oracleMaxAge,
@@ -100,6 +99,7 @@ export const addBankWithSeed = (
         borrowLimit: args.config.borrowLimit,
         riskTier: args.config.riskTier,
         assetTag: args.config.assetTag,
+        configFlags: args.config.configFlags,
         pad0: [0, 0, 0, 0, 0, 0],
         totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
         oracleMaxAge: args.config.oracleMaxAge,
@@ -213,8 +213,6 @@ export type ConfigureBankOracleArgs = {
   bank: PublicKey;
   type: number;
   oracle: PublicKey;
-  /** For Pyth Pull, pass the feed. For all others, ignore */
-  feed?: PublicKey;
 };
 
 export const configureBankOracle = (
@@ -228,7 +226,7 @@ export const configureBankOracle = (
   };
 
   const ix = program.methods
-    .lendingPoolConfigureBankOracle(args.type, args.feed ?? args.oracle)
+    .lendingPoolConfigureBankOracle(args.type, args.oracle)
     .accounts({
       bank: args.bank,
     })
@@ -575,9 +573,9 @@ export type UpdateBankFeesDestinationAccountArgs = {
 /**
  * Set a destination for fees. Once set, anyone can sweep fees to this account in a permissionless
  * way buy calling `withdrawFeesPermissionless`. Remember to run `collectBankFees` first.
- * @param program 
- * @param args 
- * @returns 
+ * @param program
+ * @param args
+ * @returns
  */
 export const updateBankFeesDestinationAccount = (
   program: Program<Marginfi>,
@@ -601,7 +599,7 @@ export type WithdrawFeesPermissionlessArgs = {
   amount: BN;
 };
 
-/** 
+/**
  * Permissionless, move funds from the fee vault to the account the admin specified as the
  * destination for fees.
  */
@@ -631,9 +629,9 @@ export type CollectBankFeesArgs = {
 
 /**
  * Permissionless, collect bank fees into their respective vaults.
- * @param program 
- * @param args 
- * @returns 
+ * @param program
+ * @param args
+ * @returns
  */
 export const collectBankFees = (
   program: Program<Marginfi>,
@@ -655,9 +653,9 @@ export const collectBankFees = (
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .instruction();
-  
+
   return ix;
-}
+};
 
 export type AccrueInterestArgs = {
   bank: PublicKey;

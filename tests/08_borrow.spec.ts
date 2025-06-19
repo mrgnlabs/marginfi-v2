@@ -73,7 +73,7 @@ describe("Borrow funds", () => {
         );
         // Note: you can now see expected vs actual keys in the msg! logs just before this error.
       },
-      "PythPushMismatchedFeedId",
+      "WrongOracleAccountKeys",
       6055
     );
   });

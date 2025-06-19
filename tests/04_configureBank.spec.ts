@@ -60,8 +60,8 @@ describe("Lending pool configure bank", () => {
         await configureBank(groupAdmin.mrgnProgram, {
           bank: bankKey,
           bankConfigOpt: bankConfigOpt,
-        }),
-      ),
+        })
+      )
     );
 
     const bank = await program.account.bank.fetch(bankKey);
@@ -98,8 +98,8 @@ describe("Lending pool configure bank", () => {
         await configureBank(groupAdmin.mrgnProgram, {
           bank: bankKeypairUsdc.publicKey,
           bankConfigOpt: defaultBankConfigOptRaw(),
-        }),
-      ),
+        })
+      )
     );
   });
 
@@ -111,14 +111,13 @@ describe("Lending pool configure bank", () => {
           bank: bankKey,
           type: 3, // pyth pull
           oracle: oracles.tokenAOracle.publicKey,
-          feed: oracles.tokenAOracleFeed.publicKey,
-        }),
-      ),
+        })
+      )
     );
     const bank = await program.account.bank.fetch(bankKey);
     const config = bank.config;
     assert.deepEqual(config.oracleSetup, { pythPushOracle: {} }); // no change
-    assertKeysEqual(config.oracleKeys[0], oracles.tokenAOracleFeed.publicKey);
+    assertKeysEqual(config.oracleKeys[0], oracles.tokenAOracle.publicKey);
   });
 
   it("(admin) restore to valid oracle (USDC)", async () => {
@@ -129,14 +128,13 @@ describe("Lending pool configure bank", () => {
           bank: bankKey,
           type: 3, // pyth pull
           oracle: oracles.usdcOracle.publicKey,
-          feed: oracles.usdcOracleFeed.publicKey,
-        }),
-      ),
+        })
+      )
     );
     const bank = await program.account.bank.fetch(bankKey);
     const config = bank.config;
     assert.deepEqual(config.oracleSetup, { pythPushOracle: {} }); // no change
-    assertKeysEqual(config.oracleKeys[0], oracles.usdcOracleFeed.publicKey);
+    assertKeysEqual(config.oracleKeys[0], oracles.usdcOracle.publicKey);
   });
 
   it("(admin) update oracle to invalid state - should fail", async () => {
@@ -149,13 +147,12 @@ describe("Lending pool configure bank", () => {
               bank: bankKey,
               type: 3,
               oracle: oracles.tokenAOracleFeed.publicKey, // sneaky sneaky
-              feed: oracles.tokenAOracleFeed.publicKey,
-            }),
-          ),
+            })
+          )
         );
       },
       "PythPushInvalidAccount",
-      6060,
+      6060
     );
 
     await expectFailedTxWithMessage(async () => {
@@ -165,9 +162,8 @@ describe("Lending pool configure bank", () => {
             bank: bankKey,
             type: 0,
             oracle: oracles.tokenAOracle.publicKey,
-            feed: oracles.tokenAOracleFeed.publicKey,
-          }),
-        ),
+          })
+        )
       );
     }, "OracleNotSetup");
 
@@ -178,9 +174,8 @@ describe("Lending pool configure bank", () => {
             bank: bankKey,
             type: 2,
             oracle: oracles.tokenAOracle.publicKey,
-            feed: oracles.tokenAOracleFeed.publicKey,
-          }),
-        ),
+          })
+        )
       );
     }, "swb v2 is deprecated");
 
@@ -191,9 +186,8 @@ describe("Lending pool configure bank", () => {
             bank: bankKey,
             type: 42,
             oracle: oracles.tokenAOracle.publicKey,
-            feed: oracles.tokenAOracleFeed.publicKey,
-          }),
-        ),
+          })
+        )
       );
     }, "unsupported oracle type");
   });
@@ -209,13 +203,12 @@ describe("Lending pool configure bank", () => {
               bank: bankKey,
               type: 3,
               oracle: oracles.wsolOracle.publicKey,
-              feed: oracles.wsolOracleFeed.publicKey,
-            }),
-          ),
+            })
+          )
         );
       },
       "ConstraintHasOne",
-      2001,
+      2001
     );
 
     await expectFailedTxWithMessage(async () => {
@@ -225,9 +218,8 @@ describe("Lending pool configure bank", () => {
             bank: bankKey,
             type: 3,
             oracle: oracles.wsolOracle.publicKey,
-            feed: oracles.wsolOracleFeed.publicKey,
-          }),
-        ),
+          })
+        )
       );
     }, "Missing signature for");
   });
@@ -240,8 +232,8 @@ describe("Lending pool configure bank", () => {
         await configureBank(groupAdmin.mrgnProgram, {
           bank: bankKeypairUsdc.publicKey,
           bankConfigOpt: config,
-        }),
-      ),
+        })
+      )
     );
     const bank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
     assertBNEqual(bank.flags, FREEZE_SETTINGS);
@@ -257,9 +249,8 @@ describe("Lending pool configure bank", () => {
             bank: bankKey,
             type: 3,
             oracle: oracles.wsolOracle.publicKey,
-            feed: oracles.wsolOracleFeed.publicKey,
-          }),
-        ),
+          })
+        )
       );
     }, "change oracle settings on frozen banks");
   });
@@ -280,8 +271,8 @@ describe("Lending pool configure bank", () => {
         await configureBank(groupAdmin.mrgnProgram, {
           bank: bankKeypairUsdc.publicKey,
           bankConfigOpt: configNew,
-        }),
-      ),
+        })
+      )
     );
     const bank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
     const config = bank.config;

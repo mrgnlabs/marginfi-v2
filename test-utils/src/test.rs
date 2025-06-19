@@ -11,7 +11,7 @@ use solana_sdk::{account::AccountSharedData, entrypoint::ProgramResult};
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
 use marginfi::{
-    constants::MAX_ORACLE_KEYS,
+    constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED},
     state::{
         marginfi_group::{BankConfig, BankOperationalState, InterestRateConfig, RiskTier},
         price::OracleSetup,
@@ -261,6 +261,7 @@ lazy_static! {
 
         operational_state: BankOperationalState::Operational,
         risk_tier: RiskTier::Collateral,
+        config_flags: PYTH_PUSH_MIGRATED,
 
         interest_rate_config: InterestRateConfig {
             insurance_fee_fixed_apr: I80F48!(0).into(),
@@ -325,26 +326,26 @@ lazy_static! {
     pub static ref DEFAULT_SOL_TEST_PYTH_PUSH_FULLV_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
-        oracle_keys: create_oracle_key_array(PYTH_PUSH_FULLV_FEED_ID.into()),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_SOL_FULLV_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     /// This banks orale always has an insufficient verification level.
     pub static ref DEFAULT_SOL_TEST_PYTH_PUSH_PARTV_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
-        oracle_keys: create_oracle_key_array(PYTH_PUSH_PARTV_FEED_ID.into()),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_SOL_PARTV_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_USDC_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000_000, "USDC"),
         borrow_limit: native!(1_000_000_000, "USDC"),
-        oracle_keys: create_oracle_key_array(PYTH_PUSH_REAL_USDC_FEED_ID.into()),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_USDC_REAL_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
     pub static ref DEFAULT_PYTH_PUSH_SOL_TEST_REAL_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000, "SOL"),
         borrow_limit: native!(1_000_000, "SOL"),
-        oracle_keys: create_oracle_key_array(PYTH_PUSH_REAL_SOL_FEED_ID.into()),
+        oracle_keys: create_oracle_key_array(PYTH_PUSH_SOL_REAL_FEED),
         oracle_max_age: 100,
         ..*DEFAULT_TEST_BANK_CONFIG
     };

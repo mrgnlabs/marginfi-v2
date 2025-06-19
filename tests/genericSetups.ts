@@ -69,13 +69,12 @@ export const genericMultiBankTestSetup = async (
       tasks.push(
         addGenericBank(throwawayGroup, {
           bankMint: ecosystem.lstAlphaMint.publicKey,
-          oracle: oracles.pythPullLstOracleFeed.publicKey,
+          oracle: oracles.pythPullLst.publicKey,
           oracleMeta: {
             pubkey: oracles.pythPullLst.publicKey,
             isSigner: false,
             isWritable: false,
           },
-          feedOracle: oracles.pythPullLstOracleFeed.publicKey,
           seed: new BN(seed),
           verboseMessage: verbose ? `*init LST #${seed}:` : undefined,
         })
@@ -196,8 +195,6 @@ async function addGenericBank(
     bankMint: PublicKey;
     oracle: PublicKey;
     oracleMeta: AccountMeta;
-    // Optional feed oracle in case the instruction requires it (i.e. for pull)
-    feedOracle?: PublicKey;
     // Function to adjust the seed (for example, seed.addn(1))
     seed: BN;
     verboseMessage: string;
@@ -208,7 +205,6 @@ async function addGenericBank(
     bankMint,
     oracle,
     oracleMeta,
-    feedOracle,
     seed,
     verboseMessage,
   } = options;
@@ -238,9 +234,8 @@ async function addGenericBank(
   );
 
   const setupType = ORACLE_SETUP_PYTH_PUSH;
-  const targetOracle = feedOracle ?? oracle;
   const config_ix = await groupAdmin.mrgnProgram.methods
-    .lendingPoolConfigureBankOracle(setupType, targetOracle)
+    .lendingPoolConfigureBankOracle(setupType, oracle)
     .accountsPartial({
       group: throwawayGroup.publicKey,
       bank: bankKey,

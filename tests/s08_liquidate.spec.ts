@@ -221,7 +221,7 @@ describe("Liquidate user (including staked assets)", () => {
     }
 
     const defaultSettings = defaultStakedInterestSettings(
-      oracles.wsolOracleFeed.publicKey
+      oracles.wsolOracle.publicKey
     );
     const settings: StakedSettingsEdit = {
       oracle: defaultSettings.oracle,

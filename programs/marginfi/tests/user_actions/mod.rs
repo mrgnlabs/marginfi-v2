@@ -17,10 +17,7 @@ use marginfi::{
         EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, MIN_EMISSIONS_START_TIME,
     },
     prelude::*,
-    state::marginfi_account::{
-        BankAccountWrapper, ACCOUNT_DISABLED, ACCOUNT_FLAG_DEPRECATED, ACCOUNT_IN_FLASHLOAN,
-        ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
-    },
+    state::marginfi_account::BankAccountWrapper,
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
@@ -431,6 +428,7 @@ async fn emissions_setup_t22_with_fee() -> anyhow::Result<()> {
     let bank = bank_f.load().await;
 
     assert_eq!(bank.flags, EMISSIONS_FLAG_LENDING_ACTIVE);
+    assert!(bank.config.is_pyth_push_migrated());
 
     assert_eq!(bank.emissions_rate, 1_000_000);
 

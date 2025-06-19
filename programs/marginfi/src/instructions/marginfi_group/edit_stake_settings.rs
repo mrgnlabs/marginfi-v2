@@ -15,6 +15,7 @@ pub fn edit_staked_settings(
     // require_keys_eq!(group.admin, ctx.accounts.admin.key());
 
     set_if_some!(staked_settings.oracle, settings.oracle);
+
     set_if_some!(
         staked_settings.asset_weight_init,
         settings.asset_weight_init
