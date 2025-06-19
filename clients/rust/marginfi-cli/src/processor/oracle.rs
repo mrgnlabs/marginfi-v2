@@ -68,7 +68,10 @@ pub fn inspect_pyth_push_feed(config: &Config, address: Pubkey) -> anyhow::Resul
 
     println!(
         "Price: {}",
-        feed.get_price_of_type_ignore_conf(marginfi::state::price::OraclePriceType::RealTime, None)?
+        feed.get_price_of_type_ignore_conf(
+            marginfi::state::price::OraclePriceType::RealTime,
+            None
+        )?
     );
 
     let feed_id = price_update.price_message.feed_id;
