@@ -601,6 +601,7 @@ pub struct PythPushOraclePriceFeed {
 }
 
 impl PythPushOraclePriceFeed {
+    // TODO revise this doc in 0.1.5
     /// Pyth push oracles are update using crosschain messages from pythnet There can be multiple
     /// pyth push oracles for a given feed_id. Marginfi allows using any pyth push oracle with a
     /// sufficient verification level and price age.
@@ -609,8 +610,6 @@ impl PythPushOraclePriceFeed {
     /// directly, but rather we verify the feed_id in the oracle data. Pass the feed_id in this instance.
     ///
     /// In 0.1.4 and later, we validate the account address directly, pass None for the feed id.
-    /// 
-    /// TODO revise this doc in 0.1.5
     ///
     /// Security assumptions:
     /// - The pyth-push-oracle account is owned by the pyth-solana-receiver program, checked in
