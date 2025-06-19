@@ -26,12 +26,17 @@ import {
   borrowIx,
   composeRemainingAccounts,
   depositIx,
+  migratePythArgs,
 } from "./utils/user-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { assert } from "chai";
 import { addBankWithSeed, groupInitialize } from "./utils/group-instructions";
-import { defaultBankConfig, ORACLE_SETUP_PYTH_PUSH } from "./utils/types";
+import {
+  defaultBankConfig,
+  ORACLE_SETUP_PYTH_PUSH,
+  PYTH_PULL_MIGRATED,
+} from "./utils/types";
 import { dumpBankrunLogs } from "./utils/tools";
 import { createMintToInstruction } from "@solana/spl-token";
 import { assertBankrunTxFailed, assertKeysEqual } from "./utils/genericTests";
@@ -206,13 +211,10 @@ describe("Pyth push oracle migration", () => {
 
   it("(admin) tries to migrate to bad oracle - should fail", async () => {
     let tx = new Transaction().add(
-      await groupAdmin.mrgnBankrunProgram.methods
-        .migratePythPushOracle()
-        .accounts({
-          bank: preMigrationBank,
-          oracle: oracles.wsolOracle.publicKey, // sneaky sneaky
-        })
-        .instruction()
+      await migratePythArgs(groupAdmin.mrgnBankrunProgram, {
+        bank: preMigrationBank,
+        oracle: oracles.wsolOracle.publicKey,
+      })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet);
@@ -223,19 +225,59 @@ describe("Pyth push oracle migration", () => {
   });
 
   it("(admin) migrates oracle - happy path", async () => {
-    // TODO add to instructions
+    const bankBefore = await bankrunProgram.account.bank.fetch(
+      preMigrationBank
+    );
+    assert.equal(bankBefore.config.configFlags, 0);
     let tx = new Transaction().add(
-      await groupAdmin.mrgnBankrunProgram.methods
-        .migratePythPushOracle()
-        .accounts({
-          bank: preMigrationBank,
-          oracle: oracles.pythPullLst.publicKey,
-        })
-        .instruction()
+      await migratePythArgs(groupAdmin.mrgnBankrunProgram, {
+        bank: preMigrationBank,
+        oracle: oracles.pythPullLst.publicKey,
+      })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet);
     await banksClient.processTransaction(tx);
+    const bankAfter = await bankrunProgram.account.bank.fetch(preMigrationBank);
+    assert.equal(bankAfter.config.configFlags, PYTH_PULL_MIGRATED);
+  });
+
+  it("(admin) migrates an oracle that's already migrated - nothing happens", async () => {
+    const bankBefore = await bankrunProgram.account.bank.fetch(
+      preMigrationBank
+    );
+    assert.equal(bankBefore.config.configFlags, PYTH_PULL_MIGRATED);
+    let tx = new Transaction().add(
+      await migratePythArgs(groupAdmin.mrgnBankrunProgram, {
+        bank: preMigrationBank,
+        oracle: oracles.wsolOracle.publicKey, // sneaky sneaky
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet);
+    await banksClient.processTransaction(tx);
+    // Note: no tx failure, we just abort and do nothing.
+
+    const bankAfter = await bankrunProgram.account.bank.fetch(preMigrationBank);
+    assert.equal(bankAfter.config.configFlags, PYTH_PULL_MIGRATED);
+  });
+
+  it("(admin) migrates a bank created after 0.1.4 - nothing happens", async () => {
+    const bankBefore = await bankrunProgram.account.bank.fetch(throwawayBank);
+    assert.equal(bankBefore.config.configFlags, PYTH_PULL_MIGRATED);
+    let tx = new Transaction().add(
+      await migratePythArgs(groupAdmin.mrgnBankrunProgram, {
+        bank: throwawayBank,
+        oracle: oracles.wsolOracle.publicKey, // sneaky sneaky
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet);
+    await banksClient.processTransaction(tx);
+    // Note: no tx failure, we just abort and do nothing.
+
+    const bankAfter = await bankrunProgram.account.bank.fetch(throwawayBank);
+    assert.equal(bankAfter.config.configFlags, PYTH_PULL_MIGRATED);
   });
 
   it("(user 0) borrows after migration", async () => {

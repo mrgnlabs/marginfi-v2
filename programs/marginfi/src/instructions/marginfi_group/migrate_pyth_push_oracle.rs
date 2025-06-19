@@ -52,7 +52,8 @@ pub fn migrate_pyth_push_oracle(ctx: Context<MigratePythPushOracle>) -> Marginfi
     }
 
     // Validate that the feed actually exists and is valid, a useful sanity check because most of
-    // our banks have a sponsored feed or a mrgn feed but not both.
+    // our banks have a sponsored feed or a mrgn feed but not both. This also repeats the above
+    // check, since we are validating the feed bytes again.
     PythPushOraclePriceFeed::check_ai_and_feed_id(&ctx.accounts.oracle, &feed_id_bytes)?;
 
     bank.config.oracle_keys[0] = oracle_key;

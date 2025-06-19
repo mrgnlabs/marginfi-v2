@@ -24,8 +24,8 @@ use {
     log::info,
     marginfi::{
         constants::{
-            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
-            PYTH_SPONSORED_SHARD_ID, ZERO_AMOUNT_THRESHOLD,
+            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, PYTH_SPONSORED_SHARD_ID,
+            ZERO_AMOUNT_THRESHOLD,
         },
         prelude::*,
         state::{
@@ -1689,24 +1689,25 @@ pub fn bank_configure_oracle(
     let signing_keypairs = config.get_signers(false);
 
     let mut extra_accounts = vec![];
-    // Pyth pull oracles pass the feed instead, all other kinds pass the key itself
-    let mut passed_oracle = oracle;
 
     extra_accounts.push(AccountMeta::new_readonly(oracle, false));
 
-    let setup_type =
-        OracleSetup::from_u8(setup).unwrap_or_else(|| panic!("unsupported oracle type"));
+    // TODO remove in 0.1.5
+    //  // Pyth pull oracles pass the feed instead, all other kinds pass the key itself
+    // let mut passed_oracle = oracle;
+    // let setup_type =
+    //     OracleSetup::from_u8(setup).unwrap_or_else(|| panic!("unsupported oracle type"));
 
-    if setup_type == OracleSetup::PythPushOracle || setup_type == OracleSetup::StakedWithPythPush {
-        let oracle_address = oracle;
-        let mut account = rpc_client.get_account(&oracle_address)?;
-        let ai = (&oracle_address, &mut account).into_account_info();
-        let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai)?;
+    // if setup_type == OracleSetup::PythPushOracle || setup_type == OracleSetup::StakedWithPythPush {
+    //     let oracle_address = oracle;
+    //     let mut account = rpc_client.get_account(&oracle_address)?;
+    //     let ai = (&oracle_address, &mut account).into_account_info();
+    //     let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai)?;
 
-        let feed_id_as_pubkey = Pubkey::new_from_array(feed_id);
+    //     let feed_id_as_pubkey = Pubkey::new_from_array(feed_id);
 
-        passed_oracle = feed_id_as_pubkey;
-    }
+    //     passed_oracle = feed_id_as_pubkey;
+    // }
 
     let mut configure_bank_ixs = configure_bank_ixs_builder
         .accounts(marginfi::accounts::LendingPoolConfigureBankOracle {
@@ -1714,10 +1715,7 @@ pub fn bank_configure_oracle(
             admin: config.authority(),
             bank: bank_pk,
         })
-        .args(marginfi::instruction::LendingPoolConfigureBankOracle {
-            setup,
-            oracle: passed_oracle,
-        })
+        .args(marginfi::instruction::LendingPoolConfigureBankOracle { setup, oracle })
         .instructions()?;
 
     configure_bank_ixs[0].accounts.extend(extra_accounts);

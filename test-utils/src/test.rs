@@ -11,7 +11,7 @@ use solana_sdk::{account::AccountSharedData, entrypoint::ProgramResult};
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
 use marginfi::{
-    constants::MAX_ORACLE_KEYS,
+    constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED},
     state::{
         marginfi_group::{BankConfig, BankOperationalState, InterestRateConfig, RiskTier},
         price::OracleSetup,
@@ -261,6 +261,7 @@ lazy_static! {
 
         operational_state: BankOperationalState::Operational,
         risk_tier: RiskTier::Collateral,
+        config_flags: PYTH_PUSH_MIGRATED,
 
         interest_rate_config: InterestRateConfig {
             insurance_fee_fixed_apr: I80F48!(0).into(),
