@@ -17,7 +17,7 @@ use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
-use std::{cell::Ref, cmp::min, u32};
+use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{
     CurrentResult, Discriminator, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID,
 };
