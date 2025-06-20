@@ -75,6 +75,8 @@ pub fn lending_pool_add_bank_permissionless(
         _pad0: [0; 6],
         total_asset_value_init_limit: settings.total_asset_value_init_limit,
         oracle_max_age: settings.oracle_max_age,
+        // Note: this will use the default of 10%. SOL oracle confidence is generally fine.
+        oracle_max_confidence: 0,
     };
 
     *bank = Bank::new(

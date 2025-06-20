@@ -345,6 +345,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 let lower_price = price_feed.get_price_of_type(
                     requirement_type.get_oracle_price_type(),
                     Some(PriceBias::Low),
+                    bank.config.oracle_max_confidence,
                 )?;
 
                 if matches!(requirement_type, RequirementType::Initial) {
@@ -387,6 +388,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         let higher_price = price_feed.get_price_of_type(
             requirement_type.get_oracle_price_type(),
             Some(PriceBias::High),
+            bank.config.oracle_max_confidence,
         )?;
 
         // If `ASSET_TAG_STAKED` assets can ever be borrowed, accomodate for that here...

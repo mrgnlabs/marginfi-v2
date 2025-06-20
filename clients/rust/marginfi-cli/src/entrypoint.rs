@@ -277,6 +277,11 @@ pub enum BankCommand {
         asset_tag: Option<u8>,
         #[clap(long, help = "Soft USD init limit")]
         usd_init_limit: Option<u64>,
+        #[clap(
+            long,
+            help = "Oracle max confidence, a % as u32, e.g. 50% = u32::MAX/2"
+        )]
+        oracle_max_confidence: Option<u32>,
         #[clap(long, help = "Oracle max age in seconds, 0 to use default value (60s)")]
         oracle_max_age: Option<u16>,
         #[clap(
@@ -736,6 +741,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             risk_tier,
             asset_tag,
             usd_init_limit,
+            oracle_max_confidence,
             oracle_max_age,
             permissionless_bad_debt_settlement,
             freeze_settings,
@@ -775,6 +781,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     risk_tier: risk_tier.map(|x| x.into()),
                     asset_tag,
                     total_asset_value_init_limit: usd_init_limit,
+                    oracle_max_confidence,
                     oracle_max_age,
                     permissionless_bad_debt_settlement,
                     freeze_settings,

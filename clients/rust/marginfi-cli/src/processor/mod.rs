@@ -1229,11 +1229,11 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
     .unwrap();
 
     let (real_price, maint_asset_price, maint_liab_price, init_asset_price, init_liab_price) = (
-        opfa.get_price_of_type(OraclePriceType::RealTime, None)?,
-        opfa.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?,
-        opfa.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?,
-        opfa.get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))?,
-        opfa.get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))?,
+        opfa.get_price_of_type_ignore_conf(OraclePriceType::RealTime, None)?,
+        opfa.get_price_of_type_ignore_conf(OraclePriceType::RealTime, Some(PriceBias::Low))?,
+        opfa.get_price_of_type_ignore_conf(OraclePriceType::RealTime, Some(PriceBias::High))?,
+        opfa.get_price_of_type_ignore_conf(OraclePriceType::TimeWeighted, Some(PriceBias::Low))?,
+        opfa.get_price_of_type_ignore_conf(OraclePriceType::TimeWeighted, Some(PriceBias::High))?,
     );
 
     let keys = bank
