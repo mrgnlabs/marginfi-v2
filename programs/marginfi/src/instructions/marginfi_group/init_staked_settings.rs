@@ -69,7 +69,6 @@ pub struct InitStakedSettings<'info> {
     )]
     pub staked_settings: AccountLoader<'info, StakedSettings>,
 
-    pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
 }
 

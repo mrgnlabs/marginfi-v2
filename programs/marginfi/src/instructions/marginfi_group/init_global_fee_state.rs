@@ -43,6 +43,5 @@ pub struct InitFeeState<'info> {
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 
-    pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
 }
