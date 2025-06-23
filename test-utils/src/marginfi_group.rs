@@ -19,7 +19,6 @@ use marginfi::{
     prelude::MarginfiGroup,
     state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType},
 };
-use solana_program::sysvar;
 use solana_program_test::*;
 use solana_sdk::system_transaction;
 use solana_sdk::{

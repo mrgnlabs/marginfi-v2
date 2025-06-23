@@ -9,7 +9,7 @@ use std::{
 use account_state::{AccountInfoCache, AccountsState};
 use anchor_lang::{
     accounts::{interface::Interface, interface_account::InterfaceAccount},
-    prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer, Sysvar},
+    prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer},
     Discriminator, Key,
 };
 use arbitrary_helpers::{
@@ -56,7 +56,6 @@ pub struct MarginfiFuzzContext<'info> {
     pub marginfi_accounts: Vec<UserAccount<'info>>,
     pub owner: AccountInfo<'info>,
     pub system_program: AccountInfo<'info>,
-    pub rent_sysvar: AccountInfo<'info>,
     pub last_sysvar_current_timestamp: RwLock<u64>,
     pub metrics: Arc<RwLock<Metrics>>,
     pub state: &'info AccountsState,
@@ -71,12 +70,10 @@ impl<'state> MarginfiFuzzContext<'state> {
         let system_program = state.new_program(system_program::id());
         let admin = state.new_sol_account(1_000_000, true, true);
         let fee_state_wallet = state.new_sol_account(1_000_000, true, true);
-        let rent_sysvar = state.new_rent_sysvar_account(Rent::free());
         let fee_state = initialize_fee_state(
             state,
             admin.clone(),
             fee_state_wallet.clone(),
-            rent_sysvar.clone(),
             system_program.clone(),
         );
         let marginfi_group = initialize_marginfi_group(
@@ -93,7 +90,6 @@ impl<'state> MarginfiFuzzContext<'state> {
             banks: vec![],
             owner: admin,
             system_program,
-            rent_sysvar,
             marginfi_accounts: vec![],
             last_sysvar_current_timestamp: RwLock::new(
                 SystemTime::now()
@@ -265,7 +261,6 @@ impl<'state> MarginfiFuzzContext<'state> {
                         ),
                         fee_vault_authority: ails(fee_vault_authority.clone()),
                         fee_vault: Box::new(InterfaceAccount::try_from(airls(&fee_vault)).unwrap()),
-                        rent: Sysvar::from_account_info(airls(&self.rent_sysvar)).unwrap(),
                         token_program: Interface::try_from(airls(&token_program)).unwrap(),
                         system_program: Program::try_from(airls(&self.system_program)).unwrap(),
                     },
@@ -1025,7 +1020,6 @@ fn initialize_fee_state<'a>(
                 payer: Signer::try_from(airls(&admin)).unwrap(),
                 fee_state: AccountLoader::try_from_unchecked(&program_id, airls(&fee_state))
                     .unwrap(),
-                rent: Sysvar::from_account_info(airls(&rent)).unwrap(),
                 system_program: Program::try_from(airls(&system_program)).unwrap(),
             },
             &[],
