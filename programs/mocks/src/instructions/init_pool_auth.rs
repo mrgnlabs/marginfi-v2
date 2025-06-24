@@ -56,7 +56,6 @@ pub struct InitPoolAuth<'info> {
     pub pool_b: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
-    pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
 }
 

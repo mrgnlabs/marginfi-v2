@@ -210,7 +210,6 @@ pub struct LendingPoolAddBankWithSeed<'info> {
     )]
     pub fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    pub rent: Sysvar<'info, Rent>,
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
