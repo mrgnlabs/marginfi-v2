@@ -106,10 +106,10 @@ export const defaultBankConfigOpt = () => {
     assetWeightMaint: new BigNumber(1),
     liabilityWeightInit: new BigNumber(1),
     liabilityWeightMaint: new BigNumber(1),
-    depositLimit: new BigNumber(1000000000),
-    borrowLimit: new BigNumber(1000000000),
+    depositLimit: new BigNumber(1_000_000_000),
+    borrowLimit: new BigNumber(1_000_000_000),
     riskTier: RiskTier.Collateral,
-    totalAssetValueInitLimit: new BigNumber(100000000000),
+    totalAssetValueInitLimit: new BigNumber(100_000_000_000),
     interestRateConfig: defaultInterestRateConfig(),
     operationalState: OperationalState.Operational,
     // oracle: null,
@@ -131,13 +131,13 @@ export const defaultBankConfigOptRaw = () => {
     assetWeightMaint: I80F48_ONE,
     liabilityWeightInit: I80F48_ONE,
     liabilityWeightMaint: I80F48_ONE,
-    depositLimit: new BN(1000000000),
-    borrowLimit: new BN(1000000000),
+    depositLimit: new BN(1_000_000_000),
+    borrowLimit: new BN(1_000_000_000),
     riskTier: {
       collateral: undefined,
     },
     assetTag: ASSET_TAG_DEFAULT,
-    totalAssetValueInitLimit: new BN(100000000000),
+    totalAssetValueInitLimit: new BN(100_000_000_000),
     interestRateConfig: defaultInterestRateConfigRaw(),
     operationalState: {
       operational: undefined,
@@ -145,7 +145,7 @@ export const defaultBankConfigOptRaw = () => {
     oracleMaxAge: 240,
     permissionlessBadDebtSettlement: null,
     freezeSettings: null,
-    oracleMaxConfidence: 0
+    oracleMaxConfidence: 0,
   };
 
   return bankConfigOpt;
