@@ -1007,7 +1007,6 @@ fn initialize_fee_state<'a>(
     state: &'a AccountsState,
     admin: AccountInfo<'a>,
     wallet: AccountInfo<'a>,
-    rent: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
 ) -> AccountInfo<'a> {
     let program_id = marginfi::id();
