@@ -25,7 +25,6 @@ import { accountInit, depositIx } from "./utils/user-instructions";
 import { LST_ATA, USER_ACCOUNT } from "./utils/mocks";
 import { createMintToInstruction } from "@solana/spl-token";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
-import { dumpBankrunLogs } from "./utils/tools";
 
 describe("Deposit funds (included staked assets)", () => {
   const program = workspace.Marginfi as Program<Marginfi>;

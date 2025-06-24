@@ -8,7 +8,6 @@ import {
   verbose,
   ecosystem,
   oracles,
-  // PYTH_ORACLE_SAMPLE, // no longer used. After 0.1.4, Pyth uses the feed directly.
   PYTH_ORACLE_FEED_SAMPLE,
   users,
 } from "./rootHooks";
