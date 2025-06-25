@@ -352,7 +352,7 @@ impl AccountsState {
         rent: Rent,
         native_price: i64,
         mint_decimals: i32,
-    ) -> (AccountInfo, Pubkey) {
+    ) -> AccountInfo {
         let feed_key = *self.random_pubkey();
         let feed_id = feed_key.to_bytes();
         let price_update = PriceUpdateV2 {
@@ -385,18 +385,15 @@ impl AccountsState {
         let data_ptr = self.bump.alloc_slice_fill_copy(data_len, 0u8);
         data_ptr.copy_from_slice(data.as_slice());
 
-        (
-            AccountInfo::new(
-                self.random_pubkey(),
-                false,
-                true,
-                lamports,
-                data_ptr,
-                &pyth_solana_receiver_sdk::ID,
-                false,
-                Epoch::default(),
-            ),
-            feed_key,
+        AccountInfo::new(
+            self.random_pubkey(),
+            false,
+            true,
+            lamports,
+            data_ptr,
+            &pyth_solana_receiver_sdk::ID,
+            false,
+            Epoch::default(),
         )
     }
 

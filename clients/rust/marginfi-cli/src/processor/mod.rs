@@ -24,8 +24,8 @@ use {
     log::info,
     marginfi::{
         constants::{
-            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
-            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID, ZERO_AMOUNT_THRESHOLD,
+            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, PYTH_SPONSORED_SHARD_ID,
+            ZERO_AMOUNT_THRESHOLD,
         },
         prelude::*,
         state::{
@@ -36,7 +36,7 @@ use {
             },
             price::{
                 parse_swb_ignore_alignment, LitePullFeedAccountData, OraclePriceFeedAdapter,
-                OracleSetup, PriceAdapter, PythPushOraclePriceFeed,
+                OracleSetup, PriceAdapter,
             },
         },
         utils::NumTraitsWithTolerance,
@@ -1688,25 +1688,7 @@ pub fn bank_configure_oracle(
     let configure_bank_ixs_builder = config.mfi_program.request();
     let signing_keypairs = config.get_signers(false);
 
-    let mut extra_accounts = vec![];
-    // Pyth pull oracles pass the feed instead, all other kinds pass the key itself
-    let mut passed_oracle = oracle;
-
-    extra_accounts.push(AccountMeta::new_readonly(oracle, false));
-
-    let setup_type =
-        OracleSetup::from_u8(setup).unwrap_or_else(|| panic!("unsupported oracle type"));
-
-    if setup_type == OracleSetup::PythPushOracle || setup_type == OracleSetup::StakedWithPythPush {
-        let oracle_address = oracle;
-        let mut account = rpc_client.get_account(&oracle_address)?;
-        let ai = (&oracle_address, &mut account).into_account_info();
-        let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai)?;
-
-        let feed_id_as_pubkey = Pubkey::new_from_array(feed_id);
-
-        passed_oracle = feed_id_as_pubkey;
-    }
+    let extra_accounts = vec![AccountMeta::new_readonly(oracle, false)];
 
     let mut configure_bank_ixs = configure_bank_ixs_builder
         .accounts(marginfi::accounts::LendingPoolConfigureBankOracle {
@@ -1714,10 +1696,7 @@ pub fn bank_configure_oracle(
             admin: config.authority(),
             bank: bank_pk,
         })
-        .args(marginfi::instruction::LendingPoolConfigureBankOracle {
-            setup,
-            oracle: passed_oracle,
-        })
+        .args(marginfi::instruction::LendingPoolConfigureBankOracle { setup, oracle })
         .instructions()?;
 
     configure_bank_ixs[0].accounts.extend(extra_accounts);
@@ -2389,21 +2368,17 @@ pub fn marginfi_account_liquidate(
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
 
-    let oracle_accounts = vec![asset_bank.config, liability_bank.config]
-        .into_iter()
-        .map(|bank_config| {
-            let oracle_key = bank_to_oracle_key(&bank_config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
-            AccountMeta::new_readonly(oracle_key, false)
-        });
+    let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
+        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_SPONSORED_SHARD_ID);
+        AccountMeta::new_readonly(oracle_key, false)
+    });
 
     ix.accounts.extend(oracle_accounts);
 
-    let oracle_accounts = vec![asset_bank.config, liability_bank.config]
-        .into_iter()
-        .map(|bank_config| {
-            let oracle_key = bank_to_oracle_key(&bank_config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
-            AccountMeta::new_readonly(oracle_key, false)
-        });
+    let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
+        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_SPONSORED_SHARD_ID);
+        AccountMeta::new_readonly(oracle_key, false)
+    });
 
     ix.accounts.extend(oracle_accounts);
 

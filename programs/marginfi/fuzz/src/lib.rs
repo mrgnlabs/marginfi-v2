@@ -216,7 +216,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         let (_fee_state_key, fee_state_bump) =
             Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
 
-        let (oracle, oracle_feed) = state.new_oracle_account(
+        let oracle = state.new_oracle_account(
             rent.clone(),
             initial_bank_config.oracle_native_price as i64,
             initial_bank_config.mint_decimals as i32,
@@ -319,7 +319,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     configure_bumps,
                 ),
                 3,
-                oracle_feed,
+                oracle.key(),
             )
             .unwrap();
         }

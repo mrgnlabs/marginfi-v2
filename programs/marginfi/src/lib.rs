@@ -419,6 +419,10 @@ pub mod marginfi {
     pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> MarginfiResult {
         marginfi_group::propagate_staked_settings(ctx)
     }
+
+    pub fn migrate_pyth_push_oracle(ctx: Context<MigratePythPushOracle>) -> MarginfiResult {
+        marginfi_group::migrate_pyth_push_oracle(ctx)
+    }
 }
 
 #[cfg(not(feature = "no-entrypoint"))]

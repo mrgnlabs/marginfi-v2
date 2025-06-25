@@ -26,6 +26,7 @@ import {
   ASSET_TAG_DEFAULT,
   defaultBankConfig,
   ORACLE_SETUP_PYTH_PUSH,
+  PYTH_PULL_MIGRATED,
 } from "./utils/types";
 import {
   deriveLiquidityVaultAuthority,
@@ -75,7 +76,6 @@ describe("Lending pool add bank (add bank to group)", () => {
           bank: bankKey,
           type: ORACLE_SETUP_PYTH_PUSH,
           oracle: oracles.usdcOracle.publicKey,
-          feed: oracles.usdcOracleFeed.publicKey,
         })
       )
     );
@@ -110,7 +110,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertKeysEqual(bank.group, marginfiGroup.publicKey);
 
     // Keys and bumps...
-    assertKeysEqual(config.oracleKeys[0], oracles.usdcOracleFeed.publicKey);
+    assertKeysEqual(config.oracleKeys[0], oracles.usdcOracle.publicKey);
 
     const [_liqAuth, liqAuthBump] = deriveLiquidityVaultAuthority(id, bankKey);
     const [liquidityVault, liqVaultBump] = deriveLiquidityVault(id, bankKey);
@@ -170,6 +170,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertBNEqual(config.borrowLimit, 100_000_000_000);
     assert.deepEqual(config.riskTier, { collateral: {} });
     assert.equal(config.assetTag, ASSET_TAG_DEFAULT);
+    assert.equal(config.configFlags, PYTH_PULL_MIGRATED);
     assertBNEqual(config.totalAssetValueInitLimit, 1_000_000_000_000);
     assert.equal(config.oracleMaxAge, 240);
 
@@ -189,7 +190,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     const config_ix = await program.methods
       .lendingPoolConfigureBankOracle(
         ORACLE_SETUP_PYTH_PUSH,
-        oracles.tokenAOracleFeed.publicKey
+        oracles.tokenAOracle.publicKey
       )
       .accountsPartial({
         group: marginfiGroup.publicKey,
@@ -242,7 +243,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     const config_ix = await program.methods
       .lendingPoolConfigureBankOracle(
         ORACLE_SETUP_PYTH_PUSH,
-        oracles.wsolOracleFeed.publicKey
+        oracles.wsolOracle.publicKey
       )
       .accountsPartial({
         group: marginfiGroup.publicKey,

@@ -112,12 +112,15 @@ pub enum MarginfiError {
     PythPushWrongAccountOwner,
     #[msg("Staked Pyth Push oracle: wrong account owner")] // 6054
     StakedPythPushWrongAccountOwner,
+    // TODO remove in 0.1.5
     #[msg("Pyth Push oracle: mismatched feed id")] // 6055
     PythPushMismatchedFeedId,
     #[msg("Pyth Push oracle: insufficient verification level")] // 6056
     PythPushInsufficientVerificationLevel,
+    // TODO remove in 0.1.5
     #[msg("Pyth Push oracle: feed id must be 32 Bytes")] // 6057
     PythPushFeedIdMustBe32Bytes,
+    // TODO remove in 0.1.5
     #[msg("Pyth Push oracle: feed id contains non-hex characters")] // 6058
     PythPushFeedIdNonHexCharacter,
     #[msg("Switchboard oracle: wrong account owner")] // 6059

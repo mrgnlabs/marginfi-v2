@@ -42,10 +42,14 @@ export const setupPythOracles = async (
     a: boolean;
     b: boolean;
     wsolPyth: boolean;
-  },
+  }
 ) => {
-  let wsolPythPullOracle = Keypair.generate();
-  let wsolPythPullOracleFeed = Keypair.generate();
+  let wsolPythPullOracle = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_00000000000000F_WSOL")
+  );
+  let wsolPythPullOracleFeed = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_0000000000000ID_WSOL")
+  );
   let wsolNativePrice = wsolPrice * 10 ** wsolDecimals;
   let wsolConfidence = wsolNativePrice * ORACLE_CONF_INTERVAL;
   if (skips && skips.wsol) {
@@ -60,12 +64,16 @@ export const setupPythOracles = async (
       new BN(wsolNativePrice),
       new BN(wsolConfidence),
       new BN(0),
-      -wsolDecimals,
+      -wsolDecimals
     );
   }
 
-  let usdcPythPullOracle = Keypair.generate();
-  let usdcPythPullOracleFeed = Keypair.generate();
+  let usdcPythPullOracle = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_00000000000000F_USDC")
+  );
+  let usdcPythPullOracleFeed = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_0000000000000ID_USDC")
+  );
   let usdcNativePrice = usdcPrice * 10 ** usdcDecimals;
   let usdcConfidence = usdcNativePrice * ORACLE_CONF_INTERVAL;
   if (skips && skips.usdc) {
@@ -80,12 +88,16 @@ export const setupPythOracles = async (
       new BN(usdcNativePrice),
       new BN(usdcConfidence),
       new BN(0),
-      -usdcDecimals,
+      -usdcDecimals
     );
   }
 
-  let fakeUsdcPythPullOracle = Keypair.generate();
-  let fakeUsdcPythPullOracleFeed = Keypair.generate();
+  let fakeUsdcPythPullOracle = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_00000000000001F_USDC")
+  );
+  let fakeUsdcPythPullOracleFeed = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_0000000000001ID_USDC")
+  );
   let fakeUsdcNativePrice = usdcPrice * 10 ** usdcDecimals;
   let fakeUsdcConfidence = fakeUsdcNativePrice * ORACLE_CONF_INTERVAL;
   if (skips && skips.usdc) {
@@ -100,12 +112,16 @@ export const setupPythOracles = async (
       new BN(fakeUsdcNativePrice),
       new BN(fakeUsdcConfidence),
       new BN(0),
-      -usdcDecimals,
+      -usdcDecimals
     );
   }
 
-  let tokenAPythPullOracle = Keypair.generate();
-  let tokenAPythPullOracleFeed = Keypair.generate();
+  let tokenAPythPullOracle = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_00000000000001F_00TA")
+  );
+  let tokenAPythPullOracleFeed = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_0000000000001ID_00TA")
+  );
   let tokenANativePrice = tokenAPrice * 10 ** tokenADecimals;
   let tokenAConfidence = tokenANativePrice * ORACLE_CONF_INTERVAL;
   if (skips && skips.a) {
@@ -120,12 +136,16 @@ export const setupPythOracles = async (
       new BN(tokenANativePrice),
       new BN(tokenAConfidence),
       new BN(0),
-      -tokenADecimals,
+      -tokenADecimals
     );
   }
 
-  let tokenBPythPullOracle = Keypair.generate();
-  let tokenBPythPullOracleFeed = Keypair.generate();
+  let tokenBPythPullOracle = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_00000000000001F_00TB")
+  );
+  let tokenBPythPullOracleFeed = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_0000000000001ID_00TB")
+  );
   let tokenBNativePrice = tokenBPrice * 10 ** tokenBDecimals;
   let tokenBConfidence = tokenBNativePrice * ORACLE_CONF_INTERVAL;
   if (skips && skips.b) {
@@ -140,18 +160,25 @@ export const setupPythOracles = async (
       new BN(tokenBNativePrice),
       new BN(tokenBConfidence),
       new BN(0),
-      -tokenBDecimals,
+      -tokenBDecimals
     );
   }
 
-  let lstPythPullOracle = Keypair.generate();
-  let lstPythPullOracleFeed = Keypair.generate();
+  let lstPythPullOracle = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_00000000000001F_0LST")
+  );
+  let lstPythPullOracleFeed = Keypair.fromSeed(
+    Buffer.from("ORACLE_SEED_0000000000001ID_0LST")
+  );
   let priceAlpha = lstAlphaPrice * 10 ** lstAlphaDecimals;
   let confAlpha = priceAlpha * ORACLE_CONF_INTERVAL;
   if (skips && skips.wsolPyth) {
     // do nothing
   } else {
-    lstPythPullOracleFeed = await initBlankOracleFeed(wallet);
+    lstPythPullOracleFeed = await initBlankOracleFeed(
+      wallet,
+      lstPythPullOracleFeed
+    );
     lstPythPullOracle = await initOrUpdatePriceUpdateV2(
       wallet,
       lstPythPullOracleFeed.publicKey,
@@ -161,6 +188,8 @@ export const setupPythOracles = async (
       new BN(confAlpha),
       new BN(0),
       -lstAlphaDecimals,
+      undefined,
+      lstPythPullOracle
     );
   }
 
@@ -177,31 +206,31 @@ export const setupPythOracles = async (
       "Price of 1 wsol.......$" +
         wsolPrice +
         "\t  one token in native decimals: " +
-        (1 * 10 ** wsolDecimals).toLocaleString(),
+        (1 * 10 ** wsolDecimals).toLocaleString()
     );
     console.log(
       "Price of 1 usdc.......$" +
         usdcPrice +
         "\t  one token in native decimals: " +
-        (1 * 10 ** usdcDecimals).toLocaleString(),
+        (1 * 10 ** usdcDecimals).toLocaleString()
     );
     console.log(
       "Price of 1 token A....$" +
         tokenAPrice +
         "\t  one token in native decimals: " +
-        (1 * 10 ** tokenADecimals).toLocaleString(),
+        (1 * 10 ** tokenADecimals).toLocaleString()
     );
     console.log(
       "Price of 1 token B....$" +
         tokenBPrice +
         "\t  one token in native decimals: " +
-        (1 * 10 ** tokenBDecimals).toLocaleString(),
+        (1 * 10 ** tokenBDecimals).toLocaleString()
     );
     console.log(
       "Price of 1 LST alpha..$" +
         lstAlphaPrice +
         "\t  one token in native decimals: " +
-        (1 * 10 ** lstAlphaDecimals).toLocaleString(),
+        (1 * 10 ** lstAlphaDecimals).toLocaleString()
     );
     console.log("");
   }

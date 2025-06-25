@@ -73,7 +73,7 @@ describe("Init e-mode enabled group and banks", () => {
   it("(admin) Add bank (USDC)", async () => {
     await addBankTest({
       bankMint: ecosystem.usdcMint.publicKey,
-      oracleFeed: oracles.usdcOracleFeed.publicKey,
+      oracleKey: oracles.usdcOracle.publicKey,
       oracleMeta: {
         pubkey: oracles.usdcOracle.publicKey,
         isSigner: false,
@@ -87,7 +87,7 @@ describe("Init e-mode enabled group and banks", () => {
   it("(admin) Add bank (also a stablecoin)", async () => {
     await addBankTest({
       bankMint: ecosystem.usdcMint.publicKey,
-      oracleFeed: oracles.usdcOracleFeed.publicKey,
+      oracleKey: oracles.usdcOracle.publicKey,
       oracleMeta: {
         pubkey: oracles.usdcOracle.publicKey,
         isSigner: false,
@@ -102,7 +102,7 @@ describe("Init e-mode enabled group and banks", () => {
     await addBankTest({
       assetTag: ASSET_TAG_SOL,
       bankMint: ecosystem.wsolMint.publicKey,
-      oracleFeed: oracles.wsolOracleFeed.publicKey,
+      oracleKey: oracles.wsolOracle.publicKey,
       oracleMeta: {
         pubkey: oracles.wsolOracle.publicKey,
         isSigner: false,
@@ -116,7 +116,7 @@ describe("Init e-mode enabled group and banks", () => {
   it("(admin) Add bank (LST)", async () => {
     await addBankTest({
       bankMint: ecosystem.lstAlphaMint.publicKey,
-      oracleFeed: oracles.pythPullLstOracleFeed.publicKey,
+      oracleKey: oracles.pythPullLst.publicKey,
       oracleMeta: {
         pubkey: oracles.pythPullLst.publicKey, // NOTE: Price V2 update
         isSigner: false,
@@ -130,7 +130,7 @@ describe("Init e-mode enabled group and banks", () => {
   it("(admin) Add another bank (also an LST)", async () => {
     await addBankTest({
       bankMint: ecosystem.lstAlphaMint.publicKey,
-      oracleFeed: oracles.pythPullLstOracleFeed.publicKey,
+      oracleKey: oracles.pythPullLst.publicKey,
       oracleMeta: {
         pubkey: oracles.pythPullLst.publicKey, // NOTE: Price V2 update
         isSigner: false,
@@ -144,13 +144,13 @@ describe("Init e-mode enabled group and banks", () => {
   async function addBankTest(options: {
     assetTag?: number;
     bankMint: PublicKey;
-    oracleFeed: PublicKey;
+    oracleKey: PublicKey;
     oracleMeta: AccountMeta;
     // Function to adjust the seed (for example, seed.addn(1))
     seed: BN;
     verboseMessage: string;
   }) {
-    const { assetTag, bankMint, oracleFeed, oracleMeta, seed, verboseMessage } =
+    const { assetTag, bankMint, oracleKey, oracleMeta, seed, verboseMessage } =
       options;
 
     // Set configuration; override assetTag if provided
@@ -177,7 +177,7 @@ describe("Init e-mode enabled group and banks", () => {
 
     const setupType = ORACLE_SETUP_PYTH_PUSH;
     const config_ix = await groupAdmin.mrgnProgram.methods
-      .lendingPoolConfigureBankOracle(setupType, oracleFeed)
+      .lendingPoolConfigureBankOracle(setupType, oracleKey)
       .accountsPartial({
         group: emodeGroup.publicKey,
         bank: bankKey,

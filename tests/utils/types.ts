@@ -56,6 +56,7 @@ export const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
 export const EMODE_SOL_TAG = 501;
 export const EMODE_LST_TAG = 157;
 
+export const PYTH_PULL_MIGRATED = 1;
 /** In marginfiAccount.flags, indicates an account is disabled and cannot be used. */
 export const ACCOUNT_DISABLED = 1;
 
@@ -86,6 +87,8 @@ export const defaultBankConfig = () => {
     riskTier: {
       collateral: undefined,
     },
+    /** Currently ignored, sets the PYTH_MIGRATED flag regardless. */
+    configFlags: 0,
     assetTag: ASSET_TAG_DEFAULT,
     totalAssetValueInitLimit: new BN(1_000_000_000_000),
     oracleMaxAge: 240,
@@ -245,6 +248,7 @@ export type BankConfig = {
   /** Collateral = 0, Isolated = 1 */
   riskTier: RiskTierRaw;
   assetTag: number;
+  configFlags: number;
   totalAssetValueInitLimit: BN;
   oracleMaxAge: number;
 };
