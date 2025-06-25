@@ -62,7 +62,7 @@ export const PYTH_PULL_MIGRATED = 1;
 export const ACCOUNT_DISABLED = 1;
 
 /** In lamports, charged when transfering to a new account */
-export const ACCOUNT_TRANSFER_FEE = 100000;
+export const ACCOUNT_TRANSFER_FEE = 5_000_000;
 
 /**
  * The default bank config has
