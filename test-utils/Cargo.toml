@@ -22,7 +22,7 @@ anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }
 
 pyth-solana-receiver-sdk = { workspace = true }
-pythnet-sdk = { workspace = true }
+# pythnet-sdk = { workspace = true }
 # switchboard-solana = { workspace = true }
 switchboard-on-demand = { workspace = true }
 

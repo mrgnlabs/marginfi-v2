@@ -250,7 +250,7 @@ describe("Pyth push oracle migration", () => {
     let tx = new Transaction().add(
       await migratePythArgs(groupAdmin.mrgnBankrunProgram, {
         bank: preMigrationBank,
-        oracle: oracles.wsolOracle.publicKey, // sneaky sneaky
+        oracle: oracles.usdcOracle.publicKey, // sneaky sneaky
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -268,7 +268,7 @@ describe("Pyth push oracle migration", () => {
     let tx = new Transaction().add(
       await migratePythArgs(groupAdmin.mrgnBankrunProgram, {
         bank: throwawayBank,
-        oracle: oracles.wsolOracle.publicKey, // sneaky sneaky
+        oracle: oracles.tokenAOracle.publicKey, // sneaky sneaky
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

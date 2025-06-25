@@ -26,7 +26,7 @@ spl-associated-token-account = { workspace = true }
 anchor-client = { workspace = true }
 anchor-spl = { workspace = true, features = ["token_2022"] }
 
-pythnet-sdk = { workspace = true }
+# pythnet-sdk = { workspace = true }
 switchboard-on-demand = { workspace = true }
 borsh = { workspace = true }
 
