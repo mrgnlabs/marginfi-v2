@@ -99,7 +99,7 @@ describe("Deposit funds (included staked assets)", () => {
 
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
-    await banksClient.tryProcessTransaction(tx);
+    await banksClient.processTransaction(tx);
 
     // Verify the deposit worked and the account exists
     const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
@@ -183,7 +183,7 @@ describe("Deposit funds (included staked assets)", () => {
 
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
-    await banksClient.tryProcessTransaction(tx);
+    await banksClient.processTransaction(tx);
 
     // Verify the deposit worked and the entry exists
     const userAcc = await bankrunProgram.account.marginfiAccount.fetch(

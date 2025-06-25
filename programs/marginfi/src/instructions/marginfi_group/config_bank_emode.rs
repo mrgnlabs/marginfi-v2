@@ -30,10 +30,10 @@ pub fn lending_pool_configure_bank_emode(
 
     if bank.emode.emode_config.has_entries() {
         msg!("emode entries detected and activated");
-        bank.emode.set_emode_enabled(true);
+        bank.emode.update_emode_enabled();
     } else {
         msg!("no emode entries detected");
-        bank.emode.set_emode_enabled(false);
+        bank.emode.update_emode_enabled();
     }
 
     msg!(
