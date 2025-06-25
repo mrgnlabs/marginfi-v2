@@ -171,7 +171,11 @@ pub fn lending_account_liquidate<'info>(
                 oracle_ais,
                 &clock,
             )?;
-            asset_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?
+            asset_pf.get_price_of_type(
+                OraclePriceType::RealTime,
+                Some(PriceBias::Low),
+                asset_bank.config.oracle_max_confidence,
+            )?
         };
         check!(asset_price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
@@ -185,7 +189,11 @@ pub fn lending_account_liquidate<'info>(
                 oracle_ais,
                 &clock,
             )?;
-            liab_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?
+            liab_pf.get_price_of_type(
+                OraclePriceType::RealTime,
+                Some(PriceBias::High),
+                liab_bank.config.oracle_max_confidence,
+            )?
         };
         check!(liab_price > I80F48::ZERO, MarginfiError::ZeroLiabilityPrice);
 

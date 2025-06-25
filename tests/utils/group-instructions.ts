@@ -4,7 +4,7 @@ import { Marginfi } from "../../target/types/marginfi";
 import { deriveStakedSettings } from "./pdas";
 import {
   BankConfig,
-  BankConfigOptWithAssetTag,
+  BankConfigOptRaw,
   EmodeEntry,
   I80F48_ZERO,
   MAX_EMODE_ENTRIES,
@@ -46,6 +46,7 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
       pad0: [0, 0, 0, 0, 0, 0],
       totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
       oracleMaxAge: args.config.oracleMaxAge,
+      oracleMaxConfidence: args.config.oracleMaxConfidence,
     })
     .accounts({
       marginfiGroup: args.marginfiGroup,
@@ -103,6 +104,7 @@ export const addBankWithSeed = (
         pad0: [0, 0, 0, 0, 0, 0],
         totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
         oracleMaxAge: args.config.oracleMaxAge,
+        oracleMaxConfidence: args.config.oracleMaxConfidence,
       },
       args.seed ?? new BN(0)
     )
@@ -193,7 +195,7 @@ export const groupInitialize = (
 
 export type ConfigureBankArgs = {
   bank: PublicKey;
-  bankConfigOpt: BankConfigOptWithAssetTag; // BankConfigOptRaw + assetTag
+  bankConfigOpt: BankConfigOptRaw;
 };
 
 export const configureBank = (

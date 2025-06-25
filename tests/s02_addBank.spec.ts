@@ -526,6 +526,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     // Oracle information....
     assert.equal(config.oracleMaxAge, settingsAcc.oracleMaxAge);
+    assert.equal(config.oracleMaxConfidence, 0);
     assertKeysEqual(config.oracleKeys[0], settingsAcc.oracle);
     assertKeysEqual(config.oracleKeys[1], validators[0].splMint);
     assertKeysEqual(config.oracleKeys[2], validators[0].splSolPool);

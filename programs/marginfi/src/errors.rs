@@ -165,6 +165,8 @@ pub enum MarginfiError {
     ZeroAssetPrice,
     #[msg("Zero liability price")] // 6079
     ZeroLiabilityPrice,
+    #[msg("Oracle max confidence exceeded: try again later")] // 6080
+    OracleMaxConfidenceExceeded,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -279,6 +281,7 @@ impl From<u32> for MarginfiError {
             6077 => MarginfiError::InvalidFeesDestinationAccount,
             6078 => MarginfiError::ZeroAssetPrice,
             6079 => MarginfiError::ZeroLiabilityPrice,
+            6080 => MarginfiError::OracleMaxConfidenceExceeded,
             _ => MarginfiError::InternalLogicError,
         }
     }
@@ -315,6 +318,7 @@ impl MarginfiError {
                 | MarginfiError::MissingPythAccount
                 | MarginfiError::MissingPythOrBankAccount
                 | MarginfiError::PythPushInvalidWindowSize
+                | MarginfiError::OracleMaxConfidenceExceeded
         )
     }
 

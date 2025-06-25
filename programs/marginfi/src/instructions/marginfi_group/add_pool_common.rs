@@ -28,7 +28,8 @@ pub fn log_pool_info(bank: &Bank) {
         conf.asset_tag
     );
     msg!(
-        "oracle age: {:?} flags: {:?}",
+        "oracle conf {:?} age: {:?} flags: {:?}",
+        conf.oracle_max_confidence,
         conf.oracle_max_age as u8,
         bank.flags as u8
     );

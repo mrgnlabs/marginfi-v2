@@ -222,6 +222,7 @@ describe("Lending pool add bank (add bank to group)", () => {
 
   it("(admin) Add bank (SOL) - happy path", async () => {
     let config = defaultBankConfig();
+    config.oracleMaxConfidence = 123456789;
     config.assetWeightInit = bigNumberToWrappedI80F48(0);
     config.assetWeightMaint = bigNumberToWrappedI80F48(0);
     config.riskTier = {
@@ -270,6 +271,8 @@ describe("Lending pool add bank (add bank to group)", () => {
     if (verbose) {
       console.log("*init SOL bank " + bankKey);
     }
+    const bank = await program.account.bank.fetch(bankKey);
+    assert.equal(bank.config.oracleMaxConfidence, 123456789);
   });
 
   it("Decodes a mainnet bank configured before manual padding", async () => {
@@ -420,6 +423,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.deepEqual(cloudConfig.riskTier, { isolated: {} });
     assertBNEqual(cloudConfig.totalAssetValueInitLimit, 0);
     assert.equal(cloudConfig.oracleMaxAge, 60);
+    assert.equal(cloudConfig.oracleMaxConfidence, 0);
 
     // Assert emissions mint (one of the last fields) is also aligned correctly.
     let pyUsdcBankKey = new PublicKey(
