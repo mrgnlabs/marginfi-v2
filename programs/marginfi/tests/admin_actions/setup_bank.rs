@@ -3,7 +3,8 @@ use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
     constants::{
-        CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG
+        CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
     prelude::{MarginfiError, MarginfiGroup},
     state::{
