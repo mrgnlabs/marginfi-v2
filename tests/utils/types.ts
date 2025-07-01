@@ -26,6 +26,7 @@ export const EMISSIONS_FLAG_BORROW_ACTIVE = 1;
 export const EMISSIONS_FLAG_LENDING_ACTIVE = 2;
 export const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG = 4;
 export const FREEZE_SETTINGS = 8;
+export const CLOSE_ENABLED_FLAG = 16;
 
 export const ASSET_TAG_DEFAULT = 0;
 export const ASSET_TAG_SOL = 1;

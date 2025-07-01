@@ -1,8 +1,15 @@
-import { AnchorProvider, BN, getProvider, Program, workspace } from "@coral-xyz/anchor";
-import { AccountMeta, Transaction } from "@solana/web3.js";
+import {
+  AnchorProvider,
+  BN,
+  getProvider,
+  Program,
+  workspace,
+} from "@coral-xyz/anchor";
+import { AccountMeta, PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
+  bankKeypairUsdc,
   ecosystem,
   groupAdmin,
   marginfiGroup,
@@ -11,21 +18,28 @@ import {
 } from "./rootHooks";
 import { defaultBankConfig, ORACLE_SETUP_PYTH_PUSH } from "./utils/types";
 import { addBankWithSeed } from "./utils/group-instructions";
-import { depositIx, withdrawIx } from "./utils/user-instructions";
+import {
+  composeRemainingAccounts,
+  depositIx,
+  withdrawIx,
+} from "./utils/user-instructions";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { assert } from "chai";
 import { expectFailedTxWithError } from "./utils/genericTests";
 import { closeBank } from "./utils/group-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
+import { dumpAccBalances } from "./utils/tools";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("Close bank", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
   const provider = getProvider() as AnchorProvider;
+  let bankKey: PublicKey;
+  const seed = new BN(987613);
 
-  it("bank cannot close with open positions", async () => {
-    const seed = new BN(9876);
+  before(async () => {
     const config = defaultBankConfig();
-    const [bankKey] = deriveBankWithSeed(
+    [bankKey] = deriveBankWithSeed(
       program.programId,
       marginfiGroup.publicKey,
       ecosystem.tokenAMint.publicKey,
@@ -60,7 +74,9 @@ describe("Close bank", () => {
           .instruction()
       )
     );
+  });
 
+  it("bank cannot close with open positions", async () => {
     const userAcc = users[0].accounts.get(USER_ACCOUNT);
     const amount = new BN(1 * 10 ** ecosystem.tokenADecimals);
     await users[0].mrgnProgram.provider.sendAndConfirm(
@@ -77,23 +93,28 @@ describe("Close bank", () => {
 
     const bankAfterDeposit = await program.account.bank.fetch(bankKey);
     assert.equal(bankAfterDeposit.lendingPositionCount, 1);
-    assert.equal(bankAfterDeposit.positionCount, 1);
 
     await expectFailedTxWithError(
       async () => {
         await groupAdmin.mrgnProgram.provider.sendAndConfirm(
           new Transaction().add(
-            closeBank(groupAdmin.mrgnProgram, {
-              group: marginfiGroup.publicKey,
+            await closeBank(groupAdmin.mrgnProgram, {
               bank: bankKey,
-              admin: groupAdmin.wallet.publicKey,
             })
           )
         );
       },
-      "IllegalAction",
-      6043
+      "BankCannotClose",
+      6081
     );
+  });
+
+  it("bank can be closed after the last user withdraws", async () => {
+    const userAcc = users[0].accounts.get(USER_ACCOUNT);
+    const acc = await users[0].mrgnProgram.account.marginfiAccount.fetch(
+      userAcc
+    );
+    dumpAccBalances(acc);
 
     await users[0].mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
@@ -101,7 +122,11 @@ describe("Close bank", () => {
           marginfiAccount: userAcc,
           bank: bankKey,
           tokenAccount: users[0].tokenAAccount,
-          remaining: [bankKey, oracles.tokenAOracle.publicKey],
+          remaining: composeRemainingAccounts([
+            [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+            [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+            [bankKey, oracles.tokenAOracle.publicKey],
+          ]),
           amount: new BN(0),
           withdrawAll: true,
         })
@@ -110,14 +135,11 @@ describe("Close bank", () => {
 
     const bankAfterWithdraw = await program.account.bank.fetch(bankKey);
     assert.equal(bankAfterWithdraw.lendingPositionCount, 0);
-    assert.equal(bankAfterWithdraw.positionCount, 0);
 
     await groupAdmin.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
-        closeBank(groupAdmin.mrgnProgram, {
-          group: marginfiGroup.publicKey,
+        await closeBank(groupAdmin.mrgnProgram, {
           bank: bankKey,
-          admin: groupAdmin.wallet.publicKey,
         })
       )
     );

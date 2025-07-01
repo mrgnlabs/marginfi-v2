@@ -9,11 +9,11 @@ use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
+        CLOSE_ENABLED_FLAG, EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, ORACLE_MIN_AGE,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_PUSH_MIGRATED, SECONDS_PER_YEAR,
-        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, CLOSE_ENABLED_FLAG,
+        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
     prelude::MarginfiError,
@@ -458,7 +458,7 @@ pub struct GroupBankConfig {
     pub program_fees: bool,
 }
 
-assert_struct_size!(Bank, 2016);
+assert_struct_size!(Bank, 1856);
 assert_struct_align!(Bank, 8);
 #[account(zero_copy)]
 #[repr(C)]
@@ -510,7 +510,9 @@ pub struct Bank {
     /// - EMISSIONS_FLAG_BORROW_ACTIVE: 1
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
-    /// - FREEZE_SETTINGS: 8
+    /// - FREEZE_SETTINGS: 8 - banks with this flag enabled can only update deposit/borrow caps
+    /// - CLOSE_ENABLED_FLAG - banks with this flag were created after 0.1.4 and can be closed.
+    ///   Banks without this flag can never be closed.
     ///
     pub flags: u64,
     /// Emissions APR. Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens
@@ -533,13 +535,19 @@ pub struct Bank {
 
     pub cache: BankCache,
     /// Number of user lending positions currently open in this bank
+    /// * For banks created prior to 0.1.4, this is the number of positions opened/closed after
+    ///   0.1.4 goes live, and may be negative.
+    /// * For banks created in 0.1.4 or later, this is the number of positions open in total, and
+    ///   the bank may safely be closed if this is zero. Will never go negative.
     pub lending_position_count: i32,
     /// Number of user borrowing positions currently open in this bank
+    /// * For banks created prior to 0.1.4, this is the number of positions opened/closed after
+    ///   0.1.4 goes live, and may be negative.
+    /// * For banks created in 0.1.4 or later, this is the number of positions open in total, and
+    ///   the bank may safely be closed if this is zero. Will never go negative.
     pub borrowing_position_count: i32,
-    /// Number of user positions currently open in this bank
-    pub position_count: i32,
-    pub _padding_0: [u8; 12],
-    pub _padding_1: [[u64; 2]; 29], // 8 * 2 * 29 = 464B
+    pub _padding_0: [u8; 16],
+    pub _padding_1: [[u64; 2]; 19], // 8 * 2 * 29 = 464B
 }
 
 impl Bank {
@@ -592,8 +600,7 @@ impl Bank {
             fees_destination_account: Pubkey::default(),
             lending_position_count: 0,
             borrowing_position_count: 0,
-            position_count: 0,
-            _padding_0: [0; 12],
+            _padding_0: [0; 16],
             ..Default::default()
         }
     }
@@ -744,14 +751,6 @@ impl Bank {
 
     pub fn decrement_borrowing_position_count(&mut self) {
         self.borrowing_position_count = self.borrowing_position_count.saturating_sub(1);
-    }
-
-    pub fn increment_position_count(&mut self) {
-        self.position_count = self.position_count.saturating_add(1);
-    }
-
-    pub fn decrement_position_count(&mut self) {
-        self.position_count = self.position_count.saturating_sub(1);
     }
 
     pub fn configure(&mut self, config: &BankConfigOpt) -> MarginfiResult {

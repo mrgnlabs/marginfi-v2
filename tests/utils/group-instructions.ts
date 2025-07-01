@@ -678,21 +678,16 @@ export const accrueInterest = (
 };
 
 export type CloseBankArgs = {
-  group: PublicKey;
   bank: PublicKey;
-  admin: PublicKey;
 };
 
-export const closeBank = (
-  program: Program<Marginfi>,
-  args: CloseBankArgs
-) => {
+export const closeBank = (program: Program<Marginfi>, args: CloseBankArgs) => {
   const ix = program.methods
     .lendingPoolCloseBank()
     .accounts({
-      group: args.group,
+      // group: args.group, // implied from bank
       bank: args.bank,
-      admin: args.admin,
+      // admin: args.admin, // implied from group
     })
     .instruction();
   return ix;
