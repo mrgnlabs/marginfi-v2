@@ -116,6 +116,10 @@ describe("Deposit funds", () => {
       )
     );
 
+    const bankAfter = await program.account.bank.fetch(bankKeypairA.publicKey);
+    assert.equal(bankAfter.lendingPositionCount, 1);
+    assert.equal(bankAfter.positionCount, 1);
+
     const userAcc = await program.account.marginfiAccount.fetch(user0Account);
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[0].active, 1);
@@ -159,6 +163,10 @@ describe("Deposit funds", () => {
         })
       )
     );
+
+    const bankAfter = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
+    assert.equal(bankAfter.lendingPositionCount, 1);
+    assert.equal(bankAfter.positionCount, 1);
 
     const userAcc = await program.account.marginfiAccount.fetch(user1Account);
     const balances = userAcc.lendingAccount.balances;
@@ -240,6 +248,10 @@ describe("Deposit funds", () => {
       )
     );
 
+    let bankAfter = await program.account.bank.fetch(bankKey);
+    assert.equal(bankAfter.lendingPositionCount, 1);
+    assert.equal(bankAfter.positionCount, 1);
+
     // And now user user 1 attempts to deposit up to the deposit cap
     const user = users[1];
     const userTokenABefore = await getTokenBalance(
@@ -274,6 +286,10 @@ describe("Deposit funds", () => {
         })
       )
     );
+
+    bankAfter = await program.account.bank.fetch(bankKey);
+    assert.equal(bankAfter.lendingPositionCount, 2);
+    assert.equal(bankAfter.positionCount, 2);
 
     const userTokenAAfter = await getTokenBalance(provider, user.tokenAAccount);
     if (verbose) {
@@ -337,6 +353,10 @@ describe("Deposit funds", () => {
         })
       )
     );
+
+    bankAfter = await program.account.bank.fetch(bankKey);
+    assert.equal(bankAfter.lendingPositionCount, 0);
+    assert.equal(bankAfter.positionCount, 0);
   });
 
   it("(user 1) deposit SOL to bank - happy path", async () => {

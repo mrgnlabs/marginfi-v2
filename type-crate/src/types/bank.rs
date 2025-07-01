@@ -76,9 +76,11 @@ pub struct Bank {
     /// If pubkey default, the bank doesn't support this feature, and the fees must be collected
     /// manually (withdraw_fees).
     pub fees_destination_account: Pubkey, // 32
-
-    pub _padding_0: [u8; 8],
-    pub _padding_1: [[u64; 2]; 30], // 8 * 2 * 30 = 480B
+    pub lending_position_count: i32,
+    pub borrowing_position_count: i32,
+    pub position_count: i32,
+    pub _padding_0: [u8; 12],
+    pub _padding_1: [[u64; 2]; 29], // 8 * 2 * 29 = 464B
 }
 
 impl Bank {
