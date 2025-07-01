@@ -3,7 +3,7 @@ use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
     constants::{
-        FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
+        CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG
     },
     prelude::{MarginfiError, MarginfiGroup},
     state::{
@@ -136,7 +136,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(total_liability_shares, I80F48!(0.0).into());
             assert_eq!(total_asset_shares, I80F48!(0.0).into());
             assert_eq!(config, bank_config);
-            assert_eq!(flags, 0);
+            assert_eq!(flags, CLOSE_ENABLED_FLAG);
             assert_eq!(emissions_rate, 0);
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
@@ -273,7 +273,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(total_liability_shares, I80F48!(0.0).into());
             assert_eq!(total_asset_shares, I80F48!(0.0).into());
             assert_eq!(config, bank_config);
-            assert_eq!(flags, 0);
+            assert_eq!(flags, CLOSE_ENABLED_FLAG);
             assert_eq!(emissions_rate, 0);
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
