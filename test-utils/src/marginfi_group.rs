@@ -77,10 +77,14 @@ impl MarginfiGroupFixture {
                 }
                 .to_account_metas(Some(true)),
                 data: marginfi::instruction::MarginfiGroupConfigure {
-                    // Payer is both admins in most test cases for simplicity,
-                    // generally this is not true in production
+                    // Payer is all admins in most test cases for simplicity, generally this is not
+                    // true in production - the MS is the main admin and others are lower-impact
+                    // wallets with a smaller threshold.
                     new_admin: admin,
                     new_emode_admin: admin,
+                    new_curve_admin: admin,
+                    new_limit_admin: admin,
+                    new_emissions_admin: admin,
                     is_arena_group: false,
                 }
                 .data(),
@@ -490,6 +494,9 @@ impl MarginfiGroupFixture {
         &self,
         new_admin: Pubkey,
         new_emode_admin: Pubkey,
+        new_curve_admin: Pubkey,
+        new_limit_admin: Pubkey,
+        new_emissions_admin: Pubkey,
         is_arena_group: bool,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
@@ -502,6 +509,9 @@ impl MarginfiGroupFixture {
             data: marginfi::instruction::MarginfiGroupConfigure {
                 new_admin,
                 new_emode_admin,
+                new_curve_admin,
+                new_limit_admin,
+                new_emissions_admin,
                 is_arena_group,
             }
             .data(),

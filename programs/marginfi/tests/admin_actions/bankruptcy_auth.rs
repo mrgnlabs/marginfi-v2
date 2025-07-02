@@ -91,7 +91,14 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_update(Pubkey::new_unique(), Pubkey::new_unique(), false)
+        .try_update(
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            false,
+        )
         .await?;
 
     let bank = test_f.get_bank(&BankMint::Usdc);
@@ -187,7 +194,14 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
 
     test_f
         .marginfi_group
-        .try_update(Pubkey::new_unique(), Pubkey::new_unique(), false)
+        .try_update(
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            false,
+        )
         .await?;
 
     let res = test_f

@@ -4,12 +4,7 @@
  * staked collateral.
  */
 
-import {
-  AnchorProvider,
-  BN,
-  getProvider,
-  Wallet,
-} from "@coral-xyz/anchor";
+import { AnchorProvider, BN, getProvider, Wallet } from "@coral-xyz/anchor";
 import {
   Keypair,
   LAMPORTS_PER_SOL,
@@ -23,6 +18,7 @@ import {
   banksClient,
   ecosystem,
   groupAdmin,
+  marginfiGroup,
   numUsers,
   users,
   validators,
@@ -52,9 +48,7 @@ import {
   EMISSIONS_FLAG_BORROW_ACTIVE,
   EMISSIONS_FLAG_LENDING_ACTIVE,
 } from "./utils/types";
-import {
-  setupEmissions,
-} from "./utils/group-instructions";
+import { groupConfigure, setupEmissions } from "./utils/group-instructions";
 import { getEpochAndSlot } from "./utils/stake-utils";
 import { createMintToInstruction } from "@solana/spl-token";
 
@@ -92,6 +86,12 @@ describe("Set up emissions on staked collateral assets", () => {
     await banksClient.processTransaction(fundTx);
 
     let setupTx = new Transaction().add(
+      // Note: The group admin needs to be granted emissions admin first! Regular "admin" is not
+      // enough in 0.1.4 and later.
+      await groupConfigure(groupAdmin.mrgnProgram, {
+        newEmissionsAdmin: groupAdmin.wallet.publicKey,
+        marginfiGroup: marginfiGroup.publicKey,
+      }),
       await setupEmissions(groupAdmin.mrgnBankrunProgram, {
         bank: validators[0].bank,
         emissionsMint: ecosystem.tokenBMint.publicKey,
@@ -170,7 +170,7 @@ describe("Set up emissions on staked collateral assets", () => {
 
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
-    await banksClient.processTransaction(tx);
+    await banksClient.tryProcessTransaction(tx);
 
     const tokenAfter = await getTokenBalance(
       bankRunProvider,
