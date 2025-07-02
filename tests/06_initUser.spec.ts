@@ -29,16 +29,14 @@ describe("Initialize user account", () => {
         feePayer: users[0].wallet.publicKey,
       })
     );
-    await users[0].mrgnProgram.provider.sendAndConfirm(tx, [
-      accountKeypair,
-    ]);
+    await users[0].mrgnProgram.provider.sendAndConfirm(tx, [accountKeypair]);
 
     const userAcc = await program.account.marginfiAccount.fetch(accountKey);
     assertKeysEqual(userAcc.group, marginfiGroup.publicKey);
     assertKeysEqual(userAcc.authority, users[0].wallet.publicKey);
     const balances = userAcc.lendingAccount.balances;
     for (let i = 0; i < balances.length; i++) {
-      assert.equal(balances[i].active, false);
+      assert.equal(balances[i].active, 0);
       assertKeyDefault(balances[i].bankPk);
       assertI80F48Equal(balances[i].assetShares, 0);
       assertI80F48Equal(balances[i].liabilityShares, 0);
@@ -62,8 +60,6 @@ describe("Initialize user account", () => {
         feePayer: users[1].wallet.publicKey,
       })
     );
-    await users[1].mrgnProgram.provider.sendAndConfirm(tx, [
-      accountKeypair,
-    ]);
+    await users[1].mrgnProgram.provider.sendAndConfirm(tx, [accountKeypair]);
   });
 });

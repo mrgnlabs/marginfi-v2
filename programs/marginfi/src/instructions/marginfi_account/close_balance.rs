@@ -25,12 +25,15 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
         MarginfiError::AccountDisabled
     );
 
+    let group = &*marginfi_group_loader.load()?;
     bank.accrue_interest(
         Clock::get()?.unix_timestamp,
-        &*marginfi_group_loader.load()?,
+        group,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
+
+    bank.update_bank_cache(group)?;
 
     let lending_account = &mut marginfi_account.lending_account;
     let mut bank_account =

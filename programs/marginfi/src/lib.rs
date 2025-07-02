@@ -309,18 +309,12 @@ pub mod marginfi {
         marginfi_group::lending_pool_withdraw_insurance(ctx, amount)
     }
 
-    pub fn set_account_flag(ctx: Context<SetAccountFlag>, flag: u64) -> MarginfiResult {
-        marginfi_group::set_account_flag(ctx, flag)
+    pub fn lending_pool_close_bank(ctx: Context<LendingPoolCloseBank>) -> MarginfiResult {
+        marginfi_group::lending_pool_close_bank(ctx)
     }
 
-    pub fn unset_account_flag(ctx: Context<UnsetAccountFlag>, flag: u64) -> MarginfiResult {
-        marginfi_group::unset_account_flag(ctx, flag)
-    }
-
-    pub fn set_new_account_authority(
-        ctx: Context<MarginfiAccountSetAccountAuthority>,
-    ) -> MarginfiResult {
-        marginfi_account::set_account_transfer_authority(ctx)
+    pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
+        marginfi_account::transfer_to_new_account(ctx)
     }
 
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
@@ -428,6 +422,10 @@ pub mod marginfi {
 
     pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> MarginfiResult {
         marginfi_group::propagate_staked_settings(ctx)
+    }
+
+    pub fn migrate_pyth_push_oracle(ctx: Context<MigratePythPushOracle>) -> MarginfiResult {
+        marginfi_group::migrate_pyth_push_oracle(ctx)
     }
 }
 

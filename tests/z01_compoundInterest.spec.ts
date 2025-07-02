@@ -25,7 +25,7 @@ import {
   oracles,
   users,
 } from "./rootHooks";
-import { arrueInterest as acrrueInterest } from "./utils/group-instructions";
+import { accrueInterest } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { assert } from "chai";
 import {
@@ -36,6 +36,7 @@ import {
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { genericMultiBankTestSetup } from "./genericSetups";
 import { Clock } from "solana-bankrun";
+import { aprToU32, assertBNEqual } from "./utils/genericTests";
 
 /** Banks in this test use a "random" seed so their key is non-deterministic. */
 let startingSeed: number;
@@ -177,7 +178,7 @@ describe("Compound interest demonstration", () => {
 
     const tx = new Transaction();
     tx.add(
-      await acrrueInterest(user.mrgnBankrunProgram, {
+      await accrueInterest(user.mrgnBankrunProgram, {
         bank: banks[1],
       }),
       // dummy tx to trick bankrun
@@ -235,7 +236,7 @@ describe("Compound interest demonstration", () => {
 
       const tx = new Transaction();
       tx.add(
-        await acrrueInterest(user.mrgnBankrunProgram, {
+        await accrueInterest(user.mrgnBankrunProgram, {
           bank: banks[1],
         }),
         // dummy tx to trick bankrun
@@ -293,13 +294,14 @@ describe("Compound interest demonstration", () => {
     const user = users[0];
 
     const tx = new Transaction();
+    let bankBefore = await bankrunProgram.account.bank.fetch(banks[2]);
     tx.add(
-      await acrrueInterest(user.mrgnBankrunProgram, {
+      await accrueInterest(user.mrgnBankrunProgram, {
         bank: banks[2],
       })
     );
     tx.add(
-      await acrrueInterest(user.mrgnBankrunProgram, {
+      await accrueInterest(user.mrgnBankrunProgram, {
         bank: banks[3],
       })
     );
@@ -333,15 +335,15 @@ describe("Compound interest demonstration", () => {
     assert.notEqual(bankValuesOneYear[1].asset, bankValuesOneYear[2].asset);
     assert.notEqual(bankValuesOneYear[1].asset, bankValuesOneYear[3].asset);
 
-    let bank = await bankrunProgram.account.bank.fetch(banks[1]);
+    let bank = await bankrunProgram.account.bank.fetch(banks[2]);
     const util =
       wrappedI80F48toBigNumber(bank.totalLiabilityShares).toNumber() /
       wrappedI80F48toBigNumber(bank.totalAssetShares).toNumber();
     const utilActual =
-      ((wrappedI80F48toBigNumber(bank.totalLiabilityShares).toNumber() *
+      (wrappedI80F48toBigNumber(bank.totalLiabilityShares).toNumber() *
         wrappedI80F48toBigNumber(bank.liabilityShareValue).toNumber()) /
-        wrappedI80F48toBigNumber(bank.totalAssetShares).toNumber()) *
-      wrappedI80F48toBigNumber(bank.assetShareValue).toNumber();
+      (wrappedI80F48toBigNumber(bank.totalAssetShares).toNumber() *
+        wrappedI80F48toBigNumber(bank.assetShareValue).toNumber());
     //aka borrowAmount.toNumber() / depositAmount.toNumber();
     const optimalRate = wrappedI80F48toBigNumber(
       bank.config.interestRateConfig.optimalUtilizationRate
@@ -349,11 +351,37 @@ describe("Compound interest demonstration", () => {
     const platRate = wrappedI80F48toBigNumber(
       bank.config.interestRateConfig.plateauInterestRate
     ).toNumber();
+    const groupFixedFee = wrappedI80F48toBigNumber(
+      bank.config.interestRateConfig.protocolFixedFeeApr
+    ).toNumber();
+    const groupIrFee = wrappedI80F48toBigNumber(
+      bank.config.interestRateConfig.protocolIrFee
+    ).toNumber();
+    const insuranceFixedFee = wrappedI80F48toBigNumber(
+      bank.config.interestRateConfig.insuranceFeeFixedApr
+    ).toNumber();
+    const insuranceIrFee = wrappedI80F48toBigNumber(
+      bank.config.interestRateConfig.insuranceIrFee
+    ).toNumber();
 
-    const baseRate = (util / optimalRate) * platRate;
-    const lendingRate = util * baseRate;
-    // Note: typically base * (1 + ir) + fixed, but tests have no fees to simplify.
-    const borrowRate = baseRate;
+    let group = await bankrunProgram.account.marginfiGroup.fetch(bank.group);
+    const protocolFixedFee = wrappedI80F48toBigNumber(
+      group.feeStateCache.programFeeFixed
+    ).toNumber();
+    const protocolIrFee = wrappedI80F48toBigNumber(
+      group.feeStateCache.programFeeRate
+    ).toNumber();
+
+    const baseRate = (utilActual / optimalRate) * platRate;
+    const lendingRate = utilActual * baseRate;
+    const borrowRate =
+      baseRate * (1 + groupIrFee + insuranceIrFee + protocolIrFee) +
+      groupFixedFee +
+      insuranceFixedFee +
+      protocolFixedFee;
+    const groupRate = baseRate * groupIrFee + groupFixedFee;
+    const insuranceRate = baseRate * insuranceIrFee + insuranceFixedFee;
+    const protocolRate = baseRate * protocolIrFee + protocolFixedFee;
 
     if (verbose) {
       // Gather all rate metrics into an object for pretty printing
@@ -365,6 +393,9 @@ describe("Compound interest demonstration", () => {
         "Base Rate": baseRate,
         "Lending Rate": lendingRate,
         "Borrow Rate": borrowRate,
+        "Group APR Rate": groupRate,
+        "Insurance APR Rate": insuranceRate,
+        "Protocol APR Rate": protocolRate,
       };
 
       // Calculate padding for alignment
@@ -378,6 +409,21 @@ describe("Compound interest demonstration", () => {
       }
     }
 
+    assert.equal(
+      bank.cache.interestAccumulatedFor,
+      bank.lastUpdate.toNumber() - bankBefore.lastUpdate.toNumber()
+    );
+    assert.equal(
+      wrappedI80F48toBigNumber(
+        bank.cache.accumulatedSinceLastUpdate
+      ).toNumber(),
+      (bankValuesOneYear[2].asset - bankValuesInitial[2]) *
+        wrappedI80F48toBigNumber(bankBefore.totalAssetShares).toNumber()
+    );
+    assert.equal(bank.cache.baseRate, aprToU32(baseRate));
+    assert.equal(bank.cache.lendingRate, aprToU32(lendingRate));
+    assert.equal(bank.cache.borrowingRate, aprToU32(borrowRate));
+
     // Banks 2/3 got simple interest over 1 year...
     assert.approximately(
       bankValuesOneYear[2].asset,
@@ -387,7 +433,7 @@ describe("Compound interest demonstration", () => {
     assert.approximately(
       bankValuesOneYear[3].asset,
       bankValuesInitial[3] * (1 + lendingRate),
-      bankValuesOneYear[3].asset
+      bankValuesOneYear[3].asset * 0.01 // 1%
     );
 
     // Bank 1 earned interest compounded weekly...

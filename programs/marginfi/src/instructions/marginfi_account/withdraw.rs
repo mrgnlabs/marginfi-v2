@@ -54,15 +54,15 @@ pub fn lending_account_withdraw<'info>(
         token_program.key,
     )?;
 
-    bank_loader.load_mut()?.accrue_interest(
-        clock.unix_timestamp,
-        &*marginfi_group_loader.load()?,
-        #[cfg(not(feature = "client"))]
-        bank_loader.key(),
-    )?;
-
     {
+        let group = &marginfi_group_loader.load()?;
         let mut bank = bank_loader.load_mut()?;
+        bank.accrue_interest(
+            clock.unix_timestamp,
+            group,
+            #[cfg(not(feature = "client"))]
+            bank_loader.key(),
+        )?;
 
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
 
@@ -104,6 +104,8 @@ pub fn lending_account_withdraw<'info>(
             ),
             ctx.remaining_accounts,
         )?;
+
+        bank.update_bank_cache(group)?;
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {

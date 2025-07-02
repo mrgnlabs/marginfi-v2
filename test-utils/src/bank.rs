@@ -73,7 +73,11 @@ impl BankFixture {
                 .unwrap();
 
         oracle_adapter
-            .get_price_of_type(OraclePriceType::RealTime, None)
+            .get_price_of_type(
+                OraclePriceType::RealTime,
+                None,
+                bank.config.oracle_max_confidence,
+            )
             .unwrap()
             .to_num()
     }

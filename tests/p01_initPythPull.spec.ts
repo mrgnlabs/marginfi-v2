@@ -8,7 +8,6 @@ import {
   verbose,
   ecosystem,
   oracles,
-  PYTH_ORACLE_SAMPLE,
   PYTH_ORACLE_FEED_SAMPLE,
   users,
 } from "./rootHooks";
@@ -24,6 +23,7 @@ import {
   HEALTH_CACHE_HEALTHY,
   CONF_INTERVAL_MULTIPLE,
   HEALTH_CACHE_ORACLE_OK,
+  ORACLE_CONF_INTERVAL,
 } from "./utils/types";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { createMintToInstruction } from "@solana/spl-token";
@@ -32,7 +32,10 @@ import { accountInit, depositIx, healthPulse } from "./utils/user-instructions";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { bytesToF64 } from "./utils/tools";
 
-const throwawayGroup = Keypair.generate();
+const GROUP_SEED = Buffer.from("MARGINFI_GROUP_SEED_000000000pxx");
+const throwawayGroup = Keypair.fromSeed(GROUP_SEED);
+const BANK_SEED = 42;
+
 describe("Pyth pull oracles in localnet", () => {
   it("(admin) Init group - happy path", async () => {
     let tx = new Transaction();
@@ -59,7 +62,7 @@ describe("Pyth pull oracles in localnet", () => {
 
   it("(admin) Add 'LST' bank with mainnet pyth pull oracles (Jup's Sol oracle)", async () => {
     let setConfig = defaultBankConfig();
-    const seed = new BN(42);
+    const seed = new BN(BANK_SEED);
     const [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
       throwawayGroup.publicKey,
@@ -67,7 +70,7 @@ describe("Pyth pull oracles in localnet", () => {
       seed
     );
     const oracleMeta: AccountMeta = {
-      pubkey: PYTH_ORACLE_FEED_SAMPLE, // NOTE: This is the FEED (price V2)
+      pubkey: PYTH_ORACLE_FEED_SAMPLE,
       isSigner: false,
       isWritable: false,
     };
@@ -78,15 +81,13 @@ describe("Pyth pull oracles in localnet", () => {
         marginfiGroup: throwawayGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.lstAlphaMint.publicKey,
-        bank: bankKey,
         config: setConfig,
         seed,
       }),
       await groupAdmin.mrgnProgram.methods
-        // Note: This is the ORACLE (feed id)
         .lendingPoolConfigureBankOracle(
           ORACLE_SETUP_PYTH_PUSH,
-          PYTH_ORACLE_SAMPLE
+          PYTH_ORACLE_FEED_SAMPLE
         )
         .accountsPartial({
           group: throwawayGroup.publicKey,
@@ -110,7 +111,7 @@ describe("Pyth pull oracles in localnet", () => {
 
   it("(admin) Add 'LST' bank with mock pyth pull oracles", async () => {
     let setConfig = defaultBankConfig();
-    const seed = new BN(43);
+    const seed = new BN(BANK_SEED + 1);
     const [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
       throwawayGroup.publicKey,
@@ -118,7 +119,7 @@ describe("Pyth pull oracles in localnet", () => {
       seed
     );
     const oracleMeta: AccountMeta = {
-      pubkey: oracles.pythPullLst.publicKey, // NOTE: This is the Price V2 update
+      pubkey: oracles.pythPullLst.publicKey,
       isSigner: false,
       isWritable: false,
     };
@@ -129,15 +130,13 @@ describe("Pyth pull oracles in localnet", () => {
         marginfiGroup: throwawayGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.lstAlphaMint.publicKey,
-        bank: bankKey,
         config: setConfig,
         seed: seed,
       }),
       await groupAdmin.mrgnProgram.methods
-        // Note: This is the feed id
         .lendingPoolConfigureBankOracle(
           ORACLE_SETUP_PYTH_PUSH,
-          oracles.pythPullLstOracleFeed.publicKey
+          oracles.pythPullLst.publicKey
         )
         .accountsPartial({
           group: throwawayGroup.publicKey,
@@ -190,7 +189,7 @@ describe("Pyth pull oracles in localnet", () => {
         ecosystem.lstAlphaMint.publicKey,
         user.lstAlphaAccount,
         wallet.publicKey,
-        10 * 10 ** ecosystem.lstAlphaDecimals
+        20 * 10 ** ecosystem.lstAlphaDecimals
       )
     );
     fundUserTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -203,7 +202,7 @@ describe("Pyth pull oracles in localnet", () => {
     const depositAmount = 2;
     const userAcc = user.accounts.get(USER_ACCOUNT);
 
-    const seed = new BN(43);
+    const seed = new BN(BANK_SEED + 1);
     const [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
       throwawayGroup.publicKey,
@@ -255,8 +254,8 @@ describe("Pyth pull oracles in localnet", () => {
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
     const priceExpected =
-      oracles.lstAlphaPrice -
-      oracles.lstAlphaPrice * oracles.confidenceValue * CONF_INTERVAL_MULTIPLE;
+      oracles.lstAlphaPrice *
+      (1 - ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE);
     assert.approximately(bytesToF64(cache.prices[0]), priceExpected, 0.0001);
     assertI80F48Approx(cache.assetValue, priceExpected * depositAmount);
   });

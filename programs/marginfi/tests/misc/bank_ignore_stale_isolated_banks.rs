@@ -71,7 +71,7 @@ async fn stale_bank_should_error() -> anyhow::Result<()> {
 
 #[tokio::test]
 /// Borrowing with deposits in two banks (1 stale) should not error if the non-stale collateral is sufficient
-async fn non_stale_bank_should_error() -> anyhow::Result<()> {
+async fn non_stale_bank_should_not_error() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     let usdc_bank = test_f.get_bank(&BankMint::Usdc);

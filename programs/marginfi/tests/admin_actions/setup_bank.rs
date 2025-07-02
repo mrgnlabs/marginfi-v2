@@ -3,10 +3,12 @@ use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
     constants::{
-        FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
+        CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
     prelude::{MarginfiError, MarginfiGroup},
     state::{
+        bank_cache::BankCache,
         emode::{EmodeEntry, EMODE_ON},
         marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
     },
@@ -107,6 +109,9 @@ async fn add_bank_success() -> anyhow::Result<()> {
             emissions_mint,
             collected_program_fees_outstanding,
             fees_destination_account,
+            cache,
+            lending_position_count,
+            borrowing_position_count,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -132,15 +137,18 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(total_liability_shares, I80F48!(0.0).into());
             assert_eq!(total_asset_shares, I80F48!(0.0).into());
             assert_eq!(config, bank_config);
-            assert_eq!(flags, 0);
+            assert_eq!(flags, CLOSE_ENABLED_FLAG);
             assert_eq!(emissions_rate, 0);
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
             assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
             assert_eq!(fees_destination_account, Pubkey::default());
+            assert_eq!(cache, BankCache::default());
 
-            assert_eq!(_padding_0, <[u8; 8] as Default>::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 30] as Default>::default());
+            assert_eq!(lending_position_count, 0);
+            assert_eq!(borrowing_position_count, 0);
+            assert_eq!(_padding_0, <[u8; 16] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 19] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -238,6 +246,9 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             emissions_mint,
             collected_program_fees_outstanding,
             fees_destination_account,
+            cache,
+            lending_position_count,
+            borrowing_position_count,
             _padding_0,
             _padding_1,
             .. // ignore internal padding
@@ -263,15 +274,18 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(total_liability_shares, I80F48!(0.0).into());
             assert_eq!(total_asset_shares, I80F48!(0.0).into());
             assert_eq!(config, bank_config);
-            assert_eq!(flags, 0);
+            assert_eq!(flags, CLOSE_ENABLED_FLAG);
             assert_eq!(emissions_rate, 0);
             assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
             assert_eq!(emissions_remaining, I80F48!(0.0).into());
             assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
             assert_eq!(fees_destination_account, Pubkey::default());
+            assert_eq!(cache, BankCache::default());
 
-            assert_eq!(_padding_0, <[u8; 8] as Default>::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 30] as Default>::default());
+            assert_eq!(lending_position_count, 0);
+            assert_eq!(borrowing_position_count, 0);
+            assert_eq!(_padding_0, <[u8; 16] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 19] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -308,7 +322,7 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
         .try_lending_pool_add_bank(
             &bank_asset_mint_fixture,
             BankConfig {
-                oracle_setup: marginfi::state::price::OracleSetup::PythLegacy,
+                oracle_setup: marginfi::state::price::OracleSetup::PythPushOracle,
                 oracle_keys: create_oracle_key_array(INEXISTENT_PYTH_USDC_FEED),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
@@ -316,7 +330,7 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
         .await;
 
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::InternalLogicError);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::PythPushWrongAccountOwner);
 
     Ok(())
 }
@@ -365,6 +379,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         asset_tag,
         total_asset_value_init_limit,
         oracle_max_age,
+        oracle_max_confidence,
         permissionless_bad_debt_settlement,
         freeze_settings,
     } = &config_bank_opt;
@@ -409,6 +424,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         check_bank_field!(asset_tag);
         check_bank_field!(total_asset_value_init_limit);
         check_bank_field!(oracle_max_age);
+        check_bank_field!(oracle_max_confidence);
 
         assert!(permissionless_bad_debt_settlement
             // If Some(...) check flag set properly

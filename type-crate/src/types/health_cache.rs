@@ -2,8 +2,9 @@ use bytemuck::{Pod, Zeroable};
 
 use super::{WrappedI80F48, MAX_LENDING_ACCOUNT_BALANCES};
 
-pub const HEALTHY: u64 = 1;
-pub const ENGINE_OK: u64 = 2;
+pub const HEALTHY: u32 = 1;
+pub const ENGINE_OK: u32 = 2;
+pub const ORACLE_OK: u32 = 4;
 
 #[repr(C)]
 #[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
@@ -11,24 +12,79 @@ pub const ENGINE_OK: u64 = 2;
 /// the tx does not fail. To see the state in any context, e.g. to figure out if the risk engine is
 /// failing due to some bad price information, use `pulse_health`.
 pub struct HealthCache {
+    /// Internal risk engine asset value, using initial weight (e.g. what is used for borrowing
+    /// purposes), with all confidence adjustments, and other discounts on price.
+    /// * Uses EMA price
+    /// * In dollars
     pub asset_value: WrappedI80F48,
+    /// Internal risk engine liability value, using initial weight (e.g. what is used for borrowing
+    /// purposes), with all confidence adjustments, and other discounts on price.
+    /// * Uses EMA price
+    /// * In dollars
     pub liability_value: WrappedI80F48,
+    /// Internal risk engine asset value, using maintenance weight (e.g. what is used for
+    /// liquidation purposes), with all confidence adjustments.
+    /// * Zero if the risk engine failed to load
+    /// * Uses SPOT price
+    /// * In dollars
+    pub asset_value_maint: WrappedI80F48,
+    /// Internal risk engine liability value, using maintenance weight (e.g. what is used for
+    /// liquidation purposes), with all confidence adjustments.
+    /// * Zero if the risk engine failed to load
+    /// * Uses SPOT price
+    /// * In dollars
+    pub liability_value_maint: WrappedI80F48,
+    /// The "true" value of assets without any confidence or weight adjustments. Internally, used
+    /// only for bankruptcies.
+    /// * Zero if the risk engine failed to load
+    /// * Uses EMA price
+    /// * In dollars
+    pub asset_value_equity: WrappedI80F48,
+    /// The "true" value of liabilities without any confidence or weight adjustments.
+    /// Internally, used only for bankruptcies.
+    /// * Zero if the risk engine failed to load
+    /// * Uses EMA price
+    /// * In dollars
+    pub liability_value_equity: WrappedI80F48,
     /// Unix timestamp from the system clock when this cache was last updated
     pub timestamp: i64,
-    /// The flags that indicate the state of the health cache This is u64 bitfield, where each bit
-    /// represents a flag.
+    /// The flags that indicate the state of the health cache. This is a u64 bitfield, where each
+    /// bit represents a flag.
     ///
     /// * HEALTHY = 1 - If set, the account cannot be liquidated. If 0, the account is unhealthy and
     ///   can be liquidated.
     /// * ENGINE STATUS = 2 - If set, the engine did not error during the last health pulse. If 0,
-    ///   the engine would have errored and this cache is likely invalid.
-    /// * 4, 8, 16, 32, 64, 128, etc - reserved for future use
-    pub flags: u64,
+    ///   the engine would have errored and this cache is likely invalid. `RiskEngineInitRejected`
+    ///   is ignored and will allow the flag to be set anyways.
+    /// * ORACLE OK = 4 - If set, the engine did not error due to an oracle issue. If 0, engine was
+    ///   passed a bad bank or oracle account, or an oracle was stale. Check the order in which
+    ///   accounts were passed and ensure each balance has the correct banks/oracles, and that
+    ///   oracle cranks ran recently enough. Check `internal_err` and `err_index` for more details
+    ///   in some circumstances. Invalid if generated after borrow/withdraw (these instructions will
+    ///   ignore oracle issues if health is still satisfactory with some balance zeroed out).
+    /// * 8, 16, 32, 64, 128, etc - reserved for future use
+    pub flags: u32,
+    /// If the engine errored, look here for the error code. If the engine returns ok, you may also
+    /// check here to see if the risk engine rejected this tx (3009).
+    pub mrgn_err: u32,
     /// Each price corresponds to that index of Balances in the LendingAccount. Useful for debugging
     /// or liquidator consumption, to determine how a user's position is priced internally.
-    /// * If a price overflows u64, shows u64::MAX
-    /// * If a price is negative for some reason (as several oracles support), pulse will panic
-    pub prices: [WrappedI80F48; MAX_LENDING_ACCOUNT_BALANCES],
+    /// * An f64 stored as bytes
+    pub prices: [[u8; 8]; MAX_LENDING_ACCOUNT_BALANCES],
+    /// Errors in asset oracles are ignored (with prices treated as zero). If you see a zero price
+    /// and the `ORACLE_OK` flag is not set, check here to see what error was ignored internally.
+    pub internal_err: u32,
+    /// Index in `balances` where `internal_err` appeared
+    pub err_index: u8,
+    /// Since 0.1.3, the version will be encoded here. See PROGRAM_VERSION.
+    pub program_version: u8,
+    pub pad0: [u8; 2],
+    pub internal_liq_err: u32,
+    pub internal_bankruptcy_err: u32,
+    // Note: the largest on-chain deployed cache was 304 bytes so all future caches must be at least
+    // this big to avoid data corruption in the empty space.
+    pub reserved0: [u8; 32],
+    pub reserved1: [u8; 16],
 }
 
 impl HealthCache {

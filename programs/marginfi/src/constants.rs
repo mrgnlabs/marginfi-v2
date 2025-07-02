@@ -21,8 +21,9 @@ pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 /// Used for the health cache to track which version of the program generated it.
 /// * 0 = invalid
 /// * 1 = 0.1.3
+/// * 2 = 0.1.4
 /// * others = invalid
-pub const PROGRAM_VERSION: u8 = 1;
+pub const PROGRAM_VERSION: u8 = 2;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
@@ -69,7 +70,6 @@ pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 /// unreliable, and we want to restrict pools from picking an oracle that is effectively unusable
 pub const ORACLE_MIN_AGE: u16 = 30;
 pub const MAX_PYTH_ORACLE_AGE: u64 = 60;
-pub const MAX_SWB_ORACLE_AGE: u64 = 3 * 60;
 
 /// Range that contains 95% price data distribution
 ///
@@ -79,6 +79,8 @@ pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(2.12);
 pub const STD_DEV_MULTIPLE: I80F48 = I80F48!(1.96);
 /// Maximum confidence interval allowed
 pub const MAX_CONF_INTERVAL: I80F48 = I80F48!(0.05);
+pub const U32_MAX: I80F48 = I80F48!(4_294_967_295);
+pub const U32_MAX_DIV_10: I80F48 = I80F48!(429_496_730);
 
 pub const USDC_EXPONENT: i32 = 6;
 
@@ -101,9 +103,15 @@ pub const EMISSIONS_FLAG_BORROW_ACTIVE: u64 = 1 << 0;
 pub const EMISSIONS_FLAG_LENDING_ACTIVE: u64 = 1 << 1;
 pub const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG: u64 = 1 << 2;
 pub const FREEZE_SETTINGS: u64 = 1 << 3;
+pub const CLOSE_ENABLED_FLAG: u64 = 1 << 4;
+
+/// True if bank created in 0.1.4 or later, or if migrated to the new oracle setup from a prior
+/// version. False otherwise.
+pub const PYTH_PUSH_MIGRATED: u8 = 1 << 0;
 
 pub(crate) const EMISSION_FLAGS: u64 = EMISSIONS_FLAG_BORROW_ACTIVE | EMISSIONS_FLAG_LENDING_ACTIVE;
-pub(crate) const GROUP_FLAGS: u64 = PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS;
+pub(crate) const GROUP_FLAGS: u64 =
+    PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS | CLOSE_ENABLED_FLAG;
 
 /// Cutoff timestamp for balance last_update used in accounting collected emissions.
 /// Any balance updates before this timestamp are ignored, and current_timestamp is used instead.
@@ -171,8 +179,10 @@ pub const PROTOCOL_FEE_RATE_DEFAULT: I80F48 = I80F48!(0.025);
 pub const PROTOCOL_FEE_FIXED_DEFAULT: I80F48 = I80F48!(0.01);
 
 pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
-pub const PYTH_PUSH_PYTH_SPONSORED_SHARD_ID: u16 = 0;
-pub const PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
+/// Pyth Pull Oracles sponsored by Pyth use this shard ID.
+pub const PYTH_SPONSORED_SHARD_ID: u16 = 0;
+/// Pyth Pull Oracles sponsored by Marginfi use this shard ID.
+pub const MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
 
 /// A regular asset that can be comingled with any other regular asset or with `ASSET_TAG_SOL`
 pub const ASSET_TAG_DEFAULT: u8 = 0;
@@ -182,3 +192,11 @@ pub const ASSET_TAG_SOL: u8 = 1;
 /// Staked SOL assets. Accounts with a STAKED position can only deposit other STAKED assets or SOL
 /// (`ASSET_TAG_SOL`) and can only borrow SOL (`ASSET_TAG_SOL`)
 pub const ASSET_TAG_STAKED: u8 = 2;
+
+// TODO move this to the global fee wallet eventually
+/// A nominal fee paid to the global wallet when intiating an account transfer. Primarily intended
+/// to avoid spamming account migration, which is mildly annoying to backend systems that track the
+/// state of accounts.
+/// * Should be ~ $0.50 or around that magnitude
+/// * In lamports
+pub const ACCOUNT_TRANSFER_FEE: u64 = 5_000_000;
