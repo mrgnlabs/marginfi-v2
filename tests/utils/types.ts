@@ -49,6 +49,8 @@ export const HEALTH_CACHE_ORACLE_OK = 4;
 
 /** For 0.1.3, this is how the cache represents the version */
 export const HEALTH_CACHE_PROGRAM_VERSION_0_1_3 = 1;
+/** For 0.1.4, this is how the cache represents the version */
+export const HEALTH_CACHE_PROGRAM_VERSION_0_1_4 = 2;
 /** Confidence intervals are multiplied by this constant internally */
 export const CONF_INTERVAL_MULTIPLE = 2.12;
 export const ORACLE_CONF_INTERVAL = 0.01;

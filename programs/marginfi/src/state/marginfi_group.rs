@@ -531,7 +531,7 @@ pub struct Bank {
     /// Set with `update_fees_destination_account`. This should be an ATA for the bank's mint. If
     /// pubkey default, the bank doesn't support this feature, and the fees must be collected
     /// manually (withdraw_fees).
-    pub fees_destination_account: Pubkey, // 32
+    pub fees_destination_account: Pubkey,
 
     pub cache: BankCache,
     /// Number of user lending positions currently open in this bank
@@ -547,7 +547,7 @@ pub struct Bank {
     ///   the bank may safely be closed if this is zero. Will never go negative.
     pub borrowing_position_count: i32,
     pub _padding_0: [u8; 16],
-    pub _padding_1: [[u64; 2]; 19], // 8 * 2 * 29 = 464B
+    pub _padding_1: [[u64; 2]; 19], // 8 * 2 * 19 = 304B
 }
 
 impl Bank {
