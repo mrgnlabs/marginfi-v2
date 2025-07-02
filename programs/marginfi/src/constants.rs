@@ -21,8 +21,9 @@ pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 /// Used for the health cache to track which version of the program generated it.
 /// * 0 = invalid
 /// * 1 = 0.1.3
+/// * 2 = 0.1.4
 /// * others = invalid
-pub const PROGRAM_VERSION: u8 = 1;
+pub const PROGRAM_VERSION: u8 = 2;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
