@@ -11,7 +11,7 @@ use fixed::types::I80F48;
 pub fn lending_pool_close_bank(ctx: Context<LendingPoolCloseBank>) -> MarginfiResult {
     let bank = ctx.accounts.bank.load()?;
 
-    // banks created prior to 0.1.4 can never be closed because we cannot gaurantee an accurate
+    // banks created prior to 0.1.4 can never be closed because we cannot guarantee an accurate
     // position count for those banks.
     check!(
         bank.get_flag(CLOSE_ENABLED_FLAG),
