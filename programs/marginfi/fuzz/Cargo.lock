@@ -2754,7 +2754,6 @@ dependencies = [
  "fixed-macro",
  "lazy_static",
  "pyth-solana-receiver-sdk",
- "pythnet-sdk",
  "solana-security-txt",
  "spl-transfer-hook-interface 0.9.0",
  "static_assertions",

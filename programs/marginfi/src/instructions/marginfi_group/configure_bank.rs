@@ -115,7 +115,7 @@ pub fn lending_pool_setup_emissions(
             TransferChecked {
                 from: ctx.accounts.emissions_funding_account.to_account_info(),
                 to: ctx.accounts.emissions_token_account.to_account_info(),
-                authority: ctx.accounts.admin.to_account_info(),
+                authority: ctx.accounts.delegate_emissions_admin.to_account_info(),
                 mint: ctx.accounts.emissions_mint.to_account_info(),
             },
         ),
@@ -130,12 +130,12 @@ pub fn lending_pool_setup_emissions(
 pub struct LendingPoolSetupEmissions<'info> {
     #[account(
         mut,
-        has_one = admin,
+        has_one = delegate_emissions_admin,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(mut)]
-    pub admin: Signer<'info>,
+    pub delegate_emissions_admin: Signer<'info>,
 
     #[account(
         mut,
@@ -158,7 +158,7 @@ pub struct LendingPoolSetupEmissions<'info> {
 
     #[account(
         init,
-        payer = admin,
+        payer = delegate_emissions_admin,
         token::mint = emissions_mint,
         token::authority = emissions_auth,
         seeds = [
@@ -232,7 +232,7 @@ pub fn lending_pool_update_emissions_parameters(
                 TransferChecked {
                     from: ctx.accounts.emissions_funding_account.to_account_info(),
                     to: ctx.accounts.emissions_token_account.to_account_info(),
-                    authority: ctx.accounts.admin.to_account_info(),
+                    authority: ctx.accounts.delegate_emissions_admin.to_account_info(),
                     mint: ctx.accounts.emissions_mint.to_account_info(),
                 },
             ),
@@ -248,12 +248,12 @@ pub fn lending_pool_update_emissions_parameters(
 pub struct LendingPoolUpdateEmissionsParameters<'info> {
     #[account(
         mut,
-        has_one = admin
+        has_one = delegate_emissions_admin
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(mut)]
-    pub admin: Signer<'info>,
+    pub delegate_emissions_admin: Signer<'info>,
 
     #[account(
         mut,

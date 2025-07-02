@@ -44,6 +44,7 @@ assert_struct_size!(MarginfiGroup, 1056);
 #[account(zero_copy)]
 #[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
 pub struct MarginfiGroup {
+    /// Broadly able to modify anything, and can set/remove other admins at will.
     pub admin: Pubkey,
     /// Bitmask for group settings flags.
     /// * 0: `PROGRAM_FEES_ENABLED` If set, program-level fees are enabled.
@@ -62,8 +63,17 @@ pub struct MarginfiGroup {
     /// certain banks , e.g. allow SOL to count as 90% collateral when borrowing an LST instead of
     /// the default rate.
     pub emode_admin: Pubkey,
+    /// Can modify the fields in `config.interest_rate_config` but nothing else, for every bank under
+    /// this group
+    pub delegate_curve_admin: Pubkey,
+    /// Can modify the `deposit_limit`, `borrow_limit`, `total_asset_value_init_limit` but nothing
+    /// else, for every bank under this group
+    pub delegate_limit_admin: Pubkey,
+    /// Can modify the emissions `flags`, `emissions_rate` and `emissions_mint`, but nothing else,
+    /// for every bank under this group
+    pub delegate_emissions_admin: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 24],
+    pub _padding_0: [[u64; 2]; 18],
     pub _padding_1: [[u64; 2]; 32],
     pub _padding_4: u64,
 }
@@ -101,6 +111,48 @@ impl MarginfiGroup {
                 new_emode_admin
             );
             self.emode_admin = new_emode_admin;
+        }
+    }
+
+    pub fn update_curve_admin(&mut self, new_curve_admin: Pubkey) {
+        if self.delegate_curve_admin == new_curve_admin {
+            msg!("No change to curve admin: {:?}", new_curve_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set curve admin from {:?} to {:?}",
+                self.delegate_curve_admin,
+                new_curve_admin
+            );
+            self.delegate_curve_admin = new_curve_admin;
+        }
+    }
+
+    pub fn update_limit_admin(&mut self, new_limit_admin: Pubkey) {
+        if self.delegate_limit_admin == new_limit_admin {
+            msg!("No change to limit admin: {:?}", new_limit_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set limit admin from {:?} to {:?}",
+                self.delegate_limit_admin,
+                new_limit_admin
+            );
+            self.delegate_limit_admin = new_limit_admin;
+        }
+    }
+
+    pub fn update_emissions_admin(&mut self, new_emissions_admin: Pubkey) {
+        if self.delegate_emissions_admin == new_emissions_admin {
+            msg!("No change to emissions admin: {:?}", new_emissions_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set limit admin from {:?} to {:?}",
+                self.delegate_emissions_admin,
+                new_emissions_admin
+            );
+            self.delegate_emissions_admin = new_emissions_admin;
         }
     }
 

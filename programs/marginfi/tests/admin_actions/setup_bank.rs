@@ -462,7 +462,14 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, group_before.emode_admin, true)
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            true,
+        )
         .await;
     assert!(res.is_ok());
     let group_after = test_f.marginfi_group.load().await;
@@ -511,7 +518,14 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, group_before.emode_admin, false)
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            false,
+        )
         .await;
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaSettingCannotChange);
@@ -556,12 +570,54 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
     let group_before = test_f.marginfi_group.load().await;
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, group_before.emode_admin, true)
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            true,
+        )
         .await;
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaBankLimit);
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn config_group_admins() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    let new_admin = Pubkey::new_unique();
+    let new_emode_admin = Pubkey::new_unique();
+    let new_curve_admin = Pubkey::new_unique();
+    let new_limit_admin = Pubkey::new_unique();
+    let delegate_emissions_admin = Pubkey::new_unique();
+
+    let res = test_f
+        .marginfi_group
+        .try_update(
+            new_admin,
+            new_emode_admin,
+            new_curve_admin,
+            new_limit_admin,
+            delegate_emissions_admin,
+            false,
+        )
+        .await;
+
+    assert!(res.is_ok());
+    let group_after = test_f.marginfi_group.load().await;
+    assert_eq!(group_after.admin, new_admin);
+    assert_eq!(group_after.emode_admin, new_emode_admin);
+    assert_eq!(group_after.delegate_curve_admin, new_curve_admin);
+    assert_eq!(group_after.delegate_limit_admin, new_limit_admin);
+    assert_eq!(
+        group_after.delegate_emissions_admin,
+        delegate_emissions_admin
+    );
     Ok(())
 }
 

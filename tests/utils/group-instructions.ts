@@ -134,12 +134,18 @@ export const addBankWithSeed = (
 /**
  * newAdmin - (Optional) pass null to keep current admin
  * newEModeAdmin - (Optional) pass null to keep current emode admin
+ * newCurveAdmin - (Optional) pass null to keep current curve admin
+ * newLimitAdmin - (Optional) pass null to keep current limit admin
+ * newEmissionsAdmin - (Optional) pass null to keep current emissions admin
  * marginfiGroup's admin - must sign
  * isArena - default false
  */
 export type GroupConfigureArgs = {
   newAdmin?: PublicKey | null; // optional; pass null or leave undefined to keep current admin
   newEmodeAdmin?: PublicKey | null;
+  newCurveAdmin?: PublicKey | null;
+  newLimitAdmin?: PublicKey | null;
+  newEmissionsAdmin?: PublicKey | null;
   marginfiGroup: PublicKey;
   isArena?: boolean; // optional; defaults to false if not provided
 };
@@ -148,18 +154,24 @@ export const groupConfigure = async (
   program: Program<Marginfi>,
   args: GroupConfigureArgs
 ) => {
-  const isArena = args.isArena ?? false;
   const group = await program.account.marginfiGroup.fetch(args.marginfiGroup);
-  let newAdmin = args.newAdmin;
-  if (newAdmin == null) {
-    newAdmin = group.admin;
-  }
-  let newEmodeAdmin = args.newEmodeAdmin;
-  if (newEmodeAdmin == null) {
-    newEmodeAdmin = group.emodeAdmin;
-  }
+  const newAdmin = args.newAdmin ?? group.admin;
+  const newEmodeAdmin = args.newEmodeAdmin ?? group.emodeAdmin;
+  const newCurveAdmin = args.newCurveAdmin ?? group.delegateCurveAdmin;
+  const newLimitAdmin = args.newLimitAdmin ?? group.delegateLimitAdmin;
+  const newEmissionsAdmin =
+    args.newEmissionsAdmin ?? group.delegateEmissionsAdmin;
+  const isArena = args.isArena ?? false;
+
   const ix = program.methods
-    .marginfiGroupConfigure(newAdmin, newEmodeAdmin, isArena)
+    .marginfiGroupConfigure(
+      newAdmin,
+      newEmodeAdmin,
+      newCurveAdmin,
+      newLimitAdmin,
+      newEmissionsAdmin,
+      isArena
+    )
     .accounts({
       marginfiGroup: args.marginfiGroup,
       // admin: // implied from group

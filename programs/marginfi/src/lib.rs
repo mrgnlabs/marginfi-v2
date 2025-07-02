@@ -20,6 +20,7 @@ use anchor_lang::prelude::*;
 use instructions::*;
 use prelude::*;
 use state::emode::{EmodeEntry, MAX_EMODE_ENTRIES};
+use state::marginfi_group::InterestRateConfigOpt;
 use state::marginfi_group::WrappedI80F48;
 use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
@@ -103,9 +104,20 @@ pub mod marginfi {
         ctx: Context<MarginfiGroupConfigure>,
         new_admin: Pubkey,
         new_emode_admin: Pubkey,
+        new_curve_admin: Pubkey,
+        new_limit_admin: Pubkey,
+        new_emissions_admin: Pubkey,
         is_arena_group: bool,
     ) -> MarginfiResult {
-        marginfi_group::configure(ctx, new_admin, new_emode_admin, is_arena_group)
+        marginfi_group::configure(
+            ctx,
+            new_admin,
+            new_emode_admin,
+            new_curve_admin,
+            new_limit_admin,
+            new_emissions_admin,
+            is_arena_group,
+        )
     }
 
     pub fn lending_pool_add_bank(
@@ -133,6 +145,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank_permissionless(ctx, bank_seed)
     }
 
+    /// (admin only)
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
         bank_config_opt: BankConfigOpt,
@@ -140,6 +153,30 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank(ctx, bank_config_opt)
     }
 
+    /// (delegate_curve_admin only)
+    pub fn lending_pool_configure_bank_interest_only(
+        ctx: Context<LendingPoolConfigureBankInterestOnly>,
+        interest_rate_config: InterestRateConfigOpt,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_configure_bank_interest_only(ctx, interest_rate_config)
+    }
+
+    /// (delegate_limits_admin only)
+    pub fn lending_pool_configure_bank_limits_only(
+        ctx: Context<LendingPoolConfigureBankLimitsOnly>,
+        deposit_limit: Option<u64>,
+        borrow_limit: Option<u64>,
+        total_asset_value_init_limit: Option<u64>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_configure_bank_limits_only(
+            ctx,
+            deposit_limit,
+            borrow_limit,
+            total_asset_value_init_limit,
+        )
+    }
+
+    /// (admin only)
     pub fn lending_pool_configure_bank_oracle(
         ctx: Context<LendingPoolConfigureBankOracle>,
         setup: u8,
@@ -148,6 +185,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
     }
 
+    /// (emode_admin only)
     pub fn lending_pool_configure_bank_emode(
         ctx: Context<LendingPoolConfigureBankEmode>,
         emode_tag: u16,
@@ -156,6 +194,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
     }
 
+    /// (delegate_emissions_admin only)
     pub fn lending_pool_setup_emissions(
         ctx: Context<LendingPoolSetupEmissions>,
         flags: u64,
@@ -165,6 +204,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_setup_emissions(ctx, flags, rate, total_emissions)
     }
 
+    /// (delegate_emissions_admin only)
     pub fn lending_pool_update_emissions_parameters(
         ctx: Context<LendingPoolUpdateEmissionsParameters>,
         emissions_flags: Option<u64>,
