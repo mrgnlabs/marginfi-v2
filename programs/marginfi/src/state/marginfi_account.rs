@@ -1126,6 +1126,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         balance.close()?;
+        bank.decrement_lending_position_count();
         bank.change_asset_shares(-total_asset_shares, false)?;
 
         bank.check_utilization_ratio()?;
@@ -1174,6 +1175,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         balance.close()?;
+        bank.decrement_borrowing_position_count();
         bank.change_liability_shares(-total_liability_shares, false)?;
 
         let spl_deposit_amount = current_liability_amount
@@ -1237,6 +1239,11 @@ impl<'a> BankAccountWrapper<'a> {
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
+        // Record if the balance was an asset/liability beforehand
+        let had_assets =
+            I80F48::from(balance.asset_shares).is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+        let had_liabs = I80F48::from(balance.liability_shares)
+            .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
 
         let current_liability_shares: I80F48 = balance.liability_shares.into();
         let current_liability_amount = bank.get_liability_amount(current_liability_shares)?;
@@ -1285,6 +1292,25 @@ impl<'a> BankAccountWrapper<'a> {
         balance.change_liability_shares(-liability_shares_decrease)?;
         bank.change_liability_shares(-liability_shares_decrease, true)?;
 
+        // Record if the balance was an asset/liability after
+        let has_assets =
+            I80F48::from(balance.asset_shares).is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+        let has_liabs = I80F48::from(balance.liability_shares)
+            .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+        // Increment position counts depending on the before/after state of the balance
+        if !had_assets && has_assets {
+            bank.increment_lending_position_count();
+        }
+        if had_assets && !has_assets {
+            bank.decrement_lending_position_count();
+        }
+        if !had_liabs && has_liabs {
+            bank.increment_borrowing_position_count();
+        }
+        if had_liabs && !has_liabs {
+            bank.decrement_borrowing_position_count();
+        }
+
         Ok(())
     }
 
@@ -1302,6 +1328,10 @@ impl<'a> BankAccountWrapper<'a> {
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
+        let had_assets =
+            I80F48::from(balance.asset_shares).is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+        let had_liabs = I80F48::from(balance.liability_shares)
+            .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
 
         let current_asset_shares: I80F48 = balance.asset_shares.into();
         let current_asset_amount = bank.get_asset_amount(current_asset_shares)?;
@@ -1348,6 +1378,24 @@ impl<'a> BankAccountWrapper<'a> {
             liability_shares_increase,
             matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit),
         )?;
+
+        let has_assets =
+            I80F48::from(balance.asset_shares).is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+        let has_liabs = I80F48::from(balance.liability_shares)
+            .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+
+        if !had_assets && has_assets {
+            bank.increment_lending_position_count();
+        }
+        if had_assets && !has_assets {
+            bank.decrement_lending_position_count();
+        }
+        if !had_liabs && has_liabs {
+            bank.increment_borrowing_position_count();
+        }
+        if had_liabs && !has_liabs {
+            bank.decrement_borrowing_position_count();
+        }
 
         bank.check_utilization_ratio()?;
 

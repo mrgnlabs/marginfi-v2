@@ -86,6 +86,8 @@ describe("Withdraw funds", () => {
       ]
     );
     const balancesAfter = userAccAfter.lendingAccount.balances;
+    // Partial withdraw only, position is still open
+    assert.equal(bankAfter.lendingPositionCount, 1);
 
     const withdrawExpected = withdrawAmountTokenA_native.toNumber();
     if (verbose) {
@@ -156,6 +158,10 @@ describe("Withdraw funds", () => {
       getTokenBalance(provider, user.usdcAccount),
       getTokenBalance(provider, bankAfter.liquidityVault),
     ]);
+    // Partial repay only, still has debt
+    assert.equal(bankAfter.borrowingPositionCount, 1);
+    // Still has deposit in token A
+    assert.equal(bankAfter.lendingPositionCount, 1);
     const balancesAfter = userAccAfter.lendingAccount.balances;
 
     const repayExpected = repayAmountUsdc_native.toNumber();
@@ -430,10 +436,12 @@ describe("Withdraw funds", () => {
       )
     );
 
+    const bankAfter = await program.account.bank.fetch(bank);
     const userAccAfter = await program.account.marginfiAccount.fetch(
       userAccKey
     );
     const balancesAfter = userAccAfter.lendingAccount.balances;
+    assert.equal(bankAfter.lendingPositionCount, 0);
 
     // This balance is now inactive
     assert.equal(balancesAfter[1].active, 0);

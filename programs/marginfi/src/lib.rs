@@ -309,6 +309,10 @@ pub mod marginfi {
         marginfi_group::lending_pool_withdraw_insurance(ctx, amount)
     }
 
+    pub fn lending_pool_close_bank(ctx: Context<LendingPoolCloseBank>) -> MarginfiResult {
+        marginfi_group::lending_pool_close_bank(ctx)
+    }
+
     pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
         marginfi_account::transfer_to_new_account(ctx)
     }

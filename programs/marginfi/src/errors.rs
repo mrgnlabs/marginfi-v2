@@ -167,6 +167,8 @@ pub enum MarginfiError {
     ZeroLiabilityPrice,
     #[msg("Oracle max confidence exceeded: try again later")] // 6080
     OracleMaxConfidenceExceeded,
+    #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6081
+    BankCannotClose,
 }
 
 impl From<MarginfiError> for ProgramError {

@@ -24,6 +24,7 @@ import {
 } from "./utils/genericTests";
 import {
   ASSET_TAG_DEFAULT,
+  CLOSE_ENABLED_FLAG,
   defaultBankConfig,
   ORACLE_SETUP_PYTH_PUSH,
   PYTH_PULL_MIGRATED,
@@ -139,7 +140,8 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Equal(bank.collectedGroupFeesOutstanding, 0);
     assertI80F48Equal(bank.totalLiabilityShares, 0);
     assertI80F48Equal(bank.totalAssetShares, 0);
-    assertBNEqual(bank.flags, 0);
+    // All banks created after 0.1.4 set the CLOSE_ENABLED_FLAG
+    assertBNEqual(bank.flags, CLOSE_ENABLED_FLAG);
     assertBNEqual(bank.emissionsRate, 0);
     assertI80F48Equal(bank.emissionsRemaining, 0);
 

@@ -162,6 +162,7 @@ describe("Borrow funds", () => {
     const userAcc = await program.account.marginfiAccount.fetch(user0Account);
     const bankAfter = await program.account.bank.fetch(bank);
     const balances = userAcc.lendingAccount.balances;
+    assert.equal(bankAfter.borrowingPositionCount, 1);
     const userUsdcAfter = await getTokenBalance(provider, user.usdcAccount);
     if (verbose) {
       console.log("user 0 USDC after: " + userUsdcAfter.toLocaleString());
