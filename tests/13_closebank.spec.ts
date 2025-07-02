@@ -136,6 +136,9 @@ describe("Close bank", () => {
     const bankAfterWithdraw = await program.account.bank.fetch(bankKey);
     assert.equal(bankAfterWithdraw.lendingPositionCount, 0);
 
+    const groupBefore = await program.account.marginfiGroup.fetch(
+      marginfiGroup.publicKey
+    );
     await groupAdmin.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
         await closeBank(groupAdmin.mrgnProgram, {
@@ -143,6 +146,10 @@ describe("Close bank", () => {
         })
       )
     );
+    const groupAfter = await program.account.marginfiGroup.fetch(
+      marginfiGroup.publicKey
+    );
+    assert.equal(groupAfter.banks, groupBefore.banks - 1);
 
     const info = await provider.connection.getAccountInfo(bankKey);
     assert.isNull(info);

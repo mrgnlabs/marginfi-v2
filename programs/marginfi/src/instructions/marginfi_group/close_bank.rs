@@ -9,6 +9,11 @@ use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 
 pub fn lending_pool_close_bank(ctx: Context<LendingPoolCloseBank>) -> MarginfiResult {
+    let mut group = ctx.accounts.group.load_mut()?;
+    // Note: Groups created prior to 0.1.2 have a non-authoritative count here, so subtraction
+    // without saturation could reduce the count below zero.
+    group.banks = group.banks.saturating_sub(1);
+
     let bank = ctx.accounts.bank.load()?;
 
     // banks created prior to 0.1.4 can never be closed because we cannot guarantee an accurate
@@ -44,6 +49,7 @@ pub fn lending_pool_close_bank(ctx: Context<LendingPoolCloseBank>) -> MarginfiRe
 #[derive(Accounts)]
 pub struct LendingPoolCloseBank<'info> {
     #[account(
+        mut,
         has_one = admin,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
