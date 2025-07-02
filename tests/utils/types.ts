@@ -154,6 +154,28 @@ export const defaultBankConfigOptRaw = () => {
   return bankConfigOpt;
 };
 
+export const emptyBankConfigOptRaw = () => {
+  let bankConfigOpt: BankConfigOptRaw = {
+    assetWeightInit: null,
+    assetWeightMaint: null,
+    liabilityWeightInit: null,
+    liabilityWeightMaint: null,
+    depositLimit: null,
+    borrowLimit: null,
+    riskTier: null,
+    assetTag: null,
+    totalAssetValueInitLimit: null,
+    interestRateConfig: null,
+    operationalState: null,
+    oracleMaxConfidence: 0,
+    oracleMaxAge: null,
+    permissionlessBadDebtSettlement: null,
+    freezeSettings: null,
+  };
+
+  return bankConfigOpt;
+};
+
 /**
  * The default interest config has
  * * optimalUtilizationRate = .5
