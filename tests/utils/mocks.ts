@@ -16,6 +16,13 @@ import {
 } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { Mocks } from "../../target/types/mocks";
+import {
+  BanksTransactionMeta,
+  BanksTransactionResultWithMeta,
+  ProgramTestContext,
+} from "solana-bankrun";
+import { getBankrunBlockhash } from "./spl-staking-utils";
+import { dumpBankrunLogs } from "./tools";
 
 export type Ecosystem = {
   /** A generic wsol mint with 9 decimals (same as native) */
@@ -414,9 +421,10 @@ export const storeMockAccount = async (
   wallet: Wallet,
   account: Keypair,
   offset: number,
-  input: Buffer
+  input: Buffer,
+  bankrunContext?: ProgramTestContext
 ) => {
-  const tx = new Transaction().add(
+  const createTx = new Transaction().add(
     await program.methods
       .write(new BN(offset), input)
       .accounts({
@@ -424,7 +432,46 @@ export const storeMockAccount = async (
       })
       .instruction()
   );
-  await program.provider.sendAndConfirm(tx, [wallet.payer, account]);
+  if (bankrunContext) {
+    await processBankrunTransaction(bankrunContext, createTx, [
+      wallet.payer,
+      account,
+    ]);
+  } else {
+    await program.provider.sendAndConfirm(createTx, [wallet.payer, account]);
+  }
+};
+
+const processBankrunTransaction = async (
+  bankrunContext: ProgramTestContext,
+  tx: Transaction,
+  signers: Keypair[],
+  trySend: boolean = false,
+  dumpLogOnFail: boolean = false
+  //   options: ProcessBankrunTransactionOptions = {}
+): Promise<BanksTransactionResultWithMeta | BanksTransactionMeta> => {
+  // const { trySend = false, dumpLogOnFail = false } = options;
+  tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+  tx.sign(...signers);
+
+  if (trySend) {
+    let result = await bankrunContext.banksClient.tryProcessTransaction(tx);
+    if (dumpLogOnFail) {
+      dumpBankrunLogs(result);
+    }
+    return result;
+  } else {
+    // TODO throw on error?
+    // If we want to dump logs on fail, simulate first
+    if (dumpLogOnFail) {
+      const simulationResult =
+        await bankrunContext.banksClient.simulateTransaction(tx);
+      if (simulationResult.result) {
+        dumpBankrunLogs(simulationResult);
+      }
+    }
+    return await bankrunContext.banksClient.processTransaction(tx);
+  }
 };
 
 export type Validator = {

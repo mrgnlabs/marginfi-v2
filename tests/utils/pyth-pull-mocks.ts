@@ -3,7 +3,8 @@ import BN from "bn.js";
 import { createMockAccount, storeMockAccount } from "./mocks";
 import { Mocks } from "../../target/types/mocks";
 import { Program, Wallet, workspace } from "@coral-xyz/anchor";
-import { printBuffers } from "../rootHooks";
+import { printBuffers, verbose } from "../rootHooks";
+import { ProgramTestContext } from "solana-bankrun";
 
 type VerificationLevel =
   | { kind: "Partial"; num_signatures: number }
@@ -145,11 +146,32 @@ export async function initOrUpdatePriceUpdateV2(
   // User after setup to update existing account
   existingAccount?: Keypair,
   // Use to give a deterministic keypair during initial setup instead of a random one
-  oracleKeypair?: Keypair
+  oracleKeypair?: Keypair,
+  bankrunContext?: ProgramTestContext,
+  publishTime?: number
 ) {
   const space = 134;
   // Compute publish times.
-  const now = Math.floor(Date.now() / 1000);
+  const now = publishTime ?? Math.floor(Date.now() / 1000);
+  if (verbose) {
+    if (existingAccount) {
+      console.log(
+        "publish price to " +
+          existingAccount.publicKey.toString() +
+          " at: " +
+          now
+      );
+    } else {
+      console.log("publish price to a new feed at " + now);
+    }
+    let nowActually = Math.floor(Date.now() / 1000);
+    console.log("your system clock reads: " + nowActually);
+    if (bankrunContext) {
+      let clock = await bankrunContext.banksClient.getClock();
+      console.log("bankrun thinks the time is: " + clock.unixTimestamp);
+    }
+  }
+
   const publish_time = new BN(now);
   const prev_publish_time = new BN(now - 1);
   // Allocate a 134-byte buffer.
@@ -204,7 +226,7 @@ export async function initOrUpdatePriceUpdateV2(
   // Write the buffer to the mock account
   const mockProgram: Program<Mocks> = workspace.Mocks;
   if (existingAccount) {
-    await storeMockAccount(mockProgram, wallet, existingAccount, 0, buf);
+    await storeMockAccount(mockProgram, wallet, existingAccount, 0, buf, bankrunContext);
     return existingAccount;
   } else {
     let account = await createMockAccount(
