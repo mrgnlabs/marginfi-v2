@@ -20,7 +20,7 @@ async fn marginfi_account_create_success() -> anyhow::Result<()> {
         system_program: system_program::id(),
     };
     let init_marginfi_account_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
     };

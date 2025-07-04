@@ -8,13 +8,15 @@ use crate::{
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     log_pool_info,
     state::{
+        bank::{BankConfigImpl, BankImpl},
         fee_state::FeeState,
-        marginfi_group::{Bank, BankConfigCompact, MarginfiGroup},
+        marginfi_group::MarginfiGroup,
     },
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
+use marginfi_type_crate::types::{Bank, BankConfigCompact};
 
 /// A copy of lending_pool_add_bank but with an additional bank seed provided.
 /// This seed is used by the LendingPoolAddBankWithSeed.bank to generate a

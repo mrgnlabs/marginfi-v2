@@ -9,9 +9,10 @@ use crate::{
     math_error,
     prelude::MarginfiError,
     state::{
+        bank::{BankImpl, BankVaultType},
         health_cache::HealthCache,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, BankVaultType, MarginfiGroup},
+        marginfi_group::MarginfiGroup,
     },
     utils, MarginfiResult,
 };
@@ -19,6 +20,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
+use marginfi_type_crate::types::Bank;
 use std::cmp::{max, min};
 
 /// Handle a bankrupt marginfi account.

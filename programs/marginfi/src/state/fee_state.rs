@@ -1,8 +1,7 @@
 use anchor_lang::prelude::*;
+use marginfi_type_crate::types::WrappedI80F48;
 
 use crate::{assert_struct_align, assert_struct_size};
-
-use super::marginfi_group::WrappedI80F48;
 
 assert_struct_size!(FeeState, 256);
 assert_struct_align!(FeeState, 8);

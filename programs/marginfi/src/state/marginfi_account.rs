@@ -1,7 +1,5 @@
 use super::{
-    emode::{reconcile_emode_configs, EmodeConfig},
     health_cache::HealthCache,
-    marginfi_group::{Bank, RiskTier, WrappedI80F48},
     price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
 };
 use crate::{
@@ -13,12 +11,16 @@ use crate::{
     },
     debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
+    state::bank::{BankConfigImpl, BankImpl},
     utils::NumTraitsWithTolerance,
 };
 use anchor_lang::{prelude::*, Discriminator};
 use anchor_spl::token_interface::Mint;
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
+use marginfi_type_crate::types::{
+    reconcile_emode_configs, BalanceSide, Bank, EmodeConfig, RiskTier, WrappedI80F48,
+};
 use std::cmp::{max, min};
 use type_layout::TypeLayout;
 
@@ -192,11 +194,6 @@ pub struct BankAccountWithPriceFeed<'a, 'info> {
     bank: AccountLoader<'info, Bank>,
     price_feed: Box<MarginfiResult<OraclePriceFeedAdapter>>,
     balance: &'a Balance,
-}
-
-pub enum BalanceSide {
-    Assets,
-    Liabilities,
 }
 
 impl<'info> BankAccountWithPriceFeed<'_, 'info> {

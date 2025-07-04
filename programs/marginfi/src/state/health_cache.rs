@@ -1,7 +1,8 @@
-use super::{marginfi_account::MAX_LENDING_ACCOUNT_BALANCES, marginfi_group::WrappedI80F48};
+use super::marginfi_account::MAX_LENDING_ACCOUNT_BALANCES;
 use crate::{assert_struct_align, assert_struct_size};
 use anchor_lang::prelude::*;
 use bytemuck::{Pod, Zeroable};
+use marginfi_type_crate::types::WrappedI80F48;
 use type_layout::TypeLayout;
 
 pub const HEALTHY: u32 = 1;

@@ -5,18 +5,15 @@ use crate::{
 
 use anchor_lang::prelude::*;
 use bincode::deserialize;
+use marginfi_type_crate::types::{
+    BankConfig, BankOperationalState, InterestRateConfig, OracleSetup, RiskTier,
+};
 use pyth_solana_receiver_sdk::price_update::{PriceUpdateV2, VerificationLevel};
 use solana_sdk::{account::AccountSharedData, entrypoint::ProgramResult};
 
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
-use marginfi::{
-    constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED},
-    state::{
-        marginfi_group::{BankConfig, BankOperationalState, InterestRateConfig, RiskTier},
-        price::OracleSetup,
-    },
-};
+use marginfi::constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED};
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
 use solana_sdk::{account::Account, pubkey, signature::Keypair, signer::Signer};

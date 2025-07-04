@@ -17,7 +17,10 @@ use marginfi::{
         EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, MIN_EMISSIONS_START_TIME,
     },
     prelude::*,
-    state::marginfi_account::BankAccountWrapper,
+    state::{
+        bank::{BankConfigImpl, BankImpl},
+        marginfi_account::BankAccountWrapper,
+    },
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;

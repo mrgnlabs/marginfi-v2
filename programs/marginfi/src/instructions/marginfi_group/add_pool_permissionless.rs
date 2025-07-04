@@ -10,10 +10,8 @@ use crate::{
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     log_pool_info,
     state::{
-        marginfi_group::{
-            Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiGroup,
-        },
-        price::OracleSetup,
+        bank::{BankConfigImpl, BankImpl},
+        marginfi_group::MarginfiGroup,
         staked_settings::StakedSettings,
     },
     MarginfiError, MarginfiResult,
@@ -21,6 +19,9 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 use fixed_macro::types::I80F48;
+use marginfi_type_crate::types::{
+    Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, OracleSetup,
+};
 
 pub fn lending_pool_add_bank_permissionless(
     ctx: Context<LendingPoolAddBankPermissionless>,

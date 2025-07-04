@@ -38,7 +38,7 @@ where
     T: ToAccountMetas,
 {
     Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: accounts.to_account_metas(Some(true)),
         data: ix_data,
     }
@@ -320,7 +320,7 @@ pub fn get_emissions_authority_address(bank_pk: Pubkey, emissions_mint: Pubkey) 
             bank_pk.as_ref(),
             emissions_mint.as_ref(),
         ],
-        &marginfi::id(),
+        &marginfi::ID,
     )
 }
 
@@ -334,7 +334,7 @@ pub fn get_emissions_token_account_address(
             bank_pk.as_ref(),
             emissions_mint.as_ref(),
         ],
-        &marginfi::id(),
+        &marginfi::ID,
     )
 }
 

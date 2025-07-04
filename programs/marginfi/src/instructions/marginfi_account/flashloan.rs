@@ -73,7 +73,7 @@ pub fn check_flashloan_can_start(
     );
 
     check!(
-        current_ix.program_id.eq(&crate::id()),
+        current_ix.program_id.eq(&crate::ID),
         MarginfiError::IllegalFlashloan,
         "Start flashloan ix should not be in CPI"
     );
@@ -90,7 +90,7 @@ pub fn check_flashloan_can_start(
     }
 
     check!(
-        unchecked_end_fl_ix.program_id.eq(&crate::id()),
+        unchecked_end_fl_ix.program_id.eq(&crate::ID),
         MarginfiError::IllegalFlashloan
     );
 

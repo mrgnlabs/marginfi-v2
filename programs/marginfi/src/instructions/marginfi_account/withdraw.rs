@@ -4,9 +4,9 @@ use crate::{
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
     prelude::*,
     state::{
+        bank::{BankImpl, BankVaultType},
         health_cache::HealthCache,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, BankVaultType},
     },
     utils,
 };
@@ -15,6 +15,7 @@ use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
+use marginfi_type_crate::types::Bank;
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset withdrawn

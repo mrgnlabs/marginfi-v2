@@ -1,5 +1,12 @@
+use std::collections::BTreeMap;
+
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
+
+#[cfg(feature = "anchor")]
+use {anchor_lang::prelude::*, type_layout::TypeLayout};
+
+use crate::{assert_struct_align, assert_struct_size};
 
 use super::WrappedI80F48;
 
@@ -8,8 +15,14 @@ pub const EMODE_ON: u64 = 1;
 pub const MAX_EMODE_ENTRIES: usize = 10;
 pub const EMODE_TAG_EMPTY: u16 = 0;
 
+assert_struct_size!(EmodeSettings, 424);
+assert_struct_align!(EmodeSettings, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(
+    feature = "anchor",
+    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
+)]
+#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 /// Controls the bank's e-mode configuration, allowing certain collateral sources to be treated more
 /// favorably as collateral when used to borrow from this bank.
 pub struct EmodeSettings {
@@ -36,8 +49,14 @@ pub struct EmodeSettings {
     pub emode_config: EmodeConfig,
 }
 
+assert_struct_size!(EmodeConfig, 400);
+assert_struct_align!(EmodeConfig, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(
+    feature = "anchor",
+    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
+)]
+#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 /// An emode configuration. Each bank has one such configuration, but this may also be the
 /// intersection of many configurations (see `reconcile_emode_configs`). For example, the risk
 /// engine creates such an intersection from all the emode config of all banks the user is borrowing
@@ -47,20 +66,25 @@ pub struct EmodeConfig {
 }
 
 impl EmodeConfig {
-    /// Creates an EmodeConfig from a list of EmodeEntry items.
+    /// Creates an EmodeConfig from a slice of EmodeEntry items.
     /// Entries will be sorted by tag.
     /// Panics if more than MAX_EMODE_ENTRIES are provided.
-    pub fn from_entries(mut entries: Vec<EmodeEntry>) -> Self {
-        if entries.len() > MAX_EMODE_ENTRIES {
+    /// * No heap allocation
+    pub fn from_entries(entries: &[EmodeEntry]) -> Self {
+        let count = entries.len();
+        if count > MAX_EMODE_ENTRIES {
             panic!(
                 "Too many EmodeEntry items {:?}, maximum allowed {:?}",
-                entries.len(),
-                MAX_EMODE_ENTRIES
+                count, MAX_EMODE_ENTRIES
             );
         }
-        entries.sort_by_key(|e| e.collateral_bank_emode_tag);
+
         let mut config = Self::zeroed();
-        config.entries[..entries.len()].copy_from_slice(&entries);
+        for (i, entry) in entries.iter().enumerate() {
+            config.entries[i] = *entry;
+        }
+        config.entries[..count].sort_by_key(|e| e.collateral_bank_emode_tag);
+
         config
     }
 
@@ -99,8 +123,14 @@ impl EmodeSettings {
 
 pub const APPLIES_TO_ISOLATED: u16 = 1;
 
+assert_struct_size!(EmodeEntry, 40);
+assert_struct_align!(EmodeEntry, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(
+    feature = "anchor",
+    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
+)]
+#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 pub struct EmodeEntry {
     /// emode_tag of the bank(s) whose collateral you wish to treat preferentially.
     pub collateral_bank_emode_tag: u16,
@@ -139,6 +169,8 @@ impl EmodeEntry {
 /// If one config has a collateral_bank_emode_tag and the others do not, ***we don't make an
 /// EmodeEntry for it at all***, i.e. there is no benefit for that collateral
 ///
+/// * Note: Takes a generic iterator as input to avoid heap allocating a Vec.
+///
 /// ***Example 1***
 /// * bank | tag | flags | init | maint
 /// * 0       101    1       70     75
@@ -166,61 +198,69 @@ impl EmodeEntry {
 /// - Result
 /// * tag | flags | init | maint
 /// * 101    0       60     75
-pub fn reconcile_emode_configs(configs: Vec<EmodeConfig>) -> EmodeConfig {
+pub fn reconcile_emode_configs<I>(configs: I) -> EmodeConfig
+where
+    I: IntoIterator<Item = EmodeConfig>,
+{
     // TODO benchmark this in the mock program
-    // If no configs, return a zeroed config.
-    if configs.is_empty() {
-        return EmodeConfig::zeroed();
-    }
-    // If only one config, return it.
-    if configs.len() == 1 {
-        return configs.into_iter().next().unwrap();
-    }
+    let mut iter = configs.into_iter();
+    // Pull off the first config (if any)
+    let first = match iter.next() {
+        None => return EmodeConfig::zeroed(),
+        Some(cfg) => cfg,
+    };
 
-    let num_configs = configs.len();
-    // Stores (tag, (entry, tag_count)), where tag_count is how many times we've seen this tag. This
-    // BTreeMap is logically easier on the eyes, but is probably fairly CU expensive, and should be
-    // benchmarked at some point, a simple Vec might actually be more performant here
-    let mut merged_entries: std::collections::BTreeMap<u16, (EmodeEntry, usize)> =
-        std::collections::BTreeMap::new();
+    let mut merged_entries: BTreeMap<u16, (EmodeEntry, usize)> = BTreeMap::new();
+    let mut num_configs = 1;
 
-    for config in &configs {
-        for entry in config.entries.iter() {
+    // A helper to merge an EmodeConfig into the map
+    let mut merge_cfg = |cfg: EmodeConfig| {
+        for entry in cfg.entries.iter() {
             if entry.is_empty() {
                 continue;
             }
-            // Note: We assume that entries is de-duped and each tag appears at most one time!
             let tag = entry.collateral_bank_emode_tag;
-            // Insert or merge the entry: if an entry with the same tag already exists, take the
-            // lesser of each field, increment how many times we've seen this tag
             merged_entries
                 .entry(tag)
-                .and_modify(|(merged, tag_count)| {
-                    // Note: More complex flag merging logic may be needed in the future
+                .and_modify(|(merged, cnt)| {
                     merged.flags = merged.flags.min(entry.flags);
-                    let current_init: I80F48 = merged.asset_weight_init.into();
-                    let new_init: I80F48 = entry.asset_weight_init.into();
-                    if new_init < current_init {
+                    let cur_i: I80F48 = merged.asset_weight_init.into();
+                    let new_i: I80F48 = entry.asset_weight_init.into();
+                    if new_i < cur_i {
                         merged.asset_weight_init = entry.asset_weight_init;
                     }
-                    let current_maint: I80F48 = merged.asset_weight_maint.into();
-                    let new_maint: I80F48 = entry.asset_weight_maint.into();
-                    if new_maint < current_maint {
+                    let cur_m: I80F48 = merged.asset_weight_maint.into();
+                    let new_m: I80F48 = entry.asset_weight_maint.into();
+                    if new_m < cur_m {
                         merged.asset_weight_maint = entry.asset_weight_maint;
                     }
-                    *tag_count += 1;
+                    *cnt += 1;
                 })
                 .or_insert((*entry, 1));
         }
+    };
+
+    // First config
+    merge_cfg(first);
+
+    // All following configs
+    for cfg in iter {
+        num_configs += 1;
+        merge_cfg(cfg);
     }
 
-    // Collect only the tags that appear in EVERY config.
-    let final_entries: Vec<EmodeEntry> = merged_entries
-        .into_iter()
-        .filter(|(_, (_, tag_count))| *tag_count == num_configs)
-        .map(|(_, (merged_entry, _))| merged_entry)
-        .collect();
+    // Cllect only those tags seen in *every* config:
+    let mut buf: [EmodeEntry; MAX_EMODE_ENTRIES] = [EmodeEntry::zeroed(); MAX_EMODE_ENTRIES];
+    let mut buf_len = 0;
 
-    // Sort the entries by tag and build a config from them
-    EmodeConfig::from_entries(final_entries)
+    for (_tag, (entry, cnt)) in merged_entries {
+        // if cnt of appearances = num of configs, then it was in every config.
+        if cnt == num_configs {
+            buf[buf_len] = entry;
+            buf_len += 1;
+        }
+    }
+
+    // Sort what we have and pad the rest with zeroed space
+    EmodeConfig::from_entries(&buf[..buf_len])
 }

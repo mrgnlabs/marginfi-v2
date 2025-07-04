@@ -1,3 +1,4 @@
+pub mod bank;
 pub mod bank_cache;
 pub mod emode;
 pub mod fee_state;

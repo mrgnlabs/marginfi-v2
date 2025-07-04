@@ -1,11 +1,12 @@
 use anchor_lang::prelude::*;
+use marginfi_type_crate::types::Bank;
 
 use crate::{
     check,
     prelude::*,
     state::{
+        bank::BankImpl,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
-        marginfi_group::Bank,
     },
 };
 

@@ -8,14 +8,9 @@ use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use marginfi::{
     constants::ASSET_TAG_DEFAULT,
-    state::{
-        bank_cache::BankCache,
-        health_cache::HealthCache,
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankOperationalState, RiskTier},
-        price::OracleSetup,
-    },
+    state::{health_cache::HealthCache, marginfi_account::MarginfiAccount},
 };
+use marginfi_type_crate::types::{Bank, BankCache, BankOperationalState, OracleSetup, RiskTier};
 use solana_account_decoder::UiAccountData;
 use solana_cli_output::CliAccount;
 use solana_program_test::tokio;

@@ -45,7 +45,7 @@ pub fn claim_all_emissions_for_bank(
             }
         })
         .map(|address| Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingAccountSettleEmissions {
                 marginfi_account: address,
                 bank: bank_pk,

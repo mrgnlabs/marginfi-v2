@@ -6,11 +6,11 @@ use marginfi::{
         FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
     prelude::{MarginfiError, MarginfiGroup},
-    state::{
-        bank_cache::BankCache,
-        emode::{EmodeEntry, EMODE_ON},
-        marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
-    },
+    state::bank::{BankImpl, BankVaultType},
+};
+use marginfi_type_crate::types::{
+    Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, OracleSetup,
+    EMODE_ON,
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
@@ -313,7 +313,7 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
         .try_lending_pool_add_bank(
             &bank_asset_mint_fixture,
             BankConfig {
-                oracle_setup: marginfi::state::price::OracleSetup::PythPushOracle,
+                oracle_setup: OracleSetup::PythPushOracle,
                 oracle_keys: create_oracle_key_array(INEXISTENT_PYTH_USDC_FEED),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
@@ -338,7 +338,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
     let old_bank = bank.load().await;
 
     let config_bank_opt = BankConfigOpt {
-        interest_rate_config: Some(marginfi::state::marginfi_group::InterestRateConfigOpt {
+        interest_rate_config: Some(InterestRateConfigOpt {
             optimal_utilization_rate: Some(I80F48::from_num(0.91).into()),
             plateau_interest_rate: Some(I80F48::from_num(0.44).into()),
             max_interest_rate: Some(I80F48::from_num(1.44).into()),

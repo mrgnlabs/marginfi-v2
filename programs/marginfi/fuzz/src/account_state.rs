@@ -66,7 +66,7 @@ impl AccountsState {
 
     pub fn new_fee_state<'a>(&'a self, program_id: Pubkey) -> (AccountInfo<'a>, u8) {
         let (fee_state_key, fee_state_bump) =
-            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
+            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::ID);
 
         (
             AccountInfo::new(
@@ -331,7 +331,7 @@ impl AccountsState {
     }
 
     pub fn new_marginfi_program(&self) -> AccountInfo {
-        self.new_program(marginfi::id())
+        self.new_program(marginfi::ID)
     }
 
     pub fn new_program(&self, pubkey: Pubkey) -> AccountInfo {

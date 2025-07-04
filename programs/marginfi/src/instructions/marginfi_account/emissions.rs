@@ -3,6 +3,7 @@ use anchor_spl::{
     associated_token::get_associated_token_address_with_program_id,
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
+use marginfi_type_crate::types::Bank;
 
 use crate::{
     check,
@@ -11,7 +12,7 @@ use crate::{
     prelude::{MarginfiError, MarginfiResult},
     state::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, MarginfiGroup},
+        marginfi_group::MarginfiGroup,
     },
 };
 

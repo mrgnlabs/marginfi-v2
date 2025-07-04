@@ -14,7 +14,7 @@ async fn marginfi_group_create_success() -> anyhow::Result<()> {
     let marginfi_group_key = Keypair::new();
 
     let (fee_state_key, _bump) =
-        Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
+        Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::ID);
 
     let accounts = marginfi::accounts::MarginfiGroupInitialize {
         marginfi_group: marginfi_group_key.pubkey(),
@@ -23,7 +23,7 @@ async fn marginfi_group_create_success() -> anyhow::Result<()> {
         system_program: system_program::id(),
     };
     let init_marginfi_group_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::MarginfiGroupInitialize {
             is_arena_group: false,

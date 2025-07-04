@@ -180,7 +180,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         initial_bank_config: &BankAndOracleConfig,
     ) {
         log!("Setting up bank with config {:#?}", initial_bank_config);
-        let bank = state.new_owned_account(size_of::<Bank>(), marginfi::id(), rent.clone());
+        let bank = state.new_owned_account(size_of::<Bank>(), marginfi::ID, rent.clone());
 
         let mint = state.new_token_mint(
             rent.clone(),
@@ -214,7 +214,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             bank.key,
         );
         let (_fee_state_key, fee_state_bump) =
-            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
+            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::ID);
 
         let oracle = state.new_oracle_account(
             rent.clone(),
@@ -346,10 +346,10 @@ impl<'state> MarginfiFuzzContext<'state> {
         token_mints: &Vec<AccountInfo<'state>>,
     ) -> anyhow::Result<()> {
         let marginfi_account =
-            state.new_owned_account(size_of::<MarginfiAccount>(), marginfi::id(), rent.clone());
+            state.new_owned_account(size_of::<MarginfiAccount>(), marginfi::ID, rent.clone());
 
         marginfi::instructions::marginfi_account::initialize_account(Context::new(
-            &marginfi::id(),
+            &marginfi::ID,
             &mut marginfi::instructions::marginfi_account::MarginfiAccountInitialize {
                 marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                 marginfi_account: AccountLoader::try_from_unchecked(
@@ -793,7 +793,7 @@ impl<'state> MarginfiFuzzContext<'state> {
 
         let res = marginfi::instructions::lending_account_liquidate(
             Context::new(
-                &marginfi::id(),
+                &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountLiquidate {
                     group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     asset_bank: AccountLoader::try_from(airls(&asset_bank.bank))?,
@@ -977,13 +977,13 @@ fn initialize_marginfi_group<'a>(
     fee_state: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
 ) -> AccountInfo<'a> {
-    let program_id = marginfi::id();
+    let program_id = marginfi::ID;
     let marginfi_group =
         state.new_owned_account(size_of::<MarginfiGroup>(), program_id, Rent::free());
 
     marginfi::instructions::marginfi_group::initialize_group(
         Context::new(
-            &marginfi::id(),
+            &marginfi::ID,
             &mut marginfi::instructions::MarginfiGroupInitialize {
                 // Unchecked because we are initializing the account.
                 marginfi_group: AccountLoader::try_from_unchecked(
@@ -1015,12 +1015,12 @@ fn initialize_fee_state<'a>(
     rent: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
 ) -> AccountInfo<'a> {
-    let program_id = marginfi::id();
+    let program_id = marginfi::ID;
     let (fee_state, _fee_state_bump) = state.new_fee_state(program_id);
 
     marginfi::instructions::marginfi_group::initialize_fee_state(
         Context::new(
-            &marginfi::id(),
+            &marginfi::ID,
             &mut marginfi::instructions::InitFeeState {
                 payer: Signer::try_from(airls(&admin)).unwrap(),
                 fee_state: AccountLoader::try_from_unchecked(&program_id, airls(&fee_state))
@@ -1061,7 +1061,7 @@ mod tests {
         let a = MarginfiFuzzContext::setup(&account_state, &[BankAndOracleConfig::dummy(); 2], 2);
 
         let al =
-            AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &a.marginfi_group)
+            AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::ID, &a.marginfi_group)
                 .unwrap();
 
         assert_eq!(al.load().unwrap().admin, a.owner.key());
@@ -1070,7 +1070,7 @@ mod tests {
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();
@@ -1095,7 +1095,7 @@ mod tests {
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();
@@ -1144,7 +1144,7 @@ mod tests {
         a.banks[1].log_oracle_price().unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();
@@ -1175,7 +1175,7 @@ mod tests {
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();
@@ -1205,7 +1205,7 @@ mod tests {
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();
@@ -1236,7 +1236,7 @@ mod tests {
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();

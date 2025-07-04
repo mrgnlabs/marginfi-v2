@@ -11,13 +11,11 @@ use fixed::types::I80F48;
 use marginfi::state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
 use marginfi::{
     prelude::*,
-    state::{
-        marginfi_account::{Balance, LendingAccount, MarginfiAccount, ACCOUNT_FLAG_DEPRECATED},
-        marginfi_group::{
-            Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
-            InterestRateConfigOpt, RiskTier, WrappedI80F48,
-        },
-    },
+    state::marginfi_account::{Balance, LendingAccount, MarginfiAccount, ACCOUNT_FLAG_DEPRECATED},
+};
+use marginfi_type_crate::types::{
+    Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
+    InterestRateConfigOpt, RiskTier, WrappedI80F48,
 };
 use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use rand::Rng;
@@ -746,10 +744,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             permissionless_bad_debt_settlement,
             freeze_settings,
         } => {
-            let bank = config
-                .mfi_program
-                .account::<marginfi::state::marginfi_group::Bank>(bank_pk)
-                .unwrap();
+            let bank = config.mfi_program.account::<Bank>(bank_pk).unwrap();
             processor::bank_configure(
                 config,
                 profile, //
@@ -847,10 +842,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
 fn inspect_padding() -> Result<()> {
     println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
     println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
-    println!(
-        "Bank: {}",
-        marginfi::state::marginfi_group::Bank::type_layout()
-    );
+    println!("Bank: {}", Bank::type_layout());
     println!("BankConfig: {}", BankConfig::type_layout());
     println!("BankConfigOpt: {}", BankConfigOpt::type_layout());
     println!("WrappedI80F48: {}", WrappedI80F48::type_layout());
@@ -867,10 +859,7 @@ fn inspect_size() -> Result<()> {
 
     println!("MarginfiGroup: {}", size_of::<MarginfiGroup>());
     println!("InterestRateConfig: {}", size_of::<InterestRateConfig>());
-    println!(
-        "Bank: {}",
-        size_of::<marginfi::state::marginfi_group::Bank>()
-    );
+    println!("Bank: {}", size_of::<Bank>());
     println!("BankConfig: {}", size_of::<BankConfig>());
     println!("BankConfigOpt: {}", size_of::<BankConfigOpt>());
     println!("WrappedI80F48: {}", size_of::<WrappedI80F48>());
@@ -1033,7 +1022,7 @@ pub fn process_make_test_i80f48() {
         println!(
             "  {{ number: {:?}, innerValue: {:?} }},",
             i80f48,
-            marginfi::state::marginfi_group::WrappedI80F48::from(i80f48).value
+            WrappedI80F48::from(i80f48).value
         );
     }
 
@@ -1051,7 +1040,7 @@ pub fn process_make_test_i80f48() {
         println!(
             "  {{ number: {:?}, innerValue: {:?} }},",
             i80f48,
-            marginfi::state::marginfi_group::WrappedI80F48::from(i80f48).value
+            WrappedI80F48::from(i80f48).value
         );
     }
     println!("];");

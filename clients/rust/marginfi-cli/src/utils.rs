@@ -11,11 +11,12 @@ use {
             PYTH_SPONSORED_SHARD_ID,
         },
         state::{
+            bank::{BankConfigImpl, BankVaultType},
             marginfi_account::MarginfiAccount,
-            marginfi_group::{Bank, BankConfig, BankVaultType},
             price::PythPushOraclePriceFeed,
         },
     },
+    marginfi_type_crate::types::{Bank, BankConfig, OracleSetup},
     solana_client::rpc_client::RpcClient,
     solana_sdk::{
         instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,
@@ -69,7 +70,7 @@ pub fn bank_to_oracle_key(bank_config: &BankConfig, shard_id: u16) -> Pubkey {
     let oracle_key_or_price_feed_id = bank_config.oracle_keys.first().unwrap();
 
     match bank_config.oracle_setup {
-        marginfi::state::price::OracleSetup::PythPushOracle => {
+        OracleSetup::PythPushOracle => {
             if bank_config.is_pyth_push_migrated() {
                 *oracle_key_or_price_feed_id
             } else {

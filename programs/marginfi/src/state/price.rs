@@ -7,49 +7,20 @@ use crate::{
     },
     debug, live, math_error,
     prelude::*,
+    state::bank::BankConfigImpl,
 };
-use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
 use anchor_spl::token::Mint;
-use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
+use marginfi_type_crate::types::{BankConfig, OracleSetup};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{
     CurrentResult, Discriminator, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID,
 };
-
-use super::marginfi_group::BankConfig;
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
-pub enum OracleSetup {
-    None,
-    PythLegacy,
-    SwitchboardV2,
-    PythPushOracle,
-    SwitchboardPull,
-    StakedWithPythPush,
-}
-unsafe impl Zeroable for OracleSetup {}
-unsafe impl Pod for OracleSetup {}
-
-impl OracleSetup {
-    pub fn from_u8(value: u8) -> Option<Self> {
-        match value {
-            0 => Some(Self::None),
-            1 => Some(Self::PythLegacy),    // Deprecated
-            2 => Some(Self::SwitchboardV2), // Deprecated
-            3 => Some(Self::PythPushOracle),
-            4 => Some(Self::SwitchboardPull),
-            5 => Some(Self::StakedWithPythPush),
-            _ => None,
-        }
-    }
-}
 
 #[derive(Copy, Clone, Debug)]
 pub enum PriceBias {

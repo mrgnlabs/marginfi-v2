@@ -1,8 +1,6 @@
 use fixtures::{assert_custom_error, prelude::*};
-use marginfi::{
-    constants::TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, prelude::MarginfiError,
-    state::marginfi_group::BankConfigOpt,
-};
+use marginfi::{constants::TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE, prelude::MarginfiError};
+use marginfi_type_crate::types::BankConfigOpt;
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 

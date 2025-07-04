@@ -107,9 +107,6 @@ pub const FREEZE_SETTINGS: u64 = 1 << 3;
 /// version. False otherwise.
 pub const PYTH_PUSH_MIGRATED: u8 = 1 << 0;
 
-pub(crate) const EMISSION_FLAGS: u64 = EMISSIONS_FLAG_BORROW_ACTIVE | EMISSIONS_FLAG_LENDING_ACTIVE;
-pub(crate) const GROUP_FLAGS: u64 = PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS;
-
 /// Cutoff timestamp for balance last_update used in accounting collected emissions.
 /// Any balance updates before this timestamp are ignored, and current_timestamp is used instead.
 pub const MIN_EMISSIONS_START_TIME: u64 = 1681989983;
