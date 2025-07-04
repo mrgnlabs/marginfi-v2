@@ -157,6 +157,9 @@ describe("Bank bankruptcy tests", () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
 
+    const user1 = groupAdmin;
+    const userAccount1 = user1.accounts.get(USER_ACCOUNT_THROWAWAY);
+
     // refresh oracles
     let clock = await banksClient.getClock();
     let refresh = await initOrUpdatePriceUpdateV2(
@@ -187,6 +190,13 @@ describe("Bank bankruptcy tests", () => {
       }),
       await healthPulse(user.mrgnProgram, {
         marginfiAccount: userAccount,
+        remaining: composeRemainingAccounts([
+          [banks[0], oracles.pythPullLst.publicKey],
+          [banks[1], oracles.pythPullLst.publicKey],
+        ]),
+      }),
+      await healthPulse(user.mrgnProgram, {
+        marginfiAccount: userAccount1,
         remaining: composeRemainingAccounts([
           [banks[0], oracles.pythPullLst.publicKey],
           [banks[1], oracles.pythPullLst.publicKey],
@@ -235,16 +245,16 @@ describe("Bank bankruptcy tests", () => {
 
     dumpAccBalances(groupAdminAcc, bankValueMap);
     dumpAccBalances(user0Acc, bankValueMap);
-    const cA = user0Acc.healthCache;
+    const cA0 = user0Acc.healthCache;
     const now = Date.now() / 1000;
 
-    const assetValue = wrappedI80F48toBigNumber(cA.assetValue);
-    const liabValue = wrappedI80F48toBigNumber(cA.liabilityValue);
-    const aValMaint = wrappedI80F48toBigNumber(cA.assetValueMaint);
-    const lValMaint = wrappedI80F48toBigNumber(cA.liabilityValueMaint);
-    const aValEquity = wrappedI80F48toBigNumber(cA.assetValueEquity);
-    const lValEquity = wrappedI80F48toBigNumber(cA.liabilityValueEquity);
-    const flags = cA.flags;
+    const assetValue = wrappedI80F48toBigNumber(cA0.assetValue);
+    const liabValue = wrappedI80F48toBigNumber(cA0.liabilityValue);
+    const aValMaint = wrappedI80F48toBigNumber(cA0.assetValueMaint);
+    const lValMaint = wrappedI80F48toBigNumber(cA0.liabilityValueMaint);
+    const aValEquity = wrappedI80F48toBigNumber(cA0.assetValueEquity);
+    const lValEquity = wrappedI80F48toBigNumber(cA0.liabilityValueEquity);
+    const flags = cA0.flags;
     if (verbose) {
       console.log("---user health state---");
       const isHealthy = (flags & HEALTH_CACHE_HEALTHY) !== 0;
@@ -253,10 +263,10 @@ describe("Bank bankruptcy tests", () => {
       console.log("healthy: " + isHealthy);
       console.log("engine ok: " + engineOk);
       console.log("oracle ok: " + oracleOk);
-      console.log("mrgn error: " + cA.mrgnErr);
-      console.log("internal error: " + cA.internalErr);
-      console.log("index of err:   " + cA.errIndex);
-      console.log("bankrpt error: " + cA.internalBankruptcyErr);
+      console.log("mrgn error: " + cA0.mrgnErr);
+      console.log("internal error: " + cA0.internalErr);
+      console.log("index of err:   " + cA0.errIndex);
+      console.log("bankrpt error: " + cA0.internalBankruptcyErr);
       console.log("asset value: " + assetValue.toString());
       console.log("liab value: " + liabValue.toString());
       console.log("asset value (maint): " + aValMaint.toString());
@@ -264,8 +274,44 @@ describe("Bank bankruptcy tests", () => {
       console.log("asset value (equity): " + aValEquity.toString());
       console.log("liab value equity): " + lValEquity.toString());
       console.log("prices: ");
-      for (let i = 0; i < cA.prices.length; i++) {
-        const price = bytesToF64(cA.prices[i]);
+      for (let i = 0; i < cA0.prices.length; i++) {
+        const price = bytesToF64(cA0.prices[i]);
+        if (price != 0) {
+          console.log(" [" + i + "] " + price);
+        }
+      }
+    }
+
+    const cA1 = groupAdminAcc.healthCache;
+
+    const assetValue1 = wrappedI80F48toBigNumber(cA1.assetValue);
+    const liabValue1 = wrappedI80F48toBigNumber(cA1.liabilityValue);
+    const aValMaint1 = wrappedI80F48toBigNumber(cA1.assetValueMaint);
+    const lValMaint1 = wrappedI80F48toBigNumber(cA1.liabilityValueMaint);
+    const aValEquity1 = wrappedI80F48toBigNumber(cA1.assetValueEquity);
+    const lValEquity1 = wrappedI80F48toBigNumber(cA1.liabilityValueEquity);
+    const flags1 = cA1.flags;
+    if (verbose) {
+      console.log("---admin health state---");
+      const isHealthy = (flags1 & HEALTH_CACHE_HEALTHY) !== 0;
+      const engineOk = (flags1 & HEALTH_CACHE_ENGINE_OK) !== 0;
+      const oracleOk = (flags1 & HEALTH_CACHE_ORACLE_OK) !== 0;
+      console.log("healthy: " + isHealthy);
+      console.log("engine ok: " + engineOk);
+      console.log("oracle ok: " + oracleOk);
+      console.log("mrgn error: " + cA1.mrgnErr);
+      console.log("internal error: " + cA1.internalErr);
+      console.log("index of err:   " + cA1.errIndex);
+      console.log("bankrpt error: " + cA1.internalBankruptcyErr);
+      console.log("asset value: " + assetValue1.toString());
+      console.log("liab value: " + liabValue1.toString());
+      console.log("asset value (maint): " + aValMaint1.toString());
+      console.log("liab value (maint): " + lValMaint1.toString());
+      console.log("asset value (equity): " + aValEquity1.toString());
+      console.log("liab value equity): " + lValEquity1.toString());
+      console.log("prices: ");
+      for (let i = 0; i < cA1.prices.length; i++) {
+        const price = bytesToF64(cA1.prices[i]);
         if (price != 0) {
           console.log(" [" + i + "] " + price);
         }
