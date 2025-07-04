@@ -4,6 +4,7 @@ import { createMockAccount, storeMockAccount } from "./mocks";
 import { Mocks } from "../../target/types/mocks";
 import { Program, Wallet, workspace } from "@coral-xyz/anchor";
 import { printBuffers } from "../rootHooks";
+import { ProgramTestContext } from "solana-bankrun";
 
 type VerificationLevel =
   | { kind: "Partial"; num_signatures: number }
@@ -138,20 +139,16 @@ export async function initOrUpdatePriceUpdateV2(
   feed_id: PublicKey,
   price: BN,
   conf: BN,
-  ema_price: BN,
-  ema_conf: BN,
-  slot: BN,
+  time: number,
   exponent: number,
-  // User after setup to update existing account
+  // Use after setup to update existing account
   existingAccount?: Keypair,
-  // Use to give a deterministic keypair during initial setup instead of a random one
-  oracleKeypair?: Keypair
-) {
+  bankrunContext?: ProgramTestContext,
+): Promise<Keypair> {
   const space = 134;
   // Compute publish times.
-  const now = Math.floor(Date.now() / 1000);
-  const publish_time = new BN(now);
-  const prev_publish_time = new BN(now - 1);
+  const publish_time = new BN(time);
+  const prev_publish_time = new BN(time - 1);
   // Allocate a 134-byte buffer.
   const buf = Buffer.alloc(space);
   let offset = 0;
@@ -188,13 +185,13 @@ export async function initOrUpdatePriceUpdateV2(
   prev_publish_time.toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
   // ema_price (i64, 8 bytes)
-  ema_price.toArrayLike(Buffer, "le", 8).copy(buf, offset);
+  price.toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
   // ema_conf (u64, 8 bytes)
-  ema_conf.toArrayLike(Buffer, "le", 8).copy(buf, offset);
+  conf.toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
   // posted_slot (u64, 8 bytes)
-  slot.toArrayLike(Buffer, "le", 8).copy(buf, offset);
+  (new BN(0)).toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
 
   if (printBuffers) {
@@ -204,16 +201,16 @@ export async function initOrUpdatePriceUpdateV2(
   // Write the buffer to the mock account
   const mockProgram: Program<Mocks> = workspace.Mocks;
   if (existingAccount) {
-    await storeMockAccount(mockProgram, wallet, existingAccount, 0, buf);
+    await storeMockAccount(mockProgram, wallet, existingAccount, 0, buf, bankrunContext);
     return existingAccount;
   } else {
     let account = await createMockAccount(
       mockProgram,
       space,
       wallet,
-      oracleKeypair
+      bankrunContext
     );
-    await storeMockAccount(mockProgram, wallet, account, 0, buf);
+    await storeMockAccount(mockProgram, wallet, account, 0, buf, bankrunContext);
     return account;
   }
 }
@@ -226,13 +223,13 @@ export async function initOrUpdatePriceUpdateV2(
  * @param wallet
  * @returns
  */
-export async function initBlankOracleFeed(wallet: Wallet, keypair?: Keypair) {
+export async function initBlankOracleFeed(wallet: Wallet) {
   const space = 300;
   const buf = Buffer.alloc(space);
 
   // Write the buffer to the mock account
   const mockProgram: Program<Mocks> = workspace.Mocks;
-  let account = await createMockAccount(mockProgram, space, wallet, keypair);
+  let account = await createMockAccount(mockProgram, space, wallet);
   await storeMockAccount(mockProgram, wallet, account, 0, buf);
 
   return account;
