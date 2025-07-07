@@ -148,7 +148,7 @@ impl MarginfiGroup {
             // do nothing
         } else {
             msg!(
-                "Set limit admin from {:?} to {:?}",
+                "Set emissions admin from {:?} to {:?}",
                 self.delegate_emissions_admin,
                 new_emissions_admin
             );

@@ -31,8 +31,11 @@ pub struct MarginfiGroup {
     /// Can modify the `deposit_limit`, `borrow_limit`, `total_asset_value_init_limit` but nothing
     /// else, for every bank under this group
     pub delegate_limit_admin: Pubkey,
+    /// Can modify the emissions `flags`, `emissions_rate` and `emissions_mint`, but nothing else,
+    /// for every bank under this group
+    pub delegate_emissions_admin: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 20],
+    pub _padding_0: [[u64; 2]; 18],
     pub _padding_1: [[u64; 2]; 32],
     pub _padding_4: u64,
 }

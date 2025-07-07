@@ -1,6 +1,6 @@
+use anchor_lang::error::ErrorCode;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use anchor_lang::error::ErrorCode;
 use fixtures::{assert_anchor_error, assert_custom_error, prelude::*};
 use marginfi::{
     constants::{
@@ -595,7 +595,7 @@ async fn config_group_admins() -> anyhow::Result<()> {
     let new_emode_admin = Pubkey::new_unique();
     let new_curve_admin = Pubkey::new_unique();
     let new_limit_admin = Pubkey::new_unique();
-    let delegate_emissions_admin = Pubkey::new_unique();
+    let new_emissions_admin = Pubkey::new_unique();
 
     let res = test_f
         .marginfi_group
@@ -604,7 +604,7 @@ async fn config_group_admins() -> anyhow::Result<()> {
             new_emode_admin,
             new_curve_admin,
             new_limit_admin,
-            delegate_emissions_admin,
+            new_emissions_admin,
             false,
         )
         .await;
@@ -615,10 +615,7 @@ async fn config_group_admins() -> anyhow::Result<()> {
     assert_eq!(group_after.emode_admin, new_emode_admin);
     assert_eq!(group_after.delegate_curve_admin, new_curve_admin);
     assert_eq!(group_after.delegate_limit_admin, new_limit_admin);
-    assert_eq!(
-        group_after.delegate_emissions_admin,
-        delegate_emissions_admin
-    );
+    assert_eq!(group_after.delegate_emissions_admin, new_emissions_admin);
     Ok(())
 }
 
@@ -780,16 +777,55 @@ async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
 
     let bank_after: Bank = test_f.load_and_deserialize(&bank.key).await;
 
-    assert_eq!(bank_after.config.interest_rate_config.optimal_utilization_rate, ir_config.optimal_utilization_rate.unwrap());
-    assert_eq!(bank_after.config.interest_rate_config.plateau_interest_rate, ir_config.plateau_interest_rate.unwrap());
-    assert_eq!(bank_after.config.interest_rate_config.max_interest_rate, ir_config.max_interest_rate.unwrap());
-    assert_eq!(bank_after.config.interest_rate_config.insurance_fee_fixed_apr, ir_config.insurance_fee_fixed_apr.unwrap());
-    assert_eq!(bank_after.config.interest_rate_config.insurance_ir_fee, ir_config.insurance_ir_fee.unwrap());
-    assert_eq!(bank_after.config.interest_rate_config.protocol_fixed_fee_apr, ir_config.protocol_fixed_fee_apr.unwrap());
-    assert_eq!(bank_after.config.interest_rate_config.protocol_ir_fee, ir_config.protocol_ir_fee.unwrap());
-    assert_eq!(bank_after.config.interest_rate_config.protocol_origination_fee, ir_config.protocol_origination_fee.unwrap());
+    assert_eq!(
+        bank_after
+            .config
+            .interest_rate_config
+            .optimal_utilization_rate,
+        ir_config.optimal_utilization_rate.unwrap()
+    );
+    assert_eq!(
+        bank_after.config.interest_rate_config.plateau_interest_rate,
+        ir_config.plateau_interest_rate.unwrap()
+    );
+    assert_eq!(
+        bank_after.config.interest_rate_config.max_interest_rate,
+        ir_config.max_interest_rate.unwrap()
+    );
+    assert_eq!(
+        bank_after
+            .config
+            .interest_rate_config
+            .insurance_fee_fixed_apr,
+        ir_config.insurance_fee_fixed_apr.unwrap()
+    );
+    assert_eq!(
+        bank_after.config.interest_rate_config.insurance_ir_fee,
+        ir_config.insurance_ir_fee.unwrap()
+    );
+    assert_eq!(
+        bank_after
+            .config
+            .interest_rate_config
+            .protocol_fixed_fee_apr,
+        ir_config.protocol_fixed_fee_apr.unwrap()
+    );
+    assert_eq!(
+        bank_after.config.interest_rate_config.protocol_ir_fee,
+        ir_config.protocol_ir_fee.unwrap()
+    );
+    assert_eq!(
+        bank_after
+            .config
+            .interest_rate_config
+            .protocol_origination_fee,
+        ir_config.protocol_origination_fee.unwrap()
+    );
 
-    assert_eq!(bank_after.config.deposit_limit, old_bank.config.deposit_limit);
+    assert_eq!(
+        bank_after.config.deposit_limit,
+        old_bank.config.deposit_limit
+    );
     assert_eq!(bank_after.config.borrow_limit, old_bank.config.borrow_limit);
     assert_eq!(
         bank_after.config.total_asset_value_init_limit,
@@ -856,7 +892,10 @@ async fn configure_bank_limits_only_success() -> anyhow::Result<()> {
     assert_eq!(bank_after.config.deposit_limit, new_deposit_limit);
     assert_eq!(bank_after.config.borrow_limit, new_borrow_limit);
     assert_eq!(bank_after.config.total_asset_value_init_limit, new_tavl);
-    assert_eq!(bank_after.config.interest_rate_config, old_bank.config.interest_rate_config);
+    assert_eq!(
+        bank_after.config.interest_rate_config,
+        old_bank.config.interest_rate_config
+    );
 
     Ok(())
 }

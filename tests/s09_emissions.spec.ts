@@ -170,7 +170,7 @@ describe("Set up emissions on staked collateral assets", () => {
 
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
-    await banksClient.tryProcessTransaction(tx);
+    await banksClient.processTransaction(tx);
 
     const tokenAfter = await getTokenBalance(
       bankRunProvider,
