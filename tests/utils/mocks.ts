@@ -35,14 +35,24 @@ export type Ecosystem = {
   usdcMint: Keypair;
   /** A generic LST-like mint (like wsol, 9 decimals) */
   lstAlphaMint: Keypair;
+  /** 150 */
+  wsolPrice: number;
   /** 9 */
   wsolDecimals: number;
+  /** 10 */
+  tokenAPrice: number;
   /** Decimals for token A (default 8) */
   tokenADecimals: number;
+  /** 20 */
+  tokenBPrice: number;
   /** Decimals for token B (default 6)*/
   tokenBDecimals: number;
+  /** 1 */
+  usdcPrice: number;
   /** 6 */
   usdcDecimals: number;
+  /** 175 */
+  lstAlphaPrice: number;
   /** Decimals for lst alpha (default 9)*/
   lstAlphaDecimals: number;
 };
@@ -67,10 +77,15 @@ export const getGenericEcosystem = () => {
     tokenBMint: Keypair.fromSeed(TOKEN_B_MINT_SEED),
     usdcMint: Keypair.fromSeed(USDC_MINT_SEED),
     lstAlphaMint: Keypair.fromSeed(LST_ALPHA_MINT_SEED),
+    wsolPrice: 150,
     wsolDecimals: 9,
+    tokenAPrice: 10,
     tokenADecimals: 8,
+    tokenBPrice: 20,
     tokenBDecimals: 6,
+    usdcPrice: 1,
     usdcDecimals: 6,
+    lstAlphaPrice: 175,
     lstAlphaDecimals: 9,
   };
   return ecosystem;
@@ -382,15 +397,16 @@ export type Oracles = {
  * @param program - the mock program
  * @param space - for account space and rent exemption
  * @param wallet - pays tx fee
+ * @param bankrunContext - pass if using bankrun, omit otherwise
  * @returns address of the newly created account
  */
 export const createMockAccount = async (
   program: Program<Mocks>,
   space: number,
   wallet: Wallet,
-  keypair?: Keypair
+  bankrunContext?: ProgramTestContext
 ) => {
-  const newAccount = keypair ?? Keypair.generate();
+  const newAccount = Keypair.generate();
   const createTx = new Transaction().add(
     SystemProgram.createAccount({
       fromPubkey: wallet.publicKey,
@@ -404,7 +420,14 @@ export const createMockAccount = async (
     })
   );
 
-  await program.provider.sendAndConfirm(createTx, [wallet.payer, newAccount]);
+  if (bankrunContext) {
+    await processBankrunTransaction(bankrunContext, createTx, [
+      wallet.payer,
+      newAccount,
+    ]);
+  } else {
+    await program.provider.sendAndConfirm(createTx, [wallet.payer, newAccount]);
+  }
   return newAccount;
 };
 
@@ -415,6 +438,7 @@ export const createMockAccount = async (
  * @param account - account to write into (create with `createMockAccount` first)
  * @param offset - byte to start writing
  * @param input - bytes to write
+ * @param bankrunContext - pass if using bankrun, omit otherwise
  */
 export const storeMockAccount = async (
   program: Program<Mocks>,

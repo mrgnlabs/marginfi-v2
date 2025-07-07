@@ -1,10 +1,48 @@
-import { Program } from "@coral-xyz/anchor";
 import { MarginfiAccountRaw } from "@mrgnlabs/marginfi-client-v2";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
-import { PublicKey } from "@solana/web3.js";
-import { BanksTransactionResultWithMeta } from "solana-bankrun";
-import { Marginfi } from "target/types/marginfi";
-import { bankrunProgram } from "tests/rootHooks";
+import { Keypair, Transaction } from "@solana/web3.js";
+import { BanksTransactionMeta, BanksTransactionResultWithMeta, ProgramTestContext } from "solana-bankrun";
+import { getBankrunBlockhash } from "./spl-staking-utils";
+
+/**
+ * Process a transaction in a bankrun context and return the transaction result
+ * @param bankrunContext - The bankrun context
+ * @param tx - The transaction to process
+ * @param signers - The signers for the transaction
+ * @param trySend - true to use tryProcess instead
+ * @param dumpLogOnFail - true to print a tx log on fail
+ * @returns The transaction result with metadata
+ */
+export const processBankrunTransaction = async (
+  bankrunContext: ProgramTestContext,
+  tx: Transaction,
+  signers: Keypair[],
+  trySend: boolean = false,
+  dumpLogOnFail: boolean = false
+  //   options: ProcessBankrunTransactionOptions = {}
+): Promise<BanksTransactionResultWithMeta | BanksTransactionMeta> => {
+  // const { trySend = false, dumpLogOnFail = false } = options;
+  tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+  tx.sign(...signers);
+
+  if (trySend) {
+    let result = await bankrunContext.banksClient.tryProcessTransaction(tx);
+    if (dumpLogOnFail) {
+      dumpBankrunLogs(result);
+    }
+    return result;
+  } else {
+    // TODO throw on error?
+    // If we want to dump logs on fail, simulate first
+    if (dumpLogOnFail) {
+      const simulationResult = await bankrunContext.banksClient.simulateTransaction(tx);
+      if (simulationResult.result) {
+          dumpBankrunLogs(simulationResult);
+        }
+      }
+      return await bankrunContext.banksClient.processTransaction(tx);
+    }
+};
 
 /**
  * Function to print bytes from a Buffer in groups with column labels and color highlighting for non-zero values

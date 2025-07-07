@@ -156,6 +156,8 @@ pub fn lending_account_liquidate<'info>(
                 &mut None,
             )?;
 
+    msg!("PRE: {:?}", pre_liquidation_health.to_num::<f32>());
+
     // ##Accounting changes##
 
     let (pre_balances, post_balances) = {
@@ -404,6 +406,7 @@ pub fn lending_account_liquidate<'info>(
                 pre_liquidation_health,
             )?;
 
+    msg!("POST: {:?}", post_liquidation_health.to_num::<f32>());
     // TODO consider if health cache update here is worth blowing the extra CU
 
     liquidator_marginfi_account.lending_account.sort_balances();

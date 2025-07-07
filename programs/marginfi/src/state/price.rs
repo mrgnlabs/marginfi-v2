@@ -666,6 +666,7 @@ impl PythPushOraclePriceFeed {
         max_age: u64,
     ) -> MarginfiResult<Self> {
         let price_feed_account = load_price_update_v2_checked(ai)?;
+        msg!("price_feed_account.price_message = {}, clock = {}, max_age = {}", price_feed_account.price_message.publish_time, clock.unix_timestamp, max_age);
         let feed_id = if let Some(id) = feed_id {
             id
         } else {
@@ -795,7 +796,7 @@ impl PythPushOraclePriceFeed {
         if conf_interval > max_conf {
             let conf_interval = conf_interval.to_num::<f64>();
             let max_conf = max_conf.to_num::<f64>();
-            msg!("conf was {:?}, but max is {:?}", conf_interval, max_conf);
+            msg!("conf was {:?}, but max is {:?} (percent = {:?}), PRICE: {:?}", conf_interval, max_conf, oracle_max_confidence.to_num::<f64>(), price.to_num::<f64>());
             return err!(MarginfiError::OracleMaxConfidenceExceeded);
         }
 

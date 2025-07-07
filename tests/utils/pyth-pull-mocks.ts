@@ -139,11 +139,9 @@ export async function initOrUpdatePriceUpdateV2(
   feed_id: PublicKey,
   price: BN,
   conf: BN,
-  ema_price: BN,
-  ema_conf: BN,
-  slot: BN,
+  time: number,
   exponent: number,
-  // User after setup to update existing account
+  // Use after setup to update existing account
   existingAccount?: Keypair,
   // Use to give a deterministic keypair during initial setup instead of a random one
   oracleKeypair?: Keypair,
@@ -210,13 +208,13 @@ export async function initOrUpdatePriceUpdateV2(
   prev_publish_time.toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
   // ema_price (i64, 8 bytes)
-  ema_price.toArrayLike(Buffer, "le", 8).copy(buf, offset);
+  price.toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
   // ema_conf (u64, 8 bytes)
-  ema_conf.toArrayLike(Buffer, "le", 8).copy(buf, offset);
+  conf.toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
   // posted_slot (u64, 8 bytes)
-  slot.toArrayLike(Buffer, "le", 8).copy(buf, offset);
+  (new BN(0)).toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
 
   if (printBuffers) {
@@ -233,9 +231,9 @@ export async function initOrUpdatePriceUpdateV2(
       mockProgram,
       space,
       wallet,
-      oracleKeypair
+      bankrunContext
     );
-    await storeMockAccount(mockProgram, wallet, account, 0, buf);
+    await storeMockAccount(mockProgram, wallet, account, 0, buf, bankrunContext);
     return account;
   }
 }
@@ -248,13 +246,13 @@ export async function initOrUpdatePriceUpdateV2(
  * @param wallet
  * @returns
  */
-export async function initBlankOracleFeed(wallet: Wallet, keypair?: Keypair) {
+export async function initBlankOracleFeed(wallet: Wallet) {
   const space = 300;
   const buf = Buffer.alloc(space);
 
   // Write the buffer to the mock account
   const mockProgram: Program<Mocks> = workspace.Mocks;
-  let account = await createMockAccount(mockProgram, space, wallet, keypair);
+  let account = await createMockAccount(mockProgram, space, wallet);
   await storeMockAccount(mockProgram, wallet, account, 0, buf);
 
   return account;
