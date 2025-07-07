@@ -17,9 +17,7 @@ use marginfi::state::marginfi_group::BankConfigCompact;
 use marginfi::state::price::OracleSetup;
 use marginfi::{
     prelude::MarginfiGroup,
-    state::marginfi_group::{
-        BankConfig, BankConfigOpt, BankVaultType, InterestRateConfigOpt,
-    },
+    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, InterestRateConfigOpt},
 };
 use solana_program::sysvar;
 use solana_program_test::*;
