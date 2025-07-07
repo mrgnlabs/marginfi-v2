@@ -160,7 +160,7 @@ impl BankFixture {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolSetupEmissions {
                 group: self.load().await.group,
-                admin: self.ctx.borrow().payer.pubkey(),
+                delegate_emissions_admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
                 emissions_mint,
                 emissions_funding_account: funding_account,
@@ -215,7 +215,7 @@ impl BankFixture {
             program_id: marginfi::id(),
             accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
                 group: self.load().await.group,
-                admin: self.ctx.borrow().payer.pubkey(),
+                delegate_emissions_admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
                 emissions_mint: bank.emissions_mint,
                 emissions_funding_account: additional_emissions.map(|(_, f)| f).unwrap_or_default(),

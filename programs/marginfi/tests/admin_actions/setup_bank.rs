@@ -1,6 +1,7 @@
+use anchor_lang::error::ErrorCode;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use fixtures::{assert_custom_error, prelude::*};
+use fixtures::{assert_anchor_error, assert_custom_error, prelude::*};
 use marginfi::{
     constants::{
         CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT,
@@ -462,7 +463,14 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, group_before.emode_admin, true)
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            true,
+        )
         .await;
     assert!(res.is_ok());
     let group_after = test_f.marginfi_group.load().await;
@@ -511,7 +519,14 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, group_before.emode_admin, false)
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            false,
+        )
         .await;
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaSettingCannotChange);
@@ -556,12 +571,51 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
     let group_before = test_f.marginfi_group.load().await;
     let res = test_f
         .marginfi_group
-        .try_update(group_before.admin, group_before.emode_admin, true)
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            true,
+        )
         .await;
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::ArenaBankLimit);
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn config_group_admins() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(None).await;
+
+    let new_admin = Pubkey::new_unique();
+    let new_emode_admin = Pubkey::new_unique();
+    let new_curve_admin = Pubkey::new_unique();
+    let new_limit_admin = Pubkey::new_unique();
+    let new_emissions_admin = Pubkey::new_unique();
+
+    let res = test_f
+        .marginfi_group
+        .try_update(
+            new_admin,
+            new_emode_admin,
+            new_curve_admin,
+            new_limit_admin,
+            new_emissions_admin,
+            false,
+        )
+        .await;
+
+    assert!(res.is_ok());
+    let group_after = test_f.marginfi_group.load().await;
+    assert_eq!(group_after.admin, new_admin);
+    assert_eq!(group_after.emode_admin, new_emode_admin);
+    assert_eq!(group_after.delegate_curve_admin, new_curve_admin);
+    assert_eq!(group_after.delegate_limit_admin, new_limit_admin);
+    assert_eq!(group_after.delegate_emissions_admin, new_emissions_admin);
     Ok(())
 }
 
@@ -695,6 +749,180 @@ async fn configure_bank_emode_invalid_args(bank_mint: BankMint) -> anyhow::Resul
         .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
         .await;
     assert!(res.is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&BankMint::Usdc);
+    let old_bank = bank.load().await;
+
+    let ir_config = marginfi::state::marginfi_group::InterestRateConfigOpt {
+        optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
+        plateau_interest_rate: Some(I80F48::from_num(0.5).into()),
+        max_interest_rate: Some(I80F48::from_num(1.5).into()),
+        insurance_fee_fixed_apr: Some(I80F48::from_num(0.01).into()),
+        insurance_ir_fee: Some(I80F48::from_num(0.02).into()),
+        protocol_fixed_fee_apr: Some(I80F48::from_num(0.03).into()),
+        protocol_ir_fee: Some(I80F48::from_num(0.04).into()),
+        protocol_origination_fee: Some(I80F48::from_num(0.05).into()),
+    };
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_interest_only(&bank, ir_config.clone())
+        .await?;
+
+    let bank_after: Bank = test_f.load_and_deserialize(&bank.key).await;
+
+    assert_eq!(
+        bank_after
+            .config
+            .interest_rate_config
+            .optimal_utilization_rate,
+        ir_config.optimal_utilization_rate.unwrap()
+    );
+    assert_eq!(
+        bank_after.config.interest_rate_config.plateau_interest_rate,
+        ir_config.plateau_interest_rate.unwrap()
+    );
+    assert_eq!(
+        bank_after.config.interest_rate_config.max_interest_rate,
+        ir_config.max_interest_rate.unwrap()
+    );
+    assert_eq!(
+        bank_after
+            .config
+            .interest_rate_config
+            .insurance_fee_fixed_apr,
+        ir_config.insurance_fee_fixed_apr.unwrap()
+    );
+    assert_eq!(
+        bank_after.config.interest_rate_config.insurance_ir_fee,
+        ir_config.insurance_ir_fee.unwrap()
+    );
+    assert_eq!(
+        bank_after
+            .config
+            .interest_rate_config
+            .protocol_fixed_fee_apr,
+        ir_config.protocol_fixed_fee_apr.unwrap()
+    );
+    assert_eq!(
+        bank_after.config.interest_rate_config.protocol_ir_fee,
+        ir_config.protocol_ir_fee.unwrap()
+    );
+    assert_eq!(
+        bank_after
+            .config
+            .interest_rate_config
+            .protocol_origination_fee,
+        ir_config.protocol_origination_fee.unwrap()
+    );
+
+    assert_eq!(
+        bank_after.config.deposit_limit,
+        old_bank.config.deposit_limit
+    );
+    assert_eq!(bank_after.config.borrow_limit, old_bank.config.borrow_limit);
+    assert_eq!(
+        bank_after.config.total_asset_value_init_limit,
+        old_bank.config.total_asset_value_init_limit
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&BankMint::Usdc);
+    let group_before = test_f.marginfi_group.load().await;
+    test_f
+        .marginfi_group
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            Pubkey::new_unique(),
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            false,
+        )
+        .await?;
+
+    let ir_config = marginfi::state::marginfi_group::InterestRateConfigOpt {
+        optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
+        ..Default::default()
+    };
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_interest_only(&bank, ir_config)
+        .await;
+    assert!(res.is_err());
+    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn configure_bank_limits_only_success() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&BankMint::Usdc);
+    let old_bank = bank.load().await;
+
+    let new_deposit_limit = old_bank.config.deposit_limit + 100;
+    let new_borrow_limit = old_bank.config.borrow_limit + 200;
+    let new_tavl = old_bank.config.total_asset_value_init_limit + 50;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_limits_only(
+            &bank,
+            Some(new_deposit_limit),
+            Some(new_borrow_limit),
+            Some(new_tavl),
+        )
+        .await?;
+
+    let bank_after: Bank = test_f.load_and_deserialize(&bank.key).await;
+
+    assert_eq!(bank_after.config.deposit_limit, new_deposit_limit);
+    assert_eq!(bank_after.config.borrow_limit, new_borrow_limit);
+    assert_eq!(bank_after.config.total_asset_value_init_limit, new_tavl);
+    assert_eq!(
+        bank_after.config.interest_rate_config,
+        old_bank.config.interest_rate_config
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn configure_bank_limits_only_not_admin() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&BankMint::Usdc);
+    let group_before = test_f.marginfi_group.load().await;
+    test_f
+        .marginfi_group
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            Pubkey::new_unique(),
+            group_before.delegate_emissions_admin,
+            false,
+        )
+        .await?;
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_limits_only(&bank, Some(1), Some(1), Some(1))
+        .await;
+    assert!(res.is_err());
+    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
 
     Ok(())
 }

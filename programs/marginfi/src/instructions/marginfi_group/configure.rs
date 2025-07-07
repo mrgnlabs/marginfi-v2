@@ -12,12 +12,18 @@ pub fn configure(
     ctx: Context<MarginfiGroupConfigure>,
     new_admin: Pubkey,
     new_emode_admin: Pubkey,
+    new_curve_admin: Pubkey,
+    new_limit_admin: Pubkey,
+    new_emissions_admin: Pubkey,
     is_arena_group: bool,
 ) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_mut()?;
 
     marginfi_group.update_admin(new_admin);
     marginfi_group.update_emode_admin(new_emode_admin);
+    marginfi_group.update_curve_admin(new_curve_admin);
+    marginfi_group.update_limit_admin(new_limit_admin);
+    marginfi_group.update_emissions_admin(new_emissions_admin);
     marginfi_group.set_arena_group(is_arena_group)?;
 
     let clock = Clock::get()?;
