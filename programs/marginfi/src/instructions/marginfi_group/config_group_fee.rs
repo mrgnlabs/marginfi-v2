@@ -1,5 +1,6 @@
-use crate::{constants::FEE_STATE_SEED, state::fee_state::FeeState, MarginfiGroup, MarginfiResult};
+use crate::{constants::FEE_STATE_SEED, MarginfiGroup, MarginfiResult};
 use anchor_lang::prelude::*;
+use marginfi_type_crate::types::FeeState;
 
 #[derive(Accounts)]
 pub struct ConfigGroupFee<'info> {
