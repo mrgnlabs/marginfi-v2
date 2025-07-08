@@ -18,8 +18,6 @@ assert_struct_align!(HealthCache, 8);
 /// A read-only cache of the internal risk engine's information. Only valid in borrow/withdraw if
 /// the tx does not fail. To see the state in any context, e.g. to figure out if the risk engine is
 /// failing due to some bad price information, use `pulse_health`.
-///
-/// Note:
 pub struct HealthCache {
     /// Internal risk engine asset value, using initial weight (e.g. what is used for borrowing
     /// purposes), with all confidence adjustments, and other discounts on price.

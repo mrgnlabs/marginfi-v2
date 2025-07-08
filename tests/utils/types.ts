@@ -26,6 +26,7 @@ export const EMISSIONS_FLAG_BORROW_ACTIVE = 1;
 export const EMISSIONS_FLAG_LENDING_ACTIVE = 2;
 export const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG = 4;
 export const FREEZE_SETTINGS = 8;
+export const CLOSE_ENABLED_FLAG = 16;
 
 export const ASSET_TAG_DEFAULT = 0;
 export const ASSET_TAG_SOL = 1;
@@ -48,6 +49,8 @@ export const HEALTH_CACHE_ORACLE_OK = 4;
 
 /** For 0.1.3, this is how the cache represents the version */
 export const HEALTH_CACHE_PROGRAM_VERSION_0_1_3 = 1;
+/** For 0.1.4, this is how the cache represents the version */
+export const HEALTH_CACHE_PROGRAM_VERSION_0_1_4 = 2;
 /** Confidence intervals are multiplied by this constant internally */
 export const CONF_INTERVAL_MULTIPLE = 2.12;
 export const ORACLE_CONF_INTERVAL = 0.01;

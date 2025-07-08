@@ -7,6 +7,8 @@ pub fn update_interest_rates(bank_cache: &mut BankCache, interest_rates: &Comput
     bank_cache.borrowing_rate = apr_to_u32(interest_rates.borrowing_rate_apr);
 }
 
+/// Useful when converting an I80F48 apr into a BankCache u32 from 0-1000. Clamps to 1000% if
+/// exceeding that amount. Invalid for negative inputs.
 pub fn apr_to_u32(value: I80F48) -> u32 {
     let max_percent = I80F48::from_num(10.0); // 1000%
     let clamped = value.min(max_percent);

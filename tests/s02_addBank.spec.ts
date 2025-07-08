@@ -33,6 +33,7 @@ import {
   ASSET_TAG_DEFAULT,
   ASSET_TAG_SOL,
   ASSET_TAG_STAKED,
+  CLOSE_ENABLED_FLAG,
   defaultBankConfig,
   defaultStakedInterestSettings,
   ORACLE_SETUP_PYTH_PUSH,
@@ -492,7 +493,7 @@ describe("Init group and add banks with asset category flags", () => {
     assertI80F48Equal(bank.collectedGroupFeesOutstanding, 0);
     assertI80F48Equal(bank.totalLiabilityShares, 0);
     assertI80F48Equal(bank.totalAssetShares, 0);
-    assertBNEqual(bank.flags, 0);
+    assertBNEqual(bank.flags, CLOSE_ENABLED_FLAG);
     assertBNEqual(bank.emissionsRate, 0);
     assertI80F48Equal(bank.emissionsRemaining, 0);
 

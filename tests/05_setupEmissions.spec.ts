@@ -7,12 +7,24 @@ import {
   workspace,
 } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
-import { setupEmissions, updateEmissions } from "./utils/group-instructions";
+import {
+  groupConfigure,
+  setupEmissions,
+  updateEmissions,
+} from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
-import { bankKeypairUsdc, ecosystem, groupAdmin, verbose } from "./rootHooks";
+import {
+  bankKeypairUsdc,
+  ecosystem,
+  groupAdmin,
+  marginfiGroup,
+  users,
+  verbose,
+} from "./rootHooks";
 import {
   assertBNEqual,
   assertI80F48Approx,
+  assertKeyDefault,
   assertKeysEqual,
   getTokenBalance,
 } from "./utils/genericTests";
@@ -32,12 +44,35 @@ describe("Lending pool set up emissions", () => {
   const emissionRate = new BN(500_000 * 10 ** ecosystem.tokenBDecimals);
   const totalEmissions = new BN(1_000_000 * 10 ** ecosystem.tokenBDecimals);
 
-  it("Mint token B to the group admin for funding emissions", async () => {
+  it("(admin) Set user 1 as the emissions admin - happy path", async () => {
+    const groupBefore = await program.account.marginfiGroup.fetch(
+      marginfiGroup.publicKey
+    );
+    assertKeyDefault(groupBefore.delegateEmissionsAdmin);
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
+      new Transaction().add(
+        await groupConfigure(groupAdmin.mrgnProgram, {
+          newEmissionsAdmin: users[1].wallet.publicKey,
+          marginfiGroup: marginfiGroup.publicKey,
+        })
+      )
+    );
+    const groupAfter = await program.account.marginfiGroup.fetch(
+      marginfiGroup.publicKey
+    );
+    assertKeysEqual(
+      groupAfter.delegateEmissionsAdmin,
+      users[1].wallet.publicKey
+    );
+  });
+
+  it("Mint token B to the emissions admin for funding emissions", async () => {
+    const emissionsAdmin = users[1];
     let tx: Transaction = new Transaction();
     tx.add(
       createMintToInstruction(
         ecosystem.tokenBMint.publicKey,
-        groupAdmin.tokenBAccount,
+        emissionsAdmin.tokenBAccount,
         wallet.publicKey,
         BigInt(100_000_000) * BigInt(10 ** ecosystem.tokenBDecimals)
       )
@@ -45,10 +80,11 @@ describe("Lending pool set up emissions", () => {
     await program.provider.sendAndConfirm(tx);
   });
 
-  it("(admin) Set up to token B emissions on (USDC) bank - happy path", async () => {
+  it("(user 1) Set up to token B emissions on (USDC) bank - happy path", async () => {
+    const emissionsAdmin = users[1];
     const adminBBefore = await getTokenBalance(
       provider,
-      groupAdmin.tokenBAccount
+      emissionsAdmin.tokenBAccount
     );
     const [emissionsAccKey] = deriveEmissionsTokenAccount(
       program.programId,
@@ -62,12 +98,12 @@ describe("Lending pool set up emissions", () => {
       ecosystem.tokenBMint.publicKey
     );
 
-    await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
+    await emissionsAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await setupEmissions(groupAdmin.mrgnProgram, {
+        await setupEmissions(emissionsAdmin.mrgnProgram, {
           bank: bankKeypairUsdc.publicKey,
           emissionsMint: ecosystem.tokenBMint.publicKey,
-          fundingAccount: groupAdmin.tokenBAccount,
+          fundingAccount: emissionsAdmin.tokenBAccount,
           emissionsFlags: new BN(
             EMISSIONS_FLAG_BORROW_ACTIVE + EMISSIONS_FLAG_LENDING_ACTIVE
           ),
@@ -83,7 +119,7 @@ describe("Lending pool set up emissions", () => {
 
     const [bank, adminBAfter, emissionsAccAfter] = await Promise.all([
       program.account.bank.fetch(bankKeypairUsdc.publicKey),
-      getTokenBalance(provider, groupAdmin.tokenBAccount),
+      getTokenBalance(provider, emissionsAdmin.tokenBAccount),
       getTokenBalance(provider, emissionsAccKey),
     ]);
 
@@ -98,23 +134,24 @@ describe("Lending pool set up emissions", () => {
     assert.equal(emissionsAccAfter, totalEmissions.toNumber());
   });
 
-  it("(admin) Add more token B emissions on (USDC) bank - happy path", async () => {
+  it("(user 1) Add more token B emissions on (USDC) bank - happy path", async () => {
+    const emissionsAdmin = users[1];
     const [emissionsAccKey] = deriveEmissionsTokenAccount(
       program.programId,
       bankKeypairUsdc.publicKey,
       ecosystem.tokenBMint.publicKey
     );
     const [adminBBefore, emissionsAccBefore] = await Promise.all([
-      getTokenBalance(provider, groupAdmin.tokenBAccount),
+      getTokenBalance(provider, emissionsAdmin.tokenBAccount),
       getTokenBalance(provider, emissionsAccKey),
     ]);
 
-    await groupAdmin.mrgnProgram!.provider.sendAndConfirm!(
+    await emissionsAdmin.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
-        await updateEmissions(groupAdmin.mrgnProgram, {
+        await updateEmissions(emissionsAdmin.mrgnProgram, {
           bank: bankKeypairUsdc.publicKey,
           emissionsMint: ecosystem.tokenBMint.publicKey,
-          fundingAccount: groupAdmin.tokenBAccount,
+          fundingAccount: emissionsAdmin.tokenBAccount,
           emissionsFlags: null,
           emissionsRate: null,
           additionalEmissions: totalEmissions,
@@ -124,7 +161,7 @@ describe("Lending pool set up emissions", () => {
 
     const [bank, adminBAfter, emissionsAccAfter] = await Promise.all([
       program.account.bank.fetch(bankKeypairUsdc.publicKey),
-      getTokenBalance(provider, groupAdmin.tokenBAccount),
+      getTokenBalance(provider, emissionsAdmin.tokenBAccount),
       getTokenBalance(provider, emissionsAccKey),
     ]);
 
