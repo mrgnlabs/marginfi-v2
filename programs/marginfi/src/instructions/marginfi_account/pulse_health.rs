@@ -2,14 +2,12 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
+use marginfi_type_crate::types::HealthCache;
 
 use crate::{
     constants::PROGRAM_VERSION,
     events::HealthPulseEvent,
-    state::{
-        health_cache::HealthCache,
-        marginfi_account::{MarginfiAccount, RiskEngine},
-    },
+    state::marginfi_account::{MarginfiAccount, RiskEngine},
     MarginfiError, MarginfiResult,
 };
 

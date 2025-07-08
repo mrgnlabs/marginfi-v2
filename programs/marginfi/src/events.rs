@@ -1,6 +1,6 @@
-use crate::{state::health_cache::HealthCache, StakedSettingsEditConfig};
+use crate::StakedSettingsEditConfig;
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::BankConfigOpt;
+use marginfi_type_crate::types::{BankConfigOpt, HealthCache};
 
 // Event headers
 

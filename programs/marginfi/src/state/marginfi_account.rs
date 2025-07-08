@@ -1,7 +1,4 @@
-use super::{
-    health_cache::HealthCache,
-    price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
-};
+use super::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::{
     assert_struct_align, assert_struct_size, check, check_eq,
     constants::{
@@ -19,7 +16,7 @@ use anchor_spl::token_interface::Mint;
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
 use marginfi_type_crate::types::{
-    reconcile_emode_configs, BalanceSide, Bank, EmodeConfig, RiskTier, WrappedI80F48,
+    reconcile_emode_configs, BalanceSide, Bank, EmodeConfig, HealthCache, RiskTier, WrappedI80F48,
 };
 use std::cmp::{max, min};
 use type_layout::TypeLayout;
