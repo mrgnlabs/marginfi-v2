@@ -17,13 +17,12 @@ use marginfi::{
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
 use marginfi_type_crate::types::{Bank, BankConfigOpt};
-use solana_program::{account_info::IntoAccountInfo, instruction::Instruction, sysvar::clock::Clock};
+use solana_program::{
+    account_info::IntoAccountInfo, instruction::Instruction, sysvar::clock::Clock,
+};
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
-use solana_sdk::{
-    commitment_config::CommitmentLevel, signer::Signer,
-    transaction::Transaction,
-};
+use solana_sdk::{commitment_config::CommitmentLevel, signer::Signer, transaction::Transaction};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 #[derive(Clone)]

@@ -29,9 +29,9 @@ use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{
-        EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, FREEZE_SETTINGS, GROUP_FLAGS,
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
-        LIQUIDITY_VAULT_SEED, MAX_PYTH_ORACLE_AGE, ORACLE_MIN_AGE,
+        CLOSE_ENABLED_FLAG, EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
+        FREEZE_SETTINGS, GROUP_FLAGS, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
+        LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED, MAX_PYTH_ORACLE_AGE, ORACLE_MIN_AGE,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, SECONDS_PER_YEAR,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
@@ -116,6 +116,10 @@ pub trait BankImpl {
     fn update_flag(&mut self, value: bool, flag: u64);
     fn verify_emissions_flags(flags: u64) -> bool;
     fn verify_group_flags(flags: u64) -> bool;
+    fn increment_lending_position_count(&mut self);
+    fn decrement_lending_position_count(&mut self);
+    fn increment_borrowing_position_count(&mut self);
+    fn decrement_borrowing_position_count(&mut self);
 }
 
 impl BankImpl for Bank {
@@ -157,13 +161,16 @@ impl BankImpl for Bank {
             total_asset_shares: I80F48::ZERO.into(),
             last_update: current_timestamp,
             config,
-            flags: 0,
+            flags: CLOSE_ENABLED_FLAG,
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
             collected_program_fees_outstanding: I80F48::ZERO.into(),
             emode: EmodeSettings::zeroed(),
             fees_destination_account: Pubkey::default(),
+            lending_position_count: 0,
+            borrowing_position_count: 0,
+            _padding_0: [0; 16],
             ..Default::default()
         }
     }
@@ -683,6 +690,22 @@ impl BankImpl for Bank {
 
     fn verify_group_flags(flags: u64) -> bool {
         flags & GROUP_FLAGS == flags
+    }
+
+    fn increment_lending_position_count(&mut self) {
+        self.lending_position_count = self.lending_position_count.saturating_add(1);
+    }
+
+    fn decrement_lending_position_count(&mut self) {
+        self.lending_position_count = self.lending_position_count.saturating_sub(1);
+    }
+
+    fn increment_borrowing_position_count(&mut self) {
+        self.borrowing_position_count = self.borrowing_position_count.saturating_add(1);
+    }
+
+    fn decrement_borrowing_position_count(&mut self) {
+        self.borrowing_position_count = self.borrowing_position_count.saturating_sub(1);
     }
 }
 

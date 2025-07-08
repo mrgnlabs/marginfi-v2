@@ -15,7 +15,8 @@ use marginfi::prelude::MarginfiGroup;
 use marginfi::state::bank::BankVaultType;
 use marginfi::state::fee_state::FeeState;
 use marginfi_type_crate::types::{
-    BankConfig, BankConfigCompact, BankConfigOpt, EmodeEntry, OracleSetup, MAX_EMODE_ENTRIES,
+    BankConfig, BankConfigCompact, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, OracleSetup,
+    MAX_EMODE_ENTRIES,
 };
 use solana_program::sysvar;
 use solana_program_test::*;
@@ -408,7 +409,7 @@ impl MarginfiGroupFixture {
         .to_account_metas(Some(true));
 
         Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolConfigureBankInterestOnly {
                 interest_rate_config,
@@ -454,7 +455,7 @@ impl MarginfiGroupFixture {
         .to_account_metas(Some(true));
 
         Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolConfigureBankLimitsOnly {
                 deposit_limit,

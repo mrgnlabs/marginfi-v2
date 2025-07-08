@@ -759,7 +759,7 @@ async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
     let bank = test_f.get_bank(&BankMint::Usdc);
     let old_bank = bank.load().await;
 
-    let ir_config = marginfi::state::marginfi_group::InterestRateConfigOpt {
+    let ir_config = InterestRateConfigOpt {
         optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
         plateau_interest_rate: Some(I80F48::from_num(0.5).into()),
         max_interest_rate: Some(I80F48::from_num(1.5).into()),
@@ -852,7 +852,7 @@ async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
         )
         .await?;
 
-    let ir_config = marginfi::state::marginfi_group::InterestRateConfigOpt {
+    let ir_config = InterestRateConfigOpt {
         optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
         ..Default::default()
     };

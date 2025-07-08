@@ -262,12 +262,14 @@ where
 /// unusable on-chain). Perfectly fine for off-chain applications where heap space is not a concern.
 pub fn reconcile_emode_configs_classic(configs: Vec<EmodeConfig>) -> EmodeConfig {
     // TODO benchmark this in the mock program
-    let mut iter = configs.into_iter();
-    // Pull off the first config (if any)
-    let first = match iter.next() {
-        None => return EmodeConfig::zeroed(),
-        Some(cfg) => cfg,
-    };
+    // If no configs, return a zeroed config.
+    if configs.is_empty() {
+        return EmodeConfig::zeroed();
+    }
+    // If only one config, return it.
+    if configs.len() == 1 {
+        return configs.into_iter().next().unwrap();
+    }
 
     let num_configs = configs.len();
     // Stores (tag, (entry, tag_count)), where tag_count is how many times we've seen this tag. This
@@ -275,45 +277,42 @@ pub fn reconcile_emode_configs_classic(configs: Vec<EmodeConfig>) -> EmodeConfig
     // benchmarked at some point, a simple Vec might actually be more performant here
     let mut merged_entries: BTreeMap<u16, (EmodeEntry, usize)> = BTreeMap::new();
 
-    // A helper to merge an EmodeConfig into the map
-    let mut merge_cfg = |cfg: EmodeConfig| {
-        for entry in cfg.entries.iter() {
+    for config in &configs {
+        for entry in config.entries.iter() {
             if entry.is_empty() {
                 continue;
             }
+            // Note: We assume that entries is de-duped and each tag appears at most one time!
             let tag = entry.collateral_bank_emode_tag;
+            // Insert or merge the entry: if an entry with the same tag already exists, take the
+            // lesser of each field, increment how many times we've seen this tag
             merged_entries
                 .entry(tag)
-                .and_modify(|(merged, cnt)| {
+                .and_modify(|(merged, tag_count)| {
+                    // Note: More complex flag merging logic may be needed in the future
                     merged.flags = merged.flags.min(entry.flags);
-                    let cur_i: I80F48 = merged.asset_weight_init.into();
-                    let new_i: I80F48 = entry.asset_weight_init.into();
-                    if new_i < cur_i {
+                    let current_init: I80F48 = merged.asset_weight_init.into();
+                    let new_init: I80F48 = entry.asset_weight_init.into();
+                    if new_init < current_init {
                         merged.asset_weight_init = entry.asset_weight_init;
                     }
-                    let cur_m: I80F48 = merged.asset_weight_maint.into();
-                    let new_m: I80F48 = entry.asset_weight_maint.into();
-                    if new_m < cur_m {
+                    let current_maint: I80F48 = merged.asset_weight_maint.into();
+                    let new_maint: I80F48 = entry.asset_weight_maint.into();
+                    if new_maint < current_maint {
                         merged.asset_weight_maint = entry.asset_weight_maint;
                     }
-                    *cnt += 1;
+                    *tag_count += 1;
                 })
                 .or_insert((*entry, 1));
         }
-    };
-
-    // First config
-    merge_cfg(first);
-
-    // All following configs
-    for cfg in iter {
-        num_configs += 1;
-        merge_cfg(cfg);
     }
 
-    // Cllect only those tags seen in *every* config:
-    let mut buf: [EmodeEntry; MAX_EMODE_ENTRIES] = [EmodeEntry::zeroed(); MAX_EMODE_ENTRIES];
-    let mut buf_len = 0;
+    // Collect only the tags that appear in EVERY config.
+    let final_entries: Vec<EmodeEntry> = merged_entries
+        .into_iter()
+        .filter(|(_, (_, tag_count))| *tag_count == num_configs)
+        .map(|(_, (merged_entry, _))| merged_entry)
+        .collect();
 
     // Sort the entries by tag and build a config from them
     EmodeConfig::from_entries(&final_entries)

@@ -19,7 +19,8 @@ pub mod utils;
 use anchor_lang::prelude::*;
 use instructions::*;
 use marginfi_type_crate::types::{
-    BankConfigCompact, BankConfigOpt, EmodeEntry, WrappedI80F48, MAX_EMODE_ENTRIES,
+    BankConfigCompact, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, WrappedI80F48,
+    MAX_EMODE_ENTRIES,
 };
 use prelude::*;
 
