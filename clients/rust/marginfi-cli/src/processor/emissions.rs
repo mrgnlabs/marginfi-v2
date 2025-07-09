@@ -2,7 +2,7 @@ use {
     crate::{config::Config, profile::Profile},
     anchor_client::anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas},
     anyhow::Result,
-    marginfi::state::marginfi_account::MarginfiAccount,
+    marginfi_type_crate::types::MarginfiAccount,
     solana_client::rpc_filter::{Memcmp, RpcFilterType},
     solana_sdk::{
         instruction::Instruction, message::Message, pubkey::Pubkey, transaction::Transaction,

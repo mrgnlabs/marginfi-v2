@@ -4,7 +4,7 @@ use crate::{
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
         bank::BankImpl,
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
+        marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
     },
     utils,
 };
@@ -12,7 +12,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
-use marginfi_type_crate::types::Bank;
+use marginfi_type_crate::types::{Bank, MarginfiAccount, ACCOUNT_DISABLED};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset repaid

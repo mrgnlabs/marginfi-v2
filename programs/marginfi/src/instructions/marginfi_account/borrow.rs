@@ -6,7 +6,9 @@ use crate::{
     prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
     state::{
         bank::{BankImpl, BankVaultType},
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
+        marginfi_account::{
+            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+        },
     },
     utils::{self, validate_asset_tags},
 };
@@ -15,7 +17,7 @@ use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{Bank, HealthCache};
+use marginfi_type_crate::types::{Bank, HealthCache, MarginfiAccount, ACCOUNT_DISABLED};
 
 /// 1. Accrue interest
 /// 2. Create the user's bank account for the asset borrowed if it does not exist yet

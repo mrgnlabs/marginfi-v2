@@ -2,8 +2,8 @@ use super::{bank::BankFixture, prelude::*};
 use crate::ui_to_native;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
-use marginfi::state::{bank::BankVaultType, marginfi_account::MarginfiAccount};
-use marginfi_type_crate::types::Bank;
+use marginfi::state::bank::BankVaultType;
+use marginfi_type_crate::types::{Bank, MarginfiAccount};
 use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{

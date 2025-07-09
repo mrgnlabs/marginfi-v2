@@ -5,9 +5,9 @@ use fixtures::{
 };
 use marginfi::{
     errors::MarginfiError,
-    state::{bank::BankVaultType, marginfi_account::ACCOUNT_DISABLED},
+    state::{bank::BankVaultType, marginfi_account::MarginfiAccountImpl},
 };
-use marginfi_type_crate::types::{BankConfig, BankConfigOpt};
+use marginfi_type_crate::types::{BankConfig, BankConfigOpt, ACCOUNT_DISABLED};
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 

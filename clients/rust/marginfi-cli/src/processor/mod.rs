@@ -30,7 +30,7 @@ use {
         prelude::*,
         state::{
             bank::{BankConfigImpl, BankImpl, BankVaultType},
-            marginfi_account::{BankAccountWrapper, MarginfiAccount},
+            marginfi_account::BankAccountWrapper,
             price::{
                 parse_swb_ignore_alignment, LitePullFeedAccountData, OraclePriceFeedAdapter,
                 PriceAdapter,
@@ -40,7 +40,7 @@ use {
     },
     marginfi_type_crate::types::{
         BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
-        InterestRateConfig, OracleSetup, WrappedI80F48,
+        InterestRateConfig, MarginfiAccount, OracleSetup, WrappedI80F48,
     },
     pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{

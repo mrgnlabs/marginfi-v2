@@ -1,5 +1,5 @@
 use fixtures::test::TestFixture;
-use marginfi::state::marginfi_account::{MarginfiAccount, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{MarginfiAccount, ACCOUNT_DISABLED};
 use solana_program_test::tokio;
 use solana_sdk::{signature::Keypair, signer::Signer};
 

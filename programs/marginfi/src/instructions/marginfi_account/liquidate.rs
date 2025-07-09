@@ -4,14 +4,15 @@ use crate::constants::{
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::state::bank::{BankImpl, BankVaultType};
 use crate::state::marginfi_account::{
-    calc_amount, calc_value, get_remaining_accounts_per_bank, RiskEngine,
+    calc_amount, calc_value, get_remaining_accounts_per_bank, LendingAccountImpl,
+    MarginfiAccountImpl, RiskEngine,
 };
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::utils::{validate_asset_tags, validate_bank_asset_tags};
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
-    state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
+    state::marginfi_account::BankAccountWrapper,
 };
 use crate::{check, debug, prelude::*, utils};
 use anchor_lang::prelude::*;
@@ -19,7 +20,7 @@ use anchor_lang::solana_program::clock::Clock;
 use anchor_lang::solana_program::sysvar::Sysvar;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
-use marginfi_type_crate::types::Bank;
+use marginfi_type_crate::types::{Bank, MarginfiAccount};
 
 /// Instruction liquidates a position owned by a margin account that is in a unhealthy state.
 /// The liquidator can purchase discounted collateral from the unhealthy account, in exchange for paying its debt.

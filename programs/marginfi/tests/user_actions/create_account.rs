@@ -1,6 +1,6 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixtures::test::TestFixture;
-use marginfi::state::marginfi_account::MarginfiAccount;
+use marginfi_type_crate::types::MarginfiAccount;
 use solana_program_test::tokio;
 use solana_sdk::{
     instruction::Instruction, signature::Keypair, signer::Signer, system_program,

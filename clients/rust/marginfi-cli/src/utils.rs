@@ -12,11 +12,10 @@ use {
         },
         state::{
             bank::{BankConfigImpl, BankVaultType},
-            marginfi_account::MarginfiAccount,
             price::PythPushOraclePriceFeed,
         },
     },
-    marginfi_type_crate::types::{Bank, BankConfig, OracleSetup},
+    marginfi_type_crate::types::{Bank, BankConfig, MarginfiAccount, OracleSetup},
     solana_client::rpc_client::RpcClient,
     solana_sdk::{
         instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,
