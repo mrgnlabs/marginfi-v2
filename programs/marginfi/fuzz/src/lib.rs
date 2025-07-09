@@ -19,18 +19,13 @@ use bank_accounts::{get_bank_map, BankAccounts};
 use fixed_macro::types::I80F48;
 use marginfi::{
     constants::FEE_STATE_SEED,
-    instructions::LendingPoolConfigureBankOracleBumps,
-    state::{fee_state::FeeState, marginfi_group::BankConfigCompact},
+    instructions::LendingPoolConfigureBankOracleBumps, state::bank::BankVaultType,
 };
 use marginfi::{
     errors::MarginfiError,
     instructions::LendingPoolAddBankBumps,
-    prelude::MarginfiGroup,
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType, InterestRateConfig},
-    },
 };
+use marginfi_type_crate::types::{Bank, BankConfigCompact, BankOperationalState, FeeState, InterestRateConfig, MarginfiAccount, MarginfiGroup, RiskTier};
 use metrics::{MetricAction, Metrics};
 use solana_program::system_program;
 use stubs::test_syscall_stubs;
@@ -290,11 +285,11 @@ impl<'state> MarginfiFuzzContext<'state> {
                     }
                     .into(),
                     operational_state:
-                        marginfi::state::marginfi_group::BankOperationalState::Operational,
+                        BankOperationalState::Operational,
                     risk_tier: if !initial_bank_config.risk_tier_isolated {
-                        marginfi::state::marginfi_group::RiskTier::Collateral
+                        RiskTier::Collateral
                     } else {
-                        marginfi::state::marginfi_group::RiskTier::Isolated
+                        RiskTier::Isolated
                     },
                     oracle_max_age: 100,
                     ..Default::default()
@@ -1051,6 +1046,7 @@ mod tests {
     use anchor_lang::AnchorDeserialize;
     use fixed::types::I80F48;
     use marginfi::state::marginfi_account::RiskEngine;
+    use marginfi_type_crate::types::MarginfiGroup;
     use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
     use super::*;

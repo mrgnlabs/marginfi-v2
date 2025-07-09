@@ -69,8 +69,8 @@ impl<'bump> BankAccounts<'bump> {
 
     pub fn log_oracle_price(&self) -> Result<(), ProgramError> {
         let data = self.oracle.try_borrow_data()?;
-        let price_update = PriceUpdateV2::deserialize(&mut &data[8..]).unwrap();
-        log!("Oracle price: {}", price_update.price_message.ema_price);
+        let _price_update = PriceUpdateV2::deserialize(&mut &data[8..]).unwrap();
+        log!("Oracle price: {}", _price_update.price_message.ema_price);
 
         Ok(())
     }
