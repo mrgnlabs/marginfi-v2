@@ -8,10 +8,9 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
-use marginfi::prelude::*;
 use marginfi_type_crate::types::{
     Balance, Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
-    InterestRateConfigOpt, LendingAccount, MarginfiAccount, RiskTier, WrappedI80F48,
+    InterestRateConfigOpt, LendingAccount, MarginfiAccount, MarginfiGroup, RiskTier, WrappedI80F48,
     ACCOUNT_FLAG_DEPRECATED, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
 };
 use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;

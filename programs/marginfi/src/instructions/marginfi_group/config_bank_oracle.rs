@@ -1,9 +1,9 @@
 use crate::constants::FREEZE_SETTINGS;
 use crate::events::{GroupEventHeader, LendingPoolBankConfigureOracleEvent};
 use crate::state::bank::{BankConfigImpl, BankImpl};
-use crate::{constants::PYTH_PUSH_MIGRATED, state::marginfi_group::MarginfiGroup, MarginfiResult};
+use crate::{constants::PYTH_PUSH_MIGRATED, MarginfiResult};
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{Bank, OracleSetup};
+use marginfi_type_crate::types::{Bank, MarginfiGroup, OracleSetup};
 
 pub fn lending_pool_configure_bank_oracle(
     ctx: Context<LendingPoolConfigureBankOracle>,

@@ -9,13 +9,13 @@ use crate::{
     log_pool_info,
     state::{
         bank::{BankConfigImpl, BankImpl},
-        marginfi_group::MarginfiGroup,
+        marginfi_group::MarginfiGroupImpl,
     },
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
-use marginfi_type_crate::types::{Bank, BankConfigCompact, FeeState};
+use marginfi_type_crate::types::{Bank, BankConfigCompact, FeeState, MarginfiGroup};
 
 /// Add a bank to the lending pool
 ///

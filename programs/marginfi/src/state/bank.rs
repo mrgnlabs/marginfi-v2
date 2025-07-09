@@ -6,11 +6,12 @@ use crate::{
     debug,
     errors::MarginfiError,
     math_error,
-    prelude::{MarginfiGroup, MarginfiResult},
+    prelude::MarginfiResult,
     set_if_some,
     state::{
         bank_cache::{update_interest_rates, ComputedInterestRates},
         marginfi_account::{calc_value, RequirementType},
+        marginfi_group::MarginfiGroupImpl,
         price::OraclePriceFeedAdapter,
     },
 };
@@ -37,7 +38,8 @@ use marginfi_type_crate::{
     },
     types::{
         BalanceSide, Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState,
-        EmodeSettings, InterestRateConfig, InterestRateConfigOpt, OracleSetup, RiskTier,
+        EmodeSettings, InterestRateConfig, InterestRateConfigOpt, MarginfiGroup, OracleSetup,
+        RiskTier,
     },
 };
 use pyth_solana_receiver_sdk::price_update::FeedId;

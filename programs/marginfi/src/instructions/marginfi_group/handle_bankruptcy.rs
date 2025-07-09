@@ -11,7 +11,6 @@ use crate::{
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_account::{BankAccountWrapper, MarginfiAccountImpl, RiskEngine},
-        marginfi_group::MarginfiGroup,
     },
     utils, MarginfiResult,
 };
@@ -19,7 +18,9 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{Bank, HealthCache, MarginfiAccount, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{
+    Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+};
 use std::cmp::{max, min};
 
 /// Handle a bankrupt marginfi account.

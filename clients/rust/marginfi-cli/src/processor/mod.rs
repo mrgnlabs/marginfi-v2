@@ -27,7 +27,6 @@ use {
             EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, PYTH_SPONSORED_SHARD_ID,
             ZERO_AMOUNT_THRESHOLD,
         },
-        prelude::*,
         state::{
             bank::{BankConfigImpl, BankImpl, BankVaultType},
             marginfi_account::BankAccountWrapper,
@@ -40,7 +39,7 @@ use {
     },
     marginfi_type_crate::types::{
         BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
-        InterestRateConfig, MarginfiAccount, OracleSetup, WrappedI80F48,
+        InterestRateConfig, MarginfiAccount, MarginfiGroup, OracleSetup, WrappedI80F48,
     },
     pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{

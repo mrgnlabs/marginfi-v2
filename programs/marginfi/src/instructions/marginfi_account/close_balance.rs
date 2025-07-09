@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
 
 use crate::{
     check,

@@ -16,7 +16,9 @@ use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{Bank, HealthCache, MarginfiAccount, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{
+    Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset withdrawn

@@ -1,9 +1,9 @@
 use crate::set_if_some;
 use crate::state::bank::InterestRateConfigImpl;
+use crate::MarginfiResult;
 use crate::{constants::FREEZE_SETTINGS, state::bank::BankImpl};
-use crate::{state::marginfi_group::MarginfiGroup, MarginfiResult};
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{Bank, InterestRateConfigOpt};
+use marginfi_type_crate::types::{Bank, InterestRateConfigOpt, MarginfiGroup};
 
 pub fn lending_pool_configure_bank_interest_only(
     ctx: Context<LendingPoolConfigureBankInterestOnly>,

@@ -7,7 +7,9 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use bytemuck::Zeroable;
-use marginfi_type_crate::types::{LendingAccount, MarginfiAccount, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{
+    LendingAccount, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+};
 
 pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
     // Validate the global fee wallet and claim a nominal fee

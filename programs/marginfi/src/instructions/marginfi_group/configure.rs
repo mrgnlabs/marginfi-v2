@@ -1,6 +1,8 @@
 use crate::events::{GroupEventHeader, MarginfiGroupConfigureEvent};
-use crate::{state::marginfi_group::MarginfiGroup, MarginfiResult};
+use crate::state::marginfi_group::MarginfiGroupImpl;
+use crate::MarginfiResult;
 use anchor_lang::prelude::*;
+use marginfi_type_crate::types::MarginfiGroup;
 
 /// Configure margin group.
 ///

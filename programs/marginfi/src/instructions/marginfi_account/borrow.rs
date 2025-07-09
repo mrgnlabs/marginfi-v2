@@ -3,7 +3,7 @@ use crate::{
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, PROGRAM_VERSION},
     events::{AccountEventHeader, LendingAccountBorrowEvent},
     math_error,
-    prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
+    prelude::{MarginfiError, MarginfiResult},
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_account::{
@@ -17,7 +17,9 @@ use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{Bank, HealthCache, MarginfiAccount, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{
+    Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+};
 
 /// 1. Accrue interest
 /// 2. Create the user's bank account for the asset borrowed if it does not exist yet

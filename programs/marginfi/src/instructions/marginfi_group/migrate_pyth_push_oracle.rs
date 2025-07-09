@@ -4,11 +4,10 @@
 // TODO remove in 0.1.5
 use crate::constants::{MARGINFI_SPONSORED_SHARD_ID, PYTH_PUSH_MIGRATED, PYTH_SPONSORED_SHARD_ID};
 use crate::state::bank::BankConfigImpl;
-use crate::state::marginfi_group::MarginfiGroup;
 use crate::state::price::PythPushOraclePriceFeed;
 use crate::{live, MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{Bank, OracleSetup};
+use marginfi_type_crate::types::{Bank, MarginfiGroup, OracleSetup};
 use pyth_solana_receiver_sdk::price_update::FeedId;
 
 pub fn migrate_pyth_push_oracle(ctx: Context<MigratePythPushOracle>) -> MarginfiResult {

@@ -11,7 +11,7 @@ use crate::{
     log_pool_info,
     state::{
         bank::{BankConfigImpl, BankImpl},
-        marginfi_group::MarginfiGroup,
+        marginfi_group::MarginfiGroupImpl,
     },
     MarginfiError, MarginfiResult,
 };
@@ -19,7 +19,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 use fixed_macro::types::I80F48;
 use marginfi_type_crate::types::{
-    Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, OracleSetup, StakedSettings,
+    Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiGroup, OracleSetup,
+    StakedSettings,
 };
 
 pub fn lending_pool_add_bank_permissionless(

@@ -5,7 +5,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::Sysvar;
-use marginfi_type_crate::types::MarginfiAccount;
+use marginfi_type_crate::types::{MarginfiAccount, MarginfiGroup};
 
 pub fn initialize_account(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
     let MarginfiAccountInitialize {

@@ -3,12 +3,11 @@ use crate::state::bank::BankImpl;
 use crate::utils::NumTraitsWithTolerance;
 use crate::{
     constants::{CLOSE_ENABLED_FLAG, ZERO_AMOUNT_THRESHOLD},
-    state::marginfi_group::MarginfiGroup,
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
-use marginfi_type_crate::types::Bank;
+use marginfi_type_crate::types::{Bank, MarginfiGroup};
 
 pub fn lending_pool_close_bank(ctx: Context<LendingPoolCloseBank>) -> MarginfiResult {
     let mut group = ctx.accounts.group.load_mut()?;

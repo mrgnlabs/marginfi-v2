@@ -2,9 +2,9 @@ use crate::events::EditStakedSettingsEvent;
 use crate::state::staked_settings::StakedSettingsImpl;
 // Used by the group admin to edit the default features of staked collateral banks. Remember to
 // propagate afterwards.
-use crate::{set_if_some, MarginfiGroup};
+use crate::set_if_some;
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{RiskTier, StakedSettings, WrappedI80F48};
+use marginfi_type_crate::types::{MarginfiGroup, RiskTier, StakedSettings, WrappedI80F48};
 
 pub fn edit_staked_settings(
     ctx: Context<EditStakedSettings>,

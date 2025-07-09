@@ -11,11 +11,10 @@ use marginfi::constants::{
     FEE_STATE_SEED, INIT_BANK_ORIGINATION_FEE_DEFAULT, PROTOCOL_FEE_FIXED_DEFAULT,
     PROTOCOL_FEE_RATE_DEFAULT,
 };
-use marginfi::prelude::MarginfiGroup;
 use marginfi::state::bank::BankVaultType;
 use marginfi_type_crate::types::{
     BankConfig, BankConfigCompact, BankConfigOpt, EmodeEntry, FeeState, InterestRateConfigOpt,
-    OracleSetup, MAX_EMODE_ENTRIES,
+    MarginfiGroup, OracleSetup, MAX_EMODE_ENTRIES,
 };
 use solana_program::sysvar;
 use solana_program_test::*;
@@ -733,12 +732,8 @@ impl MarginfiGroupFixture {
         8 + mem::size_of::<MarginfiGroup>()
     }
 
-    pub async fn load(&self) -> marginfi::state::marginfi_group::MarginfiGroup {
-        load_and_deserialize::<marginfi::state::marginfi_group::MarginfiGroup>(
-            self.ctx.clone(),
-            &self.key,
-        )
-        .await
+    pub async fn load(&self) -> MarginfiGroup {
+        load_and_deserialize::<MarginfiGroup>(self.ctx.clone(), &self.key).await
     }
 
     pub async fn set_protocol_fees_flag(&self, enabled: bool) {

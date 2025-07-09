@@ -7,12 +7,15 @@ use marginfi::{
         CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
-    prelude::{MarginfiError, MarginfiGroup},
-    state::bank::{BankImpl, BankVaultType},
+    prelude::MarginfiError,
+    state::{
+        bank::{BankImpl, BankVaultType},
+        marginfi_group::MarginfiGroupImpl,
+    },
 };
 use marginfi_type_crate::types::{
-    Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, OracleSetup,
-    EMODE_ON,
+    Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, MarginfiGroup,
+    OracleSetup, EMODE_ON,
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
