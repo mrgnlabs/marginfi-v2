@@ -173,7 +173,7 @@ export function dumpAccBalances(
     if (b.active == 0) {
       activeBalances.push({
         "Bank PK": "empty",
-        Tag: "-",
+        // Tag: "-",
         "Liab Shares": "-",
         "Liab Value": "-",
         "Asset Shares": "-",

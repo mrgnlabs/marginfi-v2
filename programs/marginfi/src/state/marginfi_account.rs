@@ -1074,8 +1074,8 @@ impl<'a> BankAccountWrapper<'a> {
 
     // ------------ Hybrid operations for seamless repay + deposit / withdraw + borrow
 
-    /// Repay liability and deposit/increase asset depending on
-    /// the specified deposit amount and the existing balance.
+    /// Repay liability and deposit/increase asset depending on the specified deposit amount and the
+    /// existing balance.
     pub fn increase_balance(&mut self, amount: I80F48) -> MarginfiResult {
         self.increase_balance_internal(amount, BalanceIncreaseType::Any)
     }
@@ -1084,17 +1084,17 @@ impl<'a> BankAccountWrapper<'a> {
         self.increase_balance_internal(amount, BalanceIncreaseType::BypassDepositLimit)
     }
 
-    /// Withdraw asset and create/increase liability depending on
-    /// the specified deposit amount and the existing balance.
+    /// Withdraw asset and create/increase liability depending on the specified deposit amount and
+    /// the existing balance.
     pub fn decrease_balance(&mut self, amount: I80F48) -> MarginfiResult {
         self.decrease_balance_internal(amount, BalanceDecreaseType::Any)
     }
 
-    /// Withdraw asset and create/increase liability depending on
-    /// the specified deposit amount and the existing balance.
+    /// Withdraw asset and create/increase liability depending on the specified deposit amount and
+    /// the existing balance.
     ///
-    /// This function will also bypass borrow limits
-    /// so liquidations can happen in banks with maxed out borrows.
+    /// This function will also bypass borrow limits so liquidations can happen in banks with maxed
+    /// out borrows.
     pub fn decrease_balance_in_liquidation(&mut self, amount: I80F48) -> MarginfiResult {
         self.decrease_balance_internal(amount, BalanceDecreaseType::BypassBorrowLimit)
     }
@@ -1349,6 +1349,8 @@ impl<'a> BankAccountWrapper<'a> {
             matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit),
         )?;
 
+        // If a bank is always above the max utilization ratio, e.g. if it is so bankrupt that
+        // assets < liabs, this enables liquidation to continue.
         if !matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit) {
             bank.check_utilization_ratio()?;
         }

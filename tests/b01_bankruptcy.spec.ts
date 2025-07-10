@@ -35,6 +35,7 @@ import {
   depositIx,
   healthPulse,
   liquidateIx,
+  repayIx,
   withdrawIx,
 } from "./utils/user-instructions";
 import {
@@ -43,7 +44,11 @@ import {
 } from "@mrgnlabs/mrgn-common";
 import { Clock } from "solana-bankrun";
 import { genericMultiBankTestSetup } from "./genericSetups";
-import { assertBankrunTxFailed } from "./utils/genericTests";
+import {
+  assertBankrunTxFailed,
+  assertI80F48Approx,
+  assertI80F48Equal,
+} from "./utils/genericTests";
 import { initOrUpdatePriceUpdateV2 } from "./utils/pyth-pull-mocks";
 import { dumpAccBalances, bytesToF64, dumpBankrunLogs } from "./utils/tools";
 
@@ -369,6 +374,22 @@ describe("Bank bankruptcy tests", () => {
         `  asset: ${bankValues.asset}, liab: ${bankValues.liability}`
       );
       console.log(`  diff: ${bankValues.liability - bankValues.asset}`);
+      console.log(
+        "asset shares: " +
+          wrappedI80F48toBigNumber(bankAcc.totalAssetShares).toNumber()
+      );
+      console.log(
+        "asset share value: " +
+          wrappedI80F48toBigNumber(bankAcc.assetShareValue).toNumber()
+      );
+      console.log(
+        "liab shares: " +
+          wrappedI80F48toBigNumber(bankAcc.totalLiabilityShares).toNumber()
+      );
+      console.log(
+        "liab share value: " +
+          wrappedI80F48toBigNumber(bankAcc.liabilityShareValue).toNumber()
+      );
 
       console.log("good bank (0): " + banks[0]);
       console.log("bankrupt bank (1) : " + banks[1]);
@@ -428,6 +449,7 @@ describe("Bank bankruptcy tests", () => {
           console.log(" [" + i + "] " + price);
         }
       }
+      console.log("");
     }
 
     const cA1 = groupAdminAcc.healthCache;
@@ -464,6 +486,7 @@ describe("Bank bankruptcy tests", () => {
           console.log(" [" + i + "] " + price);
         }
       }
+      console.log("");
     }
 
     // Record the asset value the program thinks that the other depositor in the now-bankrupt bank
@@ -480,7 +503,7 @@ describe("Bank bankruptcy tests", () => {
     assert.isAbove(bankValues.asset, 0);
   });
 
-  it("(admin) Retries to withdraw some B, but bank 1 is still bankrupt - should fail", async () => {
+  it("(admin) Retries to withdraw, but bank 1 is still bankrupt - should fail", async () => {
     const user = groupAdmin;
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
     const amount = new BN(0.01 * 10 ** ecosystem.lstAlphaDecimals);
@@ -507,12 +530,69 @@ describe("Bank bankruptcy tests", () => {
     assertBankrunTxFailed(result, 6026);
   });
 
+  // Note: The only way to unblock a "super bankrupt" bank where liabs > assets for the entire bank,
+  // like this, is to deposit enough funds to cover the liabilities on its books. Otherwise it must
+  // be wiped out (zeroed out)
+  it("(admin) Tries to deposit into the bankrupt bank - should succeed ", async () => {
+    const user = groupAdmin;
+    const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
+    const amount = new BN(2 * 10 ** ecosystem.lstAlphaDecimals);
+
+    const tx = new Transaction();
+    tx.add(
+      await depositIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: banks[1],
+        tokenAccount: user.lstAlphaAccount,
+        amount,
+        depositUpToLimit: false,
+      })
+    );
+
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+  });
+
+  // Note: There's no reason for user 0 to do this, they're already bankrupt so there's no risk of
+  // further liquidation to them. But, perhaps they're feeling charitable.
+  it("(user 0) Tries to repay to bankrupt bank - should succeed ", async () => {
+    const user = users[0];
+    const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
+    const amount = new BN(2 * 10 ** ecosystem.lstAlphaDecimals);
+
+    const tx = new Transaction();
+    tx.add(
+      await repayIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: banks[1],
+        tokenAccount: user.lstAlphaAccount,
+        amount,
+        remaining: [],
+        repayAll: false,
+      })
+    );
+
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+  });
+
   it("(admin) Bankrupts user 0 - happy path", async () => {
     const admin = groupAdmin;
     const user = users[0];
     // Note: this is the non-bankrupt depositor into banks[1] that will be haircut.
     const adminAccount = admin.accounts.get(USER_ACCOUNT_THROWAWAY);
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
+
+    const user0AccBefore = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    const borrowIndex = user0AccBefore.lendingAccount.balances.findIndex(
+      (balance) => balance.bankPk.equals(banks[1])
+    );
+    const balanceBefore = user0AccBefore.lendingAccount.balances[borrowIndex];
+    const bankAccBefore = await bankrunProgram.account.bank.fetch(banks[1]);
 
     const tx = new Transaction();
     tx.add(
@@ -528,7 +608,8 @@ describe("Bank bankruptcy tests", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(admin.wallet);
-    await banksClient.processTransaction(tx);
+    let result = await banksClient.tryProcessTransaction(tx);
+    dumpBankrunLogs(result);
 
     const pulseTx = new Transaction();
     pulseTx.add(
@@ -566,6 +647,7 @@ describe("Bank bankruptcy tests", () => {
       console.log(
         `  asset: ${bankValues.asset}, liab: ${bankValues.liability}`
       );
+      console.log(`  diff: ${bankValues.liability - bankValues.asset}`);
       console.log(
         "asset shares: " +
           wrappedI80F48toBigNumber(bankAcc.totalAssetShares).toNumber()
@@ -582,7 +664,6 @@ describe("Bank bankruptcy tests", () => {
         "liab share value: " +
           wrappedI80F48toBigNumber(bankAcc.liabilityShareValue).toNumber()
       );
-      console.log(`  diff: ${bankValues.liability - bankValues.asset}`);
 
       console.log("good bank (0): " + banks[0]);
       console.log("bankrupt bank (1) : " + banks[1]);
@@ -643,6 +724,7 @@ describe("Bank bankruptcy tests", () => {
           console.log(" [" + i + "] " + price);
         }
       }
+      console.log("");
     }
 
     const cA1 = groupAdminAcc.healthCache;
@@ -679,8 +761,33 @@ describe("Bank bankruptcy tests", () => {
           console.log(" [" + i + "] " + price);
         }
       }
+      console.log("");
     }
-  });
 
-  // TODO try borrow again should work
+    // The bank is wiped out, its collateral is worthless
+    assertI80F48Equal(bankAcc.assetShareValue, 0);
+
+    // The user's bad debt is cleared
+    const balanceAfter = user0Acc.lendingAccount.balances[borrowIndex];
+    const debtBefore = wrappedI80F48toBigNumber(
+      balanceBefore.liabilityShares
+    ).toNumber();
+    assert.isAbove(debtBefore, 0);
+    // ??? A few shares are left over, is this a rounding issue?
+    assertI80F48Approx(balanceAfter.liabilityShares, 0, 100);
+
+    // The user eating the socialized loss takes quite a haircut: the entire value of their deposit
+    assert.isAbove(groupAdminAssets, assetValue1.toNumber());
+
+    // The bank's debt was cleared too
+    const bankDebtBefore = wrappedI80F48toBigNumber(
+      bankAccBefore.totalLiabilityShares
+    ).toNumber();
+    assertI80F48Approx(
+      bankAcc.totalLiabilityShares,
+      bankDebtBefore - debtBefore,
+      100
+    );
+    assert.deepEqual(bankAcc.config.operationalState, { paused: {} });
+  });
 });

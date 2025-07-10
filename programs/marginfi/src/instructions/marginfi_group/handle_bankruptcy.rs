@@ -86,7 +86,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 
     let lending_account_balance = lending_account_balance.unwrap();
 
-    let bad_debt = bank.get_liability_amount(lending_account_balance.liability_shares.into())?;
+    let bad_debt: I80F48 =
+        bank.get_liability_amount(lending_account_balance.liability_shares.into())?;
 
     check!(
         bad_debt > ZERO_AMOUNT_THRESHOLD,
@@ -121,7 +122,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         .ok_or_else(math_error!())?;
     debug!(
         "covered_by_insurance_rounded_up: {}; socialized loss {}",
-        covered_by_insurance_rounded_up, socialized_loss
+        covered_by_insurance_rounded_up,
+        socialized_loss.to_num::<f64>()
     );
 
     let insurance_coverage_deposit_pre_fee = maybe_bank_mint

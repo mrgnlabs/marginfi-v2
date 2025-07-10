@@ -607,6 +607,9 @@ impl Bank {
     }
 
     pub fn get_asset_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
+        if self.asset_share_value == I80F48::ZERO.into() {
+            return Ok(I80F48::ZERO);
+        }
         Ok(value
             .checked_div(self.asset_share_value.into())
             .ok_or_else(math_error!())?)
@@ -1036,22 +1039,33 @@ impl Bank {
         Ok(())
     }
 
-    /// Socialize a loss `loss_amount` among depositors,
-    /// the `total_deposit_shares` stays the same, but total value of deposits is
-    /// reduced by `loss_amount`;
+    /// Socialize a loss of `loss_amount` among depositors, the `total_deposit_shares` stays the
+    /// same, but total value of deposits is reduced by `loss_amount`;
+    ///
+    /// In cases where assets < liabilities, the asset share value will be set to zero, but cannot
+    /// go negative. Effectively, depositors forfeit their entire deposit AND all earned interest in
+    /// this case.
     pub fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult {
         let total_asset_shares: I80F48 = self.total_asset_shares.into();
         let old_asset_share_value: I80F48 = self.asset_share_value.into();
 
-        let new_share_value = total_asset_shares
+        // Compute total "old" value of shares
+        let total_value = total_asset_shares
             .checked_mul(old_asset_share_value)
-            .ok_or_else(math_error!())?
-            .checked_sub(loss_amount)
-            .ok_or_else(math_error!())?
-            .checked_div(total_asset_shares)
             .ok_or_else(math_error!())?;
 
-        self.asset_share_value = new_share_value.into();
+        // Subtract loss, clamping at zero (i.e. assets < liabilities, the bank is wiped out)
+        if total_value < loss_amount {
+            self.asset_share_value = I80F48::ZERO.into();
+            // This state is irrecoverable, the bank is dead.
+            self.config.operational_state = BankOperationalState::Paused; // TODO add a state for this condition
+        } else {
+            // otherwise subtract then redistribute
+            let new_share_value = (total_value - loss_amount)
+                .checked_div(total_asset_shares)
+                .ok_or_else(math_error!())?;
+            self.asset_share_value = new_share_value.into();
+        }
 
         Ok(())
     }
