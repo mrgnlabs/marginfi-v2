@@ -676,3 +676,43 @@ export const accrueInterest = (
     .instruction();
   return ix;
 };
+
+export type HandleBankruptcyArgs = {
+  signer: PublicKey;
+  bank: PublicKey;
+  marginfiAccount: PublicKey;
+  remaining: PublicKey[];
+};
+
+/**
+ * Permissionless, handle bank bankruptcy and settle bad debt using insurance vault. Signer must be
+ * group admin unless the `PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG` is set on the bank.
+ * @param program
+ * @param args
+ * @returns
+ */
+export const handleBankruptcy = (
+  program: Program<Marginfi>,
+  args: HandleBankruptcyArgs
+) => {
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
+    return { pubkey, isSigner: false, isWritable: false };
+  });
+
+  const ix = program.methods
+    .lendingPoolHandleBankruptcy()
+    .accounts({
+      // group: // implied from bank
+      signer: args.signer,
+      bank: args.bank,
+      marginfiAccount: args.marginfiAccount,
+      // liquidityVault: // implied from seed
+      // insuranceVault: // implied from seed
+      // insuranceVaultAuthority: // implied from seed
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+
+  return ix;
+};

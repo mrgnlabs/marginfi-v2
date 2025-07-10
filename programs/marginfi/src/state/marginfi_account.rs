@@ -1349,9 +1349,8 @@ impl<'a> BankAccountWrapper<'a> {
             matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit),
         )?;
 
-        if !matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit)
-        {
-        bank.check_utilization_ratio()?;
+        if !matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit) {
+            bank.check_utilization_ratio()?;
         }
 
         Ok(())

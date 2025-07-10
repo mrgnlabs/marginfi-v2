@@ -15,14 +15,25 @@ import {
   users,
   verbose,
 } from "./rootHooks";
-import { accrueInterest, configureBank } from "./utils/group-instructions";
+import {
+  accrueInterest,
+  configureBank,
+  handleBankruptcy,
+} from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { assert } from "chai";
-import { emptyBankConfigOptRaw, ORACLE_CONF_INTERVAL } from "./utils/types";
+import {
+  emptyBankConfigOptRaw,
+  HEALTH_CACHE_ENGINE_OK,
+  HEALTH_CACHE_HEALTHY,
+  HEALTH_CACHE_ORACLE_OK,
+  ORACLE_CONF_INTERVAL,
+} from "./utils/types";
 import {
   borrowIx,
   composeRemainingAccounts,
   depositIx,
+  healthPulse,
   liquidateIx,
   withdrawIx,
 } from "./utils/user-instructions";
@@ -34,6 +45,7 @@ import { Clock } from "solana-bankrun";
 import { genericMultiBankTestSetup } from "./genericSetups";
 import { assertBankrunTxFailed } from "./utils/genericTests";
 import { initOrUpdatePriceUpdateV2 } from "./utils/pyth-pull-mocks";
+import { dumpAccBalances, bytesToF64, dumpBankrunLogs } from "./utils/tools";
 
 const USER_ACCOUNT_THROWAWAY = "throwaway_account1";
 const ONE_YEAR_IN_SECONDS = 2 * 365 * 24 * 60 * 60;
@@ -147,7 +159,7 @@ describe("Bank bankruptcy tests", () => {
 
     // Crank oracles so that the prices are not stale
     const provider = AnchorProvider.local();
-      const wallet = provider.wallet as Wallet;
+    const wallet = provider.wallet as Wallet;
     let priceAlpha = ecosystem.lstAlphaPrice * 10 ** ecosystem.lstAlphaDecimals;
     let confAlpha = priceAlpha * ORACLE_CONF_INTERVAL;
     await initOrUpdatePriceUpdateV2(
@@ -183,19 +195,20 @@ describe("Bank bankruptcy tests", () => {
 
     const bankAcc = await bankrunProgram.account.bank.fetch(banks[1]);
     let bankValues = {
-      asset: wrappedI80F48toBigNumber(bankAcc.assetShareValue).toNumber(),
-      liability: wrappedI80F48toBigNumber(
-        bankAcc.liabilityShareValue
-      ).toNumber(),
+      asset:
+        wrappedI80F48toBigNumber(bankAcc.assetShareValue).toNumber() *
+        wrappedI80F48toBigNumber(bankAcc.totalAssetShares).toNumber(),
+      liability:
+        wrappedI80F48toBigNumber(bankAcc.liabilityShareValue).toNumber() *
+        wrappedI80F48toBigNumber(bankAcc.totalLiabilityShares).toNumber(),
     };
 
     if (verbose) {
-      console.log("Value per share after one year:");
+      console.log("values after one year (in token):");
       console.log(
         `  asset: ${bankValues.asset}, liab: ${bankValues.liability}`
       );
-      console.log("total assets: " + wrappedI80F48toBigNumber(bankAcc.totalAssetShares).toNumber());
-      console.log("total liabs: " + wrappedI80F48toBigNumber(bankAcc.totalLiabilityShares).toNumber());
+      console.log(`  diff: ${bankValues.liability - bankValues.asset}`);
     }
 
     assert.isAbove(bankValues.liability, bankValues.asset);
@@ -256,7 +269,33 @@ describe("Bank bankruptcy tests", () => {
     assertBankrunTxFailed(result, "0x178a");
   });
 
-  it("(admin) Liquidates user 0 and brings bank 1 bank to life - happy path", async () => {
+  it("(admin) Bankrupts user 0 when they still have assets - should fail", async () => {
+    const admin = groupAdmin;
+    const user = users[0];
+    const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
+
+    const tx = new Transaction();
+    tx.add(
+      await handleBankruptcy(admin.mrgnBankrunProgram, {
+        signer: admin.wallet.publicKey,
+        marginfiAccount: userAccount,
+        bank: banks[1],
+        remaining: composeRemainingAccounts([
+          [banks[0], oracles.pythPullLst.publicKey],
+          [banks[1], oracles.pythPullLst.publicKey],
+        ]),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(admin.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
+    // AccountNotBankrupt (until we liquidate them, the user has assets)
+    assertBankrunTxFailed(result, 6013);
+  });
+
+  let groupAdminAssets: number;
+
+  it("(admin) Liquidates user 0 until he is bankrupt - happy path", async () => {
     const liquidator = groupAdmin;
     const liquidatorMarginfiAccount = liquidator.accounts.get(
       USER_ACCOUNT_THROWAWAY
@@ -265,7 +304,7 @@ describe("Bank bankruptcy tests", () => {
     const liquidateeMarginfiAccount = liquidatee.accounts.get(
       USER_ACCOUNT_THROWAWAY
     );
-    const liquidateAmount = new BN(85 * 10 ** ecosystem.lstAlphaDecimals);
+    const liquidateAmount = new BN(100 * 10 ** ecosystem.lstAlphaDecimals);
 
     const remainingAccounts: PublicKey[][] = [];
     remainingAccounts.push([banks[0], oracles.pythPullLst.publicKey]);
@@ -292,9 +331,156 @@ describe("Bank bankruptcy tests", () => {
     liquidateTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     liquidateTx.sign(liquidator.wallet);
     await banksClient.processTransaction(liquidateTx);
+
+    const tx = new Transaction();
+    tx.add(
+      await healthPulse(liquidatee.mrgnProgram, {
+        marginfiAccount: liquidateeMarginfiAccount,
+        remaining: composeRemainingAccounts([
+          [banks[0], oracles.pythPullLst.publicKey],
+          [banks[1], oracles.pythPullLst.publicKey],
+        ]),
+      }),
+      await healthPulse(groupAdmin.mrgnProgram, {
+        marginfiAccount: liquidatorMarginfiAccount,
+        remaining: composeRemainingAccounts([
+          [banks[0], oracles.pythPullLst.publicKey],
+          [banks[1], oracles.pythPullLst.publicKey],
+        ]),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(liquidatee.wallet);
+    await banksClient.processTransaction(tx);
+
+    const bankAcc = await bankrunProgram.account.bank.fetch(banks[1]);
+    let bankValues = {
+      asset:
+        wrappedI80F48toBigNumber(bankAcc.assetShareValue).toNumber() *
+        wrappedI80F48toBigNumber(bankAcc.totalAssetShares).toNumber(),
+      liability:
+        wrappedI80F48toBigNumber(bankAcc.liabilityShareValue).toNumber() *
+        wrappedI80F48toBigNumber(bankAcc.totalLiabilityShares).toNumber(),
+    };
+
+    if (verbose) {
+      console.log("values after one liquidation (in token):");
+      console.log(
+        `  asset: ${bankValues.asset}, liab: ${bankValues.liability}`
+      );
+      console.log(`  diff: ${bankValues.liability - bankValues.asset}`);
+
+      console.log("good bank (0): " + banks[0]);
+      console.log("bankrupt bank (1) : " + banks[1]);
+    }
+    const groupAdminAcc =
+      await groupAdmin.mrgnBankrunProgram.account.marginfiAccount.fetch(
+        liquidatorMarginfiAccount
+      );
+    const user0Acc =
+      await groupAdmin.mrgnBankrunProgram.account.marginfiAccount.fetch(
+        liquidateeMarginfiAccount
+      );
+
+    const bankValueMap = {};
+    for (let pk of banks) {
+      const acc = await bankrunProgram.account.bank.fetch(pk);
+      bankValueMap[pk.toString()] = {
+        asset: wrappedI80F48toBigNumber(acc.assetShareValue).toNumber(),
+        liability: wrappedI80F48toBigNumber(acc.liabilityShareValue).toNumber(),
+      };
+    }
+
+    dumpAccBalances(groupAdminAcc, bankValueMap);
+    dumpAccBalances(user0Acc, bankValueMap);
+
+    // TODO replace with log health cache function that's somewhere in another branch
+    const cA0 = user0Acc.healthCache;
+    const assetValue = wrappedI80F48toBigNumber(cA0.assetValue);
+    const liabValue = wrappedI80F48toBigNumber(cA0.liabilityValue);
+    const aValMaint = wrappedI80F48toBigNumber(cA0.assetValueMaint);
+    const lValMaint = wrappedI80F48toBigNumber(cA0.liabilityValueMaint);
+    const aValEquity = wrappedI80F48toBigNumber(cA0.assetValueEquity);
+    const lValEquity = wrappedI80F48toBigNumber(cA0.liabilityValueEquity);
+    const flags = cA0.flags;
+    if (verbose) {
+      console.log("---user health state---");
+      const isHealthy = (flags & HEALTH_CACHE_HEALTHY) !== 0;
+      const engineOk = (flags & HEALTH_CACHE_ENGINE_OK) !== 0;
+      const oracleOk = (flags & HEALTH_CACHE_ORACLE_OK) !== 0;
+      console.log("healthy: " + isHealthy);
+      console.log("engine ok: " + engineOk);
+      console.log("oracle ok: " + oracleOk);
+      console.log("mrgn error: " + cA0.mrgnErr);
+      console.log("internal error: " + cA0.internalErr);
+      console.log("index of err:   " + cA0.errIndex);
+      console.log("bankrpt error: " + cA0.internalBankruptcyErr);
+      console.log("asset value: " + assetValue.toString());
+      console.log("liab value: " + liabValue.toString());
+      console.log("asset value (maint): " + aValMaint.toString());
+      console.log("liab value (maint): " + lValMaint.toString());
+      console.log("asset value (equity): " + aValEquity.toString());
+      console.log("liab value equity): " + lValEquity.toString());
+      console.log("prices: ");
+      for (let i = 0; i < cA0.prices.length; i++) {
+        const price = bytesToF64(cA0.prices[i]);
+        if (price != 0) {
+          console.log(" [" + i + "] " + price);
+        }
+      }
+    }
+
+    const cA1 = groupAdminAcc.healthCache;
+
+    const assetValue1 = wrappedI80F48toBigNumber(cA1.assetValue);
+    const liabValue1 = wrappedI80F48toBigNumber(cA1.liabilityValue);
+    const aValMaint1 = wrappedI80F48toBigNumber(cA1.assetValueMaint);
+    const lValMaint1 = wrappedI80F48toBigNumber(cA1.liabilityValueMaint);
+    const aValEquity1 = wrappedI80F48toBigNumber(cA1.assetValueEquity);
+    const lValEquity1 = wrappedI80F48toBigNumber(cA1.liabilityValueEquity);
+    const flags1 = cA1.flags;
+    if (verbose) {
+      console.log("---admin health state---");
+      const isHealthy = (flags1 & HEALTH_CACHE_HEALTHY) !== 0;
+      const engineOk = (flags1 & HEALTH_CACHE_ENGINE_OK) !== 0;
+      const oracleOk = (flags1 & HEALTH_CACHE_ORACLE_OK) !== 0;
+      console.log("healthy: " + isHealthy);
+      console.log("engine ok: " + engineOk);
+      console.log("oracle ok: " + oracleOk);
+      console.log("mrgn error: " + cA1.mrgnErr);
+      console.log("internal error: " + cA1.internalErr);
+      console.log("index of err:   " + cA1.errIndex);
+      console.log("bankrpt error: " + cA1.internalBankruptcyErr);
+      console.log("asset value: " + assetValue1.toString());
+      console.log("liab value: " + liabValue1.toString());
+      console.log("asset value (maint): " + aValMaint1.toString());
+      console.log("liab value (maint): " + lValMaint1.toString());
+      console.log("asset value (equity): " + aValEquity1.toString());
+      console.log("liab value equity): " + lValEquity1.toString());
+      console.log("prices: ");
+      for (let i = 0; i < cA1.prices.length; i++) {
+        const price = bytesToF64(cA1.prices[i]);
+        if (price != 0) {
+          console.log(" [" + i + "] " + price);
+        }
+      }
+    }
+
+    // Record the asset value the program thinks that the other depositor in the now-bankrupt bank
+    // has, we'll note that it declines post bankruptcy as assets are marked down.
+    groupAdminAssets = assetValue1.toNumber();
+
+    // The bankrupt user is now totally broke
+    assert.equal(assetValue.toNumber(), 0);
+    // He still has debts
+    assert.isAbove(liabValue.toNumber(), 0);
+    // The bank is still underwater
+    assert.isAbove(bankValues.liability, bankValues.asset);
+    // The bank has assets to be marked down
+    assert.isAbove(bankValues.asset, 0);
   });
 
-    it("(admin) Retries to withdraw some B (bank 1 - is no longer bankrupt) - happy path", async () => {
+  it("(admin) Retries to withdraw some B, but bank 1 is still bankrupt - should fail", async () => {
     const user = groupAdmin;
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
     const amount = new BN(0.01 * 10 ** ecosystem.lstAlphaDecimals);
@@ -317,8 +503,184 @@ describe("Bank bankruptcy tests", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     let result = await banksClient.tryProcessTransaction(tx);
-    console.log("LOGS: ", result.meta.logMessages);
     // IllegalUtilizationRatio
-    assertBankrunTxFailed(result, "0x178b");
+    assertBankrunTxFailed(result, 6026);
   });
+
+  it("(admin) Bankrupts user 0 - happy path", async () => {
+    const admin = groupAdmin;
+    const user = users[0];
+    // Note: this is the non-bankrupt depositor into banks[1] that will be haircut.
+    const adminAccount = admin.accounts.get(USER_ACCOUNT_THROWAWAY);
+    const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
+
+    const tx = new Transaction();
+    tx.add(
+      await handleBankruptcy(admin.mrgnBankrunProgram, {
+        signer: admin.wallet.publicKey,
+        marginfiAccount: userAccount,
+        bank: banks[1],
+        remaining: composeRemainingAccounts([
+          [banks[0], oracles.pythPullLst.publicKey],
+          [banks[1], oracles.pythPullLst.publicKey],
+        ]),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(admin.wallet);
+    await banksClient.processTransaction(tx);
+
+    const pulseTx = new Transaction();
+    pulseTx.add(
+      await healthPulse(user.mrgnProgram, {
+        marginfiAccount: userAccount,
+        remaining: composeRemainingAccounts([
+          [banks[0], oracles.pythPullLst.publicKey],
+          [banks[1], oracles.pythPullLst.publicKey],
+        ]),
+      }),
+      await healthPulse(groupAdmin.mrgnProgram, {
+        marginfiAccount: adminAccount,
+        remaining: composeRemainingAccounts([
+          [banks[0], oracles.pythPullLst.publicKey],
+          [banks[1], oracles.pythPullLst.publicKey],
+        ]),
+      })
+    );
+    pulseTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    pulseTx.sign(user.wallet);
+    await banksClient.processTransaction(pulseTx);
+
+    const bankAcc = await bankrunProgram.account.bank.fetch(banks[1]);
+    let bankValues = {
+      asset:
+        wrappedI80F48toBigNumber(bankAcc.assetShareValue).toNumber() *
+        wrappedI80F48toBigNumber(bankAcc.totalAssetShares).toNumber(),
+      liability:
+        wrappedI80F48toBigNumber(bankAcc.liabilityShareValue).toNumber() *
+        wrappedI80F48toBigNumber(bankAcc.totalLiabilityShares).toNumber(),
+    };
+
+    if (verbose) {
+      console.log("values after bankruptcy (in token):");
+      console.log(
+        `  asset: ${bankValues.asset}, liab: ${bankValues.liability}`
+      );
+      console.log(
+        "asset shares: " +
+          wrappedI80F48toBigNumber(bankAcc.totalAssetShares).toNumber()
+      );
+      console.log(
+        "asset share value: " +
+          wrappedI80F48toBigNumber(bankAcc.assetShareValue).toNumber()
+      );
+      console.log(
+        "liab shares: " +
+          wrappedI80F48toBigNumber(bankAcc.totalLiabilityShares).toNumber()
+      );
+      console.log(
+        "liab share value: " +
+          wrappedI80F48toBigNumber(bankAcc.liabilityShareValue).toNumber()
+      );
+      console.log(`  diff: ${bankValues.liability - bankValues.asset}`);
+
+      console.log("good bank (0): " + banks[0]);
+      console.log("bankrupt bank (1) : " + banks[1]);
+    }
+
+    const groupAdminAcc =
+      await groupAdmin.mrgnBankrunProgram.account.marginfiAccount.fetch(
+        adminAccount
+      );
+    const user0Acc =
+      await groupAdmin.mrgnBankrunProgram.account.marginfiAccount.fetch(
+        userAccount
+      );
+
+    const bankValueMap = {};
+    for (let pk of banks) {
+      const acc = await bankrunProgram.account.bank.fetch(pk);
+      bankValueMap[pk.toString()] = {
+        asset: wrappedI80F48toBigNumber(acc.assetShareValue).toNumber(),
+        liability: wrappedI80F48toBigNumber(acc.liabilityShareValue).toNumber(),
+      };
+    }
+
+    dumpAccBalances(groupAdminAcc, bankValueMap);
+    dumpAccBalances(user0Acc, bankValueMap);
+
+    // TODO replace with log health cache function that's somewhere in another branch
+    const cA0 = user0Acc.healthCache;
+    const assetValue = wrappedI80F48toBigNumber(cA0.assetValue);
+    const liabValue = wrappedI80F48toBigNumber(cA0.liabilityValue);
+    const aValMaint = wrappedI80F48toBigNumber(cA0.assetValueMaint);
+    const lValMaint = wrappedI80F48toBigNumber(cA0.liabilityValueMaint);
+    const aValEquity = wrappedI80F48toBigNumber(cA0.assetValueEquity);
+    const lValEquity = wrappedI80F48toBigNumber(cA0.liabilityValueEquity);
+    const flags = cA0.flags;
+    if (verbose) {
+      console.log("---user health state---");
+      const isHealthy = (flags & HEALTH_CACHE_HEALTHY) !== 0;
+      const engineOk = (flags & HEALTH_CACHE_ENGINE_OK) !== 0;
+      const oracleOk = (flags & HEALTH_CACHE_ORACLE_OK) !== 0;
+      console.log("healthy: " + isHealthy);
+      console.log("engine ok: " + engineOk);
+      console.log("oracle ok: " + oracleOk);
+      console.log("mrgn error: " + cA0.mrgnErr);
+      console.log("internal error: " + cA0.internalErr);
+      console.log("index of err:   " + cA0.errIndex);
+      console.log("bankrpt error: " + cA0.internalBankruptcyErr);
+      console.log("asset value: " + assetValue.toString());
+      console.log("liab value: " + liabValue.toString());
+      console.log("asset value (maint): " + aValMaint.toString());
+      console.log("liab value (maint): " + lValMaint.toString());
+      console.log("asset value (equity): " + aValEquity.toString());
+      console.log("liab value equity): " + lValEquity.toString());
+      console.log("prices: ");
+      for (let i = 0; i < cA0.prices.length; i++) {
+        const price = bytesToF64(cA0.prices[i]);
+        if (price != 0) {
+          console.log(" [" + i + "] " + price);
+        }
+      }
+    }
+
+    const cA1 = groupAdminAcc.healthCache;
+
+    const assetValue1 = wrappedI80F48toBigNumber(cA1.assetValue);
+    const liabValue1 = wrappedI80F48toBigNumber(cA1.liabilityValue);
+    const aValMaint1 = wrappedI80F48toBigNumber(cA1.assetValueMaint);
+    const lValMaint1 = wrappedI80F48toBigNumber(cA1.liabilityValueMaint);
+    const aValEquity1 = wrappedI80F48toBigNumber(cA1.assetValueEquity);
+    const lValEquity1 = wrappedI80F48toBigNumber(cA1.liabilityValueEquity);
+    const flags1 = cA1.flags;
+    if (verbose) {
+      console.log("---admin health state---");
+      const isHealthy = (flags1 & HEALTH_CACHE_HEALTHY) !== 0;
+      const engineOk = (flags1 & HEALTH_CACHE_ENGINE_OK) !== 0;
+      const oracleOk = (flags1 & HEALTH_CACHE_ORACLE_OK) !== 0;
+      console.log("healthy: " + isHealthy);
+      console.log("engine ok: " + engineOk);
+      console.log("oracle ok: " + oracleOk);
+      console.log("mrgn error: " + cA1.mrgnErr);
+      console.log("internal error: " + cA1.internalErr);
+      console.log("index of err:   " + cA1.errIndex);
+      console.log("bankrpt error: " + cA1.internalBankruptcyErr);
+      console.log("asset value: " + assetValue1.toString());
+      console.log("liab value: " + liabValue1.toString());
+      console.log("asset value (maint): " + aValMaint1.toString());
+      console.log("liab value (maint): " + lValMaint1.toString());
+      console.log("asset value (equity): " + aValEquity1.toString());
+      console.log("liab value equity): " + lValEquity1.toString());
+      console.log("prices: ");
+      for (let i = 0; i < cA1.prices.length; i++) {
+        const price = bytesToF64(cA1.prices[i]);
+        if (price != 0) {
+          console.log(" [" + i + "] " + price);
+        }
+      }
+    }
+  });
+
+  // TODO try borrow again should work
 });

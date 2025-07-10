@@ -1,7 +1,11 @@
 import { MarginfiAccountRaw } from "@mrgnlabs/marginfi-client-v2";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { Keypair, Transaction } from "@solana/web3.js";
-import { BanksTransactionMeta, BanksTransactionResultWithMeta, ProgramTestContext } from "solana-bankrun";
+import {
+  BanksTransactionMeta,
+  BanksTransactionResultWithMeta,
+  ProgramTestContext,
+} from "solana-bankrun";
 import { getBankrunBlockhash } from "./spl-staking-utils";
 
 /**
@@ -35,13 +39,14 @@ export const processBankrunTransaction = async (
     // TODO throw on error?
     // If we want to dump logs on fail, simulate first
     if (dumpLogOnFail) {
-      const simulationResult = await bankrunContext.banksClient.simulateTransaction(tx);
+      const simulationResult =
+        await bankrunContext.banksClient.simulateTransaction(tx);
       if (simulationResult.result) {
-          dumpBankrunLogs(simulationResult);
-        }
+        dumpBankrunLogs(simulationResult);
       }
-      return await bankrunContext.banksClient.processTransaction(tx);
     }
+    return await bankrunContext.banksClient.processTransaction(tx);
+  }
 };
 
 /**
@@ -153,40 +158,46 @@ export function bytesToF64(bytes: Uint8Array | number[]): number {
  * client version. feel free to ts-ignore it.
  */
 export function dumpAccBalances(
-  account: MarginfiAccountRaw 
+  account: MarginfiAccountRaw,
+  bankValueMap = {}
 ) {
-  let balances = account.lendingAccount.balances;
-  let activeBalances = [];
-  for (let i = 0; i < balances.length; i++) {
-    if (balances[i].active == 0) {
+  const balances = account.lendingAccount.balances;
+  const activeBalances = [];
+
+  function fmt(num) {
+    const s = parseFloat(num).toFixed(4);
+    return s === "0.0000" ? "-" : s;
+  }
+
+  for (let b of balances) {
+    if (b.active == 0) {
       activeBalances.push({
         "Bank PK": "empty",
         Tag: "-",
-        "Liab Shares ": "-",
+        "Liab Shares": "-",
+        "Liab Value": "-",
         "Asset Shares": "-",
-        // Emissions: "-",
+        "Asset Value": "-",
       });
       continue;
     }
 
-    activeBalances.push({
-      "Bank PK": balances[i].bankPk.toString(),
-      // Tag: balances[i].bankAssetTag,
-      "Liab Shares ": formatNumber(
-        wrappedI80F48toBigNumber(balances[i].liabilityShares)
-      ),
-      "Asset Shares": formatNumber(
-        wrappedI80F48toBigNumber(balances[i].assetShares)
-      ),
-      // Emissions: formatNumber(
-      //   wrappedI80F48toBigNumber(balances[i].emissionsOutstanding)
-      // ),
-    });
+    const pk = b.bankPk.toString();
+    const liabS = wrappedI80F48toBigNumber(b.liabilityShares).toNumber();
+    const assetS = wrappedI80F48toBigNumber(b.assetShares).toNumber();
 
-    function formatNumber(num) {
-      const number = parseFloat(num).toFixed(4);
-      return number === "0.0000" ? "-" : number;
-    }
+    // lookup per-share values; default to zero if omitted
+    const { liability: perLiab = 0, asset: perAsset = 0 } =
+      bankValueMap[pk] || {};
+
+    activeBalances.push({
+      "Bank PK": pk,
+      "Liab Shares": fmt(liabS),
+      "Liab Value": fmt(liabS * perLiab),
+      "Asset Shares": fmt(assetS),
+      "Asset Value": fmt(assetS * perAsset),
+    });
   }
+
   console.table(activeBalances);
 }
