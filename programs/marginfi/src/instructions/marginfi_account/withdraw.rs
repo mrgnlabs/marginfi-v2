@@ -1,6 +1,6 @@
 use crate::{
     bank_signer, check,
-    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, PROGRAM_VERSION},
+    constants::PROGRAM_VERSION,
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
     prelude::*,
     state::{
@@ -16,8 +16,9 @@ use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{
-    Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+use marginfi_type_crate::{
+    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    types::{Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
 };
 
 /// 1. Accrue interest

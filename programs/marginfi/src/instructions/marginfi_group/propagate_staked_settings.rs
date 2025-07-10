@@ -1,10 +1,12 @@
 // Permissionless ix to propagate a group's staked collateral settings to any bank in that group.
 // Also perform pyth pull oracle migration for 0.1.4
-use crate::constants::{ASSET_TAG_STAKED, PYTH_PUSH_MIGRATED, PYTH_SPONSORED_SHARD_ID};
-use crate::state::bank::BankConfigImpl;
+use crate::state::bank_config::BankConfigImpl;
 use crate::state::price::PythPushOraclePriceFeed;
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{Bank, MarginfiGroup, StakedSettings};
+use marginfi_type_crate::{
+    constants::{ASSET_TAG_STAKED, PYTH_PUSH_MIGRATED, PYTH_SPONSORED_SHARD_ID},
+    types::{Bank, MarginfiGroup, StakedSettings},
+};
 
 pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> Result<()> {
     let settings = ctx.accounts.staked_settings.load()?;

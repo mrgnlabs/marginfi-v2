@@ -1,8 +1,8 @@
 use anchor_lang::solana_program::{instruction::Instruction, system_program};
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixtures::prelude::*;
-use marginfi::constants::FEE_STATE_SEED;
 use marginfi::state::marginfi_group::MarginfiGroupImpl;
+use marginfi_type_crate::constants::FEE_STATE_SEED;
 use marginfi_type_crate::types::MarginfiGroup;
 use pretty_assertions::assert_eq;
 use solana_program_test::*;

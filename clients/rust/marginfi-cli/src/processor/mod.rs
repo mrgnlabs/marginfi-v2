@@ -23,12 +23,9 @@ use {
     fixed::types::I80F48,
     log::info,
     marginfi::{
-        constants::{
-            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, PYTH_SPONSORED_SHARD_ID,
-            ZERO_AMOUNT_THRESHOLD,
-        },
         state::{
-            bank::{BankConfigImpl, BankImpl, BankVaultType},
+            bank::{BankImpl, BankVaultType},
+            bank_config::BankConfigImpl,
             marginfi_account::BankAccountWrapper,
             price::{
                 parse_swb_ignore_alignment, LitePullFeedAccountData, OraclePriceFeedAdapter,
@@ -37,9 +34,15 @@ use {
         },
         utils::NumTraitsWithTolerance,
     },
-    marginfi_type_crate::types::{
-        BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
-        InterestRateConfig, MarginfiAccount, MarginfiGroup, OracleSetup, WrappedI80F48,
+    marginfi_type_crate::{
+        constants::{
+            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, PYTH_SPONSORED_SHARD_ID,
+            ZERO_AMOUNT_THRESHOLD,
+        },
+        types::{
+            BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
+            InterestRateConfig, MarginfiAccount, MarginfiGroup, OracleSetup, WrappedI80F48,
+        },
     },
     pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{

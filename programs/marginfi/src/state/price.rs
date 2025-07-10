@@ -1,20 +1,21 @@
-use crate::{
-    check, check_eq,
-    constants::{
-        CONF_INTERVAL_MULTIPLE, EXP_10_I80F48, MAX_CONF_INTERVAL, MIN_PYTH_PUSH_VERIFICATION_LEVEL,
-        NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID, STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID,
-        U32_MAX, U32_MAX_DIV_10,
-    },
-    debug, live, math_error,
-    prelude::*,
-    state::bank::BankConfigImpl,
+use crate::constants::{
+    MIN_PYTH_PUSH_VERIFICATION_LEVEL, NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID,
+    SWITCHBOARD_PULL_ID,
 };
+use crate::state::bank_config::BankConfigImpl;
+use crate::{check, check_eq, debug, live, math_error, prelude::*};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
 use anchor_spl::token::Mint;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{BankConfig, OracleSetup};
+use marginfi_type_crate::{
+    constants::{
+        CONF_INTERVAL_MULTIPLE, EXP_10_I80F48, MAX_CONF_INTERVAL, STD_DEV_MULTIPLE, U32_MAX,
+        U32_MAX_DIV_10,
+    },
+    types::{BankConfig, OracleSetup},
+};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use std::{cell::Ref, cmp::min};

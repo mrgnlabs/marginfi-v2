@@ -6,16 +6,15 @@ use {
     log::error,
     marginfi::{
         bank_authority_seed, bank_seed,
+        state::{bank::BankVaultType, bank_config::BankConfigImpl, price::PythPushOraclePriceFeed},
+    },
+    marginfi_type_crate::{
         constants::{
             EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED,
             PYTH_SPONSORED_SHARD_ID,
         },
-        state::{
-            bank::{BankConfigImpl, BankVaultType},
-            price::PythPushOraclePriceFeed,
-        },
+        types::{Bank, BankConfig, MarginfiAccount, OracleSetup},
     },
-    marginfi_type_crate::types::{Bank, BankConfig, MarginfiAccount, OracleSetup},
     solana_client::rpc_client::RpcClient,
     solana_sdk::{
         instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,

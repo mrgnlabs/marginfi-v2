@@ -1,23 +1,24 @@
 use super::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::{
-    check, check_eq,
-    constants::{
-        ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
-        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48,
-        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
-    },
-    debug, math_error,
+    check, check_eq, debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
-    state::bank::{BankConfigImpl, BankImpl},
+    state::{bank::BankImpl, bank_config::BankConfigImpl},
     utils::NumTraitsWithTolerance,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{
-    reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache, LendingAccount,
-    MarginfiAccount, RiskTier, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
-    ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+use marginfi_type_crate::{
+    constants::{
+        ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
+        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48,
+        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
+    },
+    types::{
+        reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache,
+        LendingAccount, MarginfiAccount, RiskTier, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
+        ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+    },
 };
 use std::cmp::{max, min};
 

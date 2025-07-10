@@ -18,14 +18,13 @@ use arbitrary_helpers::{
 use bank_accounts::{get_bank_map, BankAccounts};
 use fixed_macro::types::I80F48;
 use marginfi::{
-    constants::FEE_STATE_SEED,
     instructions::LendingPoolConfigureBankOracleBumps, state::bank::BankVaultType,
 };
 use marginfi::{
     errors::MarginfiError,
     instructions::LendingPoolAddBankBumps,
 };
-use marginfi_type_crate::types::{Bank, BankConfigCompact, BankOperationalState, FeeState, InterestRateConfig, MarginfiAccount, MarginfiGroup, RiskTier};
+use marginfi_type_crate::{constants::FEE_STATE_SEED, types::{Bank, BankConfigCompact, BankOperationalState, FeeState, InterestRateConfig, MarginfiAccount, MarginfiGroup, RiskTier}};
 use metrics::{MetricAction, Metrics};
 use solana_program::system_program;
 use stubs::test_syscall_stubs;

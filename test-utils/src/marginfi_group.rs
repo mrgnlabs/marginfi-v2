@@ -7,11 +7,11 @@ use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use anyhow::Result;
 use bytemuck::bytes_of;
 use fixed::types::I80F48;
-use marginfi::constants::{
-    FEE_STATE_SEED, INIT_BANK_ORIGINATION_FEE_DEFAULT, PROTOCOL_FEE_FIXED_DEFAULT,
-    PROTOCOL_FEE_RATE_DEFAULT,
-};
+use marginfi::constants::INIT_BANK_ORIGINATION_FEE_DEFAULT;
 use marginfi::state::bank::BankVaultType;
+use marginfi_type_crate::constants::{
+    FEE_STATE_SEED, PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT,
+};
 use marginfi_type_crate::types::{
     BankConfig, BankConfigCompact, BankConfigOpt, EmodeEntry, FeeState, InterestRateConfigOpt,
     MarginfiGroup, OracleSetup, MAX_EMODE_ENTRIES,

@@ -1,8 +1,5 @@
 use crate::{
-    bank_authority_seed, bank_seed,
-    constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
-    state::bank::BankVaultType,
-    MarginfiError, MarginfiResult,
+    bank_authority_seed, bank_seed, state::bank::BankVaultType, MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -17,7 +14,10 @@ use anchor_spl::{
     token_interface::Mint,
 };
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, WrappedI80F48};
+use marginfi_type_crate::{
+    constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
+    types::{Bank, MarginfiAccount, WrappedI80F48},
+};
 
 pub fn find_bank_vault_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
     Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), &crate::ID)

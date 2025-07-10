@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{FeeState, MarginfiGroup};
-
-use crate::constants::FEE_STATE_SEED;
+use marginfi_type_crate::{
+    constants::FEE_STATE_SEED,
+    types::{FeeState, MarginfiGroup},
+};
 
 #[derive(Accounts)]
 pub struct PropagateFee<'info> {

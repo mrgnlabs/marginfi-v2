@@ -1,9 +1,11 @@
-use crate::constants::FEE_STATE_SEED;
 use crate::events::{GroupEventHeader, MarginfiGroupCreateEvent};
 use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::MarginfiResult;
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{FeeState, MarginfiGroup};
+use marginfi_type_crate::{
+    constants::FEE_STATE_SEED,
+    types::{FeeState, MarginfiGroup},
+};
 
 pub fn initialize_group(
     ctx: Context<MarginfiGroupInitialize>,

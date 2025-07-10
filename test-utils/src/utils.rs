@@ -3,6 +3,8 @@ use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::Discriminator;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::MAX_FEE_BASIS_POINTS;
 use marginfi::constants::SWITCHBOARD_PULL_ID;
+use marginfi_type_crate::constants::EMISSIONS_AUTH_SEED;
+use marginfi_type_crate::constants::EMISSIONS_TOKEN_ACCOUNT_SEED;
 use pyth_solana_receiver_sdk::price_update::FeedId;
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use pyth_solana_receiver_sdk::price_update::VerificationLevel;
@@ -316,7 +318,7 @@ pub fn clone_keypair(keypair: &Keypair) -> Keypair {
 pub fn get_emissions_authority_address(bank_pk: Pubkey, emissions_mint: Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[
-            marginfi::constants::EMISSIONS_AUTH_SEED.as_bytes(),
+            EMISSIONS_AUTH_SEED.as_bytes(),
             bank_pk.as_ref(),
             emissions_mint.as_ref(),
         ],
@@ -330,7 +332,7 @@ pub fn get_emissions_token_account_address(
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[
-            marginfi::constants::EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
+            EMISSIONS_TOKEN_ACCOUNT_SEED.as_bytes(),
             bank_pk.as_ref(),
             emissions_mint.as_ref(),
         ],

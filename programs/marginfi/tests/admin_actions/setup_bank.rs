@@ -3,19 +3,19 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_anchor_error, assert_custom_error, prelude::*};
 use marginfi::{
-    constants::{
-        CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
-    },
+    constants::INIT_BANK_ORIGINATION_FEE_DEFAULT,
     prelude::MarginfiError,
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_group::MarginfiGroupImpl,
     },
 };
-use marginfi_type_crate::types::{
-    Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, MarginfiGroup,
-    OracleSetup, EMODE_ON,
+use marginfi_type_crate::{
+    constants::{CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG},
+    types::{
+        Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt,
+        MarginfiGroup, OracleSetup, EMODE_ON,
+    },
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;

@@ -1,7 +1,9 @@
 // Runs once per program to init the global fee state.
-use crate::constants::FEE_STATE_SEED;
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{FeeState, WrappedI80F48};
+use marginfi_type_crate::{
+    constants::FEE_STATE_SEED,
+    types::{FeeState, WrappedI80F48},
+};
 
 #[allow(unused_variables)]
 pub fn initialize_fee_state(

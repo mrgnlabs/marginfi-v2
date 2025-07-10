@@ -4,7 +4,8 @@ use crate::{
     math_error,
     prelude::*,
     state::{
-        bank::{BankConfigImpl, BankImpl},
+        bank::BankImpl,
+        bank_config::BankConfigImpl,
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
     },
     utils::{self, validate_asset_tags},

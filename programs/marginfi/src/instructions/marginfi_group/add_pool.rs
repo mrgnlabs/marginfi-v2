@@ -1,21 +1,20 @@
 use crate::{
     check,
+    events::{GroupEventHeader, LendingPoolBankCreateEvent},
+    log_pool_info,
+    state::{bank::BankImpl, bank_config::BankConfigImpl, marginfi_group::MarginfiGroupImpl},
+    MarginfiError, MarginfiResult,
+};
+use anchor_lang::prelude::*;
+use anchor_spl::token_interface::*;
+use marginfi_type_crate::{
     constants::{
         ASSET_TAG_STAKED, FEE_STATE_SEED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED,
     },
-    events::{GroupEventHeader, LendingPoolBankCreateEvent},
-    log_pool_info,
-    state::{
-        bank::{BankConfigImpl, BankImpl},
-        marginfi_group::MarginfiGroupImpl,
-    },
-    MarginfiError, MarginfiResult,
+    types::{Bank, BankConfigCompact, FeeState, MarginfiGroup},
 };
-use anchor_lang::prelude::*;
-use anchor_spl::token_interface::*;
-use marginfi_type_crate::types::{Bank, BankConfigCompact, FeeState, MarginfiGroup};
 
 /// Add a bank to the lending pool
 ///

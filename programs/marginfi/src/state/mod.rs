@@ -1,6 +1,8 @@
 pub mod bank;
 pub mod bank_cache;
+pub mod bank_config;
 pub mod emode;
+pub mod interest_rate;
 pub mod marginfi_account;
 pub mod marginfi_group;
 pub mod price;
