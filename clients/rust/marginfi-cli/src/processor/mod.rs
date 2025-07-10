@@ -266,6 +266,9 @@ pub fn group_configure(
     profile: Profile,
     new_admin: Pubkey,
     new_emode_admin: Pubkey,
+    new_curve_admin: Pubkey,
+    new_limit_admin: Pubkey,
+    new_emissions_admin: Pubkey,
     is_arena_group: bool,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
@@ -288,6 +291,9 @@ pub fn group_configure(
         .args(marginfi::instruction::MarginfiGroupConfigure {
             new_admin,
             new_emode_admin,
+            new_curve_admin,
+            new_limit_admin,
+            new_emissions_admin,
             is_arena_group,
         })
         .instructions()?;
@@ -1488,7 +1494,7 @@ pub fn bank_setup_emissions(
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolSetupEmissions {
             group: profile.marginfi_group.expect("marginfi group not set"),
-            admin: config.authority(),
+            delegate_emissions_admin: config.authority(),
             bank,
             emissions_mint: mint,
             emissions_auth: find_bank_emssions_auth_pda(bank, mint, config.program_id).0,
@@ -1606,7 +1612,7 @@ pub fn bank_update_emissions(
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
             group: profile.marginfi_group.expect("marginfi group not set"),
-            admin: config.authority(),
+            delegate_emissions_admin: config.authority(),
             bank: bank_pk,
             emissions_mint: emission_mint,
             emissions_token_account: find_bank_emssions_token_account_pda(

@@ -15,6 +15,7 @@ import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
   ASSET_TAG_SOL,
   BankConfigOptRaw,
+  CLOSE_ENABLED_FLAG,
   defaultBankConfigOptRaw,
   FREEZE_SETTINGS,
   InterestRateConfigRawWithOrigination,
@@ -238,7 +239,8 @@ describe("Lending pool configure bank", () => {
       )
     );
     const bank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
-    assertBNEqual(bank.flags, FREEZE_SETTINGS);
+    // Note: The CLOSE_ENABLED_FLAG is never unset
+    assertBNEqual(bank.flags, FREEZE_SETTINGS + CLOSE_ENABLED_FLAG);
   });
 
   it("(admin) attempt to update oracle after freeze - fails with generic panic", async () => {
@@ -283,6 +285,6 @@ describe("Lending pool configure bank", () => {
 
     // Ignored fields didn't change..
     assert.equal(config.oracleMaxAge, 240);
-    assertBNEqual(bank.flags, FREEZE_SETTINGS); // still frozen
+    assertBNEqual(bank.flags, FREEZE_SETTINGS + CLOSE_ENABLED_FLAG); // still frozen
   });
 });

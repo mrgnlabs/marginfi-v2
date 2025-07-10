@@ -47,6 +47,9 @@ describe("Config group", () => {
           .marginfiGroupConfigure(
             groupAdmin.wallet.publicKey,
             PublicKey.default,
+            PublicKey.default,
+            PublicKey.default,
+            PublicKey.default,
             false
           )
           .accountsPartial({

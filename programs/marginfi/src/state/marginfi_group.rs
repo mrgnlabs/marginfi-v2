@@ -9,7 +9,7 @@ use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
+        CLOSE_ENABLED_FLAG, EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, ORACLE_MIN_AGE,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_PUSH_MIGRATED, SECONDS_PER_YEAR,
@@ -44,6 +44,7 @@ assert_struct_size!(MarginfiGroup, 1056);
 #[account(zero_copy)]
 #[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
 pub struct MarginfiGroup {
+    /// Broadly able to modify anything, and can set/remove other admins at will.
     pub admin: Pubkey,
     /// Bitmask for group settings flags.
     /// * 0: `PROGRAM_FEES_ENABLED` If set, program-level fees are enabled.
@@ -62,8 +63,17 @@ pub struct MarginfiGroup {
     /// certain banks , e.g. allow SOL to count as 90% collateral when borrowing an LST instead of
     /// the default rate.
     pub emode_admin: Pubkey,
+    /// Can modify the fields in `config.interest_rate_config` but nothing else, for every bank under
+    /// this group
+    pub delegate_curve_admin: Pubkey,
+    /// Can modify the `deposit_limit`, `borrow_limit`, `total_asset_value_init_limit` but nothing
+    /// else, for every bank under this group
+    pub delegate_limit_admin: Pubkey,
+    /// Can modify the emissions `flags`, `emissions_rate` and `emissions_mint`, but nothing else,
+    /// for every bank under this group
+    pub delegate_emissions_admin: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 24],
+    pub _padding_0: [[u64; 2]; 18],
     pub _padding_1: [[u64; 2]; 32],
     pub _padding_4: u64,
 }
@@ -101,6 +111,48 @@ impl MarginfiGroup {
                 new_emode_admin
             );
             self.emode_admin = new_emode_admin;
+        }
+    }
+
+    pub fn update_curve_admin(&mut self, new_curve_admin: Pubkey) {
+        if self.delegate_curve_admin == new_curve_admin {
+            msg!("No change to curve admin: {:?}", new_curve_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set curve admin from {:?} to {:?}",
+                self.delegate_curve_admin,
+                new_curve_admin
+            );
+            self.delegate_curve_admin = new_curve_admin;
+        }
+    }
+
+    pub fn update_limit_admin(&mut self, new_limit_admin: Pubkey) {
+        if self.delegate_limit_admin == new_limit_admin {
+            msg!("No change to limit admin: {:?}", new_limit_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set limit admin from {:?} to {:?}",
+                self.delegate_limit_admin,
+                new_limit_admin
+            );
+            self.delegate_limit_admin = new_limit_admin;
+        }
+    }
+
+    pub fn update_emissions_admin(&mut self, new_emissions_admin: Pubkey) {
+        if self.delegate_emissions_admin == new_emissions_admin {
+            msg!("No change to emissions admin: {:?}", new_emissions_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set emissions admin from {:?} to {:?}",
+                self.delegate_emissions_admin,
+                new_emissions_admin
+            );
+            self.delegate_emissions_admin = new_emissions_admin;
         }
     }
 
@@ -510,7 +562,9 @@ pub struct Bank {
     /// - EMISSIONS_FLAG_BORROW_ACTIVE: 1
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
-    /// - FREEZE_SETTINGS: 8
+    /// - FREEZE_SETTINGS: 8 - banks with this flag enabled can only update deposit/borrow caps
+    /// - CLOSE_ENABLED_FLAG - banks with this flag were created after 0.1.4 and can be closed.
+    ///   Banks without this flag can never be closed.
     ///
     pub flags: u64,
     /// Emissions APR. Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens
@@ -529,11 +583,23 @@ pub struct Bank {
     /// Set with `update_fees_destination_account`. This should be an ATA for the bank's mint. If
     /// pubkey default, the bank doesn't support this feature, and the fees must be collected
     /// manually (withdraw_fees).
-    pub fees_destination_account: Pubkey, // 32
+    pub fees_destination_account: Pubkey,
 
     pub cache: BankCache,
-    pub _padding_0: [u8; 8],
-    pub _padding_1: [[u64; 2]; 20], // 8 * 2 * 20 = 320B
+    /// Number of user lending positions currently open in this bank
+    /// * For banks created prior to 0.1.4, this is the number of positions opened/closed after
+    ///   0.1.4 goes live, and may be negative.
+    /// * For banks created in 0.1.4 or later, this is the number of positions open in total, and
+    ///   the bank may safely be closed if this is zero. Will never go negative.
+    pub lending_position_count: i32,
+    /// Number of user borrowing positions currently open in this bank
+    /// * For banks created prior to 0.1.4, this is the number of positions opened/closed after
+    ///   0.1.4 goes live, and may be negative.
+    /// * For banks created in 0.1.4 or later, this is the number of positions open in total, and
+    ///   the bank may safely be closed if this is zero. Will never go negative.
+    pub borrowing_position_count: i32,
+    pub _padding_0: [u8; 16],
+    pub _padding_1: [[u64; 2]; 19], // 8 * 2 * 19 = 304B
 }
 
 impl Bank {
@@ -577,13 +643,16 @@ impl Bank {
             total_asset_shares: I80F48::ZERO.into(),
             last_update: current_timestamp,
             config,
-            flags: 0,
+            flags: CLOSE_ENABLED_FLAG,
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
             collected_program_fees_outstanding: I80F48::ZERO.into(),
             emode: EmodeSettings::zeroed(),
             fees_destination_account: Pubkey::default(),
+            lending_position_count: 0,
+            borrowing_position_count: 0,
+            _padding_0: [0; 16],
             ..Default::default()
         }
     }
@@ -721,6 +790,22 @@ impl Bank {
         }
 
         Ok(())
+    }
+
+    pub fn increment_lending_position_count(&mut self) {
+        self.lending_position_count = self.lending_position_count.saturating_add(1);
+    }
+
+    pub fn decrement_lending_position_count(&mut self) {
+        self.lending_position_count = self.lending_position_count.saturating_sub(1);
+    }
+
+    pub fn increment_borrowing_position_count(&mut self) {
+        self.borrowing_position_count = self.borrowing_position_count.saturating_add(1);
+    }
+
+    pub fn decrement_borrowing_position_count(&mut self) {
+        self.borrowing_position_count = self.borrowing_position_count.saturating_sub(1);
     }
 
     pub fn configure(&mut self, config: &BankConfigOpt) -> MarginfiResult {

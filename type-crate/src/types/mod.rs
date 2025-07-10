@@ -1,4 +1,5 @@
 pub mod bank;
+pub mod bank_cache;
 pub mod emode;
 pub mod fee_state;
 pub mod group;
@@ -9,6 +10,7 @@ pub mod user_account;
 pub mod wrapped_i80f48;
 
 pub use bank::*;
+pub use bank_cache::*;
 pub use emode::*;
 pub use fee_state::*;
 pub use group::*;

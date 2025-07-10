@@ -17,7 +17,7 @@ use marginfi::state::marginfi_group::BankConfigCompact;
 use marginfi::state::price::OracleSetup;
 use marginfi::{
     prelude::MarginfiGroup,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType},
+    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType, InterestRateConfigOpt},
 };
 use solana_program::sysvar;
 use solana_program_test::*;
@@ -77,10 +77,14 @@ impl MarginfiGroupFixture {
                 }
                 .to_account_metas(Some(true)),
                 data: marginfi::instruction::MarginfiGroupConfigure {
-                    // Payer is both admins in most test cases for simplicity,
-                    // generally this is not true in production
+                    // Payer is all admins in most test cases for simplicity, generally this is not
+                    // true in production - the MS is the main admin and others are lower-impact
+                    // wallets with a smaller threshold.
                     new_admin: admin,
                     new_emode_admin: admin,
+                    new_curve_admin: admin,
+                    new_limit_admin: admin,
+                    new_emissions_admin: admin,
                     is_arena_group: false,
                 }
                 .data(),
@@ -393,6 +397,105 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
+    pub fn make_lending_pool_configure_bank_interest_only_ix(
+        &self,
+        bank: &BankFixture,
+        interest_rate_config: InterestRateConfigOpt,
+    ) -> Instruction {
+        let accounts = marginfi::accounts::LendingPoolConfigureBankInterestOnly {
+            group: self.key,
+            delegate_curve_admin: self.ctx.borrow().payer.pubkey(),
+            bank: bank.key,
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolConfigureBankInterestOnly {
+                interest_rate_config,
+            }
+            .data(),
+        }
+    }
+
+    pub async fn try_lending_pool_configure_bank_interest_only(
+        &self,
+        bank: &BankFixture,
+        interest_rate_config: InterestRateConfigOpt,
+    ) -> Result<(), BanksClientError> {
+        let ix = self.make_lending_pool_configure_bank_interest_only_ix(bank, interest_rate_config);
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
+    }
+
+    pub fn make_lending_pool_configure_bank_limits_only_ix(
+        &self,
+        bank: &BankFixture,
+        deposit_limit: Option<u64>,
+        borrow_limit: Option<u64>,
+        total_asset_value_init_limit: Option<u64>,
+    ) -> Instruction {
+        let accounts = marginfi::accounts::LendingPoolConfigureBankLimitsOnly {
+            group: self.key,
+            delegate_limit_admin: self.ctx.borrow().payer.pubkey(),
+            bank: bank.key,
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: marginfi::id(),
+            accounts,
+            data: marginfi::instruction::LendingPoolConfigureBankLimitsOnly {
+                deposit_limit,
+                borrow_limit,
+                total_asset_value_init_limit,
+            }
+            .data(),
+        }
+    }
+
+    pub async fn try_lending_pool_configure_bank_limits_only(
+        &self,
+        bank: &BankFixture,
+        deposit_limit: Option<u64>,
+        borrow_limit: Option<u64>,
+        total_asset_value_init_limit: Option<u64>,
+    ) -> Result<(), BanksClientError> {
+        let ix = self.make_lending_pool_configure_bank_limits_only_ix(
+            bank,
+            deposit_limit,
+            borrow_limit,
+            total_asset_value_init_limit,
+        );
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
+    }
+
     #[allow(clippy::result_large_err)]
     pub fn pad_emode_entries(
         entries: &[EmodeEntry],
@@ -490,6 +593,9 @@ impl MarginfiGroupFixture {
         &self,
         new_admin: Pubkey,
         new_emode_admin: Pubkey,
+        new_curve_admin: Pubkey,
+        new_limit_admin: Pubkey,
+        new_emissions_admin: Pubkey,
         is_arena_group: bool,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
@@ -502,6 +608,9 @@ impl MarginfiGroupFixture {
             data: marginfi::instruction::MarginfiGroupConfigure {
                 new_admin,
                 new_emode_admin,
+                new_curve_admin,
+                new_limit_admin,
+                new_emissions_admin,
                 is_arena_group,
             }
             .data(),
