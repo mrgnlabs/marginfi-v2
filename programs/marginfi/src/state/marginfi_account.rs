@@ -1370,10 +1370,7 @@ impl<'a> BankAccountWrapper<'a> {
 
         let asset_shares_decrease = bank.get_asset_shares(asset_amount_decrease)?;
         balance.change_asset_shares(-asset_shares_decrease)?;
-        bank.change_asset_shares(
-            -asset_shares_decrease,
-            matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit)
-        )?;
+        bank.change_asset_shares(-asset_shares_decrease, false)?;
 
         let liability_shares_increase = bank.get_liability_shares(liability_amount_increase)?;
         balance.change_liability_shares(liability_shares_increase)?;
