@@ -702,6 +702,8 @@ impl Bank {
             if total_deposits_amount >= deposit_limit {
                 let deposits_num: f64 = total_deposits_amount.to_num();
                 let limit_num: f64 = deposit_limit.to_num();
+                println!("deposits: {:?} deposit lim: {:?}", deposits_num, limit_num);
+                debug!("deposits: {:?} deposit lim: {:?}", deposits_num, limit_num);
                 msg!("deposits: {:?} deposit lim: {:?}", deposits_num, limit_num);
                 return err!(MarginfiError::BankAssetCapacityExceeded);
             }

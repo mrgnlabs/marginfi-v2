@@ -65,3 +65,14 @@ same number of tests more or less. You will only get stdError instead of having 
 for an hour with buffered stdOut.
 
 To rerun some tests after a failure: `cargo +nightly-2024-06-05 fuzz run -Zbuild-std lend artifacts/lend/crash-ae5084b9433152babdaf7dcd75781eacd7ea55c7`, replacing the hash after crash- with the one you see in the terminal.
+
+## It Failed Now What
+
+If the error isn't a fairly obvious panic when the run started, consider enabling more stack trace:
+
+```
+export RUSTFLAGS="-C debuginfo=2"
+export RUST_BACKTRACE=full
+```
+
+compile and run again.

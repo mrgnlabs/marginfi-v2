@@ -834,7 +834,9 @@ impl<'state> MarginfiFuzzContext<'state> {
                 MarginfiError::AccountDisabled.into(),
                 MarginfiError::ZeroAssetPrice.into(),
                 MarginfiError::ZeroLiabilityPrice.into(),
-                // TODO figure out under what circumstances this pops up...
+                // TODO figure out under what circumstances these pop up, they started to throw
+                // after the bankruptcy changes.
+                MarginfiError::BankAssetCapacityExceeded.into(),
                 ProgramError::Custom(TokenError::InsufficientFunds as u32).into(),
             ];
 
