@@ -143,6 +143,7 @@ export async function initOrUpdatePriceUpdateV2(
   exponent: number,
   // Use after setup to update existing account
   existingAccount?: Keypair,
+  oracleKeypair?: Keypair,
   bankrunContext?: ProgramTestContext,
 ): Promise<Keypair> {
   const space = 134;
@@ -208,6 +209,7 @@ export async function initOrUpdatePriceUpdateV2(
       mockProgram,
       space,
       wallet,
+      oracleKeypair,
       bankrunContext
     );
     await storeMockAccount(mockProgram, wallet, account, 0, buf, bankrunContext);
@@ -223,13 +225,13 @@ export async function initOrUpdatePriceUpdateV2(
  * @param wallet
  * @returns
  */
-export async function initBlankOracleFeed(wallet: Wallet) {
+export async function initBlankOracleFeed(wallet: Wallet, keypair?: Keypair) {
   const space = 300;
   const buf = Buffer.alloc(space);
 
   // Write the buffer to the mock account
   const mockProgram: Program<Mocks> = workspace.Mocks;
-  let account = await createMockAccount(mockProgram, space, wallet);
+  let account = await createMockAccount(mockProgram, space, wallet, keypair);
   await storeMockAccount(mockProgram, wallet, account, 0, buf);
 
   return account;

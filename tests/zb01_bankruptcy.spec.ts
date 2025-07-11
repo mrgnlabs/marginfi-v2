@@ -14,6 +14,7 @@ import {
   oracles,
   users,
   verbose,
+  globalProgramAdmin,
 } from "./rootHooks";
 import {
   accrueInterest,
@@ -52,7 +53,7 @@ import {
 import { initOrUpdatePriceUpdateV2 } from "./utils/pyth-pull-mocks";
 import { dumpAccBalances, bytesToF64, dumpBankrunLogs } from "./utils/tools";
 
-const USER_ACCOUNT_THROWAWAY = "throwaway_account1";
+const USER_ACCOUNT_THROWAWAY = "throwaway_account_zb01";
 const ONE_YEAR_IN_SECONDS = 2 * 365 * 24 * 60 * 60;
 
 let banks: PublicKey[] = [];
@@ -61,6 +62,23 @@ describe("Bank bankruptcy tests", () => {
   it("init group, init banks, and fund banks", async () => {
     const result = await genericMultiBankTestSetup(2, USER_ACCOUNT_THROWAWAY);
     banks = result.banks;
+
+    // Crank oracles so that the prices are not stale
+    let now = Math.floor(Date.now() / 1000);
+    const targetUnix = BigInt(now + ONE_YEAR_IN_SECONDS);
+    let priceAlpha = ecosystem.lstAlphaPrice * 10 ** ecosystem.lstAlphaDecimals;
+    let confAlpha = priceAlpha * ORACLE_CONF_INTERVAL;
+    await initOrUpdatePriceUpdateV2(
+      new Wallet(globalProgramAdmin.wallet),
+      oracles.pythPullLstOracleFeed.publicKey,
+      new BN(priceAlpha),
+      new BN(confAlpha),
+      now + ONE_YEAR_IN_SECONDS,
+      -ecosystem.lstAlphaDecimals,
+      oracles.pythPullLst,
+      undefined,
+      bankrunContext
+    );
   });
 
   it("(admin) Seeds liquidity in both banks", async () => {
@@ -147,9 +165,10 @@ describe("Bank bankruptcy tests", () => {
     await banksClient.processTransaction(borrowTx);
   });
 
+  // TODO get the bankrun clock instead of using the system clock (on another branch somewhere)
   it("One year elapses", async () => {
     let now = Math.floor(Date.now() / 1000);
-    const targetUnix = BigInt(now + ONE_YEAR_IN_SECONDS);
+    const targetUnix = BigInt(now + ONE_YEAR_IN_SECONDS + ONE_YEAR_IN_SECONDS);
 
     // Construct a new Clock; we only care about the unixTimestamp field here.
     const newClock = new Clock(
@@ -163,18 +182,17 @@ describe("Bank bankruptcy tests", () => {
     bankrunContext.setClock(newClock);
 
     // Crank oracles so that the prices are not stale
-    const provider = AnchorProvider.local();
-    const wallet = provider.wallet as Wallet;
     let priceAlpha = ecosystem.lstAlphaPrice * 10 ** ecosystem.lstAlphaDecimals;
     let confAlpha = priceAlpha * ORACLE_CONF_INTERVAL;
     await initOrUpdatePriceUpdateV2(
-      wallet,
+      new Wallet(globalProgramAdmin.wallet),
       oracles.pythPullLstOracleFeed.publicKey,
       new BN(priceAlpha),
       new BN(confAlpha),
-      now + ONE_YEAR_IN_SECONDS,
+      now + ONE_YEAR_IN_SECONDS + ONE_YEAR_IN_SECONDS,
       -ecosystem.lstAlphaDecimals,
       oracles.pythPullLst,
+      undefined,
       bankrunContext
     );
   });
@@ -608,8 +626,7 @@ describe("Bank bankruptcy tests", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(admin.wallet);
-    let result = await banksClient.tryProcessTransaction(tx);
-    dumpBankrunLogs(result);
+    await banksClient.processTransaction(tx);
 
     const pulseTx = new Transaction();
     pulseTx.add(

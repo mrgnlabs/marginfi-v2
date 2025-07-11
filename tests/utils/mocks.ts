@@ -399,9 +399,10 @@ export const createMockAccount = async (
   program: Program<Mocks>,
   space: number,
   wallet: Wallet,
+  keypair?: Keypair,
   bankrunContext?: ProgramTestContext
 ) => {
-  const newAccount = Keypair.generate();
+  const newAccount = keypair ?? Keypair.generate();
   const createTx = new Transaction().add(
     SystemProgram.createAccount({
       fromPubkey: wallet.publicKey,

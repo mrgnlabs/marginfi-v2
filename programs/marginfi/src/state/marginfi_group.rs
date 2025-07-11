@@ -1130,7 +1130,8 @@ impl Bank {
     /// In cases where assets < liabilities, the asset share value will be set to zero, but cannot
     /// go negative. Effectively, depositors forfeit their entire deposit AND all earned interest in
     /// this case.
-    pub fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult {
+    pub fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult<bool> {
+        let mut kill_bank = false;
         let total_asset_shares: I80F48 = self.total_asset_shares.into();
         let old_asset_share_value: I80F48 = self.asset_share_value.into();
 
@@ -1143,7 +1144,7 @@ impl Bank {
         if total_value < loss_amount {
             self.asset_share_value = I80F48::ZERO.into();
             // This state is irrecoverable, the bank is dead.
-            self.config.operational_state = BankOperationalState::Paused; // TODO add a state for this condition
+            kill_bank = true;
         } else {
             // otherwise subtract then redistribute
             let new_share_value = (total_value - loss_amount)
@@ -1152,7 +1153,7 @@ impl Bank {
             self.asset_share_value = new_share_value.into();
         }
 
-        Ok(())
+        Ok(kill_bank)
     }
 
     pub fn assert_operational_mode(

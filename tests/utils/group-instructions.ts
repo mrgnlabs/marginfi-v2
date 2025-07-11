@@ -725,8 +725,10 @@ export const handleBankruptcy = (
     })
     .remainingAccounts(oracleMeta)
     .instruction();
-}
-  
+
+  return ix;
+};
+
 export type CloseBankArgs = {
   bank: PublicKey;
 };

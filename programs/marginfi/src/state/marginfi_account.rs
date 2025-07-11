@@ -1384,7 +1384,7 @@ impl<'a> BankAccountWrapper<'a> {
         if !matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit) {
             bank.check_utilization_ratio()?;
         }
-      
+
         let has_assets =
             I80F48::from(balance.asset_shares).is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
         let has_liabs = I80F48::from(balance.liability_shares)

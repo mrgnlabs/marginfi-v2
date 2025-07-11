@@ -167,7 +167,8 @@ export const setupPythOracles = async (
     // do nothing
   } else {
     lstPythPullOracleFeed = await initBlankOracleFeed(
-      wallet
+      wallet,
+      lstPythPullOracleFeed
     );
     lstPythPullOracle = await initOrUpdatePriceUpdateV2(
       wallet,
@@ -175,7 +176,9 @@ export const setupPythOracles = async (
       new BN(priceAlpha),
       new BN(confAlpha),
       now,
-      -lstAlphaDecimals
+      -lstAlphaDecimals,
+      undefined,
+      lstPythPullOracle
     );
   }
 

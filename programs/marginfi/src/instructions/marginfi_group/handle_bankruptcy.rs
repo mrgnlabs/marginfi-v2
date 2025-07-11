@@ -11,7 +11,7 @@ use crate::{
     state::{
         health_cache::HealthCache,
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, BankVaultType, MarginfiGroup},
+        marginfi_group::{Bank, BankOperationalState, BankVaultType, MarginfiGroup},
     },
     utils, MarginfiResult,
 };
@@ -154,7 +154,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     )?;
 
     // Socialize bad debt among depositors.
-    bank.socialize_loss(socialized_loss)?;
+    let kill_bank = bank.socialize_loss(socialized_loss)?;
 
     // Settle bad debt.
     // The liabilities of this account and global total liabilities are reduced by `bad_debt`
@@ -168,6 +168,11 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     bank.update_bank_cache(group)?;
 
     marginfi_account.set_flag(ACCOUNT_DISABLED);
+    if kill_bank {
+        // TODO add a state for this condition
+        msg!("bank had debt exceeding liabilities and has been killed");
+        bank.config.operational_state = BankOperationalState::Paused;
+    }
 
     emit!(LendingPoolBankHandleBankruptcyEvent {
         header: AccountEventHeader {
