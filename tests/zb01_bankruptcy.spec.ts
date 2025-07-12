@@ -805,6 +805,6 @@ describe("Bank bankruptcy tests", () => {
       bankDebtBefore - debtBefore,
       100
     );
-    assert.deepEqual(bankAcc.config.operationalState, { paused: {} });
+    assert.deepEqual(bankAcc.config.operationalState, { killedByBankruptcy: {} });
   });
 });

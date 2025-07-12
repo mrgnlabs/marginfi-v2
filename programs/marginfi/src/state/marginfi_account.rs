@@ -1052,9 +1052,9 @@ impl<'a> BankAccountWrapper<'a> {
 
     // ------------ Borrow / Lend primitives
 
-    /// Deposit an asset, will repay any outstanding liabilities.
+    /// Deposit an asset, will error if this repays a liability instead of increasing a asset
     pub fn deposit(&mut self, amount: I80F48) -> MarginfiResult {
-        self.increase_balance_internal(amount, BalanceIncreaseType::Any)
+        self.increase_balance_internal(amount, BalanceIncreaseType::DepositOnly)
     }
 
     /// Repay a liability, will error if there is not enough liability - depositing is not allowed.
@@ -1067,36 +1067,9 @@ impl<'a> BankAccountWrapper<'a> {
         self.decrease_balance_internal(amount, BalanceDecreaseType::WithdrawOnly)
     }
 
-    /// Incur a borrow, will withdraw any existing assets.
+    /// Incur a borrow, will error if this withdraws an asset instead of increasing a liability
     pub fn borrow(&mut self, amount: I80F48) -> MarginfiResult {
-        self.decrease_balance_internal(amount, BalanceDecreaseType::Any)
-    }
-
-    // ------------ Hybrid operations for seamless repay + deposit / withdraw + borrow
-
-    /// Repay liability and deposit/increase asset depending on the specified deposit amount and the
-    /// existing balance.
-    pub fn increase_balance(&mut self, amount: I80F48) -> MarginfiResult {
-        self.increase_balance_internal(amount, BalanceIncreaseType::Any)
-    }
-
-    pub fn increase_balance_in_liquidation(&mut self, amount: I80F48) -> MarginfiResult {
-        self.increase_balance_internal(amount, BalanceIncreaseType::BypassDepositLimit)
-    }
-
-    /// Withdraw asset and create/increase liability depending on the specified deposit amount and
-    /// the existing balance.
-    pub fn decrease_balance(&mut self, amount: I80F48) -> MarginfiResult {
-        self.decrease_balance_internal(amount, BalanceDecreaseType::Any)
-    }
-
-    /// Withdraw asset and create/increase liability depending on the specified deposit amount and
-    /// the existing balance.
-    ///
-    /// This function will also bypass borrow limits so liquidations can happen in banks with maxed
-    /// out borrows.
-    pub fn decrease_balance_in_liquidation(&mut self, amount: I80F48) -> MarginfiResult {
-        self.decrease_balance_internal(amount, BalanceDecreaseType::BypassBorrowLimit)
+        self.decrease_balance_internal(amount, BalanceDecreaseType::BorrowOnly)
     }
 
     /// Withdraw existing asset in full - will error if there is no asset.
@@ -1105,8 +1078,6 @@ impl<'a> BankAccountWrapper<'a> {
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
-
-        bank.assert_operational_mode(None)?;
 
         let total_asset_shares: I80F48 = balance.asset_shares.into();
         let current_asset_amount = bank.get_asset_amount(total_asset_shares)?;
@@ -1155,8 +1126,6 @@ impl<'a> BankAccountWrapper<'a> {
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
-
-        bank.assert_operational_mode(None)?;
 
         let total_liability_shares: I80F48 = balance.liability_shares.into();
         let current_liability_amount = bank.get_liability_amount(total_liability_shares)?;
@@ -1265,19 +1234,13 @@ impl<'a> BankAccountWrapper<'a> {
                     MarginfiError::OperationRepayOnly
                 );
             }
-            BalanceIncreaseType::DepositOnly => {
+            BalanceIncreaseType::DepositOnly | BalanceIncreaseType::BypassDepositLimit => {
                 check!(
                     liability_amount_decrease.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
                     MarginfiError::OperationDepositOnly
                 );
             }
-            BalanceIncreaseType::Any | BalanceIncreaseType::BypassDepositLimit => {}
-        }
-
-        {
-            let is_asset_amount_increasing =
-                asset_amount_increase.is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
-            bank.assert_operational_mode(Some(is_asset_amount_increasing))?;
+            BalanceIncreaseType::Any => {}
         }
 
         let asset_shares_increase = bank.get_asset_shares(asset_amount_increase)?;
@@ -1360,12 +1323,6 @@ impl<'a> BankAccountWrapper<'a> {
                 );
             }
             _ => {}
-        }
-
-        {
-            let is_liability_amount_increasing =
-                liability_amount_increase.is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
-            bank.assert_operational_mode(Some(is_liability_amount_increasing))?;
         }
 
         let asset_shares_decrease = bank.get_asset_shares(asset_amount_decrease)?;

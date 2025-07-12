@@ -1,6 +1,6 @@
-use bytemuck::{Pod, Zeroable};
-use crate::constants::discriminators;
 use super::{BankCache, EmodeSettings, Pubkey, WrappedI80F48};
+use crate::constants::discriminators;
+use bytemuck::{Pod, Zeroable};
 
 pub const MAX_ORACLE_KEYS: usize = 5;
 
@@ -203,6 +203,7 @@ pub enum BankOperationalState {
     Paused,
     Operational,
     ReduceOnly,
+    KilledByBankruptcy,
 }
 unsafe impl Zeroable for BankOperationalState {}
 unsafe impl Pod for BankOperationalState {}

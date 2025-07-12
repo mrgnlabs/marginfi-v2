@@ -440,7 +440,11 @@ impl<'state> MarginfiFuzzContext<'state> {
             self.metrics.write().unwrap().update_error(&error);
 
             assert!(
-                [MarginfiError::AccountDisabled.into(),].contains(&error),
+                [
+                    MarginfiError::AccountDisabled.into(),
+                    MarginfiError::OperationDepositOnly.into(),
+                ]
+                .contains(&error),
                 "Unexpected deposit error: {:?}",
                 error
             );
@@ -699,6 +703,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     MarginfiError::IsolatedAccountIllegalState.into(),
                     MarginfiError::IllegalUtilizationRatio.into(),
                     MarginfiError::AccountDisabled.into(),
+                    MarginfiError::OperationBorrowOnly.into(),
                 ]
                 .contains(&error),
                 "Unexpected borrow error: {:?}",
@@ -834,10 +839,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                 MarginfiError::AccountDisabled.into(),
                 MarginfiError::ZeroAssetPrice.into(),
                 MarginfiError::ZeroLiabilityPrice.into(),
-                // TODO figure out under what circumstances these pop up, they started to throw
-                // after the bankruptcy changes.
-                MarginfiError::BankAssetCapacityExceeded.into(),
-                ProgramError::Custom(TokenError::InsufficientFunds as u32).into(),
+                MarginfiError::OperationRepayOnly.into(),
             ];
 
             // Log full context on unexpected error

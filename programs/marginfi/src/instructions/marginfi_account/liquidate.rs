@@ -7,7 +7,9 @@ use crate::state::marginfi_account::{
 };
 use crate::state::marginfi_group::{Bank, BankVaultType};
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
-use crate::utils::{validate_asset_tags, validate_bank_asset_tags};
+use crate::utils::{
+    validate_asset_tags, validate_bank_asset_tags, validate_bank_state, InstructionKind,
+};
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
@@ -96,6 +98,8 @@ pub fn lending_account_liquidate<'info>(
         let asset_bank = ctx.accounts.asset_bank.load()?;
         let liab_bank = ctx.accounts.liab_bank.load()?;
         validate_bank_asset_tags(&asset_bank, &liab_bank)?;
+        validate_bank_state(&asset_bank, InstructionKind::FailsInPausedState)?;
+        validate_bank_state(&liab_bank, InstructionKind::FailsInPausedState)?;
 
         // Sanity check user/liquidator accounts will not contain positions with mismatching tags
         // after liquidation.
@@ -250,7 +254,7 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_liability_amount(bank_account.balance.liability_shares.into())?;
 
-            bank_account.decrease_balance_in_liquidation(liab_amount_liquidator)?;
+            bank_account.repay(liab_amount_liquidator)?;
 
             let post_balance: I80F48 = bank_account
                 .bank
@@ -294,7 +298,7 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            bank_account.increase_balance_in_liquidation(asset_amount)?;
+            bank_account.deposit(asset_amount)?;
 
             let post_balance: I80F48 = bank_account
                 .bank
@@ -325,7 +329,7 @@ pub fn lending_account_liquidate<'info>(
                     liquidatee_liab_bank_account.balance.liability_shares.into(),
                 )?;
 
-            liquidatee_liab_bank_account.increase_balance(liab_amount_final)?;
+            liquidatee_liab_bank_account.repay(liab_amount_final)?;
 
             let liquidatee_liability_post_balance: I80F48 =
                 liquidatee_liab_bank_account.bank.get_liability_amount(
