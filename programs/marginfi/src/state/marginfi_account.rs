@@ -1072,6 +1072,16 @@ impl<'a> BankAccountWrapper<'a> {
         self.decrease_balance_internal(amount, BalanceDecreaseType::BorrowOnly)
     }
 
+    /// Deposit an asset, ignoring deposit caps will error if this repays a liability instead of increasing a asset
+    pub fn deposit_ignore_deposit_cap(&mut self, amount: I80F48) -> MarginfiResult {
+        self.increase_balance_internal(amount, BalanceIncreaseType::BypassDepositLimit)
+    }
+
+    /// Incur a borrow, ignoring borrow caps, will error if this withdraws an asset instead of increasing a liability
+    pub fn borrow_ignore_borrow_cap(&mut self, amount: I80F48) -> MarginfiResult {
+        self.decrease_balance_internal(amount, BalanceDecreaseType::BypassBorrowLimit)
+    }
+
     /// Withdraw existing asset in full - will error if there is no asset.
     pub fn withdraw_all(&mut self) -> MarginfiResult<u64> {
         self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
@@ -1316,7 +1326,7 @@ impl<'a> BankAccountWrapper<'a> {
                     MarginfiError::OperationWithdrawOnly
                 );
             }
-            BalanceDecreaseType::BorrowOnly => {
+            BalanceDecreaseType::BorrowOnly | BalanceDecreaseType::BypassBorrowLimit => {
                 check!(
                     asset_amount_decrease.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
                     MarginfiError::OperationBorrowOnly

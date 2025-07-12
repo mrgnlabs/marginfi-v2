@@ -26,7 +26,6 @@ use marginfi::{
 };
 use metrics::{MetricAction, Metrics};
 use solana_program::system_program;
-use spl_token::error::TokenError;
 use std::{
     collections::HashMap,
     mem::size_of,

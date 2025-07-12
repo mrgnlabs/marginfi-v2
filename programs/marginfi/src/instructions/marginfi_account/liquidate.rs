@@ -254,7 +254,21 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_liability_amount(bank_account.balance.liability_shares.into())?;
 
-            bank_account.repay(liab_amount_liquidator)?;
+            let asset_balance: I80F48 = bank_account
+                .bank
+                .get_asset_amount(bank_account.balance.asset_shares.into())?;
+
+            // TODO handle the edge case where has assets not zero but < amount (compose a
+            // repay and a deposit or just use the internal version that can flip here, this is the
+            // only place it's ever applicable..._
+            if asset_balance > I80F48::ZERO {
+                bank_account.deposit_ignore_deposit_cap(liab_amount_liquidator)?;
+            } else if pre_balance > I80F48::ZERO {
+                bank_account.borrow_ignore_borrow_cap(liab_amount_liquidator)?;
+            } else {
+                // both are zero, from the liquidator's POV this is a new borrow
+                bank_account.borrow_ignore_borrow_cap(liab_amount_liquidator)?;
+            }
 
             let post_balance: I80F48 = bank_account
                 .bank
@@ -298,7 +312,19 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            bank_account.deposit(asset_amount)?;
+            let liab_balance: I80F48 = bank_account
+                .bank
+                .get_liability_amount(bank_account.balance.liability_shares.into())?;
+
+            // TODO handle the edge case where balance < amount
+            if liab_balance > I80F48::ZERO {
+                bank_account.repay(asset_amount)?;
+            } else if pre_balance > I80F48::ZERO {
+                bank_account.deposit_ignore_deposit_cap(asset_amount)?;
+            } else {
+                // both are zero, from the liquidator's POV this is a new deposit
+                bank_account.deposit_ignore_deposit_cap(asset_amount)?;
+            }
 
             let post_balance: I80F48 = bank_account
                 .bank
