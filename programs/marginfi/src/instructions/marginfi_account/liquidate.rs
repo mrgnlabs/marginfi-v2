@@ -260,7 +260,6 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            msg!("a");
             // Complex cases: the liquidator has an asset balance, which will be REDUCED
             if asset_balance > I80F48::ZERO {
                 // a) liquidator has assets ≥ needed → just withdraw that amount
@@ -284,7 +283,6 @@ pub fn lending_account_liquidate<'info>(
                 // Common case: liquidator has debt, or this is a new borrow
                 bank_account.borrow_ignore_borrow_cap(liab_amount_liquidator)?;
             }
-            msg!("a1");
 
             let post_balance: I80F48 = bank_account
                 .bank

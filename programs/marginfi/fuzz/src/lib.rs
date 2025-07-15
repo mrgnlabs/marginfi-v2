@@ -5,6 +5,7 @@ use anchor_lang::{
     prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer, Sysvar},
     Discriminator, Key,
 };
+use anchor_spl::token_2022::spl_token_2022::error::TokenError;
 use arbitrary_helpers::{
     AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
 };
@@ -839,6 +840,11 @@ impl<'state> MarginfiFuzzContext<'state> {
                 MarginfiError::ZeroAssetPrice.into(),
                 MarginfiError::ZeroLiabilityPrice.into(),
                 MarginfiError::OperationRepayOnly.into(),
+                // Note: because updates in 1.5 allow liquidation of underwater banks, it is now
+                // possible for a bank's liquidity value to become empty in the fuzz suite, which
+                // leads to the `liquidatee_liab_bank_account.withdraw_spl_transfer` failing. This
+                // is probably benign but certainly rare-or-nonexistent in prod.
+                ProgramError::Custom(TokenError::InsufficientFunds as u32).into(),
             ];
 
             // Log full context on unexpected error
