@@ -13,7 +13,8 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
         marginfi_group::{Bank, BankOperationalState, BankVaultType, MarginfiGroup},
     },
-    utils, MarginfiResult,
+    utils::{self, validate_bank_state, InstructionKind},
+    MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
@@ -39,6 +40,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         ..
     } = ctx.accounts;
     let bank = bank_loader.load()?;
+    validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
     let maybe_bank_mint =
         utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
@@ -169,9 +171,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 
     marginfi_account.set_flag(ACCOUNT_DISABLED);
     if kill_bank {
-        // TODO add a state for this condition
         msg!("bank had debt exceeding liabilities and has been killed");
-        bank.config.operational_state = BankOperationalState::Paused;
+        bank.config.operational_state = BankOperationalState::KilledByBankruptcy;
     }
 
     emit!(LendingPoolBankHandleBankruptcyEvent {

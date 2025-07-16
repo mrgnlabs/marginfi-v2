@@ -550,7 +550,9 @@ async fn marginfi_account_liquidation_failure_liquidation_too_severe() -> anyhow
         .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 10, usdc_bank_f)
         .await;
 
-    assert_custom_error!(res.unwrap_err(), MarginfiError::ExhaustedLiability);
+    // Note: ExhaustedLiability is essentially unreachable now
+    // assert_custom_error!(res.unwrap_err(), MarginfiError::ExhaustedLiability);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::OperationRepayOnly);
 
     let res = lender_mfi_account_f
         .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_bank_f)

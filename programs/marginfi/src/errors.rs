@@ -169,6 +169,8 @@ pub enum MarginfiError {
     OracleMaxConfidenceExceeded,
     #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6081
     BankCannotClose,
+    #[msg("Bank killed by bankruptcy: bank shutdown and value of all holdings is zero")] // 6082
+    BankKilledByBankruptcy,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -284,6 +286,8 @@ impl From<u32> for MarginfiError {
             6078 => MarginfiError::ZeroAssetPrice,
             6079 => MarginfiError::ZeroLiabilityPrice,
             6080 => MarginfiError::OracleMaxConfidenceExceeded,
+            6081 => MarginfiError::BankCannotClose,
+            6082 => MarginfiError::BankKilledByBankruptcy,
             _ => MarginfiError::InternalLogicError,
         }
     }

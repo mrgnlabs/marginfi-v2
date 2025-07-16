@@ -353,7 +353,8 @@ describe("Bank bankruptcy tests", () => {
     );
     liquidateTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     liquidateTx.sign(liquidator.wallet);
-    await banksClient.processTransaction(liquidateTx);
+    let result = await banksClient.tryProcessTransaction(liquidateTx);
+    dumpBankrunLogs(result);
 
     const tx = new Transaction();
     tx.add(
@@ -805,6 +806,6 @@ describe("Bank bankruptcy tests", () => {
       bankDebtBefore - debtBefore,
       100
     );
-    assert.deepEqual(bankAcc.config.operationalState, { paused: {} });
+    assert.deepEqual(bankAcc.config.operationalState, { killedByBankruptcy: {} });
   });
 });

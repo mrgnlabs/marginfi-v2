@@ -9,7 +9,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
         marginfi_group::{Bank, BankVaultType},
     },
-    utils::{self, validate_asset_tags},
+    utils::{self, validate_asset_tags, validate_bank_state, InstructionKind},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
@@ -66,6 +66,7 @@ pub fn lending_account_borrow<'info>(
         let mut bank = bank_loader.load_mut()?;
 
         validate_asset_tags(&bank, &marginfi_account)?;
+        validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
 
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
         let origination_fee_rate: I80F48 = bank
@@ -101,11 +102,11 @@ pub fn lending_account_borrow<'info>(
             origination_fee_u64 = origination_fee.checked_to_num().ok_or_else(math_error!())?;
 
             // Incurs a borrow that includes the origination fee (but withdraws just the amt)
-            bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee)?;
+            bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee, false)?;
         } else {
             // Incurs a borrow for the amount without any fee
             origination_fee_u64 = 0;
-            bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
+            bank_account.borrow(I80F48::from_num(amount_pre_fee), false)?;
         }
 
         bank_account.withdraw_spl_transfer(

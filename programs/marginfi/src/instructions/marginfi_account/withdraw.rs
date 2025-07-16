@@ -8,7 +8,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
         marginfi_group::{Bank, BankVaultType},
     },
-    utils,
+    utils::{self, validate_bank_state, InstructionKind},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
@@ -57,6 +57,7 @@ pub fn lending_account_withdraw<'info>(
     {
         let group = &marginfi_group_loader.load()?;
         let mut bank = bank_loader.load_mut()?;
+        validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
         bank.accrue_interest(
             clock.unix_timestamp,
             group,
@@ -71,7 +72,7 @@ pub fn lending_account_withdraw<'info>(
             BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
         let amount_pre_fee = if withdraw_all {
-            bank_account.withdraw_all()?
+            bank_account.withdraw_all(false)?
         } else {
             let amount_pre_fee = maybe_bank_mint
                 .as_ref()
@@ -85,7 +86,7 @@ pub fn lending_account_withdraw<'info>(
                 .transpose()?
                 .unwrap_or(amount);
 
-            bank_account.withdraw(I80F48::from_num(amount_pre_fee))?;
+            bank_account.withdraw(I80F48::from_num(amount_pre_fee), false)?;
 
             amount_pre_fee
         };

@@ -7,7 +7,9 @@ use crate::state::marginfi_account::{
 };
 use crate::state::marginfi_group::{Bank, BankVaultType};
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
-use crate::utils::{validate_asset_tags, validate_bank_asset_tags};
+use crate::utils::{
+    validate_asset_tags, validate_bank_asset_tags, validate_bank_state, InstructionKind,
+};
 use crate::{
     bank_signer,
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
@@ -96,6 +98,8 @@ pub fn lending_account_liquidate<'info>(
         let asset_bank = ctx.accounts.asset_bank.load()?;
         let liab_bank = ctx.accounts.liab_bank.load()?;
         validate_bank_asset_tags(&asset_bank, &liab_bank)?;
+        validate_bank_state(&asset_bank, InstructionKind::FailsInPausedState)?;
+        validate_bank_state(&liab_bank, InstructionKind::FailsInPausedState)?;
 
         // Sanity check user/liquidator accounts will not contain positions with mismatching tags
         // after liquidation.
@@ -238,7 +242,7 @@ pub fn lending_account_liquidate<'info>(
             liab_amount_liquidator, liab_amount_final, asset_amount, insurance_fund_fee, liab_price, asset_price
         );
 
-        // Liquidator pays off liability
+        // Liquidator pays off liability (by gaining the liability on their books)
         let (liquidator_liability_pre_balance, liquidator_liability_post_balance) = {
             let mut bank_account = BankAccountWrapper::find_or_create(
                 &ctx.accounts.liab_bank.key(),
@@ -246,11 +250,39 @@ pub fn lending_account_liquidate<'info>(
                 &mut liquidator_marginfi_account.lending_account,
             )?;
 
+            // TODO: in edge cases, the liquiador starts/ends with ASSETS, following the logic
+            // below, and this value (which will ultimately be emitted in the event) is useless.
             let pre_balance: I80F48 = bank_account
                 .bank
                 .get_liability_amount(bank_account.balance.liability_shares.into())?;
 
-            bank_account.decrease_balance_in_liquidation(liab_amount_liquidator)?;
+            let asset_balance: I80F48 = bank_account
+                .bank
+                .get_asset_amount(bank_account.balance.asset_shares.into())?;
+
+            // Complex cases: the liquidator has an asset balance, which will be REDUCED
+            if asset_balance > I80F48::ZERO {
+                // a) liquidator has assets ≥ needed → just withdraw that amount
+                if asset_balance >= liab_amount_liquidator {
+                    bank_account.withdraw(liab_amount_liquidator, true)?;
+                } else {
+                    // b) has some assets < needed → wipe them all, then borrow the rest
+                    bank_account.withdraw_all(true)?;
+                    let remaining = liab_amount_liquidator
+                        .checked_sub(asset_balance)
+                        .ok_or(MarginfiError::MathError)?;
+                    // Note: the slot is now deactivated, we must recreate it
+                    bank_account = BankAccountWrapper::find_or_create(
+                        &ctx.accounts.liab_bank.key(),
+                        &mut liab_bank,
+                        &mut liquidator_marginfi_account.lending_account,
+                    )?;
+                    bank_account.borrow_ignore_borrow_cap(remaining)?;
+                }
+            } else {
+                // Common case: liquidator has debt, or this is a new borrow
+                bank_account.borrow_ignore_borrow_cap(liab_amount_liquidator)?;
+            }
 
             let post_balance: I80F48 = bank_account
                 .bank
@@ -272,7 +304,7 @@ pub fn lending_account_liquidate<'info>(
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
             bank_account
-                .withdraw(asset_amount)
+                .withdraw(asset_amount, true)
                 .map_err(|_| MarginfiError::OverliquidationAttempt)?;
 
             let post_balance: I80F48 = bank_account
@@ -294,7 +326,32 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            bank_account.increase_balance_in_liquidation(asset_amount)?;
+            let liab_balance: I80F48 = bank_account
+                .bank
+                .get_liability_amount(bank_account.balance.liability_shares.into())?;
+
+            if liab_balance > I80F48::ZERO {
+                // a) liquidator owes ≥ incoming collateral → just repay that amount
+                if liab_balance >= asset_amount {
+                    bank_account.repay(asset_amount)?;
+                } else {
+                    // b) Liquidator owes < incoming → wipe out the debt, then deposit the remainder
+                    let to_deposit = asset_amount.checked_sub(liab_balance).unwrap();
+                    bank_account.repay_all()?;
+
+                    // slot is now deactivated, recreate it
+                    bank_account = BankAccountWrapper::find_or_create(
+                        &ctx.accounts.asset_bank.key(),
+                        &mut asset_bank,
+                        &mut liquidator_marginfi_account.lending_account,
+                    )?;
+
+                    bank_account.deposit_ignore_deposit_cap(to_deposit)?;
+                }
+            } else {
+                // Common case: liquidator has assets or no position
+                bank_account.deposit_ignore_deposit_cap(asset_amount)?;
+            }
 
             let post_balance: I80F48 = bank_account
                 .bank
@@ -325,7 +382,7 @@ pub fn lending_account_liquidate<'info>(
                     liquidatee_liab_bank_account.balance.liability_shares.into(),
                 )?;
 
-            liquidatee_liab_bank_account.increase_balance(liab_amount_final)?;
+            liquidatee_liab_bank_account.repay(liab_amount_final)?;
 
             let liquidatee_liability_post_balance: I80F48 =
                 liquidatee_liab_bank_account.bank.get_liability_amount(

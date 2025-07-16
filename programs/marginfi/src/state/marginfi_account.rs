@@ -1052,9 +1052,9 @@ impl<'a> BankAccountWrapper<'a> {
 
     // ------------ Borrow / Lend primitives
 
-    /// Deposit an asset, will repay any outstanding liabilities.
+    /// Deposit an asset, will error if this repays a liability instead of increasing a asset
     pub fn deposit(&mut self, amount: I80F48) -> MarginfiResult {
-        self.increase_balance_internal(amount, BalanceIncreaseType::Any)
+        self.increase_balance_internal(amount, BalanceIncreaseType::DepositOnly)
     }
 
     /// Repay a liability, will error if there is not enough liability - depositing is not allowed.
@@ -1063,50 +1063,40 @@ impl<'a> BankAccountWrapper<'a> {
     }
 
     /// Withdraw an asset, will error if there is not enough asset - borrowing is not allowed.
-    pub fn withdraw(&mut self, amount: I80F48) -> MarginfiResult {
-        self.decrease_balance_internal(amount, BalanceDecreaseType::WithdrawOnly)
+    ///     
+    /// bypass_util_ratio - if true (typically only during liquidation), bypasses validating that
+    /// assets > liabilities.
+    pub fn withdraw(&mut self, amount: I80F48, bypass_util_ratio: bool) -> MarginfiResult {
+        self.decrease_balance_internal(amount, BalanceDecreaseType::WithdrawOnly, bypass_util_ratio)
     }
 
-    /// Incur a borrow, will withdraw any existing assets.
-    pub fn borrow(&mut self, amount: I80F48) -> MarginfiResult {
-        self.decrease_balance_internal(amount, BalanceDecreaseType::Any)
+    /// Incur a borrow, will error if this withdraws an asset instead of increasing a liability
+    ///
+    ///  bypass_util_ratio - if true (typically only during liquidation), bypasses validating that
+    /// assets > liabilities.
+    pub fn borrow(&mut self, amount: I80F48, bypass_util_ratio: bool) -> MarginfiResult {
+        self.decrease_balance_internal(amount, BalanceDecreaseType::BorrowOnly, bypass_util_ratio)
     }
 
-    // ------------ Hybrid operations for seamless repay + deposit / withdraw + borrow
-
-    /// Repay liability and deposit/increase asset depending on the specified deposit amount and the
-    /// existing balance.
-    pub fn increase_balance(&mut self, amount: I80F48) -> MarginfiResult {
-        self.increase_balance_internal(amount, BalanceIncreaseType::Any)
-    }
-
-    pub fn increase_balance_in_liquidation(&mut self, amount: I80F48) -> MarginfiResult {
+    /// Deposit an asset, ignoring deposit caps will error if this repays a liability instead of increasing a asset
+    pub fn deposit_ignore_deposit_cap(&mut self, amount: I80F48) -> MarginfiResult {
         self.increase_balance_internal(amount, BalanceIncreaseType::BypassDepositLimit)
     }
 
-    /// Withdraw asset and create/increase liability depending on the specified deposit amount and
-    /// the existing balance.
-    pub fn decrease_balance(&mut self, amount: I80F48) -> MarginfiResult {
-        self.decrease_balance_internal(amount, BalanceDecreaseType::Any)
-    }
-
-    /// Withdraw asset and create/increase liability depending on the specified deposit amount and
-    /// the existing balance.
-    ///
-    /// This function will also bypass borrow limits so liquidations can happen in banks with maxed
-    /// out borrows.
-    pub fn decrease_balance_in_liquidation(&mut self, amount: I80F48) -> MarginfiResult {
-        self.decrease_balance_internal(amount, BalanceDecreaseType::BypassBorrowLimit)
+    /// Incur a borrow, ignoring borrow caps, will error if this withdraws an asset instead of increasing a liability
+    pub fn borrow_ignore_borrow_cap(&mut self, amount: I80F48) -> MarginfiResult {
+        self.decrease_balance_internal(amount, BalanceDecreaseType::BypassBorrowLimit, true)
     }
 
     /// Withdraw existing asset in full - will error if there is no asset.
-    pub fn withdraw_all(&mut self) -> MarginfiResult<u64> {
+    ///
+    /// bypass_util_ratio - if true (typically only during liquidation), bypasses validating that
+    /// assets > liabilities.
+    pub fn withdraw_all(&mut self, bypass_util_ratio: bool) -> MarginfiResult<u64> {
         self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
-
-        bank.assert_operational_mode(None)?;
 
         let total_asset_shares: I80F48 = balance.asset_shares.into();
         let current_asset_amount = bank.get_asset_amount(total_asset_shares)?;
@@ -1129,7 +1119,9 @@ impl<'a> BankAccountWrapper<'a> {
         bank.decrement_lending_position_count();
         bank.change_asset_shares(-total_asset_shares, false)?;
 
-        bank.check_utilization_ratio()?;
+        if !(bypass_util_ratio) {
+            bank.check_utilization_ratio()?;
+        }
 
         let spl_withdraw_amount = current_asset_amount
             .checked_floor()
@@ -1155,8 +1147,6 @@ impl<'a> BankAccountWrapper<'a> {
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
-
-        bank.assert_operational_mode(None)?;
 
         let total_liability_shares: I80F48 = balance.liability_shares.into();
         let current_liability_amount = bank.get_liability_amount(total_liability_shares)?;
@@ -1225,6 +1215,7 @@ impl<'a> BankAccountWrapper<'a> {
 
     // ------------ Internal accounting logic
 
+    /// Note: in `Any` mode, can flip a liability into an asset, a behavior we do not use internally.
     fn increase_balance_internal(
         &mut self,
         balance_delta: I80F48,
@@ -1265,19 +1256,13 @@ impl<'a> BankAccountWrapper<'a> {
                     MarginfiError::OperationRepayOnly
                 );
             }
-            BalanceIncreaseType::DepositOnly => {
+            BalanceIncreaseType::DepositOnly | BalanceIncreaseType::BypassDepositLimit => {
                 check!(
                     liability_amount_decrease.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
                     MarginfiError::OperationDepositOnly
                 );
             }
-            BalanceIncreaseType::Any | BalanceIncreaseType::BypassDepositLimit => {}
-        }
-
-        {
-            let is_asset_amount_increasing =
-                asset_amount_increase.is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
-            bank.assert_operational_mode(Some(is_asset_amount_increasing))?;
+            BalanceIncreaseType::Any => {}
         }
 
         let asset_shares_increase = bank.get_asset_shares(asset_amount_increase)?;
@@ -1314,10 +1299,12 @@ impl<'a> BankAccountWrapper<'a> {
         Ok(())
     }
 
+    /// Note: in `Any` mode, can flip a deposit into an liability, a behavior we do not use internally.
     fn decrease_balance_internal(
         &mut self,
         balance_delta: I80F48,
         operation_type: BalanceDecreaseType,
+        bypass_util_ratio: bool,
     ) -> MarginfiResult {
         debug!(
             "Balance decrease: {} of (type: {:?})",
@@ -1353,19 +1340,13 @@ impl<'a> BankAccountWrapper<'a> {
                     MarginfiError::OperationWithdrawOnly
                 );
             }
-            BalanceDecreaseType::BorrowOnly => {
+            BalanceDecreaseType::BorrowOnly | BalanceDecreaseType::BypassBorrowLimit => {
                 check!(
                     asset_amount_decrease.is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
                     MarginfiError::OperationBorrowOnly
                 );
             }
             _ => {}
-        }
-
-        {
-            let is_liability_amount_increasing =
-                liability_amount_increase.is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
-            bank.assert_operational_mode(Some(is_liability_amount_increasing))?;
         }
 
         let asset_shares_decrease = bank.get_asset_shares(asset_amount_decrease)?;
@@ -1381,7 +1362,7 @@ impl<'a> BankAccountWrapper<'a> {
 
         // If a bank is always above the max utilization ratio, e.g. if it is so bankrupt that
         // assets < liabs, this enables liquidation to continue.
-        if !matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit) {
+        if !bypass_util_ratio {
             bank.check_utilization_ratio()?;
         }
 

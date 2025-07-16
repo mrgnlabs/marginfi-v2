@@ -76,3 +76,12 @@ export RUST_BACKTRACE=full
 ```
 
 compile and run again.
+
+If that fails, remove all log restrictions, e.g. remove:
+```
+     -print_pcs=0 \
+     -print_final_stats=1 \
+     -close_fd_mask=1 \
+```
+
+open fuzz-0.log and see where the error actually occurs.

@@ -700,11 +700,11 @@ impl Bank {
             let deposit_limit = I80F48::from_num(self.config.deposit_limit);
 
             if total_deposits_amount >= deposit_limit {
-                let deposits_num: f64 = total_deposits_amount.to_num();
-                let limit_num: f64 = deposit_limit.to_num();
-                println!("deposits: {:?} deposit lim: {:?}", deposits_num, limit_num);
-                debug!("deposits: {:?} deposit lim: {:?}", deposits_num, limit_num);
-                msg!("deposits: {:?} deposit lim: {:?}", deposits_num, limit_num);
+                debug!(
+                    "deposits: {:?} deposit lim: {:?}",
+                    total_deposits_amount.to_num::<f64>(),
+                    deposit_limit.to_num::<f64>()
+                );
                 return err!(MarginfiError::BankAssetCapacityExceeded);
             }
         }
@@ -1158,28 +1158,6 @@ impl Bank {
         Ok(kill_bank)
     }
 
-    pub fn assert_operational_mode(
-        &self,
-        is_asset_or_liability_amount_increasing: Option<bool>,
-    ) -> Result<()> {
-        match self.config.operational_state {
-            BankOperationalState::Paused => Err(MarginfiError::BankPaused.into()),
-            BankOperationalState::Operational => Ok(()),
-            BankOperationalState::ReduceOnly => {
-                if let Some(is_asset_or_liability_amount_increasing) =
-                    is_asset_or_liability_amount_increasing
-                {
-                    check!(
-                        !is_asset_or_liability_amount_increasing,
-                        MarginfiError::BankReduceOnly
-                    );
-                }
-
-                Ok(())
-            }
-        }
-    }
-
     pub fn get_flag(&self, flag: u64) -> bool {
         (self.flags & flag) == flag
     }
@@ -1348,6 +1326,7 @@ pub enum BankOperationalState {
     Paused,
     Operational,
     ReduceOnly,
+    KilledByBankruptcy,
 }
 unsafe impl Zeroable for BankOperationalState {}
 unsafe impl Pod for BankOperationalState {}
@@ -1359,6 +1338,7 @@ impl Display for BankOperationalState {
             BankOperationalState::Paused => write!(f, "Paused"),
             BankOperationalState::Operational => write!(f, "Operational"),
             BankOperationalState::ReduceOnly => write!(f, "ReduceOnly"),
+            BankOperationalState::KilledByBankruptcy => write!(f, "KilledByBankruptcy"),
         }
     }
 }

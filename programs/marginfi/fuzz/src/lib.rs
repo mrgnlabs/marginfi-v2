@@ -5,6 +5,7 @@ use anchor_lang::{
     prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer, Sysvar},
     Discriminator, Key,
 };
+use anchor_spl::token_2022::spl_token_2022::error::TokenError;
 use arbitrary_helpers::{
     AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
 };
@@ -26,7 +27,6 @@ use marginfi::{
 };
 use metrics::{MetricAction, Metrics};
 use solana_program::system_program;
-use spl_token::error::TokenError;
 use std::{
     collections::HashMap,
     mem::size_of,
@@ -440,7 +440,11 @@ impl<'state> MarginfiFuzzContext<'state> {
             self.metrics.write().unwrap().update_error(&error);
 
             assert!(
-                [MarginfiError::AccountDisabled.into(),].contains(&error),
+                [
+                    MarginfiError::AccountDisabled.into(),
+                    MarginfiError::OperationDepositOnly.into(),
+                ]
+                .contains(&error),
                 "Unexpected deposit error: {:?}",
                 error
             );
@@ -699,6 +703,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     MarginfiError::IsolatedAccountIllegalState.into(),
                     MarginfiError::IllegalUtilizationRatio.into(),
                     MarginfiError::AccountDisabled.into(),
+                    MarginfiError::OperationBorrowOnly.into(),
                 ]
                 .contains(&error),
                 "Unexpected borrow error: {:?}",
@@ -834,9 +839,11 @@ impl<'state> MarginfiFuzzContext<'state> {
                 MarginfiError::AccountDisabled.into(),
                 MarginfiError::ZeroAssetPrice.into(),
                 MarginfiError::ZeroLiabilityPrice.into(),
-                // TODO figure out under what circumstances these pop up, they started to throw
-                // after the bankruptcy changes.
-                MarginfiError::BankAssetCapacityExceeded.into(),
+                MarginfiError::OperationRepayOnly.into(),
+                // Note: because updates in 1.5 allow liquidation of underwater banks, it is now
+                // possible for a bank's liquidity value to become empty in the fuzz suite, which
+                // leads to the `liquidatee_liab_bank_account.withdraw_spl_transfer` failing. This
+                // is probably benign but certainly rare-or-nonexistent in prod.
                 ProgramError::Custom(TokenError::InsufficientFunds as u32).into(),
             ];
 

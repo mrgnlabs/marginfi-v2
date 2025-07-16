@@ -3,7 +3,7 @@ use crate::{
     constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
     state::{
         marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType, WrappedI80F48},
+        marginfi_group::{Bank, BankOperationalState, BankVaultType, WrappedI80F48},
     },
     MarginfiError, MarginfiResult,
 };
@@ -252,6 +252,61 @@ pub fn validate_bank_asset_tags(bank_a: &Bank, bank_b: &Bank) -> MarginfiResult 
     }
     if is_bank_a_staked && is_bank_b_default {
         return err!(MarginfiError::AssetTagMismatch);
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum InstructionKind {
+    /// Only fails if the bank is in `BankKilledByBankruptcy`, technically doesn't exist (yet)
+    Unrestricted,
+    /// E.g. withdraw, repay
+    FailsInReduceState,
+    /// E.g. liquidation
+    FailsInPausedState,
+    /// E.g. borrow, deposit
+    FailsIfPausedOrReduceState,
+}
+
+// TODO remove redundant checks for these elsewhere in the program (they are nested many laters deep
+// in various value delta functions)
+/// Validate the bank's state does not forbid the execution of an instruction
+pub fn validate_bank_state(bank: &Bank, kind: InstructionKind) -> MarginfiResult {
+    if bank.config.operational_state == BankOperationalState::KilledByBankruptcy {
+        return err!(MarginfiError::BankKilledByBankruptcy);
+    }
+
+    match kind {
+        InstructionKind::FailsInReduceState
+            if bank.config.operational_state == BankOperationalState::ReduceOnly =>
+        {
+            return err!(MarginfiError::BankReduceOnly);
+        }
+
+        InstructionKind::FailsInPausedState
+            if bank.config.operational_state == BankOperationalState::Paused =>
+        {
+            return err!(MarginfiError::BankPaused);
+        }
+
+        InstructionKind::FailsIfPausedOrReduceState
+            if matches!(
+                bank.config.operational_state,
+                BankOperationalState::Paused | BankOperationalState::ReduceOnly
+            ) =>
+        {
+            return match bank.config.operational_state {
+                BankOperationalState::Paused => {
+                    err!(MarginfiError::BankPaused)
+                }
+                BankOperationalState::ReduceOnly => {
+                    err!(MarginfiError::BankReduceOnly)
+                }
+                _ => unreachable!(),
+            };
+        }
+        _ => {}
     }
 
     Ok(())
