@@ -1,11 +1,5 @@
 use crate::{
-    bank_authority_seed, bank_seed,
-    constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType, WrappedI80F48},
-    },
-    MarginfiError, MarginfiResult,
+    bank_authority_seed, bank_seed, state::bank::BankVaultType, MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -20,13 +14,17 @@ use anchor_spl::{
     token_interface::Mint,
 };
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
+    types::{Bank, MarginfiAccount, WrappedI80F48},
+};
 
 pub fn find_bank_vault_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
-    Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), &crate::id())
+    Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), &crate::ID)
 }
 
 pub fn find_bank_vault_authority_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
-    Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), &crate::id())
+    Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), &crate::ID)
 }
 
 pub trait NumTraitsWithTolerance<T> {
@@ -261,4 +259,17 @@ pub fn wrapped_i80f48_to_f64(n: WrappedI80F48) -> f64 {
     let as_i80: I80F48 = n.into();
     let as_f64: f64 = as_i80.to_num();
     as_f64
+}
+
+#[macro_export]
+macro_rules! assert_eq_with_tolerance {
+    ($test_val:expr, $val:expr, $tolerance:expr) => {
+        assert!(
+            ($test_val - $val).abs() <= $tolerance,
+            "assertion failed: `({} - {}) <= {}`",
+            $test_val,
+            $val,
+            $tolerance
+        );
+    };
 }

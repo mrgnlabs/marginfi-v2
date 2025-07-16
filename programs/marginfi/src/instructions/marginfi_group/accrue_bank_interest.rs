@@ -1,8 +1,6 @@
-use crate::{
-    state::marginfi_group::{Bank, MarginfiGroup},
-    MarginfiResult,
-};
+use crate::{state::bank::BankImpl, MarginfiResult};
 use anchor_lang::prelude::*;
+use marginfi_type_crate::types::{Bank, MarginfiGroup};
 
 pub fn lending_pool_accrue_bank_interest(
     ctx: Context<LendingPoolAccrueBankInterest>,

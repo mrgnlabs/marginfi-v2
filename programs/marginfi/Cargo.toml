@@ -18,12 +18,14 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 test-bpf = ["test", "debug"]
 test = []
 client = []
-devnet = []
-mainnet-beta = []
 debug = []
-staging = []
+mainnet-beta = ["id-crate/mainnet-beta", "marginfi-type-crate/mainnet-beta"]
+staging = ["id-crate/staging", "marginfi-type-crate/staging"]
+devnet = ["id-crate/devnet", "marginfi-type-crate/devnet"]
 
 [dependencies]
+id-crate = { path = "../../id-crate" }
+marginfi-type-crate = { path = "../../type-crate", features = ["anchor"] }
 # solana-program = { workspace = true }
 spl-transfer-hook-interface = { workspace = true }
 # spl-tlv-account-resolution = { workspace = true }
@@ -36,7 +38,7 @@ pyth-solana-receiver-sdk = { workspace = true }
 switchboard-on-demand = { workspace = true }
 
 borsh = { workspace = true }
-bytemuck = { workspace = true }
+bytemuck = { workspace = true, features = ["derive"] }
 fixed = { workspace = true }
 fixed-macro = { workspace = true }
 lazy_static = { workspace = true }

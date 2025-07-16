@@ -1,24 +1,25 @@
-use super::{
-    emode::{reconcile_emode_configs, EmodeConfig},
-    health_cache::HealthCache,
-    marginfi_group::{Bank, RiskTier, WrappedI80F48},
-    price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
-};
+use super::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::{
-    assert_struct_align, assert_struct_size, check, check_eq,
-    constants::{
-        ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
-        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EMPTY_BALANCE_THRESHOLD,
-        EXP_10_I80F48, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
-    },
-    debug, math_error,
+    check, check_eq, debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
+    state::{bank::BankImpl, bank_config::BankConfigImpl},
     utils::NumTraitsWithTolerance,
 };
-use anchor_lang::{prelude::*, Discriminator};
+use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
-use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::{
+        ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
+        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48,
+        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
+    },
+    types::{
+        reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache,
+        LendingAccount, MarginfiAccount, RiskTier, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
+        ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+    },
+};
 use std::cmp::{max, min};
 use type_layout::TypeLayout;
 
@@ -80,9 +81,19 @@ fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> 
     }
 }
 
-impl MarginfiAccount {
+pub trait MarginfiAccountImpl {
+    fn initialize(&mut self, group: Pubkey, authority: Pubkey);
+    fn get_remaining_accounts_len(&self) -> MarginfiResult<usize>;
+    fn set_flag(&mut self, flag: u64);
+    fn unset_flag(&mut self, flag: u64);
+    fn get_flag(&self, flag: u64) -> bool;
+    fn set_new_account_authority_checked(&mut self, new_authority: Pubkey) -> MarginfiResult;
+    fn can_be_closed(&self) -> bool;
+}
+
+impl MarginfiAccountImpl for MarginfiAccount {
     /// Set the initial data for the marginfi account.
-    pub fn initialize(&mut self, group: Pubkey, authority: Pubkey) {
+    fn initialize(&mut self, group: Pubkey, authority: Pubkey) {
         self.authority = authority;
         self.group = group;
         self.emissions_destination_account = Pubkey::default();
@@ -92,7 +103,7 @@ impl MarginfiAccount {
 
     /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
     /// key, oracle, and optional accounts like lst mint/pool, etc.
-    pub fn get_remaining_accounts_len(&self) -> MarginfiResult<usize> {
+    fn get_remaining_accounts_len(&self) -> MarginfiResult<usize> {
         let mut total = 0usize;
         for balance in self
             .lending_account
@@ -106,21 +117,21 @@ impl MarginfiAccount {
         Ok(total)
     }
 
-    pub fn set_flag(&mut self, flag: u64) {
+    fn set_flag(&mut self, flag: u64) {
         msg!("Setting account flag {:b}", flag);
         self.account_flags |= flag;
     }
 
-    pub fn unset_flag(&mut self, flag: u64) {
+    fn unset_flag(&mut self, flag: u64) {
         msg!("Unsetting account flag {:b}", flag);
         self.account_flags &= !flag;
     }
 
-    pub fn get_flag(&self, flag: u64) -> bool {
+    fn get_flag(&self, flag: u64) -> bool {
         self.account_flags & flag != 0
     }
 
-    pub fn set_new_account_authority_checked(&mut self, new_authority: Pubkey) -> MarginfiResult {
+    fn set_new_account_authority_checked(&mut self, new_authority: Pubkey) -> MarginfiResult {
         // check if new account authority flag is set
         if !self.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED) || self.get_flag(ACCOUNT_DISABLED)
         {
@@ -143,7 +154,7 @@ impl MarginfiAccount {
         Ok(())
     }
 
-    pub fn can_be_closed(&self) -> bool {
+    fn can_be_closed(&self) -> bool {
         let is_disabled = self.get_flag(ACCOUNT_DISABLED);
         let only_has_empty_balances = self
             .lending_account
@@ -195,11 +206,6 @@ pub struct BankAccountWithPriceFeed<'a, 'info> {
     bank: AccountLoader<'info, Bank>,
     price_feed: Box<MarginfiResult<OraclePriceFeedAdapter>>,
     balance: &'a Balance,
-}
-
-pub enum BalanceSide {
-    Assets,
-    Liabilities,
 }
 
 impl<'info> BankAccountWithPriceFeed<'_, 'info> {
@@ -846,86 +852,30 @@ impl<'info> RiskEngine<'_, 'info> {
     }
 }
 
-pub const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
-
-assert_struct_size!(LendingAccount, 1728);
-assert_struct_align!(LendingAccount, 8);
-#[repr(C)]
-#[derive(
-    AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod, PartialEq, Eq, TypeLayout,
-)]
-pub struct LendingAccount {
-    pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES], // 104 * 16 = 1664
-    pub _padding: [u64; 8],                                // 8 * 8 = 64
+pub trait LendingAccountImpl {
+    fn get_first_empty_balance(&self) -> Option<usize>;
+    fn sort_balances(&mut self);
 }
 
-impl LendingAccount {
-    pub fn get_first_empty_balance(&self) -> Option<usize> {
+impl LendingAccountImpl for LendingAccount {
+    fn get_first_empty_balance(&self) -> Option<usize> {
         self.balances.iter().position(|b| !b.is_active())
     }
 
-    pub fn sort_balances(&mut self) {
+    fn sort_balances(&mut self) {
         // Sort all balances in descending order by bank_pk
         self.balances.sort_by(|a, b| b.bank_pk.cmp(&a.bank_pk));
     }
 }
 
-#[cfg(any(feature = "test", feature = "client"))]
-impl LendingAccount {
-    pub fn get_balance(&self, bank_pk: &Pubkey) -> Option<&Balance> {
-        self.balances
-            .iter()
-            .find(|balance| balance.is_active() && balance.bank_pk.eq(bank_pk))
-    }
-
-    pub fn get_active_balances_iter(&self) -> impl Iterator<Item = &Balance> {
-        self.balances.iter().filter(|b| b.is_active())
-    }
+pub trait BalanceImpl {
+    fn change_asset_shares(&mut self, delta: I80F48) -> MarginfiResult;
+    fn change_liability_shares(&mut self, delta: I80F48) -> MarginfiResult;
+    fn close(&mut self) -> MarginfiResult;
 }
 
-assert_struct_size!(Balance, 104);
-assert_struct_align!(Balance, 8);
-#[repr(C)]
-#[derive(
-    AnchorDeserialize, AnchorSerialize, Copy, Clone, Zeroable, Pod, PartialEq, Eq, TypeLayout,
-)]
-pub struct Balance {
-    pub active: u8,
-    pub bank_pk: Pubkey,
-    /// Inherited from the bank when the position is first created and CANNOT BE CHANGED after that.
-    /// Note that all balances created before the addition of this feature use `ASSET_TAG_DEFAULT`
-    pub bank_asset_tag: u8,
-    pub _pad0: [u8; 6],
-    pub asset_shares: WrappedI80F48,
-    pub liability_shares: WrappedI80F48,
-    pub emissions_outstanding: WrappedI80F48,
-    pub last_update: u64,
-    pub _padding: [u64; 1],
-}
-
-impl Balance {
-    pub fn is_active(&self) -> bool {
-        self.active != 0
-    }
-
-    pub fn set_active(&mut self, value: bool) {
-        self.active = value as u8;
-    }
-
-    /// Check whether a balance is empty while accounting for any rounding errors
-    /// that might have occured during depositing/withdrawing.
-    #[inline]
-    pub fn is_empty(&self, side: BalanceSide) -> bool {
-        let shares: I80F48 = match side {
-            BalanceSide::Assets => self.asset_shares,
-            BalanceSide::Liabilities => self.liability_shares,
-        }
-        .into();
-
-        shares < EMPTY_BALANCE_THRESHOLD
-    }
-
-    pub fn change_asset_shares(&mut self, delta: I80F48) -> MarginfiResult {
+impl BalanceImpl for Balance {
+    fn change_asset_shares(&mut self, delta: I80F48) -> MarginfiResult {
         let asset_shares: I80F48 = self.asset_shares.into();
         self.asset_shares = asset_shares
             .checked_add(delta)
@@ -934,7 +884,7 @@ impl Balance {
         Ok(())
     }
 
-    pub fn change_liability_shares(&mut self, delta: I80F48) -> MarginfiResult {
+    fn change_liability_shares(&mut self, delta: I80F48) -> MarginfiResult {
         let liability_shares: I80F48 = self.liability_shares.into();
         self.liability_shares = liability_shares
             .checked_add(delta)
@@ -943,7 +893,7 @@ impl Balance {
         Ok(())
     }
 
-    pub fn close(&mut self) -> MarginfiResult {
+    fn close(&mut self) -> MarginfiResult {
         check!(
             I80F48::from(self.emissions_outstanding) < I80F48::ONE,
             MarginfiError::CannotCloseOutstandingEmissions
@@ -952,37 +902,6 @@ impl Balance {
         *self = Self::empty_deactivated();
 
         Ok(())
-    }
-
-    pub fn get_side(&self) -> Option<BalanceSide> {
-        let asset_shares = I80F48::from(self.asset_shares);
-        let liability_shares = I80F48::from(self.liability_shares);
-
-        assert!(
-            asset_shares < EMPTY_BALANCE_THRESHOLD || liability_shares < EMPTY_BALANCE_THRESHOLD
-        );
-
-        if I80F48::from(self.liability_shares) >= EMPTY_BALANCE_THRESHOLD {
-            Some(BalanceSide::Liabilities)
-        } else if I80F48::from(self.asset_shares) >= EMPTY_BALANCE_THRESHOLD {
-            Some(BalanceSide::Assets)
-        } else {
-            None
-        }
-    }
-
-    pub fn empty_deactivated() -> Self {
-        Balance {
-            active: 0,
-            bank_pk: Pubkey::default(),
-            bank_asset_tag: ASSET_TAG_DEFAULT,
-            _pad0: [0; 6],
-            asset_shares: WrappedI80F48::from(I80F48::ZERO),
-            liability_shares: WrappedI80F48::from(I80F48::ZERO),
-            emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),
-            last_update: 0,
-            _padding: [0; 1],
-        }
     }
 }
 
@@ -1581,7 +1500,9 @@ fn calc_emissions(
 #[cfg(test)]
 mod test {
     use super::*;
+    use bytemuck::Zeroable;
     use fixed_macro::types::I80F48;
+    use marginfi_type_crate::types::WrappedI80F48;
 
     #[test]
     fn test_calc_asset_value() {

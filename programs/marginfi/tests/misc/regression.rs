@@ -6,14 +6,10 @@ use anyhow::bail;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use marginfi::{
+use marginfi_type_crate::{
     constants::ASSET_TAG_DEFAULT,
-    state::{
-        bank_cache::BankCache,
-        health_cache::HealthCache,
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankOperationalState, RiskTier},
-        price::OracleSetup,
+    types::{
+        Bank, BankCache, BankOperationalState, HealthCache, MarginfiAccount, OracleSetup, RiskTier,
     },
 };
 use solana_account_decoder::UiAccountData;

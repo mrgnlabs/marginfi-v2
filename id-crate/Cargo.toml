@@ -1,0 +1,15 @@
+[package]
+name = "id-crate"
+version = "0.1.0"
+edition = "2021"
+publish = true
+
+[features]
+default = []
+mainnet-beta = []
+devnet = []
+staging = []
+
+[dependencies]
+anchor-lang = { workspace = true }
+cfg-if = "1.0.0"
