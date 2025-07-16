@@ -526,7 +526,6 @@ fn create_bank_ix_with_seed(
                 &config.program_id,
             )
             .0,
-            rent: sysvar::rent::id(),
             token_program,
             system_program: system_program::id(),
             fee_payer: config.authority(),
@@ -618,7 +617,6 @@ fn create_bank_ix(
                 &config.program_id,
             )
             .0,
-            rent: sysvar::rent::id(),
             token_program,
             system_program: system_program::id(),
             fee_payer: config.explicit_fee_payer(),
@@ -983,7 +981,6 @@ pub fn initialize_fee_state(
         .accounts(marginfi::accounts::InitFeeState {
             payer: config.authority(),
             fee_state: fee_state_pubkey,
-            rent: sysvar::rent::id(),
             system_program: system_program::id(),
         })
         .args(marginfi::instruction::InitGlobalFeeState {
