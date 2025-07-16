@@ -16,7 +16,6 @@ use marginfi_type_crate::types::{
     BankConfig, BankConfigCompact, BankConfigOpt, EmodeEntry, FeeState, InterestRateConfigOpt,
     MarginfiGroup, OracleSetup, MAX_EMODE_ENTRIES,
 };
-use solana_program::sysvar;
 use solana_program_test::*;
 use solana_sdk::system_transaction;
 use solana_sdk::{
@@ -120,7 +119,6 @@ impl MarginfiGroupFixture {
                     accounts: marginfi::accounts::InitFeeState {
                         payer: ctx.payer.pubkey(),
                         fee_state: fee_state_key,
-                        rent: sysvar::rent::id(),
                         system_program: system_program::id(),
                     }
                     .to_account_metas(Some(true)),
@@ -185,7 +183,6 @@ impl MarginfiGroupFixture {
             insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
             fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
             fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
-            rent: sysvar::rent::id(),
             token_program: bank_asset_mint_fixture.token_program,
             system_program: system_program::id(),
         }
@@ -277,7 +274,6 @@ impl MarginfiGroupFixture {
             insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
             fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
             fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
-            rent: sysvar::rent::id(),
             token_program: bank_fixture.get_token_program(),
             system_program: system_program::id(),
         }
