@@ -1,11 +1,10 @@
 // Global fee admin calls this to edit the fee rate or the fee wallet.
-
-use crate::constants::FEE_STATE_SEED;
-use crate::state::fee_state;
-use crate::state::marginfi_group::WrappedI80F48;
 use crate::utils::wrapped_i80f48_to_f64;
 use anchor_lang::prelude::*;
-use fee_state::FeeState;
+use marginfi_type_crate::{
+    constants::FEE_STATE_SEED,
+    types::{FeeState, WrappedI80F48},
+};
 
 pub fn edit_fee_state(
     ctx: Context<EditFeeState>,

@@ -1,11 +1,26 @@
-use crate::constants::{discriminators, ASSET_TAG_DEFAULT, EMPTY_BALANCE_THRESHOLD};
+use crate::{
+    assert_struct_align, assert_struct_size,
+    constants::{discriminators, ASSET_TAG_DEFAULT, EMPTY_BALANCE_THRESHOLD},
+};
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
 
-use super::{HealthCache, Pubkey, WrappedI80F48};
+#[cfg(not(feature = "anchor"))]
+use super::Pubkey;
 
+use super::{HealthCache, WrappedI80F48};
+
+#[cfg(feature = "anchor")]
+use {anchor_lang::prelude::*, type_layout::TypeLayout};
+
+assert_struct_size!(MarginfiAccount, 2304);
+assert_struct_align!(MarginfiAccount, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(feature = "anchor", account(zero_copy), derive(TypeLayout))]
+#[cfg_attr(
+    not(feature = "anchor"),
+    derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)
+)]
 pub struct MarginfiAccount {
     pub group: Pubkey,                   // 32
     pub authority: Pubkey,               // 32
@@ -27,7 +42,8 @@ pub struct MarginfiAccount {
     /// If pubkey default, the user has not opted into this feature, and must claim emissions
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
-    pub migrated_from: Pubkey,                 // 32
+    /// If this account was migrated from another one, store the original account key
+    pub migrated_from: Pubkey, // 32
     pub health_cache: HealthCache,
     pub _padding0: [u64; 17],
 }
@@ -40,12 +56,17 @@ impl MarginfiAccount {
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;
 pub const ACCOUNT_IN_FLASHLOAN: u64 = 1 << 1;
 pub const ACCOUNT_FLAG_DEPRECATED: u64 = 1 << 2;
-pub const ACCOUNT_TRANSFER_AUTHORITY_ALLOWED: u64 = 1 << 3;
-
+pub const ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED: u64 = 1 << 3;
 pub const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
+assert_struct_size!(LendingAccount, 1728);
+assert_struct_align!(LendingAccount, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(
+    feature = "anchor",
+    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
+)]
+#[derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES], // 104 * 16 = 1664
     pub _padding: [u64; 8],                                // 8 * 8 = 64
@@ -68,8 +89,14 @@ pub enum BalanceSide {
     Liabilities,
 }
 
+assert_struct_size!(Balance, 104);
+assert_struct_align!(Balance, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(
+    feature = "anchor",
+    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
+)]
+#[derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct Balance {
     pub active: u8,
     pub bank_pk: Pubkey,

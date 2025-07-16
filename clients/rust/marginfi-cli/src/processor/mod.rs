@@ -23,23 +23,26 @@ use {
     fixed::types::I80F48,
     log::info,
     marginfi::{
+        state::{
+            bank::{BankImpl, BankVaultType},
+            bank_config::BankConfigImpl,
+            marginfi_account::BankAccountWrapper,
+            price::{
+                parse_swb_ignore_alignment, LitePullFeedAccountData, OraclePriceFeedAdapter,
+                PriceAdapter,
+            },
+        },
+        utils::NumTraitsWithTolerance,
+    },
+    marginfi_type_crate::{
         constants::{
             EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, PYTH_SPONSORED_SHARD_ID,
             ZERO_AMOUNT_THRESHOLD,
         },
-        prelude::*,
-        state::{
-            marginfi_account::{BankAccountWrapper, MarginfiAccount},
-            marginfi_group::{
-                Bank, BankConfigCompact, BankConfigOpt, BankOperationalState, BankVaultType,
-                InterestRateConfig, WrappedI80F48,
-            },
-            price::{
-                parse_swb_ignore_alignment, LitePullFeedAccountData, OraclePriceFeedAdapter,
-                OracleSetup, PriceAdapter,
-            },
+        types::{
+            BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
+            InterestRateConfig, MarginfiAccount, MarginfiGroup, OracleSetup, WrappedI80F48,
         },
-        utils::NumTraitsWithTolerance,
     },
     pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{
@@ -236,7 +239,7 @@ pub fn group_create(
         .accounts(marginfi::accounts::MarginfiGroupInitialize {
             marginfi_group: marginfi_group_keypair.pubkey(),
             admin,
-            fee_state: find_fee_state_pda(&marginfi::id()).0,
+            fee_state: find_fee_state_pda(&marginfi::ID).0,
             system_program: system_program::id(),
         })
         .args(marginfi::instruction::MarginfiGroupInitialize { is_arena_group })
@@ -1931,17 +1934,11 @@ pub fn print_account(
         .get_active_balances_iter()
         .for_each(|balance| {
             let bank = banks.get(&balance.bank_pk).expect("Bank not found");
-            let balance_amount = if balance
-                .is_empty(marginfi::state::marginfi_account::BalanceSide::Assets)
-                .not()
-            {
+            let balance_amount = if balance.is_empty(BalanceSide::Assets).not() {
                 let native_value = bank.get_asset_amount(balance.asset_shares.into()).unwrap();
 
                 native_value / EXP_10_I80F48[bank.mint_decimals as usize]
-            } else if balance
-                .is_empty(marginfi::state::marginfi_account::BalanceSide::Liabilities)
-                .not()
-            {
+            } else if balance.is_empty(BalanceSide::Liabilities).not() {
                 let native_value = bank
                     .get_liability_amount(balance.liability_shares.into())
                     .unwrap();

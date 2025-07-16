@@ -18,23 +18,13 @@ pub mod utils;
 
 use anchor_lang::prelude::*;
 use instructions::*;
+use marginfi_type_crate::types::{
+    BankConfigCompact, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, WrappedI80F48,
+    MAX_EMODE_ENTRIES,
+};
 use prelude::*;
-use state::emode::{EmodeEntry, MAX_EMODE_ENTRIES};
-use state::marginfi_group::InterestRateConfigOpt;
-use state::marginfi_group::WrappedI80F48;
-use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "mainnet-beta")] {
-        declare_id!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
-    } else if #[cfg(feature = "devnet")] {
-        declare_id!("neetcne3Ctrrud7vLdt2ypMm21gZHGN2mCmqWaMVcBQ");
-    } else if #[cfg(feature = "staging")] {
-        declare_id!("stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct");
-    } else {
-        declare_id!("2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr");
-    }
-}
+pub use id_crate::ID;
 
 // #[cfg(target_os = "solana")]
 // /// Custom heap allocator that exposes a move_cursor method. This allows us to manually deallocate

@@ -1,5 +1,6 @@
-use crate::{state::marginfi_group::Bank, utils::wrapped_i80f48_to_f64};
+use crate::utils::wrapped_i80f48_to_f64;
 use anchor_lang::prelude::*;
+use marginfi_type_crate::types::Bank;
 
 /// Echo the information used to create banks to the log output. Useful for at-a-glance debugging
 /// bank creation txes in explorer. Note: costs a lot of CU
