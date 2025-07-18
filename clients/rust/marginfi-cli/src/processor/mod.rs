@@ -62,7 +62,6 @@ use {
         signature::Keypair,
         signer::Signer,
         system_program,
-        sysvar::{self},
         transaction::Transaction,
     },
     spl_associated_token_account::{
