@@ -5,11 +5,9 @@ use fixtures::{
 };
 use marginfi::{
     errors::MarginfiError,
-    state::{
-        marginfi_account::ACCOUNT_DISABLED,
-        marginfi_group::{BankConfig, BankConfigOpt, BankVaultType},
-    },
+    state::{bank::BankVaultType, marginfi_account::MarginfiAccountImpl},
 };
+use marginfi_type_crate::types::{BankConfig, BankConfigOpt, ACCOUNT_DISABLED};
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 
@@ -91,7 +89,14 @@ async fn marginfi_group_handle_bankruptcy_unauthorized() -> anyhow::Result<()> {
 
     test_f
         .marginfi_group
-        .try_update(Pubkey::new_unique(), Pubkey::new_unique(), false)
+        .try_update(
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            false,
+        )
         .await?;
 
     let bank = test_f.get_bank(&BankMint::Usdc);
@@ -187,7 +192,14 @@ async fn marginfi_group_handle_bankruptcy_perimssionless() -> anyhow::Result<()>
 
     test_f
         .marginfi_group
-        .try_update(Pubkey::new_unique(), Pubkey::new_unique(), false)
+        .try_update(
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            false,
+        )
         .await?;
 
     let res = test_f

@@ -1,11 +1,13 @@
-use crate::constants::FREEZE_SETTINGS;
 use crate::events::{GroupEventHeader, LendingPoolBankConfigureOracleEvent};
-use crate::state::price::OracleSetup;
-use crate::{
-    state::marginfi_group::{Bank, MarginfiGroup},
-    MarginfiResult,
-};
+use crate::state::bank::BankImpl;
+use crate::state::bank_config::BankConfigImpl;
+use crate::MarginfiResult;
 use anchor_lang::prelude::*;
+use marginfi_type_crate::constants::FREEZE_SETTINGS;
+use marginfi_type_crate::{
+    constants::PYTH_PUSH_MIGRATED,
+    types::{Bank, MarginfiGroup, OracleSetup},
+};
 
 pub fn lending_pool_configure_bank_oracle(
     ctx: Context<LendingPoolConfigureBankOracle>,
@@ -23,6 +25,10 @@ pub fn lending_pool_configure_bank_oracle(
 
         bank.config.oracle_setup = setup_type;
         bank.config.oracle_keys[0] = oracle;
+
+        if setup_type == OracleSetup::PythPushOracle {
+            bank.config.update_config_flag(true, PYTH_PUSH_MIGRATED);
+        }
 
         msg!(
             "setting oracle to type: {:?} key: {:?}",

@@ -8,6 +8,7 @@ edition = "2021"
 # lip = ["liquidity-incentive-program"]
 
 [dependencies]
+marginfi-type-crate = { path = "../type-crate", features = ["anchor"] }
 solana-cli-output = { workspace = true }
 solana-program = { workspace = true }
 solana-logger = { workspace = true }
@@ -21,9 +22,8 @@ spl-transfer-hook-interface = { workspace = true }
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }
 
-pyth-sdk-solana = { workspace = true }
 pyth-solana-receiver-sdk = { workspace = true }
-pythnet-sdk = { workspace = true }
+# pythnet-sdk = { workspace = true }
 # switchboard-solana = { workspace = true }
 switchboard-on-demand = { workspace = true }
 

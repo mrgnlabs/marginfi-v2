@@ -19,9 +19,9 @@ macro_rules! home_path {
             }
         }
 
-        impl ToString for $my_struct {
-            fn to_string(&self) -> String {
-                self.0.clone()
+        impl std::fmt::Display for $my_struct {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.0)
             }
         }
 

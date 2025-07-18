@@ -105,6 +105,16 @@ export const GAPPY3_SAMPLE = new PublicKey(
 export const GAPPY4_SAMPLE = new PublicKey(
   "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
 );
+/** A pyth pull account created before 0.1.4. Uses seed 789 on group
+ * `MARGINFI_GROUP_SEED_1234000000p2` Note that some accounts the bank normally creates don't exist
+ * (e.g. the insurance vault, etc) which makes certain ixes unusable.*/
+export const PRE_MIGRATION_BANK_SAMPLE = new PublicKey(
+  "A5qx1NMxfb3zywMuuo276KntUQk2zA3r3q6ZNwVBbMZC"
+);
+/** The liquidity vault for `PRE_MIGRATION_BANK`. */
+export const PRE_MIGRATION_BANK_LIQ_VAULT = new PublicKey(
+  "CMTyrgnFkmC6ZUpKivZ2MAatqCq7tMFL4iWWzHrYABBt"
+);
 
 /** Banks in the emode test suite use this seed */
 export const EMODE_SEED = 44;
@@ -119,6 +129,8 @@ let copyKeys: PublicKey[] = [
   PYTH_ORACLE_SAMPLE,
   GAPPY3_SAMPLE,
   GAPPY4_SAMPLE,
+  PRE_MIGRATION_BANK_SAMPLE,
+  PRE_MIGRATION_BANK_LIQ_VAULT
 ];
 
 export const mochaHooks = {
@@ -285,7 +297,6 @@ export const mochaHooks = {
       ecosystem.tokenBDecimals,
       175,
       ecosystem.lstAlphaDecimals,
-      0.02, // confidence interval
       verbose
     );
     copyKeys.push(

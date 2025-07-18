@@ -1,5 +1,6 @@
-use crate::{state::marginfi_group::Bank, utils::wrapped_i80f48_to_f64};
+use crate::utils::wrapped_i80f48_to_f64;
 use anchor_lang::prelude::*;
+use marginfi_type_crate::types::Bank;
 
 /// Echo the information used to create banks to the log output. Useful for at-a-glance debugging
 /// bank creation txes in explorer. Note: costs a lot of CU
@@ -28,7 +29,8 @@ pub fn log_pool_info(bank: &Bank) {
         conf.asset_tag
     );
     msg!(
-        "oracle age: {:?} flags: {:?}",
+        "oracle conf {:?} age: {:?} flags: {:?}",
+        conf.oracle_max_confidence,
         conf.oracle_max_age as u8,
         bank.flags as u8
     );

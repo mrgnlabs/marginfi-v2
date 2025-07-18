@@ -1,12 +1,13 @@
 use crate::{
     bank_signer, check,
-    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, PROGRAM_VERSION},
+    constants::PROGRAM_VERSION,
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
     prelude::*,
     state::{
-        health_cache::HealthCache,
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, BankVaultType},
+        bank::{BankImpl, BankVaultType},
+        marginfi_account::{
+            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+        },
     },
     utils,
 };
@@ -15,6 +16,10 @@ use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    types::{Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
+};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset withdrawn
@@ -54,15 +59,15 @@ pub fn lending_account_withdraw<'info>(
         token_program.key,
     )?;
 
-    bank_loader.load_mut()?.accrue_interest(
-        clock.unix_timestamp,
-        &*marginfi_group_loader.load()?,
-        #[cfg(not(feature = "client"))]
-        bank_loader.key(),
-    )?;
-
     {
+        let group = &marginfi_group_loader.load()?;
         let mut bank = bank_loader.load_mut()?;
+        bank.accrue_interest(
+            clock.unix_timestamp,
+            group,
+            #[cfg(not(feature = "client"))]
+            bank_loader.key(),
+        )?;
 
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
 
@@ -104,6 +109,8 @@ pub fn lending_account_withdraw<'info>(
             ),
             ctx.remaining_accounts,
         )?;
+
+        bank.update_bank_cache(group)?;
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {

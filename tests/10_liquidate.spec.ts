@@ -3,10 +3,9 @@ import {
   BN,
   getProvider,
   Program,
-  Wallet,
   workspace,
 } from "@coral-xyz/anchor";
-import { Transaction } from "@solana/web3.js";
+import { ComputeBudgetProgram, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
@@ -30,7 +29,6 @@ import {
   liquidateIx,
 } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { updatePriceAccount } from "./utils/pyth_mocks";
 import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
@@ -41,51 +39,12 @@ import { configureBank } from "./utils/group-instructions";
 describe("Liquidate user", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
   const provider = getProvider() as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
 
   const confidenceInterval = 0.01 * CONF_INTERVAL_MULTIPLE;
   const liquidateAmountA = 0.2;
   const liquidateAmountA_native = new BN(
     liquidateAmountA * 10 ** ecosystem.tokenADecimals
   );
-
-  it("oracle data refreshes", async () => {
-    const usdcPrice = BigInt(oracles.usdcPrice * 10 ** oracles.usdcDecimals);
-    await updatePriceAccount(
-      oracles.usdcOracle,
-      {
-        exponent: -oracles.usdcDecimals,
-        aggregatePriceInfo: {
-          price: usdcPrice,
-          conf: usdcPrice / BigInt(100), // 1% of the price
-        },
-        twap: {
-          // aka ema
-          valueComponent: usdcPrice,
-        },
-      },
-      wallet
-    );
-
-    const tokenAPrice = BigInt(
-      oracles.tokenAPrice * 10 ** oracles.tokenADecimals
-    );
-    await updatePriceAccount(
-      oracles.tokenAOracle,
-      {
-        exponent: -oracles.tokenADecimals,
-        aggregatePriceInfo: {
-          price: tokenAPrice,
-          conf: tokenAPrice / BigInt(100), // 1% of the price
-        },
-        twap: {
-          // aka ema
-          valueComponent: tokenAPrice,
-        },
-      },
-      wallet
-    );
-  });
 
   it("(user 1) tries to sneak in a bad oracle for itself - should fail", async () => {
     const liquidatee = users[0];
@@ -99,32 +58,36 @@ describe("Liquidate user", () => {
     const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT);
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT);
 
-    await expectFailedTxWithError(async () => {
-      await liquidator.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await liquidateIx(liquidator.mrgnProgram, {
-            assetBankKey,
-            liabilityBankKey,
-            liquidatorMarginfiAccount: liquidatorAccount,
-            liquidateeMarginfiAccount: liquidateeAccount,
-            remaining: [
-              oracles.tokenAOracle.publicKey,
-              oracles.usdcOracle.publicKey,
-              ...composeRemainingAccounts([
-                [liabilityBankKey, oracles.fakeUsdc], // sneaky sneaky
-                [assetBankKey, oracles.tokenAOracle.publicKey],
-              ]),
-              ...composeRemainingAccounts([
-                [liabilityBankKey, oracles.usdcOracle.publicKey],
-                [assetBankKey, oracles.tokenAOracle.publicKey],
-              ]),
-            ],
-            amount: liquidateAmountA_native,
-          })
-        )
-      );
-      // TODO this should throw a more oracle-specific error further upstream, this is kinda dumb.
-    }, "HealthyAccount");
+    await expectFailedTxWithError(
+      async () => {
+        await liquidator.mrgnProgram.provider.sendAndConfirm(
+          new Transaction().add(
+            await liquidateIx(liquidator.mrgnProgram, {
+              assetBankKey,
+              liabilityBankKey,
+              liquidatorMarginfiAccount: liquidatorAccount,
+              liquidateeMarginfiAccount: liquidateeAccount,
+              remaining: [
+                oracles.tokenAOracle.publicKey,
+                oracles.usdcOracle.publicKey,
+                ...composeRemainingAccounts([
+                  [liabilityBankKey, oracles.fakeUsdc], // sneaky sneaky
+                  [assetBankKey, oracles.tokenAOracle.publicKey],
+                ]),
+                ...composeRemainingAccounts([
+                  [liabilityBankKey, oracles.usdcOracle.publicKey],
+                  [assetBankKey, oracles.tokenAOracle.publicKey],
+                ]),
+              ],
+              amount: liquidateAmountA_native,
+            })
+          )
+        );
+        // TODO this should throw a more oracle-specific error further upstream, this is kinda dumb.
+      },
+      "HealthyAccount",
+      6068
+    );
   });
 
   it("(user 1) tries to sneak in a bad oracle for the liquidatee - should fail", async () => {
@@ -136,31 +99,35 @@ describe("Liquidate user", () => {
     const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT);
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT);
 
-    await expectFailedTxWithError(async () => {
-      await liquidator.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await liquidateIx(liquidator.mrgnProgram, {
-            assetBankKey,
-            liabilityBankKey,
-            liquidatorMarginfiAccount: liquidatorAccount,
-            liquidateeMarginfiAccount: liquidateeAccount,
-            remaining: [
-              oracles.tokenAOracle.publicKey,
-              oracles.usdcOracle.publicKey,
-              ...composeRemainingAccounts([
-                [liabilityBankKey, oracles.usdcOracle.publicKey],
-                [assetBankKey, oracles.tokenAOracle.publicKey],
-              ]),
-              ...composeRemainingAccounts([
-                [liabilityBankKey, oracles.fakeUsdc], // sneaky sneaky
-                [assetBankKey, oracles.tokenAOracle.publicKey],
-              ]),
-            ],
-            amount: liquidateAmountA_native,
-          })
-        )
-      );
-    }, "WrongOracleAccountKeys");
+    await expectFailedTxWithError(
+      async () => {
+        await liquidator.mrgnProgram.provider.sendAndConfirm(
+          new Transaction().add(
+            await liquidateIx(liquidator.mrgnProgram, {
+              assetBankKey,
+              liabilityBankKey,
+              liquidatorMarginfiAccount: liquidatorAccount,
+              liquidateeMarginfiAccount: liquidateeAccount,
+              remaining: [
+                oracles.tokenAOracle.publicKey,
+                oracles.usdcOracle.publicKey,
+                ...composeRemainingAccounts([
+                  [liabilityBankKey, oracles.usdcOracle.publicKey],
+                  [assetBankKey, oracles.tokenAOracle.publicKey],
+                ]),
+                ...composeRemainingAccounts([
+                  [liabilityBankKey, oracles.fakeUsdc], // sneaky sneaky
+                  [assetBankKey, oracles.tokenAOracle.publicKey],
+                ]),
+              ],
+              amount: liquidateAmountA_native,
+            })
+          )
+        );
+      },
+      "WrongOracleAccountKeys",
+      6052
+    );
   });
 
   it("(admin) vastly reduce Token A bank collateral ratio to induce liquidation", async () => {
@@ -311,6 +278,9 @@ describe("Liquidate user", () => {
 
     await liquidator.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
+        ComputeBudgetProgram.setComputeUnitLimit({
+          units: 250_000,
+        }),
         await liquidateIx(liquidator.mrgnProgram, {
           assetBankKey,
           liabilityBankKey,

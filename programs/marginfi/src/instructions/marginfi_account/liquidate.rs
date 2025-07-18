@@ -1,24 +1,23 @@
-use crate::constants::{
-    INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
-};
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
+use crate::state::bank::{BankImpl, BankVaultType};
 use crate::state::marginfi_account::{
-    calc_amount, calc_value, get_remaining_accounts_per_bank, RiskEngine,
+    calc_amount, calc_value, get_remaining_accounts_per_bank, LendingAccountImpl,
+    MarginfiAccountImpl, RiskEngine,
 };
-use crate::state::marginfi_group::{Bank, BankVaultType};
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::utils::{validate_asset_tags, validate_bank_asset_tags};
-use crate::{
-    bank_signer,
-    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
-    state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
-};
+use crate::{bank_signer, state::marginfi_account::BankAccountWrapper};
 use crate::{check, debug, prelude::*, utils};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Clock;
 use anchor_lang::solana_program::sysvar::Sysvar;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
+use marginfi_type_crate::constants::{
+    INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
+    LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+};
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup};
 
 /// Instruction liquidates a position owned by a margin account that is in a unhealthy state.
 /// The liquidator can purchase discounted collateral from the unhealthy account, in exchange for paying its debt.
@@ -125,8 +124,8 @@ pub fn lending_account_liquidate<'info>(
         &*ctx.accounts.liab_bank.load()?,
         ctx.accounts.token_program.key,
     )?;
+    let group = &*marginfi_group_loader.load()?;
     {
-        let group = &*marginfi_group_loader.load()?;
         ctx.accounts.asset_bank.load_mut()?.accrue_interest(
             current_timestamp,
             group,
@@ -171,8 +170,13 @@ pub fn lending_account_liquidate<'info>(
                 oracle_ais,
                 &clock,
             )?;
-            asset_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?
+            asset_pf.get_price_of_type(
+                OraclePriceType::RealTime,
+                Some(PriceBias::Low),
+                asset_bank.config.oracle_max_confidence,
+            )?
         };
+        check!(asset_price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
         let liab_bank_remaining_accounts_len = get_remaining_accounts_per_bank(&liab_bank)? - 1;
@@ -184,8 +188,13 @@ pub fn lending_account_liquidate<'info>(
                 oracle_ais,
                 &clock,
             )?;
-            liab_pf.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?
+            liab_pf.get_price_of_type(
+                OraclePriceType::RealTime,
+                Some(PriceBias::High),
+                liab_bank.config.oracle_max_confidence,
+            )?
         };
+        check!(liab_price > I80F48::ZERO, MarginfiError::ZeroLiabilityPrice);
 
         let final_discount: I80F48 =
             I80F48::ONE - (LIQUIDATION_INSURANCE_FEE + LIQUIDATION_LIQUIDATOR_FEE);
@@ -224,8 +233,8 @@ pub fn lending_account_liquidate<'info>(
         );
 
         debug!(
-            "liab_quantity_liq: {}, liab_q_final: {}, asset_amount: {}, insurance_fund_fee: {}",
-            liab_amount_liquidator, liab_amount_final, asset_amount, insurance_fund_fee
+            "liab_quantity_liq: {}, liab_q_final: {}, asset_amount: {}, insurance_fund_fee: {}, liab_price: {}, asset_price: {}",
+            liab_amount_liquidator, liab_amount_final, asset_amount, insurance_fund_fee, liab_price, asset_price
         );
 
         // Liquidator pays off liability
@@ -353,6 +362,10 @@ pub fn lending_account_liquidate<'info>(
                 .ok_or(MarginfiError::MathError)?
                 .into();
 
+        asset_bank.update_bank_cache(group)?;
+
+        liab_bank.update_bank_cache(group)?;
+
         (
             LiquidationBalances {
                 liquidatee_asset_balance: liquidatee_asset_pre_balance.to_num::<f64>(),
@@ -407,7 +420,7 @@ pub fn lending_account_liquidate<'info>(
             signer: Some(ctx.accounts.authority.key()),
             marginfi_account: liquidator_marginfi_account_loader.key(),
             marginfi_account_authority: liquidator_marginfi_account.authority,
-            marginfi_group: ctx.accounts.group.key(),
+            marginfi_group: marginfi_group_loader.key(),
         },
         liquidatee_marginfi_account: liquidatee_marginfi_account_loader.key(),
         liquidatee_marginfi_account_authority: liquidatee_marginfi_account.authority,

@@ -1,10 +1,10 @@
 use crate::{
     check,
     events::{AccountEventHeader, LendingAccountRepayEvent},
-    prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
+    prelude::{MarginfiError, MarginfiResult},
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
-        marginfi_group::Bank,
+        bank::BankImpl,
+        marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
     },
     utils,
 };
@@ -12,6 +12,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset repaid
@@ -50,9 +51,10 @@ pub fn lending_account_repay<'info>(
         MarginfiError::AccountDisabled
     );
 
+    let group = &marginfi_group_loader.load()?;
     bank.accrue_interest(
         clock.unix_timestamp,
-        &*marginfi_group_loader.load()?,
+        group,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -90,6 +92,8 @@ pub fn lending_account_repay<'info>(
         token_program.to_account_info(),
         ctx.remaining_accounts,
     )?;
+
+    bank.update_bank_cache(group)?;
 
     emit!(LendingAccountRepayEvent {
         header: AccountEventHeader {

@@ -1,11 +1,9 @@
 use crate::config::Config;
-use borsh::BorshDeserialize;
+use anchor_client::anchor_lang::AnchorDeserialize;
 use chrono::{DateTime, Local, TimeZone};
 use fixed::types::I80F48;
-use marginfi::{
-    constants::EXP_10_I80F48,
-    state::price::{PriceAdapter, PythPushOraclePriceFeed},
-};
+use marginfi::state::price::{PriceAdapter, PythPushOraclePriceFeed};
+use marginfi_type_crate::constants::EXP_10_I80F48;
 use pyth_solana_receiver_sdk::price_update::{FeedId, PriceUpdateV2};
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::rpc_client::RpcClient;
@@ -68,7 +66,10 @@ pub fn inspect_pyth_push_feed(config: &Config, address: Pubkey) -> anyhow::Resul
 
     println!(
         "Price: {}",
-        feed.get_price_of_type(marginfi::state::price::OraclePriceType::RealTime, None)?
+        feed.get_price_of_type_ignore_conf(
+            marginfi::state::price::OraclePriceType::RealTime,
+            None
+        )?
     );
 
     let feed_id = price_update.price_message.feed_id;

@@ -7,19 +7,15 @@ use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use anyhow::Result;
 use bytemuck::bytes_of;
 use fixed::types::I80F48;
-use marginfi::constants::{
-    FEE_STATE_SEED, INIT_BANK_ORIGINATION_FEE_DEFAULT, PROTOCOL_FEE_FIXED_DEFAULT,
-    PROTOCOL_FEE_RATE_DEFAULT,
+use marginfi::constants::INIT_BANK_ORIGINATION_FEE_DEFAULT;
+use marginfi::state::bank::BankVaultType;
+use marginfi_type_crate::constants::{
+    FEE_STATE_SEED, PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT,
 };
-use marginfi::state::emode::{EmodeEntry, MAX_EMODE_ENTRIES};
-use marginfi::state::fee_state::FeeState;
-use marginfi::state::marginfi_group::BankConfigCompact;
-use marginfi::state::price::OracleSetup;
-use marginfi::{
-    prelude::MarginfiGroup,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankVaultType},
+use marginfi_type_crate::types::{
+    BankConfig, BankConfigCompact, BankConfigOpt, EmodeEntry, FeeState, InterestRateConfigOpt,
+    MarginfiGroup, OracleSetup, MAX_EMODE_ENTRIES,
 };
-use solana_program::sysvar;
 use solana_program_test::*;
 use solana_sdk::system_transaction;
 use solana_sdk::{
@@ -48,14 +44,14 @@ impl MarginfiGroupFixture {
         let group_key = Keypair::new();
         let fee_wallet_key: Pubkey;
         let (fee_state_key, _bump) =
-            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
+            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::ID);
 
         {
             let mut ctx = ctx.borrow_mut();
             let admin = ctx.payer.pubkey();
 
             let initialize_marginfi_group_ix = Instruction {
-                program_id: marginfi::id(),
+                program_id: marginfi::ID,
                 accounts: marginfi::accounts::MarginfiGroupInitialize {
                     marginfi_group: group_key.pubkey(),
                     admin,
@@ -70,17 +66,21 @@ impl MarginfiGroupFixture {
             };
 
             let configure_marginfi_group_ix = Instruction {
-                program_id: marginfi::id(),
+                program_id: marginfi::ID,
                 accounts: marginfi::accounts::MarginfiGroupConfigure {
                     marginfi_group: group_key.pubkey(),
                     admin,
                 }
                 .to_account_metas(Some(true)),
                 data: marginfi::instruction::MarginfiGroupConfigure {
-                    // Payer is both admins in most test cases for simplicity,
-                    // generally this is not true in production
+                    // Payer is all admins in most test cases for simplicity, generally this is not
+                    // true in production - the MS is the main admin and others are lower-impact
+                    // wallets with a smaller threshold.
                     new_admin: admin,
                     new_emode_admin: admin,
+                    new_curve_admin: admin,
+                    new_limit_admin: admin,
+                    new_emissions_admin: admin,
                     is_arena_group: false,
                 }
                 .data(),
@@ -115,11 +115,10 @@ impl MarginfiGroupFixture {
                 fee_wallet_key = fee_wallet.pubkey();
 
                 let init_fee_state_ix = Instruction {
-                    program_id: marginfi::id(),
+                    program_id: marginfi::ID,
                     accounts: marginfi::accounts::InitFeeState {
                         payer: ctx.payer.pubkey(),
                         fee_state: fee_state_key,
-                        rent: sysvar::rent::id(),
                         system_program: system_program::id(),
                     }
                     .to_account_metas(Some(true)),
@@ -184,14 +183,13 @@ impl MarginfiGroupFixture {
             insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
             fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
             fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
-            rent: sysvar::rent::id(),
             token_program: bank_asset_mint_fixture.token_program,
             system_program: system_program::id(),
         }
         .to_account_metas(Some(true));
 
         let init_ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolAddBank {
                 bank_config: config_compact,
@@ -203,7 +201,10 @@ impl MarginfiGroupFixture {
             if bank_config.oracle_setup == OracleSetup::PythPushOracle
                 || bank_config.oracle_setup == OracleSetup::StakedWithPythPush
             {
-                Some(get_oracle_id_from_feed_id(bank_config.oracle_keys[0]).unwrap())
+                Some(
+                    get_oracle_id_from_feed_id(bank_config.oracle_keys[0])
+                        .unwrap_or(bank_config.oracle_keys[0]),
+                )
             } else {
                 None
             }
@@ -252,7 +253,7 @@ impl MarginfiGroupFixture {
                 &bank_seed.to_le_bytes(),
             ]
             .as_slice(),
-            &marginfi::id(),
+            &marginfi::ID,
         );
 
         let bank_mint = bank_asset_mint_fixture.key;
@@ -273,14 +274,13 @@ impl MarginfiGroupFixture {
             insurance_vault: bank_fixture.get_vault(BankVaultType::Insurance).0,
             fee_vault_authority: bank_fixture.get_vault_authority(BankVaultType::Fee).0,
             fee_vault: bank_fixture.get_vault(BankVaultType::Fee).0,
-            rent: sysvar::rent::id(),
             token_program: bank_fixture.get_token_program(),
             system_program: system_program::id(),
         }
         .to_account_metas(Some(true));
 
         let init_ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolAddBankWithSeed {
                 bank_config: config_compact,
@@ -293,11 +293,8 @@ impl MarginfiGroupFixture {
             if bank_config.oracle_setup == OracleSetup::PythPushOracle
                 || bank_config.oracle_setup == OracleSetup::StakedWithPythPush
             {
-                let id = get_oracle_id_from_feed_id(bank_config.oracle_keys[0]);
-                if id.is_none() {
-                    panic!("Unsupported Pyth feed ID, this should never happen");
-                }
-                id
+                get_oracle_id_from_feed_id(bank_config.oracle_keys[0])
+                    .or(Some(bank_config.oracle_keys[0]))
             } else {
                 None
             }
@@ -339,7 +336,7 @@ impl MarginfiGroupFixture {
         .to_account_metas(Some(true));
 
         Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolConfigureBank { bank_config_opt }.data(),
         }
@@ -365,7 +362,7 @@ impl MarginfiGroupFixture {
         ));
 
         Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolConfigureBankOracle { setup, oracle }.data(),
         }
@@ -380,6 +377,105 @@ impl MarginfiGroupFixture {
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.ctx.borrow().payer.pubkey().clone()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
+    }
+
+    pub fn make_lending_pool_configure_bank_interest_only_ix(
+        &self,
+        bank: &BankFixture,
+        interest_rate_config: InterestRateConfigOpt,
+    ) -> Instruction {
+        let accounts = marginfi::accounts::LendingPoolConfigureBankInterestOnly {
+            group: self.key,
+            delegate_curve_admin: self.ctx.borrow().payer.pubkey(),
+            bank: bank.key,
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: marginfi::ID,
+            accounts,
+            data: marginfi::instruction::LendingPoolConfigureBankInterestOnly {
+                interest_rate_config,
+            }
+            .data(),
+        }
+    }
+
+    pub async fn try_lending_pool_configure_bank_interest_only(
+        &self,
+        bank: &BankFixture,
+        interest_rate_config: InterestRateConfigOpt,
+    ) -> Result<(), BanksClientError> {
+        let ix = self.make_lending_pool_configure_bank_interest_only_ix(bank, interest_rate_config);
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
+    }
+
+    pub fn make_lending_pool_configure_bank_limits_only_ix(
+        &self,
+        bank: &BankFixture,
+        deposit_limit: Option<u64>,
+        borrow_limit: Option<u64>,
+        total_asset_value_init_limit: Option<u64>,
+    ) -> Instruction {
+        let accounts = marginfi::accounts::LendingPoolConfigureBankLimitsOnly {
+            group: self.key,
+            delegate_limit_admin: self.ctx.borrow().payer.pubkey(),
+            bank: bank.key,
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: marginfi::ID,
+            accounts,
+            data: marginfi::instruction::LendingPoolConfigureBankLimitsOnly {
+                deposit_limit,
+                borrow_limit,
+                total_asset_value_init_limit,
+            }
+            .data(),
+        }
+    }
+
+    pub async fn try_lending_pool_configure_bank_limits_only(
+        &self,
+        bank: &BankFixture,
+        deposit_limit: Option<u64>,
+        borrow_limit: Option<u64>,
+        total_asset_value_init_limit: Option<u64>,
+    ) -> Result<(), BanksClientError> {
+        let ix = self.make_lending_pool_configure_bank_limits_only_ix(
+            bank,
+            deposit_limit,
+            borrow_limit,
+            total_asset_value_init_limit,
+        );
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey()),
             &[&self.ctx.borrow().payer],
             self.ctx.borrow().last_blockhash,
         );
@@ -430,7 +526,7 @@ impl MarginfiGroupFixture {
         .to_account_metas(Some(true));
 
         Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolConfigureBankEmode { emode_tag, entries }
                 .data(),
@@ -465,7 +561,7 @@ impl MarginfiGroupFixture {
         let ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingPoolAccrueBankInterest {
                 group: self.key,
                 bank: bank.key,
@@ -490,10 +586,13 @@ impl MarginfiGroupFixture {
         &self,
         new_admin: Pubkey,
         new_emode_admin: Pubkey,
+        new_curve_admin: Pubkey,
+        new_limit_admin: Pubkey,
+        new_emissions_admin: Pubkey,
         is_arena_group: bool,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::MarginfiGroupConfigure {
                 marginfi_group: self.key,
                 admin: self.ctx.borrow().payer.pubkey(),
@@ -502,6 +601,9 @@ impl MarginfiGroupFixture {
             data: marginfi::instruction::MarginfiGroupConfigure {
                 new_admin,
                 new_emode_admin,
+                new_curve_admin,
+                new_limit_admin,
+                new_emissions_admin,
                 is_arena_group,
             }
             .data(),
@@ -549,7 +651,7 @@ impl MarginfiGroupFixture {
         }
 
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
         };
@@ -605,7 +707,7 @@ impl MarginfiGroupFixture {
         let ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
         };
@@ -626,12 +728,8 @@ impl MarginfiGroupFixture {
         8 + mem::size_of::<MarginfiGroup>()
     }
 
-    pub async fn load(&self) -> marginfi::state::marginfi_group::MarginfiGroup {
-        load_and_deserialize::<marginfi::state::marginfi_group::MarginfiGroup>(
-            self.ctx.clone(),
-            &self.key,
-        )
-        .await
+    pub async fn load(&self) -> MarginfiGroup {
+        load_and_deserialize::<MarginfiGroup>(self.ctx.clone(), &self.key).await
     }
 
     pub async fn set_protocol_fees_flag(&self, enabled: bool) {

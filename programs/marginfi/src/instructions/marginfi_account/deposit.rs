@@ -4,8 +4,9 @@ use crate::{
     math_error,
     prelude::*,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
-        marginfi_group::Bank,
+        bank::BankImpl,
+        bank_config::BankConfigImpl,
+        marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
     },
     utils::{self, validate_asset_tags},
 };
@@ -14,6 +15,7 @@ use anchor_lang::solana_program::clock::Clock;
 use anchor_lang::solana_program::sysvar::Sysvar;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
 
 /// 1. Accrue interest
 /// 2. Create the user's bank account for the asset deposited if it does not exist yet
@@ -81,9 +83,10 @@ pub fn lending_account_deposit<'info>(
         return Ok(());
     }
 
+    let group = &marginfi_group_loader.load()?;
     bank.accrue_interest(
         clock.unix_timestamp,
-        &*marginfi_group_loader.load()?,
+        group,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -117,6 +120,8 @@ pub fn lending_account_deposit<'info>(
         token_program.to_account_info(),
         ctx.remaining_accounts,
     )?;
+
+    bank.update_bank_cache(group)?;
 
     emit!(LendingAccountDepositEvent {
         header: AccountEventHeader {

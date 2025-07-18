@@ -1,12 +1,25 @@
-use bytemuck::{Pod, Zeroable};
+#[cfg(not(feature = "anchor"))]
+use {
+    super::Pubkey,
+    bytemuck::{Pod, Zeroable},
+};
 
-use crate::constants::discriminators;
+use crate::{assert_struct_align, assert_struct_size, constants::discriminators};
 
-use super::{Pubkey, WrappedI80F48};
+use super::WrappedI80F48;
 
-/// Unique per-program. The Program Owner uses this account to administrate fees collected by the protocol
+#[cfg(feature = "anchor")]
+use anchor_lang::prelude::*;
+
+assert_struct_size!(FeeState, 256);
+assert_struct_align!(FeeState, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(feature = "anchor", account(zero_copy))]
+#[cfg_attr(
+    not(feature = "anchor"),
+    derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)
+)]
+/// Unique per-program. The Program Owner uses this account to administrate fees collected by the protocol
 pub struct FeeState {
     /// The fee state's own key. A PDA derived from just `b"feestate"`
     pub key: Pubkey,

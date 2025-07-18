@@ -1,17 +1,13 @@
 use crate::{
     bank_signer, check,
-    constants::{
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PROGRAM_VERSION, ZERO_AMOUNT_THRESHOLD,
-    },
+    constants::PROGRAM_VERSION,
     debug,
     events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent},
     math_error,
     prelude::MarginfiError,
     state::{
-        health_cache::HealthCache,
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, BankVaultType, MarginfiGroup},
+        bank::{BankImpl, BankVaultType},
+        marginfi_account::{BankAccountWrapper, MarginfiAccountImpl, RiskEngine},
     },
     utils, MarginfiResult,
 };
@@ -19,6 +15,13 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::{
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD,
+    },
+    types::{Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
+};
 use std::cmp::{max, min};
 
 /// Handle a bankrupt marginfi account.
@@ -64,10 +67,11 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     marginfi_account.health_cache = health_cache;
 
     let mut bank = bank_loader.load_mut()?;
+    let group = &marginfi_group_loader.load()?;
 
     bank.accrue_interest(
         clock.unix_timestamp,
-        &*marginfi_group_loader.load()?,
+        group,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -161,6 +165,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         &mut marginfi_account.lending_account,
     )?
     .repay(bad_debt)?;
+
+    bank.update_bank_cache(group)?;
 
     marginfi_account.set_flag(ACCOUNT_DISABLED);
 

@@ -1,10 +1,11 @@
 // Used by the group admin to enable staked collateral banks and configure their default features
-use crate::constants::STAKED_SETTINGS_SEED;
-use crate::state::marginfi_group::{RiskTier, WrappedI80F48};
-use crate::state::staked_settings::StakedSettings;
+use crate::state::staked_settings::StakedSettingsImpl;
 use crate::utils::wrapped_i80f48_to_f64;
-use crate::MarginfiGroup;
 use anchor_lang::prelude::*;
+use marginfi_type_crate::{
+    constants::STAKED_SETTINGS_SEED,
+    types::{MarginfiGroup, RiskTier, StakedSettings, WrappedI80F48},
+};
 
 pub fn initialize_staked_settings(
     ctx: Context<InitStakedSettings>,
@@ -69,7 +70,6 @@ pub struct InitStakedSettings<'info> {
     )]
     pub staked_settings: AccountLoader<'info, StakedSettings>,
 
-    pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
 }
 

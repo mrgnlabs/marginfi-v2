@@ -1,15 +1,14 @@
 use crate::{
     check,
     prelude::*,
-    state::marginfi_account::{
-        MarginfiAccount, RiskEngine, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
-    },
+    state::marginfi_account::{MarginfiAccountImpl, RiskEngine},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
     instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT},
     sysvar::{self, instructions},
 };
+use marginfi_type_crate::types::{MarginfiAccount, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN};
 
 pub fn lending_account_start_flashloan(
     ctx: Context<LendingAccountStartFlashloan>,
@@ -73,7 +72,7 @@ pub fn check_flashloan_can_start(
     );
 
     check!(
-        current_ix.program_id.eq(&crate::id()),
+        current_ix.program_id.eq(&crate::ID),
         MarginfiError::IllegalFlashloan,
         "Start flashloan ix should not be in CPI"
     );
@@ -90,7 +89,7 @@ pub fn check_flashloan_can_start(
     }
 
     check!(
-        unchecked_end_fl_ix.program_id.eq(&crate::id()),
+        unchecked_end_fl_ix.program_id.eq(&crate::ID),
         MarginfiError::IllegalFlashloan
     );
 

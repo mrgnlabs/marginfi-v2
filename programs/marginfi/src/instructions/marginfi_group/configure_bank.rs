@@ -1,17 +1,19 @@
-use crate::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FREEZE_SETTINGS};
 use crate::events::{
     GroupEventHeader, LendingPoolBankConfigureEvent, LendingPoolBankConfigureFrozenEvent,
 };
 use crate::prelude::MarginfiError;
+use crate::state::bank::BankImpl;
+use crate::state::bank_config::BankConfigImpl;
+use crate::MarginfiResult;
 use crate::{check, math_error, utils};
-use crate::{
-    state::marginfi_group::{Bank, BankConfigOpt, MarginfiGroup},
-    MarginfiResult,
-};
 use anchor_lang::prelude::*;
 use anchor_spl::token_2022::{transfer_checked, TransferChecked};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FREEZE_SETTINGS},
+    types::{Bank, BankConfigOpt, MarginfiGroup},
+};
 
 pub fn lending_pool_configure_bank(
     ctx: Context<LendingPoolConfigureBank>,
@@ -115,7 +117,7 @@ pub fn lending_pool_setup_emissions(
             TransferChecked {
                 from: ctx.accounts.emissions_funding_account.to_account_info(),
                 to: ctx.accounts.emissions_token_account.to_account_info(),
-                authority: ctx.accounts.admin.to_account_info(),
+                authority: ctx.accounts.delegate_emissions_admin.to_account_info(),
                 mint: ctx.accounts.emissions_mint.to_account_info(),
             },
         ),
@@ -130,12 +132,12 @@ pub fn lending_pool_setup_emissions(
 pub struct LendingPoolSetupEmissions<'info> {
     #[account(
         mut,
-        has_one = admin,
+        has_one = delegate_emissions_admin,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(mut)]
-    pub admin: Signer<'info>,
+    pub delegate_emissions_admin: Signer<'info>,
 
     #[account(
         mut,
@@ -158,7 +160,7 @@ pub struct LendingPoolSetupEmissions<'info> {
 
     #[account(
         init,
-        payer = admin,
+        payer = delegate_emissions_admin,
         token::mint = emissions_mint,
         token::authority = emissions_auth,
         seeds = [
@@ -232,7 +234,7 @@ pub fn lending_pool_update_emissions_parameters(
                 TransferChecked {
                     from: ctx.accounts.emissions_funding_account.to_account_info(),
                     to: ctx.accounts.emissions_token_account.to_account_info(),
-                    authority: ctx.accounts.admin.to_account_info(),
+                    authority: ctx.accounts.delegate_emissions_admin.to_account_info(),
                     mint: ctx.accounts.emissions_mint.to_account_info(),
                 },
             ),
@@ -248,12 +250,12 @@ pub fn lending_pool_update_emissions_parameters(
 pub struct LendingPoolUpdateEmissionsParameters<'info> {
     #[account(
         mut,
-        has_one = admin
+        has_one = delegate_emissions_admin
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(mut)]
-    pub admin: Signer<'info>,
+    pub delegate_emissions_admin: Signer<'info>,
 
     #[account(
         mut,

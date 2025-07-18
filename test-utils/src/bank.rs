@@ -11,14 +11,15 @@ use fixed::types::I80F48;
 use marginfi::{
     bank_authority_seed,
     state::{
-        marginfi_group::{Bank, BankConfigOpt, BankVaultType},
+        bank::BankVaultType,
         price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter},
     },
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
-use solana_program::account_info::IntoAccountInfo;
-use solana_program::instruction::Instruction;
-use solana_program::sysvar::clock::Clock;
+use marginfi_type_crate::types::{Bank, BankConfigOpt};
+use solana_program::{
+    account_info::IntoAccountInfo, instruction::Instruction, sysvar::clock::Clock,
+};
 use solana_program_test::BanksClientError;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{commitment_config::CommitmentLevel, signer::Signer, transaction::Transaction};
@@ -73,7 +74,11 @@ impl BankFixture {
                 .unwrap();
 
         oracle_adapter
-            .get_price_of_type(OraclePriceType::RealTime, None)
+            .get_price_of_type(
+                OraclePriceType::RealTime,
+                None,
+                bank.config.oracle_max_confidence,
+            )
             .unwrap()
             .to_num()
     }
@@ -97,7 +102,7 @@ impl BankFixture {
         .to_account_metas(Some(true));
 
         let config_ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolConfigureBank {
                 bank_config_opt: config,
@@ -118,7 +123,7 @@ impl BankFixture {
             oracle_accounts.push(AccountMeta::new_readonly(oracle, false));
 
             let oracle_ix = Instruction {
-                program_id: marginfi::id(),
+                program_id: marginfi::ID,
                 accounts: oracle_accounts,
                 data: marginfi::instruction::LendingPoolConfigureBankOracle { setup, oracle }
                     .data(),
@@ -153,10 +158,10 @@ impl BankFixture {
         token_program: Pubkey,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingPoolSetupEmissions {
                 group: self.load().await.group,
-                admin: self.ctx.borrow().payer.pubkey(),
+                delegate_emissions_admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
                 emissions_mint,
                 emissions_funding_account: funding_account,
@@ -208,10 +213,10 @@ impl BankFixture {
         let bank = self.load().await;
 
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
                 group: self.load().await.group,
-                admin: self.ctx.borrow().payer.pubkey(),
+                delegate_emissions_admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
                 emissions_mint: bank.emissions_mint,
                 emissions_funding_account: additional_emissions.map(|(_, f)| f).unwrap_or_default(),
@@ -261,7 +266,7 @@ impl BankFixture {
         let signer_pk = ctx.payer.pubkey();
         let (fee_vault_authority, _) = Pubkey::find_program_address(
             bank_authority_seed!(BankVaultType::Fee, self.key),
-            &marginfi::id(),
+            &marginfi::ID,
         );
 
         let mut accounts = marginfi::accounts::LendingPoolWithdrawFees {
@@ -279,7 +284,7 @@ impl BankFixture {
         }
 
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolWithdrawFees { amount }.data(),
         };
@@ -305,7 +310,7 @@ impl BankFixture {
         let ctx = self.ctx.borrow_mut();
         let (fee_vault_authority, _) = Pubkey::find_program_address(
             bank_authority_seed!(BankVaultType::Fee, self.key),
-            &marginfi::id(),
+            &marginfi::ID,
         );
 
         let mut accounts = marginfi::accounts::LendingPoolWithdrawFeesPermissionless {
@@ -322,7 +327,7 @@ impl BankFixture {
         }
 
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolWithdrawFeesPermissionless { amount }.data(),
         };
@@ -361,7 +366,7 @@ impl BankFixture {
         }
 
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolUpdateFeesDestinationAccount.data(),
         };
@@ -388,7 +393,7 @@ impl BankFixture {
         let signer_pk = ctx.payer.pubkey();
         let (insurance_vault_authority, _) = Pubkey::find_program_address(
             bank_authority_seed!(BankVaultType::Insurance, self.key),
-            &marginfi::id(),
+            &marginfi::ID,
         );
 
         let mut accounts = marginfi::accounts::LendingPoolWithdrawInsurance {
@@ -406,7 +411,7 @@ impl BankFixture {
         }
 
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolWithdrawInsurance { amount }.data(),
         };

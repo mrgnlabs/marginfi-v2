@@ -18,22 +18,13 @@ pub mod utils;
 
 use anchor_lang::prelude::*;
 use instructions::*;
+use marginfi_type_crate::types::{
+    BankConfigCompact, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, WrappedI80F48,
+    MAX_EMODE_ENTRIES,
+};
 use prelude::*;
-use state::emode::{EmodeEntry, MAX_EMODE_ENTRIES};
-use state::marginfi_group::WrappedI80F48;
-use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "mainnet-beta")] {
-        declare_id!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
-    } else if #[cfg(feature = "devnet")] {
-        declare_id!("neetcne3Ctrrud7vLdt2ypMm21gZHGN2mCmqWaMVcBQ");
-    } else if #[cfg(feature = "staging")] {
-        declare_id!("stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct");
-    } else {
-        declare_id!("2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr");
-    }
-}
+pub use id_crate::ID;
 
 // #[cfg(target_os = "solana")]
 // /// Custom heap allocator that exposes a move_cursor method. This allows us to manually deallocate
@@ -103,9 +94,20 @@ pub mod marginfi {
         ctx: Context<MarginfiGroupConfigure>,
         new_admin: Pubkey,
         new_emode_admin: Pubkey,
+        new_curve_admin: Pubkey,
+        new_limit_admin: Pubkey,
+        new_emissions_admin: Pubkey,
         is_arena_group: bool,
     ) -> MarginfiResult {
-        marginfi_group::configure(ctx, new_admin, new_emode_admin, is_arena_group)
+        marginfi_group::configure(
+            ctx,
+            new_admin,
+            new_emode_admin,
+            new_curve_admin,
+            new_limit_admin,
+            new_emissions_admin,
+            is_arena_group,
+        )
     }
 
     pub fn lending_pool_add_bank(
@@ -133,6 +135,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank_permissionless(ctx, bank_seed)
     }
 
+    /// (admin only)
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
         bank_config_opt: BankConfigOpt,
@@ -140,6 +143,30 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank(ctx, bank_config_opt)
     }
 
+    /// (delegate_curve_admin only)
+    pub fn lending_pool_configure_bank_interest_only(
+        ctx: Context<LendingPoolConfigureBankInterestOnly>,
+        interest_rate_config: InterestRateConfigOpt,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_configure_bank_interest_only(ctx, interest_rate_config)
+    }
+
+    /// (delegate_limits_admin only)
+    pub fn lending_pool_configure_bank_limits_only(
+        ctx: Context<LendingPoolConfigureBankLimitsOnly>,
+        deposit_limit: Option<u64>,
+        borrow_limit: Option<u64>,
+        total_asset_value_init_limit: Option<u64>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_configure_bank_limits_only(
+            ctx,
+            deposit_limit,
+            borrow_limit,
+            total_asset_value_init_limit,
+        )
+    }
+
+    /// (admin only)
     pub fn lending_pool_configure_bank_oracle(
         ctx: Context<LendingPoolConfigureBankOracle>,
         setup: u8,
@@ -148,6 +175,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
     }
 
+    /// (emode_admin only)
     pub fn lending_pool_configure_bank_emode(
         ctx: Context<LendingPoolConfigureBankEmode>,
         emode_tag: u16,
@@ -156,6 +184,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
     }
 
+    /// (delegate_emissions_admin only)
     pub fn lending_pool_setup_emissions(
         ctx: Context<LendingPoolSetupEmissions>,
         flags: u64,
@@ -165,6 +194,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_setup_emissions(ctx, flags, rate, total_emissions)
     }
 
+    /// (delegate_emissions_admin only)
     pub fn lending_pool_update_emissions_parameters(
         ctx: Context<LendingPoolUpdateEmissionsParameters>,
         emissions_flags: Option<u64>,
@@ -309,18 +339,12 @@ pub mod marginfi {
         marginfi_group::lending_pool_withdraw_insurance(ctx, amount)
     }
 
-    pub fn set_account_flag(ctx: Context<SetAccountFlag>, flag: u64) -> MarginfiResult {
-        marginfi_group::set_account_flag(ctx, flag)
+    pub fn lending_pool_close_bank(ctx: Context<LendingPoolCloseBank>) -> MarginfiResult {
+        marginfi_group::lending_pool_close_bank(ctx)
     }
 
-    pub fn unset_account_flag(ctx: Context<UnsetAccountFlag>, flag: u64) -> MarginfiResult {
-        marginfi_group::unset_account_flag(ctx, flag)
-    }
-
-    pub fn set_new_account_authority(
-        ctx: Context<MarginfiAccountSetAccountAuthority>,
-    ) -> MarginfiResult {
-        marginfi_account::set_account_transfer_authority(ctx)
+    pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
+        marginfi_account::transfer_to_new_account(ctx)
     }
 
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
@@ -428,6 +452,10 @@ pub mod marginfi {
 
     pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> MarginfiResult {
         marginfi_group::propagate_staked_settings(ctx)
+    }
+
+    pub fn migrate_pyth_push_oracle(ctx: Context<MigratePythPushOracle>) -> MarginfiResult {
+        marginfi_group::migrate_pyth_push_oracle(ctx)
     }
 }
 
