@@ -169,6 +169,8 @@ pub enum MarginfiError {
     OracleMaxConfidenceExceeded,
     #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6081
     BankCannotClose,
+    #[msg("Liquidation state issue. Check start before end, end last, and both unique")] // 6082
+    UnexpectedLiquidationState,
 }
 
 impl From<MarginfiError> for ProgramError {

@@ -15,6 +15,8 @@ pub const STAKED_SETTINGS_SEED: &str = "staked_settings";
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 
+pub const LIQUIDATION_RECORD_SEED: &str = "liq_record";
+
 /// TODO: Make these variable per bank
 pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);
 pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
@@ -154,4 +156,5 @@ pub mod discriminators {
     pub const ACCOUNT: [u8; 8] = [67, 178, 130, 109, 126, 114, 28, 42];
     pub const FEE_STATE: [u8; 8] = [63, 224, 16, 85, 193, 36, 235, 220];
     pub const STAKED_SETTINGS: [u8; 8] = [157, 140, 6, 77, 89, 173, 173, 125];
+    pub const LIQUIDATION_RECORD: [u8; 8] = [157, 140, 6, 77, 89, 173, 173, 125];
 }

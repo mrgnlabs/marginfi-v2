@@ -639,12 +639,12 @@ impl<'info> RiskEngine<'_, 'info> {
     /// 1. Account is liquidatable
     /// 2. Account has an outstanding liability for the provided liability bank. This check is
     ///    ignored if passing None.
-    /// * returns - account health (assets - liabs)
+    /// * returns - account health (assets - liabs), asset, liabs.
     pub fn check_pre_liquidation_condition_and_get_account_health(
         &self,
         bank_pk: Option<&Pubkey>,
         health_cache: &mut Option<&mut HealthCache>,
-    ) -> MarginfiResult<I80F48> {
+    ) -> MarginfiResult<(I80F48, I80F48, I80F48)> {
         check!(
             !self.marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
@@ -687,7 +687,7 @@ impl<'info> RiskEngine<'_, 'info> {
             return err!(MarginfiError::HealthyAccount);
         }
 
-        Ok(account_health)
+        Ok((account_health, assets, liabs))
     }
 
     /// Check that the account is at most at the maintenance requirement level post liquidation.
@@ -1509,7 +1509,8 @@ mod test {
             account_flags: ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
             migrated_from: Pubkey::default(),
             health_cache: HealthCache::zeroed(),
-            _padding0: [0; 17],
+            liquidation_record: Pubkey::default(),
+            _padding0: [0; 13],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));

@@ -61,7 +61,7 @@ pub fn lending_account_pulse_health<'info>(
     if engine.is_some() {
         let engine = engine.unwrap();
         // Note: if the risk engine didn't error for init, it's unlikely it will error here
-        let liq_result: MarginfiResult<I80F48> = engine
+        let liq_result: MarginfiResult<(I80F48, I80F48, I80F48)> = engine
             .check_pre_liquidation_condition_and_get_account_health(
                 None,
                 &mut Some(&mut health_cache),

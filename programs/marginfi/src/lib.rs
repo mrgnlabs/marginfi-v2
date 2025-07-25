@@ -223,6 +223,10 @@ pub mod marginfi {
         marginfi_account::initialize_account(ctx)
     }
 
+    pub fn marginfi_account_init_liq_record(ctx: Context<InitLiquidationRecord>) -> MarginfiResult {
+        marginfi_account::initialize_liquidation_record(ctx)
+    }
+
     pub fn lending_account_deposit<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
         amount: u64,

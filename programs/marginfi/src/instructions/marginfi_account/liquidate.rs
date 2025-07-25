@@ -148,7 +148,7 @@ pub fn lending_account_liquidate<'info>(
 
     liquidatee_marginfi_account.lending_account.sort_balances();
 
-    let pre_liquidation_health: I80F48 =
+    let (pre_liquidation_health, _, _) =
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
             .check_pre_liquidation_condition_and_get_account_health(
                 Some(&ctx.accounts.liab_bank.key()),
