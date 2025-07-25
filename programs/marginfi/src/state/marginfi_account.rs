@@ -51,7 +51,9 @@ pub struct MarginfiAccount {
     pub health_cache: HealthCache,
     /// If this account was migrated from another one, store the original account key
     pub migrated_from: Pubkey, // 32
-    pub _padding0: [u64; 17],
+    /// If this account has been migrated to another one, store the destination account key
+    pub migrated_to: Pubkey, // 32
+    pub _padding0: [u64; 13],
 }
 
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;
@@ -85,6 +87,7 @@ impl MarginfiAccount {
         self.group = group;
         self.emissions_destination_account = Pubkey::default();
         self.migrated_from = Pubkey::default();
+        self.migrated_to = Pubkey::default();
     }
 
     /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
@@ -1625,8 +1628,9 @@ mod test {
             },
             account_flags: ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
             migrated_from: Pubkey::default(),
+            migrated_to: Pubkey::default(),
             health_cache: HealthCache::zeroed(),
-            _padding0: [0; 17],
+            _padding0: [0; 13],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));
