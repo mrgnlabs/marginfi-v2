@@ -28,8 +28,9 @@ pub struct MarginfiAccount {
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
     pub migrated_from: Pubkey,                 // 32
+    pub migrated_to: Pubkey,                   // 32
     pub health_cache: HealthCache,
-    pub _padding0: [u64; 17],
+    pub _padding0: [u64; 13],
 }
 
 impl MarginfiAccount {
