@@ -25,6 +25,10 @@ import { dumpAccBalances } from "./utils/tools";
 describe("Transfer account authority", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
 
+  const oldAccKeypair = Keypair.generate();
+  const newAccKeypair = Keypair.generate();
+  const newAuthority = Keypair.generate();
+
   // Here the user moves authority to some new wallet. WARN: User picks the new authority with no
   // restrictions!
   it("(user 0) migrate some account a new authority - happy path", async () => {
@@ -32,7 +36,6 @@ describe("Transfer account authority", () => {
       globalFeeWallet
     );
 
-    const oldAccKeypair = Keypair.generate();
     let tx = new Transaction().add(
       await accountInit(users[0].mrgnProgram, {
         marginfiGroup: marginfiGroup.publicKey,
@@ -42,9 +45,6 @@ describe("Transfer account authority", () => {
       })
     );
     await users[0].mrgnProgram.provider.sendAndConfirm(tx, [oldAccKeypair]);
-
-    const newAccKeypair = Keypair.generate();
-    const newAuthority = Keypair.generate();
 
     let tx2 = new Transaction().add(
       await transferAccountAuthorityIx(users[0].mrgnProgram, {
@@ -67,11 +67,30 @@ describe("Transfer account authority", () => {
     );
     assertKeysEqual(newAcc.authority, newAuthority.publicKey);
     assertKeysEqual(newAcc.migratedFrom, oldAccKeypair.publicKey);
+    assertKeyDefault(newAcc.migratedTo);
     assertBNEqual(oldAcc.accountFlags, ACCOUNT_DISABLED);
+    assertKeysEqual(oldAcc.migratedTo, newAccKeypair.publicKey);
     assert.equal(
       feeWalletBefore.lamports,
       feeWalletAfter.lamports - ACCOUNT_TRANSFER_FEE
     );
+  });
+
+  it("(user 0) tries to migrate their old account again - should fail", async () => {
+    const anotherNewKeypair = Keypair.generate();
+
+    let tx = new Transaction().add(
+      await transferAccountAuthorityIx(users[0].mrgnProgram, {
+        oldAccount: oldAccKeypair.publicKey,
+        newAccount: anotherNewKeypair.publicKey,
+        newAuthority: newAuthority.publicKey,
+        globalFeeWallet: globalFeeWallet,
+      })
+    );
+
+    await expectFailedTxWithMessage(async () => {
+      await users[0].mrgnProgram.provider.sendAndConfirm(tx, [anotherNewKeypair]);
+    }, "AccountAlreadyMigrated");
   });
 
   // Here the user wants to retain ownership but move all their positions to a new account for some
