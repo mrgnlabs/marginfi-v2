@@ -27,9 +27,11 @@ pub struct MarginfiAccount {
     /// If pubkey default, the user has not opted into this feature, and must claim emissions
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
-    pub migrated_from: Pubkey,                 // 32
-    pub migrated_to: Pubkey,                   // 32
     pub health_cache: HealthCache,
+    /// If this account was migrated from another one, store the original account key
+    pub migrated_from: Pubkey, // 32
+    /// If this account has been migrated to another one, store the destination account key
+    pub migrated_to: Pubkey, // 32
     pub _padding0: [u64; 13],
 }
 
@@ -41,7 +43,7 @@ impl MarginfiAccount {
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;
 pub const ACCOUNT_IN_FLASHLOAN: u64 = 1 << 1;
 pub const ACCOUNT_FLAG_DEPRECATED: u64 = 1 << 2;
-pub const ACCOUNT_TRANSFER_AUTHORITY_ALLOWED: u64 = 1 << 3;
+pub const ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED: u64 = 1 << 3;
 
 pub const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 

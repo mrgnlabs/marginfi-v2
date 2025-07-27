@@ -89,7 +89,9 @@ describe("Transfer account authority", () => {
     );
 
     await expectFailedTxWithMessage(async () => {
-      await users[0].mrgnProgram.provider.sendAndConfirm(tx, [anotherNewKeypair]);
+      await users[0].mrgnProgram.provider.sendAndConfirm(tx, [
+        anotherNewKeypair,
+      ]);
     }, "AccountAlreadyMigrated");
   });
 
