@@ -109,33 +109,15 @@ impl OraclePriceFeedAdapter {
                     check!(owner_ok, MarginfiError::PythPushWrongAccountOwner);
                 }
 
-                // 0.1.4 or later
-                if bank_config.is_pyth_push_migrated() {
-                    require_keys_eq!(
-                        *account_info.key,
-                        bank_config.oracle_keys[0],
-                        MarginfiError::WrongOracleAccountKeys
-                    );
+                require_keys_eq!(
+                    *account_info.key,
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
 
-                    Ok(OraclePriceFeedAdapter::PythPushOracle(
-                        PythPushOraclePriceFeed::load_checked(account_info, None, clock, max_age)?,
-                    ))
-                } else {
-                    // 0.1.3 or earlier, migrate with `migrate_pyth_push_oracle`
-                    // TODO remove in 0.1.5
-                    let price_feed_id = bank_config.get_pyth_push_oracle_feed_id().unwrap();
-
-                    PythPushOraclePriceFeed::check_ai_and_feed_id(account_info, price_feed_id)?;
-
-                    Ok(OraclePriceFeedAdapter::PythPushOracle(
-                        PythPushOraclePriceFeed::load_checked(
-                            account_info,
-                            Some(price_feed_id),
-                            clock,
-                            max_age,
-                        )?,
-                    ))
-                }
+                Ok(OraclePriceFeedAdapter::PythPushOracle(
+                    PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?,
+                ))
             }
             OracleSetup::SwitchboardPull => {
                 check!(ais.len() == 1, MarginfiError::WrongNumberOfOracleAccounts);
@@ -207,31 +189,7 @@ impl OraclePriceFeedAdapter {
                     check!(owner_ok, MarginfiError::StakedPythPushWrongAccountOwner);
                 }
 
-                let mut feed;
-                // 0.1.4 or later
-                if bank_config.is_pyth_push_migrated() {
-                    require_keys_eq!(
-                        *account_info.key,
-                        bank_config.oracle_keys[0],
-                        MarginfiError::WrongOracleAccountKeys
-                    );
-
-                    feed =
-                        PythPushOraclePriceFeed::load_checked(account_info, None, clock, max_age)?;
-                } else {
-                    // 0.1.3 or earlier, migrate with `propagate_staked_settings`
-                    // TODO remove in 0.1.5
-                    let price_feed_id = bank_config.get_pyth_push_oracle_feed_id().unwrap();
-
-                    PythPushOraclePriceFeed::check_ai_and_feed_id(account_info, price_feed_id)?;
-
-                    feed = PythPushOraclePriceFeed::load_checked(
-                        account_info,
-                        Some(price_feed_id),
-                        clock,
-                        max_age,
-                    )?;
-                }
+                let mut feed = PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
 
                 let adjusted_price = (feed.price.price as i128)
                     .checked_mul(sol_pool_adjusted_balance as i128)
@@ -277,25 +235,13 @@ impl OraclePriceFeedAdapter {
                     MarginfiError::WrongNumberOfOracleAccounts
                 );
 
-                // 0.1.4 or later
-                if bank_config.is_pyth_push_migrated() {
-                    require_keys_eq!(
-                        oracle_ais[0].key(),
-                        bank_config.oracle_keys[0],
-                        MarginfiError::WrongOracleAccountKeys
-                    );
-                    load_price_update_v2_checked(&oracle_ais[0])?;
-                    Ok(())
-                } else {
-                    // 0.1.3 or earlier, run migrate_pyth_push_oracle to convert.
-                    // TODO remove in 0.1.5
-                    PythPushOraclePriceFeed::check_ai_and_feed_id(
-                        &oracle_ais[0],
-                        bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-                    )?;
-
-                    Ok(())
-                }
+                require_keys_eq!(
+                    oracle_ais[0].key(),
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+                load_price_update_v2_checked(&oracle_ais[0])?;
+                Ok(())
             }
             OracleSetup::SwitchboardPull => {
                 check!(
@@ -322,22 +268,12 @@ impl OraclePriceFeedAdapter {
                         MarginfiError::WrongNumberOfOracleAccounts
                     );
 
-                    // 0.1.4 or later
-                    if bank_config.is_pyth_push_migrated() {
-                        require_keys_eq!(
-                            oracle_ais[0].key(),
-                            bank_config.oracle_keys[0],
-                            MarginfiError::WrongOracleAccountKeys
-                        );
-                        load_price_update_v2_checked(&oracle_ais[0])?;
-                    } else {
-                        // TODO remove in 0.1.5
-                        // 0.1.3 or earlier, run propagate_staked_settings to convert.
-                        PythPushOraclePriceFeed::check_ai_and_feed_id(
-                            &oracle_ais[0],
-                            bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-                        )?;
-                    }
+                    require_keys_eq!(
+                        oracle_ais[0].key(),
+                        bank_config.oracle_keys[0],
+                        MarginfiError::WrongOracleAccountKeys
+                    );
+                    load_price_update_v2_checked(&oracle_ais[0])?;
 
                     let lst_mint = lst_mint.unwrap();
                     let stake_pool = stake_pool.unwrap();
@@ -384,22 +320,12 @@ impl OraclePriceFeedAdapter {
                         MarginfiError::WrongNumberOfOracleAccounts
                     );
 
-                    // 0.1.4 or later
-                    if bank_config.is_pyth_push_migrated() {
-                        require_keys_eq!(
-                            oracle_ais[0].key(),
-                            bank_config.oracle_keys[0],
-                            MarginfiError::WrongOracleAccountKeys
-                        );
-                        load_price_update_v2_checked(&oracle_ais[0])?;
-                    } else {
-                        // TODO remove in 0.1.5
-                        // 0.1.3 or earlier, run propagate_staked_settings to convert.
-                        PythPushOraclePriceFeed::check_ai_and_feed_id(
-                            &oracle_ais[0],
-                            bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-                        )?;
-                    }
+                    require_keys_eq!(
+                        oracle_ais[0].key(),
+                        bank_config.oracle_keys[0],
+                        MarginfiError::WrongOracleAccountKeys
+                    );
+                    load_price_update_v2_checked(&oracle_ais[0])?;
 
                     Ok(())
                 }
@@ -602,15 +528,9 @@ pub struct PythPushOraclePriceFeed {
 }
 
 impl PythPushOraclePriceFeed {
-    // TODO revise this doc in 0.1.5
     /// Pyth push oracles are update using crosschain messages from pythnet There can be multiple
     /// pyth push oracles for a given feed_id. Marginfi allows using any pyth push oracle with a
     /// sufficient verification level and price age.
-    ///
-    /// In 0.1.3 and earlier, when loading the pyth push oracle, we don't verify the account address
-    /// directly, but rather we verify the feed_id in the oracle data. Pass the feed_id in this instance.
-    ///
-    /// In 0.1.4 and later, we validate the account address directly, pass None for the feed id.
     ///
     /// Security assumptions:
     /// - The pyth-push-oracle account is owned by the pyth-solana-receiver program, checked in
@@ -621,9 +541,7 @@ impl PythPushOraclePriceFeed {
     ///   `get_price_no_older_than_with_custom_verification_level`
     /// - The pyth-push-oracle account has a valid feed_id, the pyth-solana-receiver program
     ///   enforces that the feed_id matches the pythnet feed_id, checked in
-    ///     - `get_price_no_older_than_with_custom_verification_level` checks against the feed_id
-    ///       stored in the bank_config
-    ///     - pyth-push-oracle asserts the a valid price update has a matching feed_id with the
+    ///     - pyth-push-oracle asserts that a valid price update has a matching feed_id with the
     ///       existing pyth-push-oracle update
     ///       https://github.com/pyth-network/pyth-crosschain/blob/94f1bd54612adc3e186eaf0bb0f1f705880f20a6/target_chains/solana/programs/pyth-push-oracle/src/lib.rs#L101
     ///     - pyth-solana-receiver set the feed_id directly from a pythnet verified price_update
@@ -631,18 +549,9 @@ impl PythPushOraclePriceFeed {
     ///       https://github.com/pyth-network/pyth-crosschain/blob/94f1bd54612adc3e186eaf0bb0f1f705880f20a6/target_chains/solana/programs/pyth-solana-receiver/src/lib.rs#L437
     /// - The pyth-push-oracle account is not older than the max_age, checked in
     ///   `get_price_no_older_than_with_custom_verification_level`
-    pub fn load_checked(
-        ai: &AccountInfo,
-        feed_id: Option<&FeedId>, // TODO remove in 0.1.5
-        clock: &Clock,
-        max_age: u64,
-    ) -> MarginfiResult<Self> {
+    pub fn load_checked(ai: &AccountInfo, clock: &Clock, max_age: u64) -> MarginfiResult<Self> {
         let price_feed_account = load_price_update_v2_checked(ai)?;
-        let feed_id = if let Some(id) = feed_id {
-            id
-        } else {
-            &price_feed_account.price_message.feed_id
-        };
+        let feed_id = &price_feed_account.price_message.feed_id;
 
         let price = price_feed_account
             .get_price_no_older_than_with_custom_verification_level(
@@ -722,18 +631,6 @@ impl PythPushOraclePriceFeed {
         Ok(price_feed_account.price_message.feed_id)
     }
 
-    pub fn check_ai_and_feed_id(ai: &AccountInfo, feed_id: &FeedId) -> MarginfiResult {
-        let price_feed_account = load_price_update_v2_checked(ai)?;
-
-        check_eq!(
-            &price_feed_account.price_message.feed_id,
-            feed_id,
-            MarginfiError::PythPushMismatchedFeedId
-        );
-
-        Ok(())
-    }
-
     fn get_confidence_interval(
         &self,
         use_ema: bool,
@@ -751,6 +648,11 @@ impl PythPushOraclePriceFeed {
                 .ok_or_else(math_error!())?;
 
         let price = pyth_price_components_to_i80f48(I80F48::from_num(price.price), price.exponent)?;
+        msg!(
+            "pyth price {:?}, conf interval: {:?}",
+            price.to_num::<f64>(),
+            conf_interval.to_num::<f64>()
+        );
 
         // Fail the price fetch if confidence > price * oracle_max_confidence
         let oracle_max_confidence = if oracle_max_confidence > 0 {
@@ -765,9 +667,15 @@ impl PythPushOraclePriceFeed {
             .checked_div(U32_MAX)
             .ok_or_else(math_error!())?;
         if conf_interval > max_conf {
+            let price = price.to_num::<f64>();
             let conf_interval = conf_interval.to_num::<f64>();
             let max_conf = max_conf.to_num::<f64>();
-            msg!("conf was {:?}, but max is {:?}", conf_interval, max_conf);
+            msg!(
+                "oracle price: {:?}, conf was {:?}, but max is {:?}",
+                price,
+                conf_interval,
+                max_conf
+            );
             return err!(MarginfiError::OracleMaxConfidenceExceeded);
         }
 
@@ -1040,6 +948,69 @@ mod tests {
 
         let price_bias_high: I80F48 = feed
             .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High), 0)
+            .unwrap();
+        let target_price_high: I80F48 = target_price.checked_add(exp_conf).unwrap();
+        let min_price: I80F48 = target_price_high.checked_sub(price_tolerance).unwrap();
+        let max_price: I80F48 = target_price_high.checked_add(price_tolerance).unwrap();
+        assert!(price_bias_high >= min_price && price_bias_high <= max_price);
+    }
+
+    #[test]
+    fn pyth_pull_get_price() {
+        // From mainnet: https://solana.fm/address/DBE3N8uNjhKPRHfANdwGvCZghWXyLPdqdSbEW2XFwBiX
+        // Actual price ~$3.4987e-5
+        // conf/Std_dev ~$8.1619e-8
+        let bytes = hex_to_bytes("22f123639d7ef4cdb4eacbe402ae9165c2ab7dfcdbe5044d27f284106f88a90bfddefa5fbff60ca00172b021217ca3fe68922a19aaf990109cb9d84e9ad004b4d2025ad6f529314419fd510500000000006501000000000000f6ffffff29bc80680000000029bc806800000000af56050000000000810100000000000058d32b150000000000");
+        let key = pubkey!("DBE3N8uNjhKPRHfANdwGvCZghWXyLPdqdSbEW2XFwBiX");
+        let mut lamports = 1_000_000u64;
+        let mut data = bytes.clone();
+
+        let ai = AccountInfo {
+            key: &key,
+            lamports: Rc::new(RefCell::new(&mut lamports)),
+            data: Rc::new(RefCell::new(&mut data[..])),
+            owner: &pyth_solana_receiver_sdk::id(),
+            rent_epoch: 361,
+            is_signer: false,
+            is_writable: true,
+            executable: false,
+        };
+
+        let max_age = 100;
+        let feed: PythPushOraclePriceFeed =
+            PythPushOraclePriceFeed::load_checked(&ai, &Clock::default(), max_age).unwrap();
+        let price: I80F48 = feed.get_ema_price().unwrap();
+        let conf: I80F48 = feed.get_confidence_interval(true, 0).unwrap();
+
+        let target_price: I80F48 = I80F48::from_num(0.00003498);
+        let price_tolerance: I80F48 = I80F48::from_num(0.00000001);
+        let min_price: I80F48 = target_price.checked_sub(price_tolerance).unwrap();
+        let max_price: I80F48 = target_price.checked_add(price_tolerance).unwrap();
+        assert!(price >= min_price && price <= max_price);
+
+        let max_conf: I80F48 = target_price * I80F48::from_num(0.05);
+        assert!(conf <= max_conf);
+
+        let exp_conf: I80F48 = I80F48::from_num(0.0000000816);
+        let min_exp_conf: I80F48 = exp_conf - exp_conf * I80F48::from_num(0.01);
+        let max_exp_conf: I80F48 = exp_conf + exp_conf * I80F48::from_num(0.01);
+        assert!(exp_conf >= min_exp_conf && exp_conf <= max_exp_conf);
+
+        let price_bias_none: I80F48 = feed
+            .get_price_of_type(OraclePriceType::TimeWeighted, None, 0)
+            .unwrap();
+        assert_eq!(price, price_bias_none);
+
+        let price_bias_low: I80F48 = feed
+            .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low), 0)
+            .unwrap();
+        let target_price_low: I80F48 = target_price.checked_sub(exp_conf).unwrap();
+        let min_price: I80F48 = target_price_low.checked_sub(price_tolerance).unwrap();
+        let max_price: I80F48 = target_price_low.checked_add(price_tolerance).unwrap();
+        assert!(price_bias_low >= min_price && price_bias_low <= max_price);
+
+        let price_bias_high: I80F48 = feed
+            .get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High), 0)
             .unwrap();
         let target_price_high: I80F48 = target_price.checked_add(exp_conf).unwrap();
         let min_price: I80F48 = target_price_high.checked_sub(price_tolerance).unwrap();
