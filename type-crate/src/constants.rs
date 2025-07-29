@@ -64,7 +64,7 @@ pub const CLOSE_ENABLED_FLAG: u64 = 1 << 4;
 
 /// True if bank created in 0.1.4 or later, or if migrated to the new oracle setup from a prior
 /// version. False otherwise.
-pub const PYTH_PUSH_MIGRATED: u8 = 1 << 0;
+pub const PYTH_PUSH_MIGRATED_DEPRECATED: u8 = 1 << 0;
 
 pub const EMISSION_FLAGS: u64 = EMISSIONS_FLAG_BORROW_ACTIVE | EMISSIONS_FLAG_LENDING_ACTIVE;
 pub const GROUP_FLAGS: u64 = PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS;

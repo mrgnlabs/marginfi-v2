@@ -1,13 +1,9 @@
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
-    constants::{
-        MAX_PYTH_ORACLE_AGE, ORACLE_MIN_AGE, PYTH_PUSH_MIGRATED,
-        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
-    },
+    constants::{MAX_PYTH_ORACLE_AGE, ORACLE_MIN_AGE, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE},
     types::{BalanceSide, BankConfig, OracleSetup, RiskTier},
 };
-use pyth_solana_receiver_sdk::price_update::FeedId;
 
 use crate::{
     check,
@@ -25,7 +21,6 @@ pub trait BankConfigImpl {
     fn validate(&self) -> MarginfiResult;
     fn is_deposit_limit_active(&self) -> bool;
     fn is_borrow_limit_active(&self) -> bool;
-    fn is_pyth_push_migrated(&self) -> bool;
     fn update_config_flag(&mut self, value: bool, flag: u8);
     fn validate_oracle_setup(
         &self,
@@ -37,7 +32,6 @@ pub trait BankConfigImpl {
     fn validate_oracle_age(&self) -> MarginfiResult;
     fn usd_init_limit_active(&self) -> bool;
     fn get_oracle_max_age(&self) -> u64;
-    fn get_pyth_push_oracle_feed_id(&self) -> Option<&FeedId>;
 }
 
 impl BankConfigImpl for BankConfig {
@@ -114,10 +108,6 @@ impl BankConfigImpl for BankConfig {
         self.borrow_limit != u64::MAX
     }
 
-    fn is_pyth_push_migrated(&self) -> bool {
-        (self.config_flags & PYTH_PUSH_MIGRATED) != 0
-    }
-
     fn update_config_flag(&mut self, value: bool, flag: u8) {
         if value {
             self.config_flags |= flag;
@@ -157,18 +147,6 @@ impl BankConfigImpl for BankConfig {
         match (self.oracle_max_age, self.oracle_setup) {
             (0, OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
             (n, _) => n as u64,
-        }
-    }
-
-    fn get_pyth_push_oracle_feed_id(&self) -> Option<&FeedId> {
-        if matches!(
-            self.oracle_setup,
-            OracleSetup::PythPushOracle | OracleSetup::StakedWithPythPush
-        ) {
-            let bytes: &[u8; 32] = self.oracle_keys[0].as_ref().try_into().unwrap();
-            Some(bytes)
-        } else {
-            None
         }
     }
 }

@@ -6,7 +6,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use bincode::deserialize;
 use marginfi_type_crate::{
-    constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED},
+    constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED_DEPRECATED},
     types::{BankConfig, BankOperationalState, InterestRateConfig, OracleSetup, RiskTier},
 };
 use pyth_solana_receiver_sdk::price_update::{PriceUpdateV2, VerificationLevel};
@@ -258,7 +258,7 @@ lazy_static! {
 
         operational_state: BankOperationalState::Operational,
         risk_tier: RiskTier::Collateral,
-        config_flags: PYTH_PUSH_MIGRATED,
+        config_flags: PYTH_PUSH_MIGRATED_DEPRECATED,
 
         interest_rate_config: InterestRateConfig {
             insurance_fee_fixed_apr: I80F48!(0).into(),
