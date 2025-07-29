@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
 
 #[cfg(feature = "anchor")]
-use {anchor_lang::prelude::*, type_layout::TypeLayout};
+use anchor_lang::prelude::*;
 
 use crate::{assert_struct_align, assert_struct_size};
 
@@ -18,10 +18,7 @@ pub const EMODE_TAG_EMPTY: u16 = 0;
 assert_struct_size!(EmodeSettings, 424);
 assert_struct_align!(EmodeSettings, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 /// Controls the bank's e-mode configuration, allowing certain collateral sources to be treated more
 /// favorably as collateral when used to borrow from this bank.
@@ -52,10 +49,7 @@ pub struct EmodeSettings {
 assert_struct_size!(EmodeConfig, 400);
 assert_struct_align!(EmodeConfig, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 /// An emode configuration. Each bank has one such configuration, but this may also be the
 /// intersection of many configurations (see `reconcile_emode_configs`). For example, the risk
@@ -119,10 +113,7 @@ pub const APPLIES_TO_ISOLATED: u16 = 1;
 assert_struct_size!(EmodeEntry, 40);
 assert_struct_align!(EmodeEntry, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 pub struct EmodeEntry {
     /// emode_tag of the bank(s) whose collateral you wish to treat preferentially.
