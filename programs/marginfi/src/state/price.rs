@@ -648,11 +648,6 @@ impl PythPushOraclePriceFeed {
                 .ok_or_else(math_error!())?;
 
         let price = pyth_price_components_to_i80f48(I80F48::from_num(price.price), price.exponent)?;
-        msg!(
-            "pyth price {:?}, conf interval: {:?}",
-            price.to_num::<f64>(),
-            conf_interval.to_num::<f64>()
-        );
 
         // Fail the price fetch if confidence > price * oracle_max_confidence
         let oracle_max_confidence = if oracle_max_confidence > 0 {
