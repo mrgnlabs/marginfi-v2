@@ -6,9 +6,8 @@ use crate::{
     math_error,
     prelude::MarginfiError,
     state::{
-        health_cache::HealthCache,
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, BankOperationalState, BankVaultType, MarginfiGroup},
+        bank::{BankImpl, BankVaultType},
+        marginfi_account::{BankAccountWrapper, MarginfiAccountImpl, RiskEngine},
     },
     utils::{self, validate_bank_state, InstructionKind},
     MarginfiResult,
@@ -22,7 +21,9 @@ use marginfi_type_crate::{
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD,
     },
-    types::{Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
+    types::{
+        Bank, BankOperationalState, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+    },
 };
 use std::cmp::{max, min};
 

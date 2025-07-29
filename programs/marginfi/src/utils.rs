@@ -16,7 +16,7 @@ use anchor_spl::{
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
-    types::{Bank, MarginfiAccount, WrappedI80F48},
+    types::{Bank, BankOperationalState, MarginfiAccount, WrappedI80F48},
 };
 
 pub fn find_bank_vault_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {

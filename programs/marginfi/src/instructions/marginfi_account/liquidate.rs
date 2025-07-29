@@ -8,11 +8,7 @@ use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter,
 use crate::utils::{
     validate_asset_tags, validate_bank_asset_tags, validate_bank_state, InstructionKind,
 };
-use crate::{
-    bank_signer,
-    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
-    state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
-};
+use crate::{bank_signer, state::marginfi_account::BankAccountWrapper};
 use crate::{check, debug, prelude::*, utils};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Clock;
