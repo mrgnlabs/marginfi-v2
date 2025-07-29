@@ -2,23 +2,14 @@ use crate::{assert_struct_align, assert_struct_size, types::WrappedI80F48};
 
 use bytemuck::Zeroable;
 #[cfg(feature = "anchor")]
-use {anchor_lang::prelude::*, bytemuck::Pod, type_layout::TypeLayout};
+use {anchor_lang::prelude::*, bytemuck::Pod};
 
 assert_struct_size!(BankCache, 160);
 assert_struct_align!(BankCache, 8);
 #[repr(C)]
 #[cfg_attr(
     feature = "anchor",
-    derive(
-        AnchorDeserialize,
-        AnchorSerialize,
-        Copy,
-        Clone,
-        Pod,
-        PartialEq,
-        Eq,
-        TypeLayout,
-    )
+    derive(AnchorDeserialize, AnchorSerialize, Copy, Clone, Pod, PartialEq, Eq,)
 )]
 #[derive(Zeroable, Debug)]
 /// A read-only cache of the bank's key metrics, e.g. spot interest/fee rates.

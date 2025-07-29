@@ -31,7 +31,6 @@ bytemuck = { workspace = true }
 fixed = { workspace = true }
 fixed-macro = { workspace = true }
 lazy_static = { workspace = true }
-type-layout = { workspace = true }
 static_assertions = { workspace = true }
 anyhow = "1.0.66"
 assert_matches = "1.5.0"

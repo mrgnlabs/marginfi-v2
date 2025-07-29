@@ -8,11 +8,11 @@ use crate::{assert_struct_size, constants::discriminators};
 use super::WrappedI80F48;
 
 #[cfg(feature = "anchor")]
-use {anchor_lang::prelude::*, type_layout::TypeLayout};
+use anchor_lang::prelude::*;
 
 assert_struct_size!(MarginfiGroup, 1056);
 #[repr(C)]
-#[cfg_attr(feature = "anchor", account(zero_copy), derive(TypeLayout))]
+#[cfg_attr(feature = "anchor", account(zero_copy))]
 #[cfg_attr(not(feature = "anchor"), derive(Pod, Zeroable, Copy, Clone))]
 #[derive(Default, Debug, PartialEq, Eq)]
 pub struct MarginfiGroup {
@@ -56,10 +56,7 @@ impl MarginfiGroup {
 }
 
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorSerialize, AnchorDeserialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorSerialize, AnchorDeserialize))]
 #[derive(Default, Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct FeeStateCache {
     pub global_fee_wallet: Pubkey,

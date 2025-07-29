@@ -42,7 +42,6 @@ bytemuck = { workspace = true, features = ["derive"] }
 fixed = { workspace = true }
 fixed-macro = { workspace = true }
 lazy_static = { workspace = true }
-type-layout = { workspace = true }
 static_assertions = { workspace = true }
 cfg-if = "1.0.0"
 enum_dispatch = "0.3.13"

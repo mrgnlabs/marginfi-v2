@@ -5,7 +5,7 @@ use crate::{assert_struct_align, assert_struct_size};
 use super::{WrappedI80F48, MAX_LENDING_ACCOUNT_BALANCES};
 
 #[cfg(feature = "anchor")]
-use {anchor_lang::prelude::*, type_layout::TypeLayout};
+use anchor_lang::prelude::*;
 
 pub const HEALTHY: u32 = 1;
 pub const ENGINE_OK: u32 = 2;
@@ -14,10 +14,7 @@ pub const ORACLE_OK: u32 = 4;
 assert_struct_size!(HealthCache, 304);
 assert_struct_align!(HealthCache, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 /// A read-only cache of the internal risk engine's information. Only valid in borrow/withdraw if
 /// the tx does not fail. To see the state in any context, e.g. to figure out if the risk engine is

@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[cfg(feature = "anchor")]
-use {anchor_lang::prelude::*, type_layout::TypeLayout};
+use anchor_lang::prelude::*;
 
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
@@ -23,10 +23,7 @@ use super::WrappedI80F48;
 assert_struct_size!(BankConfig, 544);
 assert_struct_align!(BankConfig, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 pub struct BankConfig {
     /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
@@ -122,10 +119,7 @@ impl Default for BankConfig {
     }
 }
 
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Default, Clone, PartialEq, Eq)]
 pub struct BankConfigOpt {
     pub asset_weight_init: Option<WrappedI80F48>,
