@@ -171,6 +171,14 @@ pub enum MarginfiError {
     BankCannotClose,
     #[msg("Liquidation state issue. Check start before end, end last, and both unique")] // 6082
     UnexpectedLiquidationState,
+    #[msg("Liquidation start must be first instruction (other than compute program ixes)")] // 6083
+    StartNotFirst,
+    #[msg("Only one liquidation even allowed per tx")] // 6084
+    StartRepeats,
+    #[msg("The end instruction must be the last ix in the tx")] // 6085
+    EndNotLast,
+        #[msg("Tried to call an instruction that is forbidden during liquidation")] // 6086
+    ForbiddenIx,
 }
 
 impl From<MarginfiError> for ProgramError {

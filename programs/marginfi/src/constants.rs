@@ -42,6 +42,8 @@ cfg_if::cfg_if! {
     }
 }
 
+pub const COMPUTE_PROGRAM_KEY: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
+
 pub const NATIVE_STAKE_ID: Pubkey = pubkey!("Stake11111111111111111111111111111111111111");
 
 /// The default fee, in native SOL in native decimals (i.e. lamports) used in testing

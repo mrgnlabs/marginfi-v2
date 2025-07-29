@@ -6,6 +6,7 @@ pub mod macros;
 pub mod prelude;
 pub mod state;
 pub mod utils;
+pub mod ix_utils;
 
 // #[cfg(target_os = "solana")]
 // use anchor_lang::solana_program::entrypoint::{HEAP_LENGTH, HEAP_START_ADDRESS};

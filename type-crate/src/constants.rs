@@ -156,5 +156,6 @@ pub mod discriminators {
     pub const ACCOUNT: [u8; 8] = [67, 178, 130, 109, 126, 114, 28, 42];
     pub const FEE_STATE: [u8; 8] = [63, 224, 16, 85, 193, 36, 235, 220];
     pub const STAKED_SETTINGS: [u8; 8] = [157, 140, 6, 77, 89, 173, 173, 125];
+    // TODO
     pub const LIQUIDATION_RECORD: [u8; 8] = [157, 140, 6, 77, 89, 173, 173, 125];
 }
