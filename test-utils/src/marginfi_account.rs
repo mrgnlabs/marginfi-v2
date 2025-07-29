@@ -2,10 +2,8 @@ use super::{bank::BankFixture, prelude::*};
 use crate::ui_to_native;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
-use marginfi::state::{
-    marginfi_account::MarginfiAccount,
-    marginfi_group::{Bank, BankVaultType},
-};
+use marginfi::state::bank::BankVaultType;
+use marginfi_type_crate::types::{Bank, MarginfiAccount};
 use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
 use solana_sdk::{
@@ -41,7 +39,7 @@ impl MarginfiAccountFixture {
                 system_program: system_program::ID,
             };
             let init_marginfi_account_ix = Instruction {
-                program_id: marginfi::id(),
+                program_id: marginfi::ID,
                 accounts: accounts.to_account_metas(Some(true)),
                 data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
             };
@@ -89,7 +87,7 @@ impl MarginfiAccountFixture {
         }
 
         Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingAccountDeposit {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
@@ -180,7 +178,7 @@ impl MarginfiAccountFixture {
         }
 
         let mut ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingAccountWithdraw {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
@@ -252,7 +250,7 @@ impl MarginfiAccountFixture {
         }
 
         let mut ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingAccountBorrow {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
@@ -358,7 +356,7 @@ impl MarginfiAccountFixture {
         }
 
         Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingAccountRepay {
                 amount: ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
@@ -401,7 +399,7 @@ impl MarginfiAccountFixture {
         let ctx = self.ctx.borrow_mut();
 
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingAccountCloseBalance {
                 group: marginfi_account.group,
                 marginfi_account: self.key,
@@ -474,7 +472,7 @@ impl MarginfiAccountFixture {
         accounts.extend(oracle_accounts);
 
         let mut ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingAccountLiquidate {
                 asset_amount: ui_to_native!(
@@ -547,7 +545,7 @@ impl MarginfiAccountFixture {
     ) -> std::result::Result<(), BanksClientError> {
         let emissions_mint = bank.load().await.emissions_mint;
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingAccountWithdrawEmissions {
                 group: self.load().await.group,
                 marginfi_account: self.key,
@@ -578,7 +576,7 @@ impl MarginfiAccountFixture {
 
     pub async fn make_lending_account_start_flashloan_ix(&self, end_index: u64) -> Instruction {
         Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingAccountStartFlashloan {
                 marginfi_account: self.key,
                 authority: self.ctx.borrow().payer.pubkey(),
@@ -606,7 +604,7 @@ impl MarginfiAccountFixture {
         );
 
         Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: account_metas,
             data: marginfi::instruction::LendingAccountEndFlashloan {}.data(),
         }
@@ -745,7 +743,7 @@ impl MarginfiAccountFixture {
         let signer = signer_keypair.unwrap_or_else(|| ctx.payer.insecure_clone());
 
         let transfer_account_ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::TransferToNewAccount {
                 old_marginfi_account: self.key,
                 new_marginfi_account,
@@ -818,7 +816,7 @@ impl MarginfiAccountFixture {
         let ctx: std::cell::RefMut<ProgramTestContext> = self.ctx.borrow_mut();
 
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::MarginfiAccountClose {
                 marginfi_account: self.key,
                 authority: ctx.payer.pubkey(),

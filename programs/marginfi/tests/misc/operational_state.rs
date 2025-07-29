@@ -1,9 +1,7 @@
 use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*};
-use marginfi::{
-    prelude::MarginfiError,
-    state::marginfi_group::{BankConfig, BankConfigOpt, BankOperationalState},
-};
+use marginfi::prelude::MarginfiError;
+use marginfi_type_crate::types::{BankConfig, BankConfigOpt, BankOperationalState};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 

@@ -1,9 +1,6 @@
 use crate::{
     bank_signer, check,
-    constants::{
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PROGRAM_VERSION, ZERO_AMOUNT_THRESHOLD,
-    },
+    constants::PROGRAM_VERSION,
     debug,
     events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent},
     math_error,
@@ -20,6 +17,13 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::{
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD,
+    },
+    types::{Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
+};
 use std::cmp::{max, min};
 
 /// Handle a bankrupt marginfi account.
