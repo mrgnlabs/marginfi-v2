@@ -137,6 +137,7 @@ pub enum BankOperationalState {
     Paused,
     Operational,
     ReduceOnly,
+    KilledByBankruptcy,
 }
 unsafe impl Zeroable for BankOperationalState {}
 unsafe impl Pod for BankOperationalState {}
