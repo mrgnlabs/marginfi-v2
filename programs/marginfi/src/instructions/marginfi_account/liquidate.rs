@@ -249,7 +249,7 @@ pub fn lending_account_liquidate<'info>(
                 &mut liquidator_marginfi_account.lending_account,
             )?;
 
-            // TODO: in edge cases, the liquiador starts/ends with ASSETS, following the logic
+            // TODO: in edge cases, the liquidator starts/ends with ASSETS, following the logic
             // below, and this value (which will ultimately be emitted in the event) is useless.
             let pre_balance: I80F48 = bank_account
                 .bank

@@ -959,7 +959,7 @@ impl<'a> BankAccountWrapper<'a> {
         self.decrease_balance_internal(amount, BalanceDecreaseType::BorrowOnly, bypass_util_ratio)
     }
 
-    /// Deposit an asset, ignoring deposit caps will error if this repays a liability instead of increasing a asset
+    /// Deposit an asset, ignoring deposit caps, will error if this repays a liability instead of increasing a asset
     pub fn deposit_ignore_deposit_cap(&mut self, amount: I80F48) -> MarginfiResult {
         self.increase_balance_internal(amount, BalanceIncreaseType::BypassDepositLimit)
     }
