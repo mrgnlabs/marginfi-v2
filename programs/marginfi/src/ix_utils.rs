@@ -117,7 +117,7 @@ pub fn validate_ixes_exclusive(
     Ok(())
 }
 
-/*** We might use later for something like to limit the swap venue to e.g. Jup */
+/*** We might use these later for something like to limit the swap venue to e.g. Jup */
 
 /// Panics if the top-level relative instruction is not the Marginfi program
 pub fn validate_not_cpi(sysvar: &AccountInfo) {
