@@ -15,7 +15,7 @@ use {
         },
     },
     anchor_client::{
-        anchor_lang::{InstructionData, ToAccountMetas},
+        anchor_lang::{AnchorDeserialize, InstructionData, ToAccountMetas},
         Cluster,
     },
     anchor_spl::token_2022::spl_token_2022,
@@ -24,8 +24,8 @@ use {
     log::info,
     marginfi::{
         constants::{
-            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE,
-            PYTH_PUSH_PYTH_SPONSORED_SHARD_ID, ZERO_AMOUNT_THRESHOLD,
+            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, PYTH_SPONSORED_SHARD_ID,
+            ZERO_AMOUNT_THRESHOLD,
         },
         prelude::*,
         state::{
@@ -34,17 +34,20 @@ use {
                 Bank, BankConfigCompact, BankConfigOpt, BankOperationalState, BankVaultType,
                 InterestRateConfig, WrappedI80F48,
             },
-            price::{OraclePriceFeedAdapter, OracleSetup, PriceAdapter, PythPushOraclePriceFeed},
+            price::{
+                parse_swb_ignore_alignment, LitePullFeedAccountData, OraclePriceFeedAdapter,
+                OracleSetup, PriceAdapter,
+            },
         },
         utils::NumTraitsWithTolerance,
     },
-    pyth_sdk_solana::state::{load_price_account, SolanaPriceAccount},
+    pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{
         rpc_client::RpcClient,
         rpc_filter::{Memcmp, RpcFilterType},
     },
     solana_sdk::{
-        account::ReadableAccount,
+        account::{ReadableAccount, WritableAccount},
         account_info::IntoAccountInfo,
         clock::Clock,
         commitment_config::CommitmentLevel,
@@ -63,13 +66,14 @@ use {
         get_associated_token_address, instruction::create_associated_token_account_idempotent,
     },
     std::{
+        cell::RefCell,
         collections::HashMap,
         fs, io,
         mem::size_of,
         ops::{Neg, Not},
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
-    switchboard_solana::AggregatorAccountData,
+    switchboard_on_demand::PullFeedAccountData,
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -262,6 +266,9 @@ pub fn group_configure(
     profile: Profile,
     new_admin: Pubkey,
     new_emode_admin: Pubkey,
+    new_curve_admin: Pubkey,
+    new_limit_admin: Pubkey,
+    new_emissions_admin: Pubkey,
     is_arena_group: bool,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
@@ -284,6 +291,9 @@ pub fn group_configure(
         .args(marginfi::instruction::MarginfiGroupConfigure {
             new_admin,
             new_emode_admin,
+            new_curve_admin,
+            new_limit_admin,
+            new_emissions_admin,
             is_arena_group,
         })
         .instructions()?;
@@ -941,40 +951,12 @@ fn make_bankruptcy_ix(
 }
 
 pub fn process_set_user_flag(
-    config: Config,
-    profile: &Profile,
-    marginfi_account_pk: Pubkey,
-    flag: u64,
+    _config: Config,
+    _profile: &Profile,
+    _marginfi_account_pk: Pubkey,
+    _flag: u64,
 ) -> Result<()> {
-    let rpc_client = config.mfi_program.rpc();
-
-    let ix = Instruction {
-        accounts: marginfi::accounts::SetAccountFlag {
-            marginfi_account: marginfi_account_pk,
-            group: profile.marginfi_group.unwrap(),
-            admin: config.authority(),
-        }
-        .to_account_metas(Some(true)),
-        data: marginfi::instruction::SetAccountFlag { flag }.data(),
-        program_id: config.program_id,
-    };
-
-    let recent_blockhash = rpc_client.get_latest_blockhash().unwrap();
-
-    let signing_keypairs = config.get_signers(false);
-
-    let message = Message::new(&[ix], Some(&config.authority()));
-
-    let mut transaction = Transaction::new_unsigned(message);
-
-    transaction.partial_sign(&signing_keypairs, recent_blockhash);
-
-    match process_transaction(&transaction, &rpc_client, config.get_tx_mode()) {
-        Ok(sig) => println!("User flag set (sig: {})", sig),
-        Err(err) => println!("Error during user flag set:\n{:#?}", err),
-    };
-
-    Ok(())
+    panic!("deprecated");
 }
 
 pub fn initialize_fee_state(
@@ -1160,6 +1142,7 @@ pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
         let current_timestamp = current_timestamp.as_secs() as i64;
 
         bank.accrue_interest(current_timestamp, &group)?;
+        bank.update_bank_cache(&group)?;
         println!(" Cranking interest at: {:?}", current_timestamp);
 
         print_bank(&address, &bank);
@@ -1252,11 +1235,11 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
     .unwrap();
 
     let (real_price, maint_asset_price, maint_liab_price, init_asset_price, init_liab_price) = (
-        opfa.get_price_of_type(OraclePriceType::RealTime, None)?,
-        opfa.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low))?,
-        opfa.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High))?,
-        opfa.get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::Low))?,
-        opfa.get_price_of_type(OraclePriceType::TimeWeighted, Some(PriceBias::High))?,
+        opfa.get_price_of_type_ignore_conf(OraclePriceType::RealTime, None)?,
+        opfa.get_price_of_type_ignore_conf(OraclePriceType::RealTime, Some(PriceBias::Low))?,
+        opfa.get_price_of_type_ignore_conf(OraclePriceType::RealTime, Some(PriceBias::High))?,
+        opfa.get_price_of_type_ignore_conf(OraclePriceType::TimeWeighted, Some(PriceBias::Low))?,
+        opfa.get_price_of_type_ignore_conf(OraclePriceType::TimeWeighted, Some(PriceBias::High))?,
     );
 
     let keys = bank
@@ -1308,8 +1291,8 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             )
         })
         .partition(|(setup, _, _, _)| match setup {
-            OracleSetup::PythLegacy => true,
-            OracleSetup::SwitchboardV2 => false,
+            OracleSetup::PythPushOracle => true,
+            OracleSetup::SwitchboardPull => false,
             _ => panic!("Unknown oracle setup"),
         });
 
@@ -1358,9 +1341,9 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(pyth_max_age)
             .map(|((maybe_account, mint), max_age)| {
                 let account = maybe_account.unwrap();
-                let pa: SolanaPriceAccount = *load_price_account(account.data()).unwrap();
+                let price_update = PriceUpdateV2::deserialize(&mut &account.data()[8..]).unwrap();
 
-                (mint, pa, max_age)
+                (mint, price_update, max_age)
             })
             .collect::<Vec<_>>();
 
@@ -1378,10 +1361,13 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
             .zip(swb_mints)
             .zip(swb_max_age)
             .map(|((maybe_account, mint), max_age)| {
-                let account = maybe_account.unwrap();
-                let pa = *AggregatorAccountData::new_from_bytes(account.data()).unwrap();
+                let mut account = maybe_account.unwrap();
+                let data = account.data_as_mut_slice();
+                let cell = RefCell::new(data);
+                let feed: PullFeedAccountData = parse_swb_ignore_alignment(cell.borrow()).unwrap();
+                let lite_feed = LitePullFeedAccountData::from(&feed);
 
-                (mint, pa, max_age)
+                (mint, lite_feed, max_age)
             })
             .collect::<Vec<_>>();
 
@@ -1392,18 +1378,13 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 
         let mut pyth_ages = pyth_feed_accounts
             .iter()
-            .map(|(mint, pa, _)| ((now - pa.get_publish_time()) as f64 / 60f64, *mint))
+            .map(|(mint, pa, _)| ((now - pa.price_message.publish_time) as f64 / 60f64, *mint))
             .collect::<Vec<_>>();
         pyth_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
 
         let mut swb_ages = swb_feed_accounts
             .iter()
-            .map(|(mint, pa, _)| {
-                (
-                    (now - pa.latest_confirmed_round.round_open_timestamp) as f64 / 60f64,
-                    *mint,
-                )
-            })
+            .map(|(mint, pa, _)| ((now - pa.last_update_timestamp) as f64 / 60f64, *mint))
             .collect::<Vec<_>>();
         swb_ages.sort_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
 
@@ -1513,7 +1494,7 @@ pub fn bank_setup_emissions(
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolSetupEmissions {
             group: profile.marginfi_group.expect("marginfi group not set"),
-            admin: config.authority(),
+            delegate_emissions_admin: config.authority(),
             bank,
             emissions_mint: mint,
             emissions_auth: find_bank_emssions_auth_pda(bank, mint, config.program_id).0,
@@ -1631,7 +1612,7 @@ pub fn bank_update_emissions(
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingPoolUpdateEmissionsParameters {
             group: profile.marginfi_group.expect("marginfi group not set"),
-            admin: config.authority(),
+            delegate_emissions_admin: config.authority(),
             bank: bank_pk,
             emissions_mint: emission_mint,
             emissions_token_account: find_bank_emssions_token_account_pda(
@@ -1713,25 +1694,7 @@ pub fn bank_configure_oracle(
     let configure_bank_ixs_builder = config.mfi_program.request();
     let signing_keypairs = config.get_signers(false);
 
-    let mut extra_accounts = vec![];
-    // Pyth pull oracles pass the feed instead, all other kinds pass the key itself
-    let mut passed_oracle = oracle;
-
-    extra_accounts.push(AccountMeta::new_readonly(oracle, false));
-
-    let setup_type =
-        OracleSetup::from_u8(setup).unwrap_or_else(|| panic!("unsupported oracle type"));
-
-    if setup_type == OracleSetup::PythPushOracle || setup_type == OracleSetup::StakedWithPythPush {
-        let oracle_address = oracle;
-        let mut account = rpc_client.get_account(&oracle_address)?;
-        let ai = (&oracle_address, &mut account).into_account_info();
-        let feed_id = PythPushOraclePriceFeed::peek_feed_id(&ai)?;
-
-        let feed_id_as_pubkey = Pubkey::new_from_array(feed_id);
-
-        passed_oracle = feed_id_as_pubkey;
-    }
+    let extra_accounts = vec![AccountMeta::new_readonly(oracle, false)];
 
     let mut configure_bank_ixs = configure_bank_ixs_builder
         .accounts(marginfi::accounts::LendingPoolConfigureBankOracle {
@@ -1739,10 +1702,7 @@ pub fn bank_configure_oracle(
             admin: config.authority(),
             bank: bank_pk,
         })
-        .args(marginfi::instruction::LendingPoolConfigureBankOracle {
-            setup,
-            oracle: passed_oracle,
-        })
+        .args(marginfi::instruction::LendingPoolConfigureBankOracle { setup, oracle })
         .instructions()?;
 
     configure_bank_ixs[0].accounts.extend(extra_accounts);
@@ -2414,21 +2374,17 @@ pub fn marginfi_account_liquidate(
         data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
     };
 
-    let oracle_accounts = vec![asset_bank.config, liability_bank.config]
-        .into_iter()
-        .map(|bank_config| {
-            let oracle_key = bank_to_oracle_key(&bank_config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
-            AccountMeta::new_readonly(oracle_key, false)
-        });
+    let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
+        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_SPONSORED_SHARD_ID);
+        AccountMeta::new_readonly(oracle_key, false)
+    });
 
     ix.accounts.extend(oracle_accounts);
 
-    let oracle_accounts = vec![asset_bank.config, liability_bank.config]
-        .into_iter()
-        .map(|bank_config| {
-            let oracle_key = bank_to_oracle_key(&bank_config, PYTH_PUSH_PYTH_SPONSORED_SHARD_ID);
-            AccountMeta::new_readonly(oracle_key, false)
-        });
+    let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
+        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_SPONSORED_SHARD_ID);
+        AccountMeta::new_readonly(oracle_key, false)
+    });
 
     ix.accounts.extend(oracle_accounts);
 
@@ -2562,107 +2518,4 @@ pub fn marginfi_account_close(profile: &Profile, config: &Config) -> Result<()> 
     };
 
     Ok(())
-}
-/// LIP
-///
-
-#[cfg(feature = "lip")]
-pub fn process_list_lip_campaigns(config: &Config) {
-    use liquidity_incentive_program::state::Campaign;
-
-    let campaings = config.lip_program.accounts::<Campaign>(vec![]).unwrap();
-
-    print!("Found {} campaigns", campaings.len());
-
-    campaings.iter().for_each(|(address, campaign)| {
-        let bank = config
-            .mfi_program
-            .account::<Bank>(campaign.marginfi_bank_pk)
-            .unwrap();
-
-        print!(
-            r#"
-Campaign: {}
-Bank: {}
-Mint: {}
-Total Capacity: {}
-Remaining Capacity: {}
-Lockup Period: {} days
-Max Rewards: {}
-"#,
-            address,
-            campaign.marginfi_bank_pk,
-            bank.mint,
-            campaign.max_deposits as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
-            campaign.remaining_capacity as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
-            campaign.lockup_period / (24 * 60 * 60),
-            campaign.max_rewards as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
-        );
-    });
-}
-
-#[cfg(feature = "lip")]
-pub fn process_list_deposits(config: &Config) {
-    use liquidity_incentive_program::state::{Campaign, Deposit};
-    use solana_sdk::clock::SECONDS_PER_DAY;
-
-    let mut deposits = config.lip_program.accounts::<Deposit>(vec![]).unwrap();
-    let campaings = HashMap::<Pubkey, Campaign>::from_iter(
-        config.lip_program.accounts::<Campaign>(vec![]).unwrap(),
-    );
-    let banks =
-        HashMap::<Pubkey, Bank>::from_iter(config.mfi_program.accounts::<Bank>(vec![]).unwrap());
-
-    deposits.sort_by(|(_, a), (_, b)| a.start_time.cmp(&b.start_time));
-
-    deposits.iter().for_each(|(address, deposit)| {
-        let campaign = campaings.get(&deposit.campaign).unwrap();
-        let bank = banks.get(&campaign.marginfi_bank_pk).unwrap();
-
-        let time_now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        let end_time = deposit.start_time as u64 + campaign.lockup_period;
-        let maturity_string = {
-            if time_now > end_time {
-                "mature".to_owned()
-            } else {
-                let days_to_maturity = end_time.saturating_sub(time_now) / SECONDS_PER_DAY;
-                format!("mature in {} days", days_to_maturity)
-            }
-        };
-
-        println!(
-            r#"
-Deposit: {},
-Campaign: {},
-Asset Mint: {},
-Owner: {},
-Amount: {},
-Deposit start {}, end {} ({})
-"#,
-            address,
-            deposit.campaign,
-            bank.mint,
-            deposit.owner,
-            deposit.amount as f32 / 10.0_f32.powi(bank.mint_decimals as i32),
-            timestamp_to_string(deposit.start_time),
-            timestamp_to_string(end_time as i64),
-            maturity_string,
-        )
-    })
-}
-
-#[cfg(feature = "lip")]
-fn timestamp_to_string(timestamp: i64) -> String {
-    use chrono::{DateTime, Utc};
-
-    DateTime::<Utc>::from_naive_utc_and_offset(
-        DateTime::from_timestamp(timestamp, 0).unwrap().naive_utc(),
-        Utc,
-    )
-    .format("%Y-%m-%d %H:%M:%S")
-    .to_string()
 }

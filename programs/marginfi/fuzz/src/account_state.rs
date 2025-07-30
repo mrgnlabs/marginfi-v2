@@ -1,7 +1,7 @@
 use crate::arbitrary_helpers::TokenType;
 use anchor_lang::{
     prelude::{AccountInfo, Pubkey, Rent, SolanaSysvar},
-    Discriminator,
+    AnchorSerialize, Discriminator,
 };
 use anchor_spl::token_2022::spl_token_2022::{
     self,
@@ -13,13 +13,8 @@ use anchor_spl::token_2022::spl_token_2022::{
     state::Mint,
 };
 use bumpalo::Bump;
-use marginfi::{
-    constants::{FEE_STATE_SEED, PYTH_ID},
-    state::marginfi_group::BankVaultType,
-};
-use pyth_sdk_solana::state::{
-    AccountType, PriceInfo, PriceStatus, Rational, SolanaPriceAccount, MAGIC, VERSION_2,
-};
+use marginfi::{constants::FEE_STATE_SEED, state::marginfi_group::BankVaultType};
+use pyth_solana_receiver_sdk::price_update::{PriceUpdateV2, VerificationLevel};
 use safe_transmute::transmute_to_bytes_mut;
 use solana_program::{
     bpf_loader, program_pack::Pack, stake_history::Epoch, system_program, sysvar,
@@ -356,36 +351,39 @@ impl AccountsState {
         &self,
         rent: Rent,
         native_price: i64,
-        mint: Pubkey,
         mint_decimals: i32,
     ) -> AccountInfo {
-        let price_account = SolanaPriceAccount {
-            prod: mint,
-            agg: PriceInfo {
-                conf: 0,
+        let feed_key = *self.random_pubkey();
+        let feed_id = feed_key.to_bytes();
+        let price_update = PriceUpdateV2 {
+            write_authority: Pubkey::default(),
+            verification_level: VerificationLevel::Full,
+            price_message: pyth_solana_receiver_sdk::price_update::PriceFeedMessage {
+                feed_id,
                 price: native_price,
-                status: PriceStatus::Trading,
-                ..Default::default()
+                conf: 0,
+                exponent: -mint_decimals,
+                publish_time: 0,
+                prev_publish_time: 0,
+                ema_price: native_price,
+                ema_conf: 0,
             },
-            expo: -mint_decimals,
-            prev_price: native_price,
-            magic: MAGIC,
-            ver: VERSION_2,
-            atype: AccountType::Price as u32,
-            timestamp: 0,
-            ema_price: Rational {
-                val: native_price,
-                numer: native_price,
-                denom: 1,
-            },
-            ..Default::default()
+            posted_slot: 1,
         };
 
-        let data = bytemuck::bytes_of(&price_account);
+        let mut data = vec![];
+        let mut account_data = vec![];
+
+        data.extend_from_slice(PriceUpdateV2::DISCRIMINATOR);
+
+        price_update.serialize(&mut account_data).unwrap();
+
+        data.extend_from_slice(&account_data);
+
         let data_len = data.len();
         let lamports = self.bump.alloc(rent.minimum_balance(data_len));
         let data_ptr = self.bump.alloc_slice_fill_copy(data_len, 0u8);
-        data_ptr.copy_from_slice(data);
+        data_ptr.copy_from_slice(data.as_slice());
 
         AccountInfo::new(
             self.random_pubkey(),
@@ -393,7 +391,7 @@ impl AccountsState {
             true,
             lamports,
             data_ptr,
-            &PYTH_ID,
+            &pyth_solana_receiver_sdk::ID,
             false,
             Epoch::default(),
         )

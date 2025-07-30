@@ -11,9 +11,7 @@ import {
   banksClient,
   bankrunProgram,
 } from "./rootHooks";
-import {
-  propagateStakedSettings,
-} from "./utils/group-instructions";
+import { propagateStakedSettings } from "./utils/group-instructions";
 import { deriveBankWithSeed, deriveStakedSettings } from "./utils/pdas";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
@@ -26,6 +24,7 @@ import {
 } from "./utils/genericTests";
 import {
   defaultStakedInterestSettings,
+  PYTH_PULL_MIGRATED,
   StakedSettingsEdit,
 } from "./utils/types";
 
@@ -98,7 +97,7 @@ describe("Edit and propagate staked settings", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet); // just to the pay the fee
-    let result = await banksClient.tryProcessTransaction(tx);
+    await banksClient.tryProcessTransaction(tx);
 
     const bank = await bankrunProgram.account.bank.fetch(bankKey);
     const config = bank.config;
@@ -109,11 +108,13 @@ describe("Edit and propagate staked settings", () => {
     assertBNEqual(config.totalAssetValueInitLimit, 43);
     assert.equal(config.oracleMaxAge, 44);
     assert.deepEqual(config.riskTier, { collateral: {} });
+    // Propagation always set the pyth migration flag on the first call
+    assert.equal(config.configFlags, PYTH_PULL_MIGRATED);
   });
 
   it("(admin) sets a bad oracle - fails at propagation", async () => {
     const settings: StakedSettingsEdit = {
-      oracle: PublicKey.default,
+      oracle: oracles.wsolOracle.publicKey,
       assetWeightInit: null,
       assetWeightMaint: null,
       depositLimit: null,
@@ -138,7 +139,7 @@ describe("Edit and propagate staked settings", () => {
     let settingsAcc = await bankrunProgram.account.stakedSettings.fetch(
       settingsKey
     );
-    assertKeysEqual(settingsAcc.oracle, PublicKey.default);
+    assertKeysEqual(settingsAcc.oracle, oracles.wsolOracle.publicKey);
 
     tx = new Transaction();
     tx.add(
@@ -152,8 +153,8 @@ describe("Edit and propagate staked settings", () => {
     tx.sign(groupAdmin.wallet); // just to the pay the fee
     let result = await banksClient.tryProcessTransaction(tx);
 
-    // 6000 (InternalLogicError)
-    assertBankrunTxFailed(result, "0x1770");
+    // (WrongOracleAccountKeys)
+    assertBankrunTxFailed(result, 6052);
   });
 
   it("(admin) restores default settings - happy path", async () => {
@@ -183,7 +184,7 @@ describe("Edit and propagate staked settings", () => {
       await propagateStakedSettings(bankrunProgram, {
         settings: settingsKey,
         bank: bankKey,
-        oracle: defaultSettings.oracle,
+        oracle: oracles.wsolOracle.publicKey,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

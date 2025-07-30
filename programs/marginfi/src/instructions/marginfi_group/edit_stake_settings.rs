@@ -15,6 +15,7 @@ pub fn edit_staked_settings(
     // require_keys_eq!(group.admin, ctx.accounts.admin.key());
 
     set_if_some!(staked_settings.oracle, settings.oracle);
+
     set_if_some!(
         staked_settings.asset_weight_init,
         settings.asset_weight_init
@@ -72,4 +73,8 @@ pub struct StakedSettingsEditConfig {
     /// worthless as collateral, making all outstanding accounts eligible to be liquidated, and is
     /// generally useful only when creating a staked collateral pool for rewards purposes only.
     pub risk_tier: Option<RiskTier>,
+    // Note: we may want to make `oracleMaxConfidence` editable at some point, so it doesn't use the
+    // default max. Since staked collateral banks only trade SOL, which only uses the ever-popular
+    // SOL oracle, this is unlikely to ever come up. If SOL confidence is poor, we are in dire
+    // straights!
 }

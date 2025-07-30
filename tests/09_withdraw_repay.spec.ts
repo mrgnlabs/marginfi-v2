@@ -3,7 +3,6 @@ import {
   BN,
   getProvider,
   Program,
-  Wallet,
   workspace,
 } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
@@ -32,14 +31,12 @@ import {
   withdrawIx,
 } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
-import { updatePriceAccount } from "./utils/pyth_mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { u64MAX_BN } from "./utils/types";
 
 describe("Withdraw funds", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
   const provider = getProvider() as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
 
   const withdrawAmountTokenA = 0.1;
   const withdrawAmountTokenA_native = new BN(
@@ -50,68 +47,6 @@ describe("Withdraw funds", () => {
   const repayAmountUsdc_native = new BN(
     repayAmountUsdc * 10 ** ecosystem.usdcDecimals
   );
-
-  it("Oracle data refreshes", async () => {
-    const usdcPrice = BigInt(oracles.usdcPrice * 10 ** oracles.usdcDecimals);
-    await updatePriceAccount(
-      oracles.usdcOracle,
-      {
-        exponent: -oracles.usdcDecimals,
-        aggregatePriceInfo: {
-          price: usdcPrice,
-          conf: usdcPrice / BigInt(100), // 1% of the price
-        },
-        twap: {
-          // aka ema
-          valueComponent: usdcPrice,
-        },
-      },
-      wallet
-    );
-
-    const tokenAPrice = BigInt(
-      oracles.tokenAPrice * 10 ** oracles.tokenADecimals
-    );
-    await updatePriceAccount(
-      oracles.tokenAOracle,
-      {
-        exponent: -oracles.tokenADecimals,
-        aggregatePriceInfo: {
-          price: tokenAPrice,
-          conf: tokenAPrice / BigInt(100), // 1% of the price
-        },
-        twap: {
-          // aka ema
-          valueComponent: tokenAPrice,
-        },
-      },
-      wallet
-    );
-  });
-
-  it("(user 0) withdraws with bad oracle - should fail", async () => {
-    const user = users[0];
-    const userAccKey = user.accounts.get(USER_ACCOUNT);
-    const bank = bankKeypairA.publicKey;
-
-    await expectFailedTxWithError(async () => {
-      await user.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await withdrawIx(user.mrgnProgram, {
-            marginfiAccount: userAccKey,
-            bank: bank,
-            tokenAccount: user.tokenAAccount,
-            remaining: composeRemainingAccounts([
-              [bankKeypairUsdc.publicKey, oracles.fakeUsdc],
-              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
-            ]),
-            amount: withdrawAmountTokenA_native,
-          })
-        )
-      );
-      // Note: you can now see expected vs actual keys in the msg! logs just before this error.
-    }, "WrongOracleAccountKeys");
-  });
 
   it("(user 0) withdraws some token A - happy path", async () => {
     const user = users[0];
@@ -151,6 +86,8 @@ describe("Withdraw funds", () => {
       ]
     );
     const balancesAfter = userAccAfter.lendingAccount.balances;
+    // Partial withdraw only, position is still open
+    assert.equal(bankAfter.lendingPositionCount, 1);
 
     const withdrawExpected = withdrawAmountTokenA_native.toNumber();
     if (verbose) {
@@ -221,6 +158,10 @@ describe("Withdraw funds", () => {
       getTokenBalance(provider, user.usdcAccount),
       getTokenBalance(provider, bankAfter.liquidityVault),
     ]);
+    // Partial repay only, still has debt
+    assert.equal(bankAfter.borrowingPositionCount, 1);
+    // Still has deposit in token A
+    assert.equal(bankAfter.lendingPositionCount, 1);
     const balancesAfter = userAccAfter.lendingAccount.balances;
 
     const repayExpected = repayAmountUsdc_native.toNumber();
@@ -262,23 +203,28 @@ describe("Withdraw funds", () => {
     const user = users[0];
     const userAccKey = user.accounts.get(USER_ACCOUNT);
     const bank = bankKeypairUsdc.publicKey;
-    await expectFailedTxWithError(async () => {
-      await user.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await repayIx(user.mrgnProgram, {
-            marginfiAccount: userAccKey,
-            bank: bank,
-            tokenAccount: user.usdcAccount,
-            remaining: composeRemainingAccounts([
-              [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
-              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
-            ]),
-            amount: u64MAX_BN,
-            repayAll: true,
-          })
-        )
-      );
-    }, "CannotCloseOutstandingEmissions");
+
+    await expectFailedTxWithError(
+      async () => {
+        await user.mrgnProgram.provider.sendAndConfirm(
+          new Transaction().add(
+            await repayIx(user.mrgnProgram, {
+              marginfiAccount: userAccKey,
+              bank: bank,
+              tokenAccount: user.usdcAccount,
+              remaining: composeRemainingAccounts([
+                [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+                [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+              ]),
+              amount: u64MAX_BN,
+              repayAll: true,
+            })
+          )
+        );
+      },
+      "CannotCloseOutstandingEmissions",
+      6033
+    );
   });
 
   it("(user 0) claims emissions (in token B) before repaying their balance - happy path", async () => {
@@ -490,10 +436,12 @@ describe("Withdraw funds", () => {
       )
     );
 
+    const bankAfter = await program.account.bank.fetch(bank);
     const userAccAfter = await program.account.marginfiAccount.fetch(
       userAccKey
     );
     const balancesAfter = userAccAfter.lendingAccount.balances;
+    assert.equal(bankAfter.lendingPositionCount, 0);
 
     // This balance is now inactive
     assert.equal(balancesAfter[1].active, 0);

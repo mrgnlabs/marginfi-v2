@@ -9,6 +9,7 @@ use fixed::types::I80F48;
 use marginfi::{
     constants::ASSET_TAG_DEFAULT,
     state::{
+        bank_cache::BankCache,
         health_cache::HealthCache,
         marginfi_account::MarginfiAccount,
         marginfi_group::{Bank, BankOperationalState, RiskTier},
@@ -49,7 +50,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(account.account_flags, 0);
     // health cache doesn't exist on these old accounts, but it also doesn't matter since it's read-only
     assert_eq!(account.health_cache, HealthCache::zeroed());
-    assert_eq!(account._padding0, [0; 21]);
+    assert_eq!(account._padding0, [0; 13]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.is_active());
@@ -126,7 +127,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("3T1kGHp7CrdeW9Qj1t8NMc2Ks233RyvzVhoaUPWoBEFK")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 21]);
+    assert_eq!(account._padding0, [0; 13]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.is_active());
@@ -203,7 +204,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("7hmfVTuXc7HeX3YQjpiCXGVQuTeXonzjp795jorZukVR")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 21]);
+    assert_eq!(account._padding0, [0; 13]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(!balance_1.is_active());
@@ -648,13 +649,15 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank.config.borrow_limit, 2000000000000);
     assert_eq!(bank.config.risk_tier, RiskTier::Collateral);
     assert_eq!(bank.config.asset_tag, ASSET_TAG_DEFAULT);
-    assert_eq!(bank.config._pad1, [0; 6]);
+    // Note: created before 0.1.4 Pyth pull migration.
+    assert_eq!(bank.config.config_flags, 0);
+    assert_eq!(bank.config._pad1, [0; 5]);
     assert_eq!(bank.config.total_asset_value_init_limit, 0);
     assert_eq!(bank.config.oracle_max_age, 300);
-    assert_eq!(bank.config._padding0, [0; 6]);
+    assert_eq!(bank.config._padding0, [0; 2]);
+    // Note: legacy banks that have a 0 value here will use 10%
+    assert_eq!(bank.config.oracle_max_confidence, 0);
     assert_eq!(bank.config._padding1, [0; 32]);
-
-    assert_eq!(bank.flags, 2);
 
     assert_eq!(
         I80F48::from(bank.emissions_rate),
@@ -674,9 +677,12 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(bank.fees_destination_account, Pubkey::default());
+    assert_eq!(bank.cache, BankCache::default());
 
-    assert_eq!(bank._padding_0, [0; 8]);
-    assert_eq!(bank._padding_1, [[0, 0]; 30]);
+    assert_eq!(bank.lending_position_count, 0);
+    assert_eq!(bank.borrowing_position_count, 0);
+    assert_eq!(bank._padding_0, [0; 16]);
+    assert_eq!(bank._padding_1, [[0, 0]; 19]);
 
     Ok(())
 }

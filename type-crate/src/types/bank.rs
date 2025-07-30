@@ -1,8 +1,6 @@
 use bytemuck::{Pod, Zeroable};
-
 use crate::constants::discriminators;
-
-use super::{EmodeSettings, Pubkey, WrappedI80F48};
+use super::{BankCache, EmodeSettings, Pubkey, WrappedI80F48};
 
 pub const MAX_ORACLE_KEYS: usize = 5;
 
@@ -71,14 +69,26 @@ pub struct Bank {
     /// certain other banks more preferentially as collateral.
     pub emode: EmodeSettings,
 
-    /// Set with `update_fees_destination_account`. Fees can be withdrawn to the
-    /// canonical ATA of this wallet without the admin's input (withdraw_fees_permissionless).
-    /// If pubkey default, the bank doesn't support this feature, and the fees must be collected
-    /// manually (withdraw_fees).
-    pub fees_destination_account: Pubkey, // 32
+    /// Set with `update_fees_destination_account`. Fees can be withdrawn to the canonical ATA of
+    /// this wallet without the admin's input (withdraw_fees_permissionless). If pubkey default, the
+    /// bank doesn't support this feature, and the fees must be collected manually (withdraw_fees).
+    pub fees_destination_account: Pubkey,
 
-    pub _padding_0: [u8; 8],
-    pub _padding_1: [[u64; 2]; 30], // 8 * 2 * 30 = 480B
+    pub cache: BankCache,
+    /// Number of user lending positions currently open in this bank
+    /// * For banks created prior to 0.1.4, this is the number of positions opened/closed after
+    ///   0.1.4 goes live, and may be negative.
+    /// * For banks created in 0.1.4 or later, this is the number of positions open in total, and
+    ///   the bank may safely be closed if this is zero. Will never go negative.
+    pub lending_position_count: i32,
+    /// Number of user borrowing positions currently open in this bank
+    /// * For banks created prior to 0.1.4, this is the number of positions opened/closed after
+    ///   0.1.4 goes live, and may be negative.
+    /// * For banks created in 0.1.4 or later, this is the number of positions open in total, and
+    ///   the bank may safely be closed if this is zero. Will never go negative.
+    pub borrowing_position_count: i32,
+    pub _padding_0: [u8; 16],
+    pub _padding_1: [[u64; 2]; 19], // 8 * 2 * 19 = 304B
 }
 
 impl Bank {
@@ -119,8 +129,9 @@ pub struct BankConfig {
     /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
     /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
     pub asset_tag: u8,
+    pub config_flags: u8,
 
-    pub _pad1: [u8; 6],
+    pub _pad1: [u8; 5],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -135,8 +146,15 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
 
-    // Note: 6 bytes of padding to next 8 byte alignment, then end padding
-    pub _padding0: [u8; 6],
+    // pad to next 4-byte alignment to meet u32's requirements.
+    pub _padding0: [u8; 2],
+
+    /// From 0-100%, if the confidence exceeds this value, the oracle is considered invalid. Note:
+    /// the confidence adjustment is capped at 5% regardless of this value.
+    /// * 0 falls back to using the default 10% instead, i.e., U32_MAX_DIV_10
+    /// * A %, as u32, e.g. 100% = u32::MAX, 50% = u32::MAX/2, etc.
+    pub oracle_max_confidence: u32,
+
     pub _padding1: [u8; 32],
 }
 

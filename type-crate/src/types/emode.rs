@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
 
@@ -47,20 +49,24 @@ pub struct EmodeConfig {
 }
 
 impl EmodeConfig {
-    /// Creates an EmodeConfig from a list of EmodeEntry items.
-    /// Entries will be sorted by tag.
-    /// Panics if more than MAX_EMODE_ENTRIES are provided.
-    pub fn from_entries(mut entries: Vec<EmodeEntry>) -> Self {
-        if entries.len() > MAX_EMODE_ENTRIES {
+    /// Creates an EmodeConfig from a slice of EmodeEntry items.
+    /// Entries will be sorted by tag. Panics if more than MAX_EMODE_ENTRIES are provided.
+    /// * No heap allocation
+    pub fn from_entries(entries: &[EmodeEntry]) -> Self {
+        let count = entries.len();
+        if count > MAX_EMODE_ENTRIES {
             panic!(
                 "Too many EmodeEntry items {:?}, maximum allowed {:?}",
-                entries.len(),
-                MAX_EMODE_ENTRIES
+                count, MAX_EMODE_ENTRIES
             );
         }
-        entries.sort_by_key(|e| e.collateral_bank_emode_tag);
+
         let mut config = Self::zeroed();
-        config.entries[..entries.len()].copy_from_slice(&entries);
+        for (i, entry) in entries.iter().enumerate() {
+            config.entries[i] = *entry;
+        }
+        config.entries[..count].sort_by_key(|e| e.collateral_bank_emode_tag);
+
         config
     }
 
@@ -87,13 +93,6 @@ impl EmodeSettings {
     /// True if an emode configuration has been set (EMODE_ON)
     pub fn is_enabled(&self) -> bool {
         self.flags & EMODE_ON != 0
-    }
-    pub fn set_emode_enabled(&mut self, enabled: bool) {
-        if enabled {
-            self.flags |= EMODE_ON;
-        } else {
-            self.flags &= !EMODE_ON;
-        }
     }
 }
 
@@ -166,7 +165,76 @@ impl EmodeEntry {
 /// - Result
 /// * tag | flags | init | maint
 /// * 101    0       60     75
-pub fn reconcile_emode_configs(configs: Vec<EmodeConfig>) -> EmodeConfig {
+pub fn reconcile_emode_configs<I>(configs: I) -> EmodeConfig
+where
+    I: IntoIterator<Item = EmodeConfig>,
+{
+    // TODO benchmark this in the mock program
+    let mut iter = configs.into_iter();
+    // Pull off the first config (if any)
+    let first = match iter.next() {
+        None => return EmodeConfig::zeroed(),
+        Some(cfg) => cfg,
+    };
+
+    let mut merged_entries: BTreeMap<u16, (EmodeEntry, usize)> = BTreeMap::new();
+    let mut num_configs = 1;
+
+    // A helper to merge an EmodeConfig into the map
+    let mut merge_cfg = |cfg: EmodeConfig| {
+        for entry in cfg.entries.iter() {
+            if entry.is_empty() {
+                continue;
+            }
+            let tag = entry.collateral_bank_emode_tag;
+            merged_entries
+                .entry(tag)
+                .and_modify(|(merged, cnt)| {
+                    merged.flags = merged.flags.min(entry.flags);
+                    let cur_i: I80F48 = merged.asset_weight_init.into();
+                    let new_i: I80F48 = entry.asset_weight_init.into();
+                    if new_i < cur_i {
+                        merged.asset_weight_init = entry.asset_weight_init;
+                    }
+                    let cur_m: I80F48 = merged.asset_weight_maint.into();
+                    let new_m: I80F48 = entry.asset_weight_maint.into();
+                    if new_m < cur_m {
+                        merged.asset_weight_maint = entry.asset_weight_maint;
+                    }
+                    *cnt += 1;
+                })
+                .or_insert((*entry, 1));
+        }
+    };
+
+    // First config
+    merge_cfg(first);
+
+    // All following configs
+    for cfg in iter {
+        num_configs += 1;
+        merge_cfg(cfg);
+    }
+
+    // Cllect only those tags seen in *every* config:
+    let mut buf: [EmodeEntry; MAX_EMODE_ENTRIES] = [EmodeEntry::zeroed(); MAX_EMODE_ENTRIES];
+    let mut buf_len = 0;
+
+    for (_tag, (entry, cnt)) in merged_entries {
+        // if cnt of appearances = num of configs, then it was in every config.
+        if cnt == num_configs {
+            buf[buf_len] = entry;
+            buf_len += 1;
+        }
+    }
+
+    // Sort what we have and pad the rest with zeroed space
+    EmodeConfig::from_entries(&buf[..buf_len])
+}
+
+/// The same functionality as `reconcile_emode_configs`, but uses more heap space (which renders it
+/// unusable on-chain). Perfectly fine for off-chain applications where heap space is not a concern.
+pub fn reconcile_emode_configs_classic(configs: Vec<EmodeConfig>) -> EmodeConfig {
     // TODO benchmark this in the mock program
     // If no configs, return a zeroed config.
     if configs.is_empty() {
@@ -181,8 +249,7 @@ pub fn reconcile_emode_configs(configs: Vec<EmodeConfig>) -> EmodeConfig {
     // Stores (tag, (entry, tag_count)), where tag_count is how many times we've seen this tag. This
     // BTreeMap is logically easier on the eyes, but is probably fairly CU expensive, and should be
     // benchmarked at some point, a simple Vec might actually be more performant here
-    let mut merged_entries: std::collections::BTreeMap<u16, (EmodeEntry, usize)> =
-        std::collections::BTreeMap::new();
+    let mut merged_entries: BTreeMap<u16, (EmodeEntry, usize)> = BTreeMap::new();
 
     for config in &configs {
         for entry in config.entries.iter() {
@@ -222,5 +289,5 @@ pub fn reconcile_emode_configs(configs: Vec<EmodeConfig>) -> EmodeConfig {
         .collect();
 
     // Sort the entries by tag and build a config from them
-    EmodeConfig::from_entries(final_entries)
+    EmodeConfig::from_entries(&final_entries)
 }

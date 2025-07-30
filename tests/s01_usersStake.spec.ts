@@ -33,7 +33,7 @@ import {
   getBankrunBlockhash,
 } from "./utils/spl-staking-utils";
 import { assert } from "chai";
-import { LST_ATA, STAKE_ACC } from "./utils/mocks";
+import { LST_ATA, LST_ATA_v1, STAKE_ACC, STAKE_ACC_v1 } from "./utils/mocks";
 
 describe("User stakes some native and creates an account", () => {
   /** Users's validator 0 stake account */
@@ -55,10 +55,10 @@ describe("User stakes some native and creates an account", () => {
       console.log("Create stake account: " + user0StakeAccount);
       console.log(
         " Stake: " +
-        stake +
-        " SOL (" +
-        (stake * LAMPORTS_PER_SOL).toLocaleString() +
-        " in native)"
+          stake +
+          " SOL (" +
+          (stake * LAMPORTS_PER_SOL).toLocaleString() +
+          " in native)"
       );
     }
     users[0].accounts.set("v0_stakeAcc", user0StakeAccount);
@@ -102,40 +102,48 @@ describe("User stakes some native and creates an account", () => {
       console.log("It is now epoch: " + epoch + " slot " + slot);
       console.log(
         "Stake active: " +
-        stakeStatusBefore.active.toLocaleString() +
-        " inactive " +
-        stakeStatusBefore.inactive.toLocaleString() +
-        " status: " +
-        stakeStatusBefore.status
+          stakeStatusBefore.active.toLocaleString() +
+          " inactive " +
+          stakeStatusBefore.inactive.toLocaleString() +
+          " status: " +
+          stakeStatusBefore.status
       );
     }
   });
 
   it("(user 1/2/3) Stakes and delegates too", async () => {
-    await stakeAndDelegateForUser(1, stake);
-    await stakeAndDelegateForUser(2, stake);
-    await stakeAndDelegateForUser(3, stake);
+    await stakeAndDelegateForUser(1, stake, 0);
+    await stakeAndDelegateForUser(2, stake, 0);
+    await stakeAndDelegateForUser(3, stake, 0);
+
+    // repeat for validator 1 stake
+    await stakeAndDelegateForUser(1, stake, 1);
+    await stakeAndDelegateForUser(2, stake, 1);
+    await stakeAndDelegateForUser(3, stake, 1);
   });
 
   const stakeAndDelegateForUser = async (
     userIndex: number,
-    stakeAmount: number
+    stakeAmount: number,
+    validatorIndex: 0 | 1
   ) => {
     const user = users[userIndex];
+    const stakeAccKey = validatorIndex === 0 ? STAKE_ACC : STAKE_ACC_v1;
+    const voteAccount = validators[validatorIndex].voteAccount;
+
     let { createTx, stakeAccountKeypair } = createStakeAccount(
       user,
       stakeAmount * LAMPORTS_PER_SOL
     );
-
     createTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     createTx.sign(user.wallet, stakeAccountKeypair);
     await banksClient.processTransaction(createTx);
-    user.accounts.set(STAKE_ACC, stakeAccountKeypair.publicKey);
+    user.accounts.set(stakeAccKey, stakeAccountKeypair.publicKey);
 
     let delegateTx = delegateStake(
       user,
       stakeAccountKeypair.publicKey,
-      validators[0].voteAccount
+      voteAccount
     );
     delegateTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     delegateTx.sign(user.wallet);
@@ -162,11 +170,11 @@ describe("User stakes some native and creates an account", () => {
     if (verbose) {
       console.log(
         "Stake active: " +
-        stakeStatusAfter.active.toLocaleString() +
-        " inactive " +
-        stakeStatusAfter.inactive.toLocaleString() +
-        " status: " +
-        stakeStatusAfter.status
+          stakeStatusAfter.active.toLocaleString() +
+          " inactive " +
+          stakeStatusAfter.inactive.toLocaleString() +
+          " status: " +
+          stakeStatusAfter.status
       );
       console.log("");
     }
@@ -291,20 +299,29 @@ describe("User stakes some native and creates an account", () => {
   it(
     "(user 1/2/3) deposits " + stake + " to the v0 stake pool too",
     async () => {
-      await depositForUser(1);
-      await depositForUser(2);
-      await depositForUser(3);
+      await depositForUser(1, 0);
+      await depositForUser(2, 0);
+      await depositForUser(3, 0);
+      await depositForUser(1, 1);
+      await depositForUser(2, 1);
+      await depositForUser(3, 1);
     }
   );
 
-  const depositForUser = async (userIndex: number) => {
+  const depositForUser = async (userIndex: number, validatorIndex: 0 | 1) => {
     const user = users[userIndex];
-    let tx = new Transaction();
+
+    // Choose the correct keys and validator based on validatorIndex
+    const stakeAccKey = validatorIndex === 0 ? STAKE_ACC : STAKE_ACC_v1;
+    const lstAtaKey = validatorIndex === 0 ? LST_ATA : LST_ATA_v1;
+    const { splPool, splMint } = validators[validatorIndex];
+
+    const tx = new Transaction();
     const ixes = await depositToSinglePoolIxes(
       bankRunProvider.connection,
       user.wallet.publicKey,
-      validators[0].splPool,
-      user.accounts.get(STAKE_ACC),
+      splPool,
+      user.accounts.get(stakeAccKey),
       verbose
     );
     tx.add(...ixes);
@@ -313,9 +330,9 @@ describe("User stakes some native and creates an account", () => {
     await banksClient.processTransaction(tx);
 
     const lstAta = getAssociatedTokenAddressSync(
-      validators[0].splMint,
+      splMint,
       user.wallet.publicKey
     );
-    user.accounts.set(LST_ATA, lstAta);
+    user.accounts.set(lstAtaKey, lstAta);
   };
 });

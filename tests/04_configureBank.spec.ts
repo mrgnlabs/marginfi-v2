@@ -2,12 +2,7 @@ import { BN, Program, workspace } from "@coral-xyz/anchor";
 import { configureBank, configureBankOracle } from "./utils/group-instructions";
 import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
-import {
-  bankKeypairUsdc,
-  groupAdmin,
-  oracles,
-  users,
-} from "./rootHooks";
+import { bankKeypairUsdc, groupAdmin, oracles, users } from "./rootHooks";
 import {
   assertBNEqual,
   assertI80F48Approx,
@@ -19,7 +14,8 @@ import { assert } from "chai";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
   ASSET_TAG_SOL,
-  BankConfigOptWithAssetTag,
+  BankConfigOptRaw,
+  CLOSE_ENABLED_FLAG,
   defaultBankConfigOptRaw,
   FREEZE_SETTINGS,
   InterestRateConfigRawWithOrigination,
@@ -41,7 +37,7 @@ describe("Lending pool configure bank", () => {
       protocolOriginationFee: bigNumberToWrappedI80F48(0.7),
     };
 
-    let bankConfigOpt: BankConfigOptWithAssetTag = {
+    let bankConfigOpt: BankConfigOptRaw = {
       assetWeightInit: bigNumberToWrappedI80F48(0.6),
       assetWeightMaint: bigNumberToWrappedI80F48(0.7),
       liabilityWeightInit: bigNumberToWrappedI80F48(1.9),
@@ -58,6 +54,7 @@ describe("Lending pool configure bank", () => {
       oracleMaxAge: 150,
       permissionlessBadDebtSettlement: null,
       freezeSettings: null,
+      oracleMaxConfidence: 420000
     };
 
     await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -89,12 +86,13 @@ describe("Lending pool configure bank", () => {
     assertI80F48Approx(interest.protocolOriginationFee, 0.7);
 
     assert.deepEqual(config.operationalState, { paused: {} });
-    assert.deepEqual(config.oracleSetup, { pythLegacy: {} }); // no change
+    assert.deepEqual(config.oracleSetup, { pythPushOracle: {} }); // no change
     assertBNEqual(config.borrowLimit, 10000);
     assert.deepEqual(config.riskTier, { collateral: {} }); // no change
     assert.equal(config.assetTag, ASSET_TAG_SOL);
     assertBNEqual(config.totalAssetValueInitLimit, 15000);
     assert.equal(config.oracleMaxAge, 150);
+    assert.equal(config.oracleMaxConfidence, 420000);
   });
 
   it("(admin) Restore default settings to bank (USDC)", async () => {
@@ -114,14 +112,14 @@ describe("Lending pool configure bank", () => {
       new Transaction().add(
         await configureBankOracle(groupAdmin.mrgnProgram, {
           bank: bankKey,
-          type: 1, // pyth legacy
+          type: 3, // pyth pull
           oracle: oracles.tokenAOracle.publicKey,
         })
       )
     );
     const bank = await program.account.bank.fetch(bankKey);
     const config = bank.config;
-    assert.deepEqual(config.oracleSetup, { pythLegacy: {} }); // no change
+    assert.deepEqual(config.oracleSetup, { pythPushOracle: {} }); // no change
     assertKeysEqual(config.oracleKeys[0], oracles.tokenAOracle.publicKey);
   });
 
@@ -131,30 +129,58 @@ describe("Lending pool configure bank", () => {
       new Transaction().add(
         await configureBankOracle(groupAdmin.mrgnProgram, {
           bank: bankKey,
-          type: 1,
+          type: 3, // pyth pull
           oracle: oracles.usdcOracle.publicKey,
         })
       )
     );
     const bank = await program.account.bank.fetch(bankKey);
     const config = bank.config;
-    assert.deepEqual(config.oracleSetup, { pythLegacy: {} }); // no change
+    assert.deepEqual(config.oracleSetup, { pythPushOracle: {} }); // no change
     assertKeysEqual(config.oracleKeys[0], oracles.usdcOracle.publicKey);
   });
 
   it("(admin) update oracle to invalid state - should fail", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
-    await expectFailedTxWithError(async () => {
+    await expectFailedTxWithError(
+      async () => {
+        await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
+          new Transaction().add(
+            await configureBankOracle(groupAdmin.mrgnProgram, {
+              bank: bankKey,
+              type: 3,
+              oracle: oracles.tokenAOracleFeed.publicKey, // sneaky sneaky
+            })
+          )
+        );
+      },
+      "PythPushInvalidAccount",
+      6060
+    );
+
+    await expectFailedTxWithMessage(async () => {
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
           await configureBankOracle(groupAdmin.mrgnProgram, {
             bank: bankKey,
-            type: 3,
+            type: 0,
             oracle: oracles.tokenAOracle.publicKey,
           })
         )
       );
-    }, "PythPushInvalidAccount");
+    }, "OracleNotSetup");
+
+    await expectFailedTxWithMessage(async () => {
+      await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
+        new Transaction().add(
+          await configureBankOracle(groupAdmin.mrgnProgram, {
+            bank: bankKey,
+            type: 2,
+            oracle: oracles.tokenAOracle.publicKey,
+          })
+        )
+      );
+    }, "swb v2 is deprecated");
 
     await expectFailedTxWithMessage(async () => {
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -172,24 +198,28 @@ describe("Lending pool configure bank", () => {
   it("(attacker) tries to change oracle  - should fail with generic signature failure", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
 
-    await expectFailedTxWithError(async () => {
-      await users[0].mrgnProgram.provider.sendAndConfirm!(
-        new Transaction().add(
-          await configureBankOracle(users[0].mrgnProgram, {
-            bank: bankKey,
-            type: 1,
-            oracle: oracles.wsolOracle.publicKey,
-          })
-        )
-      );
-    }, "ConstraintHasOne");
+    await expectFailedTxWithError(
+      async () => {
+        await users[0].mrgnProgram.provider.sendAndConfirm!(
+          new Transaction().add(
+            await configureBankOracle(users[0].mrgnProgram, {
+              bank: bankKey,
+              type: 3,
+              oracle: oracles.wsolOracle.publicKey,
+            })
+          )
+        );
+      },
+      "ConstraintHasOne",
+      2001
+    );
 
     await expectFailedTxWithMessage(async () => {
       await users[0].mrgnProgram!.provider.sendAndConfirm!(
         new Transaction().add(
           await configureBankOracle(groupAdmin.mrgnProgram, {
             bank: bankKey,
-            type: 1,
+            type: 3,
             oracle: oracles.wsolOracle.publicKey,
           })
         )
@@ -209,7 +239,8 @@ describe("Lending pool configure bank", () => {
       )
     );
     const bank = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
-    assertBNEqual(bank.flags, FREEZE_SETTINGS);
+    // Note: The CLOSE_ENABLED_FLAG is never unset
+    assertBNEqual(bank.flags, FREEZE_SETTINGS + CLOSE_ENABLED_FLAG);
   });
 
   it("(admin) attempt to update oracle after freeze - fails with generic panic", async () => {
@@ -220,7 +251,7 @@ describe("Lending pool configure bank", () => {
         new Transaction().add(
           await configureBankOracle(groupAdmin.mrgnProgram, {
             bank: bankKey,
-            type: 1,
+            type: 3,
             oracle: oracles.wsolOracle.publicKey,
           })
         )
@@ -254,6 +285,6 @@ describe("Lending pool configure bank", () => {
 
     // Ignored fields didn't change..
     assert.equal(config.oracleMaxAge, 240);
-    assertBNEqual(bank.flags, FREEZE_SETTINGS); // still frozen
+    assertBNEqual(bank.flags, FREEZE_SETTINGS + CLOSE_ENABLED_FLAG); // still frozen
   });
 });

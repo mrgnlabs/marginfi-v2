@@ -1,6 +1,6 @@
 [package]
 name = "marginfi-type-crate"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 publish = true
 

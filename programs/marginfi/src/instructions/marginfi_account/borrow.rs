@@ -123,6 +123,8 @@ pub fn lending_account_borrow<'info>(
             ctx.remaining_accounts,
         )?;
 
+        bank.update_bank_cache(group)?;
+
         emit!(LendingAccountBorrowEvent {
             header: AccountEventHeader {
                 signer: Some(ctx.accounts.authority.key()),

@@ -24,8 +24,10 @@ import {
 } from "./utils/genericTests";
 import {
   ASSET_TAG_DEFAULT,
+  CLOSE_ENABLED_FLAG,
   defaultBankConfig,
-  ORACLE_SETUP_PYTH_LEGACY,
+  ORACLE_SETUP_PYTH_PUSH,
+  PYTH_PULL_MIGRATED,
 } from "./utils/types";
 import {
   deriveLiquidityVaultAuthority,
@@ -73,7 +75,7 @@ describe("Lending pool add bank (add bank to group)", () => {
       new Transaction().add(
         await configureBankOracle(groupAdmin.mrgnProgram, {
           bank: bankKey,
-          type: ORACLE_SETUP_PYTH_LEGACY,
+          type: ORACLE_SETUP_PYTH_PUSH,
           oracle: oracles.usdcOracle.publicKey,
         })
       )
@@ -138,7 +140,8 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Equal(bank.collectedGroupFeesOutstanding, 0);
     assertI80F48Equal(bank.totalLiabilityShares, 0);
     assertI80F48Equal(bank.totalAssetShares, 0);
-    assertBNEqual(bank.flags, 0);
+    // All banks created after 0.1.4 set the CLOSE_ENABLED_FLAG
+    assertBNEqual(bank.flags, CLOSE_ENABLED_FLAG);
     assertBNEqual(bank.emissionsRate, 0);
     assertI80F48Equal(bank.emissionsRemaining, 0);
 
@@ -165,10 +168,11 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Approx(interest.protocolOriginationFee, 0.01, tolerance);
 
     assert.deepEqual(config.operationalState, { operational: {} });
-    assert.deepEqual(config.oracleSetup, { pythLegacy: {} });
+    assert.deepEqual(config.oracleSetup, { pythPushOracle: {} });
     assertBNEqual(config.borrowLimit, 100_000_000_000);
     assert.deepEqual(config.riskTier, { collateral: {} });
     assert.equal(config.assetTag, ASSET_TAG_DEFAULT);
+    assert.equal(config.configFlags, PYTH_PULL_MIGRATED);
     assertBNEqual(config.totalAssetValueInitLimit, 1_000_000_000_000);
     assert.equal(config.oracleMaxAge, 240);
 
@@ -187,7 +191,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     };
     const config_ix = await program.methods
       .lendingPoolConfigureBankOracle(
-        ORACLE_SETUP_PYTH_LEGACY,
+        ORACLE_SETUP_PYTH_PUSH,
         oracles.tokenAOracle.publicKey
       )
       .accountsPartial({
@@ -220,6 +224,7 @@ describe("Lending pool add bank (add bank to group)", () => {
 
   it("(admin) Add bank (SOL) - happy path", async () => {
     let config = defaultBankConfig();
+    config.oracleMaxConfidence = 123456789;
     config.assetWeightInit = bigNumberToWrappedI80F48(0);
     config.assetWeightMaint = bigNumberToWrappedI80F48(0);
     config.riskTier = {
@@ -227,7 +232,7 @@ describe("Lending pool add bank (add bank to group)", () => {
         collateral: RiskTier.Isolated,
         liquidationThreshold: 0.1,
         liquidationPenalty: 0.1,
-      }
+      },
     };
 
     let bankKey = bankKeypairSol.publicKey;
@@ -240,7 +245,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     };
     const config_ix = await program.methods
       .lendingPoolConfigureBankOracle(
-        ORACLE_SETUP_PYTH_LEGACY,
+        ORACLE_SETUP_PYTH_PUSH,
         oracles.wsolOracle.publicKey
       )
       .accountsPartial({
@@ -268,6 +273,8 @@ describe("Lending pool add bank (add bank to group)", () => {
     if (verbose) {
       console.log("*init SOL bank " + bankKey);
     }
+    const bank = await program.account.bank.fetch(bankKey);
+    assert.equal(bank.config.oracleMaxConfidence, 123456789);
   });
 
   it("Decodes a mainnet bank configured before manual padding", async () => {
@@ -360,7 +367,9 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Equal(bonkInterest.protocolOriginationFee, 0);
 
     assert.deepEqual(bonkConfig.operationalState, { operational: {} });
-    assert.deepEqual(bonkConfig.oracleSetup, { pythPushOracle: {} });
+    assert.deepEqual(bonkConfig.oracleSetup, {
+      pythPushOracle: {},
+    });
     // roughly 26.41 billion BONK with 5 decimals.
     assertBNEqual(bonkConfig.borrowLimit, 2_640_570_785_700_000);
     assert.deepEqual(bonkConfig.riskTier, { collateral: {} });
@@ -416,6 +425,7 @@ describe("Lending pool add bank (add bank to group)", () => {
     assert.deepEqual(cloudConfig.riskTier, { isolated: {} });
     assertBNEqual(cloudConfig.totalAssetValueInitLimit, 0);
     assert.equal(cloudConfig.oracleMaxAge, 60);
+    assert.equal(cloudConfig.oracleMaxConfidence, 0);
 
     // Assert emissions mint (one of the last fields) is also aligned correctly.
     let pyUsdcBankKey = new PublicKey(

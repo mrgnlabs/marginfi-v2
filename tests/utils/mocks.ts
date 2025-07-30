@@ -136,6 +136,10 @@ export const USER_ACCOUNT_E: string = "ge_acc";
 export const LST_ATA = "v0_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */
 export const STAKE_ACC = "v0_stakeAcc";
+/** in mockUser.accounts, key used to get/set the users's LST ATA for validator 1 */
+export const LST_ATA_v1 = "v1_lstAta";
+/** in mockUser.accounts, key used to get/set the users's LST stake account for validator 1 */
+export const STAKE_ACC_v1 = "v1_stakeAcc";
 
 /**
  * Options to skip various parts of mock user setup
@@ -335,28 +339,31 @@ export const createSimpleMint = async (
 
 export type Oracles = {
   wsolOracle: Keypair;
+  wsolOracleFeed: Keypair;
   /** Default 150 */
   wsolPrice: number;
   wsolDecimals: number;
   usdcOracle: Keypair;
+  usdcOracleFeed: Keypair;
   /** Default 1 */
   usdcPrice: number;
   usdcDecimals: number;
   tokenAOracle: Keypair;
+  tokenAOracleFeed: Keypair;
   /** Default 10 */
   tokenAPrice: number;
   tokenADecimals: number;
   tokenBOracle: Keypair;
+  tokenBOracleFeed: Keypair;
   /** Default 20 */
   tokenBPrice: number;
   tokenBDecimals: number;
   /** Default 175 */
   lstAlphaPrice: number;
   lstAlphaDecimals: number;
-  /** By default, oracle conf is this times price */
-  confidenceValue: number;
   /** Same initial price/decimals as USDC, but different key. */
   fakeUsdc: PublicKey;
+  fakeUsdcFeed: PublicKey;
   /** Pyth pull oracle price feed that uses a SOL-like price and SOL decimals */
   pythPullLst: Keypair;
   /** the feed ID that pythPullLst oracle uses. */
@@ -373,9 +380,10 @@ export type Oracles = {
 export const createMockAccount = async (
   program: Program<Mocks>,
   space: number,
-  wallet: Wallet
+  wallet: Wallet,
+  keypair?: Keypair
 ) => {
-  const newAccount = Keypair.generate();
+  const newAccount = keypair ?? Keypair.generate();
   const createTx = new Transaction().add(
     SystemProgram.createAccount({
       fromPubkey: wallet.publicKey,

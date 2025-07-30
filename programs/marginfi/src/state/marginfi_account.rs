@@ -49,13 +49,17 @@ pub struct MarginfiAccount {
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
     pub health_cache: HealthCache,
-    pub _padding0: [u64; 21],
+    /// If this account was migrated from another one, store the original account key
+    pub migrated_from: Pubkey, // 32
+    /// If this account has been migrated to another one, store the destination account key
+    pub migrated_to: Pubkey, // 32
+    pub _padding0: [u64; 13],
 }
 
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;
 pub const ACCOUNT_IN_FLASHLOAN: u64 = 1 << 1;
 pub const ACCOUNT_FLAG_DEPRECATED: u64 = 1 << 2;
-pub const ACCOUNT_TRANSFER_AUTHORITY_ALLOWED: u64 = 1 << 3;
+pub const ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED: u64 = 1 << 3;
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
 pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
@@ -82,6 +86,8 @@ impl MarginfiAccount {
         self.authority = authority;
         self.group = group;
         self.emissions_destination_account = Pubkey::default();
+        self.migrated_from = Pubkey::default();
+        self.migrated_to = Pubkey::default();
     }
 
     /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
@@ -116,7 +122,8 @@ impl MarginfiAccount {
 
     pub fn set_new_account_authority_checked(&mut self, new_authority: Pubkey) -> MarginfiResult {
         // check if new account authority flag is set
-        if !self.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED) || self.get_flag(ACCOUNT_DISABLED) {
+        if !self.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED) || self.get_flag(ACCOUNT_DISABLED)
+        {
             return Err(MarginfiError::IllegalAccountAuthorityTransfer.into());
         }
 
@@ -125,7 +132,7 @@ impl MarginfiAccount {
         self.authority = new_authority;
 
         // unset flag after updating the account authority
-        self.unset_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED);
+        self.unset_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED);
 
         msg!(
             "Transferred account authority from {:?} to {:?} in group {:?}",
@@ -341,6 +348,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 let lower_price = price_feed.get_price_of_type(
                     requirement_type.get_oracle_price_type(),
                     Some(PriceBias::Low),
+                    bank.config.oracle_max_confidence,
                 )?;
 
                 if matches!(requirement_type, RequirementType::Initial) {
@@ -383,6 +391,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         let higher_price = price_feed.get_price_of_type(
             requirement_type.get_oracle_price_type(),
             Some(PriceBias::High),
+            bank.config.oracle_max_confidence,
         )?;
 
         // If `ASSET_TAG_STAKED` assets can ever be borrowed, accomodate for that here...
@@ -1120,6 +1129,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         balance.close()?;
+        bank.decrement_lending_position_count();
         bank.change_asset_shares(-total_asset_shares, false)?;
 
         bank.check_utilization_ratio()?;
@@ -1168,6 +1178,7 @@ impl<'a> BankAccountWrapper<'a> {
         );
 
         balance.close()?;
+        bank.decrement_borrowing_position_count();
         bank.change_liability_shares(-total_liability_shares, false)?;
 
         let spl_deposit_amount = current_liability_amount
@@ -1231,6 +1242,11 @@ impl<'a> BankAccountWrapper<'a> {
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
+        // Record if the balance was an asset/liability beforehand
+        let had_assets =
+            I80F48::from(balance.asset_shares).is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+        let had_liabs = I80F48::from(balance.liability_shares)
+            .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
 
         let current_liability_shares: I80F48 = balance.liability_shares.into();
         let current_liability_amount = bank.get_liability_amount(current_liability_shares)?;
@@ -1279,6 +1295,25 @@ impl<'a> BankAccountWrapper<'a> {
         balance.change_liability_shares(-liability_shares_decrease)?;
         bank.change_liability_shares(-liability_shares_decrease, true)?;
 
+        // Record if the balance was an asset/liability after
+        let has_assets =
+            I80F48::from(balance.asset_shares).is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+        let has_liabs = I80F48::from(balance.liability_shares)
+            .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+        // Increment position counts depending on the before/after state of the balance
+        if !had_assets && has_assets {
+            bank.increment_lending_position_count();
+        }
+        if had_assets && !has_assets {
+            bank.decrement_lending_position_count();
+        }
+        if !had_liabs && has_liabs {
+            bank.increment_borrowing_position_count();
+        }
+        if had_liabs && !has_liabs {
+            bank.decrement_borrowing_position_count();
+        }
+
         Ok(())
     }
 
@@ -1296,6 +1331,10 @@ impl<'a> BankAccountWrapper<'a> {
 
         let balance = &mut self.balance;
         let bank = &mut self.bank;
+        let had_assets =
+            I80F48::from(balance.asset_shares).is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+        let had_liabs = I80F48::from(balance.liability_shares)
+            .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
 
         let current_asset_shares: I80F48 = balance.asset_shares.into();
         let current_asset_amount = bank.get_asset_amount(current_asset_shares)?;
@@ -1342,6 +1381,24 @@ impl<'a> BankAccountWrapper<'a> {
             liability_shares_increase,
             matches!(operation_type, BalanceDecreaseType::BypassBorrowLimit),
         )?;
+
+        let has_assets =
+            I80F48::from(balance.asset_shares).is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+        let has_liabs = I80F48::from(balance.liability_shares)
+            .is_positive_with_tolerance(ZERO_AMOUNT_THRESHOLD);
+
+        if !had_assets && has_assets {
+            bank.increment_lending_position_count();
+        }
+        if had_assets && !has_assets {
+            bank.decrement_lending_position_count();
+        }
+        if !had_liabs && has_liabs {
+            bank.increment_borrowing_position_count();
+        }
+        if had_liabs && !has_liabs {
+            bank.decrement_borrowing_position_count();
+        }
 
         bank.check_utilization_ratio()?;
 
@@ -1569,12 +1626,14 @@ mod test {
                 }; 16],
                 _padding: [0; 8],
             },
-            account_flags: ACCOUNT_TRANSFER_AUTHORITY_ALLOWED,
+            account_flags: ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+            migrated_from: Pubkey::default(),
+            migrated_to: Pubkey::default(),
             health_cache: HealthCache::zeroed(),
-            _padding0: [0; 21],
+            _padding0: [0; 13],
         };
 
-        assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_ALLOWED));
+        assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));
 
         match acc.set_new_account_authority_checked(new_authority.into()) {
             Ok(_) => (),

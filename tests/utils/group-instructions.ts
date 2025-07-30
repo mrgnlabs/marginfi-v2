@@ -1,30 +1,18 @@
 import { BN, Program } from "@coral-xyz/anchor";
-import { AccountMeta, PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { AccountMeta, PublicKey } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
-import {
-  deriveBankWithSeed,
-  deriveFeeVault,
-  deriveFeeVaultAuthority,
-  deriveInsuranceVault,
-  deriveInsuranceVaultAuthority,
-  deriveLiquidityVault,
-  deriveLiquidityVaultAuthority,
-  deriveStakedSettings,
-} from "./pdas";
+import { deriveStakedSettings } from "./pdas";
 import {
   BankConfig,
-  BankConfigOptWithAssetTag,
+  BankConfigOptRaw,
   EmodeEntry,
-  I80F48_ONE,
   I80F48_ZERO,
   MAX_EMODE_ENTRIES,
-  newEmodeEntry,
   SINGLE_POOL_PROGRAM_ID,
   StakedSettingsConfig,
   StakedSettingsEdit,
 } from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { BankConfigOptRaw } from "@mrgnlabs/marginfi-client-v2";
 import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
 export const MAX_ORACLE_KEYS = 5;
@@ -54,9 +42,11 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
       borrowLimit: args.config.borrowLimit,
       riskTier: args.config.riskTier,
       assetTag: args.config.assetTag,
+      configFlags: args.config.configFlags,
       pad0: [0, 0, 0, 0, 0, 0],
       totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
       oracleMaxAge: args.config.oracleMaxAge,
+      oracleMaxConfidence: args.config.oracleMaxConfidence,
     })
     .accounts({
       marginfiGroup: args.marginfiGroup,
@@ -89,7 +79,6 @@ export type AddBankWithSeedArgs = {
   marginfiGroup: PublicKey;
   feePayer: PublicKey;
   bankMint: PublicKey;
-  bank: PublicKey;
   config: BankConfig;
   seed?: BN;
 };
@@ -111,9 +100,11 @@ export const addBankWithSeed = (
         borrowLimit: args.config.borrowLimit,
         riskTier: args.config.riskTier,
         assetTag: args.config.assetTag,
+        configFlags: args.config.configFlags,
         pad0: [0, 0, 0, 0, 0, 0],
         totalAssetValueInitLimit: args.config.totalAssetValueInitLimit,
         oracleMaxAge: args.config.oracleMaxAge,
+        oracleMaxConfidence: args.config.oracleMaxConfidence,
       },
       args.seed ?? new BN(0)
     )
@@ -143,12 +134,18 @@ export const addBankWithSeed = (
 /**
  * newAdmin - (Optional) pass null to keep current admin
  * newEModeAdmin - (Optional) pass null to keep current emode admin
+ * newCurveAdmin - (Optional) pass null to keep current curve admin
+ * newLimitAdmin - (Optional) pass null to keep current limit admin
+ * newEmissionsAdmin - (Optional) pass null to keep current emissions admin
  * marginfiGroup's admin - must sign
  * isArena - default false
  */
 export type GroupConfigureArgs = {
   newAdmin?: PublicKey | null; // optional; pass null or leave undefined to keep current admin
   newEmodeAdmin?: PublicKey | null;
+  newCurveAdmin?: PublicKey | null;
+  newLimitAdmin?: PublicKey | null;
+  newEmissionsAdmin?: PublicKey | null;
   marginfiGroup: PublicKey;
   isArena?: boolean; // optional; defaults to false if not provided
 };
@@ -157,18 +154,24 @@ export const groupConfigure = async (
   program: Program<Marginfi>,
   args: GroupConfigureArgs
 ) => {
-  const isArena = args.isArena ?? false;
   const group = await program.account.marginfiGroup.fetch(args.marginfiGroup);
-  let newAdmin = args.newAdmin;
-  if (newAdmin == null) {
-    newAdmin = group.admin;
-  }
-  let newEmodeAdmin = args.newEmodeAdmin;
-  if (newEmodeAdmin == null) {
-    newEmodeAdmin = group.emodeAdmin;
-  }
+  const newAdmin = args.newAdmin ?? group.admin;
+  const newEmodeAdmin = args.newEmodeAdmin ?? group.emodeAdmin;
+  const newCurveAdmin = args.newCurveAdmin ?? group.delegateCurveAdmin;
+  const newLimitAdmin = args.newLimitAdmin ?? group.delegateLimitAdmin;
+  const newEmissionsAdmin =
+    args.newEmissionsAdmin ?? group.delegateEmissionsAdmin;
+  const isArena = args.isArena ?? false;
+
   const ix = program.methods
-    .marginfiGroupConfigure(newAdmin, newEmodeAdmin, isArena)
+    .marginfiGroupConfigure(
+      newAdmin,
+      newEmodeAdmin,
+      newCurveAdmin,
+      newLimitAdmin,
+      newEmissionsAdmin,
+      isArena
+    )
     .accounts({
       marginfiGroup: args.marginfiGroup,
       // admin: // implied from group
@@ -204,7 +207,7 @@ export const groupInitialize = (
 
 export type ConfigureBankArgs = {
   bank: PublicKey;
-  bankConfigOpt: BankConfigOptWithAssetTag; // BankConfigOptRaw + assetTag
+  bankConfigOpt: BankConfigOptRaw;
 };
 
 export const configureBank = (
@@ -224,17 +227,14 @@ export type ConfigureBankOracleArgs = {
   bank: PublicKey;
   type: number;
   oracle: PublicKey;
-  /** For Pyth Pull, pass the feed. For all others, ignore */
-  feed?: PublicKey;
 };
 
 export const configureBankOracle = (
   program: Program<Marginfi>,
   args: ConfigureBankOracleArgs
 ) => {
-  const metaKey = args.feed ?? args.oracle;
   const oracleMeta: AccountMeta = {
-    pubkey: metaKey,
+    pubkey: args.oracle,
     isSigner: false,
     isWritable: false,
   };
@@ -587,9 +587,9 @@ export type UpdateBankFeesDestinationAccountArgs = {
 /**
  * Set a destination for fees. Once set, anyone can sweep fees to this account in a permissionless
  * way buy calling `withdrawFeesPermissionless`. Remember to run `collectBankFees` first.
- * @param program 
- * @param args 
- * @returns 
+ * @param program
+ * @param args
+ * @returns
  */
 export const updateBankFeesDestinationAccount = (
   program: Program<Marginfi>,
@@ -613,7 +613,7 @@ export type WithdrawFeesPermissionlessArgs = {
   amount: BN;
 };
 
-/** 
+/**
  * Permissionless, move funds from the fee vault to the account the admin specified as the
  * destination for fees.
  */
@@ -643,9 +643,9 @@ export type CollectBankFeesArgs = {
 
 /**
  * Permissionless, collect bank fees into their respective vaults.
- * @param program 
- * @param args 
- * @returns 
+ * @param program
+ * @param args
+ * @returns
  */
 export const collectBankFees = (
   program: Program<Marginfi>,
@@ -667,15 +667,15 @@ export const collectBankFees = (
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .instruction();
-  
+
   return ix;
-}
+};
 
 export type AccrueInterestArgs = {
   bank: PublicKey;
 };
 
-export const arrueInterest = (
+export const accrueInterest = (
   program: Program<Marginfi>,
   args: AccrueInterestArgs
 ) => {
@@ -684,6 +684,22 @@ export const arrueInterest = (
     .accounts({
       // group: // implied from bank
       bank: args.bank,
+    })
+    .instruction();
+  return ix;
+};
+
+export type CloseBankArgs = {
+  bank: PublicKey;
+};
+
+export const closeBank = (program: Program<Marginfi>, args: CloseBankArgs) => {
+  const ix = program.methods
+    .lendingPoolCloseBank()
+    .accounts({
+      // group: args.group, // implied from bank
+      bank: args.bank,
+      // admin: args.admin, // implied from group
     })
     .instruction();
   return ix;

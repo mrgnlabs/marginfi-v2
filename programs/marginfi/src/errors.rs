@@ -112,12 +112,15 @@ pub enum MarginfiError {
     PythPushWrongAccountOwner,
     #[msg("Staked Pyth Push oracle: wrong account owner")] // 6054
     StakedPythPushWrongAccountOwner,
+    // TODO remove in 0.1.5
     #[msg("Pyth Push oracle: mismatched feed id")] // 6055
     PythPushMismatchedFeedId,
     #[msg("Pyth Push oracle: insufficient verification level")] // 6056
     PythPushInsufficientVerificationLevel,
+    // TODO remove in 0.1.5
     #[msg("Pyth Push oracle: feed id must be 32 Bytes")] // 6057
     PythPushFeedIdMustBe32Bytes,
+    // TODO remove in 0.1.5
     #[msg("Pyth Push oracle: feed id contains non-hex characters")] // 6058
     PythPushFeedIdNonHexCharacter,
     #[msg("Switchboard oracle: wrong account owner")] // 6059
@@ -158,6 +161,16 @@ pub enum MarginfiError {
     PythPushInvalidWindowSize,
     #[msg("Invalid fees destination account")] // 6077
     InvalidFeesDestinationAccount,
+    #[msg("Zero asset price")] // 6078
+    ZeroAssetPrice,
+    #[msg("Zero liability price")] // 6079
+    ZeroLiabilityPrice,
+    #[msg("Oracle max confidence exceeded: try again later")] // 6080
+    OracleMaxConfidenceExceeded,
+    #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6081
+    BankCannotClose,
+    #[msg("Account already migrated")] // 6082
+    AccountAlreadyMigrated,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -270,6 +283,11 @@ impl From<u32> for MarginfiError {
             6075 => MarginfiError::BadEmodeConfig,
             6076 => MarginfiError::PythPushInvalidWindowSize,
             6077 => MarginfiError::InvalidFeesDestinationAccount,
+            6078 => MarginfiError::ZeroAssetPrice,
+            6079 => MarginfiError::ZeroLiabilityPrice,
+            6080 => MarginfiError::OracleMaxConfidenceExceeded,
+            6081 => MarginfiError::BankCannotClose,
+            6082 => MarginfiError::AccountAlreadyMigrated,
             _ => MarginfiError::InternalLogicError,
         }
     }
@@ -306,6 +324,7 @@ impl MarginfiError {
                 | MarginfiError::MissingPythAccount
                 | MarginfiError::MissingPythOrBankAccount
                 | MarginfiError::PythPushInvalidWindowSize
+                | MarginfiError::OracleMaxConfidenceExceeded
         )
     }
 

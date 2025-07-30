@@ -21,7 +21,6 @@ import {
   defaultBankConfig,
   I80F48_ZERO,
   ORACLE_SETUP_PYTH_PUSH,
-  ORACLE_SETUP_PYTH_LEGACY,
 } from "./utils/types";
 
 /**
@@ -70,14 +69,12 @@ export const genericMultiBankTestSetup = async (
       tasks.push(
         addGenericBank(throwawayGroup, {
           bankMint: ecosystem.lstAlphaMint.publicKey,
-          oracle: oracles.pythPullLstOracleFeed.publicKey,
+          oracle: oracles.pythPullLst.publicKey,
           oracleMeta: {
             pubkey: oracles.pythPullLst.publicKey,
             isSigner: false,
             isWritable: false,
           },
-          oracleSetup: "PULL",
-          feedOracle: oracles.pythPullLstOracleFeed.publicKey,
           seed: new BN(seed),
           verboseMessage: verbose ? `*init LST #${seed}:` : undefined,
         })
@@ -198,10 +195,6 @@ async function addGenericBank(
     bankMint: PublicKey;
     oracle: PublicKey;
     oracleMeta: AccountMeta;
-    // For banks (like LST) that need a different oracle setup (pull vs legacy)
-    oracleSetup?: "LEGACY" | "PULL";
-    // Optional feed oracle in case the instruction requires it (i.e. for pull)
-    feedOracle?: PublicKey;
     // Function to adjust the seed (for example, seed.addn(1))
     seed: BN;
     verboseMessage: string;
@@ -212,8 +205,6 @@ async function addGenericBank(
     bankMint,
     oracle,
     oracleMeta,
-    oracleSetup = "LEGACY",
-    feedOracle,
     seed,
     verboseMessage,
   } = options;
@@ -242,11 +233,9 @@ async function addGenericBank(
     seed
   );
 
-  const setupType =
-    oracleSetup === "PULL" ? ORACLE_SETUP_PYTH_PUSH : ORACLE_SETUP_PYTH_LEGACY;
-  const targetOracle = feedOracle ?? oracle;
+  const setupType = ORACLE_SETUP_PYTH_PUSH;
   const config_ix = await groupAdmin.mrgnProgram.methods
-    .lendingPoolConfigureBankOracle(setupType, targetOracle)
+    .lendingPoolConfigureBankOracle(setupType, oracle)
     .accountsPartial({
       group: throwawayGroup.publicKey,
       bank: bankKey,
@@ -259,7 +248,6 @@ async function addGenericBank(
     marginfiGroup: throwawayGroup.publicKey,
     feePayer: groupAdmin.wallet.publicKey,
     bankMint: bankMint,
-    bank: bankKey,
     config: config,
     seed,
   });

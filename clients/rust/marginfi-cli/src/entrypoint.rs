@@ -8,7 +8,7 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
-use marginfi::state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
+use marginfi::state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
 use marginfi::{
     prelude::*,
     state::{
@@ -63,11 +63,6 @@ pub enum Command {
         #[clap(subcommand)]
         subcmd: AccountCommand,
     },
-    #[cfg(feature = "lip")]
-    Lip {
-        #[clap(subcommand)]
-        subcmd: LipCommand,
-    },
     //
     // InspectSwitchboardFeed { switchboard_feed: Pubkey },
     ShowOracleAges {
@@ -104,6 +99,12 @@ pub enum GroupCommand {
         new_admin: Pubkey,
         #[clap(long)]
         new_emode_admin: Pubkey,
+        #[clap(long)]
+        new_curve_admin: Pubkey,
+        #[clap(long)]
+        new_limit_admin: Pubkey,
+        #[clap(long)]
+        new_emissions_admin: Pubkey,
         #[clap(long)]
         is_arena_group: bool,
     },
@@ -282,6 +283,11 @@ pub enum BankCommand {
         asset_tag: Option<u8>,
         #[clap(long, help = "Soft USD init limit")]
         usd_init_limit: Option<u64>,
+        #[clap(
+            long,
+            help = "Oracle max confidence, a % as u32, e.g. 50% = u32::MAX/2"
+        )]
+        oracle_max_confidence: Option<u32>,
         #[clap(long, help = "Oracle max age in seconds, 0 to use default value (60s)")]
         oracle_max_age: Option<u16>,
         #[clap(
@@ -299,7 +305,7 @@ pub enum BankCommand {
         bank_pk: Pubkey,
         #[clap(
             long,
-            help = "Bank oracle type (0 = Pyth Legacy, 1 = Switchboardv2, 3 = Pyth Pull, 4 = Switchboard Pull, 5 = Staked Pyth Pull"
+            help = "Bank oracle type (3 = Pyth Pull, 4 = Switchboard Pull, 5 = Staked Pyth Pull)"
         )]
         oracle_type: u8,
         #[clap(long, help = "Bank oracle account (or feed if using Pyth Pull")]
@@ -454,13 +460,6 @@ pub enum AccountCommand {
     },
 }
 
-#[derive(Debug, Parser)]
-#[cfg(feature = "lip")]
-pub enum LipCommand {
-    ListCampaigns,
-    ListDeposits,
-}
-
 pub fn entry(opts: Opts) -> Result<()> {
     env_logger::init();
 
@@ -473,8 +472,6 @@ pub fn entry(opts: Opts) -> Result<()> {
 
         Command::PatchIdl { idl_path } => patch_marginfi_idl(idl_path),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
-        #[cfg(feature = "lip")]
-        Command::Lip { subcmd } => process_lip_subcmd(subcmd, &opts.cfg_override),
 
         Command::InspectSize {} => inspect_size(),
 
@@ -609,10 +606,20 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
         GroupCommand::Update {
             new_admin,
             new_emode_admin,
+            new_curve_admin,
+            new_limit_admin,
+            new_emissions_admin,
             is_arena_group,
-        } => {
-            processor::group_configure(config, profile, new_admin, new_emode_admin, is_arena_group)
-        }
+        } => processor::group_configure(
+            config,
+            profile,
+            new_admin,
+            new_emode_admin,
+            new_curve_admin,
+            new_limit_admin,
+            new_emissions_admin,
+            is_arena_group,
+        ),
 
         GroupCommand::AddBank {
             mint: bank_mint,
@@ -750,6 +757,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             risk_tier,
             asset_tag,
             usd_init_limit,
+            oracle_max_confidence,
             oracle_max_age,
             permissionless_bad_debt_settlement,
             freeze_settings,
@@ -789,6 +797,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     risk_tier: risk_tier.map(|x| x.into()),
                     asset_tag,
                     total_asset_value_init_limit: usd_init_limit,
+                    oracle_max_confidence,
                     oracle_max_age,
                     permissionless_bad_debt_settlement,
                     freeze_settings,
@@ -993,7 +1002,7 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
 
             if account_migration_enabled {
                 println!("Setting account migration flag");
-                flag |= ACCOUNT_TRANSFER_AUTHORITY_ALLOWED;
+                flag |= ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
             }
 
             if flag == 0 {
@@ -1004,22 +1013,6 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
             process_set_user_flag(config, &profile, account_pk, flag)
         }
     }?;
-
-    Ok(())
-}
-
-#[cfg(feature = "lip")]
-fn process_lip_subcmd(
-    subcmd: LipCommand,
-    cfg_override: &GlobalOptions,
-) -> Result<(), anyhow::Error> {
-    let profile = load_profile()?;
-    let config = profile.get_config(Some(cfg_override))?;
-
-    match subcmd {
-        LipCommand::ListCampaigns => processor::process_list_lip_campaigns(&config),
-        LipCommand::ListDeposits => processor::process_list_deposits(&config),
-    }
 
     Ok(())
 }

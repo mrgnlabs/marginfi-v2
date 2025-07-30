@@ -1,4 +1,5 @@
 use super::{
+    bank_cache::BankCache,
     emode::EmodeSettings,
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
@@ -8,16 +9,16 @@ use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
     assert_struct_align, assert_struct_size, check,
     constants::{
-        EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
+        CLOSE_ENABLED_FLAG, EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, GROUP_FLAGS,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
-        LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, MAX_SWB_ORACLE_AGE,
-        ORACLE_MIN_AGE, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, SECONDS_PER_YEAR,
+        LIQUIDITY_VAULT_SEED, MAX_ORACLE_KEYS, MAX_PYTH_ORACLE_AGE, ORACLE_MIN_AGE,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PYTH_PUSH_MIGRATED, SECONDS_PER_YEAR,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     debug, math_error,
     prelude::MarginfiError,
     set_if_some,
-    state::marginfi_account::calc_value,
+    state::{bank_cache::ComputedInterestRates, marginfi_account::calc_value},
     MarginfiResult,
 };
 use crate::{
@@ -43,6 +44,7 @@ assert_struct_size!(MarginfiGroup, 1056);
 #[account(zero_copy)]
 #[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
 pub struct MarginfiGroup {
+    /// Broadly able to modify anything, and can set/remove other admins at will.
     pub admin: Pubkey,
     /// Bitmask for group settings flags.
     /// * 0: `PROGRAM_FEES_ENABLED` If set, program-level fees are enabled.
@@ -61,8 +63,17 @@ pub struct MarginfiGroup {
     /// certain banks , e.g. allow SOL to count as 90% collateral when borrowing an LST instead of
     /// the default rate.
     pub emode_admin: Pubkey,
+    /// Can modify the fields in `config.interest_rate_config` but nothing else, for every bank under
+    /// this group
+    pub delegate_curve_admin: Pubkey,
+    /// Can modify the `deposit_limit`, `borrow_limit`, `total_asset_value_init_limit` but nothing
+    /// else, for every bank under this group
+    pub delegate_limit_admin: Pubkey,
+    /// Can modify the emissions `flags`, `emissions_rate` and `emissions_mint`, but nothing else,
+    /// for every bank under this group
+    pub delegate_emissions_admin: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 24],
+    pub _padding_0: [[u64; 2]; 18],
     pub _padding_1: [[u64; 2]; 32],
     pub _padding_4: u64,
 }
@@ -96,10 +107,52 @@ impl MarginfiGroup {
         } else {
             msg!(
                 "Set emode admin from {:?} to {:?}",
-                self.admin,
+                self.emode_admin,
                 new_emode_admin
             );
             self.emode_admin = new_emode_admin;
+        }
+    }
+
+    pub fn update_curve_admin(&mut self, new_curve_admin: Pubkey) {
+        if self.delegate_curve_admin == new_curve_admin {
+            msg!("No change to curve admin: {:?}", new_curve_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set curve admin from {:?} to {:?}",
+                self.delegate_curve_admin,
+                new_curve_admin
+            );
+            self.delegate_curve_admin = new_curve_admin;
+        }
+    }
+
+    pub fn update_limit_admin(&mut self, new_limit_admin: Pubkey) {
+        if self.delegate_limit_admin == new_limit_admin {
+            msg!("No change to limit admin: {:?}", new_limit_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set limit admin from {:?} to {:?}",
+                self.delegate_limit_admin,
+                new_limit_admin
+            );
+            self.delegate_limit_admin = new_limit_admin;
+        }
+    }
+
+    pub fn update_emissions_admin(&mut self, new_emissions_admin: Pubkey) {
+        if self.delegate_emissions_admin == new_emissions_admin {
+            msg!("No change to emissions admin: {:?}", new_emissions_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set emissions admin from {:?} to {:?}",
+                self.delegate_emissions_admin,
+                new_emissions_admin
+            );
+            self.delegate_emissions_admin = new_emissions_admin;
         }
     }
 
@@ -356,20 +409,21 @@ impl InterestRateCalc {
         let fee_ir = insurance_fee_rate + group_fee_rate + protocol_fee_rate;
         let fee_fixed = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
 
-        let base_rate = self.interest_rate_curve(utilization_ratio)?;
+        let base_rate_apr = self.interest_rate_curve(utilization_ratio)?;
 
         // Lending rate is adjusted for utilization ratio to symmetrize payments between borrowers and depositors.
-        let lending_rate_apr = base_rate.checked_mul(utilization_ratio)?;
+        let lending_rate_apr = base_rate_apr.checked_mul(utilization_ratio)?;
 
         // Borrowing rate is adjusted for fees.
         // borrowing_rate = base_rate + base_rate * rate_fee + total_fixed_fee_apr
-        let borrowing_rate_apr = base_rate
+        let borrowing_rate_apr = base_rate_apr
             .checked_mul(I80F48::ONE.checked_add(fee_ir)?)?
             .checked_add(fee_fixed)?;
 
-        let group_fee_apr = calc_fee_rate(base_rate, group_fee_rate, group_fee_fixed)?;
-        let insurance_fee_apr = calc_fee_rate(base_rate, insurance_fee_rate, insurance_fee_fixed)?;
-        let protocol_fee_apr = calc_fee_rate(base_rate, protocol_fee_rate, protocol_fee_fixed)?;
+        let group_fee_apr = calc_fee_rate(base_rate_apr, group_fee_rate, group_fee_fixed)?;
+        let insurance_fee_apr =
+            calc_fee_rate(base_rate_apr, insurance_fee_rate, insurance_fee_fixed)?;
+        let protocol_fee_apr = calc_fee_rate(base_rate_apr, protocol_fee_rate, protocol_fee_fixed)?;
 
         assert!(lending_rate_apr >= I80F48::ZERO);
         assert!(borrowing_rate_apr >= I80F48::ZERO);
@@ -379,6 +433,7 @@ impl InterestRateCalc {
 
         // TODO: Add liquidation discount check
         Some(ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr,
             borrowing_rate_apr,
             group_fee_apr,
@@ -434,15 +489,6 @@ pub struct Fees {
     pub group_fee_fixed: I80F48,
     pub protocol_fee_rate: I80F48,
     pub protocol_fee_fixed: I80F48,
-}
-
-#[derive(Debug, Clone)]
-pub struct ComputedInterestRates {
-    pub lending_rate_apr: I80F48,
-    pub borrowing_rate_apr: I80F48,
-    pub group_fee_apr: I80F48,
-    pub insurance_fee_apr: I80F48,
-    pub protocol_fee_apr: I80F48,
 }
 
 #[derive(AnchorDeserialize, AnchorSerialize, Default, Clone, Debug, PartialEq, Eq, TypeLayout)]
@@ -516,7 +562,9 @@ pub struct Bank {
     /// - EMISSIONS_FLAG_BORROW_ACTIVE: 1
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
-    /// - FREEZE_SETTINGS: 8
+    /// - FREEZE_SETTINGS: 8 - banks with this flag enabled can only update deposit/borrow caps
+    /// - CLOSE_ENABLED_FLAG - banks with this flag were created after 0.1.4 and can be closed.
+    ///   Banks without this flag can never be closed.
     ///
     pub flags: u64,
     /// Emissions APR. Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens
@@ -535,10 +583,23 @@ pub struct Bank {
     /// Set with `update_fees_destination_account`. This should be an ATA for the bank's mint. If
     /// pubkey default, the bank doesn't support this feature, and the fees must be collected
     /// manually (withdraw_fees).
-    pub fees_destination_account: Pubkey, // 32
+    pub fees_destination_account: Pubkey,
 
-    pub _padding_0: [u8; 8],
-    pub _padding_1: [[u64; 2]; 30], // 8 * 2 * 30 = 480B
+    pub cache: BankCache,
+    /// Number of user lending positions currently open in this bank
+    /// * For banks created prior to 0.1.4, this is the number of positions opened/closed after
+    ///   0.1.4 goes live, and may be negative.
+    /// * For banks created in 0.1.4 or later, this is the number of positions open in total, and
+    ///   the bank may safely be closed if this is zero. Will never go negative.
+    pub lending_position_count: i32,
+    /// Number of user borrowing positions currently open in this bank
+    /// * For banks created prior to 0.1.4, this is the number of positions opened/closed after
+    ///   0.1.4 goes live, and may be negative.
+    /// * For banks created in 0.1.4 or later, this is the number of positions open in total, and
+    ///   the bank may safely be closed if this is zero. Will never go negative.
+    pub borrowing_position_count: i32,
+    pub _padding_0: [u8; 16],
+    pub _padding_1: [[u64; 2]; 19], // 8 * 2 * 19 = 304B
 }
 
 impl Bank {
@@ -582,13 +643,16 @@ impl Bank {
             total_asset_shares: I80F48::ZERO.into(),
             last_update: current_timestamp,
             config,
-            flags: 0,
+            flags: CLOSE_ENABLED_FLAG,
             emissions_rate: 0,
             emissions_remaining: I80F48::ZERO.into(),
             emissions_mint: Pubkey::default(),
             collected_program_fees_outstanding: I80F48::ZERO.into(),
             emode: EmodeSettings::zeroed(),
             fees_destination_account: Pubkey::default(),
+            lending_position_count: 0,
+            borrowing_position_count: 0,
+            _padding_0: [0; 16],
             ..Default::default()
         }
     }
@@ -725,6 +789,22 @@ impl Bank {
         Ok(())
     }
 
+    pub fn increment_lending_position_count(&mut self) {
+        self.lending_position_count = self.lending_position_count.saturating_add(1);
+    }
+
+    pub fn decrement_lending_position_count(&mut self) {
+        self.lending_position_count = self.lending_position_count.saturating_sub(1);
+    }
+
+    pub fn increment_borrowing_position_count(&mut self) {
+        self.borrowing_position_count = self.borrowing_position_count.saturating_add(1);
+    }
+
+    pub fn decrement_borrowing_position_count(&mut self) {
+        self.borrowing_position_count = self.borrowing_position_count.saturating_sub(1);
+    }
+
     pub fn configure(&mut self, config: &BankConfigOpt) -> MarginfiResult {
         set_if_some!(self.config.asset_weight_init, config.asset_weight_init);
         set_if_some!(self.config.asset_weight_maint, config.asset_weight_maint);
@@ -753,6 +833,11 @@ impl Bank {
         set_if_some!(
             self.config.total_asset_value_init_limit,
             config.total_asset_value_init_limit
+        );
+
+        set_if_some!(
+            self.config.oracle_max_confidence,
+            config.oracle_max_confidence
         );
 
         set_if_some!(self.config.oracle_max_age, config.oracle_max_age);
@@ -849,6 +934,12 @@ impl Bank {
         debug!("deposit share value: {}\nliability share value: {}\nfees collected: {}\ninsurance collected: {}",
             asset_share_value, liability_share_value, group_fees_collected, insurance_fees_collected);
 
+        self.cache.accumulated_since_last_update = asset_share_value
+            .checked_sub(I80F48::from(self.asset_share_value))
+            .and_then(|v| v.checked_mul(I80F48::from(self.total_asset_shares)))
+            .ok_or_else(math_error!())?
+            .into();
+        self.cache.interest_accumulated_for = time_delta.min(u32::MAX as u64) as u32;
         self.asset_share_value = asset_share_value.into();
         self.liability_share_value = liability_share_value.into();
 
@@ -896,6 +987,35 @@ impl Bank {
             });
         }
 
+        Ok(())
+    }
+
+    /// Updates bank cache with the actual values for interest/fee rates.
+    ///
+    /// Should be called in the end of each instruction calling `accrue_interest` to ensure the cache is up to date.
+    pub fn update_bank_cache(&mut self, group: &MarginfiGroup) -> MarginfiResult<()> {
+        let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
+        let total_liabilities_amount =
+            self.get_liability_amount(self.total_liability_shares.into())?;
+
+        if (total_assets_amount == I80F48::ZERO) || (total_liabilities_amount == I80F48::ZERO) {
+            self.cache = BankCache::default();
+            return Ok(());
+        }
+
+        let ir_calc = self
+            .config
+            .interest_rate_config
+            .create_interest_rate_calculator(group);
+
+        let utilization_rate = total_liabilities_amount
+            .checked_div(total_assets_amount)
+            .ok_or_else(math_error!())?;
+        let interest_rates = ir_calc
+            .calc_interest_rate(utilization_rate)
+            .ok_or_else(math_error!())?;
+
+        self.cache.update_interest_rates(&interest_rates);
         Ok(())
     }
 
@@ -1106,14 +1226,15 @@ fn calc_interest_rate_accrual_state_changes(
     asset_share_value: I80F48,
     liability_share_value: I80F48,
 ) -> Option<InterestRateStateChanges> {
+    // If the cache is empty, we need to calculate the interest rates
     let utilization_rate = total_liabilities_amount.checked_div(total_assets_amount)?;
-    let computed_rates = interest_rate_calc.calc_interest_rate(utilization_rate)?;
-
     debug!(
         "Utilization rate: {}, time delta {}s",
         utilization_rate, time_delta
     );
-    debug!("{:#?}", computed_rates);
+    let interest_rates = interest_rate_calc.calc_interest_rate(utilization_rate)?;
+
+    debug!("{:#?}", interest_rates);
 
     let ComputedInterestRates {
         lending_rate_apr,
@@ -1121,7 +1242,8 @@ fn calc_interest_rate_accrual_state_changes(
         group_fee_apr,
         insurance_fee_apr,
         protocol_fee_apr,
-    } = computed_rates;
+        ..
+    } = interest_rates;
 
     Some(InterestRateStateChanges {
         new_asset_share_value: calc_accrued_interest_payment_per_period(
@@ -1269,7 +1391,12 @@ pub struct BankConfigCompact {
     /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
     pub asset_tag: u8,
 
-    pub _pad0: [u8; 6],
+    /// Flags for various config options
+    /// * 1 - Always set if bank created in 0.1.4 or later, or if migrated to the new oracle
+    ///   setup from a prior version. Not set in 0.1.3 or earlier banks that have not yet migrated.
+    /// * 2, 4, 8, 16, etc - reserved for future use.
+    pub config_flags: u8,
+    pub _pad0: [u8; 5],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1283,6 +1410,12 @@ pub struct BankConfigCompact {
 
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
+
+    /// From 0-100%, if the confidence exceeds this value, the oracle is considered invalid. Note:
+    /// the confidence adjustment is capped at 5% regardless of this value.
+    /// * 0% = use the default (10%)
+    /// * A %, as u32, e.g. 100% = u32::MAX, 50% = u32::MAX/2, etc.
+    pub oracle_max_confidence: u32,
 }
 
 impl Default for BankConfigCompact {
@@ -1296,11 +1429,13 @@ impl Default for BankConfigCompact {
             borrow_limit: 0,
             interest_rate_config: InterestRateConfigCompact::default(),
             operational_state: BankOperationalState::Paused,
-            _pad0: [0; 6],
+            config_flags: PYTH_PUSH_MIGRATED,
+            _pad0: [0; 5],
             risk_tier: RiskTier::Isolated,
             asset_tag: ASSET_TAG_DEFAULT,
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
+            oracle_max_confidence: 0,
         }
     }
 }
@@ -1328,10 +1463,12 @@ impl From<BankConfigCompact> for BankConfig {
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             asset_tag: config.asset_tag,
-            _pad1: [0; 6],
+            config_flags: config.config_flags,
+            _pad1: [0; 5],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
-            _padding0: [0; 6],
+            _padding0: [0; 2],
+            oracle_max_confidence: config.oracle_max_confidence,
             _padding1: [0; 32],
         }
     }
@@ -1350,9 +1487,11 @@ impl From<BankConfig> for BankConfigCompact {
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             asset_tag: config.asset_tag,
-            _pad0: [0; 6],
+            config_flags: PYTH_PUSH_MIGRATED,
+            _pad0: [0; 5],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
+            oracle_max_confidence: config.oracle_max_confidence,
         }
     }
 }
@@ -1396,7 +1535,14 @@ pub struct BankConfig {
     /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
     pub asset_tag: u8,
 
-    pub _pad1: [u8; 6],
+    /// Flags for various config options
+    /// * 1 - Always set if bank created in 0.1.4 or later, or if migrated to the new pyth
+    ///   oracle setup from a prior version. Not set in 0.1.3 or earlier banks using pyth that have
+    ///   not yet migrated. Does nothing for banks that use switchboard.
+    /// * 2, 4, 8, 16, etc - reserved for future use.
+    pub config_flags: u8,
+
+    pub _pad1: [u8; 5],
 
     /// USD denominated limit for calculating asset value for initialization margin requirements.
     /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
@@ -1411,8 +1557,15 @@ pub struct BankConfig {
     /// Time window in seconds for the oracle price feed to be considered live.
     pub oracle_max_age: u16,
 
-    // Note: 6 bytes of padding to next 8 byte alignment, then end padding
-    pub _padding0: [u8; 6],
+    // pad to next 4-byte alignment to meet u32's requirements.
+    pub _padding0: [u8; 2],
+
+    /// From 0-100%, if the confidence exceeds this value, the oracle is considered invalid. Note:
+    /// the confidence adjustment is capped at 5% regardless of this value.
+    /// * 0 falls back to using the default 10% instead, i.e., U32_MAX_DIV_10
+    /// * A %, as u32, e.g. 100% = u32::MAX, 50% = u32::MAX/2, etc.
+    pub oracle_max_confidence: u32,
+
     pub _padding1: [u8; 32],
 }
 
@@ -1432,10 +1585,12 @@ impl Default for BankConfig {
             _pad0: [0; 6],
             risk_tier: RiskTier::Isolated,
             asset_tag: ASSET_TAG_DEFAULT,
-            _pad1: [0; 6],
+            config_flags: 0,
+            _pad1: [0; 5],
             total_asset_value_init_limit: TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
             oracle_max_age: 0,
-            _padding0: [0; 6],
+            _padding0: [0; 2],
+            oracle_max_confidence: 0,
             _padding1: [0; 32],
         }
     }
@@ -1519,6 +1674,18 @@ impl BankConfig {
         self.borrow_limit != u64::MAX
     }
 
+    pub fn is_pyth_push_migrated(&self) -> bool {
+        (self.config_flags & PYTH_PUSH_MIGRATED) != 0
+    }
+
+    pub fn update_config_flag(&mut self, value: bool, flag: u8) {
+        if value {
+            self.config_flags |= flag;
+        } else {
+            self.config_flags &= !flag;
+        }
+    }
+
     /// * lst_mint, stake_pool, sol_pool - required only if configuring
     ///   `OracleSetup::StakedWithPythPush` on initial setup. If configuring a staked bank after
     ///   initial setup, can be omitted
@@ -1548,8 +1715,7 @@ impl BankConfig {
     #[inline]
     pub fn get_oracle_max_age(&self) -> u64 {
         match (self.oracle_max_age, self.oracle_setup) {
-            (0, OracleSetup::SwitchboardV2) => MAX_SWB_ORACLE_AGE,
-            (0, OracleSetup::PythLegacy | OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
+            (0, OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
             (n, _) => n as u64,
         }
     }
@@ -1622,6 +1788,8 @@ pub struct BankConfigOpt {
     pub asset_tag: Option<u8>,
 
     pub total_asset_value_init_limit: Option<u64>,
+
+    pub oracle_max_confidence: Option<u32>,
 
     pub oracle_max_age: Option<u16>,
 
@@ -1771,6 +1939,7 @@ mod tests {
         };
 
         let ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr: lending_apr,
             borrowing_rate_apr: borrow_apr,
             group_fee_apr: group_fees_apr,
@@ -1781,6 +1950,7 @@ mod tests {
             .calc_interest_rate(I80F48!(0.6))
             .unwrap();
 
+        assert_eq_with_tolerance!(base_rate_apr, I80F48!(0.4), I80F48!(0.001));
         assert_eq_with_tolerance!(lending_apr, I80F48!(0.24), I80F48!(0.001));
         assert_eq_with_tolerance!(borrow_apr, I80F48!(0.41), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
@@ -1803,6 +1973,7 @@ mod tests {
         };
 
         let ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr: lending_apr,
             borrowing_rate_apr: borrow_apr,
             group_fee_apr: group_fees_apr,
@@ -1813,6 +1984,7 @@ mod tests {
             .calc_interest_rate(I80F48!(0.5))
             .unwrap();
 
+        assert_eq_with_tolerance!(base_rate_apr, I80F48!(0.4), I80F48!(0.001));
         assert_eq_with_tolerance!(lending_apr, I80F48!(0.2), I80F48!(0.001));
         assert_eq_with_tolerance!(borrow_apr, I80F48!(0.45), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
@@ -1849,6 +2021,7 @@ mod tests {
         };
 
         let ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr: lending_apr,
             borrowing_rate_apr: borrow_apr,
             group_fee_apr: group_fees_apr,
@@ -1859,6 +2032,7 @@ mod tests {
             .calc_interest_rate(I80F48!(0.7))
             .unwrap();
 
+        assert_eq_with_tolerance!(base_rate_apr, I80F48!(1.7), I80F48!(0.001));
         assert_eq_with_tolerance!(lending_apr, I80F48!(1.19), I80F48!(0.001));
         assert_eq_with_tolerance!(borrow_apr, I80F48!(1.88), I80F48!(0.001));
         assert_eq_with_tolerance!(group_fees_apr, I80F48!(0.01), I80F48!(0.001));
@@ -1945,6 +2119,7 @@ mod tests {
         group.fee_state_cache.program_fee_rate = PROTOCOL_FEE_RATE_DEFAULT.into();
 
         let ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr: lending_apr,
             borrowing_rate_apr: borrow_apr,
             group_fee_apr,
@@ -1956,6 +2131,7 @@ mod tests {
             .expect("interest rate calculation failed");
 
         println!("ur: {}", ur);
+        println!("base_apr: {}", base_rate_apr);
         println!("lending_apr: {}", lending_apr);
         println!("borrow_apr: {}", borrow_apr);
         println!("group_fee_apr: {}", group_fee_apr);
@@ -1984,6 +2160,7 @@ mod tests {
         let ur = I80F48!(207_112_621_602) / I80F48!(10_000_000_000_000);
 
         let ComputedInterestRates {
+            base_rate_apr,
             lending_rate_apr: lending_apr,
             borrowing_rate_apr: borrow_apr,
             group_fee_apr,
@@ -1995,6 +2172,7 @@ mod tests {
             .expect("interest rate calculation failed");
 
         println!("ur: {}", ur);
+        println!("base_apr: {}", base_rate_apr);
         println!("lending_apr: {}", lending_apr);
         println!("borrow_apr: {}", borrow_apr);
         println!("group_fee_apr: {}", group_fee_apr);

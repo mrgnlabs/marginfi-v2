@@ -30,10 +30,10 @@ import { depositIx, withdrawIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { createMintToInstruction } from "@solana/spl-token";
 import { deriveBankWithSeed, deriveLiquidityVault } from "./utils/pdas";
-import { addBank, addBankWithSeed } from "./utils/group-instructions";
+import { addBankWithSeed } from "./utils/group-instructions";
 import {
   defaultBankConfig,
-  ORACLE_SETUP_PYTH_LEGACY,
+  ORACLE_SETUP_PYTH_PUSH,
   u64MAX_BN,
 } from "./utils/types";
 
@@ -116,6 +116,9 @@ describe("Deposit funds", () => {
       )
     );
 
+    const bankAfter = await program.account.bank.fetch(bankKeypairA.publicKey);
+    assert.equal(bankAfter.lendingPositionCount, 1);
+
     const userAcc = await program.account.marginfiAccount.fetch(user0Account);
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[0].active, 1);
@@ -160,6 +163,9 @@ describe("Deposit funds", () => {
       )
     );
 
+    const bankAfter = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
+    assert.equal(bankAfter.lendingPositionCount, 1);
+
     const userAcc = await program.account.marginfiAccount.fetch(user1Account);
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[0].active, 1);
@@ -201,14 +207,13 @@ describe("Deposit funds", () => {
           marginfiGroup: marginfiGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          bank: bankKey,
           // globalFeeWallet: globalFeeWallet,
           config: config,
           seed: seed,
         }),
         await program.methods
           .lendingPoolConfigureBankOracle(
-            ORACLE_SETUP_PYTH_LEGACY,
+            ORACLE_SETUP_PYTH_PUSH,
             oracles.tokenAOracle.publicKey
           )
           .accountsPartial({
@@ -241,6 +246,9 @@ describe("Deposit funds", () => {
       )
     );
 
+    let bankAfter = await program.account.bank.fetch(bankKey);
+    assert.equal(bankAfter.lendingPositionCount, 1);
+
     // And now user user 1 attempts to deposit up to the deposit cap
     const user = users[1];
     const userTokenABefore = await getTokenBalance(
@@ -254,7 +262,9 @@ describe("Deposit funds", () => {
     }
 
     const user1Account = user.accounts.get(USER_ACCOUNT);
-    const userAccBefore = await program.account.marginfiAccount.fetch(user1Account);
+    const userAccBefore = await program.account.marginfiAccount.fetch(
+      user1Account
+    );
     const balancesBefore = userAccBefore.lendingAccount.balances;
     assert.equal(balancesBefore[0].active, 1);
     assert.equal(balancesBefore[1].active, 0);
@@ -274,6 +284,9 @@ describe("Deposit funds", () => {
       )
     );
 
+    bankAfter = await program.account.bank.fetch(bankKey);
+    assert.equal(bankAfter.lendingPositionCount, 2);
+
     const userTokenAAfter = await getTokenBalance(provider, user.tokenAAccount);
     if (verbose) {
       console.log("user 1 Token A after: " + userTokenAAfter.toLocaleString());
@@ -292,14 +305,10 @@ describe("Deposit funds", () => {
     assert.equal(balances[1].active, 1);
 
     // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
-    const depositIndex = balances.findIndex(
-      (balance) => balance.bankPk.equals(bankKey)
+    const depositIndex = balances.findIndex((balance) =>
+      balance.bankPk.equals(bankKey)
     );
-
-    assertI80F48Approx(
-      balances[depositIndex].assetShares,
-      expected
-    );
+    assertI80F48Approx(balances[depositIndex].assetShares, expected);
     let now = Math.floor(Date.now() / 1000);
     assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
 
@@ -340,6 +349,9 @@ describe("Deposit funds", () => {
         })
       )
     );
+
+    bankAfter = await program.account.bank.fetch(bankKey);
+    assert.equal(bankAfter.lendingPositionCount, 0);
   });
 
   it("(user 1) deposit SOL to bank - happy path", async () => {
@@ -368,12 +380,15 @@ describe("Deposit funds", () => {
     assert.equal(balances[1].active, 1);
 
     // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
-    const depositIndex = balances.findIndex(
-      (balance) => balance.bankPk.equals(bankKeypairSol.publicKey)
+    const depositIndex = balances.findIndex((balance) =>
+      balance.bankPk.equals(bankKeypairSol.publicKey)
     );
-    
+
     // Note: The first deposit issues shares 1:1 and the shares use the same decimals
-    assertI80F48Approx(balances[depositIndex].assetShares, depositAmountSol_native);
+    assertI80F48Approx(
+      balances[depositIndex].assetShares,
+      depositAmountSol_native
+    );
     assertI80F48Equal(balances[depositIndex].liabilityShares, 0);
     assertI80F48Equal(balances[depositIndex].emissionsOutstanding, 0);
 

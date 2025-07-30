@@ -225,15 +225,6 @@ fn check_marginfi_group(
 
     info!("Found {} banks in group", banks.len());
 
-    let switchboard_v2_oracles = banks
-        .iter()
-        .filter(|(_, bank)| bank.config.oracle_setup == OracleSetup::SwitchboardV2)
-        .collect::<Vec<_>>();
-    // Pyth legacy is deprecated
-    let _pyth_oracles = banks
-        .iter()
-        .filter(|(_, bank)| bank.config.oracle_setup == OracleSetup::PythLegacy)
-        .collect::<Vec<_>>();
     let pyth_push_oracles = banks
         .iter()
         .filter(|(_, bank)| bank.config.oracle_setup == OracleSetup::PythPushOracle)
@@ -243,50 +234,8 @@ fn check_marginfi_group(
         .filter(|(_, bank)| bank.config.oracle_setup == OracleSetup::SwitchboardPull)
         .collect::<Vec<_>>();
 
-    check_switchboard_v2_oracles(context, &switchboard_v2_oracles)?;
     check_pyth_push_oracles(context, &pyth_push_oracles)?;
     check_switchboard_pull_oracles(context, &switchboard_pull_oracles)?;
-
-    Ok(())
-}
-
-fn check_switchboard_v2_oracles(
-    context: &AlertingContext,
-    banks: &[&(Pubkey, Bank)],
-) -> anyhow::Result<()> {
-    info!("Checking {} switchboard v2 oracles", banks.len());
-    for (address, bank) in banks {
-        check_switchboard_v2_oracle(context, address, bank)?;
-    }
-
-    Ok(())
-}
-
-fn check_switchboard_v2_oracle(
-    context: &AlertingContext,
-    address: &Pubkey,
-    bank: &Bank,
-) -> anyhow::Result<()> {
-    let oracle_address = bank.config.oracle_keys.first().unwrap();
-    let oracle_account = context.rpc_client.get_account(oracle_address)?;
-    let oracle = bytemuck::try_from_bytes::<AggregatorAccountData>(&oracle_account.data[8..])
-        .map_err(|e| anyhow::anyhow!(e))?;
-    let group_config = context.group_config_map.get(&bank.group).unwrap();
-    let max_age = group_config.max_age_secs;
-    let last_update = oracle.latest_confirmed_round.round_open_timestamp;
-    let current_time = get_current_unix_timestamp_secs();
-    let oracle_age = current_time - last_update;
-
-    info!(
-        "Switchboard V2 oracle for bank {} is {} seconds old",
-        address, oracle_age
-    );
-
-    if oracle_age > max_age {
-        send_stale_oracle_alert(context, address, oracle_age)?;
-    } else {
-        clear_stale_oracle_alert(context, address)?;
-    }
 
     Ok(())
 }

@@ -18,7 +18,7 @@ import {
   assertBankrunTxFailed,
   assertI80F48Approx,
 } from "./utils/genericTests";
-import { CONF_INTERVAL_MULTIPLE } from "./utils/types";
+import { CONF_INTERVAL_MULTIPLE, ORACLE_CONF_INTERVAL } from "./utils/types";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
@@ -40,6 +40,8 @@ let lstABank: PublicKey;
 let solBank: PublicKey;
 
 describe("Emode borrowing", () => {
+  const confidence = ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
+
   before(async () => {
     [usdcBank] = deriveBankWithSeed(
       bankrunProgram.programId,
@@ -172,7 +174,6 @@ describe("Emode borrowing", () => {
     await banksClient.processTransaction(tx);
   });
 
-  // TODO why isn't the SOL pricing getting a confidence discount (legacy oracle issue)?
   /*
    * SOL is worth $150, and LST is worth $175. Against a 10 SOL position, worth $1500, with a
    * `EMODE_INIT_RATE_SOL_TO_LST` of 90% we expect to borrow .9 * 1500 / 175 ~= 7.71428571429 LST.
@@ -185,7 +186,7 @@ describe("Emode borrowing", () => {
    * Note: the liability weight was assumed to be 1 in the calculations above, emode never modifies
    * liability weights.
    *
-   * Note: To derive the conf bands above, the confidence of Pyth Legacy is 1%, and Pyth Pull is 2%,
+   * Note: To derive the conf bands above, the confidence of Pyth Pull is 1%,
    * and we apply a 2.12 constant multiplier, see health pulse printout for actual internal pricing.
    */
   it("(user 0) borrows LST A against SOL at a favorable rate - happy path", async () => {
@@ -243,13 +244,16 @@ describe("Emode borrowing", () => {
     }
 
     const assetsExpected =
-      oracles.wsolPrice * solDeposit * EMODE_INIT_RATE_SOL_TO_LST;
+      oracles.wsolPrice *
+      (1.0 - confidence) *
+      solDeposit *
+      EMODE_INIT_RATE_SOL_TO_LST;
     assertI80F48Approx(cacheAfter.assetValue, assetsExpected);
 
     const liabsExpected =
       oracles.lstAlphaPrice *
       lstBorrow *
-      (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
+      (1 + ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE) *
       1; // Note: Liability weight 1 for banks in this test
     assertI80F48Approx(
       cacheAfter.liabilityValue,
@@ -289,7 +293,7 @@ describe("Emode borrowing", () => {
    * .8 * 1750 / 175 = 8 LST B borrowed
    *
    * And with the confidence adjustment:
-   * - (0.8 * 1750 * (1 - 0.02 * 2.12)) / (175 * 1.0424) ~= 7.34919416731 LST
+   * - (0.8 * 1750 * (1 - 0.01 * 2.12)) / (175 * 1.0424) ~= 7.34919416731 LST
    */
   const lstADeposit = 10;
   const lstBBorrow = 7.3;
@@ -345,18 +349,18 @@ describe("Emode borrowing", () => {
       }
     }
 
-    // (0.8 * 1750 * (1 - 0.02 * 2.12))
+    // (0.8 * 1750 * (1 - 0.01 * 2.12))
     const assetsExpected =
       oracles.lstAlphaPrice *
       lstADeposit *
       EMODE_INIT_RATE_LST_TO_LST *
-      (1 - oracles.confidenceValue * CONF_INTERVAL_MULTIPLE);
+      (1 - ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE);
     assertI80F48Approx(cacheAfter.assetValue, assetsExpected);
 
     const liabsExpected =
       oracles.lstAlphaPrice *
       lstBBorrow *
-      (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
+      (1 + ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE) *
       1; // Note: Liability weight 1 for banks in this test
     assertI80F48Approx(
       cacheAfter.liabilityValue,
@@ -411,18 +415,18 @@ describe("Emode borrowing", () => {
       }
     }
 
-    // (0.8 * 1750 * (1 - 0.02 * 2.12))
+    // (0.8 * 1750 * (1 - 0.01 * 2.12))
     const assetsExpected =
       oracles.lstAlphaPrice *
       lstADeposit *
       EMODE_INIT_RATE_LST_TO_LST *
-      (1 - oracles.confidenceValue * CONF_INTERVAL_MULTIPLE);
+      (1 - ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE);
     assertI80F48Approx(cacheAfter.assetValue, assetsExpected);
 
     const liabsExpected =
       oracles.lstAlphaPrice *
         lstBBorrow *
-        (1 + oracles.confidenceValue * CONF_INTERVAL_MULTIPLE) *
+        (1 + ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE) *
         1 +
       wsolBorrow * oracles.wsolPrice; // Close enough for wsol value, the amount is trivial
     assertI80F48Approx(
