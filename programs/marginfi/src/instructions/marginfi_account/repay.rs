@@ -1,6 +1,7 @@
 use crate::{
     check,
     events::{AccountEventHeader, LendingAccountRepayEvent},
+    ix_utils::{get_discrim_hash, Hashable},
     prelude::{MarginfiError, MarginfiResult},
     state::{
         bank::BankImpl,
@@ -141,4 +142,10 @@ pub struct LendingAccountRepay<'info> {
     pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
+}
+
+impl Hashable for LendingAccountRepay<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_repay")
+    }
 }

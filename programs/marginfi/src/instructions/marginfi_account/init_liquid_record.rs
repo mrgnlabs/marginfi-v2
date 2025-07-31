@@ -1,4 +1,7 @@
-use crate::prelude::*;
+use crate::{
+    ix_utils::{get_discrim_hash, Hashable},
+    prelude::*,
+};
 use anchor_lang::prelude::*;
 use marginfi_type_crate::{
     constants::LIQUIDATION_RECORD_SEED,
@@ -39,4 +42,10 @@ pub struct InitLiquidationRecord<'info> {
     pub liquidation_record: AccountLoader<'info, LiquidationRecord>,
 
     pub system_program: Program<'info, System>,
+}
+
+impl Hashable for InitLiquidationRecord<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "marginfi_account_init_liq_record")
+    }
 }

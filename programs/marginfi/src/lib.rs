@@ -2,11 +2,11 @@ pub mod constants;
 pub mod errors;
 pub mod events;
 pub mod instructions;
+pub mod ix_utils;
 pub mod macros;
 pub mod prelude;
 pub mod state;
 pub mod utils;
-pub mod ix_utils;
 
 // #[cfg(target_os = "solana")]
 // use anchor_lang::solana_program::entrypoint::{HEAP_LENGTH, HEAP_START_ADDRESS};
@@ -461,6 +461,18 @@ pub mod marginfi {
 
     pub fn migrate_pyth_push_oracle(ctx: Context<MigratePythPushOracle>) -> MarginfiResult {
         marginfi_group::migrate_pyth_push_oracle(ctx)
+    }
+
+    pub fn start_liquidation<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartLiquidation<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::start_liquidation(ctx)
+    }
+
+    pub fn end_liquidation<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EndLiquidation<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::end_liquidation(ctx)
     }
 }
 

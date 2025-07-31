@@ -635,6 +635,7 @@ impl<'info> RiskEngine<'_, 'info> {
         Ok(())
     }
 
+    // TODO rename to something more appropriate (we do this pre and post liquidation now)
     /// Checks
     /// 1. Account is liquidatable
     /// 2. Account has an outstanding liability for the provided liability bank. This check is

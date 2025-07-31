@@ -156,6 +156,13 @@ pub mod discriminators {
     pub const ACCOUNT: [u8; 8] = [67, 178, 130, 109, 126, 114, 28, 42];
     pub const FEE_STATE: [u8; 8] = [63, 224, 16, 85, 193, 36, 235, 220];
     pub const STAKED_SETTINGS: [u8; 8] = [157, 140, 6, 77, 89, 173, 173, 125];
-    // TODO
-    pub const LIQUIDATION_RECORD: [u8; 8] = [157, 140, 6, 77, 89, 173, 173, 125];
+    pub const LIQUIDATION_RECORD: [u8; 8] = [95, 116, 23, 132, 89, 210, 245, 162];
+}
+
+pub mod ix_discriminators {
+    pub const INIT_LIQUIDATION_RECORD: [u8; 8] = [236, 213, 238, 126, 147, 251, 164, 8];
+    pub const START_LIQUIDATION: [u8; 8] = [244, 93, 90, 214, 192, 166, 191, 21];
+    pub const END_LIQUIDATION: [u8; 8] = [110, 11, 244, 54, 229, 181, 22, 184];
+    pub const LENDING_ACCOUNT_WITHDRAW: [u8; 8] = [36, 72, 74, 19, 210, 210, 192, 192];
+    pub const LENDING_ACCOUNT_REPAY: [u8; 8] = [79, 209, 172, 177, 222, 51, 173, 151];
 }

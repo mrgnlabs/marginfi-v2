@@ -179,6 +179,10 @@ pub enum MarginfiError {
     EndNotLast,
     #[msg("Tried to call an instruction that is forbidden during liquidation")] // 6086
     ForbiddenIx,
+    #[msg("Liquidation made the account health worse")] // 6087
+    HealthDidNotImprove,
+    #[msg("Seized too much of the asset relative to liability repaid")] // 6088
+    LiquidationPremiumTooHigh,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -294,6 +298,14 @@ impl From<u32> for MarginfiError {
             6078 => MarginfiError::ZeroAssetPrice,
             6079 => MarginfiError::ZeroLiabilityPrice,
             6080 => MarginfiError::OracleMaxConfidenceExceeded,
+            6081 => MarginfiError::BankCannotClose,
+            6082 => MarginfiError::UnexpectedLiquidationState,
+            6083 => MarginfiError::StartNotFirst,
+            6084 => MarginfiError::StartRepeats,
+            6085 => MarginfiError::EndNotLast,
+            6086 => MarginfiError::ForbiddenIx,
+            6087 => MarginfiError::HealthDidNotImprove,
+            6088 => MarginfiError::LiquidationPremiumTooHigh,
             _ => MarginfiError::InternalLogicError,
         }
     }

@@ -2,6 +2,7 @@ use crate::{
     bank_signer, check,
     constants::PROGRAM_VERSION,
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
+    ix_utils::{get_discrim_hash, Hashable},
     prelude::*,
     state::{
         bank::{BankImpl, BankVaultType},
@@ -183,4 +184,10 @@ pub struct LendingAccountWithdraw<'info> {
     pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
+}
+
+impl Hashable for LendingAccountWithdraw<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_withdraw")
+    }
 }
