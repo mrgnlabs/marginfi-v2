@@ -126,7 +126,9 @@ pub fn lending_account_settle_emissions(
         &mut marginfi_account.lending_account,
     )?;
 
-    balance.claim_emissions(Clock::get()?.unix_timestamp.try_into().unwrap())?;
+    let current_timestamp = Clock::get()?.unix_timestamp.try_into().unwrap();
+    balance.claim_emissions(current_timestamp)?;
+    marginfi_account.last_update = current_timestamp;
 
     Ok(())
 }

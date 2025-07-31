@@ -71,6 +71,7 @@ pub fn lending_account_repay<'info>(
 
         amount
     };
+    marginfi_account.last_update = bank_account.balance.last_update;
 
     let repay_amount_pre_fee = maybe_bank_mint
         .as_ref()

@@ -11,6 +11,7 @@ use marginfi::{
 use marginfi_type_crate::types::{Bank, BankConfig, BankConfigOpt, EmodeEntry};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
+use solana_sdk::clock::Clock;
 use test_case::test_case;
 
 #[test_case(100., 9.9, 1., BankMint::Usdc, BankMint::Sol)]
@@ -144,6 +145,17 @@ async fn marginfi_account_liquidation_success(
     // Test
     // -------------------------------------------------------------------------
 
+    // This is just to test that the accounts' last_update field is properly updated upon modification
+    let pre_liquidatee_last_update = liquidatee_mfi_account_f.load().await.last_update;
+    let pre_liquidator_last_update = liquidator_mfi_account_f.load().await.last_update;
+    // {
+    //     let ctx = test_f.context.borrow_mut();
+    //     let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+    //     // Advance clock by 1 sec
+    //     clock.unix_timestamp += 1;
+    //     ctx.set_sysvar(&clock);
+    // }
+
     // Synthetically bring down the borrower account health by reducing the asset weights of the collateral bank
     test_f
         .get_bank_mut(&collateral_mint)
@@ -175,8 +187,15 @@ async fn marginfi_account_liquidation_success(
     let liquidator_mfi_ma = liquidator_mfi_account_f.load().await;
     let liquidatee_mfi_ma = liquidatee_mfi_account_f.load().await;
 
-    // Check liquidator collateral balances
+    // Note: liquidation may take more than 1 second so we cannot compare to equality here.
+    assert!(
+        liquidator_mfi_ma.last_update > pre_liquidator_last_update
+    );
+    assert!(
+        liquidatee_mfi_ma.last_update > pre_liquidatee_last_update
+    );
 
+    // Check liquidator collateral balances
     let collateral_mint_liquidator_balance = collateral_bank.get_asset_amount(
         liquidator_mfi_ma.lending_account.balances[collateral_index]
             .asset_shares

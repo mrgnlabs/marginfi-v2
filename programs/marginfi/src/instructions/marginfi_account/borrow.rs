@@ -80,11 +80,9 @@ pub fn lending_account_borrow<'info>(
             .protocol_origination_fee
             .into();
 
-        let mut bank_account = BankAccountWrapper::find_or_create(
-            &bank_loader.key(),
-            &mut bank,
-            &mut marginfi_account.lending_account,
-        )?;
+        let lending_account = &mut marginfi_account.lending_account;
+        let mut bank_account =
+            BankAccountWrapper::find_or_create(&bank_loader.key(), &mut bank, lending_account)?;
 
         // User needs to borrow amount + fee to receive amount
         let amount_pre_fee = maybe_bank_mint
@@ -114,7 +112,9 @@ pub fn lending_account_borrow<'info>(
             bank_account.borrow(I80F48::from_num(amount_pre_fee), false)?;
         }
 
-        bank_account.withdraw_spl_transfer(
+        marginfi_account.last_update = bank_account.balance.last_update;
+
+        bank.withdraw_spl_transfer(
             amount_pre_fee,
             bank_liquidity_vault.to_account_info(),
             destination_token_account.to_account_info(),
@@ -142,7 +142,7 @@ pub fn lending_account_borrow<'info>(
             mint: bank.mint,
             amount: amount_pre_fee + origination_fee_u64,
         });
-    } // release mutable borrow of bank
+    }; // release mutable borrow of bank
 
     // The program and/or group fee account gains the origination fee
     {

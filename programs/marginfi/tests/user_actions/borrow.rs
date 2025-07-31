@@ -12,6 +12,7 @@ use marginfi::{
 use marginfi_type_crate::types::{Bank, BankConfigOpt, EmodeEntry};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
+use solana_sdk::clock::Clock;
 use test_case::test_case;
 
 #[test_case(100., 9., BankMint::Usdc, BankMint::Sol)]
@@ -92,6 +93,16 @@ async fn marginfi_account_borrow_success(
     let pre_fee_group_fees: I80F48 = bank_before.collected_group_fees_outstanding.into();
     let pre_fee_program_fees: I80F48 = bank_before.collected_program_fees_outstanding.into();
 
+    // This is just to test that the account's last_update field is properly updated upon modification
+    let pre_last_update = user_mfi_account_f.load().await.last_update;
+    {
+        let ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 sec
+        clock.unix_timestamp += 1;
+        ctx.set_sysvar(&clock);
+    }
+
     let res = user_mfi_account_f
         .try_bank_borrow(user_debt_token_account_f.key, debt_bank_f, borrow_amount)
         .await;
@@ -103,6 +114,8 @@ async fn marginfi_account_borrow_success(
         .balance()
         .await;
     let marginfi_account = user_mfi_account_f.load().await;
+    assert_eq!(marginfi_account.last_update, pre_last_update + 1);
+
     let balance = marginfi_account
         .lending_account
         .get_balance(&debt_bank_f.key)

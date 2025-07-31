@@ -8,6 +8,7 @@ use marginfi::{assert_eq_with_tolerance, prelude::*};
 use marginfi_type_crate::types::BankConfigOpt;
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
+use solana_sdk::clock::Clock;
 use solana_sdk::transaction::Transaction;
 use solana_sdk::{instruction::Instruction, signer::Signer};
 use test_case::test_case;
@@ -41,6 +42,17 @@ async fn marginfi_account_deposit_success(
         &test_f.payer(),
     )
     .await;
+
+    // This is just to test that the account's last_update field is properly updated upon modification
+    let pre_last_update = user_mfi_account_f.load().await.last_update;
+    {
+        let ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 sec
+        clock.unix_timestamp += 1;
+        ctx.set_sysvar(&clock);
+    }
+
     let bank_f = test_f.get_bank_mut(&bank_mint);
     bank_f
         .mint
@@ -67,6 +79,8 @@ async fn marginfi_account_deposit_success(
         .await
         .balance()
         .await;
+    let marginfi_account = user_mfi_account_f.load().await;
+    assert_eq!(marginfi_account.last_update, pre_last_update + 1);
 
     let expected_liquidity_vault_delta =
         I80F48::from(native!(deposit_amount, bank_f.mint.mint.decimals, f64));
@@ -75,7 +89,6 @@ async fn marginfi_account_deposit_success(
 
     // If deposit_amount == 0, bank account doesn't get created -- no need to check balances
     if deposit_amount > 0. {
-        let marginfi_account = user_mfi_account_f.load().await;
         let active_balance_count = marginfi_account
             .lending_account
             .get_active_balances_iter()

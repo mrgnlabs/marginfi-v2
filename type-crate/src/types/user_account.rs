@@ -45,7 +45,8 @@ pub struct MarginfiAccount {
     /// If this account was migrated from another one, store the original account key
     pub migrated_from: Pubkey, // 32
     pub health_cache: HealthCache,
-    pub _padding0: [u64; 17],
+    pub last_update: u64,
+    pub _padding0: [u64; 16],
 }
 
 impl MarginfiAccount {

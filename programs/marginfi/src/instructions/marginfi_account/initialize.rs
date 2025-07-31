@@ -17,7 +17,11 @@ pub fn initialize_account(ctx: Context<MarginfiAccountInitialize>) -> MarginfiRe
 
     let mut marginfi_account = marginfi_account_loader.load_init()?;
 
-    marginfi_account.initialize(marginfi_group.key(), authority.key());
+    marginfi_account.initialize(
+        marginfi_group.key(),
+        authority.key(),
+        Clock::get()?.unix_timestamp as u64,
+    );
 
     emit!(MarginfiAccountCreateEvent {
         header: AccountEventHeader {

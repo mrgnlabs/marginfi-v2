@@ -24,7 +24,11 @@ pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiRe
     let mut old_account = ctx.accounts.old_marginfi_account.load_mut()?;
 
     let mut new_account = ctx.accounts.new_marginfi_account.load_init()?;
-    new_account.initialize(old_account.group, ctx.accounts.new_authority.key());
+    new_account.initialize(
+        old_account.group,
+        ctx.accounts.new_authority.key(),
+        Clock::get()?.unix_timestamp as u64,
+    );
     new_account.lending_account = old_account.lending_account;
     new_account.emissions_destination_account = old_account.emissions_destination_account;
     new_account.account_flags = old_account.account_flags;

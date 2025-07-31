@@ -1,7 +1,7 @@
 use fixtures::test::TestFixture;
 use marginfi_type_crate::types::{MarginfiAccount, ACCOUNT_DISABLED};
 use solana_program_test::tokio;
-use solana_sdk::{signature::Keypair, signer::Signer};
+use solana_sdk::{clock::Clock, signature::Keypair, signer::Signer};
 
 // Test transfer account authority.
 // No transfer flag set -- no longer matters, tx should succeed.
@@ -13,6 +13,15 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
     let marginfi_account = test_f.create_marginfi_account().await;
     let new_authority = Keypair::new();
     let new_account = Keypair::new();
+
+    // This is just to test that the account's last_update field is properly updated upon modification
+    {
+        let ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 sec
+        clock.unix_timestamp += 1;
+        ctx.set_sysvar(&clock);
+    }
 
     let res = marginfi_account
         .try_transfer_account(
@@ -35,6 +44,8 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
     assert_eq!(account_new.authority, new_authority.pubkey());
     // Old account is recorded as the migration source
     assert_eq!(account_new.migrated_from, marginfi_account.key);
+    // last_update only actualized for the new account - old one stays the same
+    assert_eq!(account_new.last_update, account_old.last_update + 1);
 
     Ok(())
 }
