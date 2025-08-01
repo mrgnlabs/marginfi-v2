@@ -27,6 +27,7 @@ import {
 } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
 import { bytesToF64 } from "./utils/tools";
+import { assertBNEqual } from "./utils/genericTests";
 
 describe("Health pulse", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -93,6 +94,7 @@ describe("Health pulse", () => {
   it("(user 1) health pulse - happy path", async () => {
     const user = users[1];
     const acc = user.accounts.get(USER_ACCOUNT);
+    const accBefore = await program.account.marginfiAccount.fetch(acc);
     await user.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(
         await healthPulse(user.mrgnProgram, {
@@ -106,6 +108,7 @@ describe("Health pulse", () => {
     );
 
     const accAfter = await program.account.marginfiAccount.fetch(acc);
+    assertBNEqual(accBefore.lastUpdate, accAfter.lastUpdate);
     const cA = accAfter.healthCache;
     const now = Date.now() / 1000;
 

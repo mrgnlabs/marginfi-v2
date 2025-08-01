@@ -99,6 +99,7 @@ pub fn lending_account_deposit<'info>(
     )?;
 
     bank_account.deposit(I80F48::from_num(deposit_amount))?;
+    marginfi_account.last_update = bank_account.balance.last_update;
 
     let amount_pre_fee = maybe_bank_mint
         .as_ref()
@@ -112,7 +113,7 @@ pub fn lending_account_deposit<'info>(
         .transpose()?
         .unwrap_or(deposit_amount);
 
-    bank_account.deposit_spl_transfer(
+    bank.deposit_spl_transfer(
         amount_pre_fee,
         signer_token_account.to_account_info(),
         bank_liquidity_vault.to_account_info(),
