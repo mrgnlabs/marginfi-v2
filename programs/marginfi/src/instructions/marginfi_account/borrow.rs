@@ -142,7 +142,7 @@ pub fn lending_account_borrow<'info>(
             mint: bank.mint,
             amount: amount_pre_fee + origination_fee_u64,
         });
-    }; // release mutable borrow of bank
+    } // release mutable borrow of bank
 
     // The program and/or group fee account gains the origination fee
     {

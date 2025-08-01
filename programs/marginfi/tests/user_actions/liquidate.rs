@@ -187,7 +187,6 @@ async fn marginfi_account_liquidation_success(
     let liquidator_mfi_ma = liquidator_mfi_account_f.load().await;
     let liquidatee_mfi_ma = liquidatee_mfi_account_f.load().await;
 
-    // Note: liquidation may take more than 1 second so we cannot compare to equality here.
     assert_eq!(
         liquidator_mfi_ma.last_update,
         pre_liquidator_last_update + 1
