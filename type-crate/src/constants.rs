@@ -150,6 +150,9 @@ pub const ASSET_TAG_SOL: u8 = 1;
 /// (`ASSET_TAG_SOL`) and can only borrow SOL (`ASSET_TAG_SOL`)
 pub const ASSET_TAG_STAKED: u8 = 2;
 
+// WARN: You can set anything here, including a discrim that's technically "wrong" for the struct
+// with that name, and prod will use that hash anyways. Don't change these hashes once a struct is
+// live in prod.
 pub mod discriminators {
     pub const GROUP: [u8; 8] = [182, 23, 173, 240, 151, 206, 182, 67];
     pub const BANK: [u8; 8] = [142, 49, 166, 242, 50, 66, 97, 188];

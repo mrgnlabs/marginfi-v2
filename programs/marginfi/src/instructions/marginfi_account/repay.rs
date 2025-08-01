@@ -13,7 +13,9 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{
+    Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset repaid
@@ -28,7 +30,7 @@ pub fn lending_account_repay<'info>(
 ) -> MarginfiResult {
     let LendingAccountRepay {
         marginfi_account: marginfi_account_loader,
-        authority: signer,
+        authority,
         signer_token_account,
         liquidity_vault: bank_liquidity_vault,
         token_program,
@@ -46,6 +48,17 @@ pub fn lending_account_repay<'info>(
     let repay_all = repay_all.unwrap_or(false);
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+
+    if marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        // Note: during liquidation, there are no signer checks whatsoever: any key can repay as
+        // long as the invariants checked in liquidate_end are met.
+    } else {
+        // ??? Why are we authority gating repays at all? Maybe make this permissionless?
+        check!(
+            authority.key() == marginfi_account.authority,
+            MarginfiError::Unauthorized
+        );
+    }
 
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
@@ -88,7 +101,7 @@ pub fn lending_account_repay<'info>(
         repay_amount_pre_fee,
         signer_token_account.to_account_info(),
         bank_liquidity_vault.to_account_info(),
-        signer.to_account_info(),
+        authority.to_account_info(),
         maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
         ctx.remaining_accounts,
@@ -120,8 +133,7 @@ pub struct LendingAccountRepay<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

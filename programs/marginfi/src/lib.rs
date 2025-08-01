@@ -390,16 +390,20 @@ pub mod marginfi {
         admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
+        liquidation_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
         program_fee_rate: WrappedI80F48,
+        liquidation_max_fee: WrappedI80F48,
     ) -> MarginfiResult {
         marginfi_group::initialize_fee_state(
             ctx,
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee
         )
     }
 
@@ -409,16 +413,20 @@ pub mod marginfi {
         admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
+        liquidation_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
         program_fee_rate: WrappedI80F48,
+        liquidation_max_fee: WrappedI80F48,
     ) -> MarginfiResult {
         marginfi_group::edit_fee_state(
             ctx,
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee
         )
     }
 

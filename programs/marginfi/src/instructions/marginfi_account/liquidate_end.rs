@@ -1,5 +1,6 @@
 use crate::{
     check,
+    constants::LIQUIDATION_MAX_FEE_MINIMUM,
     ix_utils::{get_discrim_hash, Hashable},
     prelude::*,
     state::marginfi_account::{MarginfiAccountImpl, RiskEngine},
@@ -41,10 +42,12 @@ pub fn end_liquidation<'info>(
     // ensure seized asset‐value ≤ 105% of repaid liability‐value
     let seized: I80F48 = pre_assets - post_assets;
     let repaid: I80F48 = pre_liabs - post_liabs;
-    // Liquidator's fee cannot go lower than 5%
-    let max_fee: I80F48 = I80F48::max(fee_state.liquidation_max_fee.into(), I80F48!(1.05));
+    // Liquidator's fee cannot go lower than LIQUIDATION_MAX_FEE_MINIMUM
+    let max_fee: I80F48 = I80F48::max(
+        fee_state.liquidation_max_fee.into(),
+        I80F48!(1) + LIQUIDATION_MAX_FEE_MINIMUM,
+    );
     check!(
-        // TODO make this variable/configurable on the global fee state
         seized <= repaid * max_fee,
         MarginfiError::LiquidationPremiumTooHigh
     );

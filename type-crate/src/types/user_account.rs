@@ -53,7 +53,7 @@ pub struct MarginfiAccount {
     /// account's key, and "liq_record"
     /// * Typically pubkey default if this account has never been liquidated or close to liquidation
     /// * Opening this account is permissionless. Typically the liquidator pays, but e.g. we may
-    ///   also charge the user if they are opening a risky position on our front end.
+    ///   also charge the user if they are opening a risky position on the front end.
     pub liquidation_record: Pubkey,
     pub _padding0: [u64; 13],
 }

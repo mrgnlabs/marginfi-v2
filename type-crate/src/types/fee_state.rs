@@ -36,14 +36,15 @@ pub struct FeeState {
     pub bump_seed: u8,
     // Pad to next 8-byte multiple
     _padding0: [u8; 3],
-    /// In liquidation, assets seized can be worth at most this * liabilities repaid
-    /// * A %
+    /// Liquidators can claim at this premium, when liquidating an asset in receivership
+    /// liquidation, e.g. (1 + this) * amount repaid <= asset seized
+    /// * A percentage
     pub liquidation_max_fee: WrappedI80F48,
     /// Fee collected by the program owner from all groups
-    /// * A %
+    /// * A percentage
     pub program_fee_fixed: WrappedI80F48,
     /// Fee collected by the program owner from all groups
-    /// * A %
+    /// * A percentage
     pub program_fee_rate: WrappedI80F48,
     // Reserved for future use, forces 8-byte alignment
     pub placeholder1: u64,
@@ -54,6 +55,8 @@ pub struct FeeState {
     _reserved0: [u8; 20],
     _reserved1: [u8; 64],
 }
+
+// TODO regression test with mainnet for fee state to make sure padding is still good
 
 impl FeeState {
     pub const LEN: usize = std::mem::size_of::<FeeState>();
