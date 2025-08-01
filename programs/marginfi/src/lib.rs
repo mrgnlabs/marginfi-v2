@@ -403,7 +403,7 @@ pub mod marginfi {
             liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
-            liquidation_max_fee
+            liquidation_max_fee,
         )
     }
 
@@ -426,7 +426,7 @@ pub mod marginfi {
             liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
-            liquidation_max_fee
+            liquidation_max_fee,
         )
     }
 

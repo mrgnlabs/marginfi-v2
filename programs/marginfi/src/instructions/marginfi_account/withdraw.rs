@@ -53,10 +53,8 @@ pub fn lending_account_withdraw<'info>(
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
     if marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
-        //         check!(
-        //     ctx.accounts.authority.key() == marginfi_account.,
-        //     MarginfiError::Unauthorized
-        // );
+        // Note: during liquidation, there are no signer checks whatsoever: any key can withdraw as
+        // long as the invariants checked in liquidate_end are met.
     } else {
         check!(
             ctx.accounts.authority.key() == marginfi_account.authority,
@@ -147,17 +145,20 @@ pub fn lending_account_withdraw<'info>(
 
     marginfi_account.lending_account.sort_balances();
 
-    // Check account health, if below threshold fail transaction
-    // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    let (risk_result, _engine) = RiskEngine::check_account_init_health(
-        &marginfi_account,
-        ctx.remaining_accounts,
-        &mut Some(&mut health_cache),
-    );
-    risk_result?;
-    health_cache.program_version = PROGRAM_VERSION;
-    health_cache.set_engine_ok(true);
-    marginfi_account.health_cache = health_cache;
+    // Note: during liquidating, we skip all health checks until the end of the transaction.
+    if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        // Check account health, if below threshold fail transaction
+        // Assuming `ctx.remaining_accounts` holds only oracle accounts
+        let (risk_result, _engine) = RiskEngine::check_account_init_health(
+            &marginfi_account,
+            ctx.remaining_accounts,
+            &mut Some(&mut health_cache),
+        );
+        risk_result?;
+        health_cache.program_version = PROGRAM_VERSION;
+        health_cache.set_engine_ok(true);
+        marginfi_account.health_cache = health_cache;
+    }
 
     Ok(())
 }
