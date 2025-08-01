@@ -71,7 +71,7 @@ pub fn lending_account_repay<'info>(
 
         amount
     };
-    marginfi_account.last_update = bank_account.balance.last_update;
+    marginfi_account.last_update = if repay_all {Clock::get()?.unix_timestamp as u64} else {bank_account.balance.last_update};
 
     let repay_amount_pre_fee = maybe_bank_mint
         .as_ref()

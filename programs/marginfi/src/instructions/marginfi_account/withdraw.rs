@@ -96,7 +96,7 @@ pub fn lending_account_withdraw<'info>(
             amount_pre_fee
         };
 
-        marginfi_account.last_update = bank_account.balance.last_update;
+        marginfi_account.last_update = if withdraw_all {Clock::get()?.unix_timestamp as u64} else {bank_account.balance.last_update};
 
         bank.withdraw_spl_transfer(
             amount_pre_fee,

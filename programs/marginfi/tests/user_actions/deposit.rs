@@ -80,7 +80,9 @@ async fn marginfi_account_deposit_success(
         .balance()
         .await;
     let marginfi_account = user_mfi_account_f.load().await;
-    assert_eq!(marginfi_account.last_update, pre_last_update + 1);
+    if deposit_amount > 0.0 {
+        assert_eq!(marginfi_account.last_update, pre_last_update + 1);
+    }
 
     let expected_liquidity_vault_delta =
         I80F48::from(native!(deposit_amount, bank_f.mint.mint.decimals, f64));

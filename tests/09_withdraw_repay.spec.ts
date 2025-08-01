@@ -17,6 +17,7 @@ import {
   verbose,
 } from "./rootHooks";
 import {
+  assertBNApproximately,
   assertKeysEqual,
   expectFailedTxWithError,
   getTokenBalance,
@@ -85,6 +86,9 @@ describe("Withdraw funds", () => {
         getTokenBalance(provider, bankAfter.liquidityVault),
       ]
     );
+    let now = Math.floor(Date.now() / 1000);
+    assertBNApproximately(userAccAfter.lastUpdate, now, 2);
+
     const balancesAfter = userAccAfter.lendingAccount.balances;
     // Partial withdraw only, position is still open
     assert.equal(bankAfter.lendingPositionCount, 1);
@@ -158,6 +162,9 @@ describe("Withdraw funds", () => {
       getTokenBalance(provider, user.usdcAccount),
       getTokenBalance(provider, bankAfter.liquidityVault),
     ]);
+    let now = Math.floor(Date.now() / 1000);
+    assertBNApproximately(userAccAfter.lastUpdate, now, 2);
+
     // Partial repay only, still has debt
     assert.equal(bankAfter.borrowingPositionCount, 1);
     // Still has deposit in token A
@@ -233,6 +240,7 @@ describe("Withdraw funds", () => {
     const bank = bankKeypairUsdc.publicKey;
 
     const userBBefore = await getTokenBalance(provider, user.tokenBAccount);
+    const userAccBefore = await program.account.marginfiAccount.fetch(userAccKey);
 
     await user.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
@@ -245,6 +253,12 @@ describe("Withdraw funds", () => {
     );
 
     const userBAfter = await getTokenBalance(provider, user.tokenBAccount);
+    const userAccAfter = await program.account.marginfiAccount.fetch(userAccKey);
+
+    let now = Math.floor(Date.now() / 1000);
+    assert(userAccBefore.lastUpdate != userAccAfter.lastUpdate);
+    assertBNApproximately(userAccAfter.lastUpdate, now, 2);
+
     const diff = userBAfter - userBBefore;
     if (verbose) {
       console.log("Claimed Token B emissions: " + diff);
@@ -302,6 +316,11 @@ describe("Withdraw funds", () => {
       getTokenBalance(provider, user.usdcAccount),
       getTokenBalance(provider, bankAfter.liquidityVault),
     ]);
+
+    let now = Math.floor(Date.now() / 1000);
+    assert(userAccBefore.lastUpdate != userAccAfter.lastUpdate);
+    assertBNApproximately(userAccAfter.lastUpdate, now, 2);
+
     const balancesAfter = userAccAfter.lendingAccount.balances;
 
     if (verbose) {
@@ -382,6 +401,10 @@ describe("Withdraw funds", () => {
       getTokenBalance(provider, user.tokenAAccount),
     ]);
     const balancesAfter = userAccAfter.lendingAccount.balances;
+
+    let now = Math.floor(Date.now() / 1000);
+    assert(userAccBefore.lastUpdate != userAccAfter.lastUpdate);
+    assertBNApproximately(userAccAfter.lastUpdate, now, 2);
 
     const withdrawExpected = actualDeposited;
     if (verbose) {

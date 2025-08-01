@@ -145,17 +145,6 @@ async fn marginfi_account_liquidation_success(
     // Test
     // -------------------------------------------------------------------------
 
-    // This is just to test that the accounts' last_update field is properly updated upon modification
-    let pre_liquidatee_last_update = liquidatee_mfi_account_f.load().await.last_update;
-    let pre_liquidator_last_update = liquidator_mfi_account_f.load().await.last_update;
-    // {
-    //     let ctx = test_f.context.borrow_mut();
-    //     let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
-    //     // Advance clock by 1 sec
-    //     clock.unix_timestamp += 1;
-    //     ctx.set_sysvar(&clock);
-    // }
-
     // Synthetically bring down the borrower account health by reducing the asset weights of the collateral bank
     test_f
         .get_bank_mut(&collateral_mint)
@@ -171,6 +160,17 @@ async fn marginfi_account_liquidation_success(
 
     let collateral_bank_f = test_f.get_bank(&collateral_mint);
     let debt_bank_f = test_f.get_bank(&debt_mint);
+
+    // This is just to test that the accounts' last_update field is properly updated upon modification
+    let pre_liquidatee_last_update = liquidatee_mfi_account_f.load().await.last_update;
+    let pre_liquidator_last_update = liquidator_mfi_account_f.load().await.last_update;
+    {
+        let ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 sec
+        clock.unix_timestamp += 1;
+        ctx.set_sysvar(&clock);
+    }
 
     liquidator_mfi_account_f
         .try_liquidate(
@@ -188,11 +188,13 @@ async fn marginfi_account_liquidation_success(
     let liquidatee_mfi_ma = liquidatee_mfi_account_f.load().await;
 
     // Note: liquidation may take more than 1 second so we cannot compare to equality here.
-    assert!(
-        liquidator_mfi_ma.last_update > pre_liquidator_last_update
+    assert_eq!(
+        liquidator_mfi_ma.last_update,
+        pre_liquidator_last_update + 1
     );
-    assert!(
-        liquidatee_mfi_ma.last_update > pre_liquidatee_last_update
+    assert_eq!(
+        liquidatee_mfi_ma.last_update,
+        pre_liquidatee_last_update + 1
     );
 
     // Check liquidator collateral balances
@@ -211,11 +213,20 @@ async fn marginfi_account_liquidation_success(
     let debt_paid_out = liquidate_amount * 0.975 * collateral_bank_f.get_price().await
         / debt_bank_f.get_price().await;
 
-    let expected_debt_mint_liquidator_balance = I80F48::from(native!(
-        borrow_amount_actual - debt_paid_out,
+    // We have to account for updated share value here due to 1 second of delay we introduced to check last_update
+    let lend_amount_native = I80F48::from(native!(
+        borrow_amount_actual,
         debt_bank_f.mint.mint.decimals,
         f64
-    ));
+    ))
+    .checked_mul(debt_bank.asset_share_value.into())
+    .unwrap();
+    let debt_paid_out_native =
+        I80F48::from(native!(debt_paid_out, debt_bank_f.mint.mint.decimals, f64));
+
+    let expected_debt_mint_liquidator_balance = lend_amount_native
+        .checked_sub(debt_paid_out_native)
+        .unwrap();
     let debt_mint_liquidator_balance = debt_bank.get_asset_amount(
         liquidator_mfi_ma.lending_account.balances[debt_index]
             .asset_shares
@@ -231,11 +242,21 @@ async fn marginfi_account_liquidation_success(
 
     let debt_covered = liquidate_amount * 0.95 * collateral_bank_f.get_price().await
         / debt_bank_f.get_price().await;
-    let expected_debt_mint_liquidatee_balance = I80F48::from(native!(
-        borrow_amount_actual - debt_covered,
+
+    // We have to account for updated share value here due to 1 second of delay we introduced to check last_update
+    let borrow_amount_native = I80F48::from(native!(
+        borrow_amount_actual,
         debt_bank_f.mint.mint.decimals,
         f64
-    ));
+    ))
+    .checked_mul(debt_bank.liability_share_value.into())
+    .unwrap();
+    let debt_covered_native =
+        I80F48::from(native!(debt_covered, debt_bank_f.mint.mint.decimals, f64));
+
+    let expected_debt_mint_liquidatee_balance = borrow_amount_native
+        .checked_sub(debt_covered_native)
+        .unwrap();
     let debt_mint_liquidatee_balance = debt_bank.get_liability_amount(
         liquidatee_mfi_ma.lending_account.balances[debt_index]
             .liability_shares

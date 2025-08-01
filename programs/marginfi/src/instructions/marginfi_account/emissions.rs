@@ -37,6 +37,7 @@ pub fn lending_account_withdraw_emissions<'info>(
 
     if emissions_settle_amount > 0 {
         debug!("Transferring {} emissions to user", emissions_settle_amount);
+        marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
 
         let signer_seeds: &[&[&[u8]]] = &[&[
             EMISSIONS_AUTH_SEED.as_bytes(),
