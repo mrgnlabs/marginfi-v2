@@ -2,6 +2,7 @@ use crate::{
     bank_signer, check,
     constants::PROGRAM_VERSION,
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
+    ix_utils::{get_discrim_hash, Hashable},
     prelude::*,
     state::{
         bank::{BankImpl, BankVaultType},
@@ -18,7 +19,10 @@ use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
-    types::{Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
+    types::{
+        Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+        ACCOUNT_IN_RECEIVERSHIP,
+    },
 };
 
 /// 1. Accrue interest
@@ -47,6 +51,16 @@ pub fn lending_account_withdraw<'info>(
 
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+
+    if marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        // Note: during liquidation, there are no signer checks whatsoever: any key can withdraw as
+        // long as the invariants checked in liquidate_end are met.
+    } else {
+        check!(
+            ctx.accounts.authority.key() == marginfi_account.authority,
+            MarginfiError::Unauthorized
+        );
+    }
 
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
@@ -131,17 +145,20 @@ pub fn lending_account_withdraw<'info>(
 
     marginfi_account.lending_account.sort_balances();
 
-    // Check account health, if below threshold fail transaction
-    // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    let (risk_result, _engine) = RiskEngine::check_account_init_health(
-        &marginfi_account,
-        ctx.remaining_accounts,
-        &mut Some(&mut health_cache),
-    );
-    risk_result?;
-    health_cache.program_version = PROGRAM_VERSION;
-    health_cache.set_engine_ok(true);
-    marginfi_account.health_cache = health_cache;
+    // Note: during liquidating, we skip all health checks until the end of the transaction.
+    if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        // Check account health, if below threshold fail transaction
+        // Assuming `ctx.remaining_accounts` holds only oracle accounts
+        let (risk_result, _engine) = RiskEngine::check_account_init_health(
+            &marginfi_account,
+            ctx.remaining_accounts,
+            &mut Some(&mut health_cache),
+        );
+        risk_result?;
+        health_cache.program_version = PROGRAM_VERSION;
+        health_cache.set_engine_ok(true);
+        marginfi_account.health_cache = health_cache;
+    }
 
     Ok(())
 }
@@ -152,8 +169,7 @@ pub struct LendingAccountWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -183,4 +199,10 @@ pub struct LendingAccountWithdraw<'info> {
     pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
+}
+
+impl Hashable for LendingAccountWithdraw<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_withdraw")
+    }
 }
