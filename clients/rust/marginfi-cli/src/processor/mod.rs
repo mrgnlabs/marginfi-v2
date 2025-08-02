@@ -964,11 +964,14 @@ pub fn initialize_fee_state(
     admin: Pubkey,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
+    liquidation_flat_sol_fee: u32,
     program_fee_fixed: f64,
     program_fee_rate: f64,
+    liquidation_max_fee: f64,
 ) -> Result<()> {
     let program_fee_fixed: WrappedI80F48 = I80F48::from_num(program_fee_fixed).into();
     let program_fee_rate: WrappedI80F48 = I80F48::from_num(program_fee_rate).into();
+    let liquidation_max_fee: WrappedI80F48 = I80F48::from_num(liquidation_max_fee).into();
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -986,8 +989,10 @@ pub fn initialize_fee_state(
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         })
         .instructions()?;
 
@@ -1012,11 +1017,14 @@ pub fn edit_fee_state(
     new_admin: Pubkey,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
+    liquidation_flat_sol_fee: u32,
     program_fee_fixed: f64,
     program_fee_rate: f64,
+    liquidation_max_fee: f64,
 ) -> Result<()> {
     let program_fee_fixed: WrappedI80F48 = I80F48::from_num(program_fee_fixed).into();
     let program_fee_rate: WrappedI80F48 = I80F48::from_num(program_fee_rate).into();
+    let liquidation_max_fee: WrappedI80F48 = I80F48::from_num(liquidation_max_fee).into();
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -1033,8 +1041,10 @@ pub fn edit_fee_state(
             admin: new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         })
         .instructions()?;
 
