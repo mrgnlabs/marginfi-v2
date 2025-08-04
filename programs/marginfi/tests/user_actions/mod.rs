@@ -5,6 +5,7 @@ mod create_account;
 mod deposit;
 mod flash_loan;
 mod liquidate;
+mod liquidate_receiver;
 mod repay;
 mod withdraw;
 
