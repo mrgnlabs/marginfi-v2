@@ -899,12 +899,16 @@ impl MarginfiAccountFixture {
         ix
     }
 
-    pub async fn make_init_liquidation_record_ix(&self, liquidation_record: Pubkey) -> Instruction {
+    pub async fn make_init_liquidation_record_ix(
+        &self,
+        liquidation_record: Pubkey,
+        payer: Pubkey,
+    ) -> Instruction {
         Instruction {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::InitLiquidationRecord {
                 marginfi_account: self.key,
-                fee_payer: self.ctx.borrow().payer.pubkey(),
+                fee_payer: payer,
                 liquidation_record,
                 system_program: system_program::ID,
             }

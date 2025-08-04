@@ -84,8 +84,9 @@ pub struct EndLiquidation<'info> {
     )]
     pub liquidation_record: AccountLoader<'info, LiquidationRecord>,
 
-    /// CHECK: validated against receiver set in the start instruction
-    pub liquidation_receiver: UncheckedAccount<'info>,
+    // Note: mutable signer because it must pay the transfer fee
+    #[account(mut)]
+    pub liquidation_receiver: Signer<'info>,
 
     // Note: there is just one FeeState per program, so no further check is required.
     #[account(
