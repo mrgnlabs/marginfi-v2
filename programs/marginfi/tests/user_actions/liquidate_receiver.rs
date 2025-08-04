@@ -1,9 +1,14 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
+use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, native, prelude::*};
+use marginfi::state::marginfi_account::MarginfiAccountImpl;
 use marginfi::{prelude::*, state::bank::BankVaultType};
 use marginfi_type_crate::constants::LIQUIDATION_RECORD_SEED;
+use marginfi_type_crate::types::{BankConfigOpt, ACCOUNT_IN_RECEIVERSHIP};
 use solana_program_test::*;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signer::Signer, transaction::Transaction};
+use solana_sdk::{
+    instruction::Instruction, pubkey::Pubkey, signer::Signer, transaction::Transaction,
+};
 
 #[tokio::test]
 async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
@@ -44,10 +49,7 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
     let sol_bank = test_f.get_bank(&BankMint::Sol);
     let usdc_bank = test_f.get_bank(&BankMint::Usdc);
 
-    let liq_token_account = test_f
-        .usdc_mint
-        .create_token_account_and_mint_to(100)
-        .await;
+    let liq_token_account = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
     liquidator
         .try_bank_deposit(liq_token_account.key, usdc_bank, 100.0, None)
         .await?;
@@ -128,10 +130,7 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
         .await?;
 
     // liquidator setup
-    let liq_usdc_account = test_f
-        .usdc_mint
-        .create_token_account_and_mint_to(5)
-        .await;
+    let liq_usdc_account = test_f.usdc_mint.create_token_account_and_mint_to(5).await;
     liquidator
         .try_bank_deposit(liq_usdc_account.key, usdc_bank, 5.0, None)
         .await?;
