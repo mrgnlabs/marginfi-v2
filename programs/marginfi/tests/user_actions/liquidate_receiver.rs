@@ -12,6 +12,12 @@ use solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
 async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
     let user = test_f.create_marginfi_account().await;
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+    let user_token_account = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
+    user
+        .try_bank_deposit(user_token_account.key, usdc_bank, 100, None)
+        .await?;
+    let payer = test_f.context.borrow().payer.pubkey();
 
     let (record_pk, _bump) = Pubkey::find_program_address(
         &[user.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
@@ -19,12 +25,17 @@ async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
     );
 
     let init_ix = user.make_init_liquidation_record_ix(record_pk).await;
-    let start_ix = user
-        .make_start_liquidation_ix(record_pk, test_f.context.borrow().payer.pubkey())
+    let start_ix = user.make_start_liquidation_ix(record_pk, payer).await;
+    let end_ix = user
+        .make_end_liquidation_ix(
+            record_pk,
+            payer,
+            test_f.marginfi_group.fee_state,
+            test_f.marginfi_group.fee_wallet,
+        )
         .await;
 
-    let mut ctx = test_f.context.borrow_mut();
-    // init the record first so Start can be sent alone
+    let ctx = test_f.context.borrow_mut();
     let init_tx = Transaction::new_signed_with_payer(
         &[init_ix],
         Some(&ctx.payer.pubkey()),
@@ -33,9 +44,9 @@ async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
     );
     ctx.banks_client.process_transaction(init_tx).await?;
 
-    // Start on a healthy account should fail
+    // Liquidation on a healthy account should fail
     let start_tx = Transaction::new_signed_with_payer(
-        &[start_ix],
+        &[start_ix, end_ix],
         Some(&ctx.payer.pubkey()),
         &[&ctx.payer],
         ctx.last_blockhash,

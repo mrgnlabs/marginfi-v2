@@ -857,7 +857,7 @@ impl MarginfiAccountFixture {
         liquidation_record: Pubkey,
         liquidation_receiver: Pubkey,
     ) -> Instruction {
-        Instruction {
+        let mut ix = Instruction {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::StartLiquidation {
                 marginfi_account: self.key,
@@ -867,7 +867,10 @@ impl MarginfiAccountFixture {
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::StartLiquidation {}.data(),
-        }
+        };
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas(vec![], vec![]).await);
+        ix
     }
 
     pub async fn make_end_liquidation_ix(
@@ -877,7 +880,7 @@ impl MarginfiAccountFixture {
         fee_state: Pubkey,
         global_fee_wallet: Pubkey,
     ) -> Instruction {
-        Instruction {
+        let mut ix = Instruction {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::EndLiquidation {
                 marginfi_account: self.key,
@@ -890,13 +893,13 @@ impl MarginfiAccountFixture {
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::EndLiquidation {}.data(),
-        }
+        };
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas(vec![], vec![]).await);
+        ix
     }
 
-    pub async fn make_init_liquidation_record_ix(
-        &self,
-        liquidation_record: Pubkey,
-    ) -> Instruction {
+    pub async fn make_init_liquidation_record_ix(&self, liquidation_record: Pubkey) -> Instruction {
         Instruction {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::InitLiquidationRecord {
