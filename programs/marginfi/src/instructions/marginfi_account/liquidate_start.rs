@@ -19,8 +19,8 @@ use marginfi_type_crate::{
 /// * Fails if account is healthy
 /// * Fails if end liquidation instruction isn't at the end of this tx.
 /// * Fails if the start liquidation instruction appears more than once in this tx.
-/// * Fails if any mrgn instruction other than init liq record, start, end, withdraw, or repay (or
-///   the equivalent from a third party integration) are used within this tx.
+/// * Fails if any mrgn instruction other than start, end, withdraw, or repay (or the equivalent
+///   from a third party integration) are used within this tx.
 pub fn start_liquidation<'info>(
     ctx: Context<'_, '_, 'info, 'info, StartLiquidation<'info>>,
 ) -> MarginfiResult {
@@ -70,7 +70,8 @@ pub fn start_liquidation<'info>(
         &ixes,
         &ctx.program_id,
         &[
-            &ix_discriminators::INIT_LIQUIDATION_RECORD,
+            // Note: since start must be first, it isn't possible to init within the same tx here,
+            // so `&ix_discriminators::INIT_LIQUIDATION_RECORD` is not a valid entry.
             &ix_discriminators::START_LIQUIDATION,
             &ix_discriminators::END_LIQUIDATION,
             &ix_discriminators::LENDING_ACCOUNT_WITHDRAW,

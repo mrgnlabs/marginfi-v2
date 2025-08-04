@@ -851,4 +851,69 @@ impl MarginfiAccountFixture {
         user_mfi_account.lending_account.balances[balance_index].asset_shares = I80F48::ZERO.into();
         self.set_account(&user_mfi_account).await
     }
+
+    pub async fn make_start_liquidation_ix(
+        &self,
+        liquidation_record: Pubkey,
+        liquidation_receiver: Pubkey,
+    ) -> Instruction {
+        let mut ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::StartLiquidation {
+                marginfi_account: self.key,
+                liquidation_record,
+                liquidation_receiver,
+                instruction_sysvar: sysvar::instructions::id(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::StartLiquidation {}.data(),
+        };
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas(vec![], vec![]).await);
+        ix
+    }
+
+    pub async fn make_end_liquidation_ix(
+        &self,
+        liquidation_record: Pubkey,
+        liquidation_receiver: Pubkey,
+        fee_state: Pubkey,
+        global_fee_wallet: Pubkey,
+    ) -> Instruction {
+        let mut ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::EndLiquidation {
+                marginfi_account: self.key,
+                liquidation_record,
+                liquidation_receiver,
+                fee_state,
+                global_fee_wallet,
+                instruction_sysvar: sysvar::instructions::id(),
+                system_program: system_program::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::EndLiquidation {}.data(),
+        };
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas(vec![], vec![]).await);
+        ix
+    }
+
+    pub async fn make_init_liquidation_record_ix(
+        &self,
+        liquidation_record: Pubkey,
+        payer: Pubkey,
+    ) -> Instruction {
+        Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::InitLiquidationRecord {
+                marginfi_account: self.key,
+                fee_payer: payer,
+                liquidation_record,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::MarginfiAccountInitLiqRecord {}.data(),
+        }
+    }
 }
