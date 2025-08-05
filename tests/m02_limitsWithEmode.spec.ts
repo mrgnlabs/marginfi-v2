@@ -13,6 +13,7 @@ import {
   ecosystem,
   oracles,
   users,
+  globalFeeWallet,
 } from "./rootHooks";
 import {
   configBankEmode,
@@ -27,7 +28,13 @@ import {
   composeRemainingAccounts,
   depositIx,
   liquidateIx,
+  initLiquidationRecordIx,
+  startLiquidationIx,
+  endLiquidationIx,
+  withdrawIx,
+  repayIx,
 } from "./utils/user-instructions";
+import { deriveGlobalFeeState } from "./utils/pdas";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { dumpAccBalances } from "./utils/tools";
 import { genericMultiBankTestSetup } from "./genericSetups";
@@ -300,8 +307,69 @@ describe("Limits on number of accounts, with emode in effect", () => {
     }
   });
 
-  // TODO try to liquidate using the new start/end liquidation approach. Withdraw/repay within the
-  // same tx to validate that w thidraw/repay can fit even with a 16 position account.
+  it("(user 1) Liquidates user 0 with start/end", async () => {
+    const liquidatee = users[0];
+    const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT_THROWAWAY);
+    const liquidator = users[1];
+    const remainingAccounts: PublicKey[][] = [];
+    for (let i = 0; i < MAX_BALANCES; i++) {
+      remainingAccounts.push([banks[i], oracles.pythPullLst.publicKey]);
+    }
+
+    const [liqRecord] = PublicKey.findProgramAddressSync(
+      [liquidateeAccount.toBuffer(), Buffer.from("liq_record")],
+      bankrunProgram.programId
+    );
+
+    let tx = new Transaction();
+    tx.add(
+      await initLiquidationRecordIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        feePayer: liquidator.wallet.publicKey,
+        liquidationRecord: liqRecord,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(liquidator.wallet);
+    await banksClient.processTransaction(tx);
+
+    const feeState = deriveGlobalFeeState(bankrunProgram.programId)[0];
+
+    tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
+      await startLiquidationIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        liquidationRecord: liqRecord,
+        liquidationReceiver: liquidator.wallet.publicKey,
+        remaining: composeRemainingAccounts(remainingAccounts),
+      }),
+      await withdrawIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        bank: banks[0],
+        tokenAccount: liquidator.lstAlphaAccount,
+        remaining: composeRemainingAccounts(remainingAccounts),
+        amount: new BN(1),
+      }),
+      await repayIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        bank: banks[MAX_BALANCES - 1],
+        tokenAccount: liquidator.lstAlphaAccount,
+        remaining: composeRemainingAccounts(remainingAccounts),
+        amount: new BN(1),
+      }),
+      await endLiquidationIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        liquidationRecord: liqRecord,
+        liquidationReceiver: liquidator.wallet.publicKey,
+        feeState,
+        globalFeeWallet,
+        remaining: composeRemainingAccounts(remainingAccounts),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(liquidator.wallet);
+    await banksClient.processTransaction(tx);
+  });
 
   // TODO try these with switchboard oracles.
 });
