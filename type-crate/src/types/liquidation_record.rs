@@ -16,7 +16,7 @@ use {
 use super::{Balance, LendingAccount, WrappedI80F48, MAX_LENDING_ACCOUNT_BALANCES};
 use crate::{assert_struct_align, assert_struct_size, constants::discriminators};
 
-assert_struct_size!(LiquidationRecord, 1768);
+assert_struct_size!(LiquidationRecord, 1800);
 assert_struct_align!(LiquidationRecord, 8);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", account(zero_copy))]
@@ -65,16 +65,24 @@ pub struct LiquidationEntry {
 pub struct LiquidationCache {
     /// Internal risk engine asset value snapshot taken when liquidation begins, using maintenance
     /// weight with all confidence adjustments.
-    /// * Liquidator is allowed to seize up to `liability_value_maint` - this amount
     /// * Uses SPOT price
     /// * In dollars
     pub asset_value_maint: WrappedI80F48,
     /// Internal risk engine liability value snapshot taken when liquidation begins, using
     /// maintenance weight with all confidence adjustments.
-    /// * Liquidator is allowed to seize up to this amount - `asset_value_maint`
     /// * Uses SPOT price
     /// * In dollars
     pub liability_value_maint: WrappedI80F48,
+    /// Actual cash value of assets pre-liquidation
+    /// * Liquidator is allowed to seize up to `liability_value_equity` - this amount
+    /// * Uses EMA price
+    /// * In dollars
+    pub asset_value_equity: WrappedI80F48,
+    /// Actual cash value of liabilities pre-liquidation
+    /// * Liquidator is allowed to seize up to this amount - `asset_value_equity`
+    /// * Uses EMA price
+    /// * In dollars
+    pub liability_value_equity: WrappedI80F48,
     /// A compact snapshot of the lending account taken when liquidation begins
     pub mini_lending_account: MiniLendingAccount,
     pub _placeholder: u64,
@@ -145,11 +153,15 @@ impl LiquidationRecord {
         liquidation_receiver: Pubkey,
         asset_value_maint: WrappedI80F48,
         liability_value_maint: WrappedI80F48,
+        asset_value_equity: WrappedI80F48,
+        liability_value_equity: WrappedI80F48,
         lending_account: LendingAccount,
     ) -> Self {
         let mut cache = LiquidationCache::default();
         cache.asset_value_maint = asset_value_maint;
         cache.liability_value_maint = liability_value_maint;
+        cache.asset_value_equity = asset_value_equity;
+        cache.liability_value_equity = liability_value_equity;
         cache.mini_lending_account = MiniLendingAccount::from_lending_account(&lending_account);
         LiquidationRecord {
             key,

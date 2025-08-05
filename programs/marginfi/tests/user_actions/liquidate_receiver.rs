@@ -1,12 +1,19 @@
 use fixed_macro::types::I80F48;
-use fixtures::{assert_custom_error, prelude::*};
-use marginfi::{prelude::*, state::marginfi_account::MarginfiAccountImpl};
+use fixtures::{assert_custom_error, assert_eq_noise, native, prelude::*};
+use marginfi::state::bank::BankImpl;
+use marginfi::{
+    constants::LIQUIDATION_FLAT_FEE_DEFAULT, prelude::*,
+    state::marginfi_account::MarginfiAccountImpl,
+};
 use marginfi_type_crate::{
     constants::LIQUIDATION_RECORD_SEED,
     types::{BankConfigOpt, ACCOUNT_IN_RECEIVERSHIP},
 };
 use solana_program_test::*;
-use solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
+use solana_sdk::{
+    compute_budget::ComputeBudgetInstruction, pubkey::Pubkey, signer::Signer,
+    transaction::Transaction,
+};
 
 #[tokio::test]
 async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
@@ -41,7 +48,9 @@ async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
         &[&ctx.payer],
         ctx.last_blockhash,
     );
-    ctx.banks_client.process_transaction(init_tx).await?;
+    ctx.banks_client
+        .process_transaction_with_preflight(init_tx)
+        .await?;
 
     // Liquidation on a healthy account should fail
     let start_tx = Transaction::new_signed_with_payer(
@@ -50,12 +59,18 @@ async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
         &[&ctx.payer],
         ctx.last_blockhash,
     );
-    let res = ctx.banks_client.process_transaction(start_tx).await;
+    let res = ctx
+        .banks_client
+        .process_transaction_with_preflight(start_tx)
+        .await;
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::HealthyAccount);
     Ok(())
 }
 
+// Note: You cannot have any instructions (except compute budget) before the start instruction. This
+// means the liquidator must either pre-configure anything they need to complete the tx or finish it
+// all between start and end!
 #[tokio::test]
 async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
@@ -69,20 +84,20 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
     let sol_bank = test_f.get_bank(&BankMint::Sol);
     let usdc_bank = test_f.get_bank(&BankMint::Usdc);
 
-    // A pointless deposit to the liquidator...
-    let liq_token_account = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
+    // A pointless deposit to the liquidator so the liquidatee has collateral to borrow...
+    let liq_usdc_account = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
     liquidator
-        .try_bank_deposit(liq_token_account.key, usdc_bank, 99.0, None)
+        .try_bank_deposit(liq_usdc_account.key, usdc_bank, 99.0, None)
         .await?;
 
     // Set up an unhealthy liquidatee...
-    let user_token_sol = test_f.sol_mint.create_token_account_and_mint_to(1).await;
+    let user_token_sol = test_f.sol_mint.create_token_account_and_mint_to(100).await;
     liquidatee
-        .try_bank_deposit(user_token_sol.key, sol_bank, 1.0, None)
+        .try_bank_deposit(user_token_sol.key, sol_bank, 2.0, None)
         .await?;
     let user_token_usdc = test_f.usdc_mint.create_empty_token_account().await;
     liquidatee
-        .try_bank_borrow(user_token_usdc.key, usdc_bank, 1.0)
+        .try_bank_borrow(user_token_usdc.key, usdc_bank, 10.0)
         .await?;
 
     sol_bank
@@ -106,9 +121,241 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
         .await;
     // Sneaky Sneaky...
     let deposit_ix = liquidator
-        .make_bank_deposit_ix(liq_token_account.key, usdc_bank, 1.0, None)
+        .make_bank_deposit_ix(liq_usdc_account.key, usdc_bank, 1.0, None)
         .await;
     let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
+    let end_ix = liquidatee
+        .make_end_liquidation_ix(
+            record_pk,
+            payer,
+            test_f.marginfi_group.fee_state,
+            test_f.marginfi_group.fee_wallet,
+        )
+        .await;
+
+    // The init can happen in its own tx...
+    {
+        let ctx = test_f.context.borrow_mut();
+        let init_tx = Transaction::new_signed_with_payer(
+            &[init_ix.clone()],
+            Some(&payer),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+        ctx.banks_client.process_transaction(init_tx).await?;
+    } //release borrow of ctx
+
+    {
+        let ctx = test_f.context.borrow_mut();
+
+        let tx = Transaction::new_signed_with_payer(
+            &[deposit_ix, start_ix.clone(), end_ix.clone()],
+            Some(&payer),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        let res = ctx
+            .banks_client
+            .process_transaction_with_preflight(tx)
+            .await;
+        assert!(res.is_err());
+        assert_custom_error!(res.unwrap_err(), MarginfiError::StartNotFirst);
+    } // drop borrow of ctx
+
+    // Start twice is forbidden
+    {
+        let ctx = test_f.context.borrow_mut();
+
+        let tx = Transaction::new_signed_with_payer(
+            &[start_ix.clone(), start_ix.clone(), end_ix.clone()],
+            Some(&payer),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        let res = ctx
+            .banks_client
+            .process_transaction_with_preflight(tx)
+            .await;
+        assert!(res.is_err());
+        assert_custom_error!(res.unwrap_err(), MarginfiError::StartRepeats);
+    } // drop borrow of ctx
+
+    // Compute budget ix IS permitted before start
+    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
+    let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
+    let withdraw_ix = liquidatee
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.105, None)
+        .await;
+    let repay_ix = liquidatee
+        .make_bank_repay_ix(liq_usdc_account.key, usdc_bank, 2.0, None)
+        .await;
+
+    let ctx = test_f.context.borrow_mut();
+    let tx = Transaction::new_signed_with_payer(
+        &[compute_ix, start_ix, repay_ix, withdraw_ix, end_ix],
+        Some(&payer),
+        &[&ctx.payer],
+        ctx.last_blockhash,
+    );
+    ctx.banks_client
+        .process_transaction_with_preflight(tx)
+        .await?;
+    Ok(())
+}
+
+// End must be last within the tx
+#[tokio::test]
+async fn liquidate_end_missing_fails() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+
+    let liquidator = test_f.create_marginfi_account().await;
+    let liquidatee = test_f.create_marginfi_account().await;
+    let payer = test_f.context.borrow().payer.pubkey().clone();
+
+    // A pointless deposit to the liquidator so the liquidatee has collateral to borrow...
+    let liq_token_account = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
+    liquidator
+        .try_bank_deposit(liq_token_account.key, usdc_bank, 99.0, None)
+        .await?;
+
+    let user_token_sol = test_f.sol_mint.create_token_account_and_mint_to(1).await;
+    let user_token_usdc = test_f.usdc_mint.create_empty_token_account().await;
+    liquidatee
+        .try_bank_deposit(user_token_sol.key, sol_bank, 1.0, None)
+        .await?;
+    liquidatee
+        .try_bank_borrow(user_token_usdc.key, usdc_bank, 1.0)
+        .await?;
+
+    sol_bank
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.001).into()),
+                asset_weight_maint: Some(I80F48!(0.002).into()),
+                ..Default::default()
+            },
+            None,
+        )
+        .await?;
+
+    let (record_pk, _bump) = Pubkey::find_program_address(
+        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &marginfi::ID,
+    );
+    let init_ix = liquidatee
+        .make_init_liquidation_record_ix(record_pk, payer)
+        .await;
+    let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
+    let end_ix = liquidatee
+        .make_end_liquidation_ix(
+            record_pk,
+            payer, // Note: payer must sign to pay the sol fee
+            test_f.marginfi_group.fee_state,
+            test_f.marginfi_group.fee_wallet,
+        )
+        .await;
+
+    // Missing end ix fails
+    {
+        let ctx = test_f.context.borrow_mut();
+        let init_tx = Transaction::new_signed_with_payer(
+            &[init_ix.clone()],
+            Some(&payer),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+        ctx.banks_client
+            .process_transaction_with_preflight(init_tx)
+            .await?;
+
+        let tx = Transaction::new_signed_with_payer(
+            &[start_ix.clone()],
+            Some(&payer),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+        let res = ctx
+            .banks_client
+            .process_transaction_with_preflight(tx)
+            .await;
+        assert!(res.is_err());
+        assert_custom_error!(res.unwrap_err(), MarginfiError::EndNotLast);
+    } // release borrow of ctx
+
+    // Having other ixes after end also fails, it must actually be last.
+    {
+        let ctx = test_f.context.borrow_mut();
+        let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
+
+        let tx = Transaction::new_signed_with_payer(
+            &[start_ix.clone(), end_ix.clone(), compute_ix],
+            Some(&payer),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+        let res = ctx
+            .banks_client
+            .process_transaction_with_preflight(tx)
+            .await;
+        assert!(res.is_err());
+        assert_custom_error!(res.unwrap_err(), MarginfiError::EndNotLast);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn liquidate_with_forbidden_ix_fails() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+
+    let liquidator = test_f.create_marginfi_account().await;
+    let liquidatee = test_f.create_marginfi_account().await;
+    let payer = test_f.context.borrow().payer.pubkey().clone();
+
+    // A pointless deposit to the liquidator so the liquidatee has collateral to borrow...
+    let liq_token_account = test_f.usdc_mint.create_token_account_and_mint_to(100).await;
+    liquidator
+        .try_bank_deposit(liq_token_account.key, usdc_bank, 99.0, None)
+        .await?;
+
+    let user_token_sol = test_f.sol_mint.create_token_account_and_mint_to(1).await;
+    let user_token_usdc = test_f.usdc_mint.create_empty_token_account().await;
+    liquidatee
+        .try_bank_deposit(user_token_sol.key, sol_bank, 1.0, None)
+        .await?;
+    liquidatee
+        .try_bank_borrow(user_token_usdc.key, usdc_bank, 1.0)
+        .await?;
+    sol_bank
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.001).into()),
+                asset_weight_maint: Some(I80F48!(0.002).into()),
+                ..Default::default()
+            },
+            None,
+        )
+        .await?;
+
+    let (record_pk, _bump) = Pubkey::find_program_address(
+        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &marginfi::ID,
+    );
+    let init_ix = liquidatee
+        .make_init_liquidation_record_ix(record_pk, payer)
+        .await;
+    let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
+    // Sneaky sneaky...
+    let forbidden_deposit_ix = liquidator
+        .make_bank_deposit_ix(liq_token_account.key, usdc_bank, 1.0, None)
+        .await;
     let end_ix = liquidatee
         .make_end_liquidation_ix(
             record_pk,
@@ -125,25 +372,24 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
         &[&ctx.payer],
         ctx.last_blockhash,
     );
-    ctx.banks_client.process_transaction(init_tx).await?;
+    ctx.banks_client
+        .process_transaction_with_preflight(init_tx)
+        .await?;
 
     let tx = Transaction::new_signed_with_payer(
-        &[deposit_ix, start_ix, end_ix],
+        &[start_ix, forbidden_deposit_ix, end_ix],
         Some(&ctx.payer.pubkey()),
         &[&ctx.payer],
         ctx.last_blockhash,
     );
-
-    let res = ctx.banks_client.process_transaction(tx).await;
+    let res = ctx
+        .banks_client
+        .process_transaction_with_preflight(tx)
+        .await;
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::StartNotFirst);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::ForbiddenIx);
     Ok(())
-    // TODO repeat above (in same test), but with compute ix as the first to show that compute IS ALLOWED
 }
-
-// TODO another test that make_end_liquidation_ix missing should error
-
-// TODO another test that adding an unsupported mrgn instruction (e.g. deposit) should error
 
 #[tokio::test]
 async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
@@ -152,7 +398,7 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
     let liquidator = test_f.create_marginfi_account().await;
     let liquidatee = test_f.create_marginfi_account().await;
 
-    // Note: Sol is $10, USDC is $10
+    // Note: Sol is $10, USDC is $1
     let sol_bank = test_f.get_bank(&BankMint::Sol);
     let usdc_bank = test_f.get_bank(&BankMint::Usdc);
 
@@ -202,16 +448,18 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
             &[&ctx.payer],
             ctx.last_blockhash,
         );
-        ctx.banks_client.process_transaction(init_tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight(init_tx)
+            .await?;
     } // release borrow of test_f via ctx
 
     let payer = test_f.payer().clone();
     let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
     // withdraw some sol to the liquidator and repay some usdc
     let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
-    // Seize .105 * 20 = $2.1
+    // Seize .210 * 10 = $2.10
     let withdraw_ix = liquidatee
-        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.105, None)
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.210, None)
         .await;
     // Repay $2
     let repay_ix = liquidatee
@@ -226,6 +474,18 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
         )
         .await;
 
+    // record sol balances before liquidation
+    let (payer_pre, fee_pre) = {
+        let ctx = test_f.context.borrow_mut();
+        let payer_bal = ctx.banks_client.get_balance(payer).await?;
+        let fee_bal = ctx
+            .banks_client
+            .get_balance(test_f.marginfi_group.fee_wallet)
+            .await?;
+        (payer_bal, fee_bal)
+    };
+
+    // send the tx
     {
         let ctx = test_f.context.borrow_mut();
         let tx = Transaction::new_signed_with_payer(
@@ -235,20 +495,241 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
             ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await?;
+        ctx.banks_client
+            .process_transaction_with_preflight(tx)
+            .await?;
     } // release borrow of test_f via ctx
 
+    let liquidator_sol_tokens = liquidator_sol_acc.balance().await;
+    assert_eq!(liquidator_sol_tokens, native!(0.210, "SOL", f64));
+    let liquidator_usdc_tokens = liquidator_usdc_acc.balance().await;
+    assert_eq!(liquidator_usdc_tokens, native!(98, "USDC"));
+
     let liquidatee_ma = liquidatee.load().await;
+    let sol_bank_state = sol_bank.load().await;
+    let usdc_bank_state = usdc_bank.load().await;
+    let sol_index = liquidatee_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.bank_pk == sol_bank.key)
+        .unwrap();
+    let usdc_index = liquidatee_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.bank_pk == usdc_bank.key)
+        .unwrap();
+    let sol_amount = sol_bank_state.get_asset_amount(
+        liquidatee_ma.lending_account.balances[sol_index]
+            .asset_shares
+            .into(),
+    )?;
+    let usdc_liab = usdc_bank_state.get_liability_amount(
+        liquidatee_ma.lending_account.balances[usdc_index]
+            .liability_shares
+            .into(),
+    )?;
+    // 20 - 2.10, in native sol decimals
+    assert_eq_noise!(sol_amount, I80F48!(1790000000));
+    // 10 - 2, in native usdc decimals
+    assert_eq_noise!(usdc_liab, I80F48!(8000000));
     // receivership ends at the end of the tx, we never see the flag enabled
     assert_eq!(liquidatee_ma.get_flag(ACCOUNT_IN_RECEIVERSHIP), false);
 
-    // TODO assert balances changed
-
-    // TODO assert fee debited
-
+    let (payer_post, fee_post) = {
+        let ctx = test_f.context.borrow_mut();
+        let payer_bal = ctx.banks_client.get_balance(payer).await?;
+        let fee_bal = ctx
+            .banks_client
+            .get_balance(test_f.marginfi_group.fee_wallet)
+            .await?;
+        (payer_bal, fee_bal)
+    };
+    // Note: 5000 lamps is the flat tx fee, this wallet also pays the tx fee in this test, in
+    // practice this would not typically be the case.
+    assert_eq!(
+        payer_pre - payer_post,
+        LIQUIDATION_FLAT_FEE_DEFAULT as u64 + 5000
+    );
+    assert_eq!(fee_post - fee_pre, LIQUIDATION_FLAT_FEE_DEFAULT as u64);
     Ok(())
 }
 
-// TODO another test to assert taking more than 5% profit fails
+// Here liquidator tries to seize more than the permitted premium, and should fail
+#[tokio::test]
+async fn liquidate_receiver_premium_too_high() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
-// TODO another test to assert non-profitable liquidation is allowed/possible?
+    let liquidator = test_f.create_marginfi_account().await;
+    let liquidatee = test_f.create_marginfi_account().await;
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+
+    let liquidator_usdc_acc = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
+    liquidator
+        .try_bank_deposit(liquidator_usdc_acc.key, usdc_bank, 100, None)
+        .await?;
+
+    let user_token_sol = test_f.sol_mint.create_token_account_and_mint_to(10).await;
+    let user_token_usdc = test_f.usdc_mint.create_empty_token_account().await;
+    liquidatee
+        .try_bank_deposit(user_token_sol.key, sol_bank, 2.0, None)
+        .await?;
+    liquidatee
+        .try_bank_borrow(user_token_usdc.key, usdc_bank, 10.0)
+        .await?;
+    sol_bank
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.4).into()),
+                ..Default::default()
+            },
+            None,
+        )
+        .await?;
+
+    let (record_pk, _bump) = Pubkey::find_program_address(
+        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &marginfi::ID,
+    );
+    {
+        let ctx = test_f.context.borrow_mut();
+        let init_ix = liquidatee
+            .make_init_liquidation_record_ix(record_pk, ctx.payer.pubkey())
+            .await;
+        let init_tx = Transaction::new_signed_with_payer(
+            &[init_ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+        ctx.banks_client
+            .process_transaction_with_preflight(init_tx)
+            .await?;
+    }
+
+    let payer = test_f.payer().clone();
+    let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
+    let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
+    // .3 * 10 = $3
+    let withdraw_ix = liquidatee
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.3, None)
+        .await;
+    // $2
+    let repay_ix = liquidatee
+        .make_bank_repay_ix(liquidator_usdc_acc.key, usdc_bank, 2.0, None)
+        .await;
+    let end_ix = liquidatee
+        .make_end_liquidation_ix(
+            record_pk,
+            payer,
+            test_f.marginfi_group.fee_state,
+            test_f.marginfi_group.fee_wallet,
+        )
+        .await;
+
+    let ctx = test_f.context.borrow_mut();
+    let tx = Transaction::new_signed_with_payer(
+        &[start_ix, withdraw_ix, repay_ix, end_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer],
+        ctx.last_blockhash,
+    );
+    let res = ctx
+        .banks_client
+        .process_transaction_with_preflight(tx)
+        .await;
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::LiquidationPremiumTooHigh);
+    Ok(())
+}
+
+#[tokio::test]
+async fn liquidate_receiver_allows_negative_profit() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let liquidator = test_f.create_marginfi_account().await;
+    let liquidatee = test_f.create_marginfi_account().await;
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+
+    let liquidator_usdc_acc = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
+    liquidator
+        .try_bank_deposit(liquidator_usdc_acc.key, usdc_bank, 100, None)
+        .await?;
+
+    let user_token_sol = test_f.sol_mint.create_token_account_and_mint_to(10).await;
+    let user_token_usdc = test_f.usdc_mint.create_empty_token_account().await;
+    liquidatee
+        .try_bank_deposit(user_token_sol.key, sol_bank, 2.0, None)
+        .await?;
+    liquidatee
+        .try_bank_borrow(user_token_usdc.key, usdc_bank, 10.0)
+        .await?;
+    sol_bank
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.25).into()),
+                asset_weight_maint: Some(I80F48!(0.4).into()),
+                ..Default::default()
+            },
+            None,
+        )
+        .await?;
+
+    let (record_pk, _bump) = Pubkey::find_program_address(
+        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &marginfi::ID,
+    );
+    {
+        let ctx = test_f.context.borrow_mut();
+        let init_ix = liquidatee
+            .make_init_liquidation_record_ix(record_pk, ctx.payer.pubkey())
+            .await;
+        let init_tx = Transaction::new_signed_with_payer(
+            &[init_ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+        ctx.banks_client
+            .process_transaction_with_preflight(init_tx)
+            .await?;
+    }
+
+    let payer = test_f.payer().clone();
+    let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
+    let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
+
+    // Seize 0.09 * 10 = $0.90
+    let withdraw_ix = liquidatee
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.09, None)
+        .await;
+    // Repay $2, (realizing a loss of $1.1)
+    let repay_ix = liquidatee
+        .make_bank_repay_ix(liquidator_usdc_acc.key, usdc_bank, 2.0, None)
+        .await;
+    let end_ix = liquidatee
+        .make_end_liquidation_ix(
+            record_pk,
+            payer,
+            test_f.marginfi_group.fee_state,
+            test_f.marginfi_group.fee_wallet,
+        )
+        .await;
+
+    // The ix doesn't care that a loss was incurred.
+    let ctx = test_f.context.borrow_mut();
+    let tx = Transaction::new_signed_with_payer(
+        &[start_ix, withdraw_ix, repay_ix, end_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer],
+        ctx.last_blockhash,
+    );
+    ctx.banks_client
+        .process_transaction_with_preflight(tx)
+        .await?;
+    Ok(())
+}

@@ -3,7 +3,7 @@ use crate::{
     constants::LIQUIDATION_MAX_FEE_MINIMUM,
     ix_utils::{get_discrim_hash, Hashable},
     prelude::*,
-    state::marginfi_account::{MarginfiAccountImpl, RiskEngine},
+    state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
 };
 use anchor_lang::{prelude::*, solana_program::sysvar};
 use bytemuck::Zeroable;
@@ -27,8 +27,10 @@ pub fn end_liquidation<'info>(
     let mut post_hc = HealthCache::zeroed();
     let risk_engine = RiskEngine::new(&marginfi_account, &ctx.remaining_accounts)?;
     // Note: This will error if healthy, we guarantee that liquidation improves health to at most 0
-    let (post_health, post_assets, post_liabs) = risk_engine
+    let (post_health, _post_assets, _post_liabs) = risk_engine
         .check_pre_liquidation_condition_and_get_account_health(None, &mut Some(&mut post_hc))?;
+    let (post_assets_equity, post_liabilities_equity) = risk_engine
+        .get_account_health_components(RiskRequirementType::Equity, &mut Some(&mut post_hc))?;
     marginfi_account.health_cache = post_hc;
 
     let pre_assets: I80F48 = liq_record.cache.asset_value_maint.into();
@@ -40,12 +42,19 @@ pub fn end_liquidation<'info>(
 
     // ??? Do we care about this, as long as you improved health maybe you can claim as much as you want?
     // ensure seized asset‐value ≤ 105% of repaid liability‐value
-    let seized: I80F48 = pre_assets - post_assets;
-    let repaid: I80F48 = pre_liabs - post_liabs;
+    let pre_assets_equity: I80F48 = liq_record.cache.asset_value_equity.into();
+    let pre_liabs_equity: I80F48 = liq_record.cache.liability_value_equity.into();
+    let seized: I80F48 = pre_assets_equity - post_assets_equity;
+    let repaid: I80F48 = pre_liabs_equity - post_liabilities_equity;
     // Liquidator's fee cannot go lower than LIQUIDATION_MAX_FEE_MINIMUM
     let max_fee: I80F48 = I80F48::max(
         fee_state.liquidation_max_fee.into(),
         I80F48!(1) + LIQUIDATION_MAX_FEE_MINIMUM,
+    );
+    msg!(
+        "seized: {:?} repaid: {:?}",
+        seized.to_num::<f64>(),
+        repaid.to_num::<f64>()
     );
     check!(
         seized <= repaid * max_fee,
@@ -64,6 +73,9 @@ pub fn end_liquidation<'info>(
     // clear receivership
     marginfi_account.unset_flag(ACCOUNT_IN_RECEIVERSHIP);
     liq_record.liquidation_receiver = Pubkey::default();
+
+    // TODO emit event
+    // TODO record entry in liquidation record
     Ok(())
 }
 

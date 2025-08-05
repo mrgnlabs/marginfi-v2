@@ -78,7 +78,7 @@ pub fn lending_account_pulse_health<'info>(
                 }
             }
         }
-        let bankruptcy_result: MarginfiResult =
+        let bankruptcy_result: MarginfiResult<(I80F48, I80F48)> =
             engine.check_account_bankrupt(&mut Some(&mut health_cache));
         if bankruptcy_result.is_err() {
             let err = bankruptcy_result.unwrap_err();
