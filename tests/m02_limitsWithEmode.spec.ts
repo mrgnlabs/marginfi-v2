@@ -300,5 +300,8 @@ describe("Limits on number of accounts, with emode in effect", () => {
     }
   });
 
+  // TODO try to liquidate using the new start/end liquidation approach. Withdraw/repay within the
+  // same tx to validate that w thidraw/repay can fit even with a 16 position account.
+
   // TODO try these with switchboard oracles.
 });

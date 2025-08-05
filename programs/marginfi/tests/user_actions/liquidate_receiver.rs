@@ -249,6 +249,6 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
     Ok(())
 }
 
-    // TODO another test to assert taking more than 5% profit fails
+// TODO another test to assert taking more than 5% profit fails
 
-    // TODO another test to assert non-profitable liquidation is allowed/possible?
+// TODO another test to assert non-profitable liquidation is allowed/possible?
