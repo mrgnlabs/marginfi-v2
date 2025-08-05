@@ -635,7 +635,8 @@ impl<'info> RiskEngine<'_, 'info> {
         Ok(())
     }
 
-    // TODO rename to something more appropriate (we do this pre and post liquidation now)
+    // TODO rename to something more appropriate (we do this pre and post liquidation in
+    // receivership liquidation, as we no longer care about the per-position check in post)
     /// Checks
     /// 1. Account is liquidatable
     /// 2. Account has an outstanding liability for the provided liability bank. This check is
@@ -753,10 +754,12 @@ impl<'info> RiskEngine<'_, 'info> {
 
     /// Check that the account is in a bankrupt state. Account needs to be insolvent and total value
     /// of assets need to be below the bankruptcy threshold.
+    ///
+    /// * returns assets, liabilities in EQUITY value terms.
     pub fn check_account_bankrupt(
         &self,
         health_cache: &mut Option<&mut HealthCache>,
-    ) -> MarginfiResult {
+    ) -> MarginfiResult<(I80F48, I80F48)> {
         let (total_assets, total_liabilities) =
             self.get_account_health_components(RiskRequirementType::Equity, health_cache)?;
 
@@ -780,7 +783,7 @@ impl<'info> RiskEngine<'_, 'info> {
             MarginfiError::AccountNotBankrupt
         );
 
-        Ok(())
+        Ok((total_assets, total_liabilities))
     }
 
     fn check_account_risk_tiers(&self) -> MarginfiResult {

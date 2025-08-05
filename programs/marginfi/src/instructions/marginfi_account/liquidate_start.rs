@@ -5,7 +5,7 @@ use crate::{
         validate_ixes_exclusive, Hashable,
     },
     prelude::*,
-    state::marginfi_account::{MarginfiAccountImpl, RiskEngine},
+    state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
 };
 use anchor_lang::{prelude::*, solana_program::sysvar};
 use bytemuck::Zeroable;
@@ -42,6 +42,8 @@ pub fn start_liquidation<'info>(
             None,
             &mut Some(&mut health_cache),
         )?;
+    let (assets_equity, liabilities_equity) = risk_engine
+        .get_account_health_components(RiskRequirementType::Equity, &mut Some(&mut health_cache))?;
     marginfi_account.health_cache = health_cache;
 
     // Snapshot mini lending account and other values to use in later checks
@@ -51,6 +53,8 @@ pub fn start_liquidation<'info>(
         ctx.accounts.liquidation_receiver.key(),
         assets.into(),
         liabs.into(),
+        assets_equity.into(),
+        liabilities_equity.into(),
         marginfi_account.lending_account,
     );
     *liq_record = record;
