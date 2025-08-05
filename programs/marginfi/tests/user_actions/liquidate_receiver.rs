@@ -64,6 +64,7 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
     // before start_liquidate, even something innocuous as here with deposit.
     let liquidator = test_f.create_marginfi_account().await;
     let liquidatee = test_f.create_marginfi_account().await;
+    let payer = test_f.context.borrow().payer.pubkey().clone();
 
     let sol_bank = test_f.get_bank(&BankMint::Sol);
     let usdc_bank = test_f.get_bank(&BankMint::Usdc);
@@ -101,19 +102,17 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
     );
 
     let init_ix = liquidatee
-        .make_init_liquidation_record_ix(record_pk, test_f.payer())
+        .make_init_liquidation_record_ix(record_pk, payer)
         .await;
     // Sneaky Sneaky...
     let deposit_ix = liquidator
         .make_bank_deposit_ix(liq_token_account.key, usdc_bank, 1.0, None)
         .await;
-    let start_ix = liquidatee
-        .make_start_liquidation_ix(record_pk, liquidator.key)
-        .await;
+    let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
     let end_ix = liquidatee
         .make_end_liquidation_ix(
             record_pk,
-            liquidator.key,
+            payer,
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
         )
@@ -139,8 +138,12 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::StartNotFirst);
     Ok(())
-    // TODO repeat but with compute ix as the first to show that compute IS ALLOWED
+    // TODO repeat above (in same test), but with compute ix as the first to show that compute IS ALLOWED
 }
+
+// TODO another test that make_end_liquidation_ix missing should error
+
+// TODO another test that adding an unsupported mrgn instruction (e.g. deposit) should error
 
 #[tokio::test]
 async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
@@ -203,8 +206,6 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
     } // release borrow of test_f via ctx
 
     let payer = test_f.payer().clone();
-    println!("liquidator key {:?}", liquidator.key);
-    println!("payer key {:?}", payer);
     let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
     // withdraw some sol to the liquidator and repay some usdc
     let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
@@ -237,10 +238,6 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
         ctx.banks_client.process_transaction(tx).await?;
     } // release borrow of test_f via ctx
 
-    // TODO assert taking more than 5% fails
-
-    // TODO assert non-profitable possible?
-
     let liquidatee_ma = liquidatee.load().await;
     // receivership ends at the end of the tx, we never see the flag enabled
     assert_eq!(liquidatee_ma.get_flag(ACCOUNT_IN_RECEIVERSHIP), false);
@@ -251,3 +248,7 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+    // TODO another test to assert taking more than 5% profit fails
+
+    // TODO another test to assert non-profitable liquidation is allowed/possible?

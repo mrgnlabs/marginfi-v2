@@ -320,8 +320,10 @@ export type InitGlobalFeeStateArgs = {
   admin: PublicKey;
   wallet: PublicKey;
   bankInitFlatSolFee: number;
+  liquidationFlatSolFee: number;
   programFeeFixed: WrappedI80F48;
   programFeeRate: WrappedI80F48;
+  liquidationMaxFee: WrappedI80F48;
 };
 
 export const initGlobalFeeState = (
@@ -333,8 +335,10 @@ export const initGlobalFeeState = (
       args.admin,
       args.wallet,
       args.bankInitFlatSolFee,
+      args.liquidationFlatSolFee,
       args.programFeeFixed,
-      args.programFeeRate
+      args.programFeeRate,
+      args.liquidationMaxFee
     )
     .accounts({
       payer: args.payer,
@@ -351,8 +355,10 @@ export type EditGlobalFeeStateArgs = {
   admin: PublicKey;
   wallet: PublicKey;
   bankInitFlatSolFee: number;
+  liquidationFlatSolFee: number;
   programFeeFixed: WrappedI80F48;
   programFeeRate: WrappedI80F48;
+  liquidationMaxFee: WrappedI80F48;
   newAdmin?: PublicKey;
 };
 
@@ -366,8 +372,10 @@ export const editGlobalFeeState = (
       args.newAdmin ? args.newAdmin : args.admin,
       args.wallet,
       args.bankInitFlatSolFee,
+      args.liquidationFlatSolFee,
       args.programFeeFixed,
-      args.programFeeRate
+      args.programFeeRate,
+      args.liquidationMaxFee
     )
     .accounts({
       globalFeeAdmin: args.admin,
