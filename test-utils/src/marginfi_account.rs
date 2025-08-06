@@ -888,7 +888,6 @@ impl MarginfiAccountFixture {
                 liquidation_receiver,
                 fee_state,
                 global_fee_wallet,
-                instruction_sysvar: sysvar::instructions::id(),
                 system_program: system_program::ID,
             }
             .to_account_metas(Some(true)),

@@ -51,11 +51,11 @@ pub fn end_liquidation<'info>(
         fee_state.liquidation_max_fee.into(),
         I80F48!(1) + LIQUIDATION_MAX_FEE_MINIMUM,
     );
-    msg!(
-        "seized: {:?} repaid: {:?}",
-        seized.to_num::<f64>(),
-        repaid.to_num::<f64>()
-    );
+    // msg!(
+    //     "seized: {:?} repaid: {:?}",
+    //     seized.to_num::<f64>(),
+    //     repaid.to_num::<f64>()
+    // );
     check!(
         seized <= repaid * max_fee,
         MarginfiError::LiquidationPremiumTooHigh
@@ -91,7 +91,6 @@ pub struct EndLiquidation<'info> {
     /// The associated liquidation record PDA for the given `marginfi_account`
     #[account(
         mut,
-        has_one = marginfi_account,
         has_one = liquidation_receiver
     )]
     pub liquidation_record: AccountLoader<'info, LiquidationRecord>,
@@ -112,11 +111,6 @@ pub struct EndLiquidation<'info> {
     #[account(mut)]
     pub global_fee_wallet: AccountInfo<'info>,
 
-    /// CHECK: validated aginst known hard-coded sysvar key
-    #[account(
-        address = sysvar::instructions::id()
-    )]
-    pub instruction_sysvar: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -128,7 +122,7 @@ impl<'info> EndLiquidation<'info> {
             self.system_program.to_account_info(),
             anchor_lang::system_program::Transfer {
                 // ??? Do we want to support the fee being paid by a different account? This may
-                // help CPI consumers.
+                // help CPI consumers, but adds another account.
                 from: self.liquidation_receiver.to_account_info(),
                 to: self.global_fee_wallet.to_account_info(),
             },

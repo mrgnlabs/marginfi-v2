@@ -112,3 +112,14 @@ export const deriveStakedSettings = (
     programId
   );
 };
+
+
+export const deriveLiquidationRecord = (
+  programId: PublicKey,
+  marginfiAccount: PublicKey
+) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("liq_record", "utf-8"), marginfiAccount.toBuffer()],
+    programId
+  );
+};

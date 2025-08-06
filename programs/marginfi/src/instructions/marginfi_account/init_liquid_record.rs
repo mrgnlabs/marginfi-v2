@@ -35,7 +35,7 @@ pub struct InitLiquidationRecord<'info> {
     #[account(
         init,
         payer = fee_payer,
-        seeds = [marginfi_account.key().as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        seeds = [LIQUIDATION_RECORD_SEED.as_bytes(), marginfi_account.key().as_ref()],
         bump,
         space = 8 + std::mem::size_of::<LiquidationRecord>()
     )]

@@ -98,10 +98,7 @@ pub struct StartLiquidation<'info> {
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     /// The associated liquidation record PDA for the given `marginfi_account`
-    #[account(
-        mut,
-        has_one = marginfi_account
-    )]
+    #[account(mut)]
     pub liquidation_record: AccountLoader<'info, LiquidationRecord>,
 
     /// This account will have the authority to withdraw/repay as if they are the user authority

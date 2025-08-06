@@ -1,9 +1,14 @@
 import { BN } from "@coral-xyz/anchor";
 import {
+  AddressLookupTableAccount,
+  AddressLookupTableProgram,
   ComputeBudgetProgram,
   Keypair,
   PublicKey,
+  SystemProgram,
   Transaction,
+  TransactionMessage,
+  VersionedTransaction,
 } from "@solana/web3.js";
 import {
   groupAdmin,
@@ -14,6 +19,7 @@ import {
   oracles,
   users,
   globalFeeWallet,
+  verbose,
 } from "./rootHooks";
 import {
   configBankEmode,
@@ -34,10 +40,12 @@ import {
   withdrawIx,
   repayIx,
 } from "./utils/user-instructions";
-import { deriveGlobalFeeState } from "./utils/pdas";
+import { deriveGlobalFeeState, deriveLiquidationRecord } from "./utils/pdas";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { dumpAccBalances } from "./utils/tools";
 import { genericMultiBankTestSetup } from "./genericSetups";
+import { getEpochAndSlot } from "./utils/stake-utils";
+import { Clock } from "solana-bankrun";
 
 /** Banks in this test use a "random" seed so their key is non-deterministic. */
 let startingSeed: number;
@@ -316,9 +324,55 @@ describe("Limits on number of accounts, with emode in effect", () => {
       remainingAccounts.push([banks[i], oracles.pythPullLst.publicKey]);
     }
 
-    const [liqRecord] = PublicKey.findProgramAddressSync(
-      [liquidateeAccount.toBuffer(), Buffer.from("liq_record")],
-      bankrunProgram.programId
+    const recentSlot = Number(await banksClient.getSlot());
+    const [createLutIx, lutAddress] =
+      AddressLookupTableProgram.createLookupTable({
+        authority: liquidator.wallet.publicKey,
+        payer: liquidator.wallet.publicKey,
+        recentSlot: recentSlot - 1,
+      });
+    let createLutTx = new Transaction().add(createLutIx);
+    createLutTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    createLutTx.sign(liquidator.wallet);
+    await banksClient.processTransaction(createLutTx);
+
+    let extendLutTx1 = new Transaction().add(
+      AddressLookupTableProgram.extendLookupTable({
+        authority: liquidator.wallet.publicKey,
+        payer: liquidator.wallet.publicKey,
+        lookupTable: lutAddress,
+        addresses: remainingAccounts.flat().slice(0, 20),
+      })
+    );
+    extendLutTx1.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    extendLutTx1.sign(liquidator.wallet);
+    await banksClient.processTransaction(extendLutTx1);
+
+    let extendLutTx2 = new Transaction().add(
+      AddressLookupTableProgram.extendLookupTable({
+        authority: liquidator.wallet.publicKey,
+        payer: liquidator.wallet.publicKey,
+        lookupTable: lutAddress,
+        addresses: remainingAccounts.flat().slice(20),
+      })
+    );
+    extendLutTx2.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    extendLutTx2.sign(liquidator.wallet);
+    await banksClient.processTransaction(extendLutTx2);
+
+    // We must advance the bankrun slot to allow the lut to activate
+    const ONE_MINUTE = 60;
+    const slotsToAdvance = ONE_MINUTE * 0.4;
+    let { epoch: _, slot } = await getEpochAndSlot(banksClient);
+    bankrunContext.warpToSlot(BigInt(slot + slotsToAdvance));
+
+    if (verbose) {
+      console.log("LUT key: " + lutAddress.toString());
+    }
+
+    const [liqRecordKey] = deriveLiquidationRecord(
+      bankrunProgram.programId,
+      liquidateeAccount
     );
 
     let tx = new Transaction();
@@ -326,20 +380,18 @@ describe("Limits on number of accounts, with emode in effect", () => {
       await initLiquidationRecordIx(liquidator.mrgnBankrunProgram, {
         marginfiAccount: liquidateeAccount,
         feePayer: liquidator.wallet.publicKey,
-        liquidationRecord: liqRecord,
+        // liquidationRecord: liqRecord,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(liquidator.wallet);
     await banksClient.processTransaction(tx);
 
-    const feeState = deriveGlobalFeeState(bankrunProgram.programId)[0];
-
     tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
       await startLiquidationIx(liquidator.mrgnBankrunProgram, {
         marginfiAccount: liquidateeAccount,
-        liquidationRecord: liqRecord,
+        // liquidationRecord: liqRecord,
         liquidationReceiver: liquidator.wallet.publicKey,
         remaining: composeRemainingAccounts(remainingAccounts),
       }),
@@ -359,16 +411,30 @@ describe("Limits on number of accounts, with emode in effect", () => {
       }),
       await endLiquidationIx(liquidator.mrgnBankrunProgram, {
         marginfiAccount: liquidateeAccount,
-        liquidationRecord: liqRecord,
-        liquidationReceiver: liquidator.wallet.publicKey,
-        feeState,
-        globalFeeWallet,
         remaining: composeRemainingAccounts(remainingAccounts),
       })
     );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(liquidator.wallet);
-    await banksClient.processTransaction(tx);
+    const blockhash = await getBankrunBlockhash(bankrunContext);
+    const lutRaw = await banksClient.getAccount(lutAddress);
+    const lutState = AddressLookupTableAccount.deserialize(lutRaw.data);
+    const lutAccount = new AddressLookupTableAccount({
+      key: lutAddress,
+      state: lutState,
+    });
+    const messageV0 = new TransactionMessage({
+      payerKey: liquidator.wallet.publicKey,
+      recentBlockhash: blockhash,
+      instructions: [...tx.instructions],
+    }).compileToV0Message([lutAccount]);
+    const versionedTx = new VersionedTransaction(messageV0);
+    versionedTx.sign([liquidator.wallet]);
+    await banksClient.processTransaction(versionedTx);
+
+    const record = await bankrunProgram.account.liquidationRecord.fetch(
+      liqRecordKey
+    );
+
+    // TODO assert various properties of the liquidation record...
   });
 
   // TODO try these with switchboard oracles.

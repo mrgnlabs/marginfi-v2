@@ -367,7 +367,6 @@ export const repayIx = (program: Program<Marginfi>, args: RepayIxArgs) => {
 export type InitLiquidationRecordArgs = {
   marginfiAccount: PublicKey;
   feePayer: PublicKey;
-  liquidationRecord: PublicKey;
 };
 
 export const initLiquidationRecordIx = (
@@ -379,15 +378,14 @@ export const initLiquidationRecordIx = (
     .accounts({
       marginfiAccount: args.marginfiAccount,
       feePayer: args.feePayer,
-      liquidationRecord: args.liquidationRecord,
-      systemProgram: SystemProgram.programId,
+      // liquidationRecord: // derived from seeds
+      // systemProgram: // hard coded key
     })
     .instruction();
 };
 
 export type StartLiquidationArgs = {
   marginfiAccount: PublicKey;
-  liquidationRecord: PublicKey;
   liquidationReceiver: PublicKey;
   remaining: PublicKey[];
 };
@@ -402,12 +400,13 @@ export const startLiquidationIx = (
     isWritable: false,
   }));
   return program.methods
-    .liquidateStart()
+    .startLiquidation()
     .accounts({
       marginfiAccount: args.marginfiAccount,
-      liquidationRecord: args.liquidationRecord,
+      // liquidationRecord: // implied from account
       liquidationReceiver: args.liquidationReceiver,
-      instructionSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+      // instructionSysvar: // hard coded key
+      // systemProgram: // hard coded key
     })
     .remainingAccounts(oracleMeta)
     .instruction();
@@ -415,10 +414,6 @@ export const startLiquidationIx = (
 
 export type EndLiquidationArgs = {
   marginfiAccount: PublicKey;
-  liquidationRecord: PublicKey;
-  liquidationReceiver: PublicKey;
-  feeState: PublicKey;
-  globalFeeWallet: PublicKey;
   remaining: PublicKey[];
 };
 
@@ -432,15 +427,14 @@ export const endLiquidationIx = (
     isWritable: false,
   }));
   return program.methods
-    .liquidateEnd()
+    .endLiquidation()
     .accounts({
       marginfiAccount: args.marginfiAccount,
-      liquidationRecord: args.liquidationRecord,
-      liquidationReceiver: args.liquidationReceiver,
-      feeState: args.feeState,
-      globalFeeWallet: args.globalFeeWallet,
-      instructionSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
-      systemProgram: SystemProgram.programId,
+      // liquidationRecord: // implied from account
+      // liquidationRecord: // implied from record
+      // feeState: // static pda
+      // globalFeeWallet: // implied from feeState
+      // systemProgram: // hard coded key
     })
     .remainingAccounts(oracleMeta)
     .instruction();
