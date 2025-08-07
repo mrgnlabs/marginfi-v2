@@ -88,12 +88,14 @@ pub struct LiquidationCache {
     /// * Uses SPOT price
     /// * In dollars
     pub liability_value_maint: WrappedI80F48,
-    /// Actual cash value of assets pre-liquidation
+    /// Actual cash value of assets pre-liquidation (inclusive of price adjustment for oracle
+    /// confidence, but without any weights)
     /// * Liquidator is allowed to seize up to `liability_value_equity` - this amount
     /// * Uses EMA price
     /// * In dollars
     pub asset_value_equity: WrappedI80F48,
-    /// Actual cash value of liabilities pre-liquidation
+    /// Actual cash value of liabilities pre-liquidation (inclusive of price adjustment for oracle
+    /// confidence, but without any weights)
     /// * Liquidator is allowed to seize up to this amount - `asset_value_equity`
     /// * Uses EMA price
     /// * In dollars

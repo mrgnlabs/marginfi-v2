@@ -23,6 +23,11 @@ pub fn end_liquidation<'info>(
     let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
     let fee_state = ctx.accounts.fee_state.load()?;
 
+    check!(
+        marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
+        MarginfiError::EndNotLast
+    );
+
     let pre_assets: I80F48 = liq_record.cache.asset_value_maint.into();
     let pre_liabs: I80F48 = liq_record.cache.liability_value_maint.into();
     let pre_assets_equity: I80F48 = liq_record.cache.asset_value_equity.into();
