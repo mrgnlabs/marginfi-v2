@@ -169,6 +169,20 @@ pub enum MarginfiError {
     OracleMaxConfidenceExceeded,
     #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6081
     BankCannotClose,
+    #[msg("Liquidation state issue. Check start before end, end last, and both unique")] // 6082
+    UnexpectedLiquidationState,
+    #[msg("Liquidation start must be first instruction (other than compute program ixes)")] // 6083
+    StartNotFirst,
+    #[msg("Only one liquidation event allowed per tx")] // 6084
+    StartRepeats,
+    #[msg("The end instruction must be the last ix in the tx")] // 6085
+    EndNotLast,
+    #[msg("Tried to call an instruction that is forbidden during liquidation")] // 6086
+    ForbiddenIx,
+    #[msg("Liquidation made the account health worse")] // 6087
+    HealthDidNotImprove,
+    #[msg("Seized too much of the asset relative to liability repaid")] // 6088
+    LiquidationPremiumTooHigh,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -284,6 +298,14 @@ impl From<u32> for MarginfiError {
             6078 => MarginfiError::ZeroAssetPrice,
             6079 => MarginfiError::ZeroLiabilityPrice,
             6080 => MarginfiError::OracleMaxConfidenceExceeded,
+            6081 => MarginfiError::BankCannotClose,
+            6082 => MarginfiError::UnexpectedLiquidationState,
+            6083 => MarginfiError::StartNotFirst,
+            6084 => MarginfiError::StartRepeats,
+            6085 => MarginfiError::EndNotLast,
+            6086 => MarginfiError::ForbiddenIx,
+            6087 => MarginfiError::HealthDidNotImprove,
+            6088 => MarginfiError::LiquidationPremiumTooHigh,
             _ => MarginfiError::InternalLogicError,
         }
     }

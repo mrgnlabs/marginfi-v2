@@ -262,9 +262,9 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         }
     }
 
-    /// Returns value, the net asset value in $, and the price used to determine that value. In most
-    /// cases, returns (value, price, 0). If there was an error loading the price feed, treats the
-    /// price as zero, and passes the u32 argument that contains the error code, i.e. the return
+    /// Returns value, the price used to determine that value, and an error code if applicable. In
+    /// most cases, returns (value, price, 0). If there was an error loading the price feed, treats
+    /// the price as zero, and passes the u32 argument that contains the error code, i.e. the return
     /// type is (0, 0, err_code). Other types of errors (e.g. math) will still throw.
     #[inline(always)]
     fn calc_weighted_asset_value(
@@ -635,16 +635,19 @@ impl<'info> RiskEngine<'_, 'info> {
         Ok(())
     }
 
+    // TODO rename to something more appropriate (we do this pre and post liquidation in
+    // receivership liquidation, as we no longer care about the per-position check in post)
     /// Checks
     /// 1. Account is liquidatable
     /// 2. Account has an outstanding liability for the provided liability bank. This check is
     ///    ignored if passing None.
-    /// * returns - account health (assets - liabs)
+    /// * returns - account health (assets - liabs), asset, liabs.
     pub fn check_pre_liquidation_condition_and_get_account_health(
         &self,
         bank_pk: Option<&Pubkey>,
         health_cache: &mut Option<&mut HealthCache>,
-    ) -> MarginfiResult<I80F48> {
+        ignore_healthy: bool,
+    ) -> MarginfiResult<(I80F48, I80F48, I80F48)> {
         check!(
             !self.marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
@@ -672,12 +675,13 @@ impl<'info> RiskEngine<'_, 'info> {
             self.get_account_health_components(RiskRequirementType::Maintenance, health_cache)?;
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
+        let healthy = account_health > I80F48::ZERO;
 
         if let Some(cache) = health_cache {
-            cache.set_healthy(account_health > I80F48::ZERO);
+            cache.set_healthy(healthy);
         }
 
-        if account_health > I80F48::ZERO {
+        if healthy && !ignore_healthy {
             msg!(
                 "pre_liquidation_health: {} ({} - {})",
                 account_health,
@@ -687,7 +691,7 @@ impl<'info> RiskEngine<'_, 'info> {
             return err!(MarginfiError::HealthyAccount);
         }
 
-        Ok(account_health)
+        Ok((account_health, assets, liabs))
     }
 
     /// Check that the account is at most at the maintenance requirement level post liquidation.
@@ -752,10 +756,12 @@ impl<'info> RiskEngine<'_, 'info> {
 
     /// Check that the account is in a bankrupt state. Account needs to be insolvent and total value
     /// of assets need to be below the bankruptcy threshold.
+    ///
+    /// * returns assets, liabilities in EQUITY value terms.
     pub fn check_account_bankrupt(
         &self,
         health_cache: &mut Option<&mut HealthCache>,
-    ) -> MarginfiResult {
+    ) -> MarginfiResult<(I80F48, I80F48)> {
         let (total_assets, total_liabilities) =
             self.get_account_health_components(RiskRequirementType::Equity, health_cache)?;
 
@@ -779,7 +785,7 @@ impl<'info> RiskEngine<'_, 'info> {
             MarginfiError::AccountNotBankrupt
         );
 
-        Ok(())
+        Ok((total_assets, total_liabilities))
     }
 
     fn check_account_risk_tiers(&self) -> MarginfiResult {
@@ -1509,7 +1515,8 @@ mod test {
             account_flags: ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
             migrated_from: Pubkey::default(),
             health_cache: HealthCache::zeroed(),
-            _padding0: [0; 17],
+            liquidation_record: Pubkey::default(),
+            _padding0: [0; 13],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));
