@@ -26,7 +26,7 @@ async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
     let payer = test_f.context.borrow().payer.pubkey();
 
     let (record_pk, _bump) = Pubkey::find_program_address(
-        &[user.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &[LIQUIDATION_RECORD_SEED.as_bytes(), user.key.as_ref()],
         &marginfi::ID,
     );
 
@@ -112,7 +112,7 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
         .await?;
 
     let (record_pk, _bump) = Pubkey::find_program_address(
-        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &[LIQUIDATION_RECORD_SEED.as_bytes(), liquidatee.key.as_ref()],
         &marginfi::ID,
     );
 
@@ -244,7 +244,7 @@ async fn liquidate_end_missing_fails() -> anyhow::Result<()> {
         .await?;
 
     let (record_pk, _bump) = Pubkey::find_program_address(
-        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &[LIQUIDATION_RECORD_SEED.as_bytes(), liquidatee.key.as_ref()],
         &marginfi::ID,
     );
     let init_ix = liquidatee
@@ -345,7 +345,7 @@ async fn liquidate_with_forbidden_ix_fails() -> anyhow::Result<()> {
         .await?;
 
     let (record_pk, _bump) = Pubkey::find_program_address(
-        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &[LIQUIDATION_RECORD_SEED.as_bytes(), liquidatee.key.as_ref()],
         &marginfi::ID,
     );
     let init_ix = liquidatee
@@ -433,7 +433,7 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
         .await?;
 
     let (record_pk, _bump) = Pubkey::find_program_address(
-        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &[LIQUIDATION_RECORD_SEED.as_bytes(), liquidatee.key.as_ref()],
         &marginfi::ID,
     );
 
@@ -591,7 +591,7 @@ async fn liquidate_receiver_premium_too_high() -> anyhow::Result<()> {
         .await?;
 
     let (record_pk, _bump) = Pubkey::find_program_address(
-        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &[LIQUIDATION_RECORD_SEED.as_bytes(), liquidatee.key.as_ref()],
         &marginfi::ID,
     );
     {
@@ -682,7 +682,7 @@ async fn liquidate_receiver_closes_out_low_value_acc() -> anyhow::Result<()> {
         .await?;
 
     let (record_pk, _bump) = Pubkey::find_program_address(
-        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &[LIQUIDATION_RECORD_SEED.as_bytes(), liquidatee.key.as_ref()],
         &marginfi::ID,
     );
     {
@@ -721,20 +721,29 @@ async fn liquidate_receiver_closes_out_low_value_acc() -> anyhow::Result<()> {
         )
         .await;
 
-    let ctx = test_f.context.borrow_mut();
-    let tx = Transaction::new_signed_with_payer(
-        &[start_ix, withdraw_ix, repay_ix, end_ix],
-        Some(&ctx.payer.pubkey()),
-        &[&ctx.payer],
-        ctx.last_blockhash,
-    );
-    let res = ctx
-        .banks_client
-        .process_transaction_with_preflight(tx)
-        .await;
-    assert!(res.is_ok());
+    {
+        let ctx = test_f.context.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[start_ix, withdraw_ix, repay_ix, end_ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+        let res = ctx
+            .banks_client
+            .process_transaction_with_preflight(tx)
+            .await;
+        assert!(res.is_ok());
+    } // release borrow of ctx
 
-    // TODO assert the account is now empty
+    // Account has been fully closed, all positions were seized and repaid.
+    let marginfi_account = liquidatee.load().await;
+    let active_balance_count = marginfi_account
+        .lending_account
+        .get_active_balances_iter()
+        .count();
+    assert_eq!(0, active_balance_count);
+
     Ok(())
 }
 
@@ -772,7 +781,7 @@ async fn liquidate_receiver_allows_negative_profit() -> anyhow::Result<()> {
         .await?;
 
     let (record_pk, _bump) = Pubkey::find_program_address(
-        &[liquidatee.key.as_ref(), LIQUIDATION_RECORD_SEED.as_bytes()],
+        &[LIQUIDATION_RECORD_SEED.as_bytes(), liquidatee.key.as_ref()],
         &marginfi::ID,
     );
     {

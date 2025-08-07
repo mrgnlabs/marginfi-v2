@@ -168,4 +168,6 @@ pub mod ix_discriminators {
     pub const END_LIQUIDATION: [u8; 8] = [110, 11, 244, 54, 229, 181, 22, 184];
     pub const LENDING_ACCOUNT_WITHDRAW: [u8; 8] = [36, 72, 74, 19, 210, 210, 192, 192];
     pub const LENDING_ACCOUNT_REPAY: [u8; 8] = [79, 209, 172, 177, 222, 51, 173, 151];
+    pub const LENDING_SETTLE_EMISSIONS: [u8; 8] = [234, 22, 84, 214, 118, 176, 140, 170];
+    pub const LENDING_WITHDRAW_EMISSIONS: [u8; 8] = [161, 58, 136, 174, 242, 223, 156, 176];
 }

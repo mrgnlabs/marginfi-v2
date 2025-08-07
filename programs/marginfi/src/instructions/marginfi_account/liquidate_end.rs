@@ -1,6 +1,7 @@
 use crate::{
     check,
     constants::{LIQUIDATION_DOLLAR_THRESHOLD, LIQUIDATION_MAX_FEE_MINIMUM},
+    events::LiquidationReceiverEvent,
     ix_utils::{get_discrim_hash, Hashable},
     prelude::*,
     state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
@@ -38,7 +39,7 @@ pub fn end_liquidation<'info>(
 
     // Validate health still negative and load risk engine info
     let mut post_hc = HealthCache::zeroed();
-    let risk_engine = RiskEngine::new(&marginfi_account, &ctx.remaining_accounts)?;
+    let risk_engine = RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?;
     // Note: This will error if healthy, we guarantee that liquidation improves health to at most 0,
     // unless the account's net value is below the threshold, then we can clear it regardless (or not).
     let (post_health, _post_assets, _post_liabs) = risk_engine
@@ -84,11 +85,10 @@ pub fn end_liquidation<'info>(
     marginfi_account.unset_flag(ACCOUNT_IN_RECEIVERSHIP);
     liq_record.liquidation_receiver = Pubkey::default();
 
+    let seized_f64 = seized.to_num::<f64>();
+    let repaid_f64 = repaid.to_num::<f64>();
     // record the entry in the liquidation record
     {
-        let seized_f64 = seized.to_num::<f64>();
-        let repaid_f64 = repaid.to_num::<f64>();
-
         // Rotate left to eject the oldest entry
         liq_record.entries.rotate_left(1);
         let entry = &mut liq_record.entries[3];
@@ -98,7 +98,14 @@ pub fn end_liquidation<'info>(
         entry.timestamp = Clock::get()?.unix_timestamp;
     }
 
-    // TODO emit event
+    emit!(LiquidationReceiverEvent {
+        marginfi_account: ctx.accounts.marginfi_account.key(),
+        liquidation_receiver: ctx.accounts.liquidation_receiver.key(),
+        liquidatee_assets_seized: seized_f64,
+        liquidatee_liability_repaid: repaid_f64,
+        lamps_fee_paid: liquidation_flat_sol_fee
+    });
+
     Ok(())
 }
 
@@ -155,6 +162,6 @@ impl<'info> EndLiquidation<'info> {
 
 impl Hashable for EndLiquidation<'_> {
     fn get_hash() -> [u8; 8] {
-        get_discrim_hash("global", "liquidate_end")
+        get_discrim_hash("global", "end_liquidation")
     }
 }

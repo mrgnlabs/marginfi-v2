@@ -36,7 +36,7 @@ pub fn start_liquidation<'info>(
         // Note: the liquidator can use the health cache state after this ix concludes to plan their
         // liquidation strategy.
         let mut health_cache = HealthCache::zeroed();
-        let risk_engine = RiskEngine::new(&marginfi_account, &ctx.remaining_accounts)?;
+        let risk_engine = RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?;
         // Note: This will error if healthy
         let (_pre_health, assets, liabs) = risk_engine
             .check_pre_liquidation_condition_and_get_account_health(
@@ -63,15 +63,11 @@ pub fn start_liquidation<'info>(
     {
         let sysvar = &ctx.accounts.instruction_sysvar;
         let ixes = load_and_validate_instructions(sysvar, None)?;
-        validate_ix_first(
-            &ixes,
-            &ctx.program_id,
-            &ix_discriminators::START_LIQUIDATION,
-        )?;
-        validate_ix_last(&ixes, &ctx.program_id, &ix_discriminators::END_LIQUIDATION)?;
+        validate_ix_first(&ixes, ctx.program_id, &ix_discriminators::START_LIQUIDATION)?;
+        validate_ix_last(&ixes, ctx.program_id, &ix_discriminators::END_LIQUIDATION)?;
         validate_ixes_exclusive(
             &ixes,
-            &ctx.program_id,
+            ctx.program_id,
             &[
                 // Note: since start must be first, it isn't possible to init within the same tx here,
                 // so `&ix_discriminators::INIT_LIQUIDATION_RECORD` is not a valid entry.
@@ -81,6 +77,14 @@ pub fn start_liquidation<'info>(
                 &ix_discriminators::LENDING_ACCOUNT_REPAY,
                 // TODO add withdraw/repay from integrator as they are added to the program. Also
                 // remember to add a test to ix_utils to validate you added the correct hash.
+
+                // Note: At some point we may allow the liquidation to claim emissions too. Since we
+                // currently don't allow this, liquidators can never fully close out an account that
+                // has emissions active. This is not a priority since we are considering deprecating
+                // the emissions feature in late 2025 and moving to a fully off-chain emissions
+                // system.
+                // * &ix_discriminators::LENDING_SETTLE_EMISSIONS,
+                // * &ix_discriminators::LENDING_WITHDRAW_EMISSIONS,
             ],
         )?;
     }
@@ -116,6 +120,6 @@ pub struct StartLiquidation<'info> {
 
 impl Hashable for StartLiquidation<'_> {
     fn get_hash() -> [u8; 8] {
-        get_discrim_hash("global", "liquidate_start")
+        get_discrim_hash("global", "start_liquidation")
     }
 }

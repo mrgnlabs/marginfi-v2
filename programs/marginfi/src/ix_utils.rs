@@ -32,7 +32,7 @@ pub fn get_discrim_hash(namespace: &str, name: &str) -> [u8; 8] {
 ///
 /// If the ix implements `Hashable`, use `get_hash()` to get the expected hash.
 pub fn validate_ix_first(
-    ixes: &Vec<Instruction>,
+    ixes: &[Instruction],
     program_id: &Pubkey,
     expected_hash: &[u8],
 ) -> MarginfiResult<()> {
@@ -84,7 +84,7 @@ pub fn validate_ix_first(
 
 /// Validate the given ix hash is the last ix in the list of ixes.
 pub fn validate_ix_last(
-    ixes: &Vec<Instruction>,
+    ixes: &[Instruction],
     program_id: &Pubkey,
     expected_hash: &[u8],
 ) -> MarginfiResult<()> {
@@ -182,6 +182,11 @@ mod tests {
     use marginfi_type_crate::constants::{discriminators, ix_discriminators};
     use pretty_assertions::assert_eq;
 
+    use crate::{
+        EndLiquidation, InitLiquidationRecord, LendingAccountRepay, LendingAccountSettleEmissions,
+        LendingAccountWithdraw, LendingAccountWithdrawEmissions, StartLiquidation,
+    };
+
     use super::*;
 
     #[test]
@@ -220,28 +225,38 @@ mod tests {
     #[test]
     fn check_instruction_hash_generated() {
         // ─── InitLiquidationRecord ───────────────────────────────────────────────
-        let got_init = get_discrim_hash("global", "marginfi_account_init_liq_record");
+        let got_init = InitLiquidationRecord::get_hash();
         let want_init = ix_discriminators::INIT_LIQUIDATION_RECORD;
         assert_eq!(got_init, want_init);
 
         // ─── StartLiquidation ────────────────────────────────────────────────────
-        let got_start = get_discrim_hash("global", "start_liquidation");
+        let got_start = StartLiquidation::get_hash();
         let want_start = ix_discriminators::START_LIQUIDATION;
         assert_eq!(got_start, want_start);
 
         // ─── EndLiquidation ──────────────────────────────────────────────────────
-        let got_end = get_discrim_hash("global", "end_liquidation");
+        let got_end = EndLiquidation::get_hash();
         let want_end = ix_discriminators::END_LIQUIDATION;
         assert_eq!(got_end, want_end);
 
         // ─── LendingAccountWithdraw ──────────────────────────────────────────────
-        let got_withdraw = get_discrim_hash("global", "lending_account_withdraw");
+        let got_withdraw = LendingAccountWithdraw::get_hash();
         let want_withdraw = ix_discriminators::LENDING_ACCOUNT_WITHDRAW;
         assert_eq!(got_withdraw, want_withdraw);
 
         // ─── LendingAccountRepay ─────────────────────────────────────────────────
-        let got_repay = get_discrim_hash("global", "lending_account_repay");
+        let got_repay = LendingAccountRepay::get_hash();
         let want_repay = ix_discriminators::LENDING_ACCOUNT_REPAY;
+        assert_eq!(got_repay, want_repay);
+
+        // ─── LendingAccountWithdrawEmissions ─────────────────────────────────────────────────
+        let got_repay = LendingAccountWithdrawEmissions::get_hash();
+        let want_repay = ix_discriminators::LENDING_SETTLE_EMISSIONS;
+        assert_eq!(got_repay, want_repay);
+
+        // ─── LendingAccountSettleEmissions ─────────────────────────────────────────────────
+        let got_repay = LendingAccountSettleEmissions::get_hash();
+        let want_repay = ix_discriminators::LENDING_WITHDRAW_EMISSIONS;
         assert_eq!(got_repay, want_repay);
     }
 }
