@@ -53,6 +53,7 @@ export const HEALTH_CACHE_PROGRAM_VERSION_0_1_3 = 1;
 export const HEALTH_CACHE_PROGRAM_VERSION_0_1_4 = 2;
 /** Confidence intervals are multiplied by this constant internally */
 export const CONF_INTERVAL_MULTIPLE = 2.12;
+/** Oracles return values with this confidence for testing purposes */
 export const ORACLE_CONF_INTERVAL = 0.01;
 
 // By convention, all tags must be in 13375p34k (kidding, but only sorta)

@@ -1,11 +1,11 @@
 use crate::{
     check,
-    constants::LIQUIDATION_MAX_FEE_MINIMUM,
+    constants::{LIQUIDATION_DOLLAR_THRESHOLD, LIQUIDATION_MAX_FEE_MINIMUM},
     ix_utils::{get_discrim_hash, Hashable},
     prelude::*,
     state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
 };
-use anchor_lang::{prelude::*, solana_program::sysvar};
+use anchor_lang::prelude::*;
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
@@ -23,43 +23,48 @@ pub fn end_liquidation<'info>(
     let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
     let fee_state = ctx.accounts.fee_state.load()?;
 
+    let pre_assets: I80F48 = liq_record.cache.asset_value_maint.into();
+    let pre_liabs: I80F48 = liq_record.cache.liability_value_maint.into();
+    let pre_assets_equity: I80F48 = liq_record.cache.asset_value_equity.into();
+    let pre_liabs_equity: I80F48 = liq_record.cache.liability_value_equity.into();
+    let pre_health: I80F48 = pre_assets - pre_liabs;
+    // Accounts worth less than the threshold can be fully liquidated fully, regardless of health
+    let ignore_health = pre_assets_equity < LIQUIDATION_DOLLAR_THRESHOLD;
+
     // Validate health still negative and load risk engine info
     let mut post_hc = HealthCache::zeroed();
     let risk_engine = RiskEngine::new(&marginfi_account, &ctx.remaining_accounts)?;
-    // Note: This will error if healthy, we guarantee that liquidation improves health to at most 0
+    // Note: This will error if healthy, we guarantee that liquidation improves health to at most 0,
+    // unless the account's net value is below the threshold, then we can clear it regardless (or not).
     let (post_health, _post_assets, _post_liabs) = risk_engine
-        .check_pre_liquidation_condition_and_get_account_health(None, &mut Some(&mut post_hc))?;
+        .check_pre_liquidation_condition_and_get_account_health(
+            None,
+            &mut Some(&mut post_hc),
+            ignore_health,
+        )?;
     let (post_assets_equity, post_liabilities_equity) = risk_engine
         .get_account_health_components(RiskRequirementType::Equity, &mut Some(&mut post_hc))?;
     marginfi_account.health_cache = post_hc;
 
-    let pre_assets: I80F48 = liq_record.cache.asset_value_maint.into();
-    let pre_liabs: I80F48 = liq_record.cache.liability_value_maint.into();
-    let pre_health: I80F48 = pre_assets - pre_liabs;
-
-    // validate health has improved
+    // validate health has improved.
     check!(post_health > pre_health, MarginfiError::HealthDidNotImprove);
 
     // ??? Do we care about this, as long as you improved health maybe you can claim as much as you want?
     // ensure seized asset‐value ≤ 105% of repaid liability‐value
-    let pre_assets_equity: I80F48 = liq_record.cache.asset_value_equity.into();
-    let pre_liabs_equity: I80F48 = liq_record.cache.liability_value_equity.into();
     let seized: I80F48 = pre_assets_equity - post_assets_equity;
     let repaid: I80F48 = pre_liabs_equity - post_liabilities_equity;
-    // Liquidator's fee cannot go lower than LIQUIDATION_MAX_FEE_MINIMUM
+    // Liquidator's allowed fee cannot go lower than LIQUIDATION_MAX_FEE_MINIMUM
     let max_fee: I80F48 = I80F48::max(
         fee_state.liquidation_max_fee.into(),
         I80F48!(1) + LIQUIDATION_MAX_FEE_MINIMUM,
     );
-    // msg!(
-    //     "seized: {:?} repaid: {:?}",
-    //     seized.to_num::<f64>(),
-    //     repaid.to_num::<f64>()
-    // );
-    check!(
-        seized <= repaid * max_fee,
-        MarginfiError::LiquidationPremiumTooHigh
-    );
+
+    if !ignore_health {
+        check!(
+            seized <= repaid * max_fee,
+            MarginfiError::LiquidationPremiumTooHigh
+        );
+    }
 
     // ??? Is this better/more flexible than debiting the insurance fee in the repaid asset?
     let liquidation_flat_sol_fee = fee_state.liquidation_flat_sol_fee;
@@ -74,8 +79,21 @@ pub fn end_liquidation<'info>(
     marginfi_account.unset_flag(ACCOUNT_IN_RECEIVERSHIP);
     liq_record.liquidation_receiver = Pubkey::default();
 
+    // record the entry in the liquidation record
+    {
+        let seized_f64 = seized.to_num::<f64>();
+        let repaid_f64 = repaid.to_num::<f64>();
+
+        // Rotate left to eject the oldest entry
+        liq_record.entries.rotate_left(1);
+        let entry = &mut liq_record.entries[3];
+
+        entry.asset_amount_seized = seized_f64.to_le_bytes();
+        entry.liab_amount_repaid = repaid_f64.to_le_bytes();
+        entry.timestamp = Clock::get()?.unix_timestamp;
+    }
+
     // TODO emit event
-    // TODO record entry in liquidation record
     Ok(())
 }
 

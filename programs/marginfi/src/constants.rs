@@ -57,6 +57,10 @@ pub const LIQUIDATION_FLAT_FEE_DEFAULT: u32 = 5000;
 /// * This is the minimum value the program allows for the above, if fee state is set below this,
 ///   the program will use this instead.
 pub const LIQUIDATION_MAX_FEE_MINIMUM: I80F48 = I80F48!(0.05);
+/// Liquidators can consume/close out the entire account with essentially no limits (e.g. regardless
+/// of liquidation bonus, etc) if it has net assets worth less than this amount in dollars. This
+/// roughly covers the fee to open a liquidation record plus a little extra.
+pub const LIQUIDATION_DOLLAR_THRESHOLD: I80F48 = I80F48!(5);
 
 pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
 

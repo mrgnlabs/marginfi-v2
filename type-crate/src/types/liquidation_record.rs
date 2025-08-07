@@ -16,7 +16,11 @@ use {
 use super::{Balance, LendingAccount, WrappedI80F48, MAX_LENDING_ACCOUNT_BALANCES};
 use crate::{assert_struct_align, assert_struct_size, constants::discriminators};
 
-assert_struct_size!(LiquidationRecord, 1800);
+// Records key information about the account during receivership liquidation. Records the result of
+// the last few liquidation events on this account. Typically, the liquidator pays to create this
+// account, and if a user doesn't have one, it means it has never been subject to receivership
+// liquidation.
+assert_struct_size!(LiquidationRecord, 512);
 assert_struct_align!(LiquidationRecord, 8);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", account(zero_copy))]
@@ -29,13 +33,20 @@ pub struct LiquidationRecord {
     pub key: Pubkey,
     /// Account this record tracks
     pub marginfi_account: Pubkey,
-    /// The last liquidator to take receivership of the `marginfi_account` and complete a liquidation.
+    /// The key that paid to create this account. At some point, we may allow this wallet to reclaim
+    /// the rent paid to open a record.
+    pub record_payer: Pubkey,
+    /// The liquidator taking receivership of the `marginfi_account` to complete a liquidation. Pays
+    /// the liquidation fee.
+    /// * Always pubkey default unless actively within a liquidation event.
     pub liquidation_receiver: Pubkey,
-    /// Basic data for the last few liquidation events on this account
+    /// Basic historical data for the last few liquidation events on this account
     pub entries: [LiquidationEntry; 4],
     pub cache: LiquidationCache,
 
-    _reserved0: [u8; 256],
+    _reserved0: [u8; 64],
+    _reserved2: [u8; 16],
+    _reserved3: [u8; 8],
 }
 
 /// Used to record key details of the last few liquidation events on the account
@@ -47,9 +58,13 @@ pub struct LiquidationRecord {
 )]
 #[cfg_attr(not(feature = "anchor"), derive(Default, Clone, Copy, Pod, Zeroable))]
 pub struct LiquidationEntry {
-    pub asset_amount_seized: u64,
-    pub liab_amount_repaid: u64,
-    pub liab_fees_taken: u64,
+    /// Dollar amount seized
+    /// * An f64 stored as bytes
+    pub asset_amount_seized: [u8; 8],
+    /// Dollar amount repaid
+    /// * An f64 stored as bytes
+    pub liab_amount_repaid: [u8; 8],
+    pub placeholder0: u64,
     pub timestamp: i64,
     _reserved0: [u8; 16],
 }
@@ -83,13 +98,38 @@ pub struct LiquidationCache {
     /// * Uses EMA price
     /// * In dollars
     pub liability_value_equity: WrappedI80F48,
-    /// A compact snapshot of the lending account taken when liquidation begins
-    pub mini_lending_account: MiniLendingAccount,
     pub _placeholder: u64,
     _reserved0: [u8; 32],
 }
 
-// A compact LendingAccount snapshot for use during liquidation
+impl LiquidationRecord {
+    pub const LEN: usize = std::mem::size_of::<LiquidationRecord>();
+    pub const DISCRIMINATOR: [u8; 8] = discriminators::LIQUIDATION_RECORD;
+}
+
+impl Default for LiquidationRecord {
+    fn default() -> Self {
+        LiquidationRecord {
+            key: Pubkey::default(),
+            marginfi_account: Pubkey::default(),
+            record_payer: Pubkey::default(),
+            liquidation_receiver: Pubkey::default(),
+            entries: [LiquidationEntry::default(); 4],
+            cache: LiquidationCache::default(),
+            _reserved0: [0u8; 64],
+            _reserved2: [0u8; 16],
+            _reserved3: [0u8; 8],
+        }
+    }
+}
+
+// **** Unused compact lending account/balance concepts *********
+
+// Note: These might be useful to store in the Liquidation record's cache for some use-cases, but
+// without a solid justification it just doesn't make sense to use the ~1200 bytes they consume when
+// the same information is already available on the user account itself.
+
+// A compact LendingAccount
 #[repr(C)]
 #[cfg_attr(
     feature = "anchor",
@@ -112,7 +152,7 @@ impl MiniLendingAccount {
     }
 }
 
-// A compact account Balance for use during liquidation
+// A compact account Balance
 #[repr(C)]
 #[cfg_attr(
     feature = "anchor",
@@ -138,51 +178,6 @@ impl From<&Balance> for MiniLendingAccountBalance {
             active: b.active,
             bank_asset_tag: b.bank_asset_tag,
             _padding: [0; 6],
-        }
-    }
-}
-
-impl LiquidationRecord {
-    pub const LEN: usize = std::mem::size_of::<LiquidationRecord>();
-    pub const DISCRIMINATOR: [u8; 8] = discriminators::LIQUIDATION_RECORD;
-
-    /// Generally used at the start of liquidation to snapshot the account's key health information.
-    pub fn new(
-        key: Pubkey,
-        marginfi_account: Pubkey,
-        liquidation_receiver: Pubkey,
-        asset_value_maint: WrappedI80F48,
-        liability_value_maint: WrappedI80F48,
-        asset_value_equity: WrappedI80F48,
-        liability_value_equity: WrappedI80F48,
-        lending_account: LendingAccount,
-    ) -> Self {
-        let mut cache = LiquidationCache::default();
-        cache.asset_value_maint = asset_value_maint;
-        cache.liability_value_maint = liability_value_maint;
-        cache.asset_value_equity = asset_value_equity;
-        cache.liability_value_equity = liability_value_equity;
-        cache.mini_lending_account = MiniLendingAccount::from_lending_account(&lending_account);
-        LiquidationRecord {
-            key,
-            marginfi_account,
-            liquidation_receiver,
-            entries: [LiquidationEntry::default(); 4],
-            cache,
-            _reserved0: [0u8; 256],
-        }
-    }
-}
-
-impl Default for LiquidationRecord {
-    fn default() -> Self {
-        LiquidationRecord {
-            key: Pubkey::default(),
-            marginfi_account: Pubkey::default(),
-            liquidation_receiver: Pubkey::default(),
-            entries: [LiquidationEntry::default(); 4],
-            cache: LiquidationCache::default(),
-            _reserved0: [0u8; 256],
         }
     }
 }

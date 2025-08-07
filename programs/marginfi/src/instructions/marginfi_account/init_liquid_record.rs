@@ -13,6 +13,7 @@ pub fn initialize_liquidation_record(ctx: Context<InitLiquidationRecord>) -> Mar
     let mut liq_record = ctx.accounts.liquidation_record.load_init()?;
 
     liq_record.key = ctx.accounts.liquidation_record.key();
+    liq_record.record_payer = ctx.accounts.fee_payer.key();
     liq_record.marginfi_account = ctx.accounts.marginfi_account.key();
     liq_record.entries = [LiquidationEntry::default(); 4];
     liq_record.cache = LiquidationCache::default();

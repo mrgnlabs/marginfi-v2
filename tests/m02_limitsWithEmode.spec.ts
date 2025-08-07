@@ -28,7 +28,12 @@ import {
 } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { assert } from "chai";
-import { defaultBankConfigOptRaw, newEmodeEntry } from "./utils/types";
+import {
+  CONF_INTERVAL_MULTIPLE,
+  defaultBankConfigOptRaw,
+  newEmodeEntry,
+  ORACLE_CONF_INTERVAL,
+} from "./utils/types";
 import {
   borrowIx,
   composeRemainingAccounts,
@@ -42,10 +47,16 @@ import {
 } from "./utils/user-instructions";
 import { deriveGlobalFeeState, deriveLiquidationRecord } from "./utils/pdas";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
-import { dumpAccBalances } from "./utils/tools";
+import { bytesToF64, dumpAccBalances } from "./utils/tools";
 import { genericMultiBankTestSetup } from "./genericSetups";
 import { getEpochAndSlot } from "./utils/stake-utils";
 import { Clock } from "solana-bankrun";
+import {
+  assertBNApproximately,
+  assertBNEqual,
+  assertKeyDefault,
+  assertKeysEqual,
+} from "./utils/genericTests";
 
 /** Banks in this test use a "random" seed so their key is non-deterministic. */
 let startingSeed: number;
@@ -366,14 +377,15 @@ describe("Limits on number of accounts, with emode in effect", () => {
     let { epoch: _, slot } = await getEpochAndSlot(banksClient);
     bankrunContext.warpToSlot(BigInt(slot + slotsToAdvance));
 
-    if (verbose) {
-      console.log("LUT key: " + lutAddress.toString());
-    }
-
     const [liqRecordKey] = deriveLiquidationRecord(
       bankrunProgram.programId,
       liquidateeAccount
     );
+
+    const mrgnAccountBefore =
+      await bankrunProgram.account.marginfiAccount.fetch(liquidateeAccount);
+    assertKeyDefault(mrgnAccountBefore.liquidationRecord);
+    dumpAccBalances(mrgnAccountBefore);
 
     let tx = new Transaction();
     tx.add(
@@ -386,6 +398,13 @@ describe("Limits on number of accounts, with emode in effect", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(liquidator.wallet);
     await banksClient.processTransaction(tx);
+
+    const recordBefore = await bankrunProgram.account.liquidationRecord.fetch(
+      liqRecordKey
+    );
+    assertKeysEqual(recordBefore.key, liqRecordKey);
+    assertKeysEqual(recordBefore.recordPayer, liquidator.wallet.publicKey);
+    assertKeysEqual(recordBefore.marginfiAccount, liquidateeAccount);
 
     tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
@@ -400,14 +419,14 @@ describe("Limits on number of accounts, with emode in effect", () => {
         bank: banks[0],
         tokenAccount: liquidator.lstAlphaAccount,
         remaining: composeRemainingAccounts(remainingAccounts),
-        amount: new BN(1),
+        amount: new BN(0.105 * 10 ** ecosystem.lstAlphaDecimals),
       }),
       await repayIx(liquidator.mrgnBankrunProgram, {
         marginfiAccount: liquidateeAccount,
         bank: banks[MAX_BALANCES - 1],
         tokenAccount: liquidator.lstAlphaAccount,
         remaining: composeRemainingAccounts(remainingAccounts),
-        amount: new BN(1),
+        amount: new BN(0.1 * 10 ** ecosystem.lstAlphaDecimals),
       }),
       await endLiquidationIx(liquidator.mrgnBankrunProgram, {
         marginfiAccount: liquidateeAccount,
@@ -430,11 +449,45 @@ describe("Limits on number of accounts, with emode in effect", () => {
     versionedTx.sign([liquidator.wallet]);
     await banksClient.processTransaction(versionedTx);
 
-    const record = await bankrunProgram.account.liquidationRecord.fetch(
+    const recordAfter = await bankrunProgram.account.liquidationRecord.fetch(
       liqRecordKey
     );
+    const mrgnAccountAfter = await bankrunProgram.account.marginfiAccount.fetch(
+      liquidateeAccount
+    );
+    dumpAccBalances(mrgnAccountAfter);
+    assertKeysEqual(mrgnAccountAfter.liquidationRecord, liqRecordKey);
 
-    // TODO assert various properties of the liquidation record...
+    const entry = recordAfter.entries[3];
+    assert(entry.timestamp.toNumber() > 0);
+
+    // Note: asset seized and liability repaid are scaled to the oracle confidence adjustment
+    const seized = bytesToF64(entry.assetAmountSeized);
+    const repaid = bytesToF64(entry.liabAmountRepaid);
+    if (verbose) {
+      console.log("asset seized: " + seized);
+      console.log("liab repaid: " + repaid);
+      console.log("theoretical profit: " + (seized - repaid));
+    }
+    const expectedAssets =
+      0.105 * oracles.lstAlphaPrice -
+      0.105 *
+        oracles.lstAlphaPrice *
+        ORACLE_CONF_INTERVAL *
+        CONF_INTERVAL_MULTIPLE;
+    assert.approximately(seized, expectedAssets, 0.001);
+    const expectedLiabs =
+      0.1 * oracles.lstAlphaPrice +
+      0.1 *
+        oracles.lstAlphaPrice *
+        ORACLE_CONF_INTERVAL *
+        CONF_INTERVAL_MULTIPLE;
+    assert.approximately(repaid, expectedLiabs, 0.001);
+
+    // other slots (0-2) should still be zero
+    for (let i = 0; i < 3; i++) {
+      assert(recordAfter.entries[i].timestamp.toNumber() == 0);
+    }
   });
 
   // TODO try these with switchboard oracles.

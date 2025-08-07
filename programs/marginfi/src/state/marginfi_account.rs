@@ -262,9 +262,9 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         }
     }
 
-    /// Returns value, the net asset value in $, and the price used to determine that value. In most
-    /// cases, returns (value, price, 0). If there was an error loading the price feed, treats the
-    /// price as zero, and passes the u32 argument that contains the error code, i.e. the return
+    /// Returns value, the price used to determine that value, and an error code if applicable. In
+    /// most cases, returns (value, price, 0). If there was an error loading the price feed, treats
+    /// the price as zero, and passes the u32 argument that contains the error code, i.e. the return
     /// type is (0, 0, err_code). Other types of errors (e.g. math) will still throw.
     #[inline(always)]
     fn calc_weighted_asset_value(
@@ -646,6 +646,7 @@ impl<'info> RiskEngine<'_, 'info> {
         &self,
         bank_pk: Option<&Pubkey>,
         health_cache: &mut Option<&mut HealthCache>,
+        ignore_healthy: bool,
     ) -> MarginfiResult<(I80F48, I80F48, I80F48)> {
         check!(
             !self.marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
@@ -674,12 +675,13 @@ impl<'info> RiskEngine<'_, 'info> {
             self.get_account_health_components(RiskRequirementType::Maintenance, health_cache)?;
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
+        let healthy = account_health > I80F48::ZERO;
 
         if let Some(cache) = health_cache {
-            cache.set_healthy(account_health > I80F48::ZERO);
+            cache.set_healthy(healthy);
         }
 
-        if account_health > I80F48::ZERO {
+        if healthy && !ignore_healthy {
             msg!(
                 "pre_liquidation_health: {} ({} - {})",
                 account_health,

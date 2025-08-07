@@ -153,6 +153,7 @@ pub fn lending_account_liquidate<'info>(
             .check_pre_liquidation_condition_and_get_account_health(
                 Some(&ctx.accounts.liab_bank.key()),
                 &mut None,
+                false,
             )?;
 
     // ##Accounting changes##
