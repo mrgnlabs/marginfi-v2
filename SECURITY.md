@@ -16,6 +16,12 @@ Note that these are simply guidelines for the severity of the bugs. Each bug bou
 
 ## Infrastructure Bug Bounties
 Bug bounties for infrastructure components (networking, UI, SDK) are first-come-first-serve. The bounty amount is at the discretion of the team based on severity.
+
+|Severity|Bounty|
+|-----------|-------------|
+|Minor|$50|
+|Medium|$50 to $500|
+|Critical|Up to $5,000|
 ​
 ## Submission
 Please email security@mrgn.group with a detailed description of the attack vector.
