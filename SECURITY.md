@@ -2,7 +2,7 @@
 **DO NOT CREATE A GITHUB ISSUE** to report a security problem. Instead, please send an email to security@mrgn.group with a detailed description of the attack vector and security risk you have identified.
 ​
 # Bug Bounty Overview
-marginfi offers bug bounties for marginfi's on-chain program code. UI-only bugs are omitted.
+marginfi offers bug bounties for marginfi's on-chain program code. Bugs related to other parts of marginfi's infrastructure (networking, UI, SDK) are marked below.
 ​
 |Severity|Bounty|
 |-----------|-------------|
@@ -13,6 +13,9 @@ marginfi offers bug bounties for marginfi's on-chain program code. UI-only bugs 
 
 The severity scale is based on [Immunefi's classification system](https://immunefi.com/immunefi-vulnerability-severity-classification-system-v2-3/). 
 Note that these are simply guidelines for the severity of the bugs. Each bug bounty submission will be evaluated on a case-by-case basis.
+
+## Infrastructure Bug Bounties
+Bug bounties for infrastructure components (networking, UI, SDK) are first-come-first-serve. The bounty amount is at the discretion of the team based on severity.
 ​
 ## Submission
 Please email security@mrgn.group with a detailed description of the attack vector.
