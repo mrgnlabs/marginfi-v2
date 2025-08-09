@@ -6,4 +6,5 @@ pub mod spl;
 pub mod test;
 pub mod utils;
 
+#[cfg(feature = "transfer-hook")]
 pub use transfer_hook;
