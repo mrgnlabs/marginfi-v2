@@ -119,6 +119,7 @@ impl MarginfiAccountFixture {
                 .map(|acc| acc.map(|a| a.data))?)
         };
         let payer = self.ctx.borrow_mut().payer.pubkey();
+        #[cfg(feature = "transfer-hook")]
         if bank.mint.token_program == anchor_spl::token_2022::ID {
             // TODO: do that only if hook exists
             println!(
@@ -288,6 +289,7 @@ impl MarginfiAccountFixture {
             .make_bank_borrow_ix(destination_account, bank, ui_amount)
             .await;
 
+        #[cfg(feature = "transfer-hook")]
         if bank.mint.token_program == anchor_spl::token_2022::ID {
             let fetch_account_data_fn = |key| async move {
                 Ok(self
@@ -483,6 +485,7 @@ impl MarginfiAccountFixture {
             .data(),
         };
 
+        #[cfg(feature = "transfer-hook")]
         if liab_bank_fixture.mint.token_program == anchor_spl::token_2022::ID {
             let payer = self.ctx.borrow().payer.pubkey();
             let fetch_account_data_fn = |key| async move {
