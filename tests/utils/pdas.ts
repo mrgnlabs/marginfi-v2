@@ -112,3 +112,28 @@ export const deriveStakedSettings = (
     programId
   );
 };
+
+export const deriveMarginfiAccountPda = (
+  programId: PublicKey,
+  group: PublicKey,
+  authority: PublicKey,
+  accountIndex: number,
+  thirdPartyId?: number
+) => {
+  const accountIndexBuffer = Buffer.allocUnsafe(4);
+  accountIndexBuffer.writeUInt32LE(accountIndex, 0);
+  
+  const thirdPartyIdBuffer = Buffer.allocUnsafe(4);
+  thirdPartyIdBuffer.writeUInt32LE(thirdPartyId || 0, 0);
+
+  return PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("marginfi_account", "utf-8"),
+      group.toBuffer(),
+      authority.toBuffer(),
+      accountIndexBuffer,
+      thirdPartyIdBuffer,
+    ],
+    programId
+  );
+};

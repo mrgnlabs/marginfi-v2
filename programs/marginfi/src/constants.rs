@@ -18,6 +18,11 @@ pub const STAKED_SETTINGS_SEED: &str = "staked_settings";
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 
+pub const MARGINFI_ACCOUNT_SEED: &str = "marginfi_account";
+
+/// Mocks program ID for third-party ID restrictions
+pub const MOCKS_PROGRAM_ID: Pubkey = pubkey!("5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C");
+
 /// Used for the health cache to track which version of the program generated it.
 /// * 0 = invalid
 /// * 1 = 0.1.3
