@@ -204,5 +204,33 @@ describe("Initialize user account with PDA", () => {
     assert.notEqual(pda3.toBase58(), pda4.toBase58());
   });
 
+  it("(user 0) Try to initialize PDA account with restricted third-party ID 42 - should fail", async () => {
+    const accountIndex = 10; // Use different index to avoid conflicts
+    const restrictedThirdPartyId = 42;
+    const [accountPda, bump] = deriveMarginfiAccountPda(
+      program.programId,
+      marginfiGroup.publicKey,
+      users[0].wallet.publicKey,
+      accountIndex,
+      restrictedThirdPartyId
+    );
+
+    let tx: Transaction = new Transaction();
+    tx.add(
+      await accountInitPda(program, {
+        marginfiGroup: marginfiGroup.publicKey,
+        marginfiAccount: accountPda,
+        authority: users[0].wallet.publicKey,
+        feePayer: users[0].wallet.publicKey,
+        accountIndex: accountIndex,
+        thirdPartyId: restrictedThirdPartyId,
+      })
+    );
+
+    await expectFailedTxWithMessage(async () => {
+      await users[0].mrgnProgram.provider.sendAndConfirm(tx, []);
+    }, "Unauthorized");
+  });
+
  
 });

@@ -1,5 +1,5 @@
 import { BN, Program } from "@coral-xyz/anchor";
-import { AccountMeta, PublicKey } from "@solana/web3.js";
+import { AccountMeta, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { deriveLiquidityVault } from "./pdas";
@@ -505,7 +505,6 @@ export type AccountInitPdaArgs = {
   feePayer: PublicKey;
   accountIndex: number;
   thirdPartyId?: number;
-  cpiProgram?: PublicKey;
 };
 
 /**
@@ -525,7 +524,7 @@ export const accountInitPda = (
     marginfiAccount: args.marginfiAccount,
     authority: args.authority,
     feePayer: args.feePayer,
-    cpiProgram: args.cpiProgram || null,
+    instructionsSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
   };
 
   const ix = program.methods
@@ -543,7 +542,6 @@ export type TransferAccountAuthorityPdaArgs = {
   globalFeeWallet: PublicKey;
   accountIndex: number;
   thirdPartyId?: number;
-  cpiProgram?: PublicKey;
 };
 
 export const transferAccountAuthorityPdaIx = (
@@ -557,7 +555,7 @@ export const transferAccountAuthorityPdaIx = (
     // authority: args.feePayer, // implied from oldMarginfiAccount
     newAuthority: args.newAuthority,
     globalFeeWallet: args.globalFeeWallet,
-    cpiProgram: args.cpiProgram || null,
+    instructionsSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
   };
 
   const ix = program.methods

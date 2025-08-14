@@ -5,7 +5,7 @@ use crate::{
     state::marginfi_account::MarginfiAccount,
 };
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::sysvar::Sysvar;
+use anchor_lang::solana_program::sysvar::{instructions as ix_sysvar, Sysvar};
 
 pub fn initialize_account(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
     let MarginfiAccountInitialize {
@@ -75,15 +75,23 @@ pub fn initialize_account_pda(
     if let Some(id) = third_party_id {
         if id == 42 {
             // Restrict id=42 to CPI calls from the mocks program only
-            let caller_program = ctx.accounts.cpi_program.as_ref().map(|p| p.key());
-            match caller_program {
-                Some(program_key) => {
-                    // Check if the caller is the mocks program
-                    if program_key != MOCKS_PROGRAM_ID {
-                        return err!(MarginfiError::Unauthorized);
-                    }
+            // Use instruction sysvar to get the actual calling program
+            let current_ix_index = ix_sysvar::load_current_index_checked(&ctx.accounts.instructions_sysvar)?; 
+            
+            // Look for the previous instruction (caller) if it exists
+            if current_ix_index > 0 {
+                let caller_ix = ix_sysvar::load_instruction_at_checked(
+                    current_ix_index.saturating_sub(1) as usize,
+                    &ctx.accounts.instructions_sysvar
+                )?;
+                
+                // Check if the calling program is the mocks program
+                if caller_ix.program_id != MOCKS_PROGRAM_ID {
+                    return err!(MarginfiError::Unauthorized);
                 }
-                None => return err!(MarginfiError::Unauthorized),
+            } else {
+                // Direct call (not CPI), which should not be allowed for id=42
+                return err!(MarginfiError::Unauthorized);
             }
         }
     }
@@ -129,9 +137,10 @@ pub struct MarginfiAccountInitializePda<'info> {
     #[account(mut)]
     pub fee_payer: Signer<'info>,
 
-    /// Optional program account for CPI validation
-    /// CHECK: Used for validating third-party id restrictions
-    pub cpi_program: Option<UncheckedAccount<'info>>,
+    /// Instructions sysvar for CPI validation
+    /// CHECK: Standard sysvar account
+    #[account(address = anchor_lang::solana_program::sysvar::instructions::id())]
+    pub instructions_sysvar: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }

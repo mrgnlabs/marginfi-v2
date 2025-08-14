@@ -3,7 +3,7 @@ use fixtures::test::TestFixture;
 use marginfi::state::marginfi_account::MarginfiAccount;
 use solana_program_test::tokio;
 use solana_sdk::{
-    instruction::Instruction, signature::Keypair, signer::Signer, system_program,
+    instruction::Instruction, signature::Keypair, signer::Signer, system_program, sysvar,
     transaction::Transaction,
 };
 
@@ -68,7 +68,7 @@ async fn transfer_to_new_account_pda_success() -> anyhow::Result<()> {
         authority: old_authority,
         new_authority: new_authority,
         global_fee_wallet: test_f.marginfi_group.fee_wallet,
-        cpi_program: None,
+        instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
     };
 
@@ -178,7 +178,7 @@ async fn transfer_to_new_account_pda_with_third_party_id() -> anyhow::Result<()>
         authority: old_authority,
         new_authority: new_authority,
         global_fee_wallet: test_f.marginfi_group.fee_wallet,
-        cpi_program: None,
+        instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
     };
 
@@ -280,7 +280,7 @@ async fn transfer_double_migration_fails() -> anyhow::Result<()> {
         authority: old_authority,
         new_authority: new_authority1,
         global_fee_wallet: test_f.marginfi_group.fee_wallet,
-        cpi_program: None,
+        instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
     };
 
@@ -327,7 +327,7 @@ async fn transfer_double_migration_fails() -> anyhow::Result<()> {
         authority: old_authority,
         new_authority: new_authority2,
         global_fee_wallet: test_f.marginfi_group.fee_wallet,
-        cpi_program: None,
+        instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
     };
 
