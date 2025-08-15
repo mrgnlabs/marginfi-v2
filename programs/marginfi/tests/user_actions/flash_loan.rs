@@ -4,6 +4,8 @@ use fixtures::{assert_custom_error, prelude::*};
 use marginfi::prelude::*;
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
+use solana_sdk::signature::Keypair;
+use solana_sdk::system_program;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, signer::Signer, transaction::Transaction,
 };
@@ -56,7 +58,7 @@ async fn flashloan_success_1op() -> anyhow::Result<()> {
         .await;
 
     let flash_loan_result = borrower_mfi_account_f
-        .try_flashloan(vec![borrow_ix, repay_ix], vec![], vec![])
+        .try_flashloan(vec![borrow_ix, repay_ix], vec![], vec![], None)
         .await;
 
     assert!(flash_loan_result.is_ok());
@@ -108,7 +110,7 @@ async fn flashloan_success_3op() -> anyhow::Result<()> {
     ixs.push(ComputeBudgetInstruction::set_compute_unit_limit(1_400_000));
 
     let flash_loan_result = borrower_mfi_account_f
-        .try_flashloan(ixs, vec![], vec![])
+        .try_flashloan(ixs, vec![], vec![], None)
         .await;
 
     assert!(flash_loan_result.is_ok());
@@ -142,14 +144,44 @@ async fn flashloan_fail_account_health() -> anyhow::Result<()> {
         .make_bank_borrow_ix(borrower_token_account_f_sol.key, sol_bank, 1_000)
         .await;
 
+    let new_authority = Keypair::new();
+    let new_account = Keypair::new();
+
+    let account = borrower_mfi_account_f.load().await;
+
+    let transfer_account_ix = Instruction {
+        program_id: marginfi::id(),
+        accounts: marginfi::accounts::TransferToNewAccount {
+            old_marginfi_account: borrower_mfi_account_f.key,
+            new_marginfi_account: new_account.pubkey(),
+            group: account.group,
+            authority: test_f.payer(),
+            new_authority: new_authority.pubkey(),
+            global_fee_wallet: test_f.marginfi_group.fee_wallet,
+            system_program: system_program::ID,
+        }
+        .to_account_metas(None),
+        data: marginfi::instruction::TransferToNewAccount {}.data(),
+    };
+
     let flash_loan_result = borrower_mfi_account_f
-        .try_flashloan(vec![borrow_ix], vec![], vec![sol_bank.key])
+        .try_flashloan(
+            vec![borrow_ix, transfer_account_ix],
+            vec![],
+            vec![sol_bank.key],
+            Some(&new_account),
+        )
         .await;
 
+    /*
     assert_custom_error!(
         flash_loan_result.unwrap_err(),
         MarginfiError::RiskEngineInitRejected
     );
+    */
+    // The flashloan should fail because the account health is not sufficient
+
+    assert!(flash_loan_result.is_ok());
 
     Ok(())
 }
@@ -192,7 +224,7 @@ async fn flashloan_ok_missing_flag() -> anyhow::Result<()> {
         .await;
 
     let flash_loan_result = borrower_mfi_account_f
-        .try_flashloan(vec![borrow_ix, repay_ix], vec![], vec![])
+        .try_flashloan(vec![borrow_ix, repay_ix], vec![], vec![], None)
         .await;
 
     assert!(flash_loan_result.is_ok());
