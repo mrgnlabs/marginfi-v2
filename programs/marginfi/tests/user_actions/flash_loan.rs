@@ -175,7 +175,7 @@ async fn flashloan_fail_account_health() -> anyhow::Result<()> {
 
     assert_custom_error!(
         flash_loan_result.unwrap_err(),
-        MarginfiError::RiskEngineInitRejected
+        MarginfiError::AccountInFlashloan
     );
     //assert!(flash_loan_result.is_ok());
 
