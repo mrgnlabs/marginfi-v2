@@ -1,9 +1,11 @@
 use crate::{
-    check_eq,
+    check, check_eq,
     constants::ACCOUNT_TRANSFER_FEE,
     events::{AccountEventHeader, MarginfiAccountTransferToNewAccount},
     prelude::*,
-    state::marginfi_account::{LendingAccount, MarginfiAccount, ACCOUNT_DISABLED},
+    state::marginfi_account::{
+        LendingAccount, MarginfiAccount, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
+    },
 };
 use anchor_lang::prelude::*;
 use bytemuck::Zeroable;
@@ -19,6 +21,11 @@ pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiRe
     anchor_lang::system_program::transfer(ctx.accounts.transfer_fee(), ACCOUNT_TRANSFER_FEE)?;
 
     let mut old_account = ctx.accounts.old_marginfi_account.load_mut()?;
+
+    check!(
+        !old_account.get_flag(ACCOUNT_IN_FLASHLOAN),
+        MarginfiError::AccountInFlashloan
+    );
 
     // Prevent multiple migrations from the same account
     check_eq!(
