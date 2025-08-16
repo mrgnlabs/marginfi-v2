@@ -1,5 +1,5 @@
 import { BN, Program } from "@coral-xyz/anchor";
-import { AccountMeta, PublicKey } from "@solana/web3.js";
+import { AccountMeta, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { deriveLiquidityVault } from "./pdas";
@@ -495,4 +495,73 @@ export const composeRemainingAccounts = (
 
   // flatten out [bank, oracle…, oracle…] → [bank, oracle…, bank, oracle…, …]
   return banksAndOracles.flat();
+};
+
+
+export type AccountInitPdaArgs = {
+  marginfiGroup: PublicKey;
+  marginfiAccount: PublicKey;
+  authority: PublicKey;
+  feePayer: PublicKey;
+  accountIndex: number;
+  thirdPartyId?: number;
+};
+
+/**
+ * Init a user account using PDA for some group.
+ * * fee payer and authority must both sign.
+ * * account address is derived as PDA, no keypair needed
+ * @param program
+ * @param args
+ * @returns
+ */
+export const accountInitPda = (
+  program: Program<Marginfi>,
+  args: AccountInitPdaArgs
+) => {
+  const accounts: any = {
+    marginfiGroup: args.marginfiGroup,
+    marginfiAccount: args.marginfiAccount,
+    authority: args.authority,
+    feePayer: args.feePayer,
+    instructionsSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+  };
+
+  const ix = program.methods
+    .marginfiAccountInitializePda(args.accountIndex, args.thirdPartyId || null)
+    .accounts(accounts)
+    .instruction();
+
+  return ix;
+};
+
+export type TransferAccountAuthorityPdaArgs = {
+  oldAccount: PublicKey;
+  newAccount: PublicKey;
+  newAuthority: PublicKey;
+  globalFeeWallet: PublicKey;
+  accountIndex: number;
+  thirdPartyId?: number;
+};
+
+export const transferAccountAuthorityPdaIx = (
+  program: Program<Marginfi>,
+  args: TransferAccountAuthorityPdaArgs
+) => {
+  const accounts: any = {
+    oldMarginfiAccount: args.oldAccount,
+    newMarginfiAccount: args.newAccount,
+    // group: args.marginfiGroup,  // implied from oldMarginfiAccount
+    // authority: args.feePayer, // implied from oldMarginfiAccount
+    newAuthority: args.newAuthority,
+    globalFeeWallet: args.globalFeeWallet,
+    instructionsSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+  };
+
+  const ix = program.methods
+    .transferToNewAccountPda(args.accountIndex, args.thirdPartyId || null)
+    .accounts(accounts)
+    .instruction();
+
+  return ix;
 };

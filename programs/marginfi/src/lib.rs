@@ -233,6 +233,15 @@ pub mod marginfi {
         marginfi_account::initialize_account(ctx)
     }
 
+    /// Initialize a marginfi account for a given group
+    pub fn marginfi_account_initialize_pda(
+        ctx: Context<MarginfiAccountInitializePda>,
+        account_index: u32,
+        third_party_id: Option<u32>,
+    ) -> MarginfiResult {
+        marginfi_account::initialize_account_pda(ctx, account_index, third_party_id)
+    }
+
     pub fn lending_account_deposit<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
         amount: u64,
@@ -357,6 +366,14 @@ pub mod marginfi {
         marginfi_account::transfer_to_new_account(ctx)
     }
 
+    pub fn transfer_to_new_account_pda(
+        ctx: Context<TransferToNewAccountPda>,
+        account_index: u32,
+        third_party_id: Option<u32>,
+    ) -> MarginfiResult {
+        marginfi_account::transfer_to_new_account_pda(ctx, account_index, third_party_id)
+    }
+    
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
         marginfi_account::close_account(ctx)
     }
