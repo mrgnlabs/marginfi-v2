@@ -619,6 +619,7 @@ impl MarginfiAccountFixture {
         ixs: Vec<Instruction>,
         exclude_banks: Vec<Pubkey>,
         include_banks: Vec<Pubkey>,
+        signer: Option<&Keypair>,
     ) -> std::result::Result<(), BanksClientError> {
         let mut ixs = ixs;
         let start_ix = self
@@ -633,10 +634,16 @@ impl MarginfiAccountFixture {
 
         let ctx = self.ctx.borrow_mut();
 
+        let signers = if let Some(signer) = signer {
+            vec![&ctx.payer, signer]
+        } else {
+            vec![&ctx.payer]
+        };
+
         let tx = Transaction::new_signed_with_payer(
             &ixs,
             Some(&ctx.payer.pubkey().clone()),
-            &[&ctx.payer],
+            &signers,
             ctx.last_blockhash,
         );
 
