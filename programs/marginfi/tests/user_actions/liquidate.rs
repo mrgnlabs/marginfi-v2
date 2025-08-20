@@ -13,15 +13,17 @@ use pretty_assertions::assert_eq;
 use solana_program_test::*;
 use test_case::test_case;
 
-#[test_case(100., 9.9, 1., BankMint::Usdc, BankMint::Sol)]
-#[test_case(123., 122., 10., BankMint::SolEquivalent, BankMint::SolEqIsolated)]
-#[test_case(1_000., 999., 10., BankMint::Usdc, BankMint::T22WithFee)]
-#[test_case(2_000., 99., 1_000., BankMint::T22WithFee, BankMint::SolEquivalent)]
-#[test_case(2_000., 1_999., 2_000., BankMint::Usdc, BankMint::PyUSD)]
+#[test_case(100., 9.9, -1., 1., 2., BankMint::Usdc, BankMint::Sol)]
+#[test_case(123., 122., -4., -4., 10., BankMint::SolEquivalent, BankMint::SolEqIsolated)]
+#[test_case(1_000., 999., 0., 0., 10., BankMint::Usdc, BankMint::T22WithFee)]
+#[test_case(2_000., 99., 400., -400., 1_000., BankMint::T22WithFee, BankMint::SolEquivalent)]
+#[test_case(2_000., 1_999., 1000., 750., 2_000., BankMint::Usdc, BankMint::PyUSD)]
 #[tokio::test]
 async fn marginfi_account_liquidation_success(
-    deposit_amount: f64,
-    borrow_amount: f64,
+    liquidatee_deposit_amount: f64,
+    liquidatee_borrow_amount: f64,
+    liquidator_deposit_amount: f64,
+    liquidator_borrow_amount: f64,
     liquidate_amount: f64,
     collateral_mint: BankMint,
     debt_mint: BankMint,
@@ -35,7 +37,7 @@ async fn marginfi_account_liquidation_success(
     // LP
 
     {
-        let lp_deposit_amount = 2. * borrow_amount;
+        let lp_deposit_amount = 2. * liquidatee_borrow_amount;
         let lp_wallet_balance = get_max_deposit_amount_pre_fee(lp_deposit_amount);
         let lp_mfi_account_f = test_f.create_marginfi_account().await;
         let lp_collateral_token_account = test_f
@@ -55,9 +57,14 @@ async fn marginfi_account_liquidation_success(
 
     // Liquidatee
 
-    let (liquidatee_mfi_account_f, borrow_amount_actual, collateral_index, debt_index) = {
+    let (
+        liquidatee_mfi_account_f,
+        liquidatee_borrow_amount_actual,
+        liquidatee_collateral_index,
+        liquidatee_debt_index,
+    ) = {
         let liquidatee_mfi_account_f = test_f.create_marginfi_account().await;
-        let liquidatee_wallet_balance = get_max_deposit_amount_pre_fee(deposit_amount);
+        let liquidatee_wallet_balance = get_max_deposit_amount_pre_fee(liquidatee_deposit_amount);
         let liquidatee_collateral_token_account_f = test_f
             .get_bank_mut(&collateral_mint)
             .mint
@@ -73,7 +80,7 @@ async fn marginfi_account_liquidation_success(
             .try_bank_deposit(
                 liquidatee_collateral_token_account_f.key,
                 collateral_bank,
-                deposit_amount,
+                liquidatee_deposit_amount,
                 None,
             )
             .await?;
@@ -82,7 +89,7 @@ async fn marginfi_account_liquidation_success(
             .try_bank_borrow(
                 liquidatee_debt_token_account_f.key,
                 debt_bank,
-                borrow_amount,
+                liquidatee_borrow_amount,
             )
             .await?;
 
@@ -101,7 +108,7 @@ async fn marginfi_account_liquidation_success(
             .position(|b| b.is_active() && b.bank_pk == debt_bank.key)
             .unwrap();
 
-        let debt_bank = test_f.get_bank(&debt_mint).load().await;
+        let debt_bank = debt_bank.load().await;
         let borrow_amount_actual_native = debt_bank.get_liability_amount(
             liquidatee_mfi_ma.lending_account.balances[debt_index]
                 .liability_shares
@@ -122,20 +129,82 @@ async fn marginfi_account_liquidation_success(
 
     let liquidator_mfi_account_f = {
         let liquidator_mfi_account_f = test_f.create_marginfi_account().await;
-        let liquidator_wallet_balance = get_max_deposit_amount_pre_fee(borrow_amount_actual);
-        let liquidator_collateral_token_account_f = test_f
-            .get_bank_mut(&debt_mint)
+        // This is just to be sure the liquidator is healthy even if its balances in debt and collateral banks are negative (liabs).
+        let extra_collateral_amount = 10.0 * liquidatee_borrow_amount_actual;
+        let liquidator_wallet_balance = get_max_deposit_amount_pre_fee(extra_collateral_amount);
+        let liquidator_extra_collateral_token_account_f = test_f
+            .get_bank_mut(&BankMint::SolSwbPull)
             .mint
             .create_token_account_and_mint_to(liquidator_wallet_balance)
             .await;
+
         liquidator_mfi_account_f
             .try_bank_deposit(
-                liquidator_collateral_token_account_f.key,
-                test_f.get_bank(&debt_mint),
-                borrow_amount_actual,
+                liquidator_extra_collateral_token_account_f.key,
+                test_f.get_bank(&BankMint::SolSwbPull),
+                extra_collateral_amount,
                 None,
             )
             .await?;
+
+        // Now let's fill the balances in the actual collateral and debt banks.
+        let liquidator_collateral_mint_f = &test_f.get_bank_mut(&collateral_mint).mint;
+
+        if liquidator_deposit_amount > 0. {
+            let liquidator_wallet_balance =
+                get_max_deposit_amount_pre_fee(liquidator_deposit_amount);
+            let liquidator_collateral_token_account_f = liquidator_collateral_mint_f
+                .create_token_account_and_mint_to(liquidator_wallet_balance)
+                .await;
+
+            liquidator_mfi_account_f
+                .try_bank_deposit(
+                    liquidator_collateral_token_account_f.key,
+                    test_f.get_bank(&collateral_mint),
+                    liquidator_deposit_amount,
+                    None,
+                )
+                .await?;
+        } else if liquidator_deposit_amount < 0. {
+            let liquidator_collateral_token_account_f = liquidator_collateral_mint_f
+                .create_empty_token_account()
+                .await;
+            liquidator_mfi_account_f
+                .try_bank_borrow(
+                    liquidator_collateral_token_account_f.key,
+                    test_f.get_bank(&collateral_mint),
+                    -liquidator_deposit_amount,
+                )
+                .await?;
+        };
+
+        let liquidator_debt_mint_f = &test_f.get_bank_mut(&debt_mint).mint;
+
+        if liquidator_borrow_amount > 0. {
+            let liquidator_debt_token_account_f =
+                liquidator_debt_mint_f.create_empty_token_account().await;
+            liquidator_mfi_account_f
+                .try_bank_borrow(
+                    liquidator_debt_token_account_f.key,
+                    test_f.get_bank(&debt_mint),
+                    liquidator_borrow_amount,
+                )
+                .await?;
+        } else if liquidator_borrow_amount < 0. {
+            let liquidator_wallet_balance =
+                get_max_deposit_amount_pre_fee(-liquidator_borrow_amount);
+            let liquidator_debt_token_account_f = liquidator_debt_mint_f
+                .create_token_account_and_mint_to(liquidator_wallet_balance)
+                .await;
+            liquidator_mfi_account_f
+                .try_bank_deposit(
+                    liquidator_debt_token_account_f.key,
+                    test_f.get_bank(&debt_mint),
+                    -liquidator_borrow_amount,
+                    None,
+                )
+                .await?;
+        };
 
         liquidator_mfi_account_f
     };
@@ -169,21 +238,38 @@ async fn marginfi_account_liquidation_success(
         )
         .await?;
 
-    let collateral_bank = collateral_bank_f.load().await;
-    let debt_bank = debt_bank_f.load().await;
-
     let liquidator_mfi_ma = liquidator_mfi_account_f.load().await;
     let liquidatee_mfi_ma = liquidatee_mfi_account_f.load().await;
 
-    // Check liquidator collateral balances
+    // Due to balances sorting (and the LP deposit in the third bank), collateral and debt may be not at indices 0 and 1 -> determine them first
+    let liquidator_collateral_index = liquidator_mfi_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == collateral_bank_f.key)
+        .unwrap();
+    let liquidator_debt_index = liquidator_mfi_ma
+        .lending_account
+        .balances
+        .iter()
+        .position(|b| b.is_active() && b.bank_pk == debt_bank_f.key)
+        .unwrap();
+
+    let collateral_bank = collateral_bank_f.load().await;
+    let debt_bank = debt_bank_f.load().await;
+
+    // Check liquidator collateral and debt balances
+    let expected_collateral_mint_liquidator_balance = I80F48::from(native!(
+        liquidator_deposit_amount + liquidate_amount,
+        collateral_bank_f.mint.mint.decimals,
+        f64
+    ));
 
     let collateral_mint_liquidator_balance = collateral_bank.get_asset_amount(
-        liquidator_mfi_ma.lending_account.balances[collateral_index]
+        liquidator_mfi_ma.lending_account.balances[liquidator_collateral_index]
             .asset_shares
             .into(),
     )?;
-    let expected_collateral_mint_liquidator_balance =
-        native!(liquidate_amount, collateral_bank_f.mint.mint.decimals, f64);
     assert_eq!(
         expected_collateral_mint_liquidator_balance,
         collateral_mint_liquidator_balance
@@ -193,15 +279,16 @@ async fn marginfi_account_liquidation_success(
         / debt_bank_f.get_price().await;
 
     let expected_debt_mint_liquidator_balance = I80F48::from(native!(
-        borrow_amount_actual - debt_paid_out,
+        debt_paid_out + liquidator_borrow_amount,
         debt_bank_f.mint.mint.decimals,
         f64
     ));
-    let debt_mint_liquidator_balance = debt_bank.get_asset_amount(
-        liquidator_mfi_ma.lending_account.balances[debt_index]
-            .asset_shares
+    let debt_mint_liquidator_balance = debt_bank.get_liability_amount(
+        liquidator_mfi_ma.lending_account.balances[liquidator_debt_index]
+            .liability_shares
             .into(),
     )?;
+
     assert_eq_noise!(
         expected_debt_mint_liquidator_balance,
         debt_mint_liquidator_balance,
@@ -209,33 +296,14 @@ async fn marginfi_account_liquidation_success(
     );
 
     // Check liquidatee collateral and debt balances
-
-    let debt_covered = liquidate_amount * 0.95 * collateral_bank_f.get_price().await
-        / debt_bank_f.get_price().await;
-    let expected_debt_mint_liquidatee_balance = I80F48::from(native!(
-        borrow_amount_actual - debt_covered,
-        debt_bank_f.mint.mint.decimals,
-        f64
-    ));
-    let debt_mint_liquidatee_balance = debt_bank.get_liability_amount(
-        liquidatee_mfi_ma.lending_account.balances[debt_index]
-            .liability_shares
-            .into(),
-    )?;
-    assert_eq_noise!(
-        expected_debt_mint_liquidatee_balance,
-        debt_mint_liquidatee_balance,
-        1.
-    );
-
     let expected_collateral_mint_liquidatee_balance = I80F48::from(native!(
-        deposit_amount - liquidate_amount,
+        liquidatee_deposit_amount - liquidate_amount,
         collateral_bank_f.mint.mint.decimals,
         f64
     ));
     let collateral_mint_liquidatee_balance = collateral_bank
-        .get_liability_amount(
-            liquidatee_mfi_ma.lending_account.balances[collateral_index]
+        .get_asset_amount(
+            liquidatee_mfi_ma.lending_account.balances[liquidatee_collateral_index]
                 .asset_shares
                 .into(),
         )
@@ -246,6 +314,25 @@ async fn marginfi_account_liquidation_success(
         1.
     );
 
+    let debt_covered = liquidate_amount * 0.95 * collateral_bank_f.get_price().await
+        / debt_bank_f.get_price().await;
+    let expected_debt_mint_liquidatee_balance = I80F48::from(native!(
+        liquidatee_borrow_amount_actual - debt_covered,
+        debt_bank_f.mint.mint.decimals,
+        f64
+    ));
+    let debt_mint_liquidatee_balance = debt_bank.get_liability_amount(
+        liquidatee_mfi_ma.lending_account.balances[liquidatee_debt_index]
+            .liability_shares
+            .into(),
+    )?;
+    assert_eq_noise!(
+        expected_debt_mint_liquidatee_balance,
+        debt_mint_liquidatee_balance,
+        1.
+    );
+
+    // Check the insurance fees
     let insurance_fund_fee = liquidate_amount * 0.025 * collateral_bank_f.get_price().await
         / debt_bank_f.get_price().await;
     let expected_insurance_fund_usdc_pre_fee =
@@ -548,7 +635,9 @@ async fn marginfi_account_liquidation_failure_liquidation_too_severe() -> anyhow
         .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 10, usdc_bank_f)
         .await;
 
-    assert_custom_error!(res.unwrap_err(), MarginfiError::ExhaustedLiability);
+    // Note: ExhaustedLiability is essentially unreachable now
+    // assert_custom_error!(res.unwrap_err(), MarginfiError::ExhaustedLiability);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::OperationRepayOnly);
 
     let res = lender_mfi_account_f
         .try_liquidate(&borrower_mfi_account_f, sol_bank_f, 1, usdc_bank_f)

@@ -10,7 +10,7 @@ use crate::{
             BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
     },
-    utils::{self, validate_asset_tags},
+    utils::{self, validate_asset_tags, validate_bank_state, InstructionKind},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
@@ -71,6 +71,7 @@ pub fn lending_account_borrow<'info>(
         let mut bank = bank_loader.load_mut()?;
 
         validate_asset_tags(&bank, &marginfi_account)?;
+        validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
 
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
         let origination_fee_rate: I80F48 = bank

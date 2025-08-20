@@ -106,7 +106,7 @@ pub trait BankImpl {
         signer_seeds: &[&[&[u8]]],
         remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult;
-    fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult;
+    fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult<bool>;
     fn assert_operational_mode(
         &self,
         is_asset_or_liability_amount_increasing: Option<bool>,
@@ -194,6 +194,9 @@ impl BankImpl for Bank {
     }
 
     fn get_asset_shares(&self, value: I80F48) -> MarginfiResult<I80F48> {
+        if self.asset_share_value == I80F48::ZERO.into() {
+            return Ok(I80F48::ZERO);
+        }
         Ok(value
             .checked_div(self.asset_share_value.into())
             .ok_or_else(math_error!())?)
@@ -623,24 +626,36 @@ impl BankImpl for Bank {
         Ok(())
     }
 
-    /// Socialize a loss `loss_amount` among depositors,
-    /// the `total_deposit_shares` stays the same, but total value of deposits is
-    /// reduced by `loss_amount`;
-    fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult {
+    /// Socialize a loss of `loss_amount` among depositors, the `total_deposit_shares` stays the
+    /// same, but total value of deposits is reduced by `loss_amount`;
+    ///
+    /// In cases where assets < liabilities, the asset share value will be set to zero, but cannot
+    /// go negative. Effectively, depositors forfeit their entire deposit AND all earned interest in
+    /// this case.
+    fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult<bool> {
+        let mut kill_bank = false;
         let total_asset_shares: I80F48 = self.total_asset_shares.into();
         let old_asset_share_value: I80F48 = self.asset_share_value.into();
 
-        let new_share_value = total_asset_shares
+        // Compute total "old" value of shares
+        let total_value = total_asset_shares
             .checked_mul(old_asset_share_value)
-            .ok_or_else(math_error!())?
-            .checked_sub(loss_amount)
-            .ok_or_else(math_error!())?
-            .checked_div(total_asset_shares)
             .ok_or_else(math_error!())?;
 
-        self.asset_share_value = new_share_value.into();
+        // Subtract loss, clamping at zero (i.e. assets < liabilities, the bank is wiped out)
+        if total_value < loss_amount {
+            self.asset_share_value = I80F48::ZERO.into();
+            // This state is irrecoverable, the bank is dead.
+            kill_bank = true;
+        } else {
+            // otherwise subtract then redistribute
+            let new_share_value = (total_value - loss_amount)
+                .checked_div(total_asset_shares)
+                .ok_or_else(math_error!())?;
+            self.asset_share_value = new_share_value.into();
+        }
 
-        Ok(())
+        Ok(kill_bank)
     }
 
     fn assert_operational_mode(
@@ -661,6 +676,9 @@ impl BankImpl for Bank {
                 }
 
                 Ok(())
+            }
+            BankOperationalState::KilledByBankruptcy => {
+                Err(MarginfiError::BankKilledByBankruptcy.into())
             }
         }
     }
