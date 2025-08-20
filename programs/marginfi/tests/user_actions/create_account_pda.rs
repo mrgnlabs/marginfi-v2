@@ -242,7 +242,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
 
     let init_ix1 = Instruction {
         program_id: marginfi::id(), 
-        accounts: accounts1.to_account_metas(Some(true)),
+        accounts: accounts1.to_account_metas(None),
         data: marginfi::instruction::MarginfiAccountInitializePda {
             account_index,
             third_party_id,
@@ -278,7 +278,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
 
     let init_ix2 = Instruction {
         program_id: marginfi::id(),
-        accounts: accounts2.to_account_metas(Some(true)),
+        accounts: accounts2.to_account_metas(None),
         data: marginfi::instruction::MarginfiAccountInitializePda {
             account_index,
             third_party_id,
@@ -289,7 +289,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
     let tx2 = Transaction::new_signed_with_payer(
         &[init_ix2],
         Some(&test_f.payer()), 
-        &[&test_f.payer_keypair(), &authority2_keypair],
+        &[&test_f.payer_keypair()],
         test_f.get_latest_blockhash().await,
     );
 

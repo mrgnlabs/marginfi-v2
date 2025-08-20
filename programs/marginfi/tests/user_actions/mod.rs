@@ -3,6 +3,7 @@ mod close_account;
 mod close_balance;
 mod create_account;
 mod create_account_pda;
+mod create_account_pda_cpi;
 mod deposit;
 mod flash_loan;
 mod liquidate;

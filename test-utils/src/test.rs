@@ -399,6 +399,7 @@ impl TestFixture {
         program.prefer_bpf(true);
         program.add_program("marginfi", marginfi::ID, None);
         program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
+        program.add_program("mocks", mocks::ID, None);
 
         let usdc_keypair = Keypair::new();
         let sol_keypair = Keypair::new();

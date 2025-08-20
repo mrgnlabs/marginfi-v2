@@ -6,6 +6,24 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::{instructions as ix_sysvar, Sysvar};
+use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
+
+
+fn is_cpi_from_mocks_program(sysvar_info: &AccountInfo) -> MarginfiResult<bool> {
+    let current_ix_index = ix_sysvar::load_current_index_checked(sysvar_info)?;
+    
+    // Get the current (top-level) instruction
+    let current_ixn = load_instruction_at_checked(current_ix_index as usize, sysvar_info)?;
+    
+    // The current instruction must match the marginfi program. If it doesn't, it's a CPI.
+    if current_ixn.program_id != crate::ID {
+  
+        return Ok(current_ixn.program_id == MOCKS_PROGRAM_ID);
+    }
+    
+    // Direct call (not CPI)
+    Ok(false)
+}
 
 pub fn initialize_account(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
     let MarginfiAccountInitialize {
@@ -71,26 +89,11 @@ pub fn initialize_account_pda(
         ..
     } = ctx.accounts;
 
-    // Validate third-party id restriction if provided
+
     if let Some(id) = third_party_id {
         if id == 42 {
             // Restrict id=42 to CPI calls from the mocks program only
-            // Use instruction sysvar to get the actual calling program
-            let current_ix_index = ix_sysvar::load_current_index_checked(&ctx.accounts.instructions_sysvar)?; 
-            
-            // Look for the previous instruction (caller) if it exists
-            if current_ix_index > 0 {
-                let caller_ix = ix_sysvar::load_instruction_at_checked(
-                    current_ix_index.saturating_sub(1) as usize,
-                    &ctx.accounts.instructions_sysvar
-                )?;
-                
-                // Check if the calling program is the mocks program
-                if caller_ix.program_id != MOCKS_PROGRAM_ID {
-                    return err!(MarginfiError::Unauthorized);
-                }
-            } else {
-                // Direct call (not CPI), which should not be allowed for id=42
+            if !is_cpi_from_mocks_program(&ctx.accounts.instructions_sysvar)? {
                 return err!(MarginfiError::Unauthorized);
             }
         }
@@ -112,6 +115,7 @@ pub fn initialize_account_pda(
     Ok(())
 }
 
+
 #[derive(Accounts)]
 #[instruction(account_index: u32, third_party_id: Option<u32>)]
 pub struct MarginfiAccountInitializePda<'info> {
@@ -132,7 +136,8 @@ pub struct MarginfiAccountInitializePda<'info> {
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    pub authority: Signer<'info>,
+    /// CHECK: Authority is only used for PDA seed derivation, no signing required
+    pub authority: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub fee_payer: Signer<'info>,

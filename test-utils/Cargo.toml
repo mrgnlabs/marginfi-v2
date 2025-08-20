@@ -44,6 +44,7 @@ marginfi = { workspace = true, features = ["test-bpf"] }
 transfer_hook = { workspace = true, package = "test_transfer_hook", features = [
     "no-entrypoint",
 ] }
+mocks = {workspace = true, features = ["no-entrypoint"] }
 
 # [dependencies.liquidity-incentive-program]
 # path = "../programs/liquidity-incentive-program"

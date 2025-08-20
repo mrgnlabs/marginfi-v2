@@ -2845,6 +2845,7 @@ dependencies = [
  "fixed-macro",
  "futures",
  "lazy_static",
+ "mocks",
  "pretty_assertions",
  "pyth-solana-receiver-sdk",
  "rust_decimal",
@@ -3018,6 +3019,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bytemuck",
+ "marginfi",
  "static_assertions",
 ]
 
@@ -7498,6 +7500,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "marginfi",
+ "mocks",
  "pretty_assertions",
  "pyth-solana-receiver-sdk",
  "serde",
