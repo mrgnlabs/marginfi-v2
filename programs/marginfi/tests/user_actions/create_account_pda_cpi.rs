@@ -1,14 +1,19 @@
 use anchor_lang::InstructionData;
+use fixtures::test::TestFixture;
 use marginfi::state::marginfi_account::MarginfiAccount;
 use mocks::instructions::CpiCallLog;
 use solana_program_test::tokio;
 use solana_sdk::{
-    instruction::{AccountMeta, Instruction}, signature::Keypair, signer::Signer, system_program, sysvar,
+    instruction::{AccountMeta, Instruction},
+    signature::Keypair,
+    signer::Signer,
+    system_program, sysvar,
     transaction::Transaction,
 };
-use fixtures::test::TestFixture; 
 
-fn create_mock_account_metas(accounts: &mocks::accounts::CreateMarginfiAccountPdaViaCpi) -> Vec<AccountMeta> {
+fn create_mock_account_metas(
+    accounts: &mocks::accounts::CreateMarginfiAccountPdaViaCpi,
+) -> Vec<AccountMeta> {
     vec![
         AccountMeta::new(accounts.marginfi_group, false),
         AccountMeta::new(accounts.marginfi_account, false),
@@ -17,7 +22,7 @@ fn create_mock_account_metas(accounts: &mocks::accounts::CreateMarginfiAccountPd
         AccountMeta::new_readonly(accounts.instructions_sysvar, false),
         AccountMeta::new_readonly(accounts.system_program, false),
         AccountMeta::new_readonly(accounts.marginfi_program, false),
-        AccountMeta::new(accounts.call_log, true), 
+        AccountMeta::new(accounts.call_log, true),
     ]
 }
 
@@ -79,9 +84,8 @@ async fn marginfi_account_create_pda_via_cpi_success() -> anyhow::Result<()> {
     assert!(res.is_ok(), "CPI transaction failed: {:?}", res.err());
 
     // Verify the marginfi account was created correctly
-    let marginfi_account: MarginfiAccount = test_f
-        .load_and_deserialize(&marginfi_account_pda)
-        .await;
+    let marginfi_account: MarginfiAccount =
+        test_f.load_and_deserialize(&marginfi_account_pda).await;
 
     assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
     assert_eq!(marginfi_account.authority, authority);
@@ -166,9 +170,8 @@ async fn marginfi_account_create_pda_via_cpi_with_third_party_id() -> anyhow::Re
     assert!(res.is_ok(), "CPI transaction failed: {:?}", res.err());
 
     // Verify the marginfi account was created correctly
-    let marginfi_account: MarginfiAccount = test_f
-        .load_and_deserialize(&marginfi_account_pda)
-        .await;
+    let marginfi_account: MarginfiAccount =
+        test_f.load_and_deserialize(&marginfi_account_pda).await;
 
     assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
     assert_eq!(marginfi_account.authority, authority);
@@ -247,9 +250,8 @@ async fn marginfi_account_create_pda_via_cpi_multiple_calls() -> anyhow::Result<
         );
 
         // Verify each account was created properly
-        let marginfi_account: MarginfiAccount = test_f
-            .load_and_deserialize(&marginfi_account_pda)
-            .await;
+        let marginfi_account: MarginfiAccount =
+            test_f.load_and_deserialize(&marginfi_account_pda).await;
 
         assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
         assert_eq!(marginfi_account.authority, authority);
@@ -322,7 +324,11 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
         .process_transaction(tx1)
         .await;
 
-    assert!(res1.is_ok(), "First CPI transaction failed: {:?}", res1.err());
+    assert!(
+        res1.is_ok(),
+        "First CPI transaction failed: {:?}",
+        res1.err()
+    );
 
     // Create account for authority2 via CPI
     let (marginfi_account_pda2, _bump2) = MarginfiAccount::derive_pda(
@@ -342,7 +348,7 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
         marginfi_group: test_f.marginfi_group.key,
         marginfi_account: marginfi_account_pda2,
         authority: authority2,
-        fee_payer: test_f.payer(), 
+        fee_payer: test_f.payer(),
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
         marginfi_program: marginfi::id(),
@@ -373,15 +379,17 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
         .process_transaction(tx2)
         .await;
 
-    assert!(res2.is_ok(), "Second CPI transaction failed: {:?}", res2.err());
+    assert!(
+        res2.is_ok(),
+        "Second CPI transaction failed: {:?}",
+        res2.err()
+    );
 
     // Verify both accounts were created with correct authorities
-    let marginfi_account1: MarginfiAccount = test_f
-        .load_and_deserialize(&marginfi_account_pda1)
-        .await;
-    let marginfi_account2: MarginfiAccount = test_f
-        .load_and_deserialize(&marginfi_account_pda2)
-        .await;
+    let marginfi_account1: MarginfiAccount =
+        test_f.load_and_deserialize(&marginfi_account_pda1).await;
+    let marginfi_account2: MarginfiAccount =
+        test_f.load_and_deserialize(&marginfi_account_pda2).await;
 
     assert_eq!(marginfi_account1.authority, authority1);
     assert_eq!(marginfi_account2.authority, authority2);
@@ -497,7 +505,10 @@ async fn marginfi_account_create_pda_via_cpi_duplicate_should_fail() -> anyhow::
         .process_transaction(tx2)
         .await;
 
-    assert!(res2.is_err(), "Duplicate account creation via CPI should fail");
+    assert!(
+        res2.is_err(),
+        "Duplicate account creation via CPI should fail"
+    );
 
     Ok(())
 }

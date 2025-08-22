@@ -17,7 +17,6 @@ async fn transfer_to_new_account_pda_success() -> anyhow::Result<()> {
     let new_authority_keypair = Keypair::new();
     let new_authority = new_authority_keypair.pubkey();
 
-
     // Create the old account using keypair method
     let create_old_account_accounts = marginfi::accounts::MarginfiAccountInitialize {
         marginfi_group: test_f.marginfi_group.key,
@@ -47,7 +46,11 @@ async fn transfer_to_new_account_pda_success() -> anyhow::Result<()> {
         .process_transaction(create_tx)
         .await;
 
-    assert!(create_res.is_ok(), "Failed to create old account: {:?}", create_res.err());
+    assert!(
+        create_res.is_ok(),
+        "Failed to create old account: {:?}",
+        create_res.err()
+    );
 
     // Now transfer to a new PDA account
     let account_index = 0u32;
@@ -96,12 +99,14 @@ async fn transfer_to_new_account_pda_success() -> anyhow::Result<()> {
         .process_transaction(transfer_tx)
         .await;
 
-    assert!(transfer_res.is_ok(), "Transfer failed: {:?}", transfer_res.err());
+    assert!(
+        transfer_res.is_ok(),
+        "Transfer failed: {:?}",
+        transfer_res.err()
+    );
 
     // Verify the new account
-    let new_account: MarginfiAccount = test_f
-        .load_and_deserialize(&new_marginfi_account_pda)
-        .await;
+    let new_account: MarginfiAccount = test_f.load_and_deserialize(&new_marginfi_account_pda).await;
 
     assert_eq!(new_account.group, test_f.marginfi_group.key);
     assert_eq!(new_account.authority, new_authority);
@@ -126,7 +131,6 @@ async fn transfer_to_new_account_pda_with_third_party_id() -> anyhow::Result<()>
     let old_marginfi_account_key = Keypair::new();
     let new_authority_keypair = Keypair::new();
     let new_authority = new_authority_keypair.pubkey();
-
 
     // Create the old account using keypair method
     let create_old_account_accounts = marginfi::accounts::MarginfiAccountInitialize {
@@ -206,19 +210,21 @@ async fn transfer_to_new_account_pda_with_third_party_id() -> anyhow::Result<()>
         .process_transaction(transfer_tx)
         .await;
 
-    assert!(transfer_res.is_ok(), "Transfer with third party id failed: {:?}", transfer_res.err());
+    assert!(
+        transfer_res.is_ok(),
+        "Transfer with third party id failed: {:?}",
+        transfer_res.err()
+    );
 
     // Verify the new account
-    let new_account: MarginfiAccount = test_f
-        .load_and_deserialize(&new_marginfi_account_pda)
-        .await;
+    let new_account: MarginfiAccount = test_f.load_and_deserialize(&new_marginfi_account_pda).await;
 
     assert_eq!(new_account.authority, new_authority);
 
     Ok(())
 }
 
-#[tokio::test] 
+#[tokio::test]
 async fn transfer_double_migration_fails() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
 

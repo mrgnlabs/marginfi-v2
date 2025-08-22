@@ -59,9 +59,8 @@ async fn marginfi_account_create_pda_success() -> anyhow::Result<()> {
 
     assert!(res.is_ok(), "Transaction failed: {:?}", res.err());
 
-    let marginfi_account: MarginfiAccount = test_f
-        .load_and_deserialize(&marginfi_account_pda)
-        .await;
+    let marginfi_account: MarginfiAccount =
+        test_f.load_and_deserialize(&marginfi_account_pda).await;
 
     assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
     assert_eq!(marginfi_account.authority, authority);
@@ -126,9 +125,8 @@ async fn marginfi_account_create_pda_with_third_party_id_success() -> anyhow::Re
 
     assert!(res.is_ok(), "Transaction failed: {:?}", res.err());
 
-    let marginfi_account: MarginfiAccount = test_f
-        .load_and_deserialize(&marginfi_account_pda)
-        .await;
+    let marginfi_account: MarginfiAccount =
+        test_f.load_and_deserialize(&marginfi_account_pda).await;
 
     assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
     assert_eq!(marginfi_account.authority, authority);
@@ -151,7 +149,7 @@ async fn marginfi_account_create_pda_multiple_accounts_same_authority() -> anyho
             account_index,
             third_party_id,
             &marginfi::id(),
-        ); 
+        );
 
         let accounts = marginfi::accounts::MarginfiAccountInitializePda {
             marginfi_group: test_f.marginfi_group.key,
@@ -186,11 +184,15 @@ async fn marginfi_account_create_pda_multiple_accounts_same_authority() -> anyho
             .process_transaction(tx)
             .await;
 
-        assert!(res.is_ok(), "Transaction failed for index {}: {:?}", account_index, res.err());
+        assert!(
+            res.is_ok(),
+            "Transaction failed for index {}: {:?}",
+            account_index,
+            res.err()
+        );
 
-        let marginfi_account: MarginfiAccount = test_f
-            .load_and_deserialize(&marginfi_account_pda)
-            .await;
+        let marginfi_account: MarginfiAccount =
+            test_f.load_and_deserialize(&marginfi_account_pda).await;
 
         assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
         assert_eq!(marginfi_account.authority, authority);
@@ -217,7 +219,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
         third_party_id,
         &marginfi::id(),
     );
- 
+
     // Create account for second authority
     let (marginfi_account_pda2, _bump2) = MarginfiAccount::derive_pda(
         &test_f.marginfi_group.key,
@@ -241,7 +243,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
     };
 
     let init_ix1 = Instruction {
-        program_id: marginfi::id(), 
+        program_id: marginfi::id(),
         accounts: accounts1.to_account_metas(None),
         data: marginfi::instruction::MarginfiAccountInitializePda {
             account_index,
@@ -271,7 +273,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
         marginfi_group: test_f.marginfi_group.key,
         marginfi_account: marginfi_account_pda2,
         authority: authority2,
-        fee_payer: test_f.payer(), 
+        fee_payer: test_f.payer(),
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
     };
@@ -288,7 +290,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
 
     let tx2 = Transaction::new_signed_with_payer(
         &[init_ix2],
-        Some(&test_f.payer()), 
+        Some(&test_f.payer()),
         &[&test_f.payer_keypair()],
         test_f.get_latest_blockhash().await,
     );

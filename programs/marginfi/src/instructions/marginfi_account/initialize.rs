@@ -5,22 +5,20 @@ use crate::{
     state::marginfi_account::MarginfiAccount,
 };
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::sysvar::{instructions as ix_sysvar, Sysvar};
 use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
-
+use anchor_lang::solana_program::sysvar::{instructions as ix_sysvar, Sysvar};
 
 fn is_cpi_from_mocks_program(sysvar_info: &AccountInfo) -> MarginfiResult<bool> {
     let current_ix_index = ix_sysvar::load_current_index_checked(sysvar_info)?;
-    
+
     // Get the current (top-level) instruction
     let current_ixn = load_instruction_at_checked(current_ix_index as usize, sysvar_info)?;
-    
+
     // The current instruction must match the marginfi program. If it doesn't, it's a CPI.
     if current_ixn.program_id != crate::ID {
-  
         return Ok(current_ixn.program_id == MOCKS_PROGRAM_ID);
     }
-    
+
     // Direct call (not CPI)
     Ok(false)
 }
@@ -69,7 +67,7 @@ pub struct MarginfiAccountInitialize<'info> {
 }
 
 /// Initialize a marginfi account using a PDA (Program Derived Address)
-/// 
+///
 /// This function creates a marginfi account at a deterministic address based on:
 /// - marginfi_group: The group this account belongs to
 /// - authority: The account authority (owner)  
@@ -88,7 +86,6 @@ pub fn initialize_account_pda(
         marginfi_account: marginfi_account_loader,
         ..
     } = ctx.accounts;
-
 
     if let Some(id) = third_party_id {
         if id == 42 {
@@ -114,7 +111,6 @@ pub fn initialize_account_pda(
 
     Ok(())
 }
-
 
 #[derive(Accounts)]
 #[instruction(account_index: u32, third_party_id: Option<u32>)]

@@ -8,25 +8,25 @@ pub struct CreateMarginfiAccountPdaViaCpi<'info> {
     /// CHECK: This is the marginfi group account being passed to CPI
     #[account(mut)]
     pub marginfi_group: UncheckedAccount<'info>,
-    
+
     /// CHECK: This will be the actual marginfi account PDA that gets created
     #[account(mut)]
     pub marginfi_account: UncheckedAccount<'info>,
-    
+
     /// CHECK: This is the authority for the marginfi account
     pub authority: UncheckedAccount<'info>,
-    
+
     #[account(mut)]
     pub fee_payer: Signer<'info>,
-    
+
     /// CHECK: Instructions sysvar account
     pub instructions_sysvar: UncheckedAccount<'info>,
-    
+
     pub system_program: Program<'info, System>,
-    
+
     /// CHECK: The marginfi program that we're calling via CPI
     pub marginfi_program: UncheckedAccount<'info>,
-    
+
     #[account(
         init,
         payer = fee_payer,
@@ -55,7 +55,7 @@ impl CreateMarginfiAccountPdaViaCpi<'_> {
         third_party_id: Option<u32>,
     ) -> Result<()> {
         let clock = Clock::get()?;
-        
+
         let call_log = &mut ctx.accounts.call_log;
         call_log.caller_program = crate::ID;
         call_log.target_program = ctx.accounts.marginfi_program.key();
@@ -81,12 +81,12 @@ impl CreateMarginfiAccountPdaViaCpi<'_> {
         };
 
         let account_metas = vec![
-            AccountMeta::new_readonly(ctx.accounts.marginfi_group.key(), false), 
-            AccountMeta::new(ctx.accounts.marginfi_account.key(), false),         
-            AccountMeta::new_readonly(ctx.accounts.authority.key(), false),       
-            AccountMeta::new(ctx.accounts.fee_payer.key(), true),                 
-            AccountMeta::new_readonly(ctx.accounts.instructions_sysvar.key(), false), 
-            AccountMeta::new_readonly(ctx.accounts.system_program.key(), false), 
+            AccountMeta::new_readonly(ctx.accounts.marginfi_group.key(), false),
+            AccountMeta::new(ctx.accounts.marginfi_account.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.authority.key(), false),
+            AccountMeta::new(ctx.accounts.fee_payer.key(), true),
+            AccountMeta::new_readonly(ctx.accounts.instructions_sysvar.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.system_program.key(), false),
         ];
         let instruction = Instruction {
             program_id: ctx.accounts.marginfi_program.key(),

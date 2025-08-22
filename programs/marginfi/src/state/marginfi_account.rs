@@ -90,7 +90,6 @@ impl MarginfiAccount {
         self.migrated_to = Pubkey::default();
     }
 
-
     /// Derive PDA for marginfi account
     pub fn derive_pda(
         group: &Pubkey,

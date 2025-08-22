@@ -107,9 +107,8 @@ impl<'info> TransferToNewAccount<'info> {
     }
 }
 
-
 /// Transfer an existing marginfi account to a new PDA-based account
-/// 
+///
 /// This function transfers all balances and state from an old account to a new PDA-based account.
 /// The old account is marked as disabled and migrated_to is set to the new account.
 /// The new account is created as a PDA with the provided parameters.
@@ -143,15 +142,16 @@ pub fn transfer_to_new_account_pda(
         if id == 42 {
             // Restrict id=42 to CPI calls from the mocks program only
             // Use instruction sysvar to get the actual calling program
-            let current_ix_index = ix_sysvar::load_current_index_checked(&ctx.accounts.instructions_sysvar)?;
-            
+            let current_ix_index =
+                ix_sysvar::load_current_index_checked(&ctx.accounts.instructions_sysvar)?;
+
             // Look for the previous instruction (caller) if it exists
             if current_ix_index > 0 {
                 let caller_ix = ix_sysvar::load_instruction_at_checked(
                     current_ix_index.saturating_sub(1) as usize,
-                    &ctx.accounts.instructions_sysvar
+                    &ctx.accounts.instructions_sysvar,
                 )?;
-                
+
                 // Check if the calling program is the mocks program
                 if caller_ix.program_id != MOCKS_PROGRAM_ID {
                     return err!(MarginfiError::Unauthorized);
