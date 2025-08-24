@@ -1,6 +1,7 @@
 use super::{
     bank_cache::BankCache,
     emode::EmodeSettings,
+    fee_state::PanicState,
     marginfi_account::{BalanceSide, RequirementType},
     price::{OraclePriceFeedAdapter, OracleSetup},
 };
@@ -40,6 +41,7 @@ use type_layout::TypeLayout;
 pub const PROGRAM_FEES_ENABLED: u64 = 1;
 pub const ARENA_GROUP: u64 = 2;
 
+
 assert_struct_size!(MarginfiGroup, 1056);
 #[account(zero_copy)]
 #[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
@@ -73,7 +75,11 @@ pub struct MarginfiGroup {
     /// for every bank under this group
     pub delegate_emissions_admin: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 18],
+
+    pub panic_state_cache: PanicStateCache,
+    pub _padding: u64,                      
+
+    pub _padding_0: [[u64; 2]; 16],
     pub _padding_1: [[u64; 2]; 32],
     pub _padding_4: u64,
 }
@@ -87,6 +93,39 @@ pub struct FeeStateCache {
     pub program_fee_fixed: WrappedI80F48,
     pub program_fee_rate: WrappedI80F48,
     pub last_update: i64,
+}
+
+/// Cached panic state information for fast checking during user operations
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, Zeroable, Pod, Debug, PartialEq, Eq,
+)]
+#[repr(C)]
+pub struct PanicStateCache {
+    /// Whether the protocol is currently paused (1 = paused, 0 = not paused)
+    pub is_paused: u8,
+    /// Reserved for future use
+    pub _reserved: [u8; 7],
+    /// Timestamp when the current pause started (0 if not paused)
+    pub pause_start_timestamp: i64,
+    /// Timestamp when this cache was last updated
+    pub last_cache_update: i64,
+}
+
+impl PanicStateCache {
+    pub fn is_paused(&self) -> bool {
+        self.is_paused == 1
+    }
+
+    pub fn is_expired(&self, current_timestamp: i64) -> bool {
+        self.is_paused() && 
+        (current_timestamp - self.pause_start_timestamp) >= PanicState::PAUSE_DURATION_SECONDS
+    }
+
+    pub fn update_from_panic_state(&mut self, panic_state: &PanicState, current_timestamp: i64) {
+        self.is_paused = panic_state.is_paused;
+        self.pause_start_timestamp = panic_state.pause_start_timestamp;
+        self.last_cache_update = current_timestamp;
+    }
 }
 
 impl MarginfiGroup {

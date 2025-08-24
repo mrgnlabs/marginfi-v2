@@ -171,6 +171,14 @@ pub enum MarginfiError {
     BankCannotClose,
     #[msg("Account already migrated")] // 6082
     AccountAlreadyMigrated,
+    #[msg("Protocol is paused")] // 6083
+    ProtocolPaused,
+    #[msg("Protocol is already paused")] // 6084
+    ProtocolAlreadyPaused,
+    #[msg("Pause limit exceeded")] // 6085
+    PauseLimitExceeded,
+    #[msg("Protocol is not paused")] // 6086
+    ProtocolNotPaused,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -288,6 +296,10 @@ impl From<u32> for MarginfiError {
             6080 => MarginfiError::OracleMaxConfidenceExceeded,
             6081 => MarginfiError::BankCannotClose,
             6082 => MarginfiError::AccountAlreadyMigrated,
+            6083 => MarginfiError::ProtocolPaused,
+            6084 => MarginfiError::ProtocolAlreadyPaused,
+            6085 => MarginfiError::PauseLimitExceeded,
+            6086 => MarginfiError::ProtocolNotPaused,
             _ => MarginfiError::InternalLogicError,
         }
     }

@@ -27,5 +27,10 @@ pub fn propagate_fee(ctx: Context<PropagateFee>) -> Result<()> {
     let clock = Clock::get()?;
     group.fee_state_cache.last_update = clock.unix_timestamp;
 
+    group.panic_state_cache.update_from_panic_state(&fee_state.panic_state, clock.unix_timestamp);
+
+    msg!("Propagated fee and panic state to group. Panic state: paused={}", 
+         group.panic_state_cache.is_paused() && !group.panic_state_cache.is_expired(clock.unix_timestamp));
+
     Ok(())
 }

@@ -5,6 +5,7 @@ mod create_account;
 mod deposit;
 mod flash_loan;
 mod liquidate;
+mod panic_mode_user_interactions;
 mod repay;
 mod withdraw;
 

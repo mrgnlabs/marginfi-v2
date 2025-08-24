@@ -56,6 +56,9 @@ pub fn lending_account_withdraw<'info>(
 
     {
         let group = &marginfi_group_loader.load()?;
+        
+        crate::utils::check_protocol_pause_state_cached(group)?;
+        
         let mut bank = bank_loader.load_mut()?;
         bank.accrue_interest(
             clock.unix_timestamp,
