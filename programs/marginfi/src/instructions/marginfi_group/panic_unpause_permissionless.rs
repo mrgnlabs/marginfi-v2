@@ -6,16 +6,27 @@ pub fn panic_unpause_permissionless(ctx: Context<PanicUnpausePermissionless>) ->
     let mut fee_state = ctx.accounts.fee_state.load_mut()?;
     let current_timestamp = Clock::get()?.unix_timestamp;
 
-    require!(fee_state.panic_state.is_paused(), crate::errors::MarginfiError::ProtocolNotPaused);
+    require!(
+        fee_state.panic_state.is_paused(),
+        crate::errors::MarginfiError::ProtocolNotPaused
+    );
 
-    require!(fee_state.panic_state.is_expired(current_timestamp), crate::errors::MarginfiError::PauseLimitExceeded);
+    require!(
+        fee_state.panic_state.is_expired(current_timestamp),
+        crate::errors::MarginfiError::PauseLimitExceeded
+    );
 
     fee_state.panic_state.unpause();
 
-    msg!("Protocol auto-unpaused at timestamp: {} (expired after {} seconds)", 
-         current_timestamp,
-         current_timestamp - fee_state.panic_state.pause_start_timestamp);
-    msg!("Consecutive pause count reset to: {}", fee_state.panic_state.consecutive_pause_count);
+    msg!(
+        "Protocol auto-unpaused at timestamp: {} (expired after {} seconds)",
+        current_timestamp,
+        current_timestamp - fee_state.panic_state.pause_start_timestamp
+    );
+    msg!(
+        "Consecutive pause count reset to: {}",
+        fee_state.panic_state.consecutive_pause_count
+    );
 
     Ok(())
 }

@@ -477,7 +477,9 @@ pub mod marginfi {
     }
 
     /// (permissionless) Unpause the protocol when pause time has expired
-    pub fn panic_unpause_permissionless(ctx: Context<PanicUnpausePermissionless>) -> MarginfiResult {
+    pub fn panic_unpause_permissionless(
+        ctx: Context<PanicUnpausePermissionless>,
+    ) -> MarginfiResult {
         marginfi_group::panic_unpause_permissionless(ctx)
     }
 }

@@ -12,9 +12,18 @@ pub fn panic_pause(ctx: Context<PanicPause>) -> Result<()> {
     fee_state.panic_state.pause(current_timestamp)?;
 
     msg!("Protocol paused at timestamp: {}", current_timestamp);
-    msg!("Pause will auto-expire at: {}", current_timestamp + crate::state::fee_state::PanicState::PAUSE_DURATION_SECONDS);
-    msg!("Daily pause count: {}", fee_state.panic_state.daily_pause_count);
-    msg!("Consecutive pause count: {}", fee_state.panic_state.consecutive_pause_count);
+    msg!(
+        "Pause will auto-expire at: {}",
+        current_timestamp + crate::state::fee_state::PanicState::PAUSE_DURATION_SECONDS
+    );
+    msg!(
+        "Daily pause count: {}",
+        fee_state.panic_state.daily_pause_count
+    );
+    msg!(
+        "Consecutive pause count: {}",
+        fee_state.panic_state.consecutive_pause_count
+    );
 
     Ok(())
 }

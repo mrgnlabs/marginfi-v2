@@ -41,7 +41,6 @@ use type_layout::TypeLayout;
 pub const PROGRAM_FEES_ENABLED: u64 = 1;
 pub const ARENA_GROUP: u64 = 2;
 
-
 assert_struct_size!(MarginfiGroup, 1056);
 #[account(zero_copy)]
 #[derive(Default, Debug, PartialEq, Eq, TypeLayout)]
@@ -75,9 +74,8 @@ pub struct MarginfiGroup {
     /// for every bank under this group
     pub delegate_emissions_admin: Pubkey,
 
-
     pub panic_state_cache: PanicStateCache,
-    pub _padding: u64,                      
+    pub _padding: u64,
 
     pub _padding_0: [[u64; 2]; 16],
     pub _padding_1: [[u64; 2]; 32],
@@ -117,8 +115,9 @@ impl PanicStateCache {
     }
 
     pub fn is_expired(&self, current_timestamp: i64) -> bool {
-        self.is_paused() && 
-        (current_timestamp - self.pause_start_timestamp) >= PanicState::PAUSE_DURATION_SECONDS
+        self.is_paused()
+            && (current_timestamp - self.pause_start_timestamp)
+                >= PanicState::PAUSE_DURATION_SECONDS
     }
 
     pub fn update_from_panic_state(&mut self, panic_state: &PanicState, current_timestamp: i64) {
