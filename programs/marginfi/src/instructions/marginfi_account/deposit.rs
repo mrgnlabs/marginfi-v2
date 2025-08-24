@@ -46,8 +46,11 @@ pub fn lending_account_deposit<'info>(
 
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+    let group = marginfi_group_loader.load()?;
 
     validate_asset_tags(&bank, &marginfi_account)?;
+
+    crate::utils::check_protocol_pause_state_cached(&group)?;
 
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
@@ -80,11 +83,9 @@ pub fn lending_account_deposit<'info>(
     if deposit_amount == 0 {
         return Ok(());
     }
-
-    let group = &marginfi_group_loader.load()?;
     bank.accrue_interest(
         clock.unix_timestamp,
-        group,
+        &group,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -119,7 +120,7 @@ pub fn lending_account_deposit<'info>(
         ctx.remaining_accounts,
     )?;
 
-    bank.update_bank_cache(group)?;
+    bank.update_bank_cache(&group)?;
 
     emit!(LendingAccountDepositEvent {
         header: AccountEventHeader {
