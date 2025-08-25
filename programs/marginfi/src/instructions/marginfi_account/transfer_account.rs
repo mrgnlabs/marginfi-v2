@@ -8,7 +8,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use bytemuck::Zeroable;
 use marginfi_type_crate::types::{
-    LendingAccount, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+    LendingAccount, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
 };
 
 pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
