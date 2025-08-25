@@ -6,15 +6,14 @@ use {
     log::error,
     marginfi::{
         bank_authority_seed, bank_seed,
+        state::{bank::BankVaultType, bank_config::BankConfigImpl, price::PythPushOraclePriceFeed},
+    },
+    marginfi_type_crate::{
         constants::{
             EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED,
             PYTH_SPONSORED_SHARD_ID,
         },
-        state::{
-            marginfi_account::MarginfiAccount,
-            marginfi_group::{Bank, BankConfig, BankVaultType},
-            price::PythPushOraclePriceFeed,
-        },
+        types::{Bank, BankConfig, MarginfiAccount, OracleSetup},
     },
     solana_client::rpc_client::RpcClient,
     solana_sdk::{
@@ -69,7 +68,7 @@ pub fn bank_to_oracle_key(bank_config: &BankConfig, shard_id: u16) -> Pubkey {
     let oracle_key_or_price_feed_id = bank_config.oracle_keys.first().unwrap();
 
     match bank_config.oracle_setup {
-        marginfi::state::price::OracleSetup::PythPushOracle => {
+        OracleSetup::PythPushOracle => {
             if bank_config.is_pyth_push_migrated() {
                 *oracle_key_or_price_feed_id
             } else {

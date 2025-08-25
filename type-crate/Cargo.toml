@@ -1,25 +1,28 @@
 [package]
 name = "marginfi-type-crate"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 publish = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "marginfitypecrate"
+name = "marginfi_type_crate"
 
 [features]
 default = ["client"]
 client = []
+anchor = ["anchor-lang", "type-layout"]
+mainnet-beta = ["id-crate/mainnet-beta"]
+staging = ["id-crate/staging"]
+devnet = ["id-crate/devnet"]
 
 [dependencies]
-# Fixed/half later versions need Rust 1.83+
-bytemuck = { version = "1.22.0", features = ["derive"] }
-fixed = "=1.28.0"
-fixed-macro = "1.2.0"
-bs58 = "0.5.1"
-half = "=2.4.1"
+id-crate = { path = "../id-crate" }
+bytemuck = { workspace = true, features = ["derive"] }
+fixed = { workspace = true }
+fixed-macro = { workspace = true }
+bs58 = { workspace = true }
+static_assertions = { workspace = true }
 
-# Prevent this from interfering with workspaces
-[workspace]
-members = ["."]
+anchor-lang = { workspace = true, optional = true }
+type-layout = { workspace = true, optional = true }

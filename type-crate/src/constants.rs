@@ -15,11 +15,9 @@ pub const STAKED_SETTINGS_SEED: &str = "staked_settings";
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 
+/// TODO: Make these variable per bank
 pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);
 pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
-
-/// The default fee, in native SOL in native decimals (i.e. lamports) used in testing
-pub const INIT_BANK_ORIGINATION_FEE_DEFAULT: u32 = 10000;
 
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 
@@ -37,6 +35,9 @@ pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(2.12);
 pub const STD_DEV_MULTIPLE: I80F48 = I80F48!(1.96);
 /// Maximum confidence interval allowed
 pub const MAX_CONF_INTERVAL: I80F48 = I80F48!(0.05);
+
+pub const U32_MAX: I80F48 = I80F48!(4_294_967_295);
+pub const U32_MAX_DIV_10: I80F48 = I80F48!(429_496_730);
 
 pub const USDC_EXPONENT: i32 = 6;
 
@@ -61,12 +62,12 @@ pub const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG: u64 = 1 << 2;
 pub const FREEZE_SETTINGS: u64 = 1 << 3;
 pub const CLOSE_ENABLED_FLAG: u64 = 1 << 4;
 
-/// Flags stored on [`BankConfig`].
-pub const PYTH_PUSH_MIGRATED_FLAG: u8 = 1 << 0;
+/// True if bank created in 0.1.4 or later, or if migrated to the new oracle setup from a prior
+/// version. False otherwise.
+pub const PYTH_PUSH_MIGRATED: u8 = 1 << 0;
 
 pub const EMISSION_FLAGS: u64 = EMISSIONS_FLAG_BORROW_ACTIVE | EMISSIONS_FLAG_LENDING_ACTIVE;
-pub const GROUP_FLAGS: u64 =
-    PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS | CLOSE_ENABLED_FLAG;
+pub const GROUP_FLAGS: u64 = PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS;
 
 /// Cutoff timestamp for balance last_update used in accounting collected emissions.
 /// Any balance updates before this timestamp are ignored, and current_timestamp is used instead.
@@ -133,8 +134,10 @@ pub const PROTOCOL_FEE_RATE_DEFAULT: I80F48 = I80F48!(0.025);
 /// For testing, this is a typical program fee.
 pub const PROTOCOL_FEE_FIXED_DEFAULT: I80F48 = I80F48!(0.01);
 
-pub const PYTH_PUSH_PYTH_SPONSORED_SHARD_ID: u16 = 0;
-pub const PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
+/// Pyth Pull Oracles sponsored by Pyth use this shard ID.
+pub const PYTH_SPONSORED_SHARD_ID: u16 = 0;
+/// Pyth Pull Oracles sponsored by Marginfi use this shard ID.
+pub const MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
 
 /// A regular asset that can be comingled with any other regular asset or with `ASSET_TAG_SOL`
 pub const ASSET_TAG_DEFAULT: u8 = 0;

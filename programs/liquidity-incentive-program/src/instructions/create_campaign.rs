@@ -85,7 +85,6 @@ pub struct CreateCampaign<'info> {
     /// CHECK: Asserted by token check
     #[account(mut)]
     pub funding_account: AccountInfo<'info>,
-    pub rent: Sysvar<'info, Rent>,
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }

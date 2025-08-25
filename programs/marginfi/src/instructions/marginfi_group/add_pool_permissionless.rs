@@ -2,25 +2,26 @@
 // stake pool to a group so users can borrow SOL against it
 use crate::{
     check,
-    constants::{
-        ASSET_TAG_STAKED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        PYTH_PUSH_MIGRATED, SPL_SINGLE_POOL_ID,
-    },
+    constants::SPL_SINGLE_POOL_ID,
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     log_pool_info,
-    state::{
-        marginfi_group::{
-            Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiGroup,
-        },
-        price::OracleSetup,
-        staked_settings::StakedSettings,
-    },
+    state::{bank::BankImpl, bank_config::BankConfigImpl, marginfi_group::MarginfiGroupImpl},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 use fixed_macro::types::I80F48;
+use marginfi_type_crate::{
+    constants::{
+        ASSET_TAG_STAKED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+        PYTH_PUSH_MIGRATED,
+    },
+    types::{
+        Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiGroup,
+        OracleSetup, StakedSettings,
+    },
+};
 
 pub fn lending_pool_add_bank_permissionless(
     ctx: Context<LendingPoolAddBankPermissionless>,
@@ -248,8 +249,6 @@ pub struct LendingPoolAddBankPermissionless<'info> {
         bump,
     )]
     pub fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
-
-    pub rent: Sysvar<'info, Rent>,
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }

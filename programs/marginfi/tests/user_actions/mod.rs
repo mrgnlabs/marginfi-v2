@@ -13,11 +13,11 @@ use fixed::types::I80F48;
 use fixtures::{assert_custom_error, assert_eq_noise, native, prelude::*};
 use marginfi::{
     assert_eq_with_tolerance,
-    constants::{
-        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, MIN_EMISSIONS_START_TIME,
-    },
     prelude::*,
-    state::marginfi_account::BankAccountWrapper,
+    state::{bank::BankImpl, bank_config::BankConfigImpl, marginfi_account::BankAccountWrapper},
+};
+use marginfi_type_crate::constants::{
+    EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, MIN_EMISSIONS_START_TIME,
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;

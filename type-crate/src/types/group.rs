@@ -1,12 +1,22 @@
+#[cfg(not(feature = "anchor"))]
+use super::Pubkey;
+
 use bytemuck::{Pod, Zeroable};
 
-use crate::constants::discriminators;
+use crate::{assert_struct_size, constants::discriminators};
 
-use super::{Pubkey, WrappedI80F48};
+use super::WrappedI80F48;
 
+#[cfg(feature = "anchor")]
+use {anchor_lang::prelude::*, type_layout::TypeLayout};
+
+assert_struct_size!(MarginfiGroup, 1056);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(feature = "anchor", account(zero_copy), derive(TypeLayout))]
+#[cfg_attr(not(feature = "anchor"), derive(Pod, Zeroable, Copy, Clone))]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub struct MarginfiGroup {
+    /// Broadly able to modify anything, and can set/remove other admins at will.
     pub admin: Pubkey,
     /// Bitmask for group settings flags.
     /// * 0: `PROGRAM_FEES_ENABLED` If set, program-level fees are enabled.
@@ -46,7 +56,11 @@ impl MarginfiGroup {
 }
 
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(
+    feature = "anchor",
+    derive(AnchorSerialize, AnchorDeserialize, TypeLayout)
+)]
+#[derive(Default, Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct FeeStateCache {
     pub global_fee_wallet: Pubkey,
     pub program_fee_fixed: WrappedI80F48,

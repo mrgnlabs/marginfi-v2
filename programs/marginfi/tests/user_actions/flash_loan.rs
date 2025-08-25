@@ -300,7 +300,7 @@ async fn flashloan_fail_missing_invalid_sysvar_ixs() -> anyhow::Result<()> {
     let mut ixs = vec![borrow_ix, repay_ix];
 
     let start_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: marginfi::accounts::LendingAccountStartFlashloan {
             marginfi_account: borrower_mfi_account_f.key,
             authority: test_f.context.borrow().payer.pubkey(),
@@ -537,7 +537,7 @@ async fn flashloan_fail_account_transfer_during_flashloan() -> anyhow::Result<()
     let account = borrower_mfi_account_f.load().await;
 
     let transfer_account_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: marginfi::accounts::TransferToNewAccount {
             old_marginfi_account: borrower_mfi_account_f.key,
             new_marginfi_account: new_account.pubkey(),

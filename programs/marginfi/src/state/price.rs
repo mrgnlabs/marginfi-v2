@@ -1,55 +1,27 @@
-use crate::{
-    check, check_eq,
-    constants::{
-        CONF_INTERVAL_MULTIPLE, EXP_10_I80F48, MAX_CONF_INTERVAL, MIN_PYTH_PUSH_VERIFICATION_LEVEL,
-        NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID, STD_DEV_MULTIPLE, SWITCHBOARD_PULL_ID,
-        U32_MAX, U32_MAX_DIV_10,
-    },
-    debug, live, math_error,
-    prelude::*,
+use crate::constants::{
+    MIN_PYTH_PUSH_VERIFICATION_LEVEL, NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID,
+    SWITCHBOARD_PULL_ID,
 };
-use anchor_lang::prelude::borsh;
+use crate::state::bank_config::BankConfigImpl;
+use crate::{check, check_eq, debug, live, math_error, prelude::*};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
 use anchor_spl::token::Mint;
-use bytemuck::{Pod, Zeroable};
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::{
+        CONF_INTERVAL_MULTIPLE, EXP_10_I80F48, MAX_CONF_INTERVAL, STD_DEV_MULTIPLE, U32_MAX,
+        U32_MAX_DIV_10,
+    },
+    types::{BankConfig, OracleSetup},
+};
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{
     CurrentResult, Discriminator, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID,
 };
-
-use super::marginfi_group::BankConfig;
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
-pub enum OracleSetup {
-    None,
-    PythLegacy,
-    SwitchboardV2,
-    PythPushOracle,
-    SwitchboardPull,
-    StakedWithPythPush,
-}
-unsafe impl Zeroable for OracleSetup {}
-unsafe impl Pod for OracleSetup {}
-
-impl OracleSetup {
-    pub fn from_u8(value: u8) -> Option<Self> {
-        match value {
-            0 => Some(Self::None),
-            1 => Some(Self::PythLegacy),    // Deprecated
-            2 => Some(Self::SwitchboardV2), // Deprecated
-            3 => Some(Self::PythPushOracle),
-            4 => Some(Self::SwitchboardPull),
-            5 => Some(Self::StakedWithPythPush),
-            _ => None,
-        }
-    }
-}
 
 #[derive(Copy, Clone, Debug)]
 pub enum PriceBias {

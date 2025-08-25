@@ -1,17 +1,30 @@
-use bytemuck::{Pod, Zeroable};
+#[cfg(not(feature = "anchor"))]
+use {
+    super::Pubkey,
+    bytemuck::{Pod, Zeroable},
+};
 
-use crate::constants::discriminators;
+use crate::{assert_struct_align, assert_struct_size, constants::discriminators};
 
-use super::{Pubkey, RiskTier, WrappedI80F48};
+use super::{RiskTier, WrappedI80F48};
 use fixed_macro::types::I80F48;
 
+#[cfg(feature = "anchor")]
+use anchor_lang::prelude::*;
+
+assert_struct_size!(StakedSettings, 256);
+assert_struct_align!(StakedSettings, 8);
 /// Unique per-group. Staked Collateral banks created under a group automatically use these
 /// settings. Groups that have not created this struct cannot create staked collateral banks. When
 /// this struct updates, changes must be permissionlessly propogated to staked collateral banks.
 /// Administrators can also edit the bank manually, i.e. with configure_bank, to temporarily make
 /// changes such as raising the deposit limit for a single bank.
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(feature = "anchor", account(zero_copy))]
+#[cfg_attr(
+    not(feature = "anchor"),
+    derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)
+)]
 pub struct StakedSettings {
     /// This account's own key. A PDA derived from `marginfi_group` and `STAKED_SETTINGS_SEED`
     pub key: Pubkey,

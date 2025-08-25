@@ -3,6 +3,11 @@ use std::collections::BTreeMap;
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
 
+#[cfg(feature = "anchor")]
+use {anchor_lang::prelude::*, type_layout::TypeLayout};
+
+use crate::{assert_struct_align, assert_struct_size};
+
 use super::WrappedI80F48;
 
 pub const EMODE_ON: u64 = 1;
@@ -10,8 +15,14 @@ pub const EMODE_ON: u64 = 1;
 pub const MAX_EMODE_ENTRIES: usize = 10;
 pub const EMODE_TAG_EMPTY: u16 = 0;
 
+assert_struct_size!(EmodeSettings, 424);
+assert_struct_align!(EmodeSettings, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(
+    feature = "anchor",
+    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
+)]
+#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 /// Controls the bank's e-mode configuration, allowing certain collateral sources to be treated more
 /// favorably as collateral when used to borrow from this bank.
 pub struct EmodeSettings {
@@ -38,8 +49,14 @@ pub struct EmodeSettings {
     pub emode_config: EmodeConfig,
 }
 
+assert_struct_size!(EmodeConfig, 400);
+assert_struct_align!(EmodeConfig, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(
+    feature = "anchor",
+    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
+)]
+#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 /// An emode configuration. Each bank has one such configuration, but this may also be the
 /// intersection of many configurations (see `reconcile_emode_configs`). For example, the risk
 /// engine creates such an intersection from all the emode config of all banks the user is borrowing
@@ -50,7 +67,8 @@ pub struct EmodeConfig {
 
 impl EmodeConfig {
     /// Creates an EmodeConfig from a slice of EmodeEntry items.
-    /// Entries will be sorted by tag. Panics if more than MAX_EMODE_ENTRIES are provided.
+    /// Entries will be sorted by tag.
+    /// Panics if more than MAX_EMODE_ENTRIES are provided.
     /// * No heap allocation
     pub fn from_entries(entries: &[EmodeEntry]) -> Self {
         let count = entries.len();
@@ -98,8 +116,14 @@ impl EmodeSettings {
 
 pub const APPLIES_TO_ISOLATED: u16 = 1;
 
+assert_struct_size!(EmodeEntry, 40);
+assert_struct_align!(EmodeEntry, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(
+    feature = "anchor",
+    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
+)]
+#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 pub struct EmodeEntry {
     /// emode_tag of the bank(s) whose collateral you wish to treat preferentially.
     pub collateral_bank_emode_tag: u16,
@@ -137,6 +161,8 @@ impl EmodeEntry {
 ///
 /// If one config has a collateral_bank_emode_tag and the others do not, ***we don't make an
 /// EmodeEntry for it at all***, i.e. there is no benefit for that collateral
+///
+/// * Note: Takes a generic iterator as input to avoid heap allocating a Vec.
 ///
 /// ***Example 1***
 /// * bank | tag | flags | init | maint

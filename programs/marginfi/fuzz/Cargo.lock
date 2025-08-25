@@ -2313,6 +2313,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "id-crate"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "cfg-if",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2752,7 +2760,9 @@ dependencies = [
  "enum_dispatch",
  "fixed",
  "fixed-macro",
+ "id-crate",
  "lazy_static",
+ "marginfi-type-crate",
  "pyth-solana-receiver-sdk",
  "solana-security-txt",
  "spl-transfer-hook-interface 0.9.0",
@@ -2780,6 +2790,7 @@ dependencies = [
  "log",
  "log4rs",
  "marginfi",
+ "marginfi-type-crate",
  "once_cell",
  "pyth-solana-receiver-sdk",
  "quinn-proto 0.10.6",
@@ -2790,6 +2801,20 @@ dependencies = [
  "solana-sdk",
  "spl-token 7.0.0",
  "strum 0.26.3",
+]
+
+[[package]]
+name = "marginfi-type-crate"
+version = "0.1.4"
+dependencies = [
+ "anchor-lang",
+ "bs58",
+ "bytemuck",
+ "fixed",
+ "fixed-macro",
+ "id-crate",
+ "static_assertions",
+ "type-layout",
 ]
 
 [[package]]

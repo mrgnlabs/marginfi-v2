@@ -4,9 +4,11 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_eq_noise, native, prelude::*};
 use marginfi::state::{
+    bank::{BankImpl, BankVaultType},
     bank_cache::{apr_to_u32, ComputedInterestRates},
-    marginfi_group::{Bank, BankConfig, BankVaultType, InterestRateConfig, MarginfiGroup},
+    interest_rate::InterestRateConfigImpl,
 };
+use marginfi_type_crate::types::{Bank, BankConfig, InterestRateConfig, MarginfiGroup};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 

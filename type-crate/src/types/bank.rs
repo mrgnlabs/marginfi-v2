@@ -1,11 +1,28 @@
+use crate::{
+    assert_struct_align, assert_struct_size,
+    constants::discriminators,
+    types::{BankCache, BankConfig},
+};
+
+#[cfg(feature = "anchor")]
+use {anchor_lang::prelude::*, type_layout::TypeLayout};
+
 use bytemuck::{Pod, Zeroable};
-use crate::constants::discriminators;
-use super::{BankCache, EmodeSettings, Pubkey, WrappedI80F48};
 
-pub const MAX_ORACLE_KEYS: usize = 5;
+#[cfg(not(feature = "anchor"))]
+use super::Pubkey;
+use super::{EmodeSettings, WrappedI80F48};
 
+assert_struct_size!(Bank, 1856);
+assert_struct_align!(Bank, 8);
 #[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
+#[cfg_attr(
+    feature = "anchor",
+    account(zero_copy),
+    derive(Default, PartialEq, Eq, TypeLayout)
+)]
+#[cfg_attr(not(feature = "anchor"), derive(Zeroable))]
+#[derive(Debug)]
 pub struct Bank {
     pub mint: Pubkey,
     pub mint_decimals: u8,
@@ -62,7 +79,7 @@ pub struct Bank {
     pub emissions_remaining: WrappedI80F48,
     pub emissions_mint: Pubkey,
 
-    /// Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s cannonical ATA for `mint`
+    /// Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s canonical ATA for `mint`
     pub collected_program_fees_outstanding: WrappedI80F48,
 
     /// Controls this bank's emode configuration, which enables some banks to treat the assets of
@@ -96,93 +113,9 @@ impl Bank {
     pub const DISCRIMINATOR: [u8; 8] = discriminators::BANK;
 }
 
-#[repr(C)]
-#[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)]
-pub struct BankConfig {
-    pub asset_weight_init: WrappedI80F48,
-    pub asset_weight_maint: WrappedI80F48,
-
-    pub liability_weight_init: WrappedI80F48,
-    pub liability_weight_maint: WrappedI80F48,
-
-    pub deposit_limit: u64,
-
-    pub interest_rate_config: InterestRateConfig,
-    pub operational_state: BankOperationalState,
-
-    pub oracle_setup: OracleSetup,
-    pub oracle_keys: [Pubkey; MAX_ORACLE_KEYS],
-
-    // Note: Pubkey is aligned 1, so borrow_limit is the first aligned-8 value after deposit_limit
-    pub _pad0: [u8; 6], // Bank state (1) + Oracle Setup (1) + 6 = 8
-
-    pub borrow_limit: u64,
-
-    pub risk_tier: RiskTier,
-
-    /// Determines what kinds of assets users of this bank can interact with.
-    /// Options:
-    /// * ASSET_TAG_DEFAULT (0) - A regular asset that can be comingled with any other regular asset
-    ///   or with `ASSET_TAG_SOL`
-    /// * ASSET_TAG_SOL (1) - Accounts with a SOL position can comingle with **either**
-    /// `ASSET_TAG_DEFAULT` or `ASSET_TAG_STAKED` positions, but not both
-    /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
-    /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
-    pub asset_tag: u8,
-    pub config_flags: u8,
-
-    pub _pad1: [u8; 5],
-
-    /// USD denominated limit for calculating asset value for initialization margin requirements.
-    /// Example, if total SOL deposits are equal to $1M and the limit it set to $500K,
-    /// then SOL assets will be discounted by 50%.
-    ///
-    /// In other words the max value of liabilities that can be backed by the asset is $500K.
-    /// This is useful for limiting the damage of orcale attacks.
-    ///
-    /// Value is UI USD value, for example value 100 -> $100
-    pub total_asset_value_init_limit: u64,
-
-    /// Time window in seconds for the oracle price feed to be considered live.
-    pub oracle_max_age: u16,
-
-    // pad to next 4-byte alignment to meet u32's requirements.
-    pub _padding0: [u8; 2],
-
-    /// From 0-100%, if the confidence exceeds this value, the oracle is considered invalid. Note:
-    /// the confidence adjustment is capped at 5% regardless of this value.
-    /// * 0 falls back to using the default 10% instead, i.e., U32_MAX_DIV_10
-    /// * A %, as u32, e.g. 100% = u32::MAX, 50% = u32::MAX/2, etc.
-    pub oracle_max_confidence: u32,
-
-    pub _padding1: [u8; 32],
-}
-
-#[repr(C)]
-#[derive(Debug, PartialEq, Copy, Clone, Pod, Zeroable)]
-pub struct InterestRateConfig {
-    // Curve Params
-    pub optimal_utilization_rate: WrappedI80F48,
-    pub plateau_interest_rate: WrappedI80F48,
-    pub max_interest_rate: WrappedI80F48,
-
-    // Fees
-    /// Goes to insurance, funds `collected_insurance_fees_outstanding`
-    pub insurance_fee_fixed_apr: WrappedI80F48,
-    /// Goes to insurance, funds `collected_insurance_fees_outstanding`
-    pub insurance_ir_fee: WrappedI80F48,
-    /// Earned by the group, goes to `collected_group_fees_outstanding`
-    pub protocol_fixed_fee_apr: WrappedI80F48,
-    /// Earned by the group, goes to `collected_group_fees_outstanding`
-    pub protocol_ir_fee: WrappedI80F48,
-    pub protocol_origination_fee: WrappedI80F48,
-
-    pub _padding0: [u8; 16],
-    pub _padding1: [[u8; 32]; 3],
-}
-
 #[repr(u8)]
-#[derive(Debug, PartialEq, Copy, Clone, Default)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
 pub enum RiskTier {
     #[default]
     Collateral = 0,
@@ -198,7 +131,8 @@ unsafe impl Zeroable for RiskTier {}
 unsafe impl Pod for RiskTier {}
 
 #[repr(u8)]
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum BankOperationalState {
     Paused,
     Operational,
@@ -208,7 +142,8 @@ unsafe impl Zeroable for BankOperationalState {}
 unsafe impl Pod for BankOperationalState {}
 
 #[repr(u8)]
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[cfg_attr(feature = "anchor", derive(AnchorSerialize, AnchorDeserialize))]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum OracleSetup {
     None,
     PythLegacy,
@@ -219,3 +154,17 @@ pub enum OracleSetup {
 }
 unsafe impl Zeroable for OracleSetup {}
 unsafe impl Pod for OracleSetup {}
+
+impl OracleSetup {
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::None),
+            1 => Some(Self::PythLegacy),    // Deprecated
+            2 => Some(Self::SwitchboardV2), // Deprecated
+            3 => Some(Self::PythPushOracle),
+            4 => Some(Self::SwitchboardPull),
+            5 => Some(Self::StakedWithPythPush),
+            _ => None,
+        }
+    }
+}
