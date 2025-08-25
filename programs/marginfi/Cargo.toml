@@ -54,7 +54,7 @@ solana-cli-output = { workspace = true }
 solana-program-test = { workspace = true }
 # solana-logger = { workspace = true }
 solana-sdk = { workspace = true }
-fixtures = { workspace = true, package = "test-utilities" }
+fixtures = { workspace = true }
 
 anyhow = "1.0.66"
 assert_matches = "1.5.0"
