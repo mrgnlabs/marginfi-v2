@@ -178,3 +178,12 @@ pub struct HealthPulseEvent {
     pub account: Pubkey,
     pub health_cache: HealthCache,
 }
+
+#[event]
+pub struct LiquidationReceiverEvent {
+    pub marginfi_account: Pubkey,
+    pub liquidation_receiver: Pubkey,
+    pub liquidatee_assets_seized: f64,
+    pub liquidatee_liability_repaid: f64,
+    pub lamps_fee_paid: u32,
+}

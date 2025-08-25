@@ -171,6 +171,20 @@ pub enum MarginfiError {
     BankCannotClose,
     #[msg("Account already migrated")] // 6082
     AccountAlreadyMigrated,
+    #[msg("Liquidation state issue. Check start before end, end last, and both unique")] // 6083
+    UnexpectedLiquidationState,
+    #[msg("Liquidation start must be first instruction (other than compute program ixes)")] // 6084
+    StartNotFirst,
+    #[msg("Only one liquidation event allowed per tx")] // 6085
+    StartRepeats,
+    #[msg("The end instruction must be the last ix in the tx")] // 6086
+    EndNotLast,
+    #[msg("Tried to call an instruction that is forbidden during liquidation")] // 6087
+    ForbiddenIx,
+    #[msg("Reserved for future use")] // 6088
+    Placeholder87,
+    #[msg("Seized too much of the asset relative to liability repaid")] // 6089
+    LiquidationPremiumTooHigh,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -288,6 +302,13 @@ impl From<u32> for MarginfiError {
             6080 => MarginfiError::OracleMaxConfidenceExceeded,
             6081 => MarginfiError::BankCannotClose,
             6082 => MarginfiError::AccountAlreadyMigrated,
+            6083 => MarginfiError::UnexpectedLiquidationState,
+            6084 => MarginfiError::StartNotFirst,
+            6085 => MarginfiError::StartRepeats,
+            6086 => MarginfiError::EndNotLast,
+            6087 => MarginfiError::ForbiddenIx,
+            6088 => MarginfiError::Placeholder87,
+            6089 => MarginfiError::LiquidationPremiumTooHigh,
             _ => MarginfiError::InternalLogicError,
         }
     }
