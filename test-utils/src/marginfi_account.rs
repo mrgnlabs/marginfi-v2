@@ -11,6 +11,8 @@ use solana_sdk::{
     signature::Keypair, signer::Signer, transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
+#[cfg(feature = "transfer-hook")]
+use transfer_hook::TEST_HOOK_ID;
 
 #[derive(Default, Clone)]
 pub struct MarginfiAccountConfig {}
@@ -110,13 +112,12 @@ impl MarginfiAccountFixture {
 
         // If t22 with transfer hook, add remaining accounts
         let fetch_account_data_fn = |key| async move {
-            Ok(self
-                .ctx
+            self.ctx
                 .borrow_mut()
                 .banks_client
                 .get_account(key)
                 .await
-                .map(|acc| acc.map(|a| a.data))?)
+                .map(|acc| acc.map(|a| a.data))
         };
         let payer = self.ctx.borrow_mut().payer.pubkey();
         #[cfg(feature = "transfer-hook")]
@@ -128,7 +129,7 @@ impl MarginfiAccountFixture {
             );
             let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
                 &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
+                &TEST_HOOK_ID,
                 &funding_account,
                 &bank.mint.key,
                 &bank.get_vault(BankVaultType::Liquidity).0,
@@ -292,19 +293,18 @@ impl MarginfiAccountFixture {
         #[cfg(feature = "transfer-hook")]
         if bank.mint.token_program == anchor_spl::token_2022::ID {
             let fetch_account_data_fn = |key| async move {
-                Ok(self
-                    .ctx
+                self.ctx
                     .borrow_mut()
                     .banks_client
                     .get_account(key)
                     .await
-                    .map(|acc| acc.map(|a| a.data))?)
+                    .map(|acc| acc.map(|a| a.data))
             };
 
             let payer = self.ctx.borrow().payer.pubkey();
             let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
                 &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
+                &TEST_HOOK_ID,
                 &bank.get_vault(BankVaultType::Liquidity).0,
                 &bank.mint.key,
                 &destination_account,
@@ -489,18 +489,17 @@ impl MarginfiAccountFixture {
         if liab_bank_fixture.mint.token_program == anchor_spl::token_2022::ID {
             let payer = self.ctx.borrow().payer.pubkey();
             let fetch_account_data_fn = |key| async move {
-                Ok(self
-                    .ctx
+                self.ctx
                     .borrow_mut()
                     .banks_client
                     .get_account(key)
                     .await
-                    .map(|acc| acc.map(|a| a.data))?)
+                    .map(|acc| acc.map(|a| a.data))
             };
 
             let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
                 &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
+                &TEST_HOOK_ID,
                 &liab_bank_fixture.mint.key,
                 &liab_bank_fixture.mint.key,
                 &liab_bank_fixture.mint.key,

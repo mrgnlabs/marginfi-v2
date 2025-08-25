@@ -26,13 +26,15 @@ use solana_sdk::{
     account::{AccountSharedData, ReadableAccount, WritableAccount},
     commitment_config::CommitmentLevel,
     instruction::Instruction,
-    native_token::LAMPORTS_PER_SOL,
     program_pack::{Pack, Sealed},
     signature::Keypair,
     signer::Signer,
-    system_instruction::{self, create_account},
+    system_instruction::create_account,
     transaction::Transaction,
 };
+#[cfg(feature = "transfer-hook")]
+use solana_sdk::{native_token::LAMPORTS_PER_SOL, system_instruction};
+#[cfg(feature = "transfer-hook")]
 use spl_transfer_hook_interface::{
     get_extra_account_metas_address, instruction::initialize_extra_account_meta_list,
 };
@@ -150,25 +152,21 @@ impl MintFixture {
             );
             ixs.push(init_mint_ix);
             #[cfg(feature = "transfer-hook")]
-            {
-                let extra_metas_address = get_extra_account_metas_address(
+            if extensions.contains(&SupportedExtension::TransferHook) {
+                let extra_metas_address =
+                    get_extra_account_metas_address(&keypair.pubkey(), &TEST_HOOK_ID);
+                ixs.push(system_instruction::transfer(
+                    &ctx.payer.pubkey(),
+                    &extra_metas_address,
+                    10 * LAMPORTS_PER_SOL,
+                ));
+                ixs.push(initialize_extra_account_meta_list(
+                    &TEST_HOOK_ID,
+                    &extra_metas_address,
                     &keypair.pubkey(),
-                    &super::transfer_hook::TEST_HOOK_ID,
-                );
-                if extensions.contains(&SupportedExtension::TransferHook) {
-                    ixs.push(system_instruction::transfer(
-                        &ctx.payer.pubkey(),
-                        &extra_metas_address,
-                        10 * LAMPORTS_PER_SOL,
-                    ));
-                    ixs.push(initialize_extra_account_meta_list(
-                        &super::transfer_hook::TEST_HOOK_ID,
-                        &extra_metas_address,
-                        &keypair.pubkey(),
-                        &ctx.payer.pubkey(),
-                        &[],
-                    ))
-                }
+                    &ctx.payer.pubkey(),
+                    &[],
+                ));
             }
 
             let tx = Transaction::new_signed_with_payer(
@@ -183,7 +181,10 @@ impl MintFixture {
                 .await
                 .unwrap();
 
+            #[cfg(feature = "transfer-hook")]
             if extensions.contains(&SupportedExtension::TransferHook) {
+                let extra_metas_address =
+                    get_extra_account_metas_address(&keypair.pubkey(), &TEST_HOOK_ID);
                 ctx.banks_client
                     .get_account(extra_metas_address)
                     .await
