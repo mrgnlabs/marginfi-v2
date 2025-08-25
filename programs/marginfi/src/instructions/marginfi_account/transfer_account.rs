@@ -3,9 +3,7 @@ use crate::{
     constants::ACCOUNT_TRANSFER_FEE,
     events::{AccountEventHeader, MarginfiAccountTransferToNewAccount},
     prelude::*,
-    state::marginfi_account::{
-        LendingAccount, MarginfiAccount, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
-    },
+    state::marginfi_account::MarginfiAccountImpl,
 };
 use anchor_lang::prelude::*;
 use bytemuck::Zeroable;

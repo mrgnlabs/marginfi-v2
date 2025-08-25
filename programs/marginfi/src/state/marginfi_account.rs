@@ -21,46 +21,6 @@ use marginfi_type_crate::{
     },
 };
 use std::cmp::{max, min};
-use type_layout::TypeLayout;
-
-assert_struct_size!(MarginfiAccount, 2304);
-assert_struct_align!(MarginfiAccount, 8);
-#[account(zero_copy)]
-#[repr(C)]
-#[derive(PartialEq, Eq, TypeLayout)]
-pub struct MarginfiAccount {
-    pub group: Pubkey,                   // 32
-    pub authority: Pubkey,               // 32
-    pub lending_account: LendingAccount, // 1728
-    /// The flags that indicate the state of the account. This is u64 bitfield, where each bit
-    /// represents a flag.
-    ///
-    /// Flags:MarginfiAccount
-    /// - 1: `ACCOUNT_DISABLED` - Indicates that the account is disabled and no further actions can
-    /// be taken on it.
-    /// - 2: `ACCOUNT_IN_FLASHLOAN` - Only set when an account is within a flash loan, e.g. when
-    ///   start_flashloan is called, then unset when the flashloan ends.
-    /// - 4: `ACCOUNT_FLAG_DEPRECATED` - Deprecated, available for future use
-    /// - 8: `ACCOUNT_TRANSFER_AUTHORITY_ALLOWED` - the admin has flagged with account to be moved,
-    ///   original owner can now call `set_account_transfer_authority`
-    pub account_flags: u64, // 8
-    /// Set with `update_emissions_destination_account`. Emissions rewards can be withdrawn to the
-    /// canonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).
-    /// If pubkey default, the user has not opted into this feature, and must claim emissions
-    /// manually (withdraw_emissions).
-    pub emissions_destination_account: Pubkey, // 32
-    pub health_cache: HealthCache,
-    /// If this account was migrated from another one, store the original account key
-    pub migrated_from: Pubkey, // 32
-    /// If this account has been migrated to another one, store the destination account key
-    pub migrated_to: Pubkey, // 32
-    pub _padding0: [u64; 13],
-}
-
-pub const ACCOUNT_DISABLED: u64 = 1 << 0;
-pub const ACCOUNT_IN_FLASHLOAN: u64 = 1 << 1;
-pub const ACCOUNT_FLAG_DEPRECATED: u64 = 1 << 2;
-pub const ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED: u64 = 1 << 3;
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
 pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
