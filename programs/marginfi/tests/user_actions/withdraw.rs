@@ -10,6 +10,7 @@ use marginfi::{
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
+use solana_sdk::clock::Clock;
 use test_case::test_case;
 
 #[test_case(0.03, 0.012, BankMint::Usdc)]
@@ -54,6 +55,16 @@ async fn marginfi_account_withdraw_success(
     // -------------------------------------------------------------------------
 
     let marginfi_account = marginfi_account_f.load().await;
+    // This is just to test that the account's last_update field is properly updated upon modification
+    let pre_last_update = marginfi_account.last_update;
+    {
+        let ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 sec
+        clock.unix_timestamp += 1;
+        ctx.set_sysvar(&clock);
+    }
+
     let pre_vault_balance = bank_f
         .get_vault_token_account(BankVaultType::Liquidity)
         .await
@@ -114,6 +125,7 @@ async fn marginfi_account_withdraw_success(
         .balance()
         .await;
     let marginfi_account = marginfi_account_f.load().await;
+    assert_eq!(marginfi_account.last_update, pre_last_update + 1);
     let balance = marginfi_account
         .lending_account
         .get_balance(&bank_f.key)

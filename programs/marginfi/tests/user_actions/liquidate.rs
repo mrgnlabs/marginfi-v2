@@ -11,6 +11,7 @@ use marginfi::{
 use marginfi_type_crate::types::{Bank, BankConfig, BankConfigOpt, EmodeEntry};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
+use solana_sdk::clock::Clock;
 use test_case::test_case;
 
 #[test_case(100., 9.9, -1., 1., 2., BankMint::Usdc, BankMint::Sol)]
@@ -229,6 +230,17 @@ async fn marginfi_account_liquidation_success(
     let collateral_bank_f = test_f.get_bank(&collateral_mint);
     let debt_bank_f = test_f.get_bank(&debt_mint);
 
+    // This is just to test that the accounts' last_update field is properly updated upon modification
+    let pre_liquidatee_last_update = liquidatee_mfi_account_f.load().await.last_update;
+    let pre_liquidator_last_update = liquidator_mfi_account_f.load().await.last_update;
+    {
+        let ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 sec
+        clock.unix_timestamp += 1;
+        ctx.set_sysvar(&clock);
+    }
+
     liquidator_mfi_account_f
         .try_liquidate(
             &liquidatee_mfi_account_f,
@@ -240,6 +252,15 @@ async fn marginfi_account_liquidation_success(
 
     let liquidator_mfi_ma = liquidator_mfi_account_f.load().await;
     let liquidatee_mfi_ma = liquidatee_mfi_account_f.load().await;
+
+    assert_eq!(
+        liquidator_mfi_ma.last_update,
+        pre_liquidator_last_update + 1
+    );
+    assert_eq!(
+        liquidatee_mfi_ma.last_update,
+        pre_liquidatee_last_update + 1
+    );
 
     // Due to balances sorting (and the LP deposit in the third bank), collateral and debt may be not at indices 0 and 1 -> determine them first
     let liquidator_collateral_index = liquidator_mfi_ma
@@ -265,6 +286,7 @@ async fn marginfi_account_liquidation_success(
         f64
     ));
 
+    // Check liquidator collateral balances
     let collateral_mint_liquidator_balance = collateral_bank.get_asset_amount(
         liquidator_mfi_ma.lending_account.balances[liquidator_collateral_index]
             .asset_shares
@@ -278,6 +300,23 @@ async fn marginfi_account_liquidation_success(
     let debt_paid_out = liquidate_amount * 0.975 * collateral_bank_f.get_price().await
         / debt_bank_f.get_price().await;
 
+    // We have to account for updated share value here due to 1 second of delay we introduced to check last_update
+    let lend_amount_native = I80F48::from(native!(
+        borrow_amount_actual,
+        debt_bank_f.mint.mint.decimals,
+        f64
+    ))
+    .checked_mul(debt_bank.asset_share_value.into())
+    .unwrap();
+    let debt_paid_out_native =
+        I80F48::from(native!(debt_paid_out, debt_bank_f.mint.mint.decimals, f64));
+
+    let expected_debt_mint_liquidator_balance = lend_amount_native
+        .checked_sub(debt_paid_out_native)
+        .unwrap();
+    let debt_mint_liquidator_balance = debt_bank.get_asset_amount(
+        liquidator_mfi_ma.lending_account.balances[debt_index]
+            .asset_shares
     let expected_debt_mint_liquidator_balance = I80F48::from(native!(
         debt_paid_out + liquidator_borrow_amount,
         debt_bank_f.mint.mint.decimals,
@@ -316,11 +355,23 @@ async fn marginfi_account_liquidation_success(
 
     let debt_covered = liquidate_amount * 0.95 * collateral_bank_f.get_price().await
         / debt_bank_f.get_price().await;
+
+    // We have to account for updated share value here due to 1 second of delay we introduced to check last_update
+    let borrow_amount_native = I80F48::from(native!(
+        borrow_amount_actual,
     let expected_debt_mint_liquidatee_balance = I80F48::from(native!(
         liquidatee_borrow_amount_actual - debt_covered,
         debt_bank_f.mint.mint.decimals,
         f64
-    ));
+    ))
+    .checked_mul(debt_bank.liability_share_value.into())
+    .unwrap();
+    let debt_covered_native =
+        I80F48::from(native!(debt_covered, debt_bank_f.mint.mint.decimals, f64));
+
+    let expected_debt_mint_liquidatee_balance = borrow_amount_native
+        .checked_sub(debt_covered_native)
+        .unwrap();
     let debt_mint_liquidatee_balance = debt_bank.get_liability_amount(
         liquidatee_mfi_ma.lending_account.balances[liquidatee_debt_index]
             .liability_shares

@@ -73,6 +73,7 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
     let res = borrower_mfi_account_f.try_balance_close(sol_bank).await;
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::IllegalBalanceState);
+    let last_update_before_repay = borrower_mfi_account_f.load().await.last_update;
 
     // Let a second go b
     {
@@ -92,6 +93,17 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
             Some(false),
         )
         .await?;
+    let last_update_after_repay = borrower_mfi_account_f.load().await.last_update;
+    assert_eq!(last_update_after_repay, last_update_before_repay + 1);
+
+    // Let another second pass
+    {
+        let ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 second
+        clock.unix_timestamp += 1;
+        ctx.set_sysvar(&clock);
+    }
 
     // Liability share in balance is smaller than 0.0001, so repay all should fail
     let res = borrower_mfi_account_f
@@ -104,10 +116,19 @@ async fn lending_account_close_balance() -> anyhow::Result<()> {
         .await;
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::NoLiabilityFound);
+    // No change to last_update if the ix was unsuccessful
+    assert_eq!(
+        last_update_after_repay,
+        borrower_mfi_account_f.load().await.last_update
+    );
 
-    // This issue is not that bad, because the user can still borrow other assets (isolated liab < empty threshold)
     let res = borrower_mfi_account_f.try_balance_close(sol_eq_bank).await;
     assert!(res.is_ok());
+    // Balance closing also updates last_update
+    assert_eq!(
+        borrower_mfi_account_f.load().await.last_update,
+        last_update_after_repay + 1
+    );
 
     Ok(())
 }
