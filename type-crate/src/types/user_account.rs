@@ -46,21 +46,17 @@ pub struct MarginfiAccount {
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
     pub health_cache: HealthCache,
-    /// If this account was migrated from another one, store the original account key
-    pub migrated_from: Pubkey, // 32
-    pub health_cache: HealthCache,
       /// If this account was migrated from another one, store the original account key
     pub migrated_from: Pubkey, // 32
     /// If this account has been migrated to another one, store the destination account key
     pub migrated_to: Pubkey, // 32
-    // TODO close and refund when migrating accounts
     /// Stores information related to liquidations made against this account. A pda of this
     /// account's key, and "liq_record"
     /// * Typically pubkey default if this account has never been liquidated or close to liquidation
     /// * Opening this account is permissionless. Typically the liquidator pays, but e.g. we may
     ///   also charge the user if they are opening a risky position on the front end.
     pub liquidation_record: Pubkey,
-    pub _padding0: [u64; 13],
+    pub _padding0: [u64; 9],
 }
 
 impl MarginfiAccount {

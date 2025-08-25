@@ -1514,11 +1514,11 @@ mod test {
                 _padding: [0; 8],
             },
             account_flags: ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+            health_cache: HealthCache::zeroed(),
             migrated_from: Pubkey::default(),
             migrated_to: Pubkey::default(),
-            health_cache: HealthCache::zeroed(),
             liquidation_record: Pubkey::default(),
-            _padding0: [0; 13],
+            _padding0: [0; 9],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));
