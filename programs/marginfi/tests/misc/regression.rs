@@ -47,6 +47,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     // health cache doesn't exist on these old accounts, but it also doesn't matter since it's read-only
     assert_eq!(account.health_cache, HealthCache::zeroed());
     assert_eq!(account.liquidation_record, Pubkey::default());
+
     assert_eq!(account._padding0, [0; 13]);
 
     let balance_1 = account.lending_account.balances[0];

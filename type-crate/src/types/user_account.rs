@@ -45,9 +45,14 @@ pub struct MarginfiAccount {
     /// If pubkey default, the user has not opted into this feature, and must claim emissions
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
+    pub health_cache: HealthCache,
     /// If this account was migrated from another one, store the original account key
     pub migrated_from: Pubkey, // 32
     pub health_cache: HealthCache,
+      /// If this account was migrated from another one, store the original account key
+    pub migrated_from: Pubkey, // 32
+    /// If this account has been migrated to another one, store the destination account key
+    pub migrated_to: Pubkey, // 32
     // TODO close and refund when migrating accounts
     /// Stores information related to liquidations made against this account. A pda of this
     /// account's key, and "liq_record"
