@@ -537,7 +537,7 @@ async fn flashloan_fail_account_transfer_during_flashloan() -> anyhow::Result<()
     let account = borrower_mfi_account_f.load().await;
 
     let transfer_account_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: marginfi::accounts::TransferToNewAccount {
             old_marginfi_account: borrower_mfi_account_f.key,
             new_marginfi_account: new_account.pubkey(),
