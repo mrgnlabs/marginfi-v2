@@ -109,5 +109,23 @@
                 "clear": true
             }
         },
+        {
+            "label": "Build Type Crate",
+            "type": "shell",
+            "command": "cargo fmt && ./scripts/lint.sh && cargo build -p marginfi-type-crate",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            }
+        }
     ]
 }

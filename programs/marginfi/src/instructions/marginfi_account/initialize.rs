@@ -2,9 +2,12 @@ use crate::{
     constants::{MARGINFI_ACCOUNT_SEED, MOCKS_PROGRAM_ID},
     events::{AccountEventHeader, MarginfiAccountCreateEvent},
     prelude::*,
-    state::marginfi_account::MarginfiAccount,
+    state::marginfi_account::MarginfiAccountImpl,
 };
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::sysvar::Sysvar;
+use marginfi_type_crate::types::{MarginfiAccount, MarginfiGroup};
+
 use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
 use anchor_lang::solana_program::sysvar::{instructions as ix_sysvar, Sysvar};
 

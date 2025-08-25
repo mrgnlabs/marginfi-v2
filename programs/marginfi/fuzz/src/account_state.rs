@@ -13,7 +13,7 @@ use anchor_spl::token_2022::spl_token_2022::{
     state::Mint,
 };
 use bumpalo::Bump;
-use marginfi::{constants::FEE_STATE_SEED, state::marginfi_group::BankVaultType};
+use marginfi::{state::bank::BankVaultType};
 use pyth_solana_receiver_sdk::price_update::{PriceUpdateV2, VerificationLevel};
 use safe_transmute::transmute_to_bytes_mut;
 use solana_program::{
@@ -21,6 +21,7 @@ use solana_program::{
 };
 use solana_sdk::{signature::Keypair, signer::Signer};
 use std::mem::size_of;
+use marginfi_type_crate::constants::FEE_STATE_SEED;
 
 pub struct AccountsState {
     pub bump: Bump,
@@ -66,7 +67,7 @@ impl AccountsState {
 
     pub fn new_fee_state<'a>(&'a self, program_id: Pubkey) -> (AccountInfo<'a>, u8) {
         let (fee_state_key, fee_state_bump) =
-            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
+            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::ID);
 
         (
             AccountInfo::new(
@@ -331,7 +332,7 @@ impl AccountsState {
     }
 
     pub fn new_marginfi_program(&self) -> AccountInfo {
-        self.new_program(marginfi::id())
+        self.new_program(marginfi::ID)
     }
 
     pub fn new_program(&self, pubkey: Pubkey) -> AccountInfo {

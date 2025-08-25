@@ -8,6 +8,7 @@ edition = "2021"
 # lip = ["liquidity-incentive-program"]
 
 [dependencies]
+marginfi-type-crate = { path = "../type-crate", features = ["anchor"] }
 solana-cli-output = { workspace = true }
 solana-program = { workspace = true }
 solana-logger = { workspace = true }

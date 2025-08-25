@@ -3,16 +3,15 @@ use anchor_spl::{
     associated_token::get_associated_token_address_with_program_id,
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
+use marginfi_type_crate::{
+    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED},
+    types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
+};
 
 use crate::{
-    check,
-    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED},
-    debug,
+    check, debug,
     prelude::{MarginfiError, MarginfiResult},
-    state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, MarginfiGroup},
-    },
+    state::marginfi_account::{BankAccountWrapper, MarginfiAccountImpl},
 };
 
 pub fn lending_account_withdraw_emissions<'info>(

@@ -3,13 +3,14 @@ use crate::{
     constants::{ACCOUNT_TRANSFER_FEE, MARGINFI_ACCOUNT_SEED, MOCKS_PROGRAM_ID},
     events::{AccountEventHeader, MarginfiAccountTransferToNewAccount},
     prelude::*,
-    state::marginfi_account::{
-        LendingAccount, MarginfiAccount, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
-    },
+    state::marginfi_account::MarginfiAccountImpl,
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::{instructions as ix_sysvar, Sysvar};
 use bytemuck::Zeroable;
+use marginfi_type_crate::types::{
+    LendingAccount, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
+};
 
 pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
     // Validate the global fee wallet and claim a nominal fee

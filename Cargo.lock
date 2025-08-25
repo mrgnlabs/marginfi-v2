@@ -2435,6 +2435,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "id-crate"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "cfg-if",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2829,7 +2837,7 @@ dependencies = [
 
 [[package]]
 name = "marginfi"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -2844,8 +2852,10 @@ dependencies = [
  "fixed",
  "fixed-macro",
  "futures",
+ "id-crate",
  "lazy_static",
  "mocks",
+ "marginfi-type-crate",
  "pretty_assertions",
  "pyth-solana-receiver-sdk",
  "rust_decimal",
@@ -2861,6 +2871,20 @@ dependencies = [
  "switchboard-on-demand",
  "test-case",
  "test-utilities",
+ "type-layout",
+]
+
+[[package]]
+name = "marginfi-type-crate"
+version = "0.1.5"
+dependencies = [
+ "anchor-lang",
+ "bs58",
+ "bytemuck",
+ "fixed",
+ "fixed-macro",
+ "id-crate",
+ "static_assertions",
  "type-layout",
 ]
 
@@ -2884,6 +2908,7 @@ dependencies = [
  "hex",
  "log",
  "marginfi",
+ "marginfi-type-crate",
  "pyth-solana-receiver-sdk",
  "rand 0.8.5",
  "serde",
@@ -7501,6 +7526,7 @@ dependencies = [
  "lazy_static",
  "marginfi",
  "mocks",
+ "marginfi-type-crate",
  "pretty_assertions",
  "pyth-solana-receiver-sdk",
  "serde",
