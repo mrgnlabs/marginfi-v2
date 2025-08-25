@@ -52,16 +52,6 @@ pub fn lending_account_withdraw<'info>(
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    if marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
-        // Note: during liquidation, there are no signer checks whatsoever: any key can withdraw as
-        // long as the invariants checked in liquidate_end are met.
-    } else {
-        check!(
-            ctx.accounts.authority.key() == marginfi_account.authority,
-            MarginfiError::Unauthorized
-        );
-    }
-
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
@@ -169,10 +159,18 @@ pub struct LendingAccountWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        constraint = {
+            let a = marginfi_account.load()?;
+            a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+        } @MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
+    /// Must be marginfi_account's authority, unless in liquidation receivership
+    ///
+    /// Note: during liquidation, there are no signer checks whatsoever: any key can repay as
+    /// long as the invariants checked at the end of liquidation are met.
     pub authority: Signer<'info>,
 
     #[account(

@@ -8,7 +8,7 @@ use anyhow::Result;
 use bytemuck::bytes_of;
 use fixed::types::I80F48;
 use marginfi::constants::{
-    INIT_BANK_ORIGINATION_FEE_DEFAULT, LIQUIDATION_FLAT_FEE_DEFAULT, LIQUIDATION_MAX_FEE_MINIMUM,
+    INIT_BANK_ORIGINATION_FEE_DEFAULT, LIQUIDATION_BONUS_FEE_MINIMUM, LIQUIDATION_FLAT_FEE_DEFAULT,
 };
 use marginfi::state::bank::BankVaultType;
 use marginfi_type_crate::constants::{
@@ -131,7 +131,7 @@ impl MarginfiGroupFixture {
                         liquidation_flat_sol_fee: LIQUIDATION_FLAT_FEE_DEFAULT,
                         program_fee_fixed: PROTOCOL_FEE_FIXED_DEFAULT.into(),
                         program_fee_rate: PROTOCOL_FEE_RATE_DEFAULT.into(),
-                        liquidation_max_fee: LIQUIDATION_MAX_FEE_MINIMUM.into(),
+                        liquidation_max_fee: LIQUIDATION_BONUS_FEE_MINIMUM.into(),
                     }
                     .data(),
                 };

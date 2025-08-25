@@ -11,7 +11,7 @@ pub trait Hashable {
     fn get_hash() -> [u8; 8];
 }
 
-/// The function of struct discrminator is constructed from these 8 bytes. Typically, the namespace
+/// The function of struct discriminator is constructed from these 8 bytes. Typically, the namespace  
 /// is "account" or "state"
 ///
 /// e.g. for LiquidateStart:
@@ -44,12 +44,15 @@ pub fn validate_ix_first(
             continue;
         }
 
-        // The remainder of the data is the args, which don't matter for validation
-        let ix_data_func = &instruction.data[0..8];
+        // Sanity check the instruction is valid
+        if instruction.data.len() < 8 {
+            panic!("malformed instruction");
+        }
+        let discrim = &instruction.data[0..8];
 
         // If this is the first non-compute ix, it is either the setup ix, or we fail
         if !first_non_compute_ix_encountered {
-            if instruction.program_id == *program_id && ix_data_func == expected_hash {
+            if instruction.program_id == *program_id && discrim == expected_hash {
                 first_non_compute_ix_encountered = true;
             } else {
                 msg!(
@@ -67,7 +70,7 @@ pub fn validate_ix_first(
             }
         } else {
             // Already validated the first ix, check that the start ix does not appear again
-            if instruction.program_id == *program_id && ix_data_func == expected_hash {
+            if instruction.program_id == *program_id && discrim == expected_hash {
                 msg!("Setup IX appears more than once.");
                 return err!(MarginfiError::StartRepeats);
             }
@@ -89,7 +92,14 @@ pub fn validate_ix_last(
     expected_hash: &[u8],
 ) -> MarginfiResult<()> {
     let last_ix = ixes.last().unwrap(); // Safe unwrap, ixes.size() >= 1
-    if !last_ix.program_id.eq(program_id) || last_ix.data != expected_hash {
+
+    // Sanity check the instruction is valid
+    if last_ix.data.len() < 8 {
+        panic!("malformed instruction");
+    }
+    let discrim = &last_ix.data[0..8];
+
+    if !last_ix.program_id.eq(program_id) || discrim != expected_hash {
         return err!(MarginfiError::EndNotLast);
     }
     Ok(())
@@ -109,7 +119,7 @@ pub fn validate_ixes_exclusive(
         if ix.data.len() < 8 {
             panic!("malformed instruction");
         }
-        let discrim = ix.data.get(0..8).unwrap();
+        let discrim = &ix.data[0..8];
 
         // If none of the allowed hashes match, reject
         let is_allowed = expected_hashes.iter().any(|&h| h == discrim);

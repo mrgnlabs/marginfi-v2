@@ -1,6 +1,6 @@
 use crate::{
     check,
-    constants::{LIQUIDATION_DOLLAR_THRESHOLD, LIQUIDATION_MAX_FEE_MINIMUM},
+    constants::{LIQUIDATION_BONUS_FEE_MINIMUM, LIQUIDATION_CLOSEOUT_DOLLAR_THRESHOLD},
     events::LiquidationReceiverEvent,
     ix_utils::{get_discrim_hash, Hashable},
     prelude::*,
@@ -34,8 +34,8 @@ pub fn end_liquidation<'info>(
     let pre_assets_equity: I80F48 = liq_record.cache.asset_value_equity.into();
     let pre_liabs_equity: I80F48 = liq_record.cache.liability_value_equity.into();
     let pre_health: I80F48 = pre_assets - pre_liabs;
-    // Accounts worth less than the threshold can be fully liquidated fully, regardless of health
-    let ignore_health = pre_assets_equity < LIQUIDATION_DOLLAR_THRESHOLD;
+    // Accounts worth less than the threshold can be liquidated fully, regardless of health
+    let ignore_health = pre_assets_equity < LIQUIDATION_CLOSEOUT_DOLLAR_THRESHOLD;
 
     // Validate health still negative and load risk engine info
     let mut post_hc = HealthCache::zeroed();
@@ -53,16 +53,19 @@ pub fn end_liquidation<'info>(
     marginfi_account.health_cache = post_hc;
 
     // validate health has improved.
-    check!(post_health > pre_health, MarginfiError::HealthDidNotImprove);
+    check!(
+        post_health > pre_health,
+        MarginfiError::WorseHealthPostLiquidation
+    );
 
     // ??? Do we care about this, as long as you improved health maybe you can claim as much as you want?
-    // ensure seized asset‐value ≤ 105% of repaid liability‐value
+    // ensure seized asset‐value ≤ N% of repaid liability‐value, where N = 100% + the bonus fee
     let seized: I80F48 = pre_assets_equity - post_assets_equity;
     let repaid: I80F48 = pre_liabs_equity - post_liabilities_equity;
-    // Liquidator's allowed fee cannot go lower than LIQUIDATION_MAX_FEE_MINIMUM
+    // Liquidator's allowed fee cannot go lower than the bonus fee minimum
     let max_fee: I80F48 = I80F48::max(
         fee_state.liquidation_max_fee.into(),
-        I80F48!(1) + LIQUIDATION_MAX_FEE_MINIMUM,
+        I80F48!(1) + LIQUIDATION_BONUS_FEE_MINIMUM,
     );
 
     if !ignore_health {
@@ -151,8 +154,7 @@ impl<'info> EndLiquidation<'info> {
         CpiContext::new(
             self.system_program.to_account_info(),
             anchor_lang::system_program::Transfer {
-                // ??? Do we want to support the fee being paid by a different account? This may
-                // help CPI consumers, but adds another account.
+                // Eventually, maybe support the fee being paid by a different account
                 from: self.liquidation_receiver.to_account_info(),
                 to: self.global_fee_wallet.to_account_info(),
             },

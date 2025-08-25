@@ -15,7 +15,9 @@ use anchor_lang::solana_program::clock::Clock;
 use anchor_lang::solana_program::sysvar::Sysvar;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{
+    Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+};
 
 /// 1. Accrue interest
 /// 2. Create the user's bank account for the asset deposited if it does not exist yet
@@ -52,7 +54,9 @@ pub fn lending_account_deposit<'info>(
     validate_asset_tags(&bank, &marginfi_account)?;
 
     check!(
-        !marginfi_account.get_flag(ACCOUNT_DISABLED),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED)
+            // Sanity check: liquidation doesn't allow the deposit ix, but just in case
+            && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
         MarginfiError::AccountDisabled
     );
 

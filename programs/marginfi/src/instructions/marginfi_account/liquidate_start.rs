@@ -78,11 +78,11 @@ pub fn start_liquidation<'info>(
                 // TODO add withdraw/repay from integrator as they are added to the program. Also
                 // remember to add a test to ix_utils to validate you added the correct hash.
 
-                // Note: At some point we may allow the liquidation to claim emissions too. Since we
+                // Note: At some point we may allow the liquidator to claim emissions too. Since we
                 // currently don't allow this, liquidators can never fully close out an account that
                 // has emissions active. This is not a priority since we are considering deprecating
                 // the emissions feature in late 2025 and moving to a fully off-chain emissions
-                // system.
+                // system anyways.
                 // * &ix_discriminators::LENDING_SETTLE_EMISSIONS,
                 // * &ix_discriminators::LENDING_WITHDRAW_EMISSIONS,
             ],
@@ -111,7 +111,7 @@ pub struct StartLiquidation<'info> {
     /// CHECK: no checks whatsoever, liquidator decides this without restriction
     pub liquidation_receiver: UncheckedAccount<'info>,
 
-    /// CHECK: validated aginst known hard-coded sysvar key
+    /// CHECK: validated against known hard-coded sysvar key
     #[account(
         address = sysvar::instructions::id()
     )]

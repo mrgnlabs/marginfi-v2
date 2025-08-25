@@ -19,7 +19,10 @@ use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
-    types::{Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
+    types::{
+        Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+        ACCOUNT_IN_RECEIVERSHIP,
+    },
 };
 
 /// 1. Accrue interest
@@ -55,7 +58,9 @@ pub fn lending_account_borrow<'info>(
     let program_fee_rate: I80F48 = group.fee_state_cache.program_fee_rate.into();
 
     check!(
-        !marginfi_account.get_flag(ACCOUNT_DISABLED),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED)
+        // Sanity check: liquidation doesn't allow the borrow ix, but just in case
+            && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
         MarginfiError::AccountDisabled
     );
 
