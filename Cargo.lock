@@ -2854,6 +2854,7 @@ dependencies = [
  "futures",
  "id-crate",
  "lazy_static",
+ "mocks",
  "marginfi-type-crate",
  "pretty_assertions",
  "pyth-solana-receiver-sdk",
@@ -3043,6 +3044,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bytemuck",
+ "marginfi",
  "static_assertions",
 ]
 
@@ -7523,6 +7525,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "marginfi",
+ "mocks",
  "marginfi-type-crate",
  "pretty_assertions",
  "pyth-solana-receiver-sdk",

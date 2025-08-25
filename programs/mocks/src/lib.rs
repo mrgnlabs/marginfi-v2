@@ -50,4 +50,17 @@ pub mod mocks {
 
         Ok((&mut borrow_data[offset..]).write_all(&data[..])?)
     }
+
+    /// Create a marginfi account PDA via CPI
+    pub fn create_marginfi_account_pda_via_cpi(
+        ctx: Context<CreateMarginfiAccountPdaViaCpi>,
+        account_index: u32,
+        third_party_id: Option<u32>,
+    ) -> Result<()> {
+        instructions::pda_account_creation::CreateMarginfiAccountPdaViaCpi::create_marginfi_account_pda_via_cpi(
+            ctx,
+            account_index,
+            third_party_id,
+        )
+    }
 }
