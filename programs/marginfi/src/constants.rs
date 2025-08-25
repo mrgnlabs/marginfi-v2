@@ -5,8 +5,6 @@ use pyth_solana_receiver_sdk::price_update::VerificationLevel;
 // 1. the constants used for testing/internal purposes
 // 2. or the ones dependant on some 3rd party crates which are not part of type-crate dependency tree
 
-pub const MARGINFI_ACCOUNT_SEED: &str = "marginfi_account";
-
 /// Mocks program ID for third-party ID restrictions
 pub const MOCKS_PROGRAM_ID: Pubkey = pubkey!("5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C");
 

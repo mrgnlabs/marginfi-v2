@@ -1,6 +1,6 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixtures::test::TestFixture;
-use marginfi::state::marginfi_account::MarginfiAccount;
+use marginfi_type_crate::types::MarginfiAccount;
 use solana_program_test::tokio;
 use solana_sdk::{
     instruction::Instruction, signature::Keypair, signer::Signer, system_program, sysvar,
@@ -21,20 +21,20 @@ async fn marginfi_account_create_pda_success() -> anyhow::Result<()> {
         &authority,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let accounts = marginfi::accounts::MarginfiAccountInitializePda {
         marginfi_group: test_f.marginfi_group.key,
         marginfi_account: marginfi_account_pda,
-        authority: authority,
+        authority,
         fee_payer: authority,
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
     };
 
     let init_marginfi_account_pda_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::MarginfiAccountInitializePda {
             account_index,
@@ -87,7 +87,7 @@ async fn marginfi_account_create_pda_with_third_party_id_success() -> anyhow::Re
         &authority,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let accounts = marginfi::accounts::MarginfiAccountInitializePda {
@@ -100,7 +100,7 @@ async fn marginfi_account_create_pda_with_third_party_id_success() -> anyhow::Re
     };
 
     let init_marginfi_account_pda_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::MarginfiAccountInitializePda {
             account_index,
@@ -148,7 +148,7 @@ async fn marginfi_account_create_pda_multiple_accounts_same_authority() -> anyho
             &authority,
             account_index,
             third_party_id,
-            &marginfi::id(),
+            &marginfi::ID,
         );
 
         let accounts = marginfi::accounts::MarginfiAccountInitializePda {
@@ -161,7 +161,7 @@ async fn marginfi_account_create_pda_multiple_accounts_same_authority() -> anyho
         };
 
         let init_marginfi_account_pda_ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: accounts.to_account_metas(Some(true)),
             data: marginfi::instruction::MarginfiAccountInitializePda {
                 account_index,
@@ -217,7 +217,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
         &authority1,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     // Create account for second authority
@@ -226,7 +226,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
         &authority2,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     // PDAs should be different even with same account_index
@@ -243,7 +243,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
     };
 
     let init_ix1 = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: accounts1.to_account_metas(None),
         data: marginfi::instruction::MarginfiAccountInitializePda {
             account_index,
@@ -279,7 +279,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
     };
 
     let init_ix2 = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: accounts2.to_account_metas(None),
         data: marginfi::instruction::MarginfiAccountInitializePda {
             account_index,
@@ -321,7 +321,7 @@ async fn marginfi_account_create_pda_duplicate_fails() -> anyhow::Result<()> {
         &authority,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let accounts = marginfi::accounts::MarginfiAccountInitializePda {
@@ -334,7 +334,7 @@ async fn marginfi_account_create_pda_duplicate_fails() -> anyhow::Result<()> {
     };
 
     let init_marginfi_account_pda_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::MarginfiAccountInitializePda {
             account_index,

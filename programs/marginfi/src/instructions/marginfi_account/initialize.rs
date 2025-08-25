@@ -1,15 +1,17 @@
+use crate::state::marginfi_account::MarginfiAccountImpl;
 use crate::{
-    constants::{MARGINFI_ACCOUNT_SEED, MOCKS_PROGRAM_ID},
+    constants::MOCKS_PROGRAM_ID,
     events::{AccountEventHeader, MarginfiAccountCreateEvent},
     prelude::*,
-    state::marginfi_account::MarginfiAccountImpl,
 };
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::sysvar::Sysvar;
-use marginfi_type_crate::types::{MarginfiAccount, MarginfiGroup};
+use marginfi_type_crate::{
+    constants::MARGINFI_ACCOUNT_SEED,
+    types::{MarginfiAccount, MarginfiGroup},
+};
 
+use anchor_lang::solana_program::sysvar::instructions as ix_sysvar;
 use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
-use anchor_lang::solana_program::sysvar::{instructions as ix_sysvar, Sysvar};
 
 fn is_cpi_from_mocks_program(sysvar_info: &AccountInfo) -> MarginfiResult<bool> {
     let current_ix_index = ix_sysvar::load_current_index_checked(sysvar_info)?;

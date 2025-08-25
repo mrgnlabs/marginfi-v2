@@ -61,27 +61,6 @@ impl MarginfiAccountImpl for MarginfiAccount {
         self.migrated_to = Pubkey::default();
     }
 
-    /// Derive PDA for marginfi account
-    pub fn derive_pda(
-        group: &Pubkey,
-        authority: &Pubkey,
-        account_index: u32,
-        third_party_id: Option<u32>,
-        program_id: &Pubkey,
-    ) -> (Pubkey, u8) {
-        use crate::constants::MARGINFI_ACCOUNT_SEED;
-        Pubkey::find_program_address(
-            &[
-                MARGINFI_ACCOUNT_SEED.as_bytes(),
-                group.as_ref(),
-                authority.as_ref(),
-                &account_index.to_le_bytes(),
-                &third_party_id.unwrap_or(0).to_le_bytes(),
-            ],
-            program_id,
-        )
-    }
-
     /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
     /// key, oracle, and optional accounts like lst mint/pool, etc.
     fn get_remaining_accounts_len(&self) -> MarginfiResult<usize> {

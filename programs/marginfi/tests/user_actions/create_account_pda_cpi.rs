@@ -1,6 +1,6 @@
 use anchor_lang::InstructionData;
 use fixtures::test::TestFixture;
-use marginfi::state::marginfi_account::MarginfiAccount;
+use marginfi_type_crate::types::MarginfiAccount;
 use mocks::instructions::CpiCallLog;
 use solana_program_test::tokio;
 use solana_sdk::{
@@ -40,7 +40,7 @@ async fn marginfi_account_create_pda_via_cpi_success() -> anyhow::Result<()> {
         &authority,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     // Create a call log account for the CPI mock
@@ -53,7 +53,7 @@ async fn marginfi_account_create_pda_via_cpi_success() -> anyhow::Result<()> {
         fee_payer: authority,
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
-        marginfi_program: marginfi::id(),
+        marginfi_program: marginfi::ID,
         call_log: call_log_keypair.pubkey(),
     };
 
@@ -101,7 +101,7 @@ async fn marginfi_account_create_pda_via_cpi_success() -> anyhow::Result<()> {
         .await;
 
     assert_eq!(call_log.caller_program, mocks::id());
-    assert_eq!(call_log.target_program, marginfi::id());
+    assert_eq!(call_log.target_program, marginfi::ID);
     assert_eq!(call_log.marginfi_group, test_f.marginfi_group.key);
     assert_eq!(call_log.marginfi_account, marginfi_account_pda);
     assert_eq!(call_log.authority, authority);
@@ -126,7 +126,7 @@ async fn marginfi_account_create_pda_via_cpi_with_third_party_id() -> anyhow::Re
         &authority,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     // Create a call log account for the CPI mock
@@ -139,7 +139,7 @@ async fn marginfi_account_create_pda_via_cpi_with_third_party_id() -> anyhow::Re
         fee_payer: authority,
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
-        marginfi_program: marginfi::id(),
+        marginfi_program: marginfi::ID,
         call_log: call_log_keypair.pubkey(),
     };
 
@@ -202,7 +202,7 @@ async fn marginfi_account_create_pda_via_cpi_multiple_calls() -> anyhow::Result<
             &authority,
             account_index,
             third_party_id,
-            &marginfi::id(),
+            &marginfi::ID,
         );
 
         let call_log_keypair = Keypair::new();
@@ -214,7 +214,7 @@ async fn marginfi_account_create_pda_via_cpi_multiple_calls() -> anyhow::Result<
             fee_payer: authority,
             instructions_sysvar: sysvar::instructions::id(),
             system_program: system_program::id(),
-            marginfi_program: marginfi::id(),
+            marginfi_program: marginfi::ID,
             call_log: call_log_keypair.pubkey(),
         };
 
@@ -284,7 +284,7 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
         &authority1,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let call_log_keypair1 = Keypair::new();
@@ -296,7 +296,7 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
         fee_payer: authority1,
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
-        marginfi_program: marginfi::id(),
+        marginfi_program: marginfi::ID,
         call_log: call_log_keypair1.pubkey(),
     };
 
@@ -336,7 +336,7 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
         &authority2,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     // PDAs should be different even with same account_index
@@ -351,7 +351,7 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
         fee_payer: test_f.payer(),
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
-        marginfi_program: marginfi::id(),
+        marginfi_program: marginfi::ID,
         call_log: call_log_keypair2.pubkey(),
     };
 
@@ -424,7 +424,7 @@ async fn marginfi_account_create_pda_via_cpi_duplicate_should_fail() -> anyhow::
         &authority,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     // First CPI call should succeed
@@ -437,7 +437,7 @@ async fn marginfi_account_create_pda_via_cpi_duplicate_should_fail() -> anyhow::
         fee_payer: authority,
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
-        marginfi_program: marginfi::id(),
+        marginfi_program: marginfi::ID,
         call_log: call_log_keypair1.pubkey(),
     };
 
@@ -477,7 +477,7 @@ async fn marginfi_account_create_pda_via_cpi_duplicate_should_fail() -> anyhow::
         fee_payer: authority,
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
-        marginfi_program: marginfi::id(),
+        marginfi_program: marginfi::ID,
         call_log: call_log_keypair2.pubkey(),
     };
 

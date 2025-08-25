@@ -53,6 +53,27 @@ pub struct MarginfiAccount {
 impl MarginfiAccount {
     pub const LEN: usize = std::mem::size_of::<MarginfiAccount>();
     pub const DISCRIMINATOR: [u8; 8] = discriminators::ACCOUNT;
+
+    /// Note: Only for accounts created by PDA
+    pub fn derive_pda(
+        group: &Pubkey,
+        authority: &Pubkey,
+        account_index: u32,
+        third_party_id: Option<u32>,
+        program_id: &Pubkey,
+    ) -> (Pubkey, u8) {
+        use crate::constants::MARGINFI_ACCOUNT_SEED;
+        Pubkey::find_program_address(
+            &[
+                MARGINFI_ACCOUNT_SEED.as_bytes(),
+                group.as_ref(),
+                authority.as_ref(),
+                &account_index.to_le_bytes(),
+                &third_party_id.unwrap_or(0).to_le_bytes(),
+            ],
+            program_id,
+        )
+    }
 }
 
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;

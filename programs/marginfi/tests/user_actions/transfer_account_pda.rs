@@ -1,6 +1,6 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixtures::test::TestFixture;
-use marginfi::state::marginfi_account::MarginfiAccount;
+use marginfi_type_crate::types::{MarginfiAccount, ACCOUNT_DISABLED};
 use solana_program_test::tokio;
 use solana_sdk::{
     instruction::Instruction, signature::Keypair, signer::Signer, system_program, sysvar,
@@ -27,7 +27,7 @@ async fn transfer_to_new_account_pda_success() -> anyhow::Result<()> {
     };
 
     let create_old_account_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: create_old_account_accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
     };
@@ -61,7 +61,7 @@ async fn transfer_to_new_account_pda_success() -> anyhow::Result<()> {
         &new_authority,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let transfer_accounts = marginfi::accounts::TransferToNewAccountPda {
@@ -76,7 +76,7 @@ async fn transfer_to_new_account_pda_success() -> anyhow::Result<()> {
     };
 
     let transfer_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: transfer_accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::TransferToNewAccountPda {
             account_index,
@@ -118,7 +118,7 @@ async fn transfer_to_new_account_pda_success() -> anyhow::Result<()> {
         .await;
 
     assert_eq!(old_account.migrated_to, new_marginfi_account_pda);
-    assert!(old_account.get_flag(marginfi::state::marginfi_account::ACCOUNT_DISABLED));
+    assert_eq!(old_account.account_flags, ACCOUNT_DISABLED);
     Ok(())
 }
 
@@ -142,7 +142,7 @@ async fn transfer_to_new_account_pda_with_third_party_id() -> anyhow::Result<()>
     };
 
     let create_old_account_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: create_old_account_accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
     };
@@ -172,7 +172,7 @@ async fn transfer_to_new_account_pda_with_third_party_id() -> anyhow::Result<()>
         &new_authority,
         account_index,
         third_party_id,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let transfer_accounts = marginfi::accounts::TransferToNewAccountPda {
@@ -187,7 +187,7 @@ async fn transfer_to_new_account_pda_with_third_party_id() -> anyhow::Result<()>
     };
 
     let transfer_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: transfer_accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::TransferToNewAccountPda {
             account_index,
@@ -248,7 +248,7 @@ async fn transfer_double_migration_fails() -> anyhow::Result<()> {
     };
 
     let create_old_account_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: create_old_account_accounts.to_account_metas(Some(true)),
         data: marginfi::instruction::MarginfiAccountInitialize {}.data(),
     };
@@ -276,7 +276,7 @@ async fn transfer_double_migration_fails() -> anyhow::Result<()> {
         &new_authority1,
         account_index1,
         None,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let transfer_accounts1 = marginfi::accounts::TransferToNewAccountPda {
@@ -291,7 +291,7 @@ async fn transfer_double_migration_fails() -> anyhow::Result<()> {
     };
 
     let transfer_ix1 = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: transfer_accounts1.to_account_metas(Some(true)),
         data: marginfi::instruction::TransferToNewAccountPda {
             account_index: account_index1,
@@ -323,7 +323,7 @@ async fn transfer_double_migration_fails() -> anyhow::Result<()> {
         &new_authority2,
         account_index2,
         None,
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let transfer_accounts2 = marginfi::accounts::TransferToNewAccountPda {
@@ -338,7 +338,7 @@ async fn transfer_double_migration_fails() -> anyhow::Result<()> {
     };
 
     let transfer_ix2 = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: transfer_accounts2.to_account_metas(Some(true)),
         data: marginfi::instruction::TransferToNewAccountPda {
             account_index: account_index2,
