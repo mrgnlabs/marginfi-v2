@@ -46,7 +46,8 @@ pub fn validate_ix_first(
 
         // Sanity check the instruction is valid
         if instruction.data.len() < 8 {
-            panic!("malformed instruction");
+            // Note: non-anchor programs (e.g. ComputeBudget) can end up in this path.
+            return err!(MarginfiError::StartNotFirst);
         }
         let discrim = &instruction.data[0..8];
 
@@ -95,7 +96,8 @@ pub fn validate_ix_last(
 
     // Sanity check the instruction is valid
     if last_ix.data.len() < 8 {
-        panic!("malformed instruction");
+        // Note: non-anchor programs (e.g. ComputeBudget) can end up in this path.
+        return err!(MarginfiError::EndNotLast);
     }
     let discrim = &last_ix.data[0..8];
 
@@ -117,6 +119,7 @@ pub fn validate_ixes_exclusive(
     for ix in ixes.iter().filter(|ix| &ix.program_id == program_id) {
         // Sanity check the instruction is valid
         if ix.data.len() < 8 {
+            // We expect only Anchor programs to be inputs here, so this should be impossible.
             panic!("malformed instruction");
         }
         let discrim = &ix.data[0..8];
