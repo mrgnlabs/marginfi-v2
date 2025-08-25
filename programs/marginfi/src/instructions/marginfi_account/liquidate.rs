@@ -249,39 +249,14 @@ pub fn lending_account_liquidate<'info>(
                 &mut liquidator_marginfi_account.lending_account,
             )?;
 
-            // TODO: in edge cases, the liquidator starts/ends with ASSETS, following the logic
-            // below, and this value (which will ultimately be emitted in the event) is useless.
+            // TODO: in edge cases, the liquidator starts/ends with ASSETS,
+            // and this value (which will ultimately be emitted in the event) is useless.
             let pre_balance: I80F48 = bank_account
                 .bank
                 .get_liability_amount(bank_account.balance.liability_shares.into())?;
 
-            let asset_balance: I80F48 = bank_account
-                .bank
-                .get_asset_amount(bank_account.balance.asset_shares.into())?;
-
-            // Complex cases: the liquidator has an asset balance, which will be REDUCED
-            if asset_balance > I80F48::ZERO {
-                // a) liquidator has assets ≥ needed → just withdraw that amount
-                if asset_balance >= liab_amount_liquidator {
-                    bank_account.withdraw(liab_amount_liquidator, true)?;
-                } else {
-                    // b) has some assets < needed → wipe them all, then borrow the rest
-                    bank_account.withdraw_all(true)?;
-                    let remaining = liab_amount_liquidator
-                        .checked_sub(asset_balance)
-                        .ok_or(MarginfiError::MathError)?;
-                    // Note: the slot is now deactivated, we must recreate it
-                    bank_account = BankAccountWrapper::find_or_create(
-                        &ctx.accounts.liab_bank.key(),
-                        &mut liab_bank,
-                        &mut liquidator_marginfi_account.lending_account,
-                    )?;
-                    bank_account.borrow_ignore_borrow_cap(remaining)?;
-                }
-            } else {
-                // Common case: liquidator has debt, or this is a new borrow
-                bank_account.borrow_ignore_borrow_cap(liab_amount_liquidator)?;
-            }
+            // Liquidator will withdraw the collateral (if any) and then borrow the remainder (if any). Ignores the utilization ratio check.
+            bank_account.withdraw_ignore_borrow_cap(liab_amount_liquidator)?;
 
             let post_balance: I80F48 = bank_account
                 .bank
@@ -302,9 +277,13 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            bank_account
-                .withdraw(asset_amount, true)
-                .map_err(|_| MarginfiError::OverliquidationAttempt)?;
+            check!(
+                pre_balance >= asset_amount,
+                MarginfiError::OverliquidationAttempt
+            );
+
+            // Liquidatee will withdraw the collateral ignoring the utilization ratio check.
+            bank_account.withdraw_ignore_borrow_cap(asset_amount)?;
 
             let post_balance: I80F48 = bank_account
                 .bank
@@ -325,32 +304,8 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            let liab_balance: I80F48 = bank_account
-                .bank
-                .get_liability_amount(bank_account.balance.liability_shares.into())?;
-
-            if liab_balance > I80F48::ZERO {
-                // a) liquidator owes ≥ incoming collateral → just repay that amount
-                if liab_balance >= asset_amount {
-                    bank_account.repay(asset_amount)?;
-                } else {
-                    // b) Liquidator owes < incoming → wipe out the debt, then deposit the remainder
-                    let to_deposit = asset_amount.checked_sub(liab_balance).unwrap();
-                    bank_account.repay_all()?;
-
-                    // slot is now deactivated, recreate it
-                    bank_account = BankAccountWrapper::find_or_create(
-                        &ctx.accounts.asset_bank.key(),
-                        &mut asset_bank,
-                        &mut liquidator_marginfi_account.lending_account,
-                    )?;
-
-                    bank_account.deposit_ignore_deposit_cap(to_deposit)?;
-                }
-            } else {
-                // Common case: liquidator has assets or no position
-                bank_account.deposit_ignore_deposit_cap(asset_amount)?;
-            }
+            // Liquidator will repay the debt (if any) and then deposit the remainder (if any).
+            bank_account.deposit_ignore_deposit_cap(asset_amount)?;
 
             let post_balance: I80F48 = bank_account
                 .bank
