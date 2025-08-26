@@ -25,7 +25,7 @@ describe("Initialize user account with PDA", () => {
       users[0].wallet.publicKey,
       accountIndex
     );
-    
+
     users[0].accounts.set("USER_ACCOUNT_PDA", accountPda);
 
     let tx: Transaction = new Transaction();
@@ -68,10 +68,12 @@ describe("Initialize user account with PDA", () => {
       );
       await users[0].mrgnProgram.provider.sendAndConfirm(tx, []);
 
-      const userAccount = await program.account.marginfiAccount.fetch(accountPda);
+      const userAccount = await program.account.marginfiAccount.fetch(
+        accountPda
+      );
       assertKeysEqual(userAccount.group, marginfiGroup.publicKey);
       assertKeysEqual(userAccount.authority, users[0].wallet.publicKey);
-      
+
       users[0].accounts.set(`USER_ACCOUNT_PDA_${i}`, accountPda);
     }
   });
@@ -103,7 +105,7 @@ describe("Initialize user account with PDA", () => {
     const userAccount = await program.account.marginfiAccount.fetch(accountPda);
     assertKeysEqual(userAccount.group, marginfiGroup.publicKey);
     assertKeysEqual(userAccount.authority, users[0].wallet.publicKey);
-    
+
     users[0].accounts.set("USER_ACCOUNT_PDA_THIRD_PARTY", accountPda);
   });
 
@@ -131,7 +133,7 @@ describe("Initialize user account with PDA", () => {
     const userAccount = await program.account.marginfiAccount.fetch(accountPda);
     assertKeysEqual(userAccount.group, marginfiGroup.publicKey);
     assertKeysEqual(userAccount.authority, users[1].wallet.publicKey);
-    
+
     users[1].accounts.set("USER_ACCOUNT_PDA", accountPda);
   });
 
@@ -162,7 +164,7 @@ describe("Initialize user account with PDA", () => {
 
   it("Verify PDA accounts have unique addresses", async () => {
     const accountIndex = 0;
-    
+
     // Different authorities, same index
     const [pda1] = deriveMarginfiAccountPda(
       program.programId,
@@ -170,14 +172,14 @@ describe("Initialize user account with PDA", () => {
       users[0].wallet.publicKey,
       accountIndex
     );
-    
+
     const [pda2] = deriveMarginfiAccountPda(
       program.programId,
       marginfiGroup.publicKey,
       users[1].wallet.publicKey,
       accountIndex
     );
-    
+
     // Same authority, different indices
     const [pda3] = deriveMarginfiAccountPda(
       program.programId,
@@ -185,7 +187,7 @@ describe("Initialize user account with PDA", () => {
       users[0].wallet.publicKey,
       1
     );
-    
+
     // Same authority, same index, different third-party ID
     const [pda4] = deriveMarginfiAccountPda(
       program.programId,
@@ -206,7 +208,7 @@ describe("Initialize user account with PDA", () => {
 
   it("(user 0) Try to initialize PDA account with restricted third-party ID 42 - should fail", async () => {
     const accountIndex = 10; // Use different index to avoid conflicts
-    const restrictedThirdPartyId = 42;
+    const restrictedThirdPartyId = 10_001;
     const [accountPda, bump] = deriveMarginfiAccountPda(
       program.programId,
       marginfiGroup.publicKey,
@@ -231,6 +233,4 @@ describe("Initialize user account with PDA", () => {
       await users[0].mrgnProgram.provider.sendAndConfirm(tx, []);
     }, "Unauthorized");
   });
-
- 
 });

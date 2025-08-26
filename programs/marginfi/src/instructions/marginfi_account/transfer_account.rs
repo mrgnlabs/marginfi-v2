@@ -111,13 +111,10 @@ impl<'info> TransferToNewAccount<'info> {
     }
 }
 
-/// Transfer an existing marginfi account to a new PDA-based account
+/// Same as `transfer_to_new_account` except the resulting account is a PDA
 ///
-/// This function transfers all balances and state from an old account to a new PDA-based account.
-/// The old account is marked as disabled and migrated_to is set to the new account.
-/// The new account is created as a PDA with the provided parameters.
-///
-/// PDA seeds for new account: [b"marginfi_account", group, new_authority, account_index.to_le_bytes(), third_party_id.unwrap_or(0).to_le_bytes()]
+/// PDA seeds for new account: [b"marginfi_account", group, new_authority,
+/// account_index.to_le_bytes(), third_party_id.unwrap_or(0).to_le_bytes()]
 pub fn transfer_to_new_account_pda(
     ctx: Context<TransferToNewAccountPda>,
     _account_index: u32,

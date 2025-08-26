@@ -118,7 +118,7 @@ async fn marginfi_account_create_pda_via_cpi_with_third_party_id() -> anyhow::Re
 
     let authority = test_f.payer();
     let account_index = 1u32;
-    let third_party_id = Some(42u32);
+    let third_party_id = Some(10_001u32);
 
     // Derive PDA for the marginfi account
     let (marginfi_account_pda, _bump) = MarginfiAccount::derive_pda(
