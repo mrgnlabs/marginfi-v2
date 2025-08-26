@@ -18,7 +18,7 @@ describe("Initialize user account with PDA", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
 
   it("(user 0) Initialize PDA user account - happy path", async () => {
-    const accountIndex = 0;
+    const accountIndex = 555;
     const [accountPda, bump] = deriveMarginfiAccountPda(
       program.programId,
       marginfiGroup.publicKey,
@@ -45,6 +45,9 @@ describe("Initialize user account with PDA", () => {
     assertKeysEqual(userAccount.authority, users[0].wallet.publicKey);
     assertKeyDefault(userAccount.migratedFrom);
     assertKeyDefault(userAccount.migratedTo);
+    assert.equal(userAccount.accountIndex, accountIndex);
+    assert.equal(userAccount.thirdPartyIndex, 0);
+    assert.equal(userAccount.bump, bump);
   });
 
   it("(user 0) Initialize multiple PDA accounts with different indices", async () => {
@@ -73,6 +76,7 @@ describe("Initialize user account with PDA", () => {
       );
       assertKeysEqual(userAccount.group, marginfiGroup.publicKey);
       assertKeysEqual(userAccount.authority, users[0].wallet.publicKey);
+      assert.equal(userAccount.accountIndex, i);
 
       users[0].accounts.set(`USER_ACCOUNT_PDA_${i}`, accountPda);
     }
@@ -105,6 +109,7 @@ describe("Initialize user account with PDA", () => {
     const userAccount = await program.account.marginfiAccount.fetch(accountPda);
     assertKeysEqual(userAccount.group, marginfiGroup.publicKey);
     assertKeysEqual(userAccount.authority, users[0].wallet.publicKey);
+    assert.equal(userAccount.thirdPartyIndex, thirdPartyId);
 
     users[0].accounts.set("USER_ACCOUNT_PDA_THIRD_PARTY", accountPda);
   });
@@ -133,12 +138,15 @@ describe("Initialize user account with PDA", () => {
     const userAccount = await program.account.marginfiAccount.fetch(accountPda);
     assertKeysEqual(userAccount.group, marginfiGroup.publicKey);
     assertKeysEqual(userAccount.authority, users[1].wallet.publicKey);
+    assert.equal(userAccount.accountIndex, accountIndex);
+    assert.equal(userAccount.thirdPartyIndex, 0);
+    assert.equal(userAccount.bump, bump);
 
     users[1].accounts.set("USER_ACCOUNT_PDA", accountPda);
   });
 
   it("(user 0) Try to initialize same PDA account twice - should fail", async () => {
-    const accountIndex = 0;
+    const accountIndex = 555;
     const [accountPda, bump] = deriveMarginfiAccountPda(
       program.programId,
       marginfiGroup.publicKey,

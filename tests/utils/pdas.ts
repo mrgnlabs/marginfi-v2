@@ -120,11 +120,11 @@ export const deriveMarginfiAccountPda = (
   accountIndex: number,
   thirdPartyId?: number
 ) => {
-  const accountIndexBuffer = Buffer.allocUnsafe(4);
-  accountIndexBuffer.writeUInt32LE(accountIndex, 0);
-  
-  const thirdPartyIdBuffer = Buffer.allocUnsafe(4);
-  thirdPartyIdBuffer.writeUInt32LE(thirdPartyId || 0, 0);
+  const accountIndexBuffer = Buffer.allocUnsafe(2);
+  accountIndexBuffer.writeUInt16LE(accountIndex, 0);
+
+  const thirdPartyIdBuffer = Buffer.allocUnsafe(2);
+  thirdPartyIdBuffer.writeUInt16LE(thirdPartyId || 0, 0);
 
   return PublicKey.findProgramAddressSync(
     [

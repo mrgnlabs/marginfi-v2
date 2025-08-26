@@ -101,7 +101,7 @@ describe("Transfer account authority to PDA", () => {
     await users[0].mrgnProgram.provider.sendAndConfirm(tx, [oldAccKeypair2]);
 
     // Derive PDA for new account with third-party ID
-    const accountIndex = 0;
+    const accountIndex = 42;
     const thirdPartyId = 200;
     const [newAccountPda, bump] = deriveMarginfiAccountPda(
       program.programId,
@@ -134,6 +134,9 @@ describe("Transfer account authority to PDA", () => {
     assertKeyDefault(newAcc.migratedTo);
     assertBNEqual(oldAcc.accountFlags, ACCOUNT_DISABLED);
     assertKeysEqual(oldAcc.migratedTo, newAccountPda);
+    assert.equal(newAcc.accountIndex, accountIndex);
+    assert.equal(newAcc.thirdPartyIndex, thirdPartyId)
+    assert.equal(newAcc.bump, bump);
   });
 
   it("(user 0) tries to migrate their old account again - should fail", async () => {

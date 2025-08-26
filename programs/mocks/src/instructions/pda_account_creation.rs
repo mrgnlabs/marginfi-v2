@@ -3,7 +3,7 @@ use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
 use anchor_lang::InstructionData;
 
 #[derive(Accounts)]
-#[instruction(account_index: u32, third_party_id: Option<u32>)]
+#[instruction(account_index: u16, third_party_id: Option<u16>)]
 pub struct CreateMarginfiAccountPdaViaCpi<'info> {
     /// CHECK: This is the marginfi group account being passed to CPI
     #[account(mut)]
