@@ -72,18 +72,18 @@ pub const ACCOUNT_TRANSFER_FEE: u64 = 5_000_000;
 /// This enables third-parties (who have registered) to quickly sort all mrgn accounts that are
 /// relevant to their use-case by memcmp without loading the entire mrgn ecosystem.
 ///
-/// Registration is free, we will include your registration in the next program update. Feel free to
-/// request multiple.
+/// Registration is free, we will include your registration in the next program update (roughly
+/// monthly). Feel free to request multiple.
 ///
 /// Contact us to register at // TODO need a good email....
 pub const THIRD_PARTY_CPI_RULES: &[(u32, Pubkey)] = &[
     (10_001, MOCKS_PROGRAM_ID),
-    // (7, SOME_OTHER_PROGRAM_ID),
-    // (99, YET_ANOTHER_PROGRAM_ID),
+    // (10_002, SOME_OTHER_PROGRAM_ID),
+    // (10_003, YET_ANOTHER_PROGRAM_ID),
 ];
 
 /// * IDs < FREE_THRESHOLD are "free" (no special CPI restriction), just go ahead and use them
-/// 
+///
 /// * IDs >= FREE_THRESHOLD are "restricted": must contact us to register first.
 pub const PDA_FREE_THRESHOLD: u32 = 10_000;
 
@@ -92,8 +92,10 @@ pub const PDA_FREE_THRESHOLD: u32 = 10_000;
 ///
 ///
 /// Returns:
-/// - Ok(true)  => it *is* a CPI from the allowed program for `third_party_id`
-/// - Ok(false) => not a CPI (direct call) OR CPI from a different program
+/// - Ok(true)  => it *is* a CPI from the allowed program for `third_party_id`, or uses an
+///   unrestricted seed that isn't subject to any limits.
+/// - Ok(false) => not a CPI (direct call) OR CPI from a different program that has not registered
+///   that seed.
 pub fn is_allowed_cpi_for_third_party_id(
     sysvar_info: &AccountInfo,
     third_party_id: u32,
@@ -118,7 +120,8 @@ pub fn is_allowed_cpi_for_third_party_id(
     let current_ix_index = ix_sysvar::load_current_index_checked(sysvar_info)?;
     let current_ixn = load_instruction_at_checked(current_ix_index as usize, sysvar_info)?;
 
-    // If the current (top-level) instruction is *this* program, it's a direct call (not CPI) -> no "third party" id allowed
+    // If the current (top-level) instruction is *this* program, it's a direct call (not CPI) -> no
+    // "third party" id allowed in the restricted zone.
     if current_ixn.program_id == crate::ID {
         return Ok(false);
     }
