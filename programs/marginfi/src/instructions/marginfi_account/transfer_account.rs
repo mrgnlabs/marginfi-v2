@@ -1,12 +1,12 @@
 use crate::{
     check, check_eq,
-    constants::{ACCOUNT_TRANSFER_FEE, MOCKS_PROGRAM_ID},
+    constants::{is_allowed_cpi_for_third_party_id, ACCOUNT_TRANSFER_FEE},
     events::{AccountEventHeader, MarginfiAccountTransferToNewAccount},
     prelude::*,
     state::marginfi_account::MarginfiAccountImpl,
 };
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::sysvar::{instructions as ix_sysvar, Sysvar};
+use anchor_lang::solana_program::sysvar::Sysvar;
 use bytemuck::Zeroable;
 use marginfi_type_crate::{
     constants::MARGINFI_ACCOUNT_SEED,
@@ -111,14 +111,10 @@ impl<'info> TransferToNewAccount<'info> {
     }
 }
 
-/// Same as `transfer_to_new_account` except the resulting account is a PDA
-///
-/// PDA seeds for new account: [b"marginfi_account", group, new_authority,
-/// account_index.to_le_bytes(), third_party_id.unwrap_or(0).to_le_bytes()]
 pub fn transfer_to_new_account_pda(
     ctx: Context<TransferToNewAccountPda>,
-    _account_index: u32,
-    third_party_id: Option<u32>,
+    account_index: u16,
+    third_party_id: Option<u16>,
 ) -> MarginfiResult {
     // Validate the global fee wallet and claim a nominal fee
     let group = ctx.accounts.group.load()?;
@@ -145,27 +141,8 @@ pub fn transfer_to_new_account_pda(
 
     // Validate third-party id restriction if provided
     if let Some(id) = third_party_id {
-        if id == 42 {
-            // Restrict id=42 to CPI calls from the mocks program only
-            // Use instruction sysvar to get the actual calling program
-            let current_ix_index =
-                ix_sysvar::load_current_index_checked(&ctx.accounts.instructions_sysvar)?;
-
-            // Look for the previous instruction (caller) if it exists
-            if current_ix_index > 0 {
-                let caller_ix = ix_sysvar::load_instruction_at_checked(
-                    current_ix_index.saturating_sub(1) as usize,
-                    &ctx.accounts.instructions_sysvar,
-                )?;
-
-                // Check if the calling program is the mocks program
-                if caller_ix.program_id != MOCKS_PROGRAM_ID {
-                    return err!(MarginfiError::Unauthorized);
-                }
-            } else {
-                // Direct call (not CPI), which should not be allowed for id=42
-                return err!(MarginfiError::Unauthorized);
-            }
+        if !is_allowed_cpi_for_third_party_id(&ctx.accounts.instructions_sysvar, id)? {
+            return err!(MarginfiError::Unauthorized);
         }
     }
 
@@ -175,6 +152,9 @@ pub fn transfer_to_new_account_pda(
     new_account.emissions_destination_account = old_account.emissions_destination_account;
     new_account.account_flags = old_account.account_flags;
     new_account.migrated_from = ctx.accounts.old_marginfi_account.key();
+    new_account.account_index = account_index;
+    new_account.third_party_index = third_party_id.unwrap_or(0);
+    new_account.bump = ctx.bumps.new_marginfi_account;
 
     old_account.migrated_to = ctx.accounts.new_marginfi_account.key();
 
@@ -197,7 +177,7 @@ pub fn transfer_to_new_account_pda(
 }
 
 #[derive(Accounts)]
-#[instruction(account_index: u32, third_party_id: Option<u32>)]
+#[instruction(account_index: u16, third_party_id: Option<u16>)]
 pub struct TransferToNewAccountPda<'info> {
     pub group: AccountLoader<'info, MarginfiGroup>,
 

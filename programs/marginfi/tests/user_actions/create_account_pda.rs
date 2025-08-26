@@ -12,11 +12,11 @@ async fn marginfi_account_create_pda_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
 
     let authority = test_f.payer();
-    let account_index = 0u32;
+    let account_index = 42;
     let third_party_id = None;
 
     // Derive PDA for the marginfi account
-    let (marginfi_account_pda, _bump) = MarginfiAccount::derive_pda(
+    let (marginfi_account_pda, bump) = MarginfiAccount::derive_pda(
         &test_f.marginfi_group.key,
         &authority,
         account_index,
@@ -69,6 +69,9 @@ async fn marginfi_account_create_pda_success() -> anyhow::Result<()> {
         .balances
         .iter()
         .all(|bank| !bank.is_active()));
+    assert_eq!(marginfi_account.account_index, account_index);
+    assert_eq!(marginfi_account.third_party_index, 0);
+    assert_eq!(marginfi_account.bump, bump);
 
     Ok(())
 }
@@ -78,8 +81,8 @@ async fn marginfi_account_create_pda_with_third_party_id_success() -> anyhow::Re
     let test_f = TestFixture::new(None).await;
 
     let authority = test_f.payer();
-    let account_index = 1u32;
-    let third_party_id = Some(10u32); // Using a non-restricted id
+    let account_index = 1;
+    let third_party_id = Some(10); // Using a non-restricted id
 
     // Derive PDA for the marginfi account
     let (marginfi_account_pda, _bump) = MarginfiAccount::derive_pda(
@@ -130,6 +133,7 @@ async fn marginfi_account_create_pda_with_third_party_id_success() -> anyhow::Re
 
     assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
     assert_eq!(marginfi_account.authority, authority);
+    assert_eq!(marginfi_account.third_party_index, 10);
 
     Ok(())
 }
@@ -142,7 +146,7 @@ async fn marginfi_account_create_pda_multiple_accounts_same_authority() -> anyho
     let third_party_id = None;
 
     // Create multiple accounts with different indices
-    for account_index in 0..3u32 {
+    for account_index in 0..3 {
         let (marginfi_account_pda, _bump) = MarginfiAccount::derive_pda(
             &test_f.marginfi_group.key,
             &authority,
@@ -208,7 +212,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
     let authority1 = test_f.payer();
     let authority2_keypair = Keypair::new();
     let authority2 = authority2_keypair.pubkey();
-    let account_index = 0u32;
+    let account_index = 0;
     let third_party_id = None;
 
     // Create account for first authority
@@ -312,7 +316,7 @@ async fn marginfi_account_create_pda_duplicate_fails() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
 
     let authority = test_f.payer();
-    let account_index = 0u32;
+    let account_index = 0;
     let third_party_id = None;
 
     // Derive PDA for the marginfi account

@@ -42,8 +42,8 @@ pub struct CpiCallLog {
     pub marginfi_group: Pubkey,
     pub marginfi_account: Pubkey,
     pub authority: Pubkey,
-    pub account_index: u32,
-    pub third_party_id: Option<u32>,
+    pub account_index: u16,
+    pub third_party_id: Option<u16>,
     pub call_successful: bool,
     pub timestamp: i64,
 }
@@ -51,8 +51,8 @@ pub struct CpiCallLog {
 impl CreateMarginfiAccountPdaViaCpi<'_> {
     pub fn create_marginfi_account_pda_via_cpi(
         ctx: Context<CreateMarginfiAccountPdaViaCpi>,
-        account_index: u32,
-        third_party_id: Option<u32>,
+        account_index: u16,
+        third_party_id: Option<u16>,
     ) -> Result<()> {
         let clock = Clock::get()?;
 

@@ -53,19 +53,10 @@ pub struct MarginfiAccountInitialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Initialize a marginfi account using a PDA (Program Derived Address)
-///
-/// This function creates a marginfi account at a deterministic address based on:
-/// - marginfi_group: The group this account belongs to
-/// - authority: The account authority (owner)  
-/// - account_index: A u32 value to allow multiple accounts per authority
-/// - third_party_id: Optional u32 for third-party tagging
-///
-/// PDA seeds: [b"marginfi_account", group, authority, account_index.to_le_bytes(), third_party_id.unwrap_or(0).to_le_bytes()]
 pub fn initialize_account_pda(
     ctx: Context<MarginfiAccountInitializePda>,
-    _account_index: u32,
-    third_party_id: Option<u32>,
+    account_index: u16,
+    third_party_id: Option<u16>,
 ) -> MarginfiResult {
     let MarginfiAccountInitializePda {
         authority,
@@ -83,6 +74,9 @@ pub fn initialize_account_pda(
     let mut marginfi_account = marginfi_account_loader.load_init()?;
 
     marginfi_account.initialize(marginfi_group.key(), authority.key());
+    marginfi_account.account_index = account_index;
+    marginfi_account.third_party_index = third_party_id.unwrap_or(0);
+    marginfi_account.bump = ctx.bumps.marginfi_account;
 
     emit!(MarginfiAccountCreateEvent {
         header: AccountEventHeader {
@@ -97,7 +91,7 @@ pub fn initialize_account_pda(
 }
 
 #[derive(Accounts)]
-#[instruction(account_index: u32, third_party_id: Option<u32>)]
+#[instruction(account_index: u16, third_party_id: Option<u16>)]
 pub struct MarginfiAccountInitializePda<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 

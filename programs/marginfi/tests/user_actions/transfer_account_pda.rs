@@ -53,7 +53,7 @@ async fn transfer_to_new_account_pda_success() -> anyhow::Result<()> {
     );
 
     // Now transfer to a new PDA account
-    let account_index = 0u32;
+    let account_index = 0;
     let third_party_id = None;
 
     let (new_marginfi_account_pda, _bump) = MarginfiAccount::derive_pda(
@@ -164,8 +164,8 @@ async fn transfer_to_new_account_pda_with_third_party_id() -> anyhow::Result<()>
     assert!(create_res.is_ok(), "Failed to create old account");
 
     // Transfer to PDA with third party id
-    let account_index = 0u32;
-    let third_party_id = Some(100u32); // Non-restricted id
+    let account_index = 0;
+    let third_party_id = Some(100); // Non-restricted id
 
     let (new_marginfi_account_pda, _bump) = MarginfiAccount::derive_pda(
         &test_f.marginfi_group.key,
@@ -270,7 +270,7 @@ async fn transfer_double_migration_fails() -> anyhow::Result<()> {
     assert!(create_res.is_ok());
 
     // First transfer should succeed
-    let account_index1 = 0u32;
+    let account_index1 = 0;
     let (new_marginfi_account_pda1, _bump1) = MarginfiAccount::derive_pda(
         &test_f.marginfi_group.key,
         &new_authority1,
@@ -317,7 +317,7 @@ async fn transfer_double_migration_fails() -> anyhow::Result<()> {
     assert!(transfer_res1.is_ok());
 
     // Second transfer should fail
-    let account_index2 = 1u32;
+    let account_index2 = 1;
     let (new_marginfi_account_pda2, _bump2) = MarginfiAccount::derive_pda(
         &test_f.marginfi_group.key,
         &new_authority2,

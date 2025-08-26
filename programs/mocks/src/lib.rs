@@ -54,8 +54,8 @@ pub mod mocks {
     /// Create a marginfi account PDA via CPI
     pub fn create_marginfi_account_pda_via_cpi(
         ctx: Context<CreateMarginfiAccountPdaViaCpi>,
-        account_index: u32,
-        third_party_id: Option<u32>,
+        account_index: u16,
+        third_party_id: Option<u16>,
     ) -> Result<()> {
         instructions::pda_account_creation::CreateMarginfiAccountPdaViaCpi::create_marginfi_account_pda_via_cpi(
             ctx,

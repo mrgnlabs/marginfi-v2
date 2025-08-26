@@ -31,7 +31,7 @@ async fn marginfi_account_create_pda_via_cpi_success() -> anyhow::Result<()> {
     let test_f = TestFixture::new(None).await;
 
     let authority = test_f.payer();
-    let account_index = 0u32;
+    let account_index = 0;
     let third_party_id = None;
 
     // Derive PDA for the marginfi account
@@ -117,8 +117,8 @@ async fn marginfi_account_create_pda_via_cpi_with_third_party_id() -> anyhow::Re
     let test_f = TestFixture::new(None).await;
 
     let authority = test_f.payer();
-    let account_index = 1u32;
-    let third_party_id = Some(10_001u32);
+    let account_index = 1;
+    let third_party_id = Some(10_001);
 
     // Derive PDA for the marginfi account
     let (marginfi_account_pda, _bump) = MarginfiAccount::derive_pda(
@@ -175,6 +175,8 @@ async fn marginfi_account_create_pda_via_cpi_with_third_party_id() -> anyhow::Re
 
     assert_eq!(marginfi_account.group, test_f.marginfi_group.key);
     assert_eq!(marginfi_account.authority, authority);
+    assert_eq!(marginfi_account.account_index, 1);
+    assert_eq!(marginfi_account.third_party_index, 10_001);
 
     // Verify the CPI call log records the third party ID
     let call_log: CpiCallLog = test_f
@@ -196,7 +198,7 @@ async fn marginfi_account_create_pda_via_cpi_multiple_calls() -> anyhow::Result<
     let third_party_id = None;
 
     // Test creating multiple accounts via CPI with different indices
-    for account_index in 0..3u32 {
+    for account_index in 0..3 {
         let (marginfi_account_pda, _bump) = MarginfiAccount::derive_pda(
             &test_f.marginfi_group.key,
             &authority,
@@ -275,7 +277,7 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
     let authority1 = test_f.payer();
     let authority2_keypair = Keypair::new();
     let authority2 = authority2_keypair.pubkey();
-    let account_index = 0u32;
+    let account_index = 0;
     let third_party_id = None;
 
     // Create account for authority1 via CPI
@@ -415,7 +417,7 @@ async fn marginfi_account_create_pda_via_cpi_duplicate_should_fail() -> anyhow::
     let test_f = TestFixture::new(None).await;
 
     let authority = test_f.payer();
-    let account_index = 0u32;
+    let account_index = 0u16;
     let third_party_id = None;
 
     // Derive PDA for the marginfi account

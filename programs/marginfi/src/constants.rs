@@ -66,8 +66,8 @@ pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLeve
 pub const ACCOUNT_TRANSFER_FEE: u64 = 5_000_000;
 
 /// When creating a mrgn account using a PDA, programs that wish to specify a third_party_id must be
-/// registered here. This confers no other benefits. Creating accounts with third_party_id = 0 (the
-/// default) is freely available to any caller.
+/// registered here. This confers no other benefits. Creating accounts with third_party_id = 0 or
+/// (the default) or PDA_FREE_THRESHOLD < PDA_FREE_THRESHOLD is freely available to any caller.
 ///
 /// This enables third-parties (who have registered) to quickly sort all mrgn accounts that are
 /// relevant to their use-case by memcmp without loading the entire mrgn ecosystem.
@@ -76,16 +76,16 @@ pub const ACCOUNT_TRANSFER_FEE: u64 = 5_000_000;
 /// monthly). Feel free to request multiple.
 ///
 /// Contact us to register at // TODO need a good email....
-pub const THIRD_PARTY_CPI_RULES: &[(u32, Pubkey)] = &[
+pub const THIRD_PARTY_CPI_RULES: &[(u16, Pubkey)] = &[
     (10_001, MOCKS_PROGRAM_ID),
     // (10_002, SOME_OTHER_PROGRAM_ID),
     // (10_003, YET_ANOTHER_PROGRAM_ID),
 ];
 
-/// * IDs < FREE_THRESHOLD are "free" (no special CPI restriction), just go ahead and use them
+/// * IDs < PDA_FREE_THRESHOLD are "free" (no special CPI restriction), just go ahead and use them
 ///
-/// * IDs >= FREE_THRESHOLD are "restricted": must contact us to register first.
-pub const PDA_FREE_THRESHOLD: u32 = 10_000;
+/// * IDs >= PDA_FREE_THRESHOLD are "restricted": must contact us to register first.
+pub const PDA_FREE_THRESHOLD: u16 = 10_000;
 
 // TODO move to ix_utils after liquidation_remix merged into 0.1.5
 /// Numbers > PDA_FREE_THRESHOLD are restricted, contact us to secure one.
@@ -98,7 +98,7 @@ pub const PDA_FREE_THRESHOLD: u32 = 10_000;
 ///   that seed.
 pub fn is_allowed_cpi_for_third_party_id(
     sysvar_info: &AccountInfo,
-    third_party_id: u32,
+    third_party_id: u16,
 ) -> MarginfiResult<bool> {
     // Free tier: no gating at all.
     if third_party_id < PDA_FREE_THRESHOLD {
