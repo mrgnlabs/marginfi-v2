@@ -17,7 +17,6 @@ mod handle_bankruptcy;
 mod init_global_fee_state;
 mod init_staked_settings;
 mod initialize;
-mod migrate_pyth_push_oracle;
 mod propagate_fee_state;
 mod propagate_staked_settings;
 
@@ -40,6 +39,5 @@ pub use handle_bankruptcy::*;
 pub use init_global_fee_state::*;
 pub use init_staked_settings::*;
 pub use initialize::*;
-pub use migrate_pyth_push_oracle::*;
 pub use propagate_fee_state::*;
 pub use propagate_staked_settings::*;

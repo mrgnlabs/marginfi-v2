@@ -1,7 +1,7 @@
 use crate::{
     assert_struct_align, assert_struct_size,
     constants::{
-        ASSET_TAG_DEFAULT, MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED,
+        ASSET_TAG_DEFAULT, MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED_DEPRECATED,
         TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
     types::{
@@ -224,7 +224,7 @@ impl Default for BankConfigCompact {
             borrow_limit: 0,
             interest_rate_config: InterestRateConfigCompact::default(),
             operational_state: BankOperationalState::Paused,
-            config_flags: PYTH_PUSH_MIGRATED,
+            config_flags: PYTH_PUSH_MIGRATED_DEPRECATED,
             _pad0: [0; 5],
             risk_tier: RiskTier::Isolated,
             asset_tag: ASSET_TAG_DEFAULT,
@@ -282,7 +282,7 @@ impl From<BankConfig> for BankConfigCompact {
             borrow_limit: config.borrow_limit,
             risk_tier: config.risk_tier,
             asset_tag: config.asset_tag,
-            config_flags: PYTH_PUSH_MIGRATED,
+            config_flags: PYTH_PUSH_MIGRATED_DEPRECATED,
             _pad0: [0; 5],
             total_asset_value_init_limit: config.total_asset_value_init_limit,
             oracle_max_age: config.oracle_max_age,
