@@ -160,6 +160,10 @@ pub enum MarginfiError {
     InvalidFeesDestinationAccount,
     #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6078
     BankCannotClose,
+    #[msg("Account already migrated")] // 6082
+    AccountAlreadyMigrated,
+    #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6083
+    BankCannotClose,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -261,7 +265,12 @@ impl From<u32> for MarginfiError {
             6075 => MarginfiError::BadEmodeConfig,
             6076 => MarginfiError::PythPushInvalidWindowSize,
             6077 => MarginfiError::InvalidFeesDestinationAccount,
-            6078 => MarginfiError::BankCannotClose,
+            6078 => MarginfiError::ZeroAssetPrice,
+            6079 => MarginfiError::ZeroLiabilityPrice,
+            6080 => MarginfiError::OracleMaxConfidenceExceeded,
+            6081 => MarginfiError::BankCannotClose,
+            6082 => MarginfiError::AccountAlreadyMigrated,
+            6083 => MarginfiError::BankCannotClose,
             _ => MarginfiError::InternalLogicError,
         }
     }
