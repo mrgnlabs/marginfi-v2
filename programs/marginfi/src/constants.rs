@@ -67,7 +67,7 @@ pub const ACCOUNT_TRANSFER_FEE: u64 = 5_000_000;
 
 /// When creating a mrgn account using a PDA, programs that wish to specify a third_party_id must be
 /// registered here. This confers no other benefits. Creating accounts with third_party_id = 0 or
-/// (the default) or PDA_FREE_THRESHOLD < PDA_FREE_THRESHOLD is freely available to any caller.
+/// (the default) or id < PDA_FREE_THRESHOLD is freely available to any caller.
 ///
 /// This enables third-parties (who have registered) to quickly sort all mrgn accounts that are
 /// relevant to their use-case by memcmp without loading the entire mrgn ecosystem.
@@ -75,9 +75,10 @@ pub const ACCOUNT_TRANSFER_FEE: u64 = 5_000_000;
 /// Registration is free, we will include your registration in the next program update (roughly
 /// monthly). Feel free to request multiple.
 ///
-/// Contact us to register at // TODO need a good email....
+/// Contact us or open a GH issue to register.
 pub const THIRD_PARTY_CPI_RULES: &[(u16, Pubkey)] = &[
     (10_001, MOCKS_PROGRAM_ID),
+    (11_111, pubkey!("AsgardPYC6KGbxt1nBWDFZgzc1gKZJNqLzxyaHo48Ca1"))
     // (10_002, SOME_OTHER_PROGRAM_ID),
     // (10_003, YET_ANOTHER_PROGRAM_ID),
 ];
@@ -88,7 +89,7 @@ pub const THIRD_PARTY_CPI_RULES: &[(u16, Pubkey)] = &[
 pub const PDA_FREE_THRESHOLD: u16 = 10_000;
 
 // TODO move to ix_utils after liquidation_remix merged into 0.1.5
-/// Numbers > PDA_FREE_THRESHOLD are restricted, contact us to secure one.
+/// third_party_id > PDA_FREE_THRESHOLD are restricted, contact us to secure one.
 ///
 ///
 /// Returns:
