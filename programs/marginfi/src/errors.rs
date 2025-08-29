@@ -162,6 +162,18 @@ pub enum MarginfiError {
     BankCannotClose,
     #[msg("Account already migrated")] // 6079
     AccountAlreadyMigrated,
+    #[msg("Liquidation state issue. Check start before end, end last, and both unique")] // 6080
+    UnexpectedLiquidationState,
+    #[msg("Liquidation start must be first instruction (other than compute program ixes)")] // 6081
+    StartNotFirst,
+    #[msg("Only one liquidation event allowed per tx")] // 6082
+    StartRepeats,
+    #[msg("The end instruction must be the last ix in the tx")] // 6083
+    EndNotLast,
+    #[msg("Tried to call an instruction that is forbidden during liquidation")] // 6084
+    ForbiddenIx,
+    #[msg("Seized too much of the asset relative to liability repaid")] // 6085
+    LiquidationPremiumTooHigh,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -265,6 +277,12 @@ impl From<u32> for MarginfiError {
             6077 => MarginfiError::InvalidFeesDestinationAccount,
             6078 => MarginfiError::BankCannotClose,
             6079 => MarginfiError::AccountAlreadyMigrated,
+            6080 => MarginfiError::UnexpectedLiquidationState,
+            6081 => MarginfiError::StartNotFirst,
+            6082 => MarginfiError::StartRepeats,
+            6083 => MarginfiError::EndNotLast,
+            6084 => MarginfiError::ForbiddenIx,
+            6085 => MarginfiError::LiquidationPremiumTooHigh,
             _ => MarginfiError::InternalLogicError,
         }
     }
