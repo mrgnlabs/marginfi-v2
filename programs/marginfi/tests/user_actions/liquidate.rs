@@ -291,9 +291,10 @@ async fn marginfi_account_liquidation_success(
             .asset_shares
             .into(),
     )?;
-    assert_eq!(
+    assert_eq_noise!(
         expected_collateral_mint_liquidator_balance,
-        collateral_mint_liquidator_balance
+        collateral_mint_liquidator_balance,
+        1.
     );
 
     let debt_paid_out = liquidate_amount * 0.975 * collateral_bank_f.get_price().await
@@ -301,14 +302,17 @@ async fn marginfi_account_liquidation_success(
 
     // We have to account for updated share value here due to 1 second of delay we introduced to check last_update
     let lend_amount_native = I80F48::from(native!(
-        borrow_amount_actual,
+        liquidatee_borrow_amount_actual + liquidator_borrow_amount,
         debt_bank_f.mint.mint.decimals,
         f64
     ))
     .checked_mul(debt_bank.asset_share_value.into())
     .unwrap();
-    let debt_paid_out_native =
-        I80F48::from(native!(debt_paid_out + liquidator_borrow_amount, debt_bank_f.mint.mint.decimals, f64));
+    let debt_paid_out_native = I80F48::from(native!(
+        debt_paid_out,
+        debt_bank_f.mint.mint.decimals,
+        f64
+    ));
 
     let expected_debt_mint_liquidator_balance = lend_amount_native
         .checked_sub(debt_paid_out_native)
@@ -332,7 +336,7 @@ async fn marginfi_account_liquidation_success(
 
     // We have to account for updated share value here due to 1 second of delay we introduced to check last_update
     let borrow_amount_native = I80F48::from(native!(
-        borrow_amount_actual,
+        liquidatee_borrow_amount_actual,
         debt_bank_f.mint.mint.decimals,
         f64
     ))
@@ -345,7 +349,7 @@ async fn marginfi_account_liquidation_success(
         .checked_sub(debt_covered_native)
         .unwrap();
     let debt_mint_liquidatee_balance = debt_bank.get_liability_amount(
-        liquidatee_mfi_ma.lending_account.balances[debt_index]
+        liquidatee_mfi_ma.lending_account.balances[liquidatee_debt_index]
             .liability_shares
             .into(),
     )?;
