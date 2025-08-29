@@ -112,17 +112,14 @@ pub enum MarginfiError {
     PythPushWrongAccountOwner,
     #[msg("Staked Pyth Push oracle: wrong account owner")] // 6054
     StakedPythPushWrongAccountOwner,
-    // TODO remove in 0.1.5
-    #[msg("Pyth Push oracle: mismatched feed id")] // 6055
-    PythPushMismatchedFeedId,
+    #[msg("Oracle max confidence exceeded: try again later")] // 6055
+    OracleMaxConfidenceExceeded,
     #[msg("Pyth Push oracle: insufficient verification level")] // 6056
     PythPushInsufficientVerificationLevel,
-    // TODO remove in 0.1.5
-    #[msg("Pyth Push oracle: feed id must be 32 Bytes")] // 6057
-    PythPushFeedIdMustBe32Bytes,
-    // TODO remove in 0.1.5
-    #[msg("Pyth Push oracle: feed id contains non-hex characters")] // 6058
-    PythPushFeedIdNonHexCharacter,
+    #[msg("Zero asset price")] // 6057
+    ZeroAssetPrice,
+    #[msg("Zero liability price")] // 6058
+    ZeroLiabilityPrice,
     #[msg("Switchboard oracle: wrong account owner")] // 6059
     SwitchboardWrongAccountOwner,
     #[msg("Pyth Push oracle: invalid account")] // 6060
@@ -161,29 +158,21 @@ pub enum MarginfiError {
     PythPushInvalidWindowSize,
     #[msg("Invalid fees destination account")] // 6077
     InvalidFeesDestinationAccount,
-    #[msg("Zero asset price")] // 6078
-    ZeroAssetPrice,
-    #[msg("Zero liability price")] // 6079
-    ZeroLiabilityPrice,
-    #[msg("Oracle max confidence exceeded: try again later")] // 6080
-    OracleMaxConfidenceExceeded,
-    #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6081
+    #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6078
     BankCannotClose,
-    #[msg("Account already migrated")] // 6082
+    #[msg("Account already migrated")] // 6079
     AccountAlreadyMigrated,
-    #[msg("Liquidation state issue. Check start before end, end last, and both unique")] // 6083
+    #[msg("Liquidation state issue. Check start before end, end last, and both unique")] // 6080
     UnexpectedLiquidationState,
-    #[msg("Liquidation start must be first instruction (other than compute program ixes)")] // 6084
+    #[msg("Liquidation start must be first instruction (other than compute program ixes)")] // 6081
     StartNotFirst,
-    #[msg("Only one liquidation event allowed per tx")] // 6085
+    #[msg("Only one liquidation event allowed per tx")] // 6082
     StartRepeats,
-    #[msg("The end instruction must be the last ix in the tx")] // 6086
+    #[msg("The end instruction must be the last ix in the tx")] // 6083
     EndNotLast,
-    #[msg("Tried to call an instruction that is forbidden during liquidation")] // 6087
+    #[msg("Tried to call an instruction that is forbidden during liquidation")] // 6084
     ForbiddenIx,
-    #[msg("Reserved for future use")] // 6088
-    Placeholder87,
-    #[msg("Seized too much of the asset relative to liability repaid")] // 6089
+    #[msg("Seized too much of the asset relative to liability repaid")] // 6085
     LiquidationPremiumTooHigh,
 }
 
@@ -195,24 +184,13 @@ impl From<MarginfiError> for ProgramError {
 
 impl From<pyth_solana_receiver_sdk::error::GetPriceError> for MarginfiError {
     fn from(e: pyth_solana_receiver_sdk::error::GetPriceError) -> Self {
+        use pyth_solana_receiver_sdk::error::GetPriceError::*;
         match e {
-            pyth_solana_receiver_sdk::error::GetPriceError::PriceTooOld => {
-                MarginfiError::PythPushStalePrice
-            }
-            pyth_solana_receiver_sdk::error::GetPriceError::MismatchedFeedId => {
-                MarginfiError::PythPushMismatchedFeedId
-            }
-            pyth_solana_receiver_sdk::error::GetPriceError::InsufficientVerificationLevel => {
-                MarginfiError::PythPushInsufficientVerificationLevel
-            }
-            pyth_solana_receiver_sdk::error::GetPriceError::FeedIdMustBe32Bytes => {
-                MarginfiError::PythPushFeedIdMustBe32Bytes
-            }
-            pyth_solana_receiver_sdk::error::GetPriceError::FeedIdNonHexCharacter => {
-                MarginfiError::PythPushFeedIdNonHexCharacter
-            }
-            pyth_solana_receiver_sdk::error::GetPriceError::InvalidWindowSize => {
-                MarginfiError::PythPushInvalidWindowSize
+            PriceTooOld => MarginfiError::PythPushStalePrice,
+            InsufficientVerificationLevel => MarginfiError::PythPushInsufficientVerificationLevel,
+            InvalidWindowSize => MarginfiError::PythPushInvalidWindowSize,
+            MismatchedFeedId | FeedIdMustBe32Bytes | FeedIdNonHexCharacter => {
+                MarginfiError::PythPushInvalidAccount
             }
         }
     }
@@ -274,10 +252,10 @@ impl From<u32> for MarginfiError {
             6052 => MarginfiError::WrongOracleAccountKeys,
             6053 => MarginfiError::PythPushWrongAccountOwner,
             6054 => MarginfiError::StakedPythPushWrongAccountOwner,
-            6055 => MarginfiError::PythPushMismatchedFeedId,
+            6055 => MarginfiError::OracleMaxConfidenceExceeded,
             6056 => MarginfiError::PythPushInsufficientVerificationLevel,
-            6057 => MarginfiError::PythPushFeedIdMustBe32Bytes,
-            6058 => MarginfiError::PythPushFeedIdNonHexCharacter,
+            6057 => MarginfiError::ZeroAssetPrice,
+            6058 => MarginfiError::ZeroLiabilityPrice,
             6059 => MarginfiError::SwitchboardWrongAccountOwner,
             6060 => MarginfiError::PythPushInvalidAccount,
             6061 => MarginfiError::SwitchboardInvalidAccount,
@@ -297,18 +275,14 @@ impl From<u32> for MarginfiError {
             6075 => MarginfiError::BadEmodeConfig,
             6076 => MarginfiError::PythPushInvalidWindowSize,
             6077 => MarginfiError::InvalidFeesDestinationAccount,
-            6078 => MarginfiError::ZeroAssetPrice,
-            6079 => MarginfiError::ZeroLiabilityPrice,
-            6080 => MarginfiError::OracleMaxConfidenceExceeded,
-            6081 => MarginfiError::BankCannotClose,
-            6082 => MarginfiError::AccountAlreadyMigrated,
-            6083 => MarginfiError::UnexpectedLiquidationState,
-            6084 => MarginfiError::StartNotFirst,
-            6085 => MarginfiError::StartRepeats,
-            6086 => MarginfiError::EndNotLast,
-            6087 => MarginfiError::ForbiddenIx,
-            6088 => MarginfiError::Placeholder87,
-            6089 => MarginfiError::LiquidationPremiumTooHigh,
+            6078 => MarginfiError::BankCannotClose,
+            6079 => MarginfiError::AccountAlreadyMigrated,
+            6080 => MarginfiError::UnexpectedLiquidationState,
+            6081 => MarginfiError::StartNotFirst,
+            6082 => MarginfiError::StartRepeats,
+            6083 => MarginfiError::EndNotLast,
+            6084 => MarginfiError::ForbiddenIx,
+            6085 => MarginfiError::LiquidationPremiumTooHigh,
             _ => MarginfiError::InternalLogicError,
         }
     }
@@ -330,10 +304,7 @@ impl MarginfiError {
                 | MarginfiError::SwitchboardInvalidAccount
                 | MarginfiError::PythPushInvalidAccount
                 | MarginfiError::SwitchboardWrongAccountOwner
-                | MarginfiError::PythPushFeedIdNonHexCharacter
-                | MarginfiError::PythPushFeedIdMustBe32Bytes
                 | MarginfiError::PythPushInsufficientVerificationLevel
-                | MarginfiError::PythPushMismatchedFeedId
                 | MarginfiError::StakedPythPushWrongAccountOwner
                 | MarginfiError::PythPushWrongAccountOwner
                 | MarginfiError::WrongOracleAccountKeys

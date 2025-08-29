@@ -7,7 +7,6 @@ import {
 } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { deriveLiquidityVault } from "./pdas";
 
 export type AccountInitArgs = {
   marginfiGroup: PublicKey;
@@ -480,31 +479,6 @@ export const liquidateIx = (
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .remainingAccounts(oracleMeta)
-    .instruction();
-};
-
-export type MigratePythArgs = {
-  bank: PublicKey;
-  oracle: PublicKey;
-};
-
-export const migratePythArgs = (
-  program: Program<Marginfi>,
-  args: MigratePythArgs
-) => {
-  const oracleMeta: AccountMeta = {
-    pubkey: args.oracle,
-    isSigner: false,
-    isWritable: false,
-  };
-
-  return program.methods
-    .migratePythPushOracle()
-    .accounts({
-      bank: args.bank,
-      oracle: args.oracle,
-    })
-    .remainingAccounts([oracleMeta])
     .instruction();
 };
 

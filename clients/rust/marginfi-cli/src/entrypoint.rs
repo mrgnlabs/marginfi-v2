@@ -16,7 +16,6 @@ use marginfi_type_crate::types::{
 use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use rand::Rng;
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
-use type_layout::TypeLayout;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -42,12 +41,6 @@ pub enum Command {
     Profile {
         #[clap(subcommand)]
         subcmd: ProfileCommand,
-    },
-
-    InspectPadding {},
-
-    PatchIdl {
-        idl_path: String,
     },
 
     InspectSize {},
@@ -470,9 +463,6 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Bank { subcmd } => bank(subcmd, &opts.cfg_override),
         Command::Profile { subcmd } => profile(subcmd),
 
-        Command::InspectPadding {} => inspect_padding(),
-
-        Command::PatchIdl { idl_path } => patch_marginfi_idl(idl_path),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
 
         Command::InspectSize {} => inspect_size(),
@@ -867,21 +857,6 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     }
 }
 
-fn inspect_padding() -> Result<()> {
-    println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
-    println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
-    println!("Bank: {}", Bank::type_layout());
-    println!("BankConfig: {}", BankConfig::type_layout());
-    println!("BankConfigOpt: {}", BankConfigOpt::type_layout());
-    println!("WrappedI80F48: {}", WrappedI80F48::type_layout());
-
-    println!("MarginfiAccount: {}", MarginfiAccount::type_layout());
-    println!("LendingAccount: {}", LendingAccount::type_layout());
-    println!("Balance: {}", Balance::type_layout());
-
-    Ok(())
-}
-
 fn inspect_size() -> Result<()> {
     use std::mem::size_of;
 
@@ -895,43 +870,6 @@ fn inspect_size() -> Result<()> {
     println!("MarginfiAccount: {}", size_of::<MarginfiAccount>());
     println!("LendingAccount: {}", size_of::<LendingAccount>());
     println!("Balance: {}", size_of::<Balance>());
-
-    Ok(())
-}
-
-fn patch_marginfi_idl(target_dir: String) -> Result<()> {
-    use crate::patch_type_layout;
-
-    let idl_path = format!("{}/idl/marginfi.json", target_dir);
-
-    let file = std::fs::File::open(&idl_path)?;
-    let reader = std::io::BufReader::new(file);
-    let mut idl: serde_json::Value = serde_json::from_reader(reader)?;
-
-    let idl_original_path = idl_path.replace(".json", "_original.json");
-    let file = std::fs::File::create(idl_original_path)?;
-    let writer = std::io::BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, &idl)?;
-
-    // Patch IDL
-
-    if let Some(types) = idl.get_mut("types").and_then(|t| t.as_array_mut()) {
-        if let Some(pos) = types
-            .iter()
-            .position(|t| t["name"] == "OraclePriceFeedAdapter")
-        {
-            types.remove(pos);
-        }
-    }
-
-    patch_type_layout!(idl, "Bank", Bank, "types");
-    patch_type_layout!(idl, "Balance", Balance, "types");
-    patch_type_layout!(idl, "BankConfig", BankConfig, "types");
-    patch_type_layout!(idl, "BankConfigCompact", BankConfig, "types");
-
-    let file = std::fs::File::create(&idl_path)?;
-    let writer = std::io::BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, &idl)?;
 
     Ok(())
 }
