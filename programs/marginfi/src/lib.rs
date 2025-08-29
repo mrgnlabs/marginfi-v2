@@ -467,10 +467,6 @@ pub mod marginfi {
         marginfi_group::propagate_staked_settings(ctx)
     }
 
-    pub fn migrate_pyth_push_oracle(ctx: Context<MigratePythPushOracle>) -> MarginfiResult {
-        marginfi_group::migrate_pyth_push_oracle(ctx)
-    }
-
     pub fn start_liquidation<'info>(
         ctx: Context<'_, '_, 'info, 'info, StartLiquidation<'info>>,
     ) -> MarginfiResult {

@@ -5,12 +5,9 @@ use {
 };
 
 #[cfg(feature = "anchor")]
-use {
-    anchor_lang::prelude::{
-        borsh::{BorshDeserialize, BorshSerialize},
-        zero_copy, *,
-    },
-    type_layout::TypeLayout,
+use anchor_lang::prelude::{
+    borsh::{BorshDeserialize, BorshSerialize},
+    zero_copy, *,
 };
 
 use super::{Balance, LendingAccount, WrappedI80F48, MAX_LENDING_ACCOUNT_BALANCES};
@@ -54,7 +51,7 @@ pub struct LiquidationRecord {
 #[cfg_attr(
     feature = "anchor",
     zero_copy,
-    derive(Default, BorshDeserialize, BorshSerialize, TypeLayout)
+    derive(Default, BorshDeserialize, BorshSerialize)
 )]
 #[cfg_attr(not(feature = "anchor"), derive(Default, Clone, Copy, Pod, Zeroable))]
 pub struct LiquidationEntry {
@@ -74,7 +71,7 @@ pub struct LiquidationEntry {
 #[cfg_attr(
     feature = "anchor",
     zero_copy,
-    derive(Default, BorshDeserialize, BorshSerialize, TypeLayout)
+    derive(Default, BorshDeserialize, BorshSerialize)
 )]
 #[cfg_attr(not(feature = "anchor"), derive(Default, Clone, Copy, Pod, Zeroable))]
 pub struct LiquidationCache {
@@ -136,7 +133,7 @@ impl Default for LiquidationRecord {
 #[cfg_attr(
     feature = "anchor",
     zero_copy,
-    derive(Default, BorshDeserialize, BorshSerialize, TypeLayout)
+    derive(Default, BorshDeserialize, BorshSerialize)
 )]
 #[cfg_attr(not(feature = "anchor"), derive(Defalt, Clone, Copy, Pod, Zeroable))]
 pub struct MiniLendingAccount {
@@ -159,7 +156,7 @@ impl MiniLendingAccount {
 #[cfg_attr(
     feature = "anchor",
     zero_copy,
-    derive(Default, BorshDeserialize, BorshSerialize, TypeLayout)
+    derive(Default, BorshDeserialize, BorshSerialize)
 )]
 #[cfg_attr(not(feature = "anchor"), derive(Default, Clone, Copy, Pod, Zeroable))]
 pub struct MiniLendingAccountBalance {
