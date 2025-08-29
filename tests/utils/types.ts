@@ -91,8 +91,7 @@ export const defaultBankConfig = () => {
     riskTier: {
       collateral: undefined,
     },
-    /** Currently ignored, sets the PYTH_MIGRATED flag regardless. */
-    configFlags: 0,
+    configFlags: PYTH_PULL_MIGRATED,
     assetTag: ASSET_TAG_DEFAULT,
     totalAssetValueInitLimit: new BN(1_000_000_000_000),
     oracleMaxAge: 240,

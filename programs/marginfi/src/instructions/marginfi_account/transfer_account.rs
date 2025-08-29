@@ -3,12 +3,13 @@ use crate::{
     constants::ACCOUNT_TRANSFER_FEE,
     events::{AccountEventHeader, MarginfiAccountTransferToNewAccount},
     prelude::*,
-    state::marginfi_account::{
-        LendingAccount, MarginfiAccount, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
-    },
+    state::marginfi_account::MarginfiAccountImpl,
 };
 use anchor_lang::prelude::*;
 use bytemuck::Zeroable;
+use marginfi_type_crate::types::{
+    LendingAccount, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
+};
 
 pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
     // Validate the global fee wallet and claim a nominal fee

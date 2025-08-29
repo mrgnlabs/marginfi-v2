@@ -3,8 +3,9 @@ use anchor_spl::token::spl_token;
 use fixed::types::I80F48;
 use fixtures::prelude::*;
 use fixtures::{assert_custom_error, native};
-use marginfi::state::marginfi_group::{BankConfigOpt, BankVaultType};
+use marginfi::state::bank::{BankImpl, BankVaultType};
 use marginfi::{assert_eq_with_tolerance, prelude::*};
+use marginfi_type_crate::types::BankConfigOpt;
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 use solana_sdk::transaction::Transaction;
@@ -193,7 +194,7 @@ async fn marginfi_account_deposit_failure_wrong_token_program() -> anyhow::Resul
     .to_account_metas(Some(true));
 
     let deposit_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts,
         data: marginfi::instruction::LendingAccountDeposit {
             amount: native!(deposit_amount, bank_f.mint.mint.decimals, f64),

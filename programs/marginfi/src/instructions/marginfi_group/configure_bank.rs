@@ -1,17 +1,19 @@
-use crate::constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FREEZE_SETTINGS};
 use crate::events::{
     GroupEventHeader, LendingPoolBankConfigureEvent, LendingPoolBankConfigureFrozenEvent,
 };
 use crate::prelude::MarginfiError;
+use crate::state::bank::BankImpl;
+use crate::state::bank_config::BankConfigImpl;
+use crate::MarginfiResult;
 use crate::{check, math_error, utils};
-use crate::{
-    state::marginfi_group::{Bank, BankConfigOpt, MarginfiGroup},
-    MarginfiResult,
-};
 use anchor_lang::prelude::*;
 use anchor_spl::token_2022::{transfer_checked, TransferChecked};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FREEZE_SETTINGS},
+    types::{Bank, BankConfigOpt, MarginfiGroup},
+};
 
 pub fn lending_pool_configure_bank(
     ctx: Context<LendingPoolConfigureBank>,

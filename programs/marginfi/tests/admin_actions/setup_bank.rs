@@ -3,15 +3,18 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_anchor_error, assert_custom_error, prelude::*};
 use marginfi::{
-    constants::{
-        CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
-    },
-    prelude::{MarginfiError, MarginfiGroup},
+    constants::INIT_BANK_ORIGINATION_FEE_DEFAULT,
+    prelude::MarginfiError,
     state::{
-        bank_cache::BankCache,
-        emode::{EmodeEntry, EMODE_ON},
-        marginfi_group::{Bank, BankConfig, BankConfigOpt, BankVaultType},
+        bank::{BankImpl, BankVaultType},
+        marginfi_group::MarginfiGroupImpl,
+    },
+};
+use marginfi_type_crate::{
+    constants::{CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG},
+    types::{
+        Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt,
+        MarginfiGroup, OracleSetup, EMODE_ON,
     },
 };
 use pretty_assertions::assert_eq;
@@ -323,7 +326,7 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
         .try_lending_pool_add_bank(
             &bank_asset_mint_fixture,
             BankConfig {
-                oracle_setup: marginfi::state::price::OracleSetup::PythPushOracle,
+                oracle_setup: OracleSetup::PythPushOracle,
                 oracle_keys: create_oracle_key_array(INEXISTENT_PYTH_USDC_FEED),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
@@ -348,7 +351,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
     let old_bank = bank.load().await;
 
     let config_bank_opt = BankConfigOpt {
-        interest_rate_config: Some(marginfi::state::marginfi_group::InterestRateConfigOpt {
+        interest_rate_config: Some(InterestRateConfigOpt {
             optimal_utilization_rate: Some(I80F48::from_num(0.91).into()),
             plateau_interest_rate: Some(I80F48::from_num(0.44).into()),
             max_interest_rate: Some(I80F48::from_num(1.44).into()),
@@ -759,7 +762,7 @@ async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
     let bank = test_f.get_bank(&BankMint::Usdc);
     let old_bank = bank.load().await;
 
-    let ir_config = marginfi::state::marginfi_group::InterestRateConfigOpt {
+    let ir_config = InterestRateConfigOpt {
         optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
         plateau_interest_rate: Some(I80F48::from_num(0.5).into()),
         max_interest_rate: Some(I80F48::from_num(1.5).into()),
@@ -852,7 +855,7 @@ async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
         )
         .await?;
 
-    let ir_config = marginfi::state::marginfi_group::InterestRateConfigOpt {
+    let ir_config = InterestRateConfigOpt {
         optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
         ..Default::default()
     };

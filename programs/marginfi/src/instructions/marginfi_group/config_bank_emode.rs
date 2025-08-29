@@ -1,10 +1,8 @@
-use crate::state::emode::{EmodeEntry, MAX_EMODE_ENTRIES};
+use crate::state::emode::EmodeSettingsImpl;
 use crate::MarginfiError;
-use crate::{
-    state::marginfi_group::{Bank, MarginfiGroup},
-    MarginfiResult,
-};
+use crate::MarginfiResult;
 use anchor_lang::prelude::*;
+use marginfi_type_crate::types::{Bank, EmodeEntry, MarginfiGroup, MAX_EMODE_ENTRIES};
 
 pub fn lending_pool_configure_bank_emode(
     ctx: Context<LendingPoolConfigureBankEmode>,

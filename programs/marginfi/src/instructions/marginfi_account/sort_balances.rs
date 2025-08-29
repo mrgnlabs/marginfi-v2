@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
+use marginfi_type_crate::types::MarginfiAccount;
 
-use crate::{state::marginfi_account::MarginfiAccount, MarginfiResult};
+use crate::{state::marginfi_account::LendingAccountImpl, MarginfiResult};
 
 pub fn lending_account_sort_balances<'info>(
     ctx: Context<'_, '_, 'info, 'info, SortBalances<'info>>,
