@@ -78,9 +78,11 @@ pub const ACCOUNT_TRANSFER_FEE: u64 = 5_000_000;
 /// Contact us or open a GH issue to register.
 pub const THIRD_PARTY_CPI_RULES: &[(u16, Pubkey)] = &[
     (10_001, MOCKS_PROGRAM_ID),
-    (11_111, pubkey!("AsgardPYC6KGbxt1nBWDFZgzc1gKZJNqLzxyaHo48Ca1"))
-    // (10_002, SOME_OTHER_PROGRAM_ID),
-    // (10_003, YET_ANOTHER_PROGRAM_ID),
+    (
+        11_111,
+        pubkey!("AsgardPYC6KGbxt1nBWDFZgzc1gKZJNqLzxyaHo48Ca1"),
+    ), // (10_002, SOME_OTHER_PROGRAM_ID),
+       // (10_003, YET_ANOTHER_PROGRAM_ID),
 ];
 
 /// * IDs < PDA_FREE_THRESHOLD are "free" (no special CPI restriction), just go ahead and use them
