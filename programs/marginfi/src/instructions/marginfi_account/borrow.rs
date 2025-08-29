@@ -105,11 +105,11 @@ pub fn lending_account_borrow<'info>(
             origination_fee_u64 = origination_fee.checked_to_num().ok_or_else(math_error!())?;
 
             // Incurs a borrow that includes the origination fee (but withdraws just the amt)
-            bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee, false)?;
+            bank_account.borrow(I80F48::from_num(amount_pre_fee) + origination_fee)?;
         } else {
             // Incurs a borrow for the amount without any fee
             origination_fee_u64 = 0;
-            bank_account.borrow(I80F48::from_num(amount_pre_fee), false)?;
+            bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
         }
 
         marginfi_account.last_update = bank_account.balance.last_update;
