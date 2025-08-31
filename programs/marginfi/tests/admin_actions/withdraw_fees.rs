@@ -173,7 +173,10 @@ async fn marginfi_group_withdraw_fees_permissonless(bank_mint: BankMint) -> anyh
         .try_withdraw_fees_permissionless(&receiving_account, fee_vault_balance)
         .await;
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::InvalidFeesDestinationAccountConstraint);
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::InvalidFeesDestinationAccountConstraint
+    );
 
     // Now derive canonical ATA for the receiving account and set it as the fees destination for the bank
     let destination_ata = TokenAccountFixture::new_from_ata(
@@ -192,7 +195,10 @@ async fn marginfi_group_withdraw_fees_permissonless(bank_mint: BankMint) -> anyh
         .try_withdraw_fees_permissionless(&receiving_account, fee_vault_balance)
         .await;
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::InvalidFeesDestinationAccountConstraint);
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::InvalidFeesDestinationAccountConstraint
+    );
 
     // Use proper destination account -> should succeed
     bank_f

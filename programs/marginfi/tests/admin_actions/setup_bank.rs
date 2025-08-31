@@ -861,7 +861,10 @@ async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
         .try_lending_pool_configure_bank_interest_only(&bank, ir_config)
         .await;
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::InvalidDelegateCurveAdminConstraint);
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::InvalidDelegateCurveAdminConstraint
+    );
 
     Ok(())
 }
@@ -921,7 +924,10 @@ async fn configure_bank_limits_only_not_admin() -> anyhow::Result<()> {
         .try_lending_pool_configure_bank_limits_only(&bank, Some(1), Some(1), Some(1))
         .await;
     assert!(res.is_err());
-    assert_custom_error!(res.unwrap_err(), MarginfiError::InvalidDelegateLimitAdminConstraint);
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::InvalidDelegateLimitAdminConstraint
+    );
 
     Ok(())
 }
