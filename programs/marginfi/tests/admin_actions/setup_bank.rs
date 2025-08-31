@@ -1,7 +1,6 @@
-use anchor_lang::error::ErrorCode;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use fixtures::{assert_anchor_error, assert_custom_error, prelude::*};
+use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
     constants::{
         CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, INIT_BANK_ORIGINATION_FEE_DEFAULT,
@@ -862,7 +861,7 @@ async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
         .try_lending_pool_configure_bank_interest_only(&bank, ir_config)
         .await;
     assert!(res.is_err());
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::InvalidDelegateCurveAdminConstraint);
 
     Ok(())
 }
@@ -922,7 +921,7 @@ async fn configure_bank_limits_only_not_admin() -> anyhow::Result<()> {
         .try_lending_pool_configure_bank_limits_only(&bank, Some(1), Some(1), Some(1))
         .await;
     assert!(res.is_err());
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::InvalidDelegateLimitAdminConstraint);
 
     Ok(())
 }
