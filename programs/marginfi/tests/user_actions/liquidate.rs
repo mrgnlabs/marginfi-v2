@@ -17,7 +17,7 @@ use test_case::test_case;
 #[test_case(100., 9.9, -1., 1., 2., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123., 122., -4., -4., 10., BankMint::SolEquivalent, BankMint::SolEqIsolated)]
 #[test_case(1_000., 999., 0., 0., 10., BankMint::Usdc, BankMint::T22WithFee)]
-#[test_case(2_000., 99., 400., -400., 1_000., BankMint::T22WithFee, BankMint::SolEquivalent)]
+#[test_case(2_000., 99., 400., -50., 1_500., BankMint::T22WithFee, BankMint::SolEquivalent)]
 #[test_case(2_000., 1_999., 1000., 750., 2_000., BankMint::Usdc, BankMint::PyUSD)]
 #[tokio::test]
 async fn marginfi_account_liquidation_success(
@@ -277,15 +277,37 @@ async fn marginfi_account_liquidation_success(
 
     let collateral_bank = collateral_bank_f.load().await;
     let debt_bank = debt_bank_f.load().await;
-
-    // Check liquidator collateral and debt balances
-    let expected_collateral_mint_liquidator_balance = I80F48::from(native!(
-        liquidator_deposit_amount + liquidate_amount,
+    let liquidate_amount_native = I80F48::from(native!(
+        liquidate_amount,
         collateral_bank_f.mint.mint.decimals,
         f64
     ));
 
-    // Check liquidator collateral balances
+    // Check liquidator collateral and debt balances
+    let expected_collateral_mint_liquidator_balance = if liquidator_deposit_amount > 0.0 {
+        I80F48::from(native!(
+            liquidator_deposit_amount,
+            collateral_bank_f.mint.mint.decimals,
+            f64
+        ))
+        .checked_mul(collateral_bank.asset_share_value.into())
+        .unwrap()
+        .checked_add(liquidate_amount_native)
+        .unwrap()
+    } else {
+        liquidate_amount_native
+            .checked_sub(
+                I80F48::from(native!(
+                    -liquidator_deposit_amount,
+                    collateral_bank_f.mint.mint.decimals,
+                    f64
+                ))
+                .checked_mul(collateral_bank.liability_share_value.into())
+                .unwrap(),
+            )
+            .unwrap()
+    };
+
     let collateral_mint_liquidator_balance = collateral_bank.get_asset_amount(
         liquidator_mfi_ma.lending_account.balances[liquidator_collateral_index]
             .asset_shares
@@ -299,24 +321,34 @@ async fn marginfi_account_liquidation_success(
 
     let debt_paid_out = liquidate_amount * 0.975 * collateral_bank_f.get_price().await
         / debt_bank_f.get_price().await;
+    let debt_paid_out_native =
+        I80F48::from(native!(debt_paid_out, debt_bank_f.mint.mint.decimals, f64));
 
     // We have to account for updated share value here due to 1 second of delay we introduced to check last_update
-    let lend_amount_native = I80F48::from(native!(
-        liquidatee_borrow_amount_actual + liquidator_borrow_amount,
-        debt_bank_f.mint.mint.decimals,
-        f64
-    ))
-    .checked_mul(debt_bank.asset_share_value.into())
-    .unwrap();
-    let debt_paid_out_native = I80F48::from(native!(
-        debt_paid_out,
-        debt_bank_f.mint.mint.decimals,
-        f64
-    ));
+    let expected_debt_mint_liquidator_balance = if liquidator_borrow_amount > 0.0 {
+        I80F48::from(native!(
+            liquidator_borrow_amount,
+            debt_bank_f.mint.mint.decimals,
+            f64
+        ))
+        .checked_mul(debt_bank.liability_share_value.into())
+        .unwrap()
+        .checked_add(debt_paid_out_native)
+        .unwrap()
+    } else {
+        debt_paid_out_native
+            .checked_sub(
+                I80F48::from(native!(
+                    -liquidator_borrow_amount,
+                    debt_bank_f.mint.mint.decimals,
+                    f64
+                ))
+                .checked_mul(debt_bank.asset_share_value.into())
+                .unwrap(),
+            )
+            .unwrap()
+    };
 
-    let expected_debt_mint_liquidator_balance = lend_amount_native
-        .checked_sub(debt_paid_out_native)
-        .unwrap();
     let debt_mint_liquidator_balance = debt_bank.get_liability_amount(
         liquidator_mfi_ma.lending_account.balances[liquidator_debt_index]
             .liability_shares
@@ -360,10 +392,14 @@ async fn marginfi_account_liquidation_success(
     );
 
     let expected_collateral_mint_liquidatee_balance = I80F48::from(native!(
-        liquidatee_deposit_amount - liquidate_amount,
+        liquidatee_deposit_amount,
         collateral_bank_f.mint.mint.decimals,
         f64
-    ));
+    ))
+    .checked_mul(collateral_bank.asset_share_value.into())
+    .unwrap()
+    .checked_sub(liquidate_amount_native)
+    .unwrap();
     let collateral_mint_liquidatee_balance = collateral_bank
         .get_asset_amount(
             liquidatee_mfi_ma.lending_account.balances[liquidatee_collateral_index]
@@ -372,18 +408,21 @@ async fn marginfi_account_liquidation_success(
         )
         .unwrap();
     assert_eq_noise!(
-        collateral_mint_liquidatee_balance,
         expected_collateral_mint_liquidatee_balance,
+        collateral_mint_liquidatee_balance,
         1.
     );
 
-    let debt_covered = liquidate_amount * 0.95 * collateral_bank_f.get_price().await
-        / debt_bank_f.get_price().await;
     let expected_debt_mint_liquidatee_balance = I80F48::from(native!(
-        liquidatee_borrow_amount_actual - debt_covered,
+        liquidatee_borrow_amount_actual,
         debt_bank_f.mint.mint.decimals,
         f64
-    ));
+    ))
+    .checked_mul(debt_bank.liability_share_value.into())
+    .unwrap()
+    .checked_sub(debt_covered_native)
+    .unwrap();
+
     let debt_mint_liquidatee_balance = debt_bank.get_liability_amount(
         liquidatee_mfi_ma.lending_account.balances[liquidatee_debt_index]
             .liability_shares
