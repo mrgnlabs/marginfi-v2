@@ -1,4 +1,7 @@
-use crate::{constants::FEE_STATE_SEED, state::fee_state::FeeState, MarginfiError, MarginfiGroup, MarginfiResult};
+use crate::{
+    constants::FEE_STATE_SEED, state::fee_state::FeeState, MarginfiError, MarginfiGroup,
+    MarginfiResult,
+};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]

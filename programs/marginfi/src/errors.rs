@@ -173,7 +173,7 @@ pub enum MarginfiError {
     AccountAlreadyMigrated,
     #[msg("Account does not belong to the expected MarginfiGroup")] // 6083
     InvalidGroupConstraint,
-    #[msg("Signer is not the authority for this account")] // 6084  
+    #[msg("Signer is not the authority for this account")] // 6084
     InvalidAuthorityConstraint,
     #[msg("Signer is not the admin of this MarginfiGroup")] // 6085
     InvalidAdminConstraint,
