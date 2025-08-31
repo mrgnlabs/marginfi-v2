@@ -1,4 +1,4 @@
-use crate::{constants::FEE_STATE_SEED, state::fee_state::FeeState, MarginfiGroup, MarginfiResult};
+use crate::{constants::FEE_STATE_SEED, state::fee_state::FeeState, MarginfiError, MarginfiGroup, MarginfiResult};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
@@ -13,7 +13,7 @@ pub struct ConfigGroupFee<'info> {
     #[account(
         seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
-        has_one = global_fee_admin
+        has_one = global_fee_admin @ MarginfiError::InvalidGlobalFeeAdminConstraint
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 }

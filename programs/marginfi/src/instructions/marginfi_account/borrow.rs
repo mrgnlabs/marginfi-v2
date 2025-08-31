@@ -194,8 +194,8 @@ pub struct LendingAccountBorrow<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
+        has_one = authority @ MarginfiError::InvalidAuthorityConstraint
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -203,8 +203,8 @@ pub struct LendingAccountBorrow<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVaultConstraint
     )]
     pub bank: AccountLoader<'info, Bank>,
 

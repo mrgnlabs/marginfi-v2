@@ -4,7 +4,7 @@ use crate::constants::{ASSET_TAG_STAKED, PYTH_PUSH_MIGRATED, PYTH_SPONSORED_SHAR
 use crate::state::marginfi_group::Bank;
 use crate::state::price::PythPushOraclePriceFeed;
 use crate::state::staked_settings::StakedSettings;
-use crate::MarginfiGroup;
+use crate::{MarginfiError, MarginfiGroup};
 use anchor_lang::prelude::*;
 
 pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> Result<()> {
@@ -61,7 +61,7 @@ pub struct PropagateStakedSettings<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        has_one = marginfi_group
+        has_one = marginfi_group @ MarginfiError::InvalidMarginfigroupConstraint
     )]
     pub staked_settings: AccountLoader<'info, StakedSettings>,
 

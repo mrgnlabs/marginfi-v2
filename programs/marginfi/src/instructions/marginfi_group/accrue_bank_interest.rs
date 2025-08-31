@@ -1,6 +1,6 @@
 use crate::{
     state::marginfi_group::{Bank, MarginfiGroup},
-    MarginfiResult,
+    MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 
@@ -29,7 +29,7 @@ pub struct LendingPoolAccrueBankInterest<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroupConstraint
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

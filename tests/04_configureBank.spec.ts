@@ -210,8 +210,8 @@ describe("Lending pool configure bank", () => {
           )
         );
       },
-      "ConstraintHasOne",
-      2001
+      "InvalidAdminConstraint",
+      6085
     );
 
     await expectFailedTxWithMessage(async () => {

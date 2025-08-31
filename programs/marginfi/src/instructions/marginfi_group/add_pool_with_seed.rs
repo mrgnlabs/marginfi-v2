@@ -103,7 +103,7 @@ pub fn lending_pool_add_bank_with_seed(
 pub struct LendingPoolAddBankWithSeed<'info> {
     #[account(
         mut,
-        has_one = admin
+        has_one = admin @ MarginfiError::InvalidAdminConstraint
     )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
@@ -118,7 +118,7 @@ pub struct LendingPoolAddBankWithSeed<'info> {
     #[account(
         seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
-        has_one = global_fee_wallet
+        has_one = global_fee_wallet @ MarginfiError::InvalidGlobalFeeWalletConstraint
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 

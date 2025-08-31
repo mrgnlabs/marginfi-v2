@@ -183,7 +183,7 @@ pub struct LendingPoolCollectBankFees<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroupConstraint
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -281,12 +281,12 @@ pub fn lending_pool_withdraw_fees<'info>(
 #[derive(Accounts)]
 pub struct LendingPoolWithdrawFees<'info> {
     #[account(
-        has_one = admin
+        has_one = admin @ MarginfiError::InvalidAdminConstraint
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroupConstraint
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -357,12 +357,12 @@ pub fn lending_pool_withdraw_insurance<'info>(
 #[derive(Accounts)]
 pub struct LendingPoolWithdrawInsurance<'info> {
     #[account(
-        has_one = admin
+        has_one = admin @ MarginfiError::InvalidAdminConstraint
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroupConstraint
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -413,13 +413,13 @@ pub fn lending_pool_update_fees_destination_account<'info>(
 #[derive(Accounts)]
 pub struct LendingPoolUpdateFeesDestinationAccount<'info> {
     #[account(
-        has_one = admin
+        has_one = admin @ MarginfiError::InvalidAdminConstraint
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroupConstraint
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -478,8 +478,8 @@ pub struct LendingPoolWithdrawFeesPermissionless<'info> {
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        has_one = group,
-        has_one = fees_destination_account,
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
+        has_one = fees_destination_account @ MarginfiError::InvalidFeesDestinationAccountConstraint,
     )]
     pub bank: AccountLoader<'info, Bank>,
 

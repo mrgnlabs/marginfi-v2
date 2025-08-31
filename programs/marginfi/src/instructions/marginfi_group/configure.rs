@@ -1,5 +1,5 @@
 use crate::events::{GroupEventHeader, MarginfiGroupConfigureEvent};
-use crate::{state::marginfi_group::MarginfiGroup, MarginfiResult};
+use crate::{state::marginfi_group::MarginfiGroup, MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 
 /// Configure margin group.
@@ -47,7 +47,7 @@ pub fn configure(
 pub struct MarginfiGroupConfigure<'info> {
     #[account(
         mut,
-        has_one = admin
+        has_one = admin @ MarginfiError::InvalidAdminConstraint
     )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 

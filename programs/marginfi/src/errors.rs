@@ -171,6 +171,32 @@ pub enum MarginfiError {
     BankCannotClose,
     #[msg("Account already migrated")] // 6082
     AccountAlreadyMigrated,
+    #[msg("Account does not belong to the expected MarginfiGroup")] // 6083
+    InvalidGroupConstraint,
+    #[msg("Signer is not the authority for this account")] // 6084  
+    InvalidAuthorityConstraint,
+    #[msg("Signer is not the admin of this MarginfiGroup")] // 6085
+    InvalidAdminConstraint,
+    #[msg("Provided emissions mint does not match the expected mint for this bank")] // 6086
+    InvalidEmissionsMintConstraint,
+    #[msg("Liquidity vault does not belong to this bank")] // 6087
+    InvalidLiquidityVaultConstraint,
+    #[msg("Provided global fee wallet does not match the expected fee wallet")] // 6088
+    InvalidGlobalFeeWalletConstraint,
+    #[msg("Signer is not the global fee admin")] // 6089
+    InvalidGlobalFeeAdminConstraint,
+    #[msg("Signer is not the delegate curve admin for this group")] // 6090
+    InvalidDelegateCurveAdminConstraint,
+    #[msg("Signer is not the delegate limit admin for this group")] // 6091
+    InvalidDelegateLimitAdminConstraint,
+    #[msg("Signer is not the delegate emissions admin for this group")] // 6092
+    InvalidDelegateEmissionsAdminConstraint,
+    #[msg("Signer is not the emode admin for this group")] // 6093
+    InvalidEmodeAdminConstraint,
+    #[msg("Provided MarginfiGroup does not match the expected group for staked settings")] // 6094
+    InvalidMarginfigroupConstraint,
+    #[msg("Fees destination account does not match the expected destination")] // 6095
+    InvalidFeesDestinationAccountConstraint,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -288,6 +314,19 @@ impl From<u32> for MarginfiError {
             6080 => MarginfiError::OracleMaxConfidenceExceeded,
             6081 => MarginfiError::BankCannotClose,
             6082 => MarginfiError::AccountAlreadyMigrated,
+            6083 => MarginfiError::InvalidGroupConstraint,
+            6084 => MarginfiError::InvalidAuthorityConstraint,
+            6085 => MarginfiError::InvalidAdminConstraint,
+            6086 => MarginfiError::InvalidEmissionsMintConstraint,
+            6087 => MarginfiError::InvalidLiquidityVaultConstraint,
+            6088 => MarginfiError::InvalidGlobalFeeWalletConstraint,
+            6089 => MarginfiError::InvalidGlobalFeeAdminConstraint,
+            6090 => MarginfiError::InvalidDelegateCurveAdminConstraint,
+            6091 => MarginfiError::InvalidDelegateLimitAdminConstraint,
+            6092 => MarginfiError::InvalidDelegateEmissionsAdminConstraint,
+            6093 => MarginfiError::InvalidEmodeAdminConstraint,
+            6094 => MarginfiError::InvalidMarginfigroupConstraint,
+            6095 => MarginfiError::InvalidFeesDestinationAccountConstraint,
             _ => MarginfiError::InternalLogicError,
         }
     }

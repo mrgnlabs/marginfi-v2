@@ -3,7 +3,7 @@ use crate::constants::STAKED_SETTINGS_SEED;
 use crate::state::marginfi_group::{RiskTier, WrappedI80F48};
 use crate::state::staked_settings::StakedSettings;
 use crate::utils::wrapped_i80f48_to_f64;
-use crate::MarginfiGroup;
+use crate::{MarginfiError, MarginfiGroup};
 use anchor_lang::prelude::*;
 
 pub fn initialize_staked_settings(
@@ -47,7 +47,7 @@ pub fn initialize_staked_settings(
 #[derive(Accounts)]
 pub struct InitStakedSettings<'info> {
     #[account(
-        has_one = admin
+        has_one = admin @ MarginfiError::InvalidAdminConstraint
     )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 

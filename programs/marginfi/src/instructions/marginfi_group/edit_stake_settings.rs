@@ -3,7 +3,7 @@ use crate::events::EditStakedSettingsEvent;
 // propagate afterwards.
 use crate::state::marginfi_group::{RiskTier, WrappedI80F48};
 use crate::state::staked_settings::StakedSettings;
-use crate::{set_if_some, MarginfiGroup};
+use crate::{set_if_some, MarginfiError, MarginfiGroup};
 use anchor_lang::prelude::*;
 
 pub fn edit_staked_settings(
@@ -45,7 +45,7 @@ pub fn edit_staked_settings(
 #[derive(Accounts)]
 pub struct EditStakedSettings<'info> {
     #[account(
-        has_one = admin
+        has_one = admin @ MarginfiError::InvalidAdminConstraint
     )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
@@ -53,7 +53,7 @@ pub struct EditStakedSettings<'info> {
 
     #[account(
         mut,
-        has_one = marginfi_group
+        has_one = marginfi_group @ MarginfiError::InvalidMarginfigroupConstraint
     )]
     pub staked_settings: AccountLoader<'info, StakedSettings>,
 }
