@@ -80,7 +80,7 @@ pub const THIRD_PARTY_CPI_RULES: &[(u16, Pubkey)] = &[
     (10_001, MOCKS_PROGRAM_ID),
     (
         11_111,
-        pubkey!("AsgardPYC6KGbxt1nBWDFZgzc1gKZJNqLzxyaHo48Ca1"),
+        pubkey!("AsgardVwpApNc9DgEsDAHJcvupPuRtLQSKDP9MQNw16N"),
     ), // (10_002, SOME_OTHER_PROGRAM_ID),
        // (10_003, YET_ANOTHER_PROGRAM_ID),
 ];
