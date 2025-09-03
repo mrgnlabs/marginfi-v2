@@ -130,7 +130,7 @@ let copyKeys: PublicKey[] = [
   GAPPY3_SAMPLE,
   GAPPY4_SAMPLE,
   PRE_MIGRATION_BANK_SAMPLE,
-  PRE_MIGRATION_BANK_LIQ_VAULT
+  PRE_MIGRATION_BANK_LIQ_VAULT,
 ];
 
 export const mochaHooks = {
@@ -350,6 +350,15 @@ export const mochaHooks = {
       users[i].mrgnBankrunProgram = new Program(mrgnProgram.idl, prov);
     }
     banksClient = bankrunContext.banksClient;
+
+    globalProgramAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(globalProgramAdmin.wallet),
+        {}
+      )
+    );
 
     groupAdmin.mrgnBankrunProgram = new Program(
       mrgnProgram.idl,

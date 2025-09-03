@@ -34,9 +34,6 @@ pub fn panic_unpause_permissionless(ctx: Context<PanicUnpausePermissionless>) ->
 
 #[derive(Accounts)]
 pub struct PanicUnpausePermissionless<'info> {
-    /// Anyone can call this to unpause expired pauses
-    pub signer: Signer<'info>,
-
     #[account(
         mut,
         seeds = [FEE_STATE_SEED.as_bytes()],
