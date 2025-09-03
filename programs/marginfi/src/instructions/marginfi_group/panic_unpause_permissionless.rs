@@ -8,7 +8,7 @@ pub fn panic_unpause_permissionless(ctx: Context<PanicUnpausePermissionless>) ->
     let current_timestamp = Clock::get()?.unix_timestamp;
 
     require!(
-        fee_state.panic_state.is_paused(),
+        fee_state.panic_state.is_paused_flag(),
         crate::errors::MarginfiError::ProtocolNotPaused
     );
 

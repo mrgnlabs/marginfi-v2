@@ -8,13 +8,13 @@ pub fn panic_unpause(ctx: Context<PanicUnpause>) -> Result<()> {
     let current_timestamp = Clock::get()?.unix_timestamp;
 
     require!(
-        fee_state.panic_state.is_paused(),
+        fee_state.panic_state.is_paused_flag(),
         crate::errors::MarginfiError::ProtocolNotPaused
     );
 
     fee_state.panic_state.update_if_expired(current_timestamp);
 
-    if fee_state.panic_state.is_paused() {
+    if fee_state.panic_state.is_paused_flag() {
         fee_state.panic_state.unpause();
         msg!(
             "Protocol manually unpaused by admin at timestamp: {}",

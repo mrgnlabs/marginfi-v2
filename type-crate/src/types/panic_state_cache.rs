@@ -13,7 +13,7 @@ assert_struct_align!(PanicStateCache, 8);
 #[derive(Clone, Copy, Default, Zeroable, Pod, Debug, PartialEq, Eq)]
 pub struct PanicStateCache {
     /// Whether the protocol is currently paused (1 = paused, 0 = not paused)
-    pub is_paused: u8,
+    pub pause_flags: u8,
     // Reserved for future use
     pub _reserved: [u8; 7],
     /// Timestamp when the current pause started (0 if not paused)
@@ -24,7 +24,7 @@ pub struct PanicStateCache {
 
 impl PanicStateCache {
     pub fn is_paused(&self) -> bool {
-        self.is_paused == 1
+        (self.pause_flags & PanicState::FLAG_PAUSED) != 0
     }
 
     pub fn is_expired(&self, current_timestamp: i64) -> bool {
@@ -34,7 +34,7 @@ impl PanicStateCache {
     }
 
     pub fn update_from_panic_state(&mut self, panic_state: &PanicState, current_timestamp: i64) {
-        self.is_paused = panic_state.is_paused;
+        self.pause_flags = panic_state.pause_flags;
         self.pause_start_timestamp = panic_state.pause_start_timestamp;
         self.last_cache_update = current_timestamp;
     }
@@ -47,7 +47,7 @@ impl PanicStateCache {
 #[repr(C)]
 pub struct PanicState {
     /// Whether the protocol is currently paused (1 = paused, 0 = not paused)
-    pub is_paused: u8,
+    pub pause_flags: u8,
     /// Number of times paused today (resets every 24 hours)
     pub daily_pause_count: u8,
     /// Number of consecutive pauses (resets when unpause happens)
@@ -63,15 +63,19 @@ pub struct PanicState {
 }
 
 impl PanicState {
+    pub const FLAG_PAUSED: u8 = 1 << 0;
     pub const PAUSE_DURATION_SECONDS: i64 = 15 * 60; // 15 minutes
     pub const MAX_CONSECUTIVE_PAUSES: u8 = 2;
     pub const MAX_DAILY_PAUSES: u8 = 3;
     pub const DAILY_RESET_INTERVAL: i64 = 24 * 60 * 60; // 24 hours
 
-    pub fn is_paused(&self) -> bool {
-        self.is_paused == 1
+    /// Only checks if the paused flag is set.
+    /// * Note: if you want to see if a pause is currently active, see `is_expired` instead.
+    pub fn is_paused_flag(&self) -> bool {
+        (self.pause_flags & Self::FLAG_PAUSED) != 0
     }
 
+    /// Validates the pauses-per-day and consecutive-pauses limits have not been exceeded
     pub fn can_pause(&self, current_timestamp: i64) -> bool {
         // Reset daily count if 24 hours have passed
         let needs_daily_reset =
@@ -88,8 +92,9 @@ impl PanicState {
             && daily_count < Self::MAX_DAILY_PAUSES
     }
 
+    /// True if no pause is active, or a pause is active but expired. False if actively paused.
     pub fn is_expired(&self, current_timestamp: i64) -> bool {
-        self.is_paused()
+        self.is_paused_flag()
             && (current_timestamp - self.pause_start_timestamp) >= Self::PAUSE_DURATION_SECONDS
     }
 }

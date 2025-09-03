@@ -1,5 +1,5 @@
 use crate::{MarginfiError, MarginfiResult};
-use anchor_lang::require;
+use anchor_lang::prelude::*;
 use marginfi_type_crate::types::PanicState;
 
 pub trait PanicStateImpl {
@@ -10,7 +10,6 @@ pub trait PanicStateImpl {
 
 impl PanicStateImpl for PanicState {
     fn pause(&mut self, current_timestamp: i64) -> MarginfiResult<()> {
-        require!(!self.is_paused(), MarginfiError::ProtocolAlreadyPaused);
         require!(
             self.can_pause(current_timestamp),
             MarginfiError::PauseLimitExceeded
@@ -22,8 +21,16 @@ impl PanicStateImpl for PanicState {
             self.last_daily_reset_timestamp = current_timestamp;
         }
 
-        self.is_paused = 1;
-        self.pause_start_timestamp = current_timestamp;
+        // If already paused and not expired, treats this as an "extend" operation.
+        if self.is_paused_flag() && !self.is_expired(current_timestamp) {
+            self.pause_start_timestamp = self
+                .pause_start_timestamp
+                .saturating_add(Self::PAUSE_DURATION_SECONDS);
+        } else {
+            // Otherwise, we just start a new pause here
+            self.pause_start_timestamp = current_timestamp;
+        }
+        self.pause_flags |= Self::FLAG_PAUSED;
         self.daily_pause_count = self.daily_pause_count.saturating_add(1);
         self.consecutive_pause_count = self.consecutive_pause_count.saturating_add(1);
 
@@ -31,7 +38,7 @@ impl PanicStateImpl for PanicState {
     }
 
     fn unpause(&mut self) {
-        self.is_paused = 0;
+        self.pause_flags &= !Self::FLAG_PAUSED;
         self.pause_start_timestamp = 0;
         self.consecutive_pause_count = 0;
     }
@@ -50,7 +57,7 @@ mod panic_state_tests {
     #[test]
     fn test_initial_state() {
         let panic_state = PanicState::default();
-        assert!(!panic_state.is_paused());
+        assert!(!panic_state.is_paused_flag());
         assert_eq!(panic_state.daily_pause_count, 0);
         assert_eq!(panic_state.consecutive_pause_count, 0);
         assert_eq!(panic_state.pause_start_timestamp, 0);
@@ -70,7 +77,7 @@ mod panic_state_tests {
 
         panic_state.pause(timestamp).unwrap();
 
-        assert!(panic_state.is_paused());
+        assert!(panic_state.is_paused_flag());
         assert_eq!(panic_state.pause_start_timestamp, timestamp);
         assert_eq!(panic_state.daily_pause_count, 1);
         assert_eq!(panic_state.consecutive_pause_count, 1);
@@ -79,12 +86,34 @@ mod panic_state_tests {
     }
 
     #[test]
-    fn test_pause_already_paused_fails() {
+    fn test_pause_already_paused_extends() {
         let mut panic_state = PanicState::default();
-        panic_state.pause(1000).unwrap();
 
-        let result = panic_state.pause(2000);
-        assert!(result.is_err());
+        // First pause starts at t=1000, ends at 1900
+        panic_state.pause(1000).unwrap();
+        let first_start = panic_state.pause_start_timestamp;
+        let first_expiry = first_start + PanicState::PAUSE_DURATION_SECONDS;
+
+        // Call pause again while still paused (in the middle of pause, before expiry)
+        let result = panic_state.pause(1400);
+        assert!(result.is_ok());
+
+        // The pause_start_timestamp should have been extended forward by PAUSE_DURATION_SECONDS
+        let second_start = panic_state.pause_start_timestamp;
+        let second_expiry = second_start + PanicState::PAUSE_DURATION_SECONDS;
+
+        assert_eq!(
+            second_start,
+            first_start + PanicState::PAUSE_DURATION_SECONDS
+        );
+        assert_eq!(
+            second_expiry,
+            first_expiry + PanicState::PAUSE_DURATION_SECONDS
+        );
+
+        // Daily/consecutive counts still trigger
+        assert_eq!(panic_state.daily_pause_count, 2);
+        assert_eq!(panic_state.consecutive_pause_count, 2);
     }
 
     #[test]
@@ -98,7 +127,7 @@ mod panic_state_tests {
 
         // Let it expire and update
         panic_state.update_if_expired(base_timestamp + PanicState::PAUSE_DURATION_SECONDS);
-        assert!(!panic_state.is_paused());
+        assert!(!panic_state.is_paused_flag());
         assert_eq!(panic_state.consecutive_pause_count, 0); // Reset on auto-unpause
 
         // Second pause - should work
@@ -109,7 +138,7 @@ mod panic_state_tests {
 
         // Let it expire and update
         panic_state.update_if_expired(base_timestamp + 2 * PanicState::PAUSE_DURATION_SECONDS + 1);
-        assert!(!panic_state.is_paused());
+        assert!(!panic_state.is_paused_flag());
         assert_eq!(panic_state.consecutive_pause_count, 0);
     }
 
@@ -180,15 +209,15 @@ mod panic_state_tests {
         let start_time = 1000;
 
         panic_state.pause(start_time).unwrap();
-        assert!(panic_state.is_paused());
+        assert!(panic_state.is_paused_flag());
 
         // Update before expiration - should remain paused
         panic_state.update_if_expired(start_time + PanicState::PAUSE_DURATION_SECONDS - 1);
-        assert!(panic_state.is_paused());
+        assert!(panic_state.is_paused_flag());
 
         // Update after expiration - should auto-unpause
         panic_state.update_if_expired(start_time + PanicState::PAUSE_DURATION_SECONDS);
-        assert!(!panic_state.is_paused());
+        assert!(!panic_state.is_paused_flag());
         assert_eq!(panic_state.consecutive_pause_count, 0);
         assert_eq!(panic_state.pause_start_timestamp, 0);
     }
@@ -198,12 +227,12 @@ mod panic_state_tests {
         let mut panic_state = PanicState::default();
         panic_state.pause(1000).unwrap();
 
-        assert!(panic_state.is_paused());
+        assert!(panic_state.is_paused_flag());
         assert_eq!(panic_state.consecutive_pause_count, 1);
 
         panic_state.unpause();
 
-        assert!(!panic_state.is_paused());
+        assert!(!panic_state.is_paused_flag());
         assert_eq!(panic_state.consecutive_pause_count, 0);
         assert_eq!(panic_state.pause_start_timestamp, 0);
         // Daily count should remain unchanged
