@@ -51,9 +51,10 @@ pub struct LiquidationRecord {
 #[cfg_attr(
     feature = "anchor",
     zero_copy,
-    derive(Default, BorshDeserialize, BorshSerialize)
+    derive(BorshDeserialize, BorshSerialize)
 )]
-#[cfg_attr(not(feature = "anchor"), derive(Default, Clone, Copy, Pod, Zeroable))]
+#[cfg_attr(not(feature = "anchor"), derive(Clone, Copy, Pod, Zeroable))]
+#[derive(Debug, Default, PartialEq)]
 pub struct LiquidationEntry {
     /// Dollar amount seized
     /// * An f64 stored as bytes
@@ -71,9 +72,10 @@ pub struct LiquidationEntry {
 #[cfg_attr(
     feature = "anchor",
     zero_copy,
-    derive(Default, BorshDeserialize, BorshSerialize)
+    derive(BorshDeserialize, BorshSerialize)
 )]
-#[cfg_attr(not(feature = "anchor"), derive(Default, Clone, Copy, Pod, Zeroable))]
+#[cfg_attr(not(feature = "anchor"), derive(Clone, Copy, Pod, Zeroable))]
+#[derive(Debug, PartialEq, Default)]
 pub struct LiquidationCache {
     /// Internal risk engine asset value snapshot taken when liquidation begins, using maintenance
     /// weight with all confidence adjustments.
@@ -135,7 +137,7 @@ impl Default for LiquidationRecord {
     zero_copy,
     derive(Default, BorshDeserialize, BorshSerialize)
 )]
-#[cfg_attr(not(feature = "anchor"), derive(Defalt, Clone, Copy, Pod, Zeroable))]
+#[cfg_attr(not(feature = "anchor"), derive(Default, Clone, Copy, Pod, Zeroable))]
 pub struct MiniLendingAccount {
     pub balances: [MiniLendingAccountBalance; MAX_LENDING_ACCOUNT_BALANCES],
 }

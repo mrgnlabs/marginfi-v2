@@ -2882,6 +2882,7 @@ dependencies = [
  "fixed",
  "fixed-macro",
  "id-crate",
+ "solana-instruction",
  "static_assertions",
 ]
 
