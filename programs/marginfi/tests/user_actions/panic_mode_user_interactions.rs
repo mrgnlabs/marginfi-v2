@@ -1,6 +1,7 @@
 use anchor_lang::prelude::Clock;
 use fixtures::{assert_custom_error, native, prelude::*};
-use marginfi::{prelude::*, state::fee_state::PanicState};
+use marginfi::{prelude::*, state::bank::BankImpl};
+use marginfi_type_crate::types::PanicState;
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 

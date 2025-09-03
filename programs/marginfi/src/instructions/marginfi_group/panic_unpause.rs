@@ -1,6 +1,7 @@
-use crate::constants::FEE_STATE_SEED;
-use crate::state::fee_state::FeeState;
 use anchor_lang::prelude::*;
+use marginfi_type_crate::{constants::FEE_STATE_SEED, types::FeeState};
+
+use crate::state::panic_state::PanicStateImpl;
 
 pub fn panic_unpause(ctx: Context<PanicUnpause>) -> Result<()> {
     let mut fee_state = ctx.accounts.fee_state.load_mut()?;

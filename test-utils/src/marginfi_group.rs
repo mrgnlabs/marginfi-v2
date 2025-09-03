@@ -753,7 +753,7 @@ impl MarginfiGroupFixture {
 
     pub async fn try_panic_pause(&self) -> Result<(), BanksClientError> {
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::PanicPause {
                 global_fee_admin: self.ctx.borrow().payer.pubkey(),
                 fee_state: self.fee_state,
@@ -778,7 +778,7 @@ impl MarginfiGroupFixture {
 
     pub async fn try_panic_unpause(&self) -> Result<(), BanksClientError> {
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::PanicUnpause {
                 global_fee_admin: self.ctx.borrow().payer.pubkey(),
                 fee_state: self.fee_state,
@@ -803,7 +803,7 @@ impl MarginfiGroupFixture {
 
     pub async fn try_propagate_fee_state(&self) -> Result<(), BanksClientError> {
         let ix = Instruction {
-            program_id: marginfi::id(),
+            program_id: marginfi::ID,
             accounts: marginfi::accounts::PropagateFee {
                 fee_state: self.fee_state,
                 marginfi_group: self.key,

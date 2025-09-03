@@ -3,6 +3,10 @@ use anchor_lang::prelude::*;
 
 use bytemuck::{Pod, Zeroable};
 
+use crate::{assert_struct_align, assert_struct_size};
+
+assert_struct_size!(PanicStateCache, 24);
+assert_struct_align!(PanicStateCache, 8);
 /// Cached panic state information for fast checking during user operations
 #[repr(C)]
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
@@ -10,7 +14,7 @@ use bytemuck::{Pod, Zeroable};
 pub struct PanicStateCache {
     /// Whether the protocol is currently paused (1 = paused, 0 = not paused)
     pub is_paused: u8,
-    /// Reserved for future use
+    // Reserved for future use
     pub _reserved: [u8; 7],
     /// Timestamp when the current pause started (0 if not paused)
     pub pause_start_timestamp: i64,

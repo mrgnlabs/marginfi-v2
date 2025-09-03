@@ -16,7 +16,7 @@ use anchor_spl::{
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
-    types::{Bank, MarginfiAccount, WrappedI80F48},
+    types::{Bank, MarginfiAccount, MarginfiGroup, WrappedI80F48},
 };
 
 pub fn find_bank_vault_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
@@ -274,9 +274,7 @@ macro_rules! assert_eq_with_tolerance {
     };
 }
 
-pub fn check_protocol_pause_state_cached(
-    group: &crate::state::marginfi_group::MarginfiGroup,
-) -> MarginfiResult {
+pub fn check_protocol_pause_state_cached(group: &MarginfiGroup) -> MarginfiResult {
     let current_timestamp = anchor_lang::solana_program::clock::Clock::get()?.unix_timestamp;
 
     if group.panic_state_cache.is_paused() && !group.panic_state_cache.is_expired(current_timestamp)

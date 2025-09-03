@@ -1,6 +1,7 @@
-use crate::constants::FEE_STATE_SEED;
-use crate::state::fee_state::FeeState;
+use crate::state::panic_state::PanicStateImpl;
 use anchor_lang::prelude::*;
+use marginfi_type_crate::constants::FEE_STATE_SEED;
+use marginfi_type_crate::types::{FeeState, PanicState};
 
 pub fn panic_pause(ctx: Context<PanicPause>) -> Result<()> {
     let mut fee_state = ctx.accounts.fee_state.load_mut()?;
@@ -14,7 +15,7 @@ pub fn panic_pause(ctx: Context<PanicPause>) -> Result<()> {
     msg!("Protocol paused at timestamp: {}", current_timestamp);
     msg!(
         "Pause will auto-expire at: {}",
-        current_timestamp + crate::state::fee_state::PanicState::PAUSE_DURATION_SECONDS
+        current_timestamp + PanicState::PAUSE_DURATION_SECONDS
     );
     msg!(
         "Daily pause count: {}",

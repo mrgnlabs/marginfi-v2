@@ -48,9 +48,8 @@ pub struct MarginfiGroup {
     /// duration of the lockup will be available here.
     pub panic_state_cache: PanicStateCache,
 
-    pub _padding_0: [[u64; 2]; 18],
+    pub _padding_0: [[u64; 2]; 17],
     pub _padding_1: [[u64; 2]; 32],
-    pub _padding_4: u64,
 }
 
 impl MarginfiGroup {

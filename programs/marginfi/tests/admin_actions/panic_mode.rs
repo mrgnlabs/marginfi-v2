@@ -1,8 +1,5 @@
 use fixtures::prelude::*;
-use marginfi::state::{
-    fee_state::{FeeState, PanicState},
-    marginfi_group::MarginfiGroup,
-};
+use marginfi_type_crate::types::{FeeState, MarginfiGroup, PanicState};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 
