@@ -1,17 +1,20 @@
+use std::collections::HashMap;
+
 use crate::{
     assert_struct_align, assert_struct_size,
     constants::{discriminators, ASSET_TAG_DEFAULT, EMPTY_BALANCE_THRESHOLD},
+    types::Bank,
 };
 use bytemuck::{Pod, Zeroable};
 use fixed::types::I80F48;
 
 #[cfg(not(feature = "anchor"))]
-use super::Pubkey;
+use super::{AccountMeta, Pubkey};
 
 use super::{HealthCache, WrappedI80F48};
 
 #[cfg(feature = "anchor")]
-use anchor_lang::prelude::*;
+use {anchor_lang::prelude::*, solana_instruction::AccountMeta};
 
 assert_struct_size!(MarginfiAccount, 2304);
 assert_struct_align!(MarginfiAccount, 8);
@@ -90,6 +93,56 @@ impl LendingAccount {
 
     pub fn get_active_balances_iter(&self) -> impl Iterator<Item = &Balance> {
         self.balances.iter().filter(|b| b.is_active())
+    }
+
+    pub fn load_observation_account_metas(
+        self,
+        banks_map: &HashMap<Pubkey, Bank>,
+        include_banks: Vec<Pubkey>,
+        exclude_banks: Vec<Pubkey>,
+    ) -> Vec<AccountMeta> {
+        let mut bank_pks = self
+            .balances
+            .iter()
+            .filter_map(|balance| balance.is_active().then_some(balance.bank_pk))
+            .collect::<Vec<_>>();
+
+        for bank_pk in include_banks {
+            if !bank_pks.contains(&bank_pk) {
+                bank_pks.push(bank_pk);
+            }
+        }
+
+        bank_pks.retain(|bank_pk| !exclude_banks.contains(bank_pk));
+
+        // Sort all bank_pks in descending order
+        bank_pks.sort_by(|a, b| b.cmp(a));
+
+        let mut banks = vec![];
+        for bank_pk in bank_pks.clone() {
+            let bank = banks_map.get(&bank_pk).unwrap();
+            banks.push(bank);
+        }
+
+        let account_metas = banks
+            .iter()
+            .zip(bank_pks.iter())
+            .flat_map(|(bank, bank_pk)| {
+                vec![
+                    AccountMeta {
+                        pubkey: *bank_pk,
+                        is_signer: false,
+                        is_writable: false,
+                    },
+                    AccountMeta {
+                        pubkey: bank.config.oracle_keys[0],
+                        is_signer: false,
+                        is_writable: false,
+                    },
+                ]
+            })
+            .collect::<Vec<_>>();
+        account_metas
     }
 }
 
