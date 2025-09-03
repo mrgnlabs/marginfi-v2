@@ -453,6 +453,21 @@ pub mod marginfi {
     pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> MarginfiResult {
         marginfi_group::propagate_staked_settings(ctx)
     }
+
+    pub fn panic_pause(ctx: Context<PanicPause>) -> MarginfiResult {
+        marginfi_group::panic_pause(ctx)
+    }
+
+    pub fn panic_unpause(ctx: Context<PanicUnpause>) -> MarginfiResult {
+        marginfi_group::panic_unpause(ctx)
+    }
+
+    /// (permissionless) Unpause the protocol when pause time has expired
+    pub fn panic_unpause_permissionless(
+        ctx: Context<PanicUnpausePermissionless>,
+    ) -> MarginfiResult {
+        marginfi_group::panic_unpause_permissionless(ctx)
+    }
 }
 
 #[cfg(not(feature = "no-entrypoint"))]

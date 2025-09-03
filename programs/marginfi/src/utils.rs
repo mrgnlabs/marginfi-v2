@@ -273,3 +273,16 @@ macro_rules! assert_eq_with_tolerance {
         );
     };
 }
+
+pub fn check_protocol_pause_state_cached(
+    group: &crate::state::marginfi_group::MarginfiGroup,
+) -> MarginfiResult {
+    let current_timestamp = anchor_lang::solana_program::clock::Clock::get()?.unix_timestamp;
+
+    if group.panic_state_cache.is_paused() && !group.panic_state_cache.is_expired(current_timestamp)
+    {
+        return err!(MarginfiError::ProtocolPaused);
+    }
+
+    Ok(())
+}

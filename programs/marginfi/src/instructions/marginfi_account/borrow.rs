@@ -52,6 +52,9 @@ pub fn lending_account_borrow<'info>(
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
     let group = &marginfi_group_loader.load()?;
+
+    crate::utils::check_protocol_pause_state_cached(group)?;
+
     let program_fee_rate: I80F48 = group.fee_state_cache.program_fee_rate.into();
 
     check!(
