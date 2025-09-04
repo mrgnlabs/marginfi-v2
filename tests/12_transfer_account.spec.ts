@@ -62,7 +62,7 @@ describe("Transfer account authority", () => {
     const oldAcc = await program.account.marginfiAccount.fetch(
       oldAccKeypair.publicKey
     );
-    assert(newAcc.lastUpdate >= oldAcc.lastUpdate);
+    assertBNEqual(newAcc.lastUpdate, oldAcc.lastUpdate);
     const feeWalletAfter = await program.provider.connection.getAccountInfo(
       globalFeeWallet
     );

@@ -13,6 +13,7 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
     let marginfi_account = test_f.create_marginfi_account().await;
     let new_authority = Keypair::new();
     let new_account = Keypair::new();
+    let last_update = marginfi_account.load().await.last_update;
 
     // This is just to test that the account's last_update field is properly updated upon modification
     {
@@ -36,6 +37,7 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
 
     // Old account still has the old authority, but is now inactive
     let account_old = marginfi_account.load().await;
+    assert_eq!(account_old.last_update, last_update + 1);
     assert_eq!(account_old.authority, test_f.payer());
     assert_eq!(account_old.account_flags, ACCOUNT_DISABLED);
 
@@ -44,8 +46,7 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
     assert_eq!(account_new.authority, new_authority.pubkey());
     // Old account is recorded as the migration source
     assert_eq!(account_new.migrated_from, marginfi_account.key);
-    // last_update only actualized for the new account - old one stays the same
-    assert_eq!(account_new.last_update, account_old.last_update + 1);
+    assert_eq!(account_new.last_update, last_update + 1);
 
     Ok(())
 }
