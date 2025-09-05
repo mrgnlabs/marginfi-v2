@@ -97,7 +97,7 @@ impl Balance {
     }
 
     /// Check whether a balance is empty while accounting for any rounding errors
-    /// that might have occured during depositing/withdrawing.
+    /// that might have occurred during depositing/withdrawing.
     #[inline]
     pub fn is_empty(&self, side: BalanceSide) -> bool {
         let shares: I80F48 = match side {

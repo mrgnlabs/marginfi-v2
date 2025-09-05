@@ -79,7 +79,7 @@ async fn marginfi_account_transfer_not_account_owner() -> anyhow::Result<()> {
     let is_err = res.unwrap().result.unwrap().is_err();
 
     // Assert the response is an error due to fact that a non-owner of the
-    // acount attempted to initialize this account transfer
+    // account attempted to initialize this account transfer
     assert!(is_err);
 
     Ok(())

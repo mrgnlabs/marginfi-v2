@@ -142,7 +142,7 @@ describe("Set up emissions on staked collateral assets", () => {
     const bankAcc = await bankrunProgram.account.bank.fetch(validators[0].bank);
     netDeposits = wrappedI80F48toBigNumber(bankAcc.totalAssetShares).toNumber();
     if (verbose) {
-      console.log("net shares oustanding: " + netDeposits);
+      console.log("net shares outstanding: " + netDeposits);
       console.log("");
     }
   });
