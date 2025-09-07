@@ -20,7 +20,7 @@ pub fn panic_unpause_permissionless(ctx: Context<PanicUnpausePermissionless>) ->
     fee_state.panic_state.unpause();
 
     msg!(
-        "Protocol auto-unpaused at timestamp: {} (expired after {} seconds)",
+        "Protocol permissionlessly unpaused at: {} (expired after {} seconds)",
         current_timestamp,
         current_timestamp - fee_state.panic_state.pause_start_timestamp
     );

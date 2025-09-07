@@ -52,7 +52,7 @@ pub fn lending_account_repay<'info>(
     );
 
     let group = &marginfi_group_loader.load()?;
-    crate::utils::check_protocol_pause_state_cached(&group)?;
+    crate::utils::check_protocol_pause_state_cached(group)?;
     bank.accrue_interest(
         clock.unix_timestamp,
         group,

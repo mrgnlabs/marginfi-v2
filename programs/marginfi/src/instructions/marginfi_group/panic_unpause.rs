@@ -12,7 +12,7 @@ pub fn panic_unpause(ctx: Context<PanicUnpause>) -> Result<()> {
         crate::errors::MarginfiError::ProtocolNotPaused
     );
 
-    fee_state.panic_state.update_if_expired(current_timestamp);
+    fee_state.panic_state.unpause_if_expired(current_timestamp);
 
     if fee_state.panic_state.is_paused_flag() {
         fee_state.panic_state.unpause();

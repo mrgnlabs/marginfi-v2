@@ -8,7 +8,7 @@ pub fn panic_pause(ctx: Context<PanicPause>) -> Result<()> {
     let current_timestamp = Clock::get()?.unix_timestamp;
 
     // Update panic state if the current pause has expired
-    fee_state.panic_state.update_if_expired(current_timestamp);
+    fee_state.panic_state.unpause_if_expired(current_timestamp);
 
     fee_state.panic_state.pause(current_timestamp)?;
 
