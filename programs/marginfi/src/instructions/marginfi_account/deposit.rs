@@ -99,7 +99,7 @@ pub fn lending_account_deposit<'info>(
     )?;
 
     bank_account.deposit(I80F48::from_num(deposit_amount))?;
-    marginfi_account.last_update = bank_account.balance.last_update;
+    marginfi_account.last_update = clock.unix_timestamp as u64;
 
     let amount_pre_fee = maybe_bank_mint
         .as_ref()

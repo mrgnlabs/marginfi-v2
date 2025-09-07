@@ -112,7 +112,7 @@ pub fn lending_account_borrow<'info>(
             bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
         }
 
-        marginfi_account.last_update = bank_account.balance.last_update;
+        marginfi_account.last_update = clock.unix_timestamp as u64;
 
         bank.withdraw_spl_transfer(
             amount_pre_fee,

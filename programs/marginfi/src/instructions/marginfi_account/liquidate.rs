@@ -311,7 +311,7 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            liquidator_marginfi_account.last_update = bank_account.balance.last_update;
+            liquidator_marginfi_account.last_update = current_timestamp as u64;
 
             (pre_balance, post_balance)
         };
@@ -345,8 +345,7 @@ pub fn lending_account_liquidate<'info>(
                     liquidatee_liab_bank_account.balance.liability_shares.into(),
                 )?;
 
-            liquidatee_marginfi_account.last_update =
-                liquidatee_liab_bank_account.balance.last_update;
+            liquidatee_marginfi_account.last_update = current_timestamp as u64;
 
             // ## SPL transfer ##
             // Insurance fund receives fee
