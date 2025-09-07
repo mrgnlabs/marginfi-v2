@@ -9,6 +9,7 @@ use crate::{
         marginfi_account::{
             BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
+        marginfi_group::MarginfiGroupImpl,
     },
     utils::{self, validate_asset_tags},
 };
@@ -52,8 +53,6 @@ pub fn lending_account_borrow<'info>(
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
     let group = &marginfi_group_loader.load()?;
-
-    crate::utils::check_protocol_pause_state_cached(group)?;
 
     let program_fee_rate: I80F48 = group.fee_state_cache.program_fee_rate.into();
 
@@ -198,6 +197,11 @@ pub fn lending_account_borrow<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountBorrow<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

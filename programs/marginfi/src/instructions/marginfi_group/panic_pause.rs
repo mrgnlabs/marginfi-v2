@@ -32,7 +32,6 @@ pub fn panic_pause(ctx: Context<PanicPause>) -> Result<()> {
 #[derive(Accounts)]
 pub struct PanicPause<'info> {
     /// Admin of the global FeeState (can trigger panic pause)
-    #[account(mut)]
     pub global_fee_admin: Signer<'info>,
 
     /// Global fee state account containing the panic state

@@ -483,7 +483,6 @@ describe("Panic Mode state test (Bankrun)", () => {
   });
 
   // TODO settings can be changed while paused
-  // TODO move pause check into constraints
   // TODO bankrun into the future and show we can pause again
   // TODO bankrun into the future and show permissionless unpause
 });

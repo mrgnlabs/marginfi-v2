@@ -19,6 +19,7 @@ pub trait MarginfiGroupImpl {
     fn program_fees_enabled(&self) -> bool;
     fn is_arena_group(&self) -> bool;
     fn add_bank(&mut self) -> MarginfiResult;
+    fn is_protocol_paused(&self) -> bool;
 }
 
 impl MarginfiGroupImpl for MarginfiGroup {
@@ -154,6 +155,15 @@ impl MarginfiGroupImpl for MarginfiGroup {
         self.fee_state_cache.last_update = clock.unix_timestamp;
 
         Ok(())
+    }
+
+    /// Returns true if the protocol is in a paused state and the time has not yet expired, false it
+    /// not paused or timer has expired.
+    fn is_protocol_paused(&self) -> bool {
+        // Note: In rare event clock fails to unwrap, time = 0 always fails the is_expired check.
+        let current_timestamp = Clock::get().map(|c| c.unix_timestamp).unwrap_or(0);
+
+        self.panic_state_cache.is_paused() && !self.panic_state_cache.is_expired(current_timestamp)
     }
 }
 

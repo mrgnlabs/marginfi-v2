@@ -5,6 +5,7 @@ use crate::{
     state::{
         bank::BankImpl,
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
+        marginfi_group::MarginfiGroupImpl,
     },
     utils,
 };
@@ -52,7 +53,6 @@ pub fn lending_account_repay<'info>(
     );
 
     let group = &marginfi_group_loader.load()?;
-    crate::utils::check_protocol_pause_state_cached(group)?;
     bank.accrue_interest(
         clock.unix_timestamp,
         group,
@@ -116,6 +116,11 @@ pub fn lending_account_repay<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountRepay<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

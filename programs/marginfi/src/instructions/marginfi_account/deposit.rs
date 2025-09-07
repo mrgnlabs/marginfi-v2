@@ -7,6 +7,7 @@ use crate::{
         bank::BankImpl,
         bank_config::BankConfigImpl,
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
+        marginfi_group::MarginfiGroupImpl,
     },
     utils::{self, validate_asset_tags},
 };
@@ -48,11 +49,9 @@ pub fn lending_account_deposit<'info>(
 
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
-    let group = marginfi_group_loader.load()?;
+    let group = &marginfi_group_loader.load()?;
 
     validate_asset_tags(&bank, &marginfi_account)?;
-
-    crate::utils::check_protocol_pause_state_cached(&group)?;
 
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
@@ -143,6 +142,11 @@ pub fn lending_account_deposit<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountDeposit<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
