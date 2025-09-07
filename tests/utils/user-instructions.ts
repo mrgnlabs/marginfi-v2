@@ -318,6 +318,7 @@ export type RepayIxArgs = {
   marginfiAccount: PublicKey;
   bank: PublicKey;
   tokenAccount: PublicKey;
+  // TODO repay doesn't actually need these it doesn't check risk
   remaining: PublicKey[];
   amount: BN;
   repayAll?: boolean;

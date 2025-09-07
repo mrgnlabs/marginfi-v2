@@ -13,7 +13,7 @@ pub struct PropagateFee<'info> {
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 
-    /// Any group, this ix is permisionless and can propogate the fee to any group
+    /// Any group, this ix is permisionless and can propagate the fee to any group
     #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 }

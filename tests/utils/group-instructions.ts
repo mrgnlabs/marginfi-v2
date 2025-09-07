@@ -378,7 +378,26 @@ export const editGlobalFeeState = (
   return ix;
 };
 
-// TODO propagate fee state and test
+export type PropogateFeeStateArgs = {
+  group: PublicKey;
+};
+
+export const propagateFeeState = (
+  program: Program<Marginfi>,
+  args: PropogateFeeStateArgs
+) => {
+  const ix = program.methods
+    .propagateFeeState(
+    )
+    .accounts({
+      marginfiGroup: args.group,
+      // feeState = deriveGlobalFeeState(id),
+    })
+    .instruction();
+
+  return ix;
+};
+
 
 export type InitStakedSettingsArgs = {
   group: PublicKey;
