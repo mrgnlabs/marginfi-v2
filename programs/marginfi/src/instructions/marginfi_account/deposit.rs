@@ -86,7 +86,7 @@ pub fn lending_account_deposit<'info>(
     }
     bank.accrue_interest(
         clock.unix_timestamp,
-        &group,
+        group,
         #[cfg(not(feature = "client"))]
         bank_loader.key(),
     )?;
@@ -121,7 +121,7 @@ pub fn lending_account_deposit<'info>(
         ctx.remaining_accounts,
     )?;
 
-    bank.update_bank_cache(&group)?;
+    bank.update_bank_cache(group)?;
 
     emit!(LendingAccountDepositEvent {
         header: AccountEventHeader {
