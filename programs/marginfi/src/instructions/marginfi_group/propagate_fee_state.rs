@@ -35,7 +35,7 @@ pub fn propagate_fee(ctx: Context<PropagateFee>) -> Result<()> {
 
     msg!(
         "Propagated fee and panic state to group. Panic state: paused={}",
-        group.panic_state_cache.is_paused()
+        group.panic_state_cache.is_paused_flag()
             && !group.panic_state_cache.is_expired(clock.unix_timestamp)
     );
 

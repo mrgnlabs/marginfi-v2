@@ -23,8 +23,9 @@ pub struct PanicStateCache {
 }
 
 impl PanicStateCache {
-    /// Checks on that the pause flag is set. You may want to look at `is_expired`
-    pub fn is_paused(&self) -> bool {
+    /// Only checks if the paused flag is set.
+    /// * Note: if you want to see if a pause is currently active, see `is_expired` instead.
+    pub fn is_paused_flag(&self) -> bool {
         (self.pause_flags & PanicState::FLAG_PAUSED) != 0
     }
 
@@ -33,7 +34,7 @@ impl PanicStateCache {
     /// * If paused and still within the pause duration, false.
     /// * If paused and current_timestamp invalid, false.
     pub fn is_expired(&self, current_timestamp: i64) -> bool {
-        if !self.is_paused() {
+        if !self.is_paused_flag() {
             return true;
         }
 
@@ -104,9 +105,20 @@ impl PanicState {
             && daily_count < Self::MAX_DAILY_PAUSES
     }
 
-    /// True if no pause is active, or a pause is active but expired. False if actively paused.
+    /// * If not paused at all, true (nothing to expire).
+    /// * If paused and the pause duration has elapsed, true.
+    /// * If paused and still within the pause duration, false.
+    /// * If paused and current_timestamp invalid, false.
     pub fn is_expired(&self, current_timestamp: i64) -> bool {
-        self.is_paused_flag()
-            && (current_timestamp - self.pause_start_timestamp) >= Self::PAUSE_DURATION_SECONDS
+        if !self.is_paused_flag() {
+            return true;
+        }
+
+        // Catch edge cases around malformed timestamps to avoid a panic on sub
+        if current_timestamp < self.pause_start_timestamp {
+            return false;
+        }
+
+        (current_timestamp - self.pause_start_timestamp) >= Self::PAUSE_DURATION_SECONDS
     }
 }

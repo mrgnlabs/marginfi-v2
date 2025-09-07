@@ -163,7 +163,7 @@ impl MarginfiGroupImpl for MarginfiGroup {
         // Note: In rare event clock fails to unwrap, time = 0 always fails the is_expired check.
         let current_timestamp = Clock::get().map(|c| c.unix_timestamp).unwrap_or(0);
 
-        self.panic_state_cache.is_paused() && !self.panic_state_cache.is_expired(current_timestamp)
+        self.panic_state_cache.is_paused_flag() && !self.panic_state_cache.is_expired(current_timestamp)
     }
 }
 

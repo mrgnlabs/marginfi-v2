@@ -17,7 +17,7 @@ async fn test_deposit_when_panic_mode_not_set() -> anyhow::Result<()> {
         .await;
 
     let marginfi_group = test_f.marginfi_group.load().await;
-    assert!(!marginfi_group.panic_state_cache.is_paused());
+    assert!(!marginfi_group.panic_state_cache.is_paused_flag());
 
     marginfi_account_f
         .try_bank_deposit(token_account.key, usdc_bank_f, 500, None)
@@ -56,7 +56,7 @@ async fn test_deposit_when_panic_mode_set() -> anyhow::Result<()> {
 
     // Verify panic mode is now set in the cache
     let marginfi_group = test_f.marginfi_group.load().await;
-    assert!(marginfi_group.panic_state_cache.is_paused());
+    assert!(marginfi_group.panic_state_cache.is_paused_flag());
 
     // Deposit should fail when panic mode is active
     let result = marginfi_account_f
@@ -90,7 +90,7 @@ async fn test_deposit_when_panic_mode_expires_via_propagate_fee() -> anyhow::Res
     test_f.marginfi_group.try_propagate_fee_state().await?;
 
     let marginfi_group = test_f.marginfi_group.load().await;
-    assert!(marginfi_group.panic_state_cache.is_paused());
+    assert!(marginfi_group.panic_state_cache.is_paused_flag());
 
     {
         let ctx = test_f.context.borrow_mut();
@@ -156,7 +156,7 @@ async fn test_borrow_when_panic_mode_not_set() -> anyhow::Result<()> {
     let borrow_token_account = test_f.sol_mint.create_empty_token_account().await;
 
     let marginfi_group = test_f.marginfi_group.load().await;
-    assert!(!marginfi_group.panic_state_cache.is_paused());
+    assert!(!marginfi_group.panic_state_cache.is_paused_flag());
 
     borrower_account_f
         .try_bank_borrow(borrow_token_account.key, sol_bank_f, 1)
@@ -204,7 +204,7 @@ async fn test_borrow_when_panic_mode_set() -> anyhow::Result<()> {
     test_f.marginfi_group.try_propagate_fee_state().await?;
 
     let marginfi_group = test_f.marginfi_group.load().await;
-    assert!(marginfi_group.panic_state_cache.is_paused());
+    assert!(marginfi_group.panic_state_cache.is_paused_flag());
 
     let result = borrower_account_f
         .try_bank_borrow(borrow_token_account.key, sol_bank_f, 1)
@@ -231,7 +231,7 @@ async fn test_withdraw_when_panic_mode_not_set() -> anyhow::Result<()> {
         .await?;
 
     let marginfi_group = test_f.marginfi_group.load().await;
-    assert!(!marginfi_group.panic_state_cache.is_paused());
+    assert!(!marginfi_group.panic_state_cache.is_paused_flag());
 
     marginfi_account_f
         .try_bank_withdraw(token_account.key, usdc_bank_f, 100, None)
@@ -270,7 +270,7 @@ async fn test_withdraw_when_panic_mode_set() -> anyhow::Result<()> {
     test_f.marginfi_group.try_propagate_fee_state().await?;
 
     let marginfi_group = test_f.marginfi_group.load().await;
-    assert!(marginfi_group.panic_state_cache.is_paused());
+    assert!(marginfi_group.panic_state_cache.is_paused_flag());
 
     // Withdraw should fail when panic mode is active
     let result = marginfi_account_f
@@ -298,7 +298,7 @@ async fn test_propagate_fee_updates_both_fee_and_panic_caches() -> anyhow::Resul
 
     let marginfi_group = test_f.marginfi_group.load().await;
 
-    assert!(marginfi_group.panic_state_cache.is_paused());
+    assert!(marginfi_group.panic_state_cache.is_paused_flag());
     assert!(marginfi_group.panic_state_cache.last_cache_update >= start_timestamp);
 
     Ok(())

@@ -61,7 +61,7 @@ async fn test_panic_state_cache_with_instructions() -> anyhow::Result<()> {
 
     let marginfi_group_state: MarginfiGroup =
         test_f.load_and_deserialize(&marginfi_group.key).await;
-    assert!(!marginfi_group_state.panic_state_cache.is_paused());
+    assert!(!marginfi_group_state.panic_state_cache.is_paused_flag());
 
     marginfi_group.try_panic_pause().await?;
 
@@ -85,7 +85,7 @@ async fn test_protocol_pause_check_with_instructions() -> anyhow::Result<()> {
     let marginfi_group = &test_f.marginfi_group;
 
     let group_state: MarginfiGroup = test_f.load_and_deserialize(&marginfi_group.key).await;
-    assert!(!group_state.panic_state_cache.is_paused());
+    assert!(!group_state.panic_state_cache.is_paused_flag());
 
     marginfi_group.try_panic_pause().await?;
 
