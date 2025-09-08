@@ -58,6 +58,8 @@ impl MarginfiAccountImpl for MarginfiAccount {
         self.emissions_destination_account = Pubkey::default();
         self.migrated_from = Pubkey::default();
         self.last_update = current_timestamp;
+        self.migrated_to = Pubkey::default();
+        self.last_update = current_timestamp;
     }
 
     /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
@@ -1433,10 +1435,12 @@ mod test {
                 _padding: [0; 8],
             },
             account_flags: ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
-            migrated_from: Pubkey::default(),
             health_cache: HealthCache::zeroed(),
+            migrated_from: Pubkey::default(),
+            migrated_to: Pubkey::default(),
             last_update: 0,
             _padding0: [0; 16],
+            _padding0: [0; 13],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));

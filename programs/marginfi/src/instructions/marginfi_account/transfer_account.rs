@@ -1,5 +1,5 @@
 use crate::{
-    check_eq,
+    check, check_eq,
     constants::ACCOUNT_TRANSFER_FEE,
     events::{AccountEventHeader, MarginfiAccountTransferToNewAccount},
     prelude::*,
@@ -8,7 +8,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use bytemuck::Zeroable;
 use marginfi_type_crate::types::{
-    LendingAccount, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+    LendingAccount, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
 };
 
 pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
@@ -23,6 +23,18 @@ pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiRe
 
     let mut old_account = ctx.accounts.old_marginfi_account.load_mut()?;
 
+    check!(
+        !old_account.get_flag(ACCOUNT_IN_FLASHLOAN),
+        MarginfiError::AccountInFlashloan
+    );
+
+    // Prevent multiple migrations from the same account
+    check_eq!(
+        old_account.migrated_to,
+        Pubkey::default(),
+        MarginfiError::AccountAlreadyMigrated
+    );
+
     let mut new_account = ctx.accounts.new_marginfi_account.load_init()?;
     let current_timestamp = Clock::get()?.unix_timestamp as u64;
     new_account.initialize(
@@ -35,6 +47,7 @@ pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiRe
     new_account.account_flags = old_account.account_flags;
     new_account.migrated_from = ctx.accounts.old_marginfi_account.key();
 
+    old_account.migrated_to = ctx.accounts.new_marginfi_account.key();
     old_account.last_update = current_timestamp;
     old_account.lending_account = LendingAccount::zeroed();
     old_account.set_flag(ACCOUNT_DISABLED);

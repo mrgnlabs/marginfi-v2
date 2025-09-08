@@ -7,6 +7,7 @@ use crate::{
         bank::BankImpl,
         bank_config::BankConfigImpl,
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
+        marginfi_group::MarginfiGroupImpl,
     },
     utils::{self, validate_asset_tags, validate_bank_state, InstructionKind},
 };
@@ -48,6 +49,7 @@ pub fn lending_account_deposit<'info>(
 
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+    let group = &marginfi_group_loader.load()?;
 
     validate_asset_tags(&bank, &marginfi_account)?;
     validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
@@ -83,8 +85,6 @@ pub fn lending_account_deposit<'info>(
     if deposit_amount == 0 {
         return Ok(());
     }
-
-    let group = &marginfi_group_loader.load()?;
     bank.accrue_interest(
         clock.unix_timestamp,
         group,
@@ -144,6 +144,11 @@ pub fn lending_account_deposit<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountDeposit<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

@@ -454,8 +454,19 @@ pub mod marginfi {
         marginfi_group::propagate_staked_settings(ctx)
     }
 
-    pub fn migrate_pyth_push_oracle(ctx: Context<MigratePythPushOracle>) -> MarginfiResult {
-        marginfi_group::migrate_pyth_push_oracle(ctx)
+    pub fn panic_pause(ctx: Context<PanicPause>) -> MarginfiResult {
+        marginfi_group::panic_pause(ctx)
+    }
+
+    pub fn panic_unpause(ctx: Context<PanicUnpause>) -> MarginfiResult {
+        marginfi_group::panic_unpause(ctx)
+    }
+
+    /// (permissionless) Unpause the protocol when pause time has expired
+    pub fn panic_unpause_permissionless(
+        ctx: Context<PanicUnpausePermissionless>,
+    ) -> MarginfiResult {
+        marginfi_group::panic_unpause_permissionless(ctx)
     }
 }
 

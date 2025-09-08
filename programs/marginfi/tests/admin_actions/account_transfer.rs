@@ -40,6 +40,7 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
     assert_eq!(account_old.last_update, last_update + 1);
     assert_eq!(account_old.authority, test_f.payer());
     assert_eq!(account_old.account_flags, ACCOUNT_DISABLED);
+    assert_eq!(account_old.migrated_to, new_account.pubkey());
 
     // The new account has the new authority
     let account_new: MarginfiAccount = test_f.load_and_deserialize(&new_account.pubkey()).await;
@@ -47,6 +48,19 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
     // Old account is recorded as the migration source
     assert_eq!(account_new.migrated_from, marginfi_account.key);
     assert_eq!(account_new.last_update, last_update + 1);
+
+    // Attempting to transfer again should fail
+    let new_account_again = Keypair::new();
+    let res = marginfi_account
+        .try_transfer_account(
+            new_account_again.pubkey(),
+            new_authority.pubkey(),
+            None,
+            &new_account_again,
+            test_f.marginfi_group.fee_wallet,
+        )
+        .await;
+    assert!(res.is_err());
 
     Ok(())
 }

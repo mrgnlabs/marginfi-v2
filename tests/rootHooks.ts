@@ -351,6 +351,15 @@ export const mochaHooks = {
     }
     banksClient = bankrunContext.banksClient;
 
+    globalProgramAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(globalProgramAdmin.wallet),
+        {}
+      )
+    );
+
     groupAdmin.mrgnBankrunProgram = new Program(
       mrgnProgram.idl,
       new AnchorProvider(

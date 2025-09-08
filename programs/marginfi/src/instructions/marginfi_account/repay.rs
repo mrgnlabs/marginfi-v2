@@ -5,6 +5,7 @@ use crate::{
     state::{
         bank::BankImpl,
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
+        marginfi_group::MarginfiGroupImpl,
     },
     utils::{self, validate_bank_state, InstructionKind},
 };
@@ -117,6 +118,11 @@ pub fn lending_account_repay<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountRepay<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

@@ -11,7 +11,7 @@ name = "marginfi_type_crate"
 [features]
 default = ["client"]
 client = []
-anchor = ["anchor-lang", "type-layout"]
+anchor = ["anchor-lang"]
 mainnet-beta = ["id-crate/mainnet-beta"]
 staging = ["id-crate/staging"]
 devnet = ["id-crate/devnet"]
@@ -25,4 +25,3 @@ bs58 = { workspace = true }
 static_assertions = { workspace = true }
 
 anchor-lang = { workspace = true, optional = true }
-type-layout = { workspace = true, optional = true }
