@@ -1439,8 +1439,7 @@ mod test {
             migrated_from: Pubkey::default(),
             migrated_to: Pubkey::default(),
             last_update: 0,
-            _padding0: [0; 16],
-            _padding0: [0; 13],
+            _padding0: [0; 12],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));
