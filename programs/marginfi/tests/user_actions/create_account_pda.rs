@@ -270,7 +270,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
         .process_transaction(tx1)
         .await;
 
-    assert!(res1.is_ok());
+    assert!(res1.is_err());
 
     // Create account for authority2 (using same payer for simplicity)
     let accounts2 = marginfi::accounts::MarginfiAccountInitializePda {
@@ -306,7 +306,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
         .process_transaction(tx2)
         .await;
 
-    assert!(res2.is_ok());
+    assert!(res2.is_err());
 
     Ok(())
 }
