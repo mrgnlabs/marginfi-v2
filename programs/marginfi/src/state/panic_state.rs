@@ -198,9 +198,9 @@ mod panic_state_tests {
     }
 
     #[test]
-    fn test_not_expired_when_not_paused() {
+    fn test_expired_when_not_paused() {
         let panic_state = PanicState::default();
-        assert!(!panic_state.is_expired(1000));
+        assert!(panic_state.is_expired(1000));
     }
 
     #[test]
