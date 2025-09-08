@@ -1,7 +1,7 @@
 use crate::assert_struct_size;
 
 #[cfg(feature = "anchor")]
-use {anchor_lang::prelude::*, type_layout::TypeLayout};
+use anchor_lang::prelude::*;
 
 use bytemuck::{Pod, Zeroable};
 
@@ -11,10 +11,7 @@ use super::WrappedI80F48;
 
 assert_struct_size!(InterestRateConfig, 240);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Pod, Zeroable, Default)]
 pub struct InterestRateConfig {
     // Curve Params
@@ -37,10 +34,7 @@ pub struct InterestRateConfig {
     pub _padding1: [[u8; 32]; 3],
 }
 
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct InterestRateConfigOpt {
     pub optimal_utilization_rate: Option<WrappedI80F48>,

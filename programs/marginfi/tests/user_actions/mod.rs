@@ -5,6 +5,7 @@ mod create_account;
 mod deposit;
 mod flash_loan;
 mod liquidate;
+mod panic_mode_user_interactions;
 mod repay;
 mod withdraw;
 
@@ -14,7 +15,7 @@ use fixtures::{assert_custom_error, assert_eq_noise, native, prelude::*};
 use marginfi::{
     assert_eq_with_tolerance,
     prelude::*,
-    state::{bank::BankImpl, bank_config::BankConfigImpl, marginfi_account::BankAccountWrapper},
+    state::{bank::BankImpl, marginfi_account::BankAccountWrapper},
 };
 use marginfi_type_crate::constants::{
     EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, MIN_EMISSIONS_START_TIME,
@@ -428,7 +429,6 @@ async fn emissions_setup_t22_with_fee() -> anyhow::Result<()> {
     let bank = bank_f.load().await;
 
     assert_eq!(bank.flags, EMISSIONS_FLAG_LENDING_ACTIVE);
-    assert!(bank.config.is_pyth_push_migrated());
 
     assert_eq!(bank.emissions_rate, 1_000_000);
 

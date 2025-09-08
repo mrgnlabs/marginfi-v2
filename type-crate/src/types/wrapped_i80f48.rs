@@ -1,13 +1,10 @@
+#[cfg(feature = "anchor")]
+use anchor_lang::prelude::{
+    borsh::{BorshDeserialize, BorshSerialize},
+    zero_copy, *,
+};
 use fixed::types::I80F48;
 use std::fmt::{Debug, Formatter};
-#[cfg(feature = "anchor")]
-use {
-    anchor_lang::prelude::{
-        borsh::{BorshDeserialize, BorshSerialize},
-        zero_copy, *,
-    },
-    type_layout::TypeLayout,
-};
 
 #[cfg(not(feature = "anchor"))]
 use bytemuck::{Pod, Zeroable};
@@ -16,7 +13,7 @@ use bytemuck::{Pod, Zeroable};
 #[cfg_attr(
     feature = "anchor",
     zero_copy,
-    derive(BorshDeserialize, BorshSerialize, TypeLayout)
+    derive(BorshDeserialize, BorshSerialize)
 )]
 #[cfg_attr(not(feature = "anchor"), derive(Clone, Copy, Pod, Zeroable))]
 #[derive(Default)]

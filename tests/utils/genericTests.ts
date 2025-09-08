@@ -208,7 +208,7 @@ export const assertBankrunTxFailed = (
     typeof expectedErrorCode === "number"
       ? "0x" + expectedErrorCode.toString(16)
       : expectedErrorCode.toLocaleLowerCase();
-
+  assert(result.meta && result.meta.logMessages, "no log");
   assert(result.meta.logMessages.length > 0, "empty log");
   assert(result.result, "TX succeeded when it should have failed");
   const lastLog = result.meta.logMessages.pop();

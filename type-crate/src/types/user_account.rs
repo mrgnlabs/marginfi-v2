@@ -11,12 +11,12 @@ use super::Pubkey;
 use super::{HealthCache, WrappedI80F48};
 
 #[cfg(feature = "anchor")]
-use {anchor_lang::prelude::*, type_layout::TypeLayout};
+use anchor_lang::prelude::*;
 
 assert_struct_size!(MarginfiAccount, 2304);
 assert_struct_align!(MarginfiAccount, 8);
 #[repr(C)]
-#[cfg_attr(feature = "anchor", account(zero_copy), derive(TypeLayout))]
+#[cfg_attr(feature = "anchor", account(zero_copy))]
 #[cfg_attr(
     not(feature = "anchor"),
     derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)
@@ -42,10 +42,12 @@ pub struct MarginfiAccount {
     /// If pubkey default, the user has not opted into this feature, and must claim emissions
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
+    pub health_cache: HealthCache,
     /// If this account was migrated from another one, store the original account key
     pub migrated_from: Pubkey, // 32
-    pub health_cache: HealthCache,
-    pub _padding0: [u64; 17],
+    /// If this account has been migrated to another one, store the destination account key
+    pub migrated_to: Pubkey, // 32
+    pub _padding0: [u64; 13],
 }
 
 impl MarginfiAccount {
@@ -62,10 +64,7 @@ pub const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 assert_struct_size!(LendingAccount, 1728);
 assert_struct_align!(LendingAccount, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES], // 104 * 16 = 1664
@@ -92,10 +91,7 @@ pub enum BalanceSide {
 assert_struct_size!(Balance, 104);
 assert_struct_align!(Balance, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct Balance {
     pub active: u8,

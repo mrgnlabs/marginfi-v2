@@ -131,6 +131,11 @@ pub fn lending_account_end_flashloan<'info>(
 
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
+    check!(
+        !marginfi_account.get_flag(ACCOUNT_DISABLED),
+        MarginfiError::AccountDisabled
+    );
+
     marginfi_account.unset_flag(ACCOUNT_IN_FLASHLOAN);
 
     let (risk_result, _engine) =
