@@ -10,16 +10,21 @@ pub trait PanicStateImpl {
 
 impl PanicStateImpl for PanicState {
     fn pause(&mut self, current_timestamp: i64) -> MarginfiResult<()> {
+        // Clear existing pause if expired
+        self.unpause_if_expired(current_timestamp);
+
+        // Reset daily count if needed
+        if current_timestamp.saturating_sub(self.last_daily_reset_timestamp)
+            >= Self::DAILY_RESET_INTERVAL
+        {
+            self.daily_pause_count = 0;
+            self.last_daily_reset_timestamp = current_timestamp;
+        }
+
         require!(
             self.can_pause(current_timestamp),
             MarginfiError::PauseLimitExceeded
         );
-
-        // Reset daily count if needed
-        if current_timestamp - self.last_daily_reset_timestamp >= Self::DAILY_RESET_INTERVAL {
-            self.daily_pause_count = 0;
-            self.last_daily_reset_timestamp = current_timestamp;
-        }
 
         // If already paused and not expired, treats this as an "extend" operation.
         if self.is_paused_flag() && !self.is_expired(current_timestamp) {
@@ -30,6 +35,7 @@ impl PanicStateImpl for PanicState {
             // Otherwise, we just start a new pause here
             self.pause_start_timestamp = current_timestamp;
         }
+
         self.pause_flags |= Self::FLAG_PAUSED;
         self.daily_pause_count = self.daily_pause_count.saturating_add(1);
         self.consecutive_pause_count = self.consecutive_pause_count.saturating_add(1);
@@ -43,8 +49,9 @@ impl PanicStateImpl for PanicState {
         self.consecutive_pause_count = 0;
     }
 
+    /// No-op if not paused, or paused but time has not yet expired.
     fn unpause_if_expired(&mut self, current_timestamp: i64) {
-        if self.is_expired(current_timestamp) {
+        if self.is_paused_flag() && self.is_expired(current_timestamp) {
             self.unpause();
         }
     }
@@ -316,5 +323,42 @@ mod panic_state_tests {
             .pause(base_timestamp + 2 * PanicState::PAUSE_DURATION_SECONDS + 2)
             .unwrap();
         assert_eq!(panic_state.consecutive_pause_count, 1);
+    }
+
+    #[test]
+    fn test_pause_after_expired_without_manual_unpause() {
+        let mut s = PanicState::default();
+        let t = 1000;
+        s.pause(t).unwrap();
+        assert_eq!(s.consecutive_pause_count, 1);
+        assert_eq!(s.daily_pause_count, 1);
+
+        // Time jumps past expiry; but pause flag still set, we never bothered to unpause
+        let t2 = t + PanicState::PAUSE_DURATION_SECONDS + 1;
+        // Should "unpause" and then start a new "pause"
+        assert!(s.pause(t2).is_ok());
+        assert!(s.is_paused_flag());
+        // Note: still 1, this doesn't count as consecutive because the previous one expired.
+        assert_eq!(s.consecutive_pause_count, 1);
+        // Daily count still went up tho
+        assert_eq!(s.daily_pause_count, 2);
+
+        // Time jumps to another day; but pause flag still set, we never bothered to unpause
+        let t3 = t + PanicState::DAILY_RESET_INTERVAL * 3;
+        // Should "unpause" and then start a new "pause"
+        assert!(s.pause(t3).is_ok());
+        assert!(s.is_paused_flag());
+        // Note: still 1, this doesn't count as consecutive because the previous one expired.
+        assert_eq!(s.consecutive_pause_count, 1);
+        // Daily count reset, this is another day!
+        assert_eq!(s.daily_pause_count, 1);
+    }
+
+    #[test]
+    fn test_unpause_if_expired_noop_when_unpaused() {
+        let mut s = PanicState::default();
+        s.unpause_if_expired(12345); // should not change anything / panic
+        assert!(!s.is_paused_flag());
+        assert_eq!(s.consecutive_pause_count, 0);
     }
 }

@@ -68,6 +68,7 @@ pub struct PanicState {
     _reserved: [u8; 5],
 
     /// Timestamp when the current pause started (0 if not paused)
+    /// * When a pause is extended before expiring, this could be in the future.
     pub pause_start_timestamp: i64,
     /// Timestamp of the last daily reset (for tracking daily pause count)
     pub last_daily_reset_timestamp: i64,
