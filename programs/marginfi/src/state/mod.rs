@@ -5,5 +5,6 @@ pub mod emode;
 pub mod interest_rate;
 pub mod marginfi_account;
 pub mod marginfi_group;
+pub mod panic_state;
 pub mod price;
 pub mod staked_settings;

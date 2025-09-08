@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 
 use crate::{assert_struct_size, constants::discriminators};
 
-use super::WrappedI80F48;
+use super::{PanicStateCache, WrappedI80F48};
 
 #[cfg(feature = "anchor")]
 use anchor_lang::prelude::*;
@@ -44,10 +44,12 @@ pub struct MarginfiGroup {
     /// Can modify the emissions `flags`, `emissions_rate` and `emissions_mint`, but nothing else,
     /// for every bank under this group
     pub delegate_emissions_admin: Pubkey,
+    /// When program keeper temporarily puts the program into panic mode, information about the
+    /// duration of the lockup will be available here.
+    pub panic_state_cache: PanicStateCache,
 
-    pub _padding_0: [[u64; 2]; 18],
+    pub _padding_0: [[u64; 2]; 17],
     pub _padding_1: [[u64; 2]; 32],
-    pub _padding_4: u64,
 }
 
 impl MarginfiGroup {

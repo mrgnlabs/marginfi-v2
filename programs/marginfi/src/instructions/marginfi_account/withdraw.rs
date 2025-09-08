@@ -8,6 +8,7 @@ use crate::{
         marginfi_account::{
             BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
+        marginfi_group::MarginfiGroupImpl,
     },
     utils,
 };
@@ -61,6 +62,7 @@ pub fn lending_account_withdraw<'info>(
 
     {
         let group = &marginfi_group_loader.load()?;
+
         let mut bank = bank_loader.load_mut()?;
         bank.accrue_interest(
             clock.unix_timestamp,
@@ -148,6 +150,11 @@ pub fn lending_account_withdraw<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountWithdraw<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

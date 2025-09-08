@@ -162,6 +162,14 @@ pub enum MarginfiError {
     BankCannotClose,
     #[msg("Account already migrated")] // 6079
     AccountAlreadyMigrated,
+    #[msg("Protocol is paused")] // 6080
+    ProtocolPaused,
+    #[msg("Reserved for future use")] // 6081
+    Placeholder81,
+    #[msg("Pause limit exceeded")] // 6082
+    PauseLimitExceeded,
+    #[msg("Protocol is not paused")] // 6083
+    ProtocolNotPaused,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -265,6 +273,10 @@ impl From<u32> for MarginfiError {
             6077 => MarginfiError::InvalidFeesDestinationAccount,
             6078 => MarginfiError::BankCannotClose,
             6079 => MarginfiError::AccountAlreadyMigrated,
+            6080 => MarginfiError::ProtocolPaused,
+            6081 => MarginfiError::Placeholder81,
+            6082 => MarginfiError::PauseLimitExceeded,
+            6083 => MarginfiError::ProtocolNotPaused,
             _ => MarginfiError::InternalLogicError,
         }
     }

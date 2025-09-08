@@ -378,7 +378,26 @@ export const editGlobalFeeState = (
   return ix;
 };
 
-// TODO propagate fee state and test
+export type PropogateFeeStateArgs = {
+  group: PublicKey;
+};
+
+export const propagateFeeState = (
+  program: Program<Marginfi>,
+  args: PropogateFeeStateArgs
+) => {
+  const ix = program.methods
+    .propagateFeeState(
+    )
+    .accounts({
+      marginfiGroup: args.group,
+      // feeState = deriveGlobalFeeState(id),
+    })
+    .instruction();
+
+  return ix;
+};
+
 
 export type InitStakedSettingsArgs = {
   group: PublicKey;
@@ -702,5 +721,61 @@ export const closeBank = (program: Program<Marginfi>, args: CloseBankArgs) => {
       // admin: args.admin, // implied from group
     })
     .instruction();
+  return ix;
+};
+
+export type PanicPauseArgs = {
+  // No args (everything is inferred)...
+};
+
+export const panicPause = async (
+  program: Program<Marginfi>,
+  _args: PanicPauseArgs
+) => {
+  const ix = await program.methods
+    .panicPause()
+    .accounts({
+      // globalFeeAdmin: args.admin,
+      // feeState: args.feeState,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type PanicUnpauseArgs = {
+  // No args (everything is inferred)...
+};
+
+export const panicUnpause = async (
+  program: Program<Marginfi>,
+  _args: PanicUnpauseArgs
+) => {
+  const ix = await program.methods
+    .panicUnpause()
+    .accounts({
+      // globalFeeAdmin: args.admin,
+      // feeState: args.feeState,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type PanicUnpausePermissionlessArgs = {
+  // No args (everything is inferred)...
+};
+
+export const panicUnpausePermissionless = async (
+  program: Program<Marginfi>,
+  _args: PanicUnpausePermissionlessArgs
+) => {
+  const ix = await program.methods
+    .panicUnpausePermissionless()
+    .accounts({
+      // feeState: args.feeState,
+    })
+    .instruction();
+
   return ix;
 };
