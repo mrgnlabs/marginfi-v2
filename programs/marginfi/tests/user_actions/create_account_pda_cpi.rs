@@ -17,7 +17,7 @@ fn create_mock_account_metas(
     vec![
         AccountMeta::new(accounts.marginfi_group, false),
         AccountMeta::new(accounts.marginfi_account, false),
-        AccountMeta::new_readonly(accounts.authority, false),
+        AccountMeta::new_readonly(accounts.authority, true),
         AccountMeta::new(accounts.fee_payer, true),
         AccountMeta::new_readonly(accounts.instructions_sysvar, false),
         AccountMeta::new_readonly(accounts.system_program, false),
@@ -370,7 +370,11 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
     let tx2 = Transaction::new_signed_with_payer(
         &[mock_cpi_ix2],
         Some(&test_f.payer()),
-        &[&test_f.payer_keypair(), &call_log_keypair2],
+        &[
+            &test_f.payer_keypair(),
+            &authority2_keypair,
+            &call_log_keypair2,
+        ],
         test_f.get_latest_blockhash().await,
     );
 
@@ -382,9 +386,8 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
         .await;
 
     assert!(
-        res2.is_ok(),
-        "Second CPI transaction failed: {:?}",
-        res2.err()
+        res2.is_err(),
+        "Second CPI tx succeeded when it should have failed"
     );
 
     // Verify both accounts were created with correct authorities
@@ -435,7 +438,7 @@ async fn marginfi_account_create_pda_via_cpi_duplicate_should_fail() -> anyhow::
     let mock_accounts1 = mocks::accounts::CreateMarginfiAccountPdaViaCpi {
         marginfi_group: test_f.marginfi_group.key,
         marginfi_account: marginfi_account_pda,
-        authority: authority,
+        authority,
         fee_payer: authority,
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),
@@ -475,7 +478,7 @@ async fn marginfi_account_create_pda_via_cpi_duplicate_should_fail() -> anyhow::
     let mock_accounts2 = mocks::accounts::CreateMarginfiAccountPdaViaCpi {
         marginfi_group: test_f.marginfi_group.key,
         marginfi_account: marginfi_account_pda,
-        authority: authority,
+        authority,
         fee_payer: authority,
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),

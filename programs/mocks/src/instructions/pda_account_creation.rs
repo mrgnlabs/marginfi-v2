@@ -13,8 +13,9 @@ pub struct CreateMarginfiAccountPdaViaCpi<'info> {
     #[account(mut)]
     pub marginfi_account: UncheckedAccount<'info>,
 
-    /// CHECK: This is the authority for the marginfi account
-    pub authority: UncheckedAccount<'info>,
+    // Note: Typically when calling by CPI this would be some PDA instead, and you would use
+    // invoke_signed, but you get the idea.
+    pub authority: Signer<'info>,
 
     #[account(mut)]
     pub fee_payer: Signer<'info>,
@@ -83,7 +84,7 @@ impl CreateMarginfiAccountPdaViaCpi<'_> {
         let account_metas = vec![
             AccountMeta::new_readonly(ctx.accounts.marginfi_group.key(), false),
             AccountMeta::new(ctx.accounts.marginfi_account.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.authority.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.authority.key(), true),
             AccountMeta::new(ctx.accounts.fee_payer.key(), true),
             AccountMeta::new_readonly(ctx.accounts.instructions_sysvar.key(), false),
             AccountMeta::new_readonly(ctx.accounts.system_program.key(), false),

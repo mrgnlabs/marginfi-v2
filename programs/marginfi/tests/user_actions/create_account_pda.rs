@@ -259,6 +259,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
     let tx1 = Transaction::new_signed_with_payer(
         &[init_ix1],
         Some(&test_f.payer()),
+        // Note: authority 1 = test_f payer
         &[&test_f.payer_keypair()],
         test_f.get_latest_blockhash().await,
     );
@@ -270,7 +271,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
         .process_transaction(tx1)
         .await;
 
-    assert!(res1.is_err());
+    assert!(res1.is_ok());
 
     // Create account for authority2 (using same payer for simplicity)
     let accounts2 = marginfi::accounts::MarginfiAccountInitializePda {
@@ -295,7 +296,8 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
     let tx2 = Transaction::new_signed_with_payer(
         &[init_ix2],
         Some(&test_f.payer()),
-        &[&test_f.payer_keypair()],
+        // Note: Here the authority also needs to sign separately
+        &[&test_f.payer_keypair(), &authority2_keypair],
         test_f.get_latest_blockhash().await,
     );
 
@@ -306,7 +308,7 @@ async fn marginfi_account_create_pda_different_authorities() -> anyhow::Result<(
         .process_transaction(tx2)
         .await;
 
-    assert!(res2.is_err());
+    assert!(res2.is_ok());
 
     Ok(())
 }
