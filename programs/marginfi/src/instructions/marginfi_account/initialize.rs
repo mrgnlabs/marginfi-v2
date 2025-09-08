@@ -5,6 +5,7 @@ use crate::{
     prelude::*,
 };
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::sysvar;
 use marginfi_type_crate::{
     constants::MARGINFI_ACCOUNT_SEED,
     types::{MarginfiAccount, MarginfiGroup},
@@ -110,8 +111,7 @@ pub struct MarginfiAccountInitializePda<'info> {
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    /// CHECK: Authority is only used for PDA seed derivation, no signing required
-    pub authority: UncheckedAccount<'info>,
+    pub authority: Signer<'info>,
 
     #[account(mut)]
     pub fee_payer: Signer<'info>,
@@ -119,7 +119,7 @@ pub struct MarginfiAccountInitializePda<'info> {
     /// Instructions sysvar for CPI validation
     ///
     /// CHECK: Standard sysvar account
-    #[account(address = anchor_lang::solana_program::sysvar::instructions::id())]
+    #[account(address = sysvar::instructions::id())]
     pub instructions_sysvar: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
