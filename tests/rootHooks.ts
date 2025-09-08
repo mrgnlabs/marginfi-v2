@@ -287,15 +287,15 @@ export const mochaHooks = {
 
     oracles = await setupPythOracles(
       wallet,
-      150,
+      ecosystem.wsolPrice,
       ecosystem.wsolDecimals,
-      1,
+      ecosystem.usdcPrice,
       ecosystem.usdcDecimals,
-      10,
+      ecosystem.tokenAPrice,
       ecosystem.tokenADecimals,
-      20,
+      ecosystem.tokenBPrice,
       ecosystem.tokenBDecimals,
-      175,
+      ecosystem.lstAlphaPrice,
       ecosystem.lstAlphaDecimals,
       verbose
     );

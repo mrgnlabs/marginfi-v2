@@ -9,7 +9,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, validate_asset_tags},
+    utils::{self, validate_asset_tags, validate_bank_state, InstructionKind},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Clock;
@@ -52,6 +52,7 @@ pub fn lending_account_deposit<'info>(
     let group = &marginfi_group_loader.load()?;
 
     validate_asset_tags(&bank, &marginfi_account)?;
+    validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
 
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),

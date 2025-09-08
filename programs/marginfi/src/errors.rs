@@ -170,6 +170,8 @@ pub enum MarginfiError {
     PauseLimitExceeded,
     #[msg("Protocol is not paused")] // 6083
     ProtocolNotPaused,
+    #[msg("Bank killed by bankruptcy: bank shutdown and value of all holdings is zero")] // 6084
+    BankKilledByBankruptcy,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -277,6 +279,7 @@ impl From<u32> for MarginfiError {
             6081 => MarginfiError::Placeholder81,
             6082 => MarginfiError::PauseLimitExceeded,
             6083 => MarginfiError::ProtocolNotPaused,
+            6084 => MarginfiError::BankKilledByBankruptcy,
             _ => MarginfiError::InternalLogicError,
         }
     }

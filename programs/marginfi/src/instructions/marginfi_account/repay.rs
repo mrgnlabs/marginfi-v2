@@ -7,7 +7,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
         marginfi_group::MarginfiGroupImpl,
     },
-    utils,
+    utils::{self, validate_bank_state, InstructionKind},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
@@ -51,6 +51,7 @@ pub fn lending_account_repay<'info>(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
+    validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
 
     let group = &marginfi_group_loader.load()?;
     bank.accrue_interest(
