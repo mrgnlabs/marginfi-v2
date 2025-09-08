@@ -372,6 +372,7 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
         Some(&test_f.payer()),
         &[
             &test_f.payer_keypair(),
+            // NOTE: A more typical use here would be a PDA signer...
             &authority2_keypair,
             &call_log_keypair2,
         ],
@@ -386,8 +387,9 @@ async fn marginfi_account_create_pda_via_cpi_different_authorities() -> anyhow::
         .await;
 
     assert!(
-        res2.is_err(),
-        "Second CPI tx succeeded when it should have failed"
+        res2.is_ok(),
+        "Second CPI transaction failed: {:?}",
+        res2.err()
     );
 
     // Verify both accounts were created with correct authorities
