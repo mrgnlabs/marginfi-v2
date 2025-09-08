@@ -6,7 +6,6 @@ use crate::{
     utils::NumTraitsWithTolerance,
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::Mint;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{
@@ -42,7 +41,7 @@ fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> 
 }
 
 pub trait MarginfiAccountImpl {
-    fn initialize(&mut self, group: Pubkey, authority: Pubkey);
+    fn initialize(&mut self, group: Pubkey, authority: Pubkey, current_timestamp: u64);
     fn get_remaining_accounts_len(&self) -> MarginfiResult<usize>;
     fn set_flag(&mut self, flag: u64);
     fn unset_flag(&mut self, flag: u64);
@@ -53,12 +52,14 @@ pub trait MarginfiAccountImpl {
 
 impl MarginfiAccountImpl for MarginfiAccount {
     /// Set the initial data for the marginfi account.
-    fn initialize(&mut self, group: Pubkey, authority: Pubkey) {
+    fn initialize(&mut self, group: Pubkey, authority: Pubkey, current_timestamp: u64) {
         self.authority = authority;
         self.group = group;
         self.emissions_destination_account = Pubkey::default();
         self.migrated_from = Pubkey::default();
+        self.last_update = current_timestamp;
         self.migrated_to = Pubkey::default();
+        self.last_update = current_timestamp;
     }
 
     /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
@@ -1343,52 +1344,6 @@ impl<'a> BankAccountWrapper<'a> {
             .checked_to_num::<u64>()
             .ok_or_else(math_error!())?)
     }
-
-    // ------------ SPL helpers
-
-    pub fn deposit_spl_transfer<'info>(
-        &self,
-        amount: u64,
-        from: AccountInfo<'info>,
-        to: AccountInfo<'info>,
-        authority: AccountInfo<'info>,
-        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
-        program: AccountInfo<'info>,
-        remaining_accounts: &[AccountInfo<'info>],
-    ) -> MarginfiResult {
-        self.bank.deposit_spl_transfer(
-            amount,
-            from,
-            to,
-            authority,
-            maybe_mint,
-            program,
-            remaining_accounts,
-        )
-    }
-
-    pub fn withdraw_spl_transfer<'info>(
-        &self,
-        amount: u64,
-        from: AccountInfo<'info>,
-        to: AccountInfo<'info>,
-        authority: AccountInfo<'info>,
-        maybe_mint: Option<&InterfaceAccount<'info, Mint>>,
-        program: AccountInfo<'info>,
-        signer_seeds: &[&[&[u8]]],
-        remaining_accounts: &[AccountInfo<'info>],
-    ) -> MarginfiResult {
-        self.bank.withdraw_spl_transfer(
-            amount,
-            from,
-            to,
-            authority,
-            maybe_mint,
-            program,
-            signer_seeds,
-            remaining_accounts,
-        )
-    }
 }
 
 /// Calculates the emissions based on the given period, balance amount, mint decimals,
@@ -1480,10 +1435,11 @@ mod test {
                 _padding: [0; 8],
             },
             account_flags: ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+            health_cache: HealthCache::zeroed(),
             migrated_from: Pubkey::default(),
             migrated_to: Pubkey::default(),
-            health_cache: HealthCache::zeroed(),
-            _padding0: [0; 13],
+            last_update: 0,
+            _padding0: [0; 12],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));

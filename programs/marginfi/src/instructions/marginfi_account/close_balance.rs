@@ -42,6 +42,7 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
 
     bank_account.close_balance()?;
     lending_account.sort_balances();
+    marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
 
     Ok(())
 }
