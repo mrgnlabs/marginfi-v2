@@ -25,6 +25,10 @@ impl EmodeSettingsImpl for EmodeSettings {
                 MarginfiError::BadEmodeConfig
             );
             check!(
+                asset_init_w <= (I80F48::ONE + I80F48::ONE),
+                MarginfiError::BadEmodeConfig
+            );
+            check!(
                 asset_maint_w <= (I80F48::ONE + I80F48::ONE),
                 MarginfiError::BadEmodeConfig
             );
