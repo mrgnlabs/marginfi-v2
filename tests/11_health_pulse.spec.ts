@@ -22,7 +22,7 @@ import {
   HEALTH_CACHE_ENGINE_OK,
   HEALTH_CACHE_HEALTHY,
   HEALTH_CACHE_ORACLE_OK,
-  HEALTH_CACHE_PROGRAM_VERSION_0_1_4,
+  HEALTH_CACHE_PROGRAM_VERSION_0_1_5,
   ORACLE_CONF_INTERVAL,
 } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
@@ -147,7 +147,7 @@ describe("Health pulse", () => {
       cA.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
     );
-    assert.equal(cA.programVersion, HEALTH_CACHE_PROGRAM_VERSION_0_1_4);
+    assert.equal(cA.programVersion, HEALTH_CACHE_PROGRAM_VERSION_0_1_5);
     assert.approximately(
       bytesToF64(cA.prices[0]),
       oracles.tokenAPrice * (1.0 - confidence),
