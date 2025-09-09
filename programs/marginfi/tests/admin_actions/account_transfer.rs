@@ -1,7 +1,7 @@
 use fixtures::test::TestFixture;
 use marginfi_type_crate::types::{MarginfiAccount, ACCOUNT_DISABLED};
 use solana_program_test::tokio;
-use solana_sdk::{signature::Keypair, signer::Signer};
+use solana_sdk::{clock::Clock, signature::Keypair, signer::Signer};
 
 // Test transfer account authority.
 // No transfer flag set -- no longer matters, tx should succeed.
@@ -13,6 +13,16 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
     let marginfi_account = test_f.create_marginfi_account().await;
     let new_authority = Keypair::new();
     let new_account = Keypair::new();
+    let last_update = marginfi_account.load().await.last_update;
+
+    // This is just to test that the account's last_update field is properly updated upon modification
+    {
+        let ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 sec
+        clock.unix_timestamp += 1;
+        ctx.set_sysvar(&clock);
+    }
 
     let res = marginfi_account
         .try_transfer_account(
@@ -27,14 +37,30 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
 
     // Old account still has the old authority, but is now inactive
     let account_old = marginfi_account.load().await;
+    assert_eq!(account_old.last_update, last_update + 1);
     assert_eq!(account_old.authority, test_f.payer());
     assert_eq!(account_old.account_flags, ACCOUNT_DISABLED);
+    assert_eq!(account_old.migrated_to, new_account.pubkey());
 
     // The new account has the new authority
     let account_new: MarginfiAccount = test_f.load_and_deserialize(&new_account.pubkey()).await;
     assert_eq!(account_new.authority, new_authority.pubkey());
     // Old account is recorded as the migration source
     assert_eq!(account_new.migrated_from, marginfi_account.key);
+    assert_eq!(account_new.last_update, last_update + 1);
+
+    // Attempting to transfer again should fail
+    let new_account_again = Keypair::new();
+    let res = marginfi_account
+        .try_transfer_account(
+            new_account_again.pubkey(),
+            new_authority.pubkey(),
+            None,
+            &new_account_again,
+            test_f.marginfi_group.fee_wallet,
+        )
+        .await;
+    assert!(res.is_err());
 
     Ok(())
 }

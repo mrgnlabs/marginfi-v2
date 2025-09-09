@@ -11,12 +11,12 @@ use super::Pubkey;
 use super::{HealthCache, WrappedI80F48};
 
 #[cfg(feature = "anchor")]
-use {anchor_lang::prelude::*, type_layout::TypeLayout};
+use anchor_lang::prelude::*;
 
 assert_struct_size!(MarginfiAccount, 2304);
 assert_struct_align!(MarginfiAccount, 8);
 #[repr(C)]
-#[cfg_attr(feature = "anchor", account(zero_copy), derive(TypeLayout))]
+#[cfg_attr(feature = "anchor", account(zero_copy))]
 #[cfg_attr(
     not(feature = "anchor"),
     derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)
@@ -42,15 +42,54 @@ pub struct MarginfiAccount {
     /// If pubkey default, the user has not opted into this feature, and must claim emissions
     /// manually (withdraw_emissions).
     pub emissions_destination_account: Pubkey, // 32
+    pub health_cache: HealthCache,
     /// If this account was migrated from another one, store the original account key
     pub migrated_from: Pubkey, // 32
-    pub health_cache: HealthCache,
-    pub _padding0: [u64; 17],
+    /// If this account has been migrated to another one, store the destination account key
+    pub migrated_to: Pubkey, // 32
+    pub last_update: u64,
+    /// If a PDA-based account, the account index, a seed used to derive the PDA that can be chosen
+    /// arbitrarily (0.1.5 or later). Otherwise, does nothing.
+    pub account_index: u16,
+    /// If a PDA-based account (0.1.5 or later), a "vendor specific" id. Values < PDA_FREE_THRESHOLD
+    /// can be used by anyone with no restrictions. Values >= PDA_FREE_THRESHOLD can only be used by
+    /// a particular program via CPI. These values require being added to a list, contact us for
+    /// more details. For legacy non-pda accounts, does nothing.
+    ///
+    /// Note: use a unique seed to tag accounts related to some particular program or campaign so
+    /// you can easily fetch them all later.
+    pub third_party_index: u16,
+    /// This account's bump, if a PDA-based account (0.1.5 or later). Otherwise, does nothing.
+    pub bump: u8,
+    // For 8-byte alignment
+    pub _pad0: [u8; 3],
+    pub _padding0: [u64; 11],
 }
 
 impl MarginfiAccount {
     pub const LEN: usize = std::mem::size_of::<MarginfiAccount>();
     pub const DISCRIMINATOR: [u8; 8] = discriminators::ACCOUNT;
+
+    /// Note: Only for accounts created by PDA
+    pub fn derive_pda(
+        group: &Pubkey,
+        authority: &Pubkey,
+        account_index: u16,
+        third_party_id: Option<u16>,
+        program_id: &Pubkey,
+    ) -> (Pubkey, u8) {
+        use crate::constants::MARGINFI_ACCOUNT_SEED;
+        Pubkey::find_program_address(
+            &[
+                MARGINFI_ACCOUNT_SEED.as_bytes(),
+                group.as_ref(),
+                authority.as_ref(),
+                &account_index.to_le_bytes(),
+                &third_party_id.unwrap_or(0).to_le_bytes(),
+            ],
+            program_id,
+        )
+    }
 }
 
 pub const ACCOUNT_DISABLED: u64 = 1 << 0;
@@ -62,10 +101,7 @@ pub const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 assert_struct_size!(LendingAccount, 1728);
 assert_struct_align!(LendingAccount, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES], // 104 * 16 = 1664
@@ -92,10 +128,7 @@ pub enum BalanceSide {
 assert_struct_size!(Balance, 104);
 assert_struct_align!(Balance, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct Balance {
     pub active: u8,

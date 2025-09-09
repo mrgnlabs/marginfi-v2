@@ -9,8 +9,9 @@ use crate::{
         marginfi_account::{
             BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
+        marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, validate_asset_tags},
+    utils::{self, validate_asset_tags, validate_bank_state, InstructionKind},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
@@ -52,6 +53,7 @@ pub fn lending_account_borrow<'info>(
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
     let group = &marginfi_group_loader.load()?;
+
     let program_fee_rate: I80F48 = group.fee_state_cache.program_fee_rate.into();
 
     check!(
@@ -71,6 +73,7 @@ pub fn lending_account_borrow<'info>(
         let mut bank = bank_loader.load_mut()?;
 
         validate_asset_tags(&bank, &marginfi_account)?;
+        validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
 
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
         let origination_fee_rate: I80F48 = bank
@@ -79,11 +82,9 @@ pub fn lending_account_borrow<'info>(
             .protocol_origination_fee
             .into();
 
-        let mut bank_account = BankAccountWrapper::find_or_create(
-            &bank_loader.key(),
-            &mut bank,
-            &mut marginfi_account.lending_account,
-        )?;
+        let lending_account = &mut marginfi_account.lending_account;
+        let mut bank_account =
+            BankAccountWrapper::find_or_create(&bank_loader.key(), &mut bank, lending_account)?;
 
         // User needs to borrow amount + fee to receive amount
         let amount_pre_fee = maybe_bank_mint
@@ -113,7 +114,9 @@ pub fn lending_account_borrow<'info>(
             bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
         }
 
-        bank_account.withdraw_spl_transfer(
+        marginfi_account.last_update = clock.unix_timestamp as u64;
+
+        bank.withdraw_spl_transfer(
             amount_pre_fee,
             bank_liquidity_vault.to_account_info(),
             destination_token_account.to_account_info(),
@@ -195,6 +198,11 @@ pub fn lending_account_borrow<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountBorrow<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

@@ -1,10 +1,53 @@
-import { Program } from "@coral-xyz/anchor";
 import { MarginfiAccountRaw } from "@mrgnlabs/marginfi-client-v2";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
-import { PublicKey } from "@solana/web3.js";
-import { BanksTransactionResultWithMeta } from "solana-bankrun";
-import { Marginfi } from "target/types/marginfi";
-import { bankrunProgram } from "tests/rootHooks";
+import { Keypair, Transaction } from "@solana/web3.js";
+import {
+  BanksTransactionMeta,
+  BanksTransactionResultWithMeta,
+  ProgramTestContext,
+} from "solana-bankrun";
+import { getBankrunBlockhash } from "./spl-staking-utils";
+
+/**
+ * Process a transaction in a bankrun context and return the transaction result
+ * @param bankrunContext - The bankrun context
+ * @param tx - The transaction to process
+ * @param signers - The signers for the transaction
+ * @param trySend - true to use tryProcess instead
+ * @param dumpLogOnFail - true to print a tx log on fail
+ * @returns The transaction result with metadata
+ */
+export const processBankrunTransaction = async (
+  bankrunContext: ProgramTestContext,
+  tx: Transaction,
+  signers: Keypair[],
+  trySend: boolean = false,
+  dumpLogOnFail: boolean = false
+  //   options: ProcessBankrunTransactionOptions = {}
+): Promise<BanksTransactionResultWithMeta | BanksTransactionMeta> => {
+  // const { trySend = false, dumpLogOnFail = false } = options;
+  tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+  tx.sign(...signers);
+
+  if (trySend) {
+    let result = await bankrunContext.banksClient.tryProcessTransaction(tx);
+    if (dumpLogOnFail) {
+      dumpBankrunLogs(result);
+    }
+    return result;
+  } else {
+    // TODO throw on error?
+    // If we want to dump logs on fail, simulate first
+    if (dumpLogOnFail) {
+      const simulationResult =
+        await bankrunContext.banksClient.simulateTransaction(tx);
+      if (simulationResult.result) {
+        dumpBankrunLogs(simulationResult);
+      }
+    }
+    return await bankrunContext.banksClient.processTransaction(tx);
+  }
+};
 
 /**
  * Function to print bytes from a Buffer in groups with column labels and color highlighting for non-zero values
@@ -115,40 +158,46 @@ export function bytesToF64(bytes: Uint8Array | number[]): number {
  * client version. feel free to ts-ignore it.
  */
 export function dumpAccBalances(
-  account: MarginfiAccountRaw 
+  account: MarginfiAccountRaw,
+  bankValueMap = {}
 ) {
-  let balances = account.lendingAccount.balances;
-  let activeBalances = [];
-  for (let i = 0; i < balances.length; i++) {
-    if (balances[i].active == 0) {
+  const balances = account.lendingAccount.balances;
+  const activeBalances = [];
+
+  function fmt(num) {
+    const s = parseFloat(num).toFixed(4);
+    return s === "0.0000" ? "-" : s;
+  }
+
+  for (let b of balances) {
+    if (b.active == 0) {
       activeBalances.push({
         "Bank PK": "empty",
-        Tag: "-",
-        "Liab Shares ": "-",
+        // Tag: "-",
+        "Liab Shares": "-",
+        "Liab Value": "-",
         "Asset Shares": "-",
-        // Emissions: "-",
+        "Asset Value": "-",
       });
       continue;
     }
 
-    activeBalances.push({
-      "Bank PK": balances[i].bankPk.toString(),
-      // Tag: balances[i].bankAssetTag,
-      "Liab Shares ": formatNumber(
-        wrappedI80F48toBigNumber(balances[i].liabilityShares)
-      ),
-      "Asset Shares": formatNumber(
-        wrappedI80F48toBigNumber(balances[i].assetShares)
-      ),
-      // Emissions: formatNumber(
-      //   wrappedI80F48toBigNumber(balances[i].emissionsOutstanding)
-      // ),
-    });
+    const pk = b.bankPk.toString();
+    const liabS = wrappedI80F48toBigNumber(b.liabilityShares).toNumber();
+    const assetS = wrappedI80F48toBigNumber(b.assetShares).toNumber();
 
-    function formatNumber(num) {
-      const number = parseFloat(num).toFixed(4);
-      return number === "0.0000" ? "-" : number;
-    }
+    // lookup per-share values; default to zero if omitted
+    const { liability: perLiab = 0, asset: perAsset = 0 } =
+      bankValueMap[pk] || {};
+
+    activeBalances.push({
+      "Bank PK": pk,
+      "Liab Shares": fmt(liabS),
+      "Liab Value": fmt(liabS * perLiab),
+      "Asset Shares": fmt(assetS),
+      "Asset Value": fmt(assetS * perAsset),
+    });
   }
+
   console.table(activeBalances);
 }

@@ -37,6 +37,7 @@ pub fn lending_account_withdraw_emissions<'info>(
 
     if emissions_settle_amount > 0 {
         debug!("Transferring {} emissions to user", emissions_settle_amount);
+        marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
 
         let signer_seeds: &[&[&[u8]]] = &[&[
             EMISSIONS_AUTH_SEED.as_bytes(),
@@ -126,7 +127,9 @@ pub fn lending_account_settle_emissions(
         &mut marginfi_account.lending_account,
     )?;
 
-    balance.claim_emissions(Clock::get()?.unix_timestamp.try_into().unwrap())?;
+    let current_timestamp = Clock::get()?.unix_timestamp as u64;
+    balance.claim_emissions(current_timestamp)?;
+    marginfi_account.last_update = current_timestamp;
 
     Ok(())
 }
@@ -155,6 +158,7 @@ pub fn marginfi_account_update_emissions_destination_account<'info>(
     );
 
     marginfi_account.emissions_destination_account = ctx.accounts.destination_account.key();
+    marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
 
     Ok(())
 }
@@ -220,6 +224,7 @@ pub fn lending_account_withdraw_emissions_permissionless<'info>(
 
     if emissions_settle_amount > 0 {
         debug!("Transferring {} emissions to user", emissions_settle_amount);
+        marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
 
         let signer_seeds: &[&[&[u8]]] = &[&[
             EMISSIONS_AUTH_SEED.as_bytes(),

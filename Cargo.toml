@@ -38,6 +38,7 @@ anchor-client = { version = "0.31.1" }
 fixtures = { path = "test-utils", package = "test-utilities" }
 marginfi = { path = "programs/marginfi", package = "marginfi" }
 transfer_hook = { path = "programs/test_transfer_hook", package = "test_transfer_hook" }
+mocks = { path = "programs/mocks", package = "mocks" }
 
 pyth-solana-receiver-sdk = "0.6.0"
 # pythnet-sdk = "2.3.1"
@@ -50,7 +51,6 @@ bs58 = "0.5.1"
 fixed = "=1.28.0"
 fixed-macro = "1.2.0"
 lazy_static = "1.4.0"
-type-layout = "0.2.0"
 static_assertions = "1.1.0"
 
 [profile.release]

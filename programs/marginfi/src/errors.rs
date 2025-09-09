@@ -112,17 +112,14 @@ pub enum MarginfiError {
     PythPushWrongAccountOwner,
     #[msg("Staked Pyth Push oracle: wrong account owner")] // 6054
     StakedPythPushWrongAccountOwner,
-    // TODO remove in 0.1.5
-    #[msg("Pyth Push oracle: mismatched feed id")] // 6055
-    PythPushMismatchedFeedId,
+    #[msg("Oracle max confidence exceeded: try again later")] // 6055
+    OracleMaxConfidenceExceeded,
     #[msg("Pyth Push oracle: insufficient verification level")] // 6056
     PythPushInsufficientVerificationLevel,
-    // TODO remove in 0.1.5
-    #[msg("Pyth Push oracle: feed id must be 32 Bytes")] // 6057
-    PythPushFeedIdMustBe32Bytes,
-    // TODO remove in 0.1.5
-    #[msg("Pyth Push oracle: feed id contains non-hex characters")] // 6058
-    PythPushFeedIdNonHexCharacter,
+    #[msg("Zero asset price")] // 6057
+    ZeroAssetPrice,
+    #[msg("Zero liability price")] // 6058
+    ZeroLiabilityPrice,
     #[msg("Switchboard oracle: wrong account owner")] // 6059
     SwitchboardWrongAccountOwner,
     #[msg("Pyth Push oracle: invalid account")] // 6060
@@ -161,14 +158,20 @@ pub enum MarginfiError {
     PythPushInvalidWindowSize,
     #[msg("Invalid fees destination account")] // 6077
     InvalidFeesDestinationAccount,
-    #[msg("Zero asset price")] // 6078
-    ZeroAssetPrice,
-    #[msg("Zero liability price")] // 6079
-    ZeroLiabilityPrice,
-    #[msg("Oracle max confidence exceeded: try again later")] // 6080
-    OracleMaxConfidenceExceeded,
-    #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6081
+    #[msg("Banks cannot close when they have open positions or emissions outstanding")] // 6078
     BankCannotClose,
+    #[msg("Account already migrated")] // 6079
+    AccountAlreadyMigrated,
+    #[msg("Protocol is paused")] // 6080
+    ProtocolPaused,
+    #[msg("Reserved for future use")] // 6081
+    Placeholder81,
+    #[msg("Pause limit exceeded")] // 6082
+    PauseLimitExceeded,
+    #[msg("Protocol is not paused")] // 6083
+    ProtocolNotPaused,
+    #[msg("Bank killed by bankruptcy: bank shutdown and value of all holdings is zero")] // 6084
+    BankKilledByBankruptcy,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -179,24 +182,13 @@ impl From<MarginfiError> for ProgramError {
 
 impl From<pyth_solana_receiver_sdk::error::GetPriceError> for MarginfiError {
     fn from(e: pyth_solana_receiver_sdk::error::GetPriceError) -> Self {
+        use pyth_solana_receiver_sdk::error::GetPriceError::*;
         match e {
-            pyth_solana_receiver_sdk::error::GetPriceError::PriceTooOld => {
-                MarginfiError::PythPushStalePrice
-            }
-            pyth_solana_receiver_sdk::error::GetPriceError::MismatchedFeedId => {
-                MarginfiError::PythPushMismatchedFeedId
-            }
-            pyth_solana_receiver_sdk::error::GetPriceError::InsufficientVerificationLevel => {
-                MarginfiError::PythPushInsufficientVerificationLevel
-            }
-            pyth_solana_receiver_sdk::error::GetPriceError::FeedIdMustBe32Bytes => {
-                MarginfiError::PythPushFeedIdMustBe32Bytes
-            }
-            pyth_solana_receiver_sdk::error::GetPriceError::FeedIdNonHexCharacter => {
-                MarginfiError::PythPushFeedIdNonHexCharacter
-            }
-            pyth_solana_receiver_sdk::error::GetPriceError::InvalidWindowSize => {
-                MarginfiError::PythPushInvalidWindowSize
+            PriceTooOld => MarginfiError::PythPushStalePrice,
+            InsufficientVerificationLevel => MarginfiError::PythPushInsufficientVerificationLevel,
+            InvalidWindowSize => MarginfiError::PythPushInvalidWindowSize,
+            MismatchedFeedId | FeedIdMustBe32Bytes | FeedIdNonHexCharacter => {
+                MarginfiError::PythPushInvalidAccount
             }
         }
     }
@@ -258,10 +250,10 @@ impl From<u32> for MarginfiError {
             6052 => MarginfiError::WrongOracleAccountKeys,
             6053 => MarginfiError::PythPushWrongAccountOwner,
             6054 => MarginfiError::StakedPythPushWrongAccountOwner,
-            6055 => MarginfiError::PythPushMismatchedFeedId,
+            6055 => MarginfiError::OracleMaxConfidenceExceeded,
             6056 => MarginfiError::PythPushInsufficientVerificationLevel,
-            6057 => MarginfiError::PythPushFeedIdMustBe32Bytes,
-            6058 => MarginfiError::PythPushFeedIdNonHexCharacter,
+            6057 => MarginfiError::ZeroAssetPrice,
+            6058 => MarginfiError::ZeroLiabilityPrice,
             6059 => MarginfiError::SwitchboardWrongAccountOwner,
             6060 => MarginfiError::PythPushInvalidAccount,
             6061 => MarginfiError::SwitchboardInvalidAccount,
@@ -281,9 +273,13 @@ impl From<u32> for MarginfiError {
             6075 => MarginfiError::BadEmodeConfig,
             6076 => MarginfiError::PythPushInvalidWindowSize,
             6077 => MarginfiError::InvalidFeesDestinationAccount,
-            6078 => MarginfiError::ZeroAssetPrice,
-            6079 => MarginfiError::ZeroLiabilityPrice,
-            6080 => MarginfiError::OracleMaxConfidenceExceeded,
+            6078 => MarginfiError::BankCannotClose,
+            6079 => MarginfiError::AccountAlreadyMigrated,
+            6080 => MarginfiError::ProtocolPaused,
+            6081 => MarginfiError::Placeholder81,
+            6082 => MarginfiError::PauseLimitExceeded,
+            6083 => MarginfiError::ProtocolNotPaused,
+            6084 => MarginfiError::BankKilledByBankruptcy,
             _ => MarginfiError::InternalLogicError,
         }
     }
@@ -305,10 +301,7 @@ impl MarginfiError {
                 | MarginfiError::SwitchboardInvalidAccount
                 | MarginfiError::PythPushInvalidAccount
                 | MarginfiError::SwitchboardWrongAccountOwner
-                | MarginfiError::PythPushFeedIdNonHexCharacter
-                | MarginfiError::PythPushFeedIdMustBe32Bytes
                 | MarginfiError::PythPushInsufficientVerificationLevel
-                | MarginfiError::PythPushMismatchedFeedId
                 | MarginfiError::StakedPythPushWrongAccountOwner
                 | MarginfiError::PythPushWrongAccountOwner
                 | MarginfiError::WrongOracleAccountKeys

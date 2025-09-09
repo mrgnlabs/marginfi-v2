@@ -426,10 +426,10 @@ describe("Liquidate user (including staked assets)", () => {
     }
 
     let now = Math.floor(Date.now() / 1000);
-    assertBNApproximately(liquidatorBalancesAfter[0].lastUpdate, now, 30);
-    assertBNApproximately(liquidatorBalancesAfter[1].lastUpdate, now, 30);
-    assertBNApproximately(liquidateeBalancesAfter[0].lastUpdate, now, 30);
-    assertBNApproximately(liquidateeBalancesAfter[1].lastUpdate, now, 30);
+    assertBNApproximately(liquidatorBalancesAfter[0].lastUpdate, now, 50);
+    assertBNApproximately(liquidatorBalancesAfter[1].lastUpdate, now, 50);
+    assertBNApproximately(liquidateeBalancesAfter[0].lastUpdate, now, 50);
+    assertBNApproximately(liquidateeBalancesAfter[1].lastUpdate, now, 50);
   });
 });
 

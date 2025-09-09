@@ -129,6 +129,7 @@ describe("Deposit funds", () => {
 
     let now = Math.floor(Date.now() / 1000);
     assertBNApproximately(balances[0].lastUpdate, now, 2);
+    assertBNApproximately(userAcc.lastUpdate, now, 2);
 
     const [userAAfter, vaultAAfter] = await Promise.all([
       getTokenBalance(provider, user.tokenAAccount),
@@ -176,6 +177,7 @@ describe("Deposit funds", () => {
 
     let now = Math.floor(Date.now() / 1000);
     assertBNApproximately(balances[0].lastUpdate, now, 2);
+    assertBNApproximately(userAcc.lastUpdate, now, 2);
 
     const userUsdcAfter = await getTokenBalance(provider, user.usdcAccount);
     if (verbose) {
@@ -311,6 +313,7 @@ describe("Deposit funds", () => {
     assertI80F48Approx(balances[depositIndex].assetShares, expected);
     let now = Math.floor(Date.now() / 1000);
     assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
+    assertBNApproximately(userAcc.lastUpdate, now, 2);
 
     // withdraw amounts to restore to previous state...
 
@@ -394,6 +397,7 @@ describe("Deposit funds", () => {
 
     let now = Math.floor(Date.now() / 1000);
     assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
+    assertBNApproximately(userAcc.lastUpdate, now, 2);
 
     const userSolAfter = await getTokenBalance(provider, user.wsolAccount);
     if (verbose) {
