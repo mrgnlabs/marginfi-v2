@@ -152,7 +152,12 @@ pub fn transfer_to_new_account_pda(
     }
 
     let mut new_account = ctx.accounts.new_marginfi_account.load_init()?;
-    new_account.initialize(old_account.group, ctx.accounts.new_authority.key());
+    let current_timestamp = Clock::get()?.unix_timestamp as u64;
+    new_account.initialize(
+        old_account.group,
+        ctx.accounts.new_authority.key(),
+        current_timestamp,
+    );
     new_account.lending_account = old_account.lending_account;
     new_account.emissions_destination_account = old_account.emissions_destination_account;
     new_account.account_flags = old_account.account_flags;

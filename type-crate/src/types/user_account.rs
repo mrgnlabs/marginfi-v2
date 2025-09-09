@@ -48,7 +48,7 @@ pub struct MarginfiAccount {
     /// If this account has been migrated to another one, store the destination account key
     pub migrated_to: Pubkey, // 32
     pub last_update: u64,
-     /// If a PDA-based account, the account index, a seed used to derive the PDA that can be chosen
+    /// If a PDA-based account, the account index, a seed used to derive the PDA that can be chosen
     /// arbitrarily (0.1.5 or later). Otherwise, does nothing.
     pub account_index: u16,
     /// If a PDA-based account (0.1.5 or later), a "vendor specific" id. Values < PDA_FREE_THRESHOLD
