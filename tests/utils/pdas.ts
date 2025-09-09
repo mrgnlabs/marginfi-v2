@@ -119,8 +119,10 @@ export const deriveLiquidationRecord = (
 ) => {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("liq_record", "utf-8"), marginfiAccount.toBuffer()],
-)}
-    
+    programId
+  );
+};
+
 export const deriveMarginfiAccountPda = (
   programId: PublicKey,
   group: PublicKey,
