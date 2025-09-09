@@ -2,7 +2,7 @@ use crate::{
     check,
     constants::{LIQUIDATION_BONUS_FEE_MINIMUM, LIQUIDATION_CLOSEOUT_DOLLAR_THRESHOLD},
     events::LiquidationReceiverEvent,
-    ix_utils::{get_discrim_hash, validate_not_cpi, Hashable},
+    ix_utils::{get_discrim_hash, validate_not_cpi_by_stack_height, Hashable},
     prelude::*,
     state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
 };
@@ -29,7 +29,7 @@ pub fn end_liquidation<'info>(
         MarginfiError::EndNotLast
     );
 
-    validate_not_cpi()?;
+    validate_not_cpi_by_stack_height()?;
 
     let pre_assets: I80F48 = liq_record.cache.asset_value_maint.into();
     let pre_liabs: I80F48 = liq_record.cache.liability_value_maint.into();

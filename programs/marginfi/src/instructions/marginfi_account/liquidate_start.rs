@@ -2,7 +2,8 @@ use crate::{
     check,
     ix_utils::{
         get_discrim_hash, load_and_validate_instructions, validate_ix_first, validate_ix_last,
-        validate_ixes_exclusive, validate_not_cpi, Hashable,
+        validate_ixes_exclusive, validate_not_cpi_by_stack_height, validate_not_cpi_with_sysvar,
+        Hashable,
     },
     prelude::*,
     state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
@@ -91,7 +92,11 @@ pub fn start_liquidation<'info>(
                 // * &ix_discriminators::LENDING_WITHDRAW_EMISSIONS,
             ],
         )?;
-        validate_not_cpi()?;
+        validate_not_cpi_by_stack_height()?;
+        let start_ix = validate_not_cpi_with_sysvar(sysvar)?;
+        // Sanity check: we have already verified start/end are first/last.
+        check!(start_ix < ixes.len() - 1, MarginfiError::StartNotFirst);
+
         // Sanity check: peak at the end instruction and validate the marginfi account is the same
         let end_ix = ixes.last().unwrap(); // safe unwrap, already validated last
         let end_marginfi_account = end_ix
