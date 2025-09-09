@@ -227,7 +227,6 @@ pub mod marginfi {
         marginfi_account::initialize_account(ctx)
     }
 
-
     pub fn marginfi_account_init_liq_record(ctx: Context<InitLiquidationRecord>) -> MarginfiResult {
         marginfi_account::initialize_liquidation_record(ctx)
     }
@@ -515,7 +514,7 @@ pub mod marginfi {
     ) -> MarginfiResult {
         marginfi_account::end_liquidation(ctx)
     }
-      
+
     pub fn panic_pause(ctx: Context<PanicPause>) -> MarginfiResult {
         marginfi_group::panic_pause(ctx)
     }

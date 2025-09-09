@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
-use fixed::types::I80F48;
-use fixed_macro::types::I80F48;
 use anchor_lang::solana_program::sysvar::instructions as ix_sysvar;
 use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
+use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
 use pyth_solana_receiver_sdk::price_update::VerificationLevel;
 
 use crate::MarginfiResult;
