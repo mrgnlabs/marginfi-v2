@@ -63,4 +63,11 @@ pub mod mocks {
             third_party_id,
         )
     }
+
+    /// Start a liquidation via CPI
+    pub fn start_liquidation_via_cpi<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartLiquidationViaCpi<'info>>,
+    ) -> Result<()> {
+        instructions::start_liquidate::StartLiquidationViaCpi::start_liquidation_via_cpi(ctx)
+    }
 }
