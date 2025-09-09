@@ -287,6 +287,7 @@ impl MarginfiAccountFixture {
         ui_amount: T,
         nonce: u64,
     ) -> anyhow::Result<(), BanksClientError> {
+        #[cfg_attr(not(feature = "transfer-hook"), allow(unused_mut))]
         let mut ix = self
             .make_bank_borrow_ix(destination_account, bank, ui_amount)
             .await;
