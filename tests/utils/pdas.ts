@@ -113,13 +113,35 @@ export const deriveStakedSettings = (
   );
 };
 
-
 export const deriveLiquidationRecord = (
   programId: PublicKey,
   marginfiAccount: PublicKey
 ) => {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("liq_record", "utf-8"), marginfiAccount.toBuffer()],
+)}
+    
+export const deriveMarginfiAccountPda = (
+  programId: PublicKey,
+  group: PublicKey,
+  authority: PublicKey,
+  accountIndex: number,
+  thirdPartyId?: number
+) => {
+  const accountIndexBuffer = Buffer.allocUnsafe(2);
+  accountIndexBuffer.writeUInt16LE(accountIndex, 0);
+
+  const thirdPartyIdBuffer = Buffer.allocUnsafe(2);
+  thirdPartyIdBuffer.writeUInt16LE(thirdPartyId || 0, 0);
+
+  return PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("marginfi_account", "utf-8"),
+      group.toBuffer(),
+      authority.toBuffer(),
+      accountIndexBuffer,
+      thirdPartyIdBuffer,
+    ],
     programId
   );
 };

@@ -1,17 +1,11 @@
-use std::{
-    collections::HashMap,
-    mem::size_of,
-    ops::AddAssign,
-    sync::{Arc, RwLock},
-    time::{SystemTime, UNIX_EPOCH},
-};
-
 use account_state::{AccountInfoCache, AccountsState};
+use anchor_lang::prelude::*;
 use anchor_lang::{
     accounts::{interface::Interface, interface_account::InterfaceAccount},
     prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer},
     Discriminator, Key,
 };
+use anchor_spl::token_2022::spl_token_2022::error::TokenError;
 use arbitrary_helpers::{
     AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
 };
@@ -28,6 +22,13 @@ use marginfi_type_crate::{
 };
 use metrics::{MetricAction, Metrics};
 use solana_program::system_program;
+use std::{
+    collections::HashMap,
+    mem::size_of,
+    ops::AddAssign,
+    sync::{Arc, RwLock},
+    time::{SystemTime, UNIX_EPOCH},
+};
 use stubs::test_syscall_stubs;
 use user_accounts::UserAccount;
 use utils::{
@@ -428,7 +429,11 @@ impl<'state> MarginfiFuzzContext<'state> {
             self.metrics.write().unwrap().update_error(&error);
 
             assert!(
-                [MarginfiError::AccountDisabled.into(),].contains(&error),
+                [
+                    MarginfiError::AccountDisabled.into(),
+                    MarginfiError::OperationDepositOnly.into(),
+                ]
+                .contains(&error),
                 "Unexpected deposit error: {:?}",
                 error
             );
@@ -687,6 +692,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     MarginfiError::IsolatedAccountIllegalState.into(),
                     MarginfiError::IllegalUtilizationRatio.into(),
                     MarginfiError::AccountDisabled.into(),
+                    MarginfiError::OperationBorrowOnly.into(),
                 ]
                 .contains(&error),
                 "Unexpected borrow error: {:?}",
@@ -809,36 +815,75 @@ impl<'state> MarginfiFuzzContext<'state> {
             asset_amount.0,
         );
 
-        let success = if res.is_err() {
-            let error = res.unwrap_err();
+        let success = if let Err(error) = res {
+            let allowed_errors = &[
+                MarginfiError::RiskEngineInitRejected.into(),
+                MarginfiError::IsolatedAccountIllegalState.into(),
+                MarginfiError::IllegalUtilizationRatio.into(),
+                MarginfiError::ZeroLiquidationAmount.into(),
+                MarginfiError::OverliquidationAttempt.into(),
+                MarginfiError::HealthyAccount.into(),
+                MarginfiError::ExhaustedLiability.into(),
+                MarginfiError::TooSevereLiquidation.into(),
+                MarginfiError::AccountDisabled.into(),
+                MarginfiError::ZeroAssetPrice.into(),
+                MarginfiError::ZeroLiabilityPrice.into(),
+                MarginfiError::OperationRepayOnly.into(),
+                // Note: because updates in 1.5 allow liquidation of underwater banks, it is now
+                // possible for a bank's liquidity value to become empty in the fuzz suite, which
+                // leads to the `liquidatee_liab_bank_account.withdraw_spl_transfer` failing. This
+                // is probably benign but certainly rare-or-nonexistent in prod.
+                ProgramError::Custom(TokenError::InsufficientFunds as u32).into(),
+            ];
 
-            self.metrics.write().unwrap().update_error(&error);
+            // Log full context on unexpected error
+            if !allowed_errors.contains(&error) {
+                match &error {
+                    Error::ProgramError(boxed_pe) => {
+                        // Note: non-program errors from CPI calls (like Token Error) may look like:
+                        // program_error: Custom(1), error_origin: None, compared_values: None,
+                        let pe = &**boxed_pe;
+                        if let ProgramError::Custom(code) = pe.program_error {
+                            eprintln!("🚨 raw custom error code: {}", code);
+                        } else {
+                            eprintln!("🚨 program_error variant: {:?}", pe.program_error);
+                        }
+                        eprintln!("🚨 error_origin:   {:?}", pe.error_origin);
+                        eprintln!("🚨 compared_vals: {:?}", pe.compared_values);
+                    }
+                    Error::AnchorError(anchor_err) => {
+                        eprintln!("🚨 anchor error: {:?}", anchor_err);
+                    }
+                }
 
+                eprintln!(
+                    "❌ unexpected liquidate error:\n\
+                     → liquidator_idx: {:?}\n\
+                     → liquidatee_idx: {:?}\n\
+                     → asset_bank_idx: {:?}\n\
+                     → liab_bank_idx: {:?}\n\
+                     → asset_amount: {:?}\n\
+                     → error: {:?}\n",
+                    liquidator_idx,
+                    liquidatee_idx,
+                    asset_bank_idx,
+                    liab_bank_idx,
+                    asset_amount,
+                    error,
+                );
+            }
+
+            // Assert and fail if unexpected error
             assert!(
-                vec![
-                    MarginfiError::RiskEngineInitRejected.into(),
-                    MarginfiError::IsolatedAccountIllegalState.into(),
-                    MarginfiError::IllegalUtilizationRatio.into(),
-                    MarginfiError::ZeroLiquidationAmount.into(),
-                    MarginfiError::OverliquidationAttempt.into(),
-                    MarginfiError::HealthyAccount.into(),
-                    MarginfiError::ExhaustedLiability.into(),
-                    MarginfiError::TooSevereLiquidation.into(),
-                    MarginfiError::AccountDisabled.into(),
-                    MarginfiError::ZeroAssetPrice.into(),
-                    MarginfiError::ZeroLiabilityPrice.into(),
-                ]
-                .contains(&error),
+                allowed_errors.contains(&error),
                 "Unexpected liquidate error: {:?}",
                 error
             );
 
             account_cache.revert();
-
             false
         } else {
             self.process_handle_bankruptcy(liquidatee_idx, &liab_bank_idx)?;
-
             true
         };
 

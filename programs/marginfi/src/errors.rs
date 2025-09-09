@@ -162,17 +162,27 @@ pub enum MarginfiError {
     BankCannotClose,
     #[msg("Account already migrated")] // 6079
     AccountAlreadyMigrated,
-    #[msg("Liquidation state issue. Check start before end, end last, and both unique")] // 6080
+    #[msg("Protocol is paused")] // 6080
+    ProtocolPaused,
+    #[msg("Reserved for future use")] // 6081
+    Placeholder81,
+    #[msg("Pause limit exceeded")] // 6082
+    PauseLimitExceeded,
+    #[msg("Protocol is not paused")] // 6083
+    ProtocolNotPaused,
+    #[msg("Bank killed by bankruptcy: bank shutdown and value of all holdings is zero")] // 6084
+    BankKilledByBankruptcy,
+    #[msg("Liquidation state issue. Check start before end, end last, and both unique")] // 6085
     UnexpectedLiquidationState,
-    #[msg("Liquidation start must be first instruction (other than compute program ixes)")] // 6081
+    #[msg("Liquidation start must be first instruction (other than compute program ixes)")] // 6086
     StartNotFirst,
-    #[msg("Only one liquidation event allowed per tx")] // 6082
+    #[msg("Only one liquidation event allowed per tx")] // 6087
     StartRepeats,
-    #[msg("The end instruction must be the last ix in the tx")] // 6083
+    #[msg("The end instruction must be the last ix in the tx")] // 6088
     EndNotLast,
-    #[msg("Tried to call an instruction that is forbidden during liquidation")] // 6084
+    #[msg("Tried to call an instruction that is forbidden during liquidation")] // 6089
     ForbiddenIx,
-    #[msg("Seized too much of the asset relative to liability repaid")] // 6085
+    #[msg("Seized too much of the asset relative to liability repaid")] // 6090
     LiquidationPremiumTooHigh,
 }
 
@@ -277,12 +287,17 @@ impl From<u32> for MarginfiError {
             6077 => MarginfiError::InvalidFeesDestinationAccount,
             6078 => MarginfiError::BankCannotClose,
             6079 => MarginfiError::AccountAlreadyMigrated,
-            6080 => MarginfiError::UnexpectedLiquidationState,
-            6081 => MarginfiError::StartNotFirst,
-            6082 => MarginfiError::StartRepeats,
-            6083 => MarginfiError::EndNotLast,
-            6084 => MarginfiError::ForbiddenIx,
-            6085 => MarginfiError::LiquidationPremiumTooHigh,
+            6080 => MarginfiError::ProtocolPaused,
+            6081 => MarginfiError::Placeholder81,
+            6082 => MarginfiError::PauseLimitExceeded,
+            6083 => MarginfiError::ProtocolNotPaused,
+            6084 => MarginfiError::BankKilledByBankruptcy,
+            6085 => MarginfiError::UnexpectedLiquidationState,
+            6086 => MarginfiError::StartNotFirst,
+            6087 => MarginfiError::StartRepeats,
+            6088 => MarginfiError::EndNotLast,
+            6089 => MarginfiError::ForbiddenIx,
+            6090 => MarginfiError::LiquidationPremiumTooHigh,
             _ => MarginfiError::InternalLogicError,
         }
     }

@@ -17,6 +17,9 @@ mod handle_bankruptcy;
 mod init_global_fee_state;
 mod init_staked_settings;
 mod initialize;
+mod panic_pause;
+mod panic_unpause;
+mod panic_unpause_permissionless;
 mod propagate_fee_state;
 mod propagate_staked_settings;
 
@@ -39,5 +42,8 @@ pub use handle_bankruptcy::*;
 pub use init_global_fee_state::*;
 pub use init_staked_settings::*;
 pub use initialize::*;
+pub use panic_pause::*;
+pub use panic_unpause::*;
+pub use panic_unpause_permissionless::*;
 pub use propagate_fee_state::*;
 pub use propagate_staked_settings::*;

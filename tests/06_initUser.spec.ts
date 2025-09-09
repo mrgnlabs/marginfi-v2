@@ -3,6 +3,7 @@ import { Keypair, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import { marginfiGroup, users } from "./rootHooks";
 import {
+  assertBNApproximately,
   assertBNEqual,
   assertI80F48Equal,
   assertKeyDefault,
@@ -44,6 +45,8 @@ describe("Initialize user account", () => {
       assertBNEqual(balances[i].lastUpdate, 0);
     }
     assertBNEqual(userAcc.accountFlags, 0);
+    let now = Math.floor(Date.now() / 1000);
+    assertBNApproximately(userAcc.lastUpdate, now, 2);
   });
 
   it("(user 1) Initialize user account - happy path", async () => {

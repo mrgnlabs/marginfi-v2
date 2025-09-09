@@ -219,13 +219,34 @@ pub mod marginfi {
 
     // User instructions
 
-    /// Initialize a marginfi account for a given group
+    /// Initialize a marginfi account for a given group. The account is a fresh keypair, and must
+    /// sign. If you are a CPI caller, consider using `marginfi_account_initialize_pda` instead, or
+    /// create the account manually and use `transfer_to_new_account` to gift it to the owner you
+    /// wish.
     pub fn marginfi_account_initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
         marginfi_account::initialize_account(ctx)
     }
 
+
     pub fn marginfi_account_init_liq_record(ctx: Context<InitLiquidationRecord>) -> MarginfiResult {
         marginfi_account::initialize_liquidation_record(ctx)
+    }
+
+    /// The same as `marginfi_account_initialize`, except the created marginfi account uses a PDA
+    /// (Program Derived Address)
+    ///
+    /// seeds:
+    /// - marginfi_group
+    /// - authority: The account authority (owner)  
+    /// - account_index: A u16 value to allow multiple accounts per authority
+    /// - third_party_id: Optional u16 for third-party tagging. Seeds < PDA_FREE_THRESHOLD can be
+    ///   used freely. For a dedicated seed used by just your program (via CPI), contact us.
+    pub fn marginfi_account_initialize_pda(
+        ctx: Context<MarginfiAccountInitializePda>,
+        account_index: u16,
+        third_party_id: Option<u16>,
+    ) -> MarginfiResult {
+        marginfi_account::initialize_account_pda(ctx, account_index, third_party_id)
     }
 
     pub fn lending_account_deposit<'info>(
@@ -350,6 +371,22 @@ pub mod marginfi {
 
     pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiResult {
         marginfi_account::transfer_to_new_account(ctx)
+    }
+
+    /// Same as `transfer_to_new_account` except the resulting account is a PDA
+    ///
+    /// seeds:
+    /// - marginfi_group
+    /// - authority: The account authority (owner)  
+    /// - account_index: A u32 value to allow multiple accounts per authority
+    /// - third_party_id: Optional u32 for third-party tagging. Seeds < PDA_FREE_THRESHOLD can be
+    ///   used freely. For a dedicated seed used by just your program (via CPI), contact us.
+    pub fn transfer_to_new_account_pda(
+        ctx: Context<TransferToNewAccountPda>,
+        account_index: u16,
+        third_party_id: Option<u16>,
+    ) -> MarginfiResult {
+        marginfi_account::transfer_to_new_account_pda(ctx, account_index, third_party_id)
     }
 
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
@@ -477,6 +514,21 @@ pub mod marginfi {
         ctx: Context<'_, '_, 'info, 'info, EndLiquidation<'info>>,
     ) -> MarginfiResult {
         marginfi_account::end_liquidation(ctx)
+    }
+      
+    pub fn panic_pause(ctx: Context<PanicPause>) -> MarginfiResult {
+        marginfi_group::panic_pause(ctx)
+    }
+
+    pub fn panic_unpause(ctx: Context<PanicUnpause>) -> MarginfiResult {
+        marginfi_group::panic_unpause(ctx)
+    }
+
+    /// (permissionless) Unpause the protocol when pause time has expired
+    pub fn panic_unpause_permissionless(
+        ctx: Context<PanicUnpausePermissionless>,
+    ) -> MarginfiResult {
+        marginfi_group::panic_unpause_permissionless(ctx)
     }
 }
 

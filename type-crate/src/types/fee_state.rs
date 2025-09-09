@@ -6,7 +6,7 @@ use {
 
 use crate::{assert_struct_align, assert_struct_size, constants::discriminators};
 
-use super::WrappedI80F48;
+use super::{PanicState, WrappedI80F48};
 
 #[cfg(feature = "anchor")]
 use anchor_lang::prelude::*;
@@ -46,6 +46,9 @@ pub struct FeeState {
     /// Fee collected by the program owner from all groups
     /// * A percentage
     pub program_fee_rate: WrappedI80F48,
+    /// When the global admin pauses the protocol in the event of an emergency, information about
+    /// the pause duration will be stored here and propagated to groups.
+    pub panic_state: PanicState,
     // Reserved for future use, forces 8-byte alignment
     pub placeholder1: u64,
     /// Flat fee assessed for insurance/program use when a liquidation is executed
@@ -53,7 +56,7 @@ pub struct FeeState {
     pub liquidation_flat_sol_fee: u32,
     // Reserved for future use
     _reserved0: [u8; 20],
-    _reserved1: [u8; 64],
+    _reserved1: [u8; 32],
 }
 
 // TODO regression test with mainnet for fee state to make sure padding is still good

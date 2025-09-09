@@ -2855,6 +2855,7 @@ dependencies = [
  "id-crate",
  "lazy_static",
  "marginfi-type-crate",
+ "mocks",
  "pretty_assertions",
  "pyth-solana-receiver-sdk",
  "rust_decimal",
@@ -3032,6 +3033,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bytemuck",
+ "marginfi",
  "static_assertions",
 ]
 
@@ -7513,6 +7515,7 @@ dependencies = [
  "lazy_static",
  "marginfi",
  "marginfi-type-crate",
+ "mocks",
  "pretty_assertions",
  "pyth-solana-receiver-sdk",
  "serde",
