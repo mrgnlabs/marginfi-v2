@@ -1,10 +1,13 @@
 use anchor_lang::solana_program::sysvar::instructions::{
     get_instruction_relative, load_instruction_at_checked,
 };
-use anchor_lang::{prelude::*, solana_program::instruction::Instruction};
+use anchor_lang::{
+    prelude::*,
+    solana_program::instruction::{get_stack_height, Instruction, TRANSACTION_LEVEL_STACK_HEIGHT},
+};
 
 use crate::constants::COMPUTE_PROGRAM_KEY;
-use crate::{MarginfiError, MarginfiResult};
+use crate::{check, MarginfiError, MarginfiResult};
 
 /// Structs that implement this trait have a `get_hash` tool that returns the function discriminator
 pub trait Hashable {
@@ -136,7 +139,7 @@ pub fn validate_ixes_exclusive(
 /*** We might use these later for something like to limit the swap venue to e.g. Jup */
 
 /// Panics if the top-level relative instruction is not the Marginfi program
-pub fn validate_not_cpi(sysvar: &AccountInfo) {
+pub fn validate_not_cpi_with_sysvar(sysvar: &AccountInfo) {
     let mrgn_key = id_crate::ID;
     let index_relative_to_current: i64 = 0;
     let instruction_sysvar_account_info = sysvar;
@@ -146,6 +149,15 @@ pub fn validate_not_cpi(sysvar: &AccountInfo) {
     if current_ix.program_id != mrgn_key {
         panic!("This ix is not permitted within a CPI");
     }
+}
+
+/// Panics if this the instruction calling this is within a CPI
+pub fn validate_not_cpi() -> MarginfiResult<()> {
+    check!(
+        get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,
+        MarginfiError::NoLiquidationInCpi
+    );
+    Ok(())
 }
 
 /// The instruction uses one of the given hard-coded allowed programs.

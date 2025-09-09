@@ -2,7 +2,7 @@ use crate::{
     check,
     ix_utils::{
         get_discrim_hash, load_and_validate_instructions, validate_ix_first, validate_ix_last,
-        validate_ixes_exclusive, Hashable,
+        validate_ixes_exclusive, validate_not_cpi, Hashable,
     },
     prelude::*,
     state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
@@ -62,9 +62,13 @@ pub fn start_liquidation<'info>(
     // Introspection logic
     {
         let sysvar = &ctx.accounts.instruction_sysvar;
+        // TODO set allowed keys to e.g. mrgn, token program, jup, compute, and selection of others
         let ixes = load_and_validate_instructions(sysvar, None)?;
         validate_ix_first(&ixes, ctx.program_id, &ix_discriminators::START_LIQUIDATION)?;
         validate_ix_last(&ixes, ctx.program_id, &ix_discriminators::END_LIQUIDATION)?;
+        // Note: this only validates top-level instructions, all other instructions can still appear
+        // inside a CPI. This list essentially bans any ix that's already banned inside CPI (e.g.
+        // flashloan), but has limited utility otherwise.
         validate_ixes_exclusive(
             &ixes,
             ctx.program_id,
@@ -87,6 +91,19 @@ pub fn start_liquidation<'info>(
                 // * &ix_discriminators::LENDING_WITHDRAW_EMISSIONS,
             ],
         )?;
+        validate_not_cpi()?;
+        // Sanity check: peak at the end instruction and validate the marginfi account is the same
+        let end_ix = ixes.last().unwrap(); // safe unwrap, already validated last
+        let end_marginfi_account = end_ix
+            .accounts
+            .first() // marginfi_account is the first account
+            .ok_or(MarginfiError::EndNotLast)?;
+        check!(
+            end_marginfi_account
+                .pubkey
+                .eq(&ctx.accounts.marginfi_account.key()),
+            MarginfiError::EndNotLast
+        );
     }
 
     Ok(())

@@ -2,8 +2,8 @@ use anchor_lang::{
     prelude::*, solana_program::instruction::Instruction, solana_program::sysvar, InstructionData,
 };
 use fixed_macro::types::I80F48;
-use fixtures::prelude::*;
-use marginfi::state::marginfi_account::MarginfiAccountImpl;
+use fixtures::{assert_custom_error, prelude::*};
+use marginfi::{errors::MarginfiError, state::marginfi_account::MarginfiAccountImpl};
 use marginfi_type_crate::{
     constants::LIQUIDATION_RECORD_SEED,
     types::{BankConfigOpt, ACCOUNT_IN_RECEIVERSHIP},
@@ -169,14 +169,18 @@ async fn liquidate_start_then_cpi_start_on_different_accounts_exploit() -> anyho
             ctx.last_blockhash,
         );
 
-        // Should succeed: CPI call doesn't appear as a top-level mrgn ix,
-        // so introspection still sees: first = START, last = END, and only allowed mrgn ixes.
-        ctx.banks_client
+        // Should fail: CPI call doesn't appear as a top-level mrgn ix, so introspection of the
+        // second start will fail. Otherwise, this account would be in receivership with no paired
+        // end ix, leaving it in that state forever!
+        let res = ctx
+            .banks_client
             .process_transaction_with_preflight(tx)
-            .await?;
+            .await;
+        assert!(res.is_err());
+        assert_custom_error!(res.unwrap_err(), MarginfiError::NoLiquidationInCpi);
     }
 
-    // Sanity: receivership flag should not remain set on either account after tx concludes.
+    // Sanity: receivership flag should not remain set on either account after tx fails.
     let ma_a = liquidatee_a.load().await;
     let ma_b = liquidatee_b.load().await;
     assert_eq!(ma_a.get_flag(ACCOUNT_IN_RECEIVERSHIP), false);
