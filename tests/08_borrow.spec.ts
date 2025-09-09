@@ -202,6 +202,7 @@ describe("Borrow funds", () => {
 
     let now = Math.floor(Date.now() / 1000);
     assertBNApproximately(balances[borrowIndex].lastUpdate, now, 2);
+    assertBNApproximately(userAcc.lastUpdate, now, 2);
 
     assert.equal(
       userUsdcAfter - borrowAmountUsdc_native.toNumber(),

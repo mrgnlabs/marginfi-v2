@@ -378,7 +378,26 @@ export const editGlobalFeeState = (
   return ix;
 };
 
-// TODO propagate fee state and test
+export type PropogateFeeStateArgs = {
+  group: PublicKey;
+};
+
+export const propagateFeeState = (
+  program: Program<Marginfi>,
+  args: PropogateFeeStateArgs
+) => {
+  const ix = program.methods
+    .propagateFeeState(
+    )
+    .accounts({
+      marginfiGroup: args.group,
+      // feeState = deriveGlobalFeeState(id),
+    })
+    .instruction();
+
+  return ix;
+};
+
 
 export type InitStakedSettingsArgs = {
   group: PublicKey;
@@ -689,6 +708,46 @@ export const accrueInterest = (
   return ix;
 };
 
+export type HandleBankruptcyArgs = {
+  signer: PublicKey;
+  bank: PublicKey;
+  marginfiAccount: PublicKey;
+  remaining: PublicKey[];
+};
+
+/**
+ * Permissionless, handle bank bankruptcy and settle bad debt using insurance vault. Signer must be
+ * group admin unless the `PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG` is set on the bank.
+ * @param program
+ * @param args
+ * @returns
+ */
+export const handleBankruptcy = (
+  program: Program<Marginfi>,
+  args: HandleBankruptcyArgs
+) => {
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
+    return { pubkey, isSigner: false, isWritable: false };
+  });
+
+  const ix = program.methods
+    .lendingPoolHandleBankruptcy()
+    .accounts({
+      // group: // implied from bank
+      signer: args.signer,
+      bank: args.bank,
+      marginfiAccount: args.marginfiAccount,
+      // liquidityVault: // implied from seed
+      // insuranceVault: // implied from seed
+      // insuranceVaultAuthority: // implied from seed
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+
+  return ix;
+};
+
 export type CloseBankArgs = {
   bank: PublicKey;
 };
@@ -702,5 +761,61 @@ export const closeBank = (program: Program<Marginfi>, args: CloseBankArgs) => {
       // admin: args.admin, // implied from group
     })
     .instruction();
+  return ix;
+};
+
+export type PanicPauseArgs = {
+  // No args (everything is inferred)...
+};
+
+export const panicPause = async (
+  program: Program<Marginfi>,
+  _args: PanicPauseArgs
+) => {
+  const ix = await program.methods
+    .panicPause()
+    .accounts({
+      // globalFeeAdmin: args.admin,
+      // feeState: args.feeState,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type PanicUnpauseArgs = {
+  // No args (everything is inferred)...
+};
+
+export const panicUnpause = async (
+  program: Program<Marginfi>,
+  _args: PanicUnpauseArgs
+) => {
+  const ix = await program.methods
+    .panicUnpause()
+    .accounts({
+      // globalFeeAdmin: args.admin,
+      // feeState: args.feeState,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type PanicUnpausePermissionlessArgs = {
+  // No args (everything is inferred)...
+};
+
+export const panicUnpausePermissionless = async (
+  program: Program<Marginfi>,
+  _args: PanicUnpausePermissionlessArgs
+) => {
+  const ix = await program.methods
+    .panicUnpausePermissionless()
+    .accounts({
+      // feeState: args.feeState,
+    })
+    .instruction();
+
   return ix;
 };

@@ -5,7 +5,7 @@ use crate::{
 };
 
 #[cfg(feature = "anchor")]
-use {anchor_lang::prelude::*, type_layout::TypeLayout};
+use anchor_lang::prelude::*;
 
 use bytemuck::{Pod, Zeroable};
 
@@ -16,11 +16,7 @@ use super::{EmodeSettings, WrappedI80F48};
 assert_struct_size!(Bank, 1856);
 assert_struct_align!(Bank, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    account(zero_copy),
-    derive(Default, PartialEq, Eq, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", account(zero_copy), derive(Default, PartialEq, Eq))]
 #[cfg_attr(not(feature = "anchor"), derive(Zeroable))]
 #[derive(Debug)]
 pub struct Bank {
@@ -137,6 +133,7 @@ pub enum BankOperationalState {
     Paused,
     Operational,
     ReduceOnly,
+    KilledByBankruptcy,
 }
 unsafe impl Zeroable for BankOperationalState {}
 unsafe impl Pod for BankOperationalState {}

@@ -11,12 +11,12 @@ use super::Pubkey;
 use super::{HealthCache, WrappedI80F48};
 
 #[cfg(feature = "anchor")]
-use {anchor_lang::prelude::*, type_layout::TypeLayout};
+use anchor_lang::prelude::*;
 
 assert_struct_size!(MarginfiAccount, 2304);
 assert_struct_align!(MarginfiAccount, 8);
 #[repr(C)]
-#[cfg_attr(feature = "anchor", account(zero_copy), derive(TypeLayout))]
+#[cfg_attr(feature = "anchor", account(zero_copy))]
 #[cfg_attr(
     not(feature = "anchor"),
     derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)
@@ -47,7 +47,8 @@ pub struct MarginfiAccount {
     pub migrated_from: Pubkey, // 32
     /// If this account has been migrated to another one, store the destination account key
     pub migrated_to: Pubkey, // 32
-    /// If a PDA-based account, the account index, a seed used to derive the PDA that can be chosen
+    pub last_update: u64,
+     /// If a PDA-based account, the account index, a seed used to derive the PDA that can be chosen
     /// arbitrarily (0.1.5 or later). Otherwise, does nothing.
     pub account_index: u16,
     /// If a PDA-based account (0.1.5 or later), a "vendor specific" id. Values < PDA_FREE_THRESHOLD
@@ -62,7 +63,7 @@ pub struct MarginfiAccount {
     pub bump: u8,
     // For 8-byte alignment
     pub _pad0: [u8; 3],
-    pub _padding0: [u64; 12],
+    pub _padding0: [u64; 11],
 }
 
 impl MarginfiAccount {
@@ -100,10 +101,7 @@ pub const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 assert_struct_size!(LendingAccount, 1728);
 assert_struct_align!(LendingAccount, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES], // 104 * 16 = 1664
@@ -130,10 +128,7 @@ pub enum BalanceSide {
 assert_struct_size!(Balance, 104);
 assert_struct_align!(Balance, 8);
 #[repr(C)]
-#[cfg_attr(
-    feature = "anchor",
-    derive(AnchorDeserialize, AnchorSerialize, TypeLayout)
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct Balance {
     pub active: u8,

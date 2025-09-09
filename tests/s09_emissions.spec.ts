@@ -26,6 +26,8 @@ import {
 } from "./rootHooks";
 import {
   assertBankrunTxFailed,
+  assertBNApproximately,
+  assertBNEqual,
   assertKeyDefault,
   assertKeysEqual,
   getTokenBalance,
@@ -70,6 +72,8 @@ describe("Set up emissions on staked collateral assets", () => {
     ecosystem.tokenBMint.publicKey,
     externalWallet.publicKey
   );
+
+  let lastUpdate: BN;
 
   before(async () => {
     // Fund the group admin with a bunch of Token B for emissions
@@ -179,6 +183,11 @@ describe("Set up emissions on staked collateral assets", () => {
     const diff = tokenAfter - tokenBefore;
     assert.equal(diff, 0);
 
+    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    lastUpdate = userAcc.lastUpdate;
+
     if (verbose) {
       console.log("User 2 claimed token B emissions");
       console.log(
@@ -221,6 +230,12 @@ describe("Set up emissions on staked collateral assets", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     await banksClient.processTransaction(tx);
+
+    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    assert(userAcc.lastUpdate > lastUpdate);
+    lastUpdate = userAcc.lastUpdate;
 
     const tokenAfter = await getTokenBalance(
       bankRunProvider,
@@ -268,6 +283,11 @@ describe("Set up emissions on staked collateral assets", () => {
     tx.sign(user.wallet);
     await banksClient.processTransaction(tx);
 
+    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    assertBNEqual(userAcc.lastUpdate, lastUpdate); // no change expected - no time passed
+
     const tokenAfter = await getTokenBalance(
       bankRunProvider,
       user.tokenBAccount
@@ -313,6 +333,11 @@ describe("Set up emissions on staked collateral assets", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(wallet.payer); // Provider wallet has to sign to pay tx fees
     await banksClient.processTransaction(tx);
+
+    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    assertBNEqual(userAcc.lastUpdate, lastUpdate); // no change expected - no time passed
   });
 
   // TODO explain why this happens in more detail:
@@ -396,6 +421,8 @@ describe("Set up emissions on staked collateral assets", () => {
     const accAfter = await bankrunProgram.account.marginfiAccount.fetch(
       userAccount
     );
+    assert(accAfter.lastUpdate > lastUpdate);
+    lastUpdate = accAfter.lastUpdate;
     assertKeysEqual(
       accAfter.emissionsDestinationAccount,
       externalWallet.publicKey
