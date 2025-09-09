@@ -106,12 +106,13 @@ impl MarginfiAccountFixture {
         ui_amount: T,
         deposit_up_to_limit: Option<bool>,
     ) -> anyhow::Result<(), BanksClientError> {
+        #[cfg_attr(not(feature = "transfer-hook"), allow(unused_mut))]
         let mut ix = self
             .make_bank_deposit_ix(funding_account, bank, ui_amount, deposit_up_to_limit)
             .await;
 
         // If t22 with transfer hook, add remaining accounts
-        let fetch_account_data_fn = |key| async move {
+        let _fetch_account_data_fn = |key| async move {
             self.ctx
                 .borrow_mut()
                 .banks_client
@@ -119,7 +120,7 @@ impl MarginfiAccountFixture {
                 .await
                 .map(|acc| acc.map(|a| a.data))
         };
-        let payer = self.ctx.borrow_mut().payer.pubkey();
+        let _payer = self.ctx.borrow_mut().payer.pubkey();
         #[cfg(feature = "transfer-hook")]
         if bank.mint.token_program == anchor_spl::token_2022::ID {
             // TODO: do that only if hook exists
@@ -133,9 +134,9 @@ impl MarginfiAccountFixture {
                 &funding_account,
                 &bank.mint.key,
                 &bank.get_vault(BankVaultType::Liquidity).0,
-                &payer,
+                &_payer,
                 ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
-                fetch_account_data_fn,
+                _fetch_account_data_fn,
             )
             .await;
         }
