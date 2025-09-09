@@ -1,7 +1,7 @@
 use super::marginfi_account::MarginfiAccountFixture;
-use crate::{bank::BankFixture, marginfi_group::*, native, spl::*, utils::*};
 #[cfg(feature = "transfer-hook")]
 use crate::transfer_hook::TEST_HOOK_ID;
+use crate::{bank::BankFixture, marginfi_group::*, native, spl::*, utils::*};
 
 use anchor_lang::prelude::*;
 use bincode::deserialize;
