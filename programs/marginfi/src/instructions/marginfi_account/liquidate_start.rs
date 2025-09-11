@@ -12,7 +12,10 @@ use anchor_lang::{prelude::*, solana_program::sysvar};
 use bytemuck::Zeroable;
 use marginfi_type_crate::{
     constants::ix_discriminators,
-    types::{HealthCache, LiquidationRecord, MarginfiAccount, ACCOUNT_IN_RECEIVERSHIP},
+    types::{
+        HealthCache, LiquidationRecord, MarginfiAccount, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
+        ACCOUNT_IN_RECEIVERSHIP,
+    },
 };
 
 /// (Permissionless) Begins a liquidation: snapshots the account and marks it in receivership. The
@@ -28,11 +31,6 @@ pub fn start_liquidation<'info>(
     {
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
-
-        check!(
-            !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
-            MarginfiError::UnexpectedLiquidationState
-        );
 
         // Note: the liquidator can use the health cache state after this ix concludes to plan their
         // liquidation strategy.
@@ -119,7 +117,13 @@ pub struct StartLiquidation<'info> {
     /// Account under liquidation
     #[account(
         mut,
-        has_one = liquidation_record
+        has_one = liquidation_record,
+        constraint = {
+            let acc = marginfi_account.load()?;
+            !acc.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+                && !acc.get_flag(ACCOUNT_IN_FLASHLOAN)
+                && !acc.get_flag(ACCOUNT_DISABLED)
+        } @MarginfiError::UnexpectedLiquidationState
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

@@ -70,4 +70,11 @@ pub mod mocks {
     ) -> Result<()> {
         instructions::start_liquidate::StartLiquidationViaCpi::start_liquidation_via_cpi(ctx)
     }
+
+    /// Handle bankruptcy via CPI
+    pub fn handle_bankruptcy<'info>(
+        ctx: Context<'_, '_, 'info, 'info, HandleBankruptcyViaCpi<'info>>,
+    ) -> Result<()> {
+        instructions::handle_bankruptcy::HandleBankruptcyViaCpi::handle_bankruptcy_via_cpi(ctx)
+    }
 }
