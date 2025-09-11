@@ -24,12 +24,9 @@ impl EmodeSettingsImpl for EmodeSettings {
                 asset_init_w >= I80F48::ZERO && asset_init_w <= I80F48::ONE,
                 MarginfiError::BadEmodeConfig
             );
+            let two_hundred_percent: I80F48 = I80F48::ONE + I80F48::ONE;
             check!(
-                asset_init_w <= (I80F48::ONE + I80F48::ONE),
-                MarginfiError::BadEmodeConfig
-            );
-            check!(
-                asset_maint_w <= (I80F48::ONE + I80F48::ONE),
+                asset_init_w <= two_hundred_percent && asset_maint_w <= two_hundred_percent,
                 MarginfiError::BadEmodeConfig
             );
             check!(asset_maint_w >= asset_init_w, MarginfiError::BadEmodeConfig);
