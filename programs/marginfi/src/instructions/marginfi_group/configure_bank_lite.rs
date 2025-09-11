@@ -3,7 +3,7 @@ use crate::set_if_some;
 use crate::state::marginfi_group::InterestRateConfigOpt;
 use crate::{
     state::marginfi_group::{Bank, MarginfiGroup},
-    MarginfiResult,
+    MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 
@@ -30,7 +30,7 @@ pub fn lending_pool_configure_bank_interest_only(
 pub struct LendingPoolConfigureBankInterestOnly<'info> {
     #[account(
         mut,
-        has_one = delegate_curve_admin,
+        has_one = delegate_curve_admin @ MarginfiError::InvalidDelegateCurveAdminConstraint,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -38,7 +38,7 @@ pub struct LendingPoolConfigureBankInterestOnly<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
     )]
     pub bank: AccountLoader<'info, Bank>,
 }
@@ -75,7 +75,7 @@ pub fn lending_pool_configure_bank_limits_only(
 pub struct LendingPoolConfigureBankLimitsOnly<'info> {
     #[account(
         mut,
-        has_one = delegate_limit_admin,
+        has_one = delegate_limit_admin @ MarginfiError::InvalidDelegateLimitAdminConstraint,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -83,7 +83,7 @@ pub struct LendingPoolConfigureBankLimitsOnly<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

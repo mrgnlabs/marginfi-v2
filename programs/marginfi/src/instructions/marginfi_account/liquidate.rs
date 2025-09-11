@@ -444,20 +444,20 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroupConstraint
     )]
     pub asset_bank: AccountLoader<'info, Bank>,
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroupConstraint
     )]
     pub liab_bank: AccountLoader<'info, Bank>,
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
+        has_one = authority @ MarginfiError::InvalidAuthorityConstraint
     )]
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -465,7 +465,7 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroupConstraint
     )]
     pub liquidatee_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

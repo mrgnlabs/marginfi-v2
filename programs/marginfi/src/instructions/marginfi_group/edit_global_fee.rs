@@ -4,6 +4,7 @@ use crate::constants::FEE_STATE_SEED;
 use crate::state::fee_state;
 use crate::state::marginfi_group::WrappedI80F48;
 use crate::utils::wrapped_i80f48_to_f64;
+use crate::MarginfiError;
 use anchor_lang::prelude::*;
 use fee_state::FeeState;
 
@@ -46,7 +47,7 @@ pub struct EditFeeState<'info> {
         mut,
         seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
-        has_one = global_fee_admin
+        has_one = global_fee_admin @ MarginfiError::InvalidGlobalFeeAdminConstraint
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 }

@@ -67,8 +67,8 @@ pub struct TransferToNewAccount<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
+        has_one = authority @ MarginfiError::InvalidAuthorityConstraint
     )]
     pub old_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

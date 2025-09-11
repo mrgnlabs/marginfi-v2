@@ -62,7 +62,7 @@ pub fn lending_pool_configure_bank(
 pub struct LendingPoolConfigureBank<'info> {
     #[account(
         mut,
-        has_one = admin,
+        has_one = admin @ MarginfiError::InvalidAdminConstraint,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -70,7 +70,7 @@ pub struct LendingPoolConfigureBank<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
     )]
     pub bank: AccountLoader<'info, Bank>,
 }
@@ -130,7 +130,7 @@ pub fn lending_pool_setup_emissions(
 pub struct LendingPoolSetupEmissions<'info> {
     #[account(
         mut,
-        has_one = delegate_emissions_admin,
+        has_one = delegate_emissions_admin @ MarginfiError::InvalidDelegateEmissionsAdminConstraint,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -139,7 +139,7 @@ pub struct LendingPoolSetupEmissions<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -248,7 +248,7 @@ pub fn lending_pool_update_emissions_parameters(
 pub struct LendingPoolUpdateEmissionsParameters<'info> {
     #[account(
         mut,
-        has_one = delegate_emissions_admin
+        has_one = delegate_emissions_admin @ MarginfiError::InvalidDelegateEmissionsAdminConstraint
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -257,7 +257,7 @@ pub struct LendingPoolUpdateEmissionsParameters<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroupConstraint
     )]
     pub bank: AccountLoader<'info, Bank>,
 

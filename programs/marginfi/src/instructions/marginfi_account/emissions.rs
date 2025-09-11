@@ -71,8 +71,8 @@ pub struct LendingAccountWithdrawEmissions<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
+        has_one = authority @ MarginfiError::InvalidAuthorityConstraint
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -80,8 +80,8 @@ pub struct LendingAccountWithdrawEmissions<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = emissions_mint
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
+        has_one = emissions_mint @ MarginfiError::InvalidEmissionsMintConstraint
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -164,7 +164,7 @@ pub fn marginfi_account_update_emissions_destination_account<'info>(
 pub struct MarginfiAccountUpdateEmissionsDestinationAccount<'info> {
     #[account(
         mut,
-        has_one = authority
+        has_one = authority @ MarginfiError::InvalidAuthorityConstraint
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -254,14 +254,14 @@ pub struct LendingAccountWithdrawEmissionsPermissionless<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroupConstraint
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
         mut,
-        has_one = group,
-        has_one = emissions_mint
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
+        has_one = emissions_mint @ MarginfiError::InvalidEmissionsMintConstraint
     )]
     pub bank: AccountLoader<'info, Bank>,
 

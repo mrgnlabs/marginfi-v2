@@ -4,7 +4,7 @@ use crate::state::price::OracleSetup;
 use crate::{
     constants::PYTH_PUSH_MIGRATED,
     state::marginfi_group::{Bank, MarginfiGroup},
-    MarginfiResult,
+    MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 
@@ -55,7 +55,7 @@ pub fn lending_pool_configure_bank_oracle(
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankOracle<'info> {
     #[account(
-        has_one = admin
+        has_one = admin @ MarginfiError::InvalidAdminConstraint
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -63,7 +63,7 @@ pub struct LendingPoolConfigureBankOracle<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroupConstraint,
     )]
     pub bank: AccountLoader<'info, Bank>,
 }
