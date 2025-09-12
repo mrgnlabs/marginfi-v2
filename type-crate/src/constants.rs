@@ -15,6 +15,7 @@ pub const STAKED_SETTINGS_SEED: &str = "staked_settings";
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 
+pub const LIQUIDATION_RECORD_SEED: &str = "liq_record";
 pub const MARGINFI_ACCOUNT_SEED: &str = "marginfi_account";
 
 /// TODO: Make these variable per bank
@@ -150,10 +151,24 @@ pub const ASSET_TAG_SOL: u8 = 1;
 /// (`ASSET_TAG_SOL`) and can only borrow SOL (`ASSET_TAG_SOL`)
 pub const ASSET_TAG_STAKED: u8 = 2;
 
+// WARN: You can set anything here, including a discrim that's technically "wrong" for the struct
+// with that name, and prod will use that hash anyways. Don't change these hashes once a struct is
+// live in prod.
 pub mod discriminators {
     pub const GROUP: [u8; 8] = [182, 23, 173, 240, 151, 206, 182, 67];
     pub const BANK: [u8; 8] = [142, 49, 166, 242, 50, 66, 97, 188];
     pub const ACCOUNT: [u8; 8] = [67, 178, 130, 109, 126, 114, 28, 42];
     pub const FEE_STATE: [u8; 8] = [63, 224, 16, 85, 193, 36, 235, 220];
     pub const STAKED_SETTINGS: [u8; 8] = [157, 140, 6, 77, 89, 173, 173, 125];
+    pub const LIQUIDATION_RECORD: [u8; 8] = [95, 116, 23, 132, 89, 210, 245, 162];
+}
+
+pub mod ix_discriminators {
+    pub const INIT_LIQUIDATION_RECORD: [u8; 8] = [236, 213, 238, 126, 147, 251, 164, 8];
+    pub const START_LIQUIDATION: [u8; 8] = [244, 93, 90, 214, 192, 166, 191, 21];
+    pub const END_LIQUIDATION: [u8; 8] = [110, 11, 244, 54, 229, 181, 22, 184];
+    pub const LENDING_ACCOUNT_WITHDRAW: [u8; 8] = [36, 72, 74, 19, 210, 210, 192, 192];
+    pub const LENDING_ACCOUNT_REPAY: [u8; 8] = [79, 209, 172, 177, 222, 51, 173, 151];
+    pub const LENDING_SETTLE_EMISSIONS: [u8; 8] = [234, 22, 84, 214, 118, 176, 140, 170];
+    pub const LENDING_WITHDRAW_EMISSIONS: [u8; 8] = [161, 58, 136, 174, 242, 223, 156, 176];
 }

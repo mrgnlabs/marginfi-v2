@@ -61,10 +61,11 @@ pub fn lending_account_pulse_health<'info>(
     if engine.is_some() {
         let engine = engine.unwrap();
         // Note: if the risk engine didn't error for init, it's unlikely it will error here
-        let liq_result: MarginfiResult<I80F48> = engine
+        let liq_result: MarginfiResult<(I80F48, I80F48, I80F48)> = engine
             .check_pre_liquidation_condition_and_get_account_health(
                 None,
                 &mut Some(&mut health_cache),
+                false,
             );
         if liq_result.is_err() {
             let err = liq_result.unwrap_err();
@@ -78,7 +79,7 @@ pub fn lending_account_pulse_health<'info>(
                 }
             }
         }
-        let bankruptcy_result: MarginfiResult =
+        let bankruptcy_result: MarginfiResult<(I80F48, I80F48)> =
             engine.check_account_bankrupt(&mut Some(&mut health_cache));
         if bankruptcy_result.is_err() {
             let err = bankruptcy_result.unwrap_err();

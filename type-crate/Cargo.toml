@@ -23,5 +23,6 @@ fixed = { workspace = true }
 fixed-macro = { workspace = true }
 bs58 = { workspace = true }
 static_assertions = { workspace = true }
+solana-instruction = { workspace = true }
 
 anchor-lang = { workspace = true, optional = true }

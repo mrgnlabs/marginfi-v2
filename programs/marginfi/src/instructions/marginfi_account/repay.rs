@@ -1,6 +1,7 @@
 use crate::{
     check,
     events::{AccountEventHeader, LendingAccountRepayEvent},
+    ix_utils::{get_discrim_hash, Hashable},
     prelude::{MarginfiError, MarginfiResult},
     state::{
         bank::BankImpl,
@@ -13,7 +14,9 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{
+    Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset repaid
@@ -28,7 +31,7 @@ pub fn lending_account_repay<'info>(
 ) -> MarginfiResult {
     let LendingAccountRepay {
         marginfi_account: marginfi_account_loader,
-        authority: signer,
+        authority,
         signer_token_account,
         liquidity_vault: bank_liquidity_vault,
         token_program,
@@ -90,7 +93,7 @@ pub fn lending_account_repay<'info>(
         repay_amount_pre_fee,
         signer_token_account.to_account_info(),
         bank_liquidity_vault.to_account_info(),
-        signer.to_account_info(),
+        authority.to_account_info(),
         maybe_bank_mint.as_ref(),
         token_program.to_account_info(),
         ctx.remaining_accounts,
@@ -128,10 +131,17 @@ pub struct LendingAccountRepay<'info> {
     #[account(
         mut,
         has_one = group,
-        has_one = authority
+        constraint = {
+            let a = marginfi_account.load()?;
+            a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+        } @MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
+    /// Must be marginfi_account's authority, unless in liquidation receivership
+    ///
+    /// Note: during liquidation, there are no signer checks whatsoever: any key can repay as
+    /// long as the invariants checked at the end of liquidation are met.
     pub authority: Signer<'info>,
 
     #[account(
@@ -149,4 +159,10 @@ pub struct LendingAccountRepay<'info> {
     pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
+}
+
+impl Hashable for LendingAccountRepay<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_repay")
+    }
 }

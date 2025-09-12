@@ -10,6 +10,7 @@ use marginfi_type_crate::{
 
 use crate::{
     check, debug,
+    ix_utils::{get_discrim_hash, Hashable},
     prelude::{MarginfiError, MarginfiResult},
     state::marginfi_account::{BankAccountWrapper, MarginfiAccountImpl},
 };
@@ -114,6 +115,12 @@ pub struct LendingAccountWithdrawEmissions<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
+impl Hashable for LendingAccountWithdrawEmissions<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_withdraw_emissions")
+    }
+}
+
 /// Permissionlessly settle unclaimed emissions to a users account.
 pub fn lending_account_settle_emissions(
     ctx: Context<LendingAccountSettleEmissions>,
@@ -144,6 +151,12 @@ pub struct LendingAccountSettleEmissions<'info> {
 
     #[account(mut)]
     pub bank: AccountLoader<'info, Bank>,
+}
+
+impl Hashable for LendingAccountSettleEmissions<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_settle_emissions")
+    }
 }
 
 /// emissions rewards will be withdrawn to the emissions_destination_account

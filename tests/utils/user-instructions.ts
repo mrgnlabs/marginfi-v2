@@ -1,5 +1,10 @@
 import { BN, Program } from "@coral-xyz/anchor";
-import { AccountMeta, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY } from "@solana/web3.js";
+import {
+  AccountMeta,
+  PublicKey,
+  SystemProgram,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
+} from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
@@ -357,6 +362,82 @@ export const repayIx = (program: Program<Marginfi>, args: RepayIxArgs) => {
     .remainingAccounts(oracleMeta)
     .instruction();
   return ix;
+};
+
+export type InitLiquidationRecordArgs = {
+  marginfiAccount: PublicKey;
+  feePayer: PublicKey;
+};
+
+export const initLiquidationRecordIx = (
+  program: Program<Marginfi>,
+  args: InitLiquidationRecordArgs
+) => {
+  return program.methods
+    .marginfiAccountInitLiqRecord()
+    .accounts({
+      marginfiAccount: args.marginfiAccount,
+      feePayer: args.feePayer,
+      // liquidationRecord: // derived from seeds
+      // systemProgram: // hard coded key
+    })
+    .instruction();
+};
+
+export type StartLiquidationArgs = {
+  marginfiAccount: PublicKey;
+  liquidationReceiver: PublicKey;
+  remaining: PublicKey[];
+};
+
+export const startLiquidationIx = (
+  program: Program<Marginfi>,
+  args: StartLiquidationArgs
+) => {
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
+  return program.methods
+    .startLiquidation()
+    .accounts({
+      marginfiAccount: args.marginfiAccount,
+      // liquidationRecord: // implied from account
+      liquidationReceiver: args.liquidationReceiver,
+      // instructionSysvar: // hard coded key
+      // systemProgram: // hard coded key
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+};
+
+export type EndLiquidationArgs = {
+  marginfiAccount: PublicKey;
+  remaining: PublicKey[];
+};
+
+export const endLiquidationIx = (
+  program: Program<Marginfi>,
+  args: EndLiquidationArgs
+) => {
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
+  return program.methods
+    .endLiquidation()
+    .accounts({
+      marginfiAccount: args.marginfiAccount,
+      // liquidationRecord: // implied from account
+      // liquidationRecord: // implied from record
+      // feeState: // static pda
+      // globalFeeWallet: // implied from feeState
+      // systemProgram: // hard coded key
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
 };
 
 export type LiquidateIxArgs = {

@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::instructions as ix_sysvar;
 use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
+use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
 use pyth_solana_receiver_sdk::price_update::VerificationLevel;
 
 use crate::MarginfiResult;
@@ -50,10 +52,23 @@ cfg_if::cfg_if! {
     }
 }
 
+pub const COMPUTE_PROGRAM_KEY: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
+
 pub const NATIVE_STAKE_ID: Pubkey = pubkey!("Stake11111111111111111111111111111111111111");
 
 /// The default fee, in native SOL in native decimals (i.e. lamports) used in testing
 pub const INIT_BANK_ORIGINATION_FEE_DEFAULT: u32 = 10000;
+/// The default fee, in native SOL in native decimals (i.e. lamports) used in testing
+pub const LIQUIDATION_FLAT_FEE_DEFAULT: u32 = 5000;
+/// Liquidators can claim at least this premium, as a percent, when liquidating an asset in
+/// receivership liquidation, e.g. (1 + this) * amount repaid <= asset seized
+/// * This is the minimum value the program allows for the above, if fee state is set below this,
+///   the program will use this instead.
+pub const LIQUIDATION_BONUS_FEE_MINIMUM: I80F48 = I80F48!(0.05);
+/// Liquidators can consume/close out the entire account with essentially no limits (e.g. regardless
+/// of liquidation bonus, etc) if it has net assets worth less than this amount in dollars. This
+/// roughly covers the fee to open a liquidation record plus a little extra.
+pub const LIQUIDATION_CLOSEOUT_DOLLAR_THRESHOLD: I80F48 = I80F48!(5);
 
 pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
 

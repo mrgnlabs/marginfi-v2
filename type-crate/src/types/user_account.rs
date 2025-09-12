@@ -34,8 +34,11 @@ pub struct MarginfiAccount {
     /// - 2: `ACCOUNT_IN_FLASHLOAN` - Only set when an account is within a flash loan, e.g. when
     ///   start_flashloan is called, then unset when the flashloan ends.
     /// - 4: `ACCOUNT_FLAG_DEPRECATED` - Deprecated, available for future use
-    /// - 8: `ACCOUNT_TRANSFER_AUTHORITY_ALLOWED` - the admin has flagged with account to be moved,
-    ///   original owner can now call `set_account_transfer_authority`
+    /// - 8: `ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED` - the admin has flagged with account to be
+    ///   moved, original owner can now call `set_account_transfer_authority`
+    /// - 16: `ACCOUNT_IN_RECEIVERSHIP` - the account is eligible to be liquidated and has entered
+    ///   receivership, a liquidator is able to control borrows and withdraws until the end of the
+    ///   tx. This flag will only appear within a tx.
     pub account_flags: u64, // 8
     /// Set with `update_emissions_destination_account`. Emissions rewards can be withdrawn to the
     /// cannonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).
@@ -63,7 +66,13 @@ pub struct MarginfiAccount {
     pub bump: u8,
     // For 8-byte alignment
     pub _pad0: [u8; 3],
-    pub _padding0: [u64; 11],
+    /// Stores information related to liquidations made against this account. A pda of this
+    /// account's key, and "liq_record"
+    /// * Typically pubkey default if this account has never been liquidated or close to liquidation
+    /// * Opening this account is permissionless. Typically the liquidator pays, but e.g. we may
+    ///   also charge the user if they are opening a risky position on the front end.
+    pub liquidation_record: Pubkey,
+    pub _padding0: [u64; 7],
 }
 
 impl MarginfiAccount {
@@ -96,6 +105,7 @@ pub const ACCOUNT_DISABLED: u64 = 1 << 0;
 pub const ACCOUNT_IN_FLASHLOAN: u64 = 1 << 1;
 pub const ACCOUNT_FLAG_DEPRECATED: u64 = 1 << 2;
 pub const ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED: u64 = 1 << 3;
+pub const ACCOUNT_IN_RECEIVERSHIP: u64 = 1 << 4;
 pub const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 assert_struct_size!(LendingAccount, 1728);

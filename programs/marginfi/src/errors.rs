@@ -172,6 +172,20 @@ pub enum MarginfiError {
     ProtocolNotPaused,
     #[msg("Bank killed by bankruptcy: bank shutdown and value of all holdings is zero")] // 6084
     BankKilledByBankruptcy,
+    #[msg("Liquidation state issue. Check start before end, end last, and both unique")] // 6085
+    UnexpectedLiquidationState,
+    #[msg("Liquidation start must be first instruction (other than compute program ixes)")] // 6086
+    StartNotFirst,
+    #[msg("Only one liquidation event allowed per tx")] // 6087
+    StartRepeats,
+    #[msg("The end instruction must be the last ix in the tx")] // 6088
+    EndNotLast,
+    #[msg("Tried to call an instruction that is forbidden during liquidation")] // 6089
+    ForbiddenIx,
+    #[msg("Seized too much of the asset relative to liability repaid")] // 6090
+    LiquidationPremiumTooHigh,
+    #[msg("Start and end liquidation and flashloan must be top-level instructions")] // 6091
+    NotAllowedInCPI,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -280,6 +294,13 @@ impl From<u32> for MarginfiError {
             6082 => MarginfiError::PauseLimitExceeded,
             6083 => MarginfiError::ProtocolNotPaused,
             6084 => MarginfiError::BankKilledByBankruptcy,
+            6085 => MarginfiError::UnexpectedLiquidationState,
+            6086 => MarginfiError::StartNotFirst,
+            6087 => MarginfiError::StartRepeats,
+            6088 => MarginfiError::EndNotLast,
+            6089 => MarginfiError::ForbiddenIx,
+            6090 => MarginfiError::LiquidationPremiumTooHigh,
+            6091 => MarginfiError::NotAllowedInCPI,
             _ => MarginfiError::InternalLogicError,
         }
     }

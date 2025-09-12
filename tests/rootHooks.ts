@@ -63,9 +63,13 @@ export let globalFeeWallet: PublicKey = undefined;
 
 /** Lamports charged when creating any pool */
 export const INIT_POOL_ORIGINATION_FEE = 1000;
+/** Lamports charged for receivership liquidation events */
+export const LIQUIDATION_FLAT_FEE = 500;
 
 export const PROGRAM_FEE_FIXED = 0.01;
 export const PROGRAM_FEE_RATE = 0.02;
+/** The most a liquidator can earn in profit from receivership liquidation events */
+export const LIQUIDATION_MAX_FEE = 0.5;
 
 // All groups and banks below need to be deterministic to ensure the same ordering of balances in lending accounts
 /** Group used for most regular e2e tests */
@@ -229,8 +233,10 @@ export const mochaHooks = {
         admin: wallet.payer.publicKey,
         wallet: globalFeeWallet,
         bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
+        liquidationFlatSolFee: LIQUIDATION_FLAT_FEE,
         programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
         programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
+        liquidationMaxFee: bigNumberToWrappedI80F48(LIQUIDATION_MAX_FEE),
       })
     );
 

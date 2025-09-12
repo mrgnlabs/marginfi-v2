@@ -2,6 +2,7 @@ pub mod constants;
 pub mod errors;
 pub mod events;
 pub mod instructions;
+pub mod ix_utils;
 pub mod macros;
 pub mod prelude;
 pub mod state;
@@ -226,6 +227,10 @@ pub mod marginfi {
         marginfi_account::initialize_account(ctx)
     }
 
+    pub fn marginfi_account_init_liq_record(ctx: Context<InitLiquidationRecord>) -> MarginfiResult {
+        marginfi_account::initialize_liquidation_record(ctx)
+    }
+
     /// The same as `marginfi_account_initialize`, except the created marginfi account uses a PDA
     /// (Program Derived Address)
     ///
@@ -421,16 +426,20 @@ pub mod marginfi {
         admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
+        liquidation_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
         program_fee_rate: WrappedI80F48,
+        liquidation_max_fee: WrappedI80F48,
     ) -> MarginfiResult {
         marginfi_group::initialize_fee_state(
             ctx,
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         )
     }
 
@@ -440,16 +449,20 @@ pub mod marginfi {
         admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
+        liquidation_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
         program_fee_rate: WrappedI80F48,
+        liquidation_max_fee: WrappedI80F48,
     ) -> MarginfiResult {
         marginfi_group::edit_fee_state(
             ctx,
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         )
     }
 
@@ -488,6 +501,18 @@ pub mod marginfi {
 
     pub fn propagate_staked_settings(ctx: Context<PropagateStakedSettings>) -> MarginfiResult {
         marginfi_group::propagate_staked_settings(ctx)
+    }
+
+    pub fn start_liquidation<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartLiquidation<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::start_liquidation(ctx)
+    }
+
+    pub fn end_liquidation<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EndLiquidation<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::end_liquidation(ctx)
     }
 
     pub fn panic_pause(ctx: Context<PanicPause>) -> MarginfiResult {

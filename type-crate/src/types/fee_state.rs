@@ -35,20 +35,31 @@ pub struct FeeState {
     pub bank_init_flat_sol_fee: u32,
     pub bump_seed: u8,
     // Pad to next 8-byte multiple
-    _padding0: [u8; 4],
-    // Pad to 128 bytes
-    _padding1: [u8; 15],
+    _padding0: [u8; 3],
+    /// Liquidators can claim at this premium, when liquidating an asset in receivership
+    /// liquidation, e.g. (1 + this) * amount repaid <= asset seized
+    /// * A percentage
+    pub liquidation_max_fee: WrappedI80F48,
     /// Fee collected by the program owner from all groups
+    /// * A percentage
     pub program_fee_fixed: WrappedI80F48,
     /// Fee collected by the program owner from all groups
+    /// * A percentage
     pub program_fee_rate: WrappedI80F48,
     /// When the global admin pauses the protocol in the event of an emergency, information about
     /// the pause duration will be stored here and propagated to groups.
     pub panic_state: PanicState,
+    // Reserved for future use, forces 8-byte alignment
+    pub placeholder1: u64,
+    /// Flat fee assessed for insurance/program use when a liquidation is executed
+    /// * In SOL, in native decimals.
+    pub liquidation_flat_sol_fee: u32,
     // Reserved for future use
-    _reserved0: [u8; 32],
+    _reserved0: [u8; 20],
     _reserved1: [u8; 32],
 }
+
+// TODO regression test with mainnet for fee state to make sure padding is still good
 
 impl FeeState {
     pub const LEN: usize = std::mem::size_of::<FeeState>();

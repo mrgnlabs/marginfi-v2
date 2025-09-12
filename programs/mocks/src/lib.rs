@@ -63,4 +63,18 @@ pub mod mocks {
             third_party_id,
         )
     }
+
+    /// Start a liquidation via CPI
+    pub fn start_liquidation_via_cpi<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartLiquidationViaCpi<'info>>,
+    ) -> Result<()> {
+        instructions::start_liquidate::StartLiquidationViaCpi::start_liquidation_via_cpi(ctx)
+    }
+
+    /// Handle bankruptcy via CPI
+    pub fn handle_bankruptcy<'info>(
+        ctx: Context<'_, '_, 'info, 'info, HandleBankruptcyViaCpi<'info>>,
+    ) -> Result<()> {
+        instructions::handle_bankruptcy::HandleBankruptcyViaCpi::handle_bankruptcy_via_cpi(ctx)
+    }
 }

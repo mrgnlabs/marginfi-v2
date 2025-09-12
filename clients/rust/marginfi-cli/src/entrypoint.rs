@@ -157,9 +157,13 @@ pub enum GroupCommand {
         #[clap(long)]
         bank_init_flat_sol_fee: u32,
         #[clap(long)]
+        liquidation_flat_sol_fee: u32,
+        #[clap(long)]
         program_fee_fixed: f64,
         #[clap(long)]
         program_fee_rate: f64,
+        #[clap(long)]
+        liquidation_max_fee: f64,
     },
     EditFeeState {
         #[clap(long)]
@@ -169,9 +173,13 @@ pub enum GroupCommand {
         #[clap(long)]
         bank_init_flat_sol_fee: u32,
         #[clap(long)]
+        liquidation_flat_sol_fee: u32,
+        #[clap(long)]
         program_fee_fixed: f64,
         #[clap(long)]
         program_fee_rate: f64,
+        #[clap(long)]
+        liquidation_max_fee: f64,
     },
     ConfigGroupFee {
         #[clap(
@@ -671,29 +679,37 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         } => processor::initialize_fee_state(
             config,
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         ),
         GroupCommand::EditFeeState {
             new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         } => processor::edit_fee_state(
             config,
             new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         ),
         GroupCommand::ConfigGroupFee { enable_program_fee } => {
             processor::config_group_fee(config, profile, enable_program_fee)

@@ -5,8 +5,6 @@ use anchor_lang::prelude::*;
 
 use bytemuck::{Pod, Zeroable};
 
-#[cfg(not(feature = "anchor"))]
-use super::Pubkey;
 use super::WrappedI80F48;
 
 assert_struct_size!(InterestRateConfig, 240);
