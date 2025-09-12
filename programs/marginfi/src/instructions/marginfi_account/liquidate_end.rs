@@ -12,7 +12,10 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi_type_crate::{
     constants::FEE_STATE_SEED,
-    types::{FeeState, HealthCache, LiquidationRecord, MarginfiAccount, ACCOUNT_IN_RECEIVERSHIP},
+    types::{
+        FeeState, HealthCache, LiquidationRecord, MarginfiAccount, ACCOUNT_DISABLED,
+        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
+    },
 };
 
 // TODO more detail
@@ -23,11 +26,6 @@ pub fn end_liquidation<'info>(
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
     let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
     let fee_state = ctx.accounts.fee_state.load()?;
-
-    check!(
-        marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
-        MarginfiError::EndNotLast
-    );
 
     validate_not_cpi_by_stack_height()?;
 
@@ -121,7 +119,13 @@ pub struct EndLiquidation<'info> {
     /// Account under liquidation
     #[account(
         mut,
-        has_one = liquidation_record
+        has_one = liquidation_record,
+        constraint = {
+            let acc = marginfi_account.load()?;
+            acc.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+                && !acc.get_flag(ACCOUNT_IN_FLASHLOAN)
+                && !acc.get_flag(ACCOUNT_DISABLED)
+        } @MarginfiError::UnexpectedLiquidationState
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

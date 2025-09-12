@@ -23,6 +23,7 @@ use marginfi_type_crate::{
     },
     types::{
         Bank, BankOperationalState, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
     },
 };
 use std::cmp::{max, min};
@@ -213,7 +214,13 @@ pub struct LendingPoolHandleBankruptcy<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        constraint = {
+            !marginfi_account.load()?.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+        } @MarginfiError::UnexpectedLiquidationState,
+        constraint = {
+            !marginfi_account.load()?.get_flag(ACCOUNT_IN_FLASHLOAN)
+        } @MarginfiError::AccountInFlashloan
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
