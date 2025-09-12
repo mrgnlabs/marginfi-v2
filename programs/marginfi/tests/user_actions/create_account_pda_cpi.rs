@@ -49,7 +49,7 @@ async fn marginfi_account_create_pda_via_cpi_success() -> anyhow::Result<()> {
     let mock_accounts = mocks::accounts::CreateMarginfiAccountPdaViaCpi {
         marginfi_group: test_f.marginfi_group.key,
         marginfi_account: marginfi_account_pda,
-        authority: authority,
+        authority,
         fee_payer: authority,
         instructions_sysvar: sysvar::instructions::id(),
         system_program: system_program::id(),

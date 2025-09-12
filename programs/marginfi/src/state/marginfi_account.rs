@@ -766,6 +766,7 @@ impl<'info> RiskEngine<'_, 'info> {
         let (total_assets, total_liabilities) =
             self.get_account_health_components(RiskRequirementType::Equity, health_cache)?;
 
+        // TODO remove this check here and raise it to the top-level instruction
         check!(
             !self.marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
             MarginfiError::AccountInFlashloan
