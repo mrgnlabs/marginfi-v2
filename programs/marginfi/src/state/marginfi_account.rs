@@ -1438,8 +1438,13 @@ mod test {
             health_cache: HealthCache::zeroed(),
             migrated_from: Pubkey::default(),
             migrated_to: Pubkey::default(),
+
             last_update: 0,
-            _padding0: [0; 12],
+            account_index: 0,
+            third_party_index: 0,
+            bump: 0,
+            _pad0: [0; 3],
+            _padding0: [0; 11],
         };
 
         assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));

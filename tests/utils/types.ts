@@ -51,6 +51,8 @@ export const HEALTH_CACHE_ORACLE_OK = 4;
 export const HEALTH_CACHE_PROGRAM_VERSION_0_1_3 = 1;
 /** For 0.1.4, this is how the cache represents the version */
 export const HEALTH_CACHE_PROGRAM_VERSION_0_1_4 = 2;
+/** For 0.1.4, this is how the cache represents the version */
+export const HEALTH_CACHE_PROGRAM_VERSION_0_1_5 = 3;
 /** Confidence intervals are multiplied by this constant internally */
 export const CONF_INTERVAL_MULTIPLE = 2.12;
 export const ORACLE_CONF_INTERVAL = 0.01;
@@ -68,7 +70,7 @@ export const ACCOUNT_DISABLED = 1;
 export const ACCOUNT_TRANSFER_FEE = 5_000_000;
 
 export const FLAG_PAUSED = 1;
-export const PAUSE_DURATION_SECONDS = 15 * 60; // 15 minutes
+export const PAUSE_DURATION_SECONDS = 30 * 60; // 30 minutes
 export const MAX_CONSECUTIVE_PAUSES = 2;
 export const MAX_DAILY_PAUSES = 3;
 export const DAILY_RESET_INTERVAL = 24 * 60 * 60; // 24 hours
