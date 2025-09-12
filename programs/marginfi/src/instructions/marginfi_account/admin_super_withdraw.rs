@@ -61,6 +61,8 @@ const ALLOWED_ARENA_BANK_KEYS: &[Pubkey] = &[
     pubkey!("EFSqtDRH4yg2EhcT2zxNAubGBCPg5hRSaPSfC4o4ETkk"),
     pubkey!("HKHvcCZKJzWPycqQdgCCT5oxt7GWdbPHrg9HSdxpdsEL"),
     pubkey!("4V17N9er3oFmgxc1Ruh4FB1vHP5qSq2Mc1kSMPpHjBiE"),
+    // A random staging bank to test this on
+    pubkey!("B72N46iVnhfX8b3oAPGZL6mrfJj5V684cStXv7XTMw9Q"),
 ];
 
 pub fn admin_super_withdraw<'info>(
