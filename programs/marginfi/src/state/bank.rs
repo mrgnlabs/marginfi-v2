@@ -36,10 +36,7 @@ use marginfi_type_crate::{
         LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
-    types::{
-        Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings,
-        MarginfiGroup,
-    },
+    types::{Bank, BankCache, BankConfig, BankConfigOpt, EmodeSettings, MarginfiGroup},
 };
 
 pub trait BankImpl {
