@@ -223,7 +223,7 @@ describe("Panic Mode state test (Bankrun)", () => {
     assertBNApproximately(cache.lastCacheUpdate, now, 100);
   });
 
-  it("(liquidator) liquidations still run when paused", async () => {
+  it("(liquidator) liquidations no longer run when paused", async () => {
     const liquidatee = users[0];
     const liquidator = users[2];
 
@@ -261,7 +261,9 @@ describe("Panic Mode state test (Bankrun)", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(liquidator.wallet);
-    await banksClient.processTransaction(tx);
+    const result = await banksClient.tryProcessTransaction(tx);
+    // Protocol paused
+    assertBankrunTxFailed(result, 6080);
   });
 
   // Note: This is an interesting edge case to consider. While liquidations are allowed to continue

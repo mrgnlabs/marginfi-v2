@@ -4,6 +4,7 @@ use crate::state::marginfi_account::{
     calc_amount, calc_value, get_remaining_accounts_per_bank, LendingAccountImpl,
     MarginfiAccountImpl, RiskEngine,
 };
+use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::utils::{
     validate_asset_tags, validate_bank_asset_tags, validate_bank_state, InstructionKind,
@@ -455,6 +456,11 @@ pub fn lending_account_liquidate<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountLiquidate<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
