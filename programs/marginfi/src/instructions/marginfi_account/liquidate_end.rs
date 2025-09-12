@@ -2,7 +2,7 @@ use crate::{
     check,
     constants::{LIQUIDATION_BONUS_FEE_MINIMUM, LIQUIDATION_CLOSEOUT_DOLLAR_THRESHOLD},
     events::LiquidationReceiverEvent,
-    ix_utils::{get_discrim_hash, Hashable},
+    ix_utils::{get_discrim_hash, validate_not_cpi_by_stack_height, Hashable},
     prelude::*,
     state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
 };
@@ -12,7 +12,10 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi_type_crate::{
     constants::FEE_STATE_SEED,
-    types::{FeeState, HealthCache, LiquidationRecord, MarginfiAccount, ACCOUNT_IN_RECEIVERSHIP},
+    types::{
+        FeeState, HealthCache, LiquidationRecord, MarginfiAccount, ACCOUNT_DISABLED,
+        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
+    },
 };
 
 // TODO more detail
@@ -24,10 +27,7 @@ pub fn end_liquidation<'info>(
     let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
     let fee_state = ctx.accounts.fee_state.load()?;
 
-    check!(
-        marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
-        MarginfiError::EndNotLast
-    );
+    validate_not_cpi_by_stack_height()?;
 
     let pre_assets: I80F48 = liq_record.cache.asset_value_maint.into();
     let pre_liabs: I80F48 = liq_record.cache.liability_value_maint.into();
@@ -63,8 +63,9 @@ pub fn end_liquidation<'info>(
     let seized: I80F48 = pre_assets_equity - post_assets_equity;
     let repaid: I80F48 = pre_liabs_equity - post_liabilities_equity;
     // Liquidator's allowed fee cannot go lower than the bonus fee minimum
+    let fee_state_max_fee: I80F48 = fee_state.liquidation_max_fee.into();
     let max_fee: I80F48 = I80F48::max(
-        fee_state.liquidation_max_fee.into(),
+        I80F48!(1) + fee_state_max_fee,
         I80F48!(1) + LIQUIDATION_BONUS_FEE_MINIMUM,
     );
 
@@ -114,10 +115,17 @@ pub fn end_liquidation<'info>(
 
 #[derive(Accounts)]
 pub struct EndLiquidation<'info> {
+    // Note: Must be the first account for tx introspection, do not move.
     /// Account under liquidation
     #[account(
         mut,
-        has_one = liquidation_record
+        has_one = liquidation_record,
+        constraint = {
+            let acc = marginfi_account.load()?;
+            acc.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+                && !acc.get_flag(ACCOUNT_IN_FLASHLOAN)
+                && !acc.get_flag(ACCOUNT_DISABLED)
+        } @MarginfiError::UnexpectedLiquidationState
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

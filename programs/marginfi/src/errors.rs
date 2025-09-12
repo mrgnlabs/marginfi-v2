@@ -184,6 +184,8 @@ pub enum MarginfiError {
     ForbiddenIx,
     #[msg("Seized too much of the asset relative to liability repaid")] // 6090
     LiquidationPremiumTooHigh,
+    #[msg("Start and end liquidation and flashloan must be top-level instructions")] // 6091
+    NotAllowedInCPI,
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -298,6 +300,7 @@ impl From<u32> for MarginfiError {
             6088 => MarginfiError::EndNotLast,
             6089 => MarginfiError::ForbiddenIx,
             6090 => MarginfiError::LiquidationPremiumTooHigh,
+            6091 => MarginfiError::NotAllowedInCPI,
             _ => MarginfiError::InternalLogicError,
         }
     }

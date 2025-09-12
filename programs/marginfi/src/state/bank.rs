@@ -36,10 +36,7 @@ use marginfi_type_crate::{
         LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
-    types::{
-        Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings,
-        MarginfiGroup,
-    },
+    types::{Bank, BankCache, BankConfig, BankConfigOpt, EmodeSettings, MarginfiGroup},
 };
 
 pub trait BankImpl {
@@ -107,10 +104,6 @@ pub trait BankImpl {
         remaining_accounts: &[AccountInfo<'info>],
     ) -> MarginfiResult;
     fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult<bool>;
-    fn assert_operational_mode(
-        &self,
-        is_asset_or_liability_amount_increasing: Option<bool>,
-    ) -> Result<()>;
     fn get_flag(&self, flag: u64) -> bool;
     fn override_emissions_flag(&mut self, flag: u64);
     fn update_flag(&mut self, value: bool, flag: u64);
@@ -656,31 +649,6 @@ impl BankImpl for Bank {
         }
 
         Ok(kill_bank)
-    }
-
-    fn assert_operational_mode(
-        &self,
-        is_asset_or_liability_amount_increasing: Option<bool>,
-    ) -> Result<()> {
-        match self.config.operational_state {
-            BankOperationalState::Paused => Err(MarginfiError::BankPaused.into()),
-            BankOperationalState::Operational => Ok(()),
-            BankOperationalState::ReduceOnly => {
-                if let Some(is_asset_or_liability_amount_increasing) =
-                    is_asset_or_liability_amount_increasing
-                {
-                    check!(
-                        !is_asset_or_liability_amount_increasing,
-                        MarginfiError::BankReduceOnly
-                    );
-                }
-
-                Ok(())
-            }
-            BankOperationalState::KilledByBankruptcy => {
-                Err(MarginfiError::BankKilledByBankruptcy.into())
-            }
-        }
     }
 
     fn get_flag(&self, flag: u64) -> bool {
