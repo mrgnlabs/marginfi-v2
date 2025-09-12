@@ -1,3 +1,4 @@
+mod admin_super_withdraw;
 mod borrow;
 mod close;
 mod close_balance;
@@ -15,6 +16,7 @@ mod sort_balances;
 mod transfer_account;
 mod withdraw;
 
+pub use admin_super_withdraw::*;
 pub use borrow::*;
 pub use close::*;
 pub use close_balance::*;

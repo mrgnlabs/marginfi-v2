@@ -318,7 +318,13 @@ impl BankImpl for Bank {
 
         set_if_some!(self.config.borrow_limit, config.borrow_limit);
 
-        set_if_some!(self.config.operational_state, config.operational_state);
+        if let Some(new_state) = config.operational_state {
+            check!(
+                new_state != BankOperationalState::KilledByBankruptcy,
+                MarginfiError::Unauthorized
+            );
+            self.config.operational_state = new_state;
+        }
 
         if let Some(ir_config) = &config.interest_rate_config {
             self.config.interest_rate_config.update(ir_config);
