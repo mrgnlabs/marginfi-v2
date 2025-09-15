@@ -1,7 +1,7 @@
 use super::marginfi_account::MarginfiAccountFixture;
-use crate::{
-    bank::BankFixture, marginfi_group::*, native, spl::*, transfer_hook::TEST_HOOK_ID, utils::*,
-};
+#[cfg(feature = "transfer-hook")]
+use crate::transfer_hook::TEST_HOOK_ID;
+use crate::{bank::BankFixture, marginfi_group::*, native, spl::*, utils::*};
 
 use anchor_lang::prelude::*;
 use bincode::deserialize;
@@ -395,6 +395,7 @@ impl TestFixture {
 
         program.prefer_bpf(true);
         program.add_program("marginfi", marginfi::ID, None);
+        #[cfg(feature = "transfer-hook")]
         program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
         program.add_program("mocks", mocks::ID, None);
 
