@@ -2,7 +2,7 @@ use crate::{
     check,
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     log_pool_info,
-    state::{bank::BankImpl, bank_config::BankConfigImpl, marginfi_group::MarginfiGroupImpl},
+    state::{bank::BankImpl, marginfi_group::MarginfiGroupImpl},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -10,10 +10,10 @@ use anchor_spl::token_interface::*;
 use bytemuck::from_bytes;
 use marginfi_type_crate::{
     constants::{
-        FEE_STATE_SEED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
+        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
-    types::{Bank, FeeState, MarginfiGroup},
+    types::{Bank, MarginfiGroup},
 };
 
 const MAINNET_PROGRAM_ID: Pubkey = pubkey!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
@@ -26,18 +26,9 @@ pub fn lending_pool_clone_bank(
         panic!("clone bank cannot run on mainnet deployment");
     }
 
+    // Note: We don't bother to pay the flat init fee, this ix only runs on staging.
+
     let _ = bank_seed;
-
-    let fee_state = ctx.accounts.fee_state.load()?;
-    let bank_init_flat_sol_fee = fee_state.bank_init_flat_sol_fee;
-    drop(fee_state);
-
-    if bank_init_flat_sol_fee > 0 {
-        anchor_lang::system_program::transfer(
-            ctx.accounts.transfer_flat_fee(),
-            bank_init_flat_sol_fee as u64,
-        )?;
-    }
 
     let (
         source_mint,
@@ -45,7 +36,6 @@ pub fn lending_pool_clone_bank(
         source_config,
         source_flags,
         source_emissions_rate,
-        source_emissions_remaining,
         source_emissions_mint,
         source_emode,
         source_fees_destination_account,
@@ -79,13 +69,13 @@ pub fn lending_pool_clone_bank(
             source_bank.config,
             source_bank.flags,
             source_bank.emissions_rate,
-            source_bank.emissions_remaining,
             source_bank.emissions_mint,
             source_bank.emode,
             source_bank.fees_destination_account,
         )
     };
 
+    // Sanity checks to make sure it's the same mint
     check!(
         ctx.accounts.bank_mint.key() == source_mint,
         MarginfiError::InvalidBankAccount
@@ -122,7 +112,6 @@ pub fn lending_pool_clone_bank(
 
     bank.flags = source_flags;
     bank.emissions_rate = source_emissions_rate;
-    bank.emissions_remaining = source_emissions_remaining;
     bank.emissions_mint = source_emissions_mint;
     bank.emode = source_emode;
     bank.fees_destination_account = source_fees_destination_account;
@@ -132,8 +121,7 @@ pub fn lending_pool_clone_bank(
     let mut group = ctx.accounts.marginfi_group.load_mut()?;
     group.add_bank()?;
 
-    bank.config.validate()?;
-    bank.config.validate_oracle_age()?;
+    // Note: we don't bother to validate, if the bank is in an invalid state, we'll copy that too.
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {
@@ -162,20 +150,11 @@ pub struct LendingPoolCloneBank<'info> {
     #[account(mut)]
     pub fee_payer: Signer<'info>,
 
-    #[account(
-        seeds = [FEE_STATE_SEED.as_bytes()],
-        bump,
-        has_one = global_fee_wallet
-    )]
-    pub fee_state: AccountLoader<'info, FeeState>,
-
-    /// CHECK: The fee admin's native SOL wallet, validated against fee state
-    #[account(mut)]
-    pub global_fee_wallet: AccountInfo<'info>,
-
     pub bank_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// CHECK: Source bank to clone from another program
+    /// Source bank to clone from mainnet program
+    ///
+    /// CHECK: Validate only that it belongs to the mainnet program and is the correct length.
     pub source_bank: UncheckedAccount<'info>,
 
     #[account(
@@ -262,18 +241,4 @@ pub struct LendingPoolCloneBank<'info> {
 
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
-}
-
-impl<'info> LendingPoolCloneBank<'info> {
-    fn transfer_flat_fee(
-        &self,
-    ) -> CpiContext<'_, '_, '_, 'info, anchor_lang::system_program::Transfer<'info>> {
-        CpiContext::new(
-            self.system_program.to_account_info(),
-            anchor_lang::system_program::Transfer {
-                from: self.fee_payer.to_account_info(),
-                to: self.global_fee_wallet.to_account_info(),
-            },
-        )
-    }
 }
