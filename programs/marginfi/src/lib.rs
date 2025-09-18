@@ -129,6 +129,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config, bank_seed)
     }
 
+    /// Staging or localnet only, panics on mainnet
     pub fn lending_pool_clone_bank(
         ctx: Context<LendingPoolCloneBank>,
         bank_seed: u64,

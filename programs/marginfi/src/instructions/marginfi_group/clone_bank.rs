@@ -29,7 +29,7 @@ pub fn lending_pool_clone_bank(
     }
 
     // Sanity check
-    if crate::ID == MAINNET_PROGRAM_ID {
+    if crate::ID == MAINNET_PROGRAM_ID || *ctx.program_id == MAINNET_PROGRAM_ID {
         panic!("clone bank cannot run on mainnet deployment");
     }
 
