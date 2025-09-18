@@ -1,21 +1,17 @@
 use crate::{
     check,
-    constants::{
-        FARMS_PROGRAM_ID, KAMINO_PROGRAM_ID, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        PROGRAM_VERSION,
-    },
+    constants::{FARMS_PROGRAM_ID, KAMINO_PROGRAM_ID, PROGRAM_VERSION},
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
     optional_account,
-    prelude::MarginfiGroup,
     state::{
-        health_cache::HealthCache,
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
-        marginfi_group::Bank,
+        bank::BankImpl,
+        marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine},
     },
     utils::{assert_within_one_token, is_kamino_asset_tag},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::clock::Clock;
 use anchor_lang::solana_program::sysvar;
 use anchor_spl::token::{accessor, Token};
 use anchor_spl::token_interface::{
@@ -30,6 +26,10 @@ use kamino_mocks::{
         WithdrawObligationCollateralAndRedeemReserveCollateralV2,
     },
     state::{MinimalObligation, MinimalReserve},
+};
+use marginfi_type_crate::constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED};
+use marginfi_type_crate::types::{
+    Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
 };
 
 /// Withdraw from a Kamino reserve through a marginfi account

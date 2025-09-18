@@ -9,6 +9,7 @@ default = []
 mainnet-beta = []
 devnet = []
 staging = []
+stagingalt = []
 
 [dependencies]
 anchor-lang = { workspace = true }

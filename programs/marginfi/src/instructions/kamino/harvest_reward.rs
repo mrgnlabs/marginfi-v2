@@ -1,12 +1,13 @@
 use crate::{
     bank_signer,
-    constants::{FARMS_PROGRAM_ID, LIQUIDITY_VAULT_AUTHORITY_SEED},
+    constants::FARMS_PROGRAM_ID,
     optional_account,
-    state::fee_state::FeeState,
-    state::marginfi_group::{Bank, BankVaultType},
     utils::is_kamino_asset_tag,
     MarginfiError, MarginfiResult,
 };
+use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
+use marginfi_type_crate::types::{Bank, FeeState};
+use crate::state::bank::BankVaultType;
 use anchor_lang::prelude::*;
 use anchor_spl::token::accessor;
 use anchor_spl::token_interface::{

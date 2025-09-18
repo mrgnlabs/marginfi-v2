@@ -14,6 +14,7 @@ client = []
 anchor = ["anchor-lang"]
 mainnet-beta = ["id-crate/mainnet-beta"]
 staging = ["id-crate/staging"]
+stagingalt = ["id-crate/stagingalt"]
 devnet = ["id-crate/devnet"]
 
 [dependencies]

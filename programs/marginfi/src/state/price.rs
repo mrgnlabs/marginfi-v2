@@ -137,7 +137,7 @@ impl OraclePriceFeedAdapter {
 
                 // Use new pattern: no feed_id parameter needed
                 let mut price_feed =
-                    PythPushOraclePriceFeed::load_checked(account_info, None, clock, max_age)?;
+                    PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
 
                 let price_u64 =
                     u64::try_from(price_feed.price.price).map_err(|_| MarginfiError::MathError)?;

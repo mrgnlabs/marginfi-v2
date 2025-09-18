@@ -1,12 +1,11 @@
 use crate::{
     bank_signer, check,
-    constants::{FARMS_PROGRAM_ID, KAMINO_PROGRAM_ID, LIQUIDITY_VAULT_AUTHORITY_SEED},
+    constants::{FARMS_PROGRAM_ID, KAMINO_PROGRAM_ID},
     events::{AccountEventHeader, LendingAccountDepositEvent},
     optional_account,
-    prelude::MarginfiGroup,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, BankVaultType},
+        bank::BankImpl,
+        marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
     },
     utils::is_kamino_asset_tag,
     utils::{assert_within_one_token, validate_asset_tags},
@@ -18,6 +17,9 @@ use anchor_spl::token::Token;
 use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
+use marginfi_type_crate::types::{Bank, MarginfiGroup, MarginfiAccount, ACCOUNT_DISABLED};
+use crate::state::bank::BankVaultType;
+use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
 use fixed::types::I80F48;
 use kamino_mocks::kamino_lending::cpi::deposit_reserve_liquidity_and_obligation_collateral_v2;
 use kamino_mocks::{

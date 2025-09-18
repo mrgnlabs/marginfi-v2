@@ -2646,6 +2646,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kamino-mocks"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "bytemuck",
+ "fixed",
+ "fixed-macro",
+ "marginfi-type-crate",
+ "static_assertions",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2853,6 +2865,7 @@ dependencies = [
  "fixed-macro",
  "futures",
  "id-crate",
+ "kamino-mocks",
  "lazy_static",
  "marginfi-type-crate",
  "mocks",

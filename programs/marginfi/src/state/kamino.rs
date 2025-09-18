@@ -1,10 +1,7 @@
-use super::{
-    marginfi_group::{
-        BankConfig, BankOperationalState, InterestRateConfig, RiskTier, WrappedI80F48,
-    },
-    price::OracleSetup,
+use marginfi_type_crate::types::{
+    BankConfig, BankOperationalState, InterestRateConfig, OracleSetup, RiskTier, WrappedI80F48,
 };
-use crate::constants::{ASSET_TAG_KAMINO, PYTH_PUSH_MIGRATED};
+use marginfi_type_crate::constants::{ASSET_TAG_KAMINO, PYTH_PUSH_MIGRATED_DEPRECATED};
 use anchor_lang::prelude::*;
 use fixed_macro::types::I80F48;
 
@@ -120,7 +117,7 @@ impl Default for KaminoConfigCompact {
             oracle_setup: OracleSetup::KaminoPythPush,
             operational_state: BankOperationalState::Operational,
             risk_tier: RiskTier::Collateral,
-            config_flags: PYTH_PUSH_MIGRATED,
+            config_flags: PYTH_PUSH_MIGRATED_DEPRECATED,
             total_asset_value_init_limit: 1_000_000,
             oracle_max_age: 10,
             oracle_max_confidence: 0, // Use default 10%

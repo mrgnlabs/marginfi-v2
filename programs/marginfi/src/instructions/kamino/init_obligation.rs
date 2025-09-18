@@ -1,10 +1,9 @@
 use crate::constants::{FARMS_PROGRAM_ID, KAMINO_PROGRAM_ID};
-use crate::state::marginfi_group::BankVaultType;
 use crate::utils::is_kamino_asset_tag;
-use crate::{bank_signer, optional_account, MarginfiError};
-use crate::{
-    constants::LIQUIDITY_VAULT_AUTHORITY_SEED, state::marginfi_group::Bank, MarginfiResult,
-};
+use crate::{bank_signer, optional_account, MarginfiError, MarginfiResult};
+use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
+use marginfi_type_crate::types::Bank;
+use crate::state::bank::BankVaultType;
 use anchor_lang::solana_program::sysvar;
 use anchor_lang::{prelude::*, system_program};
 use anchor_spl::token::Token;

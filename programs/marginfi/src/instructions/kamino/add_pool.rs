@@ -1,17 +1,12 @@
 // Adds a Kamino type bank to a group with sane defaults. Used to integrate with Kamino
 // allowing users to interact with Kamino pools through marginfi
 use crate::{
-    constants::{
-        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, KAMINO_PROGRAM_ID, LIQUIDITY_VAULT_AUTHORITY_SEED,
-        LIQUIDITY_VAULT_SEED,
-    },
+    constants::KAMINO_PROGRAM_ID,
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     log_pool_info,
     state::{
-        kamino::KaminoConfigCompact,
-        marginfi_group::{Bank, MarginfiGroup},
-        price::OracleSetup,
+        bank::BankImpl, bank_config::BankConfigImpl, kamino::KaminoConfigCompact,
+        marginfi_group::MarginfiGroupImpl,
     },
     MarginfiError, MarginfiResult,
 };
@@ -19,6 +14,11 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::system_program;
 use anchor_spl::token_interface::*;
 use kamino_mocks::state::MinimalReserve;
+use marginfi_type_crate::constants::{
+    FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
+    LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+};
+use marginfi_type_crate::types::{Bank, MarginfiGroup, OracleSetup};
 
 /// Add a Kamino bank to the marginfi lending pool
 pub fn lending_pool_add_bank_kamino(
