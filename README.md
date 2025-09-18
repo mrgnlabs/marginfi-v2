@@ -1,5 +1,7 @@
 # Marginfi v2
 
+See more specific guides in the /guides folder.
+
 ## Overview
 
 Marginfi is a decentralized liquidity aggregation protocol built on the Solana blockchain that allows users to access a range of lending markets through a single platform, supporting cryptocurrencies such as SOL, USDC, USDT, wBTC (Portal), ETH (Portal), and BONK. The platform pools liquidity from various sources, offering competitive interest rates to lenders and lower interest rates to borrowers. Marginfi plans to introduce cross-composing in the future, enabling users to trade between different assets on the platform, further enhancing liquidity and providing more opportunities for investment returns.

@@ -13,6 +13,7 @@ import {
   ecosystem,
   oracles,
   users,
+  globalProgramAdmin,
 } from "./rootHooks";
 import { configureBank } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
@@ -27,9 +28,10 @@ import {
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { dumpAccBalances } from "./utils/tools";
 import { genericMultiBankTestSetup } from "./genericSetups";
+import { refreshPullOracles } from "./utils/pyth-pull-mocks";
 
-/** Banks in this test use a "random" seed so their key is non-deterministic. */
-let startingSeed: number;
+const startingSeed: number = 199;
+const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_1234000000M1");
 
 /** This is the program-enforced maximum enforced number of balances per account. */
 const MAX_BALANCES = 16;
@@ -38,15 +40,28 @@ const USER_ACCOUNT_THROWAWAY = "throwaway_account1";
 let banks: PublicKey[] = [];
 let throwawayGroup: Keypair;
 
-describe("Limits on number of accounts (mostly to diagnose memory issues)", () => {
+describe("Limits on number of accounts when using Kamino", () => {
   it("init group, init banks, and fund banks", async () => {
     const result = await genericMultiBankTestSetup(
       MAX_BALANCES,
-      USER_ACCOUNT_THROWAWAY
+      USER_ACCOUNT_THROWAWAY,
+      groupBuff,
+      startingSeed
     );
-    startingSeed = result.startingSeed;
     banks = result.banks;
     throwawayGroup = result.throwawayGroup;
+  });
+
+  it("Refresh oracles", async () => {
+    let clock = await banksClient.getClock();
+    await refreshPullOracles(
+      oracles,
+      globalProgramAdmin.wallet,
+      new BN(Number(clock.slot)),
+      Number(clock.unixTimestamp),
+      bankrunContext,
+      false
+    );
   });
 
   it("(admin) Seeds liquidity in all banks - validates 16 deposits is possible", async () => {
@@ -138,7 +153,7 @@ describe("Limits on number of accounts (mostly to diagnose memory issues)", () =
           // anything other than OOM should blow up the test
           throw new Error(
             `Unexpected borrowIx failure on bank ${banks[i].toBase58()}: ` +
-              logs.join("\n")
+            logs.join("\n")
           );
         }
       }

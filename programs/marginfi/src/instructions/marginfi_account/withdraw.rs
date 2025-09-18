@@ -11,7 +11,7 @@ use crate::{
         },
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, validate_bank_state, InstructionKind},
+    utils::{self, is_marginfi_asset_tag, validate_bank_state, InstructionKind},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
@@ -186,7 +186,9 @@ pub struct LendingAccountWithdraw<'info> {
     #[account(
         mut,
         has_one = group,
-        has_one = liquidity_vault
+        has_one = liquidity_vault,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
     pub bank: AccountLoader<'info, Bank>,
 

@@ -150,6 +150,9 @@ pub const ASSET_TAG_SOL: u8 = 1;
 /// Staked SOL assets. Accounts with a STAKED position can only deposit other STAKED assets or SOL
 /// (`ASSET_TAG_SOL`) and can only borrow SOL (`ASSET_TAG_SOL`)
 pub const ASSET_TAG_STAKED: u8 = 2;
+/// Kamino assets. Accounts with a KAMINO position can only deposit other KAMINO assets or regular
+/// assets (`ASSET_TAG_DEFAULT`).
+pub const ASSET_TAG_KAMINO: u8 = 3;
 
 // WARN: You can set anything here, including a discrim that's technically "wrong" for the struct
 // with that name, and prod will use that hash anyways. Don't change these hashes once a struct is

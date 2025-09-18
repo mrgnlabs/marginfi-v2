@@ -9,9 +9,9 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 use marginfi_type_crate::{
     constants::{
-        ASSET_TAG_STAKED, FEE_STATE_SEED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
-        LIQUIDITY_VAULT_SEED,
+        ASSET_TAG_KAMINO, ASSET_TAG_STAKED, FEE_STATE_SEED, FEE_VAULT_AUTHORITY_SEED,
+        FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
+        LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     types::{Bank, BankConfigCompact, FeeState, MarginfiGroup},
 };
@@ -48,6 +48,11 @@ pub fn lending_pool_add_bank(
     check!(
         bank_config.asset_tag != ASSET_TAG_STAKED,
         MarginfiError::AddedStakedPoolManually
+    );
+    require_neq!(
+        bank_config.asset_tag,
+        ASSET_TAG_KAMINO,
+        MarginfiError::CantAddPool
     );
 
     let liquidity_vault_bump = ctx.bumps.liquidity_vault;

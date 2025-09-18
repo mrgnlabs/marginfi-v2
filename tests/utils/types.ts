@@ -20,6 +20,12 @@ export const u32_MAX: number = 4294967295;
 export const SINGLE_POOL_PROGRAM_ID = new PublicKey(
   "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE"
 );
+export const KLEND_PROGRAM_ID = new PublicKey(
+  "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
+);
+export const FARMS_PROGRAM_ID = new PublicKey(
+  "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
+);
 
 export const EMISSIONS_FLAG_NONE = 0;
 export const EMISSIONS_FLAG_BORROW_ACTIVE = 1;
@@ -31,6 +37,7 @@ export const CLOSE_ENABLED_FLAG = 16;
 export const ASSET_TAG_DEFAULT = 0;
 export const ASSET_TAG_SOL = 1;
 export const ASSET_TAG_STAKED = 2;
+export const ASSET_TAG_KAMINO = 3;
 
 export const ORACLE_SETUP_NONE = 0;
 export const ORACLE_SETUP_SWITCHBOARD_v2 = 2;
@@ -57,6 +64,7 @@ export const HEALTH_CACHE_PROGRAM_VERSION_0_1_5 = 3;
 export const CONF_INTERVAL_MULTIPLE = 2.12;
 /** Oracles return values with this confidence for testing purposes */
 export const ORACLE_CONF_INTERVAL = 0.01;
+export const ONE_WEEK_IN_SECONDS = 7 * 24 * 60 * 60;
 
 // By convention, all tags must be in 13375p34k (kidding, but only sorta)
 export const EMODE_STABLE_TAG = 5748; // STAB because 574813 is out of range
@@ -188,6 +196,37 @@ export const emptyBankConfigOptRaw = () => {
 };
 
 /**
+ * A blank config except that `defaultInterestRateConfigRaw` is used. Useful when trying to set a
+ * config without updating deposit limits, etc.
+ * @returns 
+ */
+export const blankBankConfigOptRaw = () => {
+  let bankConfigOpt: BankConfigOptRaw = {
+    assetWeightInit: null,
+    assetWeightMaint: null,
+    liabilityWeightInit: null,
+    liabilityWeightMaint: null,
+    depositLimit: null,
+    borrowLimit: null,
+    riskTier: {
+      collateral: undefined,
+    },
+    assetTag: null,
+    totalAssetValueInitLimit: null,
+    interestRateConfig: defaultInterestRateConfigRaw(),
+    operationalState: {
+      operational: undefined,
+    },
+    oracleMaxAge: null,
+    permissionlessBadDebtSettlement: null,
+    freezeSettings: null,
+    oracleMaxConfidence: null,
+  };
+
+  return bankConfigOpt;
+};
+
+/**
  * The default interest config has
  * * optimalUtilizationRate = .5
  * * plateauInterestRate = .6
@@ -257,7 +296,7 @@ export type InterestRateConfigWithOrigination = InterestRateConfig & {
 };
 
 // TODO remove when package updates
-type OperationalStateRaw =
+export type OperationalStateRaw =
   | { paused: {} }
   | { operational: {} }
   | { reduceOnly: {} };

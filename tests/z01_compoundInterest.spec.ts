@@ -24,6 +24,7 @@ import {
   ecosystem,
   oracles,
   users,
+  globalProgramAdmin,
 } from "./rootHooks";
 import { accrueInterest } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
@@ -37,9 +38,11 @@ import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { genericMultiBankTestSetup } from "./genericSetups";
 import { Clock } from "solana-bankrun";
 import { aprToU32, assertBNEqual } from "./utils/genericTests";
+import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
+import { getEpochAndSlot } from "./utils/stake-utils";
 
-/** Banks in this test use a "random" seed so their key is non-deterministic. */
-let startingSeed: number;
+const startingSeed: number = 399;
+const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_1234000000Z1");
 
 const USER_ACCOUNT_THROWAWAY = "throwaway_account2";
 const ONE_WEEK_IN_SECONDS = 7 * 24 * 60 * 60;
@@ -52,8 +55,12 @@ const borrowAmount = new BN(30 * 10 ** ecosystem.lstAlphaDecimals);
 
 describe("Compound interest demonstration", () => {
   it("init group, init banks, and fund banks", async () => {
-    const result = await genericMultiBankTestSetup(4, USER_ACCOUNT_THROWAWAY);
-    startingSeed = result.startingSeed;
+    const result = await genericMultiBankTestSetup(
+      4,
+      USER_ACCOUNT_THROWAWAY,
+      groupBuff,
+      startingSeed
+    );
     banks = result.banks;
     throwawayGroup = result.throwawayGroup;
   });
@@ -87,7 +94,7 @@ describe("Compound interest demonstration", () => {
       }
       tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
       tx.sign(user.wallet);
-      await banksClient.tryProcessTransaction(tx);
+      await banksClient.processTransaction(tx);
     }
   });
 
@@ -96,6 +103,13 @@ describe("Compound interest demonstration", () => {
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
     // enough to borrow as much as we want...
     const depositAmt = depositAmount.muln(3);
+
+    let clock = await banksClient.getClock();
+    await refreshPullOraclesBankrun(
+      oracles,
+      bankrunContext,
+      banksClient
+    );
 
     const tx = new Transaction();
     tx.add(
@@ -155,22 +169,43 @@ describe("Compound interest demonstration", () => {
           )
       )
     );
+
+    // Log some bank info:
+    const b = await bankrunProgram.account.bank.fetch(banks[1]);
+    const int = b.config.interestRateConfig;
+    if (verbose) {
+      console.log(
+        "Plataeu rate:" +
+        wrappedI80F48toBigNumber(int.plateauInterestRate).toNumber()
+      );
+      console.log(
+        "Optimal rate:" +
+        wrappedI80F48toBigNumber(int.optimalUtilizationRate).toNumber()
+      );
+    }
   });
 
   it("One week elapses", async () => {
-    let now = Math.floor(Date.now() / 1000);
-    const targetUnix = BigInt(now + ONE_WEEK_IN_SECONDS);
-
-    // Construct a new Clock; we only care about the unixTimestamp field here.
+    const slotsToAdvance = ONE_WEEK_IN_SECONDS * 0.4;
+    let clock = await banksClient.getClock();
+    let { epoch, slot } = await getEpochAndSlot(banksClient);
+    const timeTarget = clock.unixTimestamp + BigInt(ONE_WEEK_IN_SECONDS);
+    const targetUnix = BigInt(timeTarget);
     const newClock = new Clock(
-      0n, // slot
+      BigInt(slot + slotsToAdvance), // slot
       0n, // epochStartTimestamp
-      0n, // epoch
+      BigInt(epoch), // epoch
       0n, // leaderScheduleEpoch
       targetUnix
     );
-
     bankrunContext.setClock(newClock);
+    
+    // Refresh oracles after clock advancement
+    await refreshPullOraclesBankrun(
+      oracles,
+      bankrunContext,
+      banksClient
+    );
   });
 
   it("(user 0 - permissionless) Accrues interest on bank 1 ONLY", async () => {
@@ -183,7 +218,7 @@ describe("Compound interest demonstration", () => {
       }),
       // dummy tx to trick bankrun
       SystemProgram.transfer({
-        fromPubkey: users[0].wallet.publicKey,
+        fromPubkey: user.wallet.publicKey,
         toPubkey: bankrunProgram.provider.publicKey,
         lamports: 41,
       })
@@ -191,6 +226,7 @@ describe("Compound interest demonstration", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
     await banksClient.processTransaction(tx);
+    // dumpBankrunLogs(result);
 
     let bankValuesOneWeek: { asset: number; liability: number }[] = [];
     bankValuesOneWeek = await Promise.all(
@@ -223,16 +259,26 @@ describe("Compound interest demonstration", () => {
     let prevAsset = bankValuesInitial[1];
 
     for (let week = 1; week <= 52; week++) {
-      const now = Math.floor(Date.now() / 1000);
-      const targetUnix = BigInt(now + ONE_WEEK_IN_SECONDS * week);
+      const slotsToAdvance = ONE_WEEK_IN_SECONDS * 0.4;
+      let clock = await banksClient.getClock();
+      let { epoch, slot } = await getEpochAndSlot(banksClient);
+      const timeTarget = clock.unixTimestamp + BigInt(ONE_WEEK_IN_SECONDS);
+      const targetUnix = BigInt(timeTarget);
       const newClock = new Clock(
-        0n, // slot
+        BigInt(slot + slotsToAdvance), // slot
         0n, // epochStartTimestamp
-        0n, // epoch
+        BigInt(epoch), // epoch
         0n, // leaderScheduleEpoch
         targetUnix
       );
       bankrunContext.setClock(newClock);
+      
+      // Refresh oracles after clock advancement
+      await refreshPullOraclesBankrun(
+        oracles,
+        bankrunContext,
+        banksClient
+      );
 
       const tx = new Transaction();
       tx.add(
@@ -418,7 +464,7 @@ describe("Compound interest demonstration", () => {
         bank.cache.accumulatedSinceLastUpdate
       ).toNumber(),
       (bankValuesOneYear[2].asset - bankValuesInitial[2]) *
-        wrappedI80F48toBigNumber(bankBefore.totalAssetShares).toNumber()
+      wrappedI80F48toBigNumber(bankBefore.totalAssetShares).toNumber()
     );
     assert.equal(bank.cache.baseRate, aprToU32(baseRate));
     assert.equal(bank.cache.lendingRate, aprToU32(lendingRate));

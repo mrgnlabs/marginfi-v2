@@ -7,6 +7,7 @@ import {
 } from "./pyth-pull-mocks";
 import { ORACLE_CONF_INTERVAL } from "./types";
 
+// TODO deprecate standard oracles
 /**
  * Set up mock usdc and wsol oracles
  * @param wallet
@@ -41,7 +42,6 @@ export const setupPythOracles = async (
     usdc: boolean;
     a: boolean;
     b: boolean;
-    wsolPyth: boolean;
   }
 ) => {
   const now = Math.floor(Date.now() / 1000);
@@ -247,3 +247,29 @@ export const setupPythOracles = async (
   };
   return oracles;
 };
+
+async function setupPull(
+  wallet: Wallet,
+  price: number,
+  decimals: number,
+  oracleConfDefault: number
+): Promise<[Keypair, Keypair]> {
+  // compute BN-scaled values
+  const priceBn = new BN(price * 10 ** decimals);
+  const confBn = new BN(price * oracleConfDefault * 10 ** decimals);
+
+  // overwrite feed/oracle
+  const newFeed = await initBlankOracleFeed(wallet);
+  const newOracle = await initOrUpdatePriceUpdateV2(
+    wallet,
+    newFeed.publicKey,
+    priceBn,
+    confBn,
+    priceBn,
+    confBn,
+    new BN(0),
+    -decimals
+  );
+
+  return [newOracle, newFeed];
+}

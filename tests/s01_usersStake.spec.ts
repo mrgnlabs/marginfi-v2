@@ -34,11 +34,18 @@ import {
 } from "./utils/spl-staking-utils";
 import { assert } from "chai";
 import { LST_ATA, LST_ATA_v1, STAKE_ACC, STAKE_ACC_v1 } from "./utils/mocks";
+import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
+import { oracles } from "./rootHooks";
 
 describe("User stakes some native and creates an account", () => {
   /** Users's validator 0 stake account */
   let user0StakeAccount: PublicKey;
   const stake = 10;
+
+  before(async () => {
+    // Refresh oracles to ensure they're up to date
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
+  });
 
   it("(user 0) Create user stake account and stake to validator", async () => {
     let { createTx, stakeAccountKeypair } = createStakeAccount(
@@ -151,7 +158,10 @@ describe("User stakes some native and creates an account", () => {
   };
 
   it("Advance the epoch", async () => {
-    bankrunContext.warpToEpoch(1n);
+    let { epoch: epochBefore, slot: _slotBefore } = await getEpochAndSlot(
+      banksClient
+    );
+    bankrunContext.warpToEpoch(BigInt(epochBefore + 1));
 
     let { epoch: epochAfterWarp, slot: slotAfterWarp } = await getEpochAndSlot(
       banksClient

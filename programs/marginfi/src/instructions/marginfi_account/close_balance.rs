@@ -8,6 +8,7 @@ use crate::{
         bank::BankImpl,
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
     },
+    utils::is_marginfi_asset_tag,
 };
 
 pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -> MarginfiResult {
@@ -62,7 +63,9 @@ pub struct LendingAccountCloseBalance<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

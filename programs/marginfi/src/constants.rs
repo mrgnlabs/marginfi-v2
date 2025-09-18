@@ -25,7 +25,7 @@ pub const PROGRAM_VERSION: u8 = 3;
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
         pub const PYTH_ID: Pubkey = pubkey!("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
-    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging"))] {
+    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging", feature = "stagingalt"))] {
         pub const PYTH_ID: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");
     } else {
         // The key of the mock program on localnet (see its declared id)
@@ -37,7 +37,7 @@ cfg_if::cfg_if! {
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
         pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
-    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging"))] {
+    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging", feature = "stagingalt"))] {
         pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
     } else {
         pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
@@ -53,6 +53,10 @@ cfg_if::cfg_if! {
 }
 
 pub const COMPUTE_PROGRAM_KEY: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
+
+// Note: We mock Kamino/Kamino Farms with the same keys on localnet
+pub const KAMINO_PROGRAM_ID: Pubkey = pubkey!("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
+pub const FARMS_PROGRAM_ID: Pubkey = pubkey!("FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr");
 
 pub const NATIVE_STAKE_ID: Pubkey = pubkey!("Stake11111111111111111111111111111111111111");
 
