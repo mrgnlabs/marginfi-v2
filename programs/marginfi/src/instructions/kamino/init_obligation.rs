@@ -1,9 +1,7 @@
 use crate::constants::{FARMS_PROGRAM_ID, KAMINO_PROGRAM_ID};
+use crate::state::bank::BankVaultType;
 use crate::utils::is_kamino_asset_tag;
 use crate::{bank_signer, optional_account, MarginfiError, MarginfiResult};
-use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
-use marginfi_type_crate::types::Bank;
-use crate::state::bank::BankVaultType;
 use anchor_lang::solana_program::sysvar;
 use anchor_lang::{prelude::*, system_program};
 use anchor_spl::token::Token;
@@ -22,6 +20,8 @@ use kamino_mocks::kamino_lending::cpi::{
 };
 use kamino_mocks::kamino_lending::types::InitObligationArgs;
 use kamino_mocks::state::MinimalReserve;
+use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
+use marginfi_type_crate::types::Bank;
 
 /// Initialize a Kamino obligation for a marginfi account
 pub fn kamino_init_obligation(ctx: Context<KaminoInitObligation>, amount: u64) -> MarginfiResult {

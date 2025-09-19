@@ -1,13 +1,8 @@
+use crate::state::bank::BankVaultType;
 use crate::{
-    bank_signer,
-    constants::FARMS_PROGRAM_ID,
-    optional_account,
-    utils::is_kamino_asset_tag,
+    bank_signer, constants::FARMS_PROGRAM_ID, optional_account, utils::is_kamino_asset_tag,
     MarginfiError, MarginfiResult,
 };
-use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
-use marginfi_type_crate::types::{Bank, FeeState};
-use crate::state::bank::BankVaultType;
 use anchor_lang::prelude::*;
 use anchor_spl::token::accessor;
 use anchor_spl::token_interface::{
@@ -15,6 +10,8 @@ use anchor_spl::token_interface::{
 };
 use kamino_mocks::kamino_farms::cpi::accounts::HarvestReward;
 use kamino_mocks::kamino_farms::cpi::harvest_reward;
+use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
+use marginfi_type_crate::types::{Bank, FeeState};
 
 pub fn kamino_harvest_reward(
     ctx: Context<KaminoHarvestReward>,

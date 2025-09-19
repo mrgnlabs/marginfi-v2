@@ -9,7 +9,9 @@ use crate::{
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, is_marginfi_asset_tag, validate_asset_tags, validate_bank_state, InstructionKind},
+    utils::{
+        self, is_marginfi_asset_tag, validate_asset_tags, validate_bank_state, InstructionKind,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Clock;

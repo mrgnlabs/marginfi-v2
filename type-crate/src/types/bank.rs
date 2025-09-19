@@ -116,12 +116,12 @@ pub struct Bank {
     ///   the bank may safely be closed if this is zero. Will never go negative.
     pub borrowing_position_count: i32,
     pub _padding_0: [u8; 16],
-    
+
     /// Kamino banks only, otherwise Pubkey default
     pub kamino_reserve: Pubkey,
     /// Kamino banks only, otherwise Pubkey default
     pub kamino_obligation: Pubkey,
-    
+
     pub _padding_1: [[u64; 2]; 15], // 8 * 2 * 15 = 240B (reduced from 19 to account for 2 Pubkeys = 64 bytes)
 }
 

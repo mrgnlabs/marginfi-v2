@@ -1,9 +1,9 @@
+use anchor_lang::prelude::*;
+use fixed_macro::types::I80F48;
+use marginfi_type_crate::constants::{ASSET_TAG_KAMINO, PYTH_PUSH_MIGRATED_DEPRECATED};
 use marginfi_type_crate::types::{
     BankConfig, BankOperationalState, InterestRateConfig, OracleSetup, RiskTier, WrappedI80F48,
 };
-use marginfi_type_crate::constants::{ASSET_TAG_KAMINO, PYTH_PUSH_MIGRATED_DEPRECATED};
-use anchor_lang::prelude::*;
-use fixed_macro::types::I80F48;
 
 /// Used to configure Kamino banks. A simplified version of `BankConfigCompact` which omits most
 /// values related to interest since Kamino banks cannot earn interest or be borrowed against.

@@ -5,7 +5,9 @@ use crate::{
     optional_account,
     state::{
         bank::BankImpl,
-        marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine},
+        marginfi_account::{
+            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+        },
     },
     utils::{assert_within_one_token, is_kamino_asset_tag},
     MarginfiError, MarginfiResult,

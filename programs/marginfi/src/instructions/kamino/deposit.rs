@@ -1,3 +1,4 @@
+use crate::state::bank::BankVaultType;
 use crate::{
     bank_signer, check,
     constants::{FARMS_PROGRAM_ID, KAMINO_PROGRAM_ID},
@@ -17,9 +18,6 @@ use anchor_spl::token::Token;
 use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
-use marginfi_type_crate::types::{Bank, MarginfiGroup, MarginfiAccount, ACCOUNT_DISABLED};
-use crate::state::bank::BankVaultType;
-use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
 use fixed::types::I80F48;
 use kamino_mocks::kamino_lending::cpi::deposit_reserve_liquidity_and_obligation_collateral_v2;
 use kamino_mocks::{
@@ -29,6 +27,8 @@ use kamino_mocks::{
     },
     state::{MinimalObligation, MinimalReserve},
 };
+use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
 
 /// Deposit into a Kamino pool through a marginfi account
 ///
