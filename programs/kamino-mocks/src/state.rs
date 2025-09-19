@@ -1,8 +1,7 @@
-use crate::{
-    assert_struct_align, assert_struct_size, constants::EXP_10_I80F48, math_error, KaminoMocksError,
-};
+use crate::{assert_struct_align, assert_struct_size, math_error, KaminoMocksError};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
+use marginfi_type_crate::constants::EXP_10_I80F48;
 
 // Constants for account discriminators
 pub const RESERVE_DISCRIMINATOR: [u8; 8] = [43, 242, 204, 202, 26, 247, 59, 127];
