@@ -36,7 +36,10 @@ use marginfi_type_crate::{
         LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
     },
-    types::{Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings, MarginfiGroup},
+    types::{
+        Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings,
+        MarginfiGroup,
+    },
 };
 
 pub trait BankImpl {
@@ -164,6 +167,8 @@ impl BankImpl for Bank {
             lending_position_count: 0,
             borrowing_position_count: 0,
             _padding_0: [0; 16],
+            kamino_reserve: Pubkey::default(),
+            kamino_obligation: Pubkey::default(),
             ..Default::default()
         }
     }
