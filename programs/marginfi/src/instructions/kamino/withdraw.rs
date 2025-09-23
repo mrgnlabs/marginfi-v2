@@ -2,19 +2,21 @@ use crate::{
     check,
     constants::{FARMS_PROGRAM_ID, KAMINO_PROGRAM_ID, PROGRAM_VERSION},
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
+    ix_utils::{get_discrim_hash, Hashable},
     optional_account,
     state::{
         bank::BankImpl,
         marginfi_account::{
             BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
+        marginfi_group::MarginfiGroupImpl,
     },
-    utils::{assert_within_one_token, is_kamino_asset_tag},
+    utils::{assert_within_one_token, is_kamino_asset_tag, validate_bank_state, InstructionKind},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Clock;
-use anchor_lang::solana_program::sysvar;
+use anchor_lang::solana_program::sysvar::{self, Sysvar};
 use anchor_spl::token::{accessor, Token};
 use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
@@ -31,7 +33,7 @@ use kamino_mocks::{
 };
 use marginfi_type_crate::constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED};
 use marginfi_type_crate::types::{
-    Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+    Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
 };
 
 /// Withdraw from a Kamino reserve through a marginfi account
@@ -80,6 +82,8 @@ pub fn kamino_withdraw<'info>(
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let group = &ctx.accounts.group.load()?;
 
+        validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
+
         check!(
             !marginfi_account.get_flag(ACCOUNT_DISABLED),
             MarginfiError::AccountDisabled
@@ -100,6 +104,8 @@ pub fn kamino_withdraw<'info>(
 
         // Update bank cache after modifying balances (following pattern from regular withdraw)
         bank.update_bank_cache(group)?;
+        
+        marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
     }
 
     let expected_liquidity_amount = ctx
@@ -152,18 +158,21 @@ pub fn kamino_withdraw<'info>(
 
         marginfi_account.lending_account.sort_balances();
 
-        // Check account health, if below threshold fail transaction
-        // Assuming `ctx.remaining_accounts` holds only oracle accounts
-        let (risk_result, _engine) = RiskEngine::check_account_init_health(
-            &marginfi_account,
-            ctx.remaining_accounts,
-            &mut Some(&mut health_cache),
-        );
-        risk_result?;
-        health_cache.program_version = PROGRAM_VERSION;
+        // Note: during liquidating, we skip all health checks until the end of the transaction.
+        if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+            // Check account health, if below threshold fail transaction
+            // Assuming `ctx.remaining_accounts` holds only oracle accounts
+            let (risk_result, _engine) = RiskEngine::check_account_init_health(
+                &marginfi_account,
+                ctx.remaining_accounts,
+                &mut Some(&mut health_cache),
+            );
+            risk_result?;
+            health_cache.program_version = PROGRAM_VERSION;
 
-        health_cache.set_engine_ok(true);
-        marginfi_account.health_cache = health_cache;
+            health_cache.set_engine_ok(true);
+            marginfi_account.health_cache = health_cache;
+        }
     }
 
     Ok(())
@@ -171,12 +180,20 @@ pub fn kamino_withdraw<'info>(
 
 #[derive(Accounts)]
 pub struct KaminoWithdraw<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
         has_one = group,
-        has_one = authority
+        constraint = {
+            let a = marginfi_account.load()?;
+            a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+        } @MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -360,5 +377,11 @@ impl<'info> KaminoWithdraw<'info> {
         let decimals = self.reserve_liquidity_mint.decimals;
         transfer_checked(cpi_ctx, amount, decimals)?;
         Ok(())
+    }
+}
+
+impl Hashable for KaminoWithdraw<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "kamino_withdraw")
     }
 }

@@ -7,13 +7,15 @@ use crate::{
     state::{
         bank::BankImpl,
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
+        marginfi_group::MarginfiGroupImpl,
     },
     utils::is_kamino_asset_tag,
-    utils::{assert_within_one_token, validate_asset_tags},
+    utils::{assert_within_one_token, validate_asset_tags, validate_bank_state, InstructionKind},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::sysvar;
+use anchor_lang::solana_program::clock::Clock;
+use anchor_lang::solana_program::sysvar::{self, Sysvar};
 use anchor_spl::token::Token;
 use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
@@ -28,7 +30,7 @@ use kamino_mocks::{
     state::{MinimalObligation, MinimalReserve},
 };
 use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP};
 
 /// Deposit into a Kamino pool through a marginfi account
 ///
@@ -81,6 +83,15 @@ pub fn kamino_deposit(ctx: Context<KaminoDeposit>, amount: u64) -> MarginfiResul
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let group = &ctx.accounts.group.load()?;
 
+        validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
+
+        check!(
+            !marginfi_account.get_flag(ACCOUNT_DISABLED)
+                // Sanity check: liquidation doesn't allow the deposit ix, but just in case
+                && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
+            MarginfiError::AccountDisabled
+        );
+
         let mut bank_account = BankAccountWrapper::find_or_create(
             &ctx.accounts.bank.key(),
             &mut bank,
@@ -94,6 +105,7 @@ pub fn kamino_deposit(ctx: Context<KaminoDeposit>, amount: u64) -> MarginfiResul
         // Update bank cache after modifying balances
         bank.update_bank_cache(group)?;
 
+        marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
         marginfi_account.lending_account.sort_balances();
 
         emit!(LendingAccountDepositEvent {
@@ -114,6 +126,11 @@ pub fn kamino_deposit(ctx: Context<KaminoDeposit>, amount: u64) -> MarginfiResul
 
 #[derive(Accounts)]
 pub struct KaminoDeposit<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

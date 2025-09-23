@@ -174,4 +174,5 @@ pub mod ix_discriminators {
     pub const LENDING_ACCOUNT_REPAY: [u8; 8] = [79, 209, 172, 177, 222, 51, 173, 151];
     pub const LENDING_SETTLE_EMISSIONS: [u8; 8] = [234, 22, 84, 214, 118, 176, 140, 170];
     pub const LENDING_WITHDRAW_EMISSIONS: [u8; 8] = [161, 58, 136, 174, 242, 223, 156, 176];
+    pub const KAMINO_WITHDRAW: [u8; 8] = [199, 101, 41, 45, 213, 98, 224, 200];
 }
