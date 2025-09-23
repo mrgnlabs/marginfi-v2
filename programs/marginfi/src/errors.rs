@@ -376,7 +376,6 @@ impl MarginfiError {
                 | MarginfiError::MissingPythOrBankAccount
                 | MarginfiError::PythPushInvalidWindowSize
                 | MarginfiError::OracleMaxConfidenceExceeded
-                | MarginfiError::KaminoInvalidOracleSetup
         )
     }
 

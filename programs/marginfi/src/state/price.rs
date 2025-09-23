@@ -139,28 +139,54 @@ impl OraclePriceFeedAdapter {
                 let mut price_feed =
                     PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
 
-                let price_u64 =
-                    u64::try_from(price_feed.price.price).map_err(|_| MarginfiError::MathError)?;
-                let adj_price_u64 = reserve.adjust_oracle_price(price_u64)?;
-                price_feed.price.price =
-                    i64::try_from(adj_price_u64).map_err(|_| MarginfiError::MathError)?;
-
-                let ema_price_u64 = u64::try_from(price_feed.ema_price.price)
-                    .map_err(|_| MarginfiError::MathError)?;
-                let adj_ema_price_u64 = reserve.adjust_oracle_price(ema_price_u64)?;
-                price_feed.ema_price.price =
-                    i64::try_from(adj_ema_price_u64).map_err(|_| MarginfiError::MathError)?;
-
-                // Confidence is expressed in the same units as price and must also be adjusted
-                price_feed.price.conf = reserve.adjust_oracle_price(price_feed.price.conf)?;
-                price_feed.ema_price.conf =
-                    reserve.adjust_oracle_price(price_feed.ema_price.conf)?;
+                // Adjust Pyth prices & confidence in place
+                price_feed.price.price     = reserve.adjust_i64(price_feed.price.price)?;
+                price_feed.ema_price.price = reserve.adjust_i64(price_feed.ema_price.price)?;
+                price_feed.price.conf      = reserve.adjust_u64(price_feed.price.conf)?;
+                price_feed.ema_price.conf  = reserve.adjust_u64(price_feed.ema_price.conf)?;
 
                 Ok(OraclePriceFeedAdapter::PythPushOracle(price_feed))
             }
             OracleSetup::KaminoSwitchboardPull => {
-                // TODO
-                panic!("not yet implemented.");
+                // (1) Switchboard oracle (for price) and (2) Kamino reserve (for exchange rate)
+                check!(ais.len() == 2, MarginfiError::WrongNumberOfOracleAccounts);
+
+                let oracle_info = &ais[0];
+                let reserve_info = &ais[1];
+
+                require_keys_eq!(
+                    *oracle_info.key,
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+
+                require_keys_eq!(
+                    *reserve_info.key,
+                    bank_config.oracle_keys[1],
+                    MarginfiError::KaminoReserveValidationFailed
+                );
+
+                // Verifies owner + discriminator automatically
+                let reserve_loader: AccountLoader<MinimalReserve> =
+                    AccountLoader::try_from(reserve_info)
+                        .map_err(|_| MarginfiError::KaminoReserveValidationFailed)?;
+                let reserve = reserve_loader.load()?;
+                let is_stale = reserve.is_stale(clock.slot);
+                if is_stale {
+                    return err!(MarginfiError::ReserveStale);
+                }
+
+                let mut price_feed = SwitchboardPullPriceFeed::load_checked(
+                    oracle_info,
+                    clock.unix_timestamp,
+                    max_age,
+                )?;
+
+                // Adjust Switchboard value & std_dev (i128 with 1e18 precision)
+                price_feed.feed.result.value   = reserve.adjust_i128(price_feed.feed.result.value)?;
+                price_feed.feed.result.std_dev = reserve.adjust_i128(price_feed.feed.result.std_dev)?;
+
+                Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
             }
             OracleSetup::PythLegacy => {
                 panic!("pyth legacy is deprecated");
@@ -325,8 +351,26 @@ impl OraclePriceFeedAdapter {
                 Ok(())
             }
             OracleSetup::KaminoSwitchboardPull => {
-                // TODO
-                panic!("not yet implemented");
+                require_eq!(
+                    oracle_ais.len(),
+                    2,
+                    MarginfiError::WrongNumberOfOracleAccounts
+                );
+
+                require_keys_eq!(
+                    oracle_ais[0].key(),
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+
+                SwitchboardPullPriceFeed::check_ais(&oracle_ais[0])?;
+
+                require_keys_eq!(
+                    *oracle_ais[1].key,
+                    bank_config.oracle_keys[1],
+                    MarginfiError::KaminoReserveValidationFailed
+                );
+                Ok(())
             }
             OracleSetup::PythLegacy => {
                 panic!("pyth legacy is deprecated");

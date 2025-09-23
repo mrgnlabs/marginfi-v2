@@ -17,67 +17,164 @@ mod tests {
     }
 
     #[test]
-    fn adjust_oracle_price_returns_raw_when_zero_supply() {
+    fn adjust_u64_returns_raw_when_zero_supply() {
         let bank = generic_reserve(0, 8, 0);
-        assert_eq!(bank.adjust_oracle_price(123_456).unwrap(), 123_456);
+        assert_eq!(bank.adjust_u64(123_456).unwrap(), 123_456);
 
         // These are generally invalid states (all deposits of liquidity SHOULD have triggered
         // collateral tokens to be issued and vice-versa if there collateral tokens a deposit must
         // have happened).
         let bank = generic_reserve(5, 8, 0);
-        assert_eq!(bank.adjust_oracle_price(123_456).unwrap(), 123_456); // The raw price
+        assert_eq!(bank.adjust_u64(123_456).unwrap(), 123_456); // The raw price
         let bank = generic_reserve(0, 8, 5);
-        assert_eq!(bank.adjust_oracle_price(123_456).unwrap(), 0); // 0 (the reserve is empty)
+        assert_eq!(bank.adjust_u64(123_456).unwrap(), 0); // 0 (the reserve is empty)
     }
 
     #[test]
-    fn adjust_oracle_price_basic_scaling_produces_expected_ratio() {
+    fn adjust_i64_returns_raw_when_zero_supply() {
+        let bank = generic_reserve(0, 8, 0);
+        assert_eq!(bank.adjust_i64(123_456).unwrap(), 123_456);
+
+        let bank = generic_reserve(5, 8, 0);
+        assert_eq!(bank.adjust_i64(123_456).unwrap(), 123_456);
+        let bank = generic_reserve(0, 8, 5);
+        assert_eq!(bank.adjust_i64(123_456).unwrap(), 0);
+    }
+
+    #[test]
+    fn adjust_i128_returns_raw_when_zero_supply() {
+        let bank = generic_reserve(0, 8, 0);
+        assert_eq!(bank.adjust_i128(123_456_789_012_345).unwrap(), 123_456_789_012_345);
+
+        let bank = generic_reserve(5, 8, 0);
+        assert_eq!(bank.adjust_i128(123_456_789_012_345).unwrap(), 123_456_789_012_345);
+        let bank = generic_reserve(0, 8, 5);
+        assert_eq!(bank.adjust_i128(123_456_789_012_345).unwrap(), 0);
+    }
+
+    #[test]
+    fn adjust_u64_basic_scaling_produces_expected_ratio() {
         // 10:1
         let bank = generic_reserve(100_000_000, 8, 1_000_000);
 
-        let got = bank.adjust_oracle_price(42).unwrap();
+        let got = bank.adjust_u64(42).unwrap();
         assert_eq!(got, 4200);
     }
 
     #[test]
-    fn adjust_oracle_price_no_overflows() {
+    fn adjust_i64_basic_scaling_produces_expected_ratio() {
+        // 10:1
+        let bank = generic_reserve(100_000_000, 8, 1_000_000);
+
+        let got = bank.adjust_i64(42).unwrap();
+        assert_eq!(got, 4200);
+    }
+
+    #[test]
+    fn adjust_i128_basic_scaling_produces_expected_ratio() {
+        // 10:1
+        let bank = generic_reserve(100_000_000, 8, 1_000_000);
+
+        let got = bank.adjust_i128(42_000_000_000_000_000_000i128).unwrap(); // 42 * 1e18 (Switchboard format)
+        assert_eq!(got, 420_000_000_000_000_000_000i128); // 420 * 1e18
+    }
+
+    #[test]
+    fn adjust_u64_no_overflows() {
         let bank = generic_reserve(u64::MAX, 0, u64::MAX);
 
-        let res = bank.adjust_oracle_price(42);
+        let res = bank.adjust_u64(42);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 42);
 
         // Note: 2^15 is the largest value that wouldn't overflow (2^80 / 2^64), i.e. I80's max
         // whole component when multiplied by u64 max (the max possibly supply in practice)
-        let res = bank.adjust_oracle_price(32768);
+        let res = bank.adjust_u64(32768);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 32768);
 
         // Note: More typical decimal values go longer before overflow
         let bank = generic_reserve(u64::MAX, 8, u64::MAX);
 
-        let res = bank.adjust_oracle_price(32_76_800_000_000);
+        let res = bank.adjust_u64(32_76_800_000_000);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 32_76_800_000_000);
     }
 
     #[test]
-    fn adjust_oracle_price_overflow_detected_as_error() {
-        // raw = i64::MAX, total_supply = 2 tokens, mint_total_supply = 1 token
-        let bank = generic_reserve(200_000_000, 8, 1_000_000);
-
-        let res = bank.adjust_oracle_price(u64::MAX);
-        assert!(res.is_err());
-
-        // Note: we actually overflow considerably before i64::MAX
+    fn adjust_i64_no_overflows() {
         let bank = generic_reserve(u64::MAX, 0, u64::MAX);
 
-        let res = bank.adjust_oracle_price(32769);
+        let res = bank.adjust_i64(42);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), 42);
+
+        let res = bank.adjust_i64(32768);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), 32768);
+
+        let bank = generic_reserve(u64::MAX, 8, u64::MAX);
+
+        let res = bank.adjust_i64(32_76_800_000_000);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), 32_76_800_000_000);
+    }
+
+    #[test]
+    fn adjust_i128_no_overflows() {
+        let bank = generic_reserve(u64::MAX, 0, u64::MAX);
+
+        let res = bank.adjust_i128(42_000_000_000_000_000_000i128);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), 42_000_000_000_000_000_000i128);
+
+        let bank = generic_reserve(u64::MAX, 8, u64::MAX);
+
+        // Large Switchboard value with 18 decimals
+        let res = bank.adjust_i128(32_768_000_000_000_000_000_000i128);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), 32_768_000_000_000_000_000_000i128);
+    }
+
+    #[test]
+    fn adjust_u64_overflow_detected_as_error() {
+        // total_supply = 2 tokens, mint_total_supply = 1 token
+        let bank = generic_reserve(200_000_000, 8, 1_000_000);
+
+        let res = bank.adjust_u64(u64::MAX);
+        assert!(res.is_err());
+
+        // Note: we actually overflow considerably before u64::MAX
+        let bank = generic_reserve(u64::MAX, 0, u64::MAX);
+
+        let res = bank.adjust_u64(32769);
         assert!(res.is_err());
 
         let bank = generic_reserve(u64::MAX, 8, u64::MAX);
 
-        let res = bank.adjust_oracle_price(32_76_800_000_001);
+        let res = bank.adjust_u64(32_76_800_000_001);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn adjust_i64_overflow_detected_as_error() {
+        let bank = generic_reserve(200_000_000, 8, 1_000_000);
+
+        let res = bank.adjust_i64(i64::MAX);
+        assert!(res.is_err());
+
+        let bank = generic_reserve(u64::MAX, 0, u64::MAX);
+
+        let res = bank.adjust_i64(32769);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn adjust_i128_overflow_detected_as_error() {
+        let bank = generic_reserve(200_000_000, 8, 1_000_000);
+
+        // Very large Switchboard value that should overflow
+        let res = bank.adjust_i128(i128::MAX);
         assert!(res.is_err());
     }
 

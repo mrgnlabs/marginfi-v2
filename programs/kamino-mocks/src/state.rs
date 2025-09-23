@@ -136,30 +136,44 @@ impl MinimalReserve {
         Ok((total_liq, total_col))
     }
 
-    // ?? The mul-div here doesn't overflow for any "reasonable price", keep it or change to div-mul?
-    /// Given a raw (non-negative) oracle value (price or confidence), returns the value adjusted
-    /// by the bank's collateral↔liquidity exchange rate.
-    pub fn adjust_oracle_price(&self, raw: u64) -> Result<u64> {
+    /// Adjust a raw oracle value by the bank's collateral↔liquidity exchange rate.
+    pub fn adjust_oracle_value(&self, raw: I80F48) -> Result<I80F48> {
         // Prevent division by zero on reserves that have no assets
         if self.mint_total_supply == 0 {
             return Ok(raw);
         }
 
-        let raw_price: I80F48 = I80F48::from_num(raw);
         let (total_liq, total_col) = self.scaled_supplies()?;
 
-        let adjusted: I80F48 = raw_price
-            .checked_mul(total_liq)
-            .ok_or_else(math_error!())?
-            .checked_div(total_col)
-            .ok_or_else(math_error!())?;
-
-        // Convert back to u64. Overflow would only occur for absurdly large inputs.
-        let adjusted_u64 = adjusted
-            .checked_to_num::<u64>()
-            .ok_or(KaminoMocksError::MathError)?;
-        Ok(adjusted_u64)
+        // Calc ratio first to minimize overflow risk
+        let ratio = total_liq.checked_div(total_col).ok_or_else(math_error!())?;
+        Ok(raw.checked_mul(ratio).ok_or_else(math_error!())?)
     }
+
+    /// Wrapper for i128 values (used by Switchboard)
+    #[inline]
+    pub fn adjust_i128(&self, raw: i128) -> Result<i128> {
+        let adj = self.adjust_oracle_value(I80F48::from_num(raw))?;
+        adj.checked_to_num::<i128>()
+            .ok_or(KaminoMocksError::MathError.into())
+    }
+
+    /// Wrapper for i64 values (used by Pyth prices)
+    #[inline]
+    pub fn adjust_i64(&self, raw: i64) -> Result<i64> {
+        let adj = self.adjust_oracle_value(I80F48::from_num(raw))?;
+        adj.checked_to_num::<i64>()
+            .ok_or(KaminoMocksError::MathError.into())
+    }
+
+    /// Wrapper for u64 values (used by Pyth confidence)
+    #[inline]
+    pub fn adjust_u64(&self, raw: u64) -> Result<u64> {
+        let adj = self.adjust_oracle_value(I80F48::from_num(raw))?;
+        adj.checked_to_num::<u64>()
+            .ok_or(KaminoMocksError::MathError.into())
+    }
+
 
     // Note: our conversion has less precision than Kamino's internal representation (which uses
     //  U256 to avoid any precision loss), but sufficient for our purposes because we only use these
