@@ -188,6 +188,9 @@ pub struct LendingAccountWithdraw<'info> {
         mut,
         has_one = group,
         has_one = liquidity_vault,
+        // We want to block withdraw of assets with no weight (e.g. isolated) otherwise the
+        // liquidator can just take all of them and the user gets nothing back, which is unfair. For
+        // assets with any nominal weight, e.g. 10%, caveat emptor
         constraint = {
             let a = marginfi_account.load()?;
             let b = bank.load()?;
