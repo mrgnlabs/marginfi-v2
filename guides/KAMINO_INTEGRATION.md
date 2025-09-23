@@ -117,3 +117,10 @@ amount of CU: it is recommended to do this in a separate tx to the liquidation i
 | Liquidate | Collateral token amount | Must be converted back to liquidity token amount |
 
 **Important:** Deposit operations accept liquidity token amounts (the underlying asset), while withdraw and liquidate operations work with collateral token amounts. Since collateral tokens appreciate in value relative to the liquidity token as interest accumulates, liquidators and withdrawers must manually convert collateral token amounts back to liquidity token amounts using the current exchange rate.
+
+## Ongoing Considerations
+
+**Monitor for Kamino changes:**
+- **IDL updates**: Breaking changes to Kamino's instruction interfaces can brick marginfi's Kamino operations
+- **Account layout changes**: Changes to Reserve/Obligation structures can break deserialization and validation
+- **Liquidity constraints**: Insufficient reserve liquidity or withdrawal halts prevent users from accessing funds despite marginfi allowing the operation
