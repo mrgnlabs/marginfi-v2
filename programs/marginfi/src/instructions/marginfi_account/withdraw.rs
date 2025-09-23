@@ -18,6 +18,7 @@ use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
 use marginfi_type_crate::{
     constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
     types::{
@@ -186,7 +187,13 @@ pub struct LendingAccountWithdraw<'info> {
     #[account(
         mut,
         has_one = group,
-        has_one = liquidity_vault
+        has_one = liquidity_vault,
+        constraint = {
+            let a = marginfi_account.load()?;
+            let b = bank.load()?;
+            let weight: I80F48 = b.config.asset_weight_init.into();
+            a.get_flag(ACCOUNT_IN_RECEIVERSHIP) && weight == I80F48::ZERO
+        } @MarginfiError::LiquidationPremiumTooHigh
     )]
     pub bank: AccountLoader<'info, Bank>,
 
