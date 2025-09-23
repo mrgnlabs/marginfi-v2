@@ -44,10 +44,16 @@ mod tests {
     #[test]
     fn adjust_i128_returns_raw_when_zero_supply() {
         let bank = generic_reserve(0, 8, 0);
-        assert_eq!(bank.adjust_i128(123_456_789_012_345).unwrap(), 123_456_789_012_345);
+        assert_eq!(
+            bank.adjust_i128(123_456_789_012_345).unwrap(),
+            123_456_789_012_345
+        );
 
         let bank = generic_reserve(5, 8, 0);
-        assert_eq!(bank.adjust_i128(123_456_789_012_345).unwrap(), 123_456_789_012_345);
+        assert_eq!(
+            bank.adjust_i128(123_456_789_012_345).unwrap(),
+            123_456_789_012_345
+        );
         let bank = generic_reserve(0, 8, 5);
         assert_eq!(bank.adjust_i128(123_456_789_012_345).unwrap(), 0);
     }

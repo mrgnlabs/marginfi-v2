@@ -140,10 +140,10 @@ impl OraclePriceFeedAdapter {
                     PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
 
                 // Adjust Pyth prices & confidence in place
-                price_feed.price.price     = reserve.adjust_i64(price_feed.price.price)?;
+                price_feed.price.price = reserve.adjust_i64(price_feed.price.price)?;
                 price_feed.ema_price.price = reserve.adjust_i64(price_feed.ema_price.price)?;
-                price_feed.price.conf      = reserve.adjust_u64(price_feed.price.conf)?;
-                price_feed.ema_price.conf  = reserve.adjust_u64(price_feed.ema_price.conf)?;
+                price_feed.price.conf = reserve.adjust_u64(price_feed.price.conf)?;
+                price_feed.ema_price.conf = reserve.adjust_u64(price_feed.ema_price.conf)?;
 
                 Ok(OraclePriceFeedAdapter::PythPushOracle(price_feed))
             }
@@ -183,8 +183,9 @@ impl OraclePriceFeedAdapter {
                 )?;
 
                 // Adjust Switchboard value & std_dev (i128 with 1e18 precision)
-                price_feed.feed.result.value   = reserve.adjust_i128(price_feed.feed.result.value)?;
-                price_feed.feed.result.std_dev = reserve.adjust_i128(price_feed.feed.result.std_dev)?;
+                price_feed.feed.result.value = reserve.adjust_i128(price_feed.feed.result.value)?;
+                price_feed.feed.result.std_dev =
+                    reserve.adjust_i128(price_feed.feed.result.std_dev)?;
 
                 Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
             }

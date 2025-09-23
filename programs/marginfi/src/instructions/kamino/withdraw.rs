@@ -104,7 +104,7 @@ pub fn kamino_withdraw<'info>(
 
         // Update bank cache after modifying balances (following pattern from regular withdraw)
         bank.update_bank_cache(group)?;
-        
+
         marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
     }
 

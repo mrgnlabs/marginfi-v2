@@ -174,7 +174,6 @@ impl MinimalReserve {
             .ok_or(KaminoMocksError::MathError.into())
     }
 
-
     // Note: our conversion has less precision than Kamino's internal representation (which uses
     //  U256 to avoid any precision loss), but sufficient for our purposes because we only use these
     //  to sanity check that the user got the expected amount of tokens +/- 1 wqhen
