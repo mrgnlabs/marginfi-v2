@@ -1,11 +1,14 @@
 ## Build Notes
-- Can only build the program using `anchor build -p marginfi`
+
+- Can only build the program or check if it's building using `anchor build -p marginfi -- --no-default-features`
 
 ## Test Notes
-- Can only run `anchor test --skip-build` when running tests
-- It is not possible to run individual tests, tests must be run as whole using the `anchor test --skip-build` command. If needed use `2>&1 |` to pipe the output and grep for specific test related outputs
+
+- When running tests for any purpose (checking if tests pass, debugging failures, etc.), use the @agent-test-runner-analyzer agent
+- The test-runner-analyzer agent will handle running the full test suite and extracting relevant results for specific tests
 
 ## TypeScript Error Checking
+
 - To check TypeScript errors, use the MCP IDE diagnostics tool:
   - For a specific file: `mcp__ide__getDiagnostics` with `uri` parameter (e.g., `file:///root/projects/kamino-integration/tests/utils/types.ts`)
   - For all open files: `mcp__ide__getDiagnostics` without parameters
