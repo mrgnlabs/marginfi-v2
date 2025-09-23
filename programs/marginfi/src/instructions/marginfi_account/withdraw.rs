@@ -194,7 +194,7 @@ pub struct LendingAccountWithdraw<'info> {
             let a = marginfi_account.load()?;
             let b = bank.load()?;
             let weight: I80F48 = b.config.asset_weight_init.into();
-            a.get_flag(ACCOUNT_IN_RECEIVERSHIP) && weight == I80F48::ZERO
+            !(a.get_flag(ACCOUNT_IN_RECEIVERSHIP) && weight == I80F48::ZERO)
         } @MarginfiError::LiquidationPremiumTooHigh
     )]
     pub bank: AccountLoader<'info, Bank>,
