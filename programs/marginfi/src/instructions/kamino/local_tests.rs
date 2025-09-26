@@ -7,6 +7,36 @@ mod tests {
 
     const FRAC_BITS_DIFF: u32 = 60 - 48;
 
+
+    /// Delta from I80F48 quantization when applying a ratio:
+    ///   Δ = floor(raw * eps_bits / 2^48)
+    /// Assumes `raw >= 0`.
+    #[inline]
+    fn i80f48_delta(raw: i128, eps_bits: i128) -> i128 {
+        const N: i128 = 1i128 << 48; // 2^48
+        (raw * eps_bits) / N
+    }
+
+    /// Compute eps_bits for a reserve fixture:
+    ///   eps_bits = ratio_bits - k * 2^48
+    /// where:
+    ///   ratio_bits = floor( (floor(liq*N) * N) / floor(col*N) )
+    ///   liq = available_amount / 10^mint_decimals
+    ///   col = mint_total_supply / 10^mint_decimals
+    ///   k   = integer part of (available_amount / mint_total_supply)
+    #[inline]
+    fn i80f48_eps_bits(available_amount: u64, mint_total_supply: u64, mint_decimals: u32) -> i128 {
+        const N: i128 = 1i128 << 48;
+        let q: i128   = 10i128.pow(mint_decimals);
+
+        let liq_bits   = (available_amount as i128 * N) / q; // floor(liq*N)
+        let col_bits   = (mint_total_supply as i128 * N) / q; // floor(col*N)
+        let ratio_bits = (liq_bits * N) / col_bits;           // floor((liq_bits*N)/col_bits)
+        let k          = (available_amount / mint_total_supply) as i128;
+
+        ratio_bits - k * N
+    }
+
     /// Just the fields we care about for oracle pricing and liquidity/collateral token conversion
     fn generic_reserve(supply: u64, mint_decimals: u64, mint_total_supply: u64) -> MinimalReserve {
         let mut r = MinimalReserve::zeroed();
@@ -78,13 +108,18 @@ mod tests {
 
     #[test]
     fn adjust_i128_basic_scaling_produces_expected_ratio() {
-        // 10:1
         let bank = generic_reserve(10_000_000, 8, 1_000_000);
 
-        let got = bank.adjust_i128(42_000_000_000_000_000_000i128).unwrap(); // 42 * 1e18 (Switchboard format)
-        let expected = 420_000_000_000_000_000_000i128; // 420 * 1e18
-        // Ignore final 9 decimals of precision due to I80F48 fixed-point arithmetic limitations
-        assert_eq!(got / 1_000_000_000, expected / 1_000_000_000);
+        const ONE_E18: i128 = 1_000_000_000_000_000_000;
+        let raw = 42 * ONE_E18;
+
+        let got = bank.adjust_i128(raw).unwrap();
+
+        let eps = i80f48_eps_bits(10_000_000, 1_000_000, 8);
+        let k   = (10_000_000u64 / 1_000_000u64) as i128; // = 10 for this fixture
+
+        let expected = k * raw + i80f48_delta(raw, eps);
+        assert_eq!(got, expected);
     }
 
     #[test]
