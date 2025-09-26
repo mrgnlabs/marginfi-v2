@@ -9,7 +9,7 @@ use marginfi_type_crate::{
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDATION_RECORD_SEED,
         LIQUIDITY_VAULT_SEED,
     },
-    types::{BankConfigOpt, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP},
+    types::{BankConfigOpt, ACCOUNT_IN_RECEIVERSHIP},
 };
 use solana_program_test::*;
 use solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
