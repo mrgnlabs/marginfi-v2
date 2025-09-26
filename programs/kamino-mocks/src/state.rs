@@ -123,7 +123,7 @@ pub struct MinimalReserve {
 impl MinimalReserve {
     /// Returns `(total_liquidity_tokens, total_collateral_tokens)` both in “no-decimals” I80F48
     /// form (i.e. scaled down by 10^mint_decimals).
-    fn scaled_supplies(&self) -> Result<(I80F48, I80F48)> {
+    pub fn scaled_supplies(&self) -> Result<(I80F48, I80F48)> {
         let decimals: I80F48 = EXP_10_I80F48[self.mint_decimals as usize];
         let total_liq = self
             .calculate_total_supply_i80f48()
@@ -150,12 +150,27 @@ impl MinimalReserve {
         Ok(raw.checked_mul(ratio).ok_or_else(math_error!())?)
     }
 
+    /// Safe conversion from i128 to I80F48
+    #[inline]
+    fn i80_from_i128_checked(x: i128) -> Option<I80F48> {
+        const FRAC_BITS: u32 = 48;
+        const SHIFTED_MAX_I128: i128 = i128::MAX >> FRAC_BITS;
+        const SHIFTED_MIN_I128: i128 = i128::MIN >> FRAC_BITS;
+        
+        if x < SHIFTED_MIN_I128 || x > SHIFTED_MAX_I128 {
+            return None;
+        }
+        // Safe: (x << 48) cannot overflow by the guard above
+        Some(I80F48::from_bits(x << FRAC_BITS))
+    }
+
     /// Wrapper for i128 values (used by Switchboard)
     #[inline]
     pub fn adjust_i128(&self, raw: i128) -> Result<i128> {
-        let adj = self.adjust_oracle_value(I80F48::from_num(raw))?;
-        adj.checked_to_num::<i128>()
-            .ok_or(KaminoMocksError::MathError.into())
+        let raw_fx = Self::i80_from_i128_checked(raw).ok_or_else(math_error!())?;
+        let adj_fx = self.adjust_oracle_value(raw_fx)?;
+        Ok(adj_fx.checked_to_num::<i128>()
+            .ok_or_else(math_error!())?)
     }
 
     /// Wrapper for i64 values (used by Pyth prices)

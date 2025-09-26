@@ -4,9 +4,46 @@ mod tests {
 
     use bytemuck::Zeroable;
     use kamino_mocks::state::{u68f60_to_i80f48, MinimalReserve};
+    use fixed::types::I80F48;
 
     const FRAC_BITS_DIFF: u32 = 60 - 48;
 
+    // Exact overflow threshold helpers
+    fn ratio_bits(bank: &MinimalReserve) -> i128 {
+        const N: i128 = 1i128 << 48;
+        let (liq, col) = bank.scaled_supplies().unwrap();
+        let liq_bits = liq.to_bits();
+        let col_bits = col.to_bits();
+        (liq_bits * N) / col_bits
+    }
+
+    fn largest_safe_raw_for_u64_exact(bank: &MinimalReserve) -> u64 {
+        const N: i128 = 1i128 << 48;
+        let rb = ratio_bits(bank);
+        if rb <= 0 { return u64::MAX; }
+        let t = u64::MAX as i128;
+        let safe = (((t + 1) * N - 1) / rb) as i128;
+        if safe < 0 { 0 } else if safe > u64::MAX as i128 { u64::MAX } else { safe as u64 }
+    }
+
+    fn overflow_raw_for_u64_exact(bank: &MinimalReserve) -> u64 {
+        let safe = largest_safe_raw_for_u64_exact(bank);
+        safe.saturating_add(1)
+    }
+
+    fn largest_safe_raw_for_i64_exact(bank: &MinimalReserve) -> i64 {
+        const N: i128 = 1i128 << 48;
+        let rb = ratio_bits(bank);
+        if rb <= 0 { return i64::MAX; }
+        let t = i64::MAX as i128;
+        let safe = (((t + 1) * N - 1) / rb) as i128;
+        if safe < i64::MIN as i128 { i64::MIN } else if safe > i64::MAX as i128 { i64::MAX } else { safe as i64 }
+    }
+
+    fn overflow_raw_for_i64_exact(bank: &MinimalReserve) -> i64 {
+        let safe = largest_safe_raw_for_i64_exact(bank);
+        safe.saturating_add(1)
+    }
 
     /// Delta from I80F48 quantization when applying a ratio:
     ///   Δ = floor(raw * eps_bits / 2^48)
@@ -181,43 +218,45 @@ mod tests {
 
     #[test]
     fn adjust_u64_overflow_detected_as_error() {
-        // total_supply = 2 tokens, mint_total_supply = 1 token
-        let bank = generic_reserve(200_000_000, 8, 1_000_000);
+        // ratio > 1 ensures we can trigger overflow on the output cast
+        let bank = generic_reserve(200_000_000, 8, 1_000_000); // ~200:1
 
-        let res = bank.adjust_u64(u64::MAX);
-        assert!(res.is_err());
+        let safe = largest_safe_raw_for_u64_exact(&bank);
+        assert!(bank.adjust_u64(safe).is_ok(), "largest safe raw should succeed");
 
-        // Note: we actually overflow considerably before u64::MAX
-        let bank = generic_reserve(u64::MAX, 0, u64::MAX);
-
-        let res = bank.adjust_u64(32769);
-        assert!(res.is_err());
-
-        let bank = generic_reserve(u64::MAX, 8, u64::MAX);
-
-        let res = bank.adjust_u64(32_76_800_000_001);
-        assert!(res.is_err());
+        let ovf = overflow_raw_for_u64_exact(&bank);
+        assert!(bank.adjust_u64(ovf).is_err(), "raw above threshold must overflow");
     }
 
     #[test]
     fn adjust_i64_overflow_detected_as_error() {
         let bank = generic_reserve(200_000_000, 8, 1_000_000);
 
-        let res = bank.adjust_i64(i64::MAX);
-        assert!(res.is_err());
+        let safe = largest_safe_raw_for_i64_exact(&bank);
+        assert!(bank.adjust_i64(safe).is_ok());
 
-        let bank = generic_reserve(u64::MAX, 0, u64::MAX);
-
-        let res = bank.adjust_i64(32769);
-        assert!(res.is_err());
+        let ovf = overflow_raw_for_i64_exact(&bank);
+        assert!(bank.adjust_i64(ovf).is_err());
     }
 
     #[test]
-    fn adjust_i128_overflow_detected_as_error() {
+    fn adjust_i128_overflow_detected_as_error_on_input_conversion() {
         let bank = generic_reserve(200_000_000, 8, 1_000_000);
-
-        // Very large Switchboard value that should overflow
         let res = bank.adjust_i128(i128::MAX);
+        assert!(res.is_err()); // no panic, clean Err
+    }
+
+    #[test]
+    fn adjust_i128_overflow_detected_as_error_on_multiply() {
+        let bank = generic_reserve(200_000_000, 8, 1_000_000);
+        // Find a raw that fits into I80F48 as an input but overflows during multiply
+        let rb = ratio_bits(&bank);
+        const N: i128 = 1i128 << 48;
+        let max_bits = I80F48::MAX.to_bits();
+        // floor(MAX / ratio) in integer domain for raw
+        let safe_raw = (max_bits / rb) as i128;
+        let raw = safe_raw.saturating_add(1);
+        let res = bank.adjust_i128(raw);
         assert!(res.is_err());
     }
 
