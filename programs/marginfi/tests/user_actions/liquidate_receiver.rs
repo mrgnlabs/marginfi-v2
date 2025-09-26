@@ -646,6 +646,95 @@ async fn liquidate_receiver_premium_too_high() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn liquidate_receiver_rejects_zero_weight_asset() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let liquidator = test_f.create_marginfi_account().await;
+    let liquidatee = test_f.create_marginfi_account().await;
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
+    let usdc_bank = test_f.get_bank(&BankMint::Usdc);
+
+    let liquidator_usdc_acc = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
+    liquidator
+        .try_bank_deposit(liquidator_usdc_acc.key, usdc_bank, 100, None)
+        .await?;
+
+    let user_token_sol = test_f.sol_mint.create_token_account_and_mint_to(10).await;
+    let user_token_usdc = test_f.usdc_mint.create_empty_token_account().await;
+    liquidatee
+        .try_bank_deposit(user_token_sol.key, sol_bank, 1.0, None)
+        .await?;
+    liquidatee
+        .try_bank_borrow(user_token_usdc.key, usdc_bank, 10.0)
+        .await?;
+
+    sol_bank
+        .update_config(
+            BankConfigOpt {
+                asset_weight_init: Some(I80F48!(0.0).into()),
+                asset_weight_maint: Some(I80F48!(0.0).into()),
+                ..Default::default()
+            },
+            None,
+        )
+        .await?;
+
+    let (record_pk, _bump) = Pubkey::find_program_address(
+        &[LIQUIDATION_RECORD_SEED.as_bytes(), liquidatee.key.as_ref()],
+        &marginfi::ID,
+    );
+    {
+        let ctx = test_f.context.borrow_mut();
+        let init_ix = liquidatee
+            .make_init_liquidation_record_ix(record_pk, ctx.payer.pubkey())
+            .await;
+        let init_tx = Transaction::new_signed_with_payer(
+            &[init_ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+        ctx.banks_client
+            .process_transaction_with_preflight(init_tx)
+            .await?;
+    }
+
+    let payer = test_f.payer().clone();
+    let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
+    let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
+    let withdraw_ix = liquidatee
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.1, None)
+        .await;
+    let repay_ix = liquidatee
+        .make_bank_repay_ix(liquidator_usdc_acc.key, usdc_bank, 2.0, None)
+        .await;
+    let end_ix = liquidatee
+        .make_end_liquidation_ix(
+            record_pk,
+            payer,
+            test_f.marginfi_group.fee_state,
+            test_f.marginfi_group.fee_wallet,
+        )
+        .await;
+
+    let ctx = test_f.context.borrow_mut();
+    let tx = Transaction::new_signed_with_payer(
+        &[start_ix, withdraw_ix, repay_ix, end_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer],
+        ctx.last_blockhash,
+    );
+    let res = ctx
+        .banks_client
+        .process_transaction_with_preflight(tx)
+        .await;
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::LiquidationPremiumTooHigh);
+
+    Ok(())
+}
+
 // Here liquidator can zero-out the account because it falls below the minimum value threshold
 #[tokio::test]
 async fn liquidate_receiver_closes_out_low_value_acc() -> anyhow::Result<()> {
