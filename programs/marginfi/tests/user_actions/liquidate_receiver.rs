@@ -1,3 +1,4 @@
+use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, assert_eq_noise, native, prelude::*};
 use marginfi::state::bank::BankImpl;
@@ -672,8 +673,8 @@ async fn liquidate_receiver_rejects_zero_weight_asset() -> anyhow::Result<()> {
     sol_bank
         .update_config(
             BankConfigOpt {
-                asset_weight_init: Some(I80F48!(0.0).into()),
-                asset_weight_maint: Some(I80F48!(0.0).into()),
+                asset_weight_init: Some(I80F48::ZERO.into()),
+                asset_weight_maint: Some(I80F48::ZERO.into()),
                 ..Default::default()
             },
             None,
