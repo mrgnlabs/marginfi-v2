@@ -156,8 +156,8 @@ impl MinimalReserve {
         const FRAC_BITS: u32 = 48;
         const SHIFTED_MAX_I128: i128 = i128::MAX >> FRAC_BITS;
         const SHIFTED_MIN_I128: i128 = i128::MIN >> FRAC_BITS;
-        
-        if x < SHIFTED_MIN_I128 || x > SHIFTED_MAX_I128 {
+
+        if !(SHIFTED_MIN_I128..=SHIFTED_MAX_I128).contains(&x) {
             return None;
         }
         // Safe: (x << 48) cannot overflow by the guard above
@@ -169,8 +169,7 @@ impl MinimalReserve {
     pub fn adjust_i128(&self, raw: i128) -> Result<i128> {
         let raw_fx = Self::i80_from_i128_checked(raw).ok_or_else(math_error!())?;
         let adj_fx = self.adjust_oracle_value(raw_fx)?;
-        Ok(adj_fx.checked_to_num::<i128>()
-            .ok_or_else(math_error!())?)
+        Ok(adj_fx.checked_to_num::<i128>().ok_or_else(math_error!())?)
     }
 
     /// Wrapper for i64 values (used by Pyth prices)

@@ -3,8 +3,8 @@ mod tests {
     use std::{i64, u64};
 
     use bytemuck::Zeroable;
-    use kamino_mocks::state::{u68f60_to_i80f48, MinimalReserve};
     use fixed::types::I80F48;
+    use kamino_mocks::state::{u68f60_to_i80f48, MinimalReserve};
 
     const FRAC_BITS_DIFF: u32 = 60 - 48;
 
@@ -20,10 +20,18 @@ mod tests {
     fn largest_safe_raw_for_u64_exact(bank: &MinimalReserve) -> u64 {
         const N: i128 = 1i128 << 48;
         let rb = ratio_bits(bank);
-        if rb <= 0 { return u64::MAX; }
+        if rb <= 0 {
+            return u64::MAX;
+        }
         let t = u64::MAX as i128;
         let safe = (((t + 1) * N - 1) / rb) as i128;
-        if safe < 0 { 0 } else if safe > u64::MAX as i128 { u64::MAX } else { safe as u64 }
+        if safe < 0 {
+            0
+        } else if safe > u64::MAX as i128 {
+            u64::MAX
+        } else {
+            safe as u64
+        }
     }
 
     fn overflow_raw_for_u64_exact(bank: &MinimalReserve) -> u64 {
@@ -34,10 +42,18 @@ mod tests {
     fn largest_safe_raw_for_i64_exact(bank: &MinimalReserve) -> i64 {
         const N: i128 = 1i128 << 48;
         let rb = ratio_bits(bank);
-        if rb <= 0 { return i64::MAX; }
+        if rb <= 0 {
+            return i64::MAX;
+        }
         let t = i64::MAX as i128;
         let safe = (((t + 1) * N - 1) / rb) as i128;
-        if safe < i64::MIN as i128 { i64::MIN } else if safe > i64::MAX as i128 { i64::MAX } else { safe as i64 }
+        if safe < i64::MIN as i128 {
+            i64::MIN
+        } else if safe > i64::MAX as i128 {
+            i64::MAX
+        } else {
+            safe as i64
+        }
     }
 
     fn overflow_raw_for_i64_exact(bank: &MinimalReserve) -> i64 {
@@ -64,12 +80,12 @@ mod tests {
     #[inline]
     fn i80f48_eps_bits(available_amount: u64, mint_total_supply: u64, mint_decimals: u32) -> i128 {
         const N: i128 = 1i128 << 48;
-        let q: i128   = 10i128.pow(mint_decimals);
+        let q: i128 = 10i128.pow(mint_decimals);
 
-        let liq_bits   = (available_amount as i128 * N) / q; // floor(liq*N)
-        let col_bits   = (mint_total_supply as i128 * N) / q; // floor(col*N)
-        let ratio_bits = (liq_bits * N) / col_bits;           // floor((liq_bits*N)/col_bits)
-        let k          = (available_amount / mint_total_supply) as i128;
+        let liq_bits = (available_amount as i128 * N) / q; // floor(liq*N)
+        let col_bits = (mint_total_supply as i128 * N) / q; // floor(col*N)
+        let ratio_bits = (liq_bits * N) / col_bits; // floor((liq_bits*N)/col_bits)
+        let k = (available_amount / mint_total_supply) as i128;
 
         ratio_bits - k * N
     }
@@ -153,7 +169,7 @@ mod tests {
         let got = bank.adjust_i128(raw).unwrap();
 
         let eps = i80f48_eps_bits(10_000_000, 1_000_000, 8);
-        let k   = (10_000_000u64 / 1_000_000u64) as i128; // = 10 for this fixture
+        let k = (10_000_000u64 / 1_000_000u64) as i128; // = 10 for this fixture
 
         let expected = k * raw + i80f48_delta(raw, eps);
         assert_eq!(got, expected);
@@ -222,10 +238,16 @@ mod tests {
         let bank = generic_reserve(200_000_000, 8, 1_000_000); // ~200:1
 
         let safe = largest_safe_raw_for_u64_exact(&bank);
-        assert!(bank.adjust_u64(safe).is_ok(), "largest safe raw should succeed");
+        assert!(
+            bank.adjust_u64(safe).is_ok(),
+            "largest safe raw should succeed"
+        );
 
         let ovf = overflow_raw_for_u64_exact(&bank);
-        assert!(bank.adjust_u64(ovf).is_err(), "raw above threshold must overflow");
+        assert!(
+            bank.adjust_u64(ovf).is_err(),
+            "raw above threshold must overflow"
+        );
     }
 
     #[test]
