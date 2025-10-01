@@ -7,11 +7,13 @@ use crate::{
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_account::{
-            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+            get_remaining_accounts_per_bank, BankAccountWrapper, LendingAccountImpl,
+            MarginfiAccountImpl, RiskEngine,
         },
         marginfi_group::MarginfiGroupImpl,
+        price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
     },
-    utils::{self, validate_bank_state, InstructionKind},
+    utils::{self, fetch_asset_price_for_bank, validate_bank_state, InstructionKind},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
@@ -58,16 +60,30 @@ pub fn lending_account_withdraw<'info>(
         MarginfiError::AccountDisabled
     );
 
-    let maybe_bank_mint = utils::maybe_take_bank_mint(
-        &mut ctx.remaining_accounts,
-        &*bank_loader.load()?,
-        token_program.key,
-    )?;
+    let bank_key = bank_loader.key();
+    let maybe_bank_mint;
+
+    {
+        let bank_ref = bank_loader.load()?;
+
+        maybe_bank_mint = utils::maybe_take_bank_mint(
+            &mut ctx.remaining_accounts,
+            &*bank_ref,
+            token_program.key,
+        )?;
+
+        if marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+            let _price =
+                fetch_asset_price_for_bank(&bank_key, &*bank_ref, &clock, &ctx.remaining_accounts)?;
+            // Note: we don't care about the price we are just validating non-zero...
+        }
+    }
 
     {
         let group = &marginfi_group_loader.load()?;
 
         let mut bank = bank_loader.load_mut()?;
+
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
         bank.accrue_interest(
             clock.unix_timestamp,
