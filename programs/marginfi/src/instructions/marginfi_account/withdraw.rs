@@ -68,11 +68,10 @@ pub fn lending_account_withdraw<'info>(
             utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
         if marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+            // Note: we don't care about the price we are just validating non-zero...
             let _price: I80F48 =
                 fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
-            // Note: we don't care about the price we are just validating non-zero...
         }
-        
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
     } // release immutable borrow of bank
 
