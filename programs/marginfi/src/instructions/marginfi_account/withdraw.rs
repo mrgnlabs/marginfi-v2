@@ -7,11 +7,9 @@ use crate::{
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_account::{
-            get_remaining_accounts_per_bank, BankAccountWrapper, LendingAccountImpl,
-            MarginfiAccountImpl, RiskEngine,
+            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
         marginfi_group::MarginfiGroupImpl,
-        price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
     },
     utils::{self, fetch_asset_price_for_bank, validate_bank_state, InstructionKind},
 };
@@ -64,20 +62,17 @@ pub fn lending_account_withdraw<'info>(
     let maybe_bank_mint;
 
     {
-        let bank_ref = bank_loader.load()?;
+        let bank = bank_loader.load()?;
 
-        maybe_bank_mint = utils::maybe_take_bank_mint(
-            &mut ctx.remaining_accounts,
-            &*bank_ref,
-            token_program.key,
-        )?;
+        maybe_bank_mint =
+            utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
         if marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
             let _price =
-                fetch_asset_price_for_bank(&bank_key, &*bank_ref, &clock, &ctx.remaining_accounts)?;
+                fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
             // Note: we don't care about the price we are just validating non-zero...
         }
-    }
+    } // release immutable borrow of bank
 
     {
         let group = &marginfi_group_loader.load()?;
