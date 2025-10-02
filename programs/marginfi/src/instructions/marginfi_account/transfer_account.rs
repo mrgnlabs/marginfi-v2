@@ -74,13 +74,15 @@ pub struct TransferToNewAccount<'info> {
 
     #[account(
         init,
-        payer = authority,
+        payer = fee_payer,
         space = 8 + std::mem::size_of::<MarginfiAccount>()
     )]
     pub new_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    #[account(mut)]
     pub authority: Signer<'info>,
+
+    #[account(mut)]
+    pub fee_payer: Signer<'info>,
 
     /// CHECK: WARN: New authority is completely unchecked
     pub new_authority: UncheckedAccount<'info>,
@@ -99,7 +101,7 @@ impl<'info> TransferToNewAccount<'info> {
         CpiContext::new(
             self.system_program.to_account_info(),
             anchor_lang::system_program::Transfer {
-                from: self.authority.to_account_info(),
+                from: self.fee_payer.to_account_info(),
                 to: self.global_fee_wallet.to_account_info(),
             },
         )
