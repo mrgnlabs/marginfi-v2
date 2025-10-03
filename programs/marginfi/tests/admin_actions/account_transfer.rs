@@ -29,6 +29,7 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
             new_account.pubkey(),
             new_authority.pubkey(),
             None,
+            None,
             &new_account,
             test_f.marginfi_group.fee_wallet,
         )
@@ -56,6 +57,7 @@ async fn marginfi_account_transfer_happy_path() -> anyhow::Result<()> {
             new_account_again.pubkey(),
             new_authority.pubkey(),
             None,
+            None,
             &new_account_again,
             test_f.marginfi_group.fee_wallet,
         )
@@ -78,6 +80,7 @@ async fn marginfi_account_transfer_not_account_owner() -> anyhow::Result<()> {
             new_account.pubkey(),
             new_authority.pubkey(),
             Some(signer),
+            None,
             &new_account,
             test_f.marginfi_group.fee_wallet,
         )

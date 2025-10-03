@@ -749,12 +749,14 @@ impl MarginfiAccountFixture {
         new_marginfi_account: Pubkey,
         new_authority: Pubkey,
         signer_keypair: Option<Keypair>,
+        fee_payer_keypair: Option<Keypair>,
         new_account_keypair: &Keypair,
         global_fee_wallet: Pubkey,
     ) -> Transaction {
         let marginfi_account = self.load().await;
         let ctx = self.ctx.borrow();
         let signer = signer_keypair.unwrap_or_else(|| ctx.payer.insecure_clone());
+        let fee_payer = fee_payer_keypair.unwrap_or_else(|| ctx.payer.insecure_clone());
 
         let transfer_account_ix = Instruction {
             program_id: marginfi::ID,
@@ -763,6 +765,7 @@ impl MarginfiAccountFixture {
                 new_marginfi_account,
                 group: marginfi_account.group,
                 authority: signer.pubkey(),
+                fee_payer: fee_payer.pubkey(),
                 new_authority,
                 global_fee_wallet,
                 system_program: system_program::ID,
@@ -771,22 +774,34 @@ impl MarginfiAccountFixture {
             data: marginfi::instruction::TransferToNewAccount {}.data(),
         };
 
+        let mut signers = vec![new_account_keypair];
+        let is_signer_fee_payer = signer.pubkey() == fee_payer.pubkey();
+
+        if is_signer_fee_payer {
+            signers.push(&signer);
+        } else {
+            signers.push(&signer);
+            signers.push(&fee_payer);
+        }
+
         Transaction::new_signed_with_payer(
             &[transfer_account_ix],
-            Some(&signer.pubkey()),
-            &[&signer, new_account_keypair],
+            Some(&fee_payer.pubkey()),
+            &signers,
             ctx.last_blockhash,
         )
     }
 
-    /// Build and send the “transfer TransferToNewAccount transaction.
+    /// Build and send the "transfer TransferToNewAccount transaction.
     /// Pass the new authority as an argument
     /// Optional: use a different signer (for negative test case)
+    /// Optional: use a different fee_payer (for testing separate fee payer)
     pub async fn try_transfer_account(
         &self,
         new_marginfi_account: Pubkey,
         new_authority: Pubkey,
         signer_keypair: Option<Keypair>,
+        fee_payer_keypair: Option<Keypair>,
         new_account_keypair: &Keypair,
         global_fee_wallet: Pubkey,
     ) -> std::result::Result<(), BanksClientError> {
@@ -795,6 +810,7 @@ impl MarginfiAccountFixture {
                 new_marginfi_account,
                 new_authority,
                 signer_keypair,
+                fee_payer_keypair,
                 new_account_keypair,
                 global_fee_wallet,
             )
@@ -805,14 +821,16 @@ impl MarginfiAccountFixture {
             .await
     }
 
-    /// Build (but don’t send) the “transfer TransferToNewAccount transaction.
+    /// Build (but don't send) the "transfer TransferToNewAccount transaction.
     /// Pass the new authority as an argument
     /// Optional: use a different signer (for negative test case)
+    /// Optional: use a different fee_payer (for testing separate fee payer)
     pub async fn get_tx_transfer_account(
         &self,
         new_marginfi_account: Pubkey,
         new_authority: Pubkey,
         signer_keypair: Option<Keypair>,
+        fee_payer_keypair: Option<Keypair>,
         new_account_keypair: &Keypair,
         global_fee_wallet: Pubkey,
     ) -> Transaction {
@@ -820,6 +838,7 @@ impl MarginfiAccountFixture {
             new_marginfi_account,
             new_authority,
             signer_keypair,
+            fee_payer_keypair,
             new_account_keypair,
             global_fee_wallet,
         )
