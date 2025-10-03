@@ -39,6 +39,7 @@ async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
             payer,
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![],
         )
         .await;
 
@@ -131,6 +132,7 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
             payer,
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![],
         )
         .await;
 
@@ -187,7 +189,7 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
     let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
     let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
     let withdraw_ix = liquidatee
-        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.105, None)
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.105, None, true)
         .await;
     let repay_ix = liquidatee
         .make_bank_repay_ix(liq_usdc_account.key, usdc_bank, 2.0, None)
@@ -258,6 +260,7 @@ async fn liquidate_end_missing_fails() -> anyhow::Result<()> {
             payer, // Note: payer must sign to pay the sol fee
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![],
         )
         .await;
 
@@ -363,6 +366,7 @@ async fn liquidate_with_forbidden_ix_fails() -> anyhow::Result<()> {
             payer,
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![],
         )
         .await;
 
@@ -460,7 +464,7 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
     let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
     // Seize .210 * 10 = $2.10
     let withdraw_ix = liquidatee
-        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.210, None)
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.210, None, true)
         .await;
     // Repay $2
     let repay_ix = liquidatee
@@ -472,6 +476,7 @@ async fn liquidate_receiver_happy_path() -> anyhow::Result<()> {
             payer, // Note: payer must sign to pay the sol fee
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![],
         )
         .await;
 
@@ -616,7 +621,7 @@ async fn liquidate_receiver_premium_too_high() -> anyhow::Result<()> {
     let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
     // .3 * 10 = $3
     let withdraw_ix = liquidatee
-        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.3, None)
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.3, None, true)
         .await;
     // $2
     let repay_ix = liquidatee
@@ -628,6 +633,7 @@ async fn liquidate_receiver_premium_too_high() -> anyhow::Result<()> {
             payer,
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![],
         )
         .await;
 
@@ -705,7 +711,7 @@ async fn liquidate_receiver_rejects_zero_weight_asset() -> anyhow::Result<()> {
     let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
     let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
     let withdraw_ix = liquidatee
-        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.1, None)
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.1, None, true)
         .await;
     let repay_ix = liquidatee
         .make_bank_repay_ix(liquidator_usdc_acc.key, usdc_bank, 2.0, None)
@@ -716,6 +722,7 @@ async fn liquidate_receiver_rejects_zero_weight_asset() -> anyhow::Result<()> {
             payer,
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![],
         )
         .await;
 
@@ -796,7 +803,7 @@ async fn liquidate_receiver_closes_out_low_value_acc() -> anyhow::Result<()> {
     let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
     // The entire balance
     let withdraw_ix = liquidatee
-        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.4, Some(true))
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.4, Some(true), true)
         .await;
     // The entire liability
     let repay_ix = liquidatee
@@ -808,6 +815,7 @@ async fn liquidate_receiver_closes_out_low_value_acc() -> anyhow::Result<()> {
             payer,
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![usdc_bank.key],
         )
         .await;
 
@@ -832,7 +840,16 @@ async fn liquidate_receiver_closes_out_low_value_acc() -> anyhow::Result<()> {
         .lending_account
         .get_active_balances_iter()
         .count();
-    assert_eq!(0, active_balance_count);
+    let active_bal = marginfi_account
+        .lending_account
+        .get_active_balances_iter()
+        .next()
+        .unwrap();
+    // The lending position is not actually closed, just zeroed out.
+    assert_eq!(1, active_balance_count);
+    let shares: I80F48 = active_bal.asset_shares.into();
+    assert_eq!(shares, I80F48::ZERO);
+    assert_eq!(active_bal.bank_pk, sol_bank.key);
 
     Ok(())
 }
@@ -896,7 +913,7 @@ async fn liquidate_receiver_allows_negative_profit() -> anyhow::Result<()> {
 
     // Seize 0.09 * 10 = $0.90
     let withdraw_ix = liquidatee
-        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.09, None)
+        .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.09, None, true)
         .await;
     // Repay $2, (realizing a loss of $1.1)
     let repay_ix = liquidatee
@@ -908,6 +925,7 @@ async fn liquidate_receiver_allows_negative_profit() -> anyhow::Result<()> {
             payer,
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![],
         )
         .await;
 

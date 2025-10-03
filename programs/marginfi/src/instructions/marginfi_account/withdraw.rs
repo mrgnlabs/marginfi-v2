@@ -53,6 +53,7 @@ pub fn lending_account_withdraw<'info>(
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
+    let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
@@ -67,10 +68,9 @@ pub fn lending_account_withdraw<'info>(
         maybe_bank_mint =
             utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
-        if marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        if in_liquidation {
             // Note: we don't care about the price we are just validating non-zero...
-            let _price: I80F48 =
-                fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+            fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
         }
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
     } // release immutable borrow of bank
@@ -94,7 +94,10 @@ pub fn lending_account_withdraw<'info>(
             BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
         let amount_pre_fee = if withdraw_all {
-            bank_account.withdraw_all()?
+            // Note: In liquidation we can empty a balance, but it stays on the user account until
+            // they close it manually. This is primarily to force the oracle to be passed for
+            // withdraw_all operations.
+            bank_account.withdraw_all(!in_liquidation)?
         } else {
             let amount_pre_fee = maybe_bank_mint
                 .as_ref()
