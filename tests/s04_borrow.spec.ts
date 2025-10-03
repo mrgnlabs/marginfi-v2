@@ -16,10 +16,16 @@ import { assert } from "chai";
 import { borrowIx, composeRemainingAccounts } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
+import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 
 describe("Deposit funds (included staked assets)", () => {
   // User 0 has a USDC deposit position
   // User 1 has a SOL [0] and validator 0 Staked [1] deposit position
+
+  before(async () => {
+    // Refresh oracles to ensure they're up to date
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
+  });
 
   it("(user 0) borrows SOL against their USDC position - succeeds (SOL/regular comingle is allowed)", async () => {
     const user = users[0];

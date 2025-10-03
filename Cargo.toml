@@ -55,22 +55,21 @@ fixed-macro = "1.2.0"
 lazy_static = "1.4.0"
 static_assertions = "1.1.0"
 
-[profile.release]
+[profile.dev]
 overflow-checks = false
 lto = "off"
 codegen-units = 8
 
 ## Build options for release (build-program-verifiable should use these through env settings)
-# [profile.release]
-# overflow-checks = true
-# lto = "fat"
-# codegen-units = 1
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
 
-# [profile.release.build-override]
-# opt-level = 3
-# incremental = false
-# codegen-units = 1
-
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+codegen-units = 1
 
 ## Notes for usable lockfile generation in Solana land
 # OUTDATED Patch a version of half compatabile with fixed and Rust <=1.79:

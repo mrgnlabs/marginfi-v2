@@ -10,7 +10,9 @@
 
     "baseUrl": ".",
     "paths": {
-      "@solana/web3.js": ["node_modules/@solana/web3.js"]
-    }
+      "@solana/web3.js": ["node_modules/@solana/web3.js"],
+      "@solana/spl-token": ["node_modules/@solana/spl-token"]
+    },
+    "resolveJsonModule": true,
   }
 }

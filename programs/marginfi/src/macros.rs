@@ -139,7 +139,17 @@ macro_rules! live {
         cfg!(any(
             feature = "mainnet-beta",
             feature = "staging",
+            feature = "stagingalt",
             feature = "devnet"
         ))
+    };
+}
+
+#[macro_export]
+/// Convert `Option<Account<T>>` → `Option<AccountInfo>`
+macro_rules! optional_account {
+    ($opt:expr) => {
+        $opt.as_ref()
+            .map(anchor_lang::ToAccountInfo::to_account_info)
     };
 }

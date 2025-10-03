@@ -32,3 +32,4 @@ test-ledger/
 !tests/fixtures/**/*.json
 !programs/marginfi/tests/fixtures/**/*.json
 !.vscode/tasks.json
+!idls/*.json

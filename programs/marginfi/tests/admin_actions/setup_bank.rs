@@ -117,6 +117,8 @@ async fn add_bank_success() -> anyhow::Result<()> {
             lending_position_count,
             borrowing_position_count,
             _padding_0,
+            kamino_reserve,
+            kamino_obligation,
             _padding_1,
             .. // ignore internal padding
         } = bank_f.load().await;
@@ -152,7 +154,9 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(lending_position_count, 0);
             assert_eq!(borrowing_position_count, 0);
             assert_eq!(_padding_0, <[u8; 16] as Default>::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 19] as Default>::default());
+            assert_eq!(kamino_reserve, Pubkey::default());
+            assert_eq!(kamino_obligation, Pubkey::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 15] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -254,6 +258,8 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             lending_position_count,
             borrowing_position_count,
             _padding_0,
+            kamino_reserve,
+            kamino_obligation,
             _padding_1,
             .. // ignore internal padding
         } = bank_f.load().await;
@@ -289,7 +295,9 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(lending_position_count, 0);
             assert_eq!(borrowing_position_count, 0);
             assert_eq!(_padding_0, <[u8; 16] as Default>::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 19] as Default>::default());
+            assert_eq!(kamino_reserve, Pubkey::default());
+            assert_eq!(kamino_obligation, Pubkey::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 15] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);

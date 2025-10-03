@@ -80,6 +80,7 @@ impl MarginfiAccount {
     pub const DISCRIMINATOR: [u8; 8] = discriminators::ACCOUNT;
 
     /// Note: Only for accounts created by PDA
+    #[cfg(feature = "anchor")]
     pub fn derive_pda(
         group: &Pubkey,
         authority: &Pubkey,

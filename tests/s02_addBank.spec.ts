@@ -228,8 +228,8 @@ describe("Init group and add banks with asset category flags", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(groupAdmin.wallet, bankKeypair);
     let result = await banksClient.tryProcessTransaction(tx);
-    // AddedStakedPoolManually
-    assertBankrunTxFailed(result, "0x179e");
+    // WrongAssetTagForStandardInstructions
+    assertBankrunTxFailed(result, "0x1838");
   });
 
   it("(attacker) Add bank (validator 0) with bad accounts + bad metadata - should fail", async () => {

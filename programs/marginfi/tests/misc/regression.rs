@@ -693,7 +693,9 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank.lending_position_count, 0);
     assert_eq!(bank.borrowing_position_count, 0);
     assert_eq!(bank._padding_0, [0; 16]);
-    assert_eq!(bank._padding_1, [[0, 0]; 19]);
+    assert_eq!(bank.kamino_reserve, Pubkey::default());
+    assert_eq!(bank.kamino_obligation, Pubkey::default());
+    assert_eq!(bank._padding_1, [[0, 0]; 15]);
 
     Ok(())
 }

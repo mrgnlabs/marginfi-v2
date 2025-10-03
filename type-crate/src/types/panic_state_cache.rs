@@ -54,9 +54,8 @@ impl PanicStateCache {
 }
 
 /// Panic state for emergency protocol pausing
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, Zeroable, Pod, Debug, PartialEq, Eq,
-)]
+#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
+#[derive(Clone, Copy, Default, Zeroable, Pod, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct PanicState {
     /// Whether the protocol is currently paused (1 = paused, 0 = not paused)

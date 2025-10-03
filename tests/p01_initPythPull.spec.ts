@@ -234,14 +234,14 @@ describe("Pyth pull oracles in localnet", () => {
     if (verbose) {
       console.log(
         "Shares: " +
-          wrappedI80F48toBigNumber(
-            acc.lendingAccount.balances[0].assetShares
-          ).toNumber()
+        wrappedI80F48toBigNumber(
+          acc.lendingAccount.balances[0].assetShares
+        ).toNumber()
       );
       console.log("price actual: " + bytesToF64(cache.prices[0]));
       console.log(
         "assets actual: " +
-          wrappedI80F48toBigNumber(cache.assetValue).toNumber()
+        wrappedI80F48toBigNumber(cache.assetValue).toNumber()
       );
     }
 

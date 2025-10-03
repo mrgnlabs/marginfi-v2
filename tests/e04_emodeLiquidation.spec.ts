@@ -38,6 +38,7 @@ import {
   composeRemainingAccounts,
 } from "./utils/user-instructions";
 import { configBankEmode } from "./utils/group-instructions";
+import { logHealthCache } from "./utils/tools";
 import { assert } from "chai";
 import { bytesToF64 } from "./utils/tools";
 
@@ -592,30 +593,5 @@ describe("Emode liquidation", () => {
     tx.sign(user.wallet);
     await banksClient.processTransaction(tx);
     return bankrunProgram.account.marginfiAccount.fetch(userAccount);
-  };
-
-  const logHealthCache = (header: string, healthCache: any) => {
-    const av = wrappedI80F48toBigNumber(healthCache.assetValue);
-    const lv = wrappedI80F48toBigNumber(healthCache.liabilityValue);
-    const aValMaint = wrappedI80F48toBigNumber(healthCache.assetValueMaint);
-    const lValMaint = wrappedI80F48toBigNumber(healthCache.liabilityValueMaint);
-    console.log(`---${header}---`);
-    if (healthCache.flags & HEALTH_CACHE_HEALTHY) {
-      console.log("**HEALTHY**");
-    } else {
-      console.log("**UNHEALTHY OR INVALID**");
-    }
-    console.log("asset value: " + av.toString());
-    console.log("liab value: " + lv.toString());
-    console.log("asset value (maint): " + aValMaint.toString());
-    console.log("liab value (maint): " + lValMaint.toString());
-    console.log("prices: ");
-    healthCache.prices.forEach((priceWrapped: any, i: number) => {
-      const price = bytesToF64(priceWrapped);
-      if (price !== 0) {
-        console.log(` [${i}] ${price}`);
-      }
-    });
-    console.log("");
   };
 });

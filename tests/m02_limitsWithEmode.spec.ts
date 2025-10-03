@@ -58,8 +58,8 @@ import {
   assertKeysEqual,
 } from "./utils/genericTests";
 
-/** Banks in this test use a "random" seed so their key is non-deterministic. */
-let startingSeed: number;
+const startingSeed: number = 299;
+const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_1234000000M2");
 
 /** This is the program-enforced maximum enforced number of balances per account. */
 const MAX_BALANCES = 16;
@@ -72,9 +72,10 @@ describe("Limits on number of accounts, with emode in effect", () => {
   it("init group, init banks, and fund banks", async () => {
     const result = await genericMultiBankTestSetup(
       MAX_BALANCES,
-      USER_ACCOUNT_THROWAWAY
+      USER_ACCOUNT_THROWAWAY,
+      groupBuff,
+      startingSeed
     );
-    startingSeed = result.startingSeed;
     banks = result.banks;
     throwawayGroup = result.throwawayGroup;
   });
@@ -217,7 +218,7 @@ describe("Limits on number of accounts, with emode in effect", () => {
           // anything other than OOM should blow up the test
           throw new Error(
             `Unexpected borrowIx failure on bank ${banks[i].toBase58()}: ` +
-              logs.join("\n")
+            logs.join("\n")
           );
         }
       }

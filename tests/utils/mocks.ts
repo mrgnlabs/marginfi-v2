@@ -16,6 +16,7 @@ import {
 } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { Mocks } from "../../target/types/mocks";
+import { KaminoLending } from "../fixtures/kamino_lending";
 import { ProgramTestContext } from "solana-bankrun";
 import { processBankrunTransaction } from "./tools";
 
@@ -141,6 +142,8 @@ export type MockUser = {
   mrgnProgram: Program<Marginfi> | undefined;
   /** A bankrun program that uses the user's wallet */
   mrgnBankrunProgram: Program<Marginfi> | undefined;
+  /** A Kamino bankrun program that uses the user's wallet */
+  klendBankrunProgram: Program<KaminoLending> | undefined;
   /** A map to store arbitrary accounts related to the user using a string key */
   accounts: Map<string, PublicKey>;
 };
@@ -149,10 +152,16 @@ export type MockUser = {
 export const USER_ACCOUNT: string = "g0_acc";
 /** in mockUser.accounts, key used to get/set the users's account for the emode group */
 export const USER_ACCOUNT_E: string = "ge_acc";
+/** in mockUser.accounts, key used to get/set the users's account for the kamino group */
+export const USER_ACCOUNT_K: string = "ge_acc";
 /** in mockUser.accounts, key used to get/set the users's LST ATA for validator 0 */
 export const LST_ATA = "v0_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */
 export const STAKE_ACC = "v0_stakeAcc";
+/** in mockUser.accounts, the Kamino user metadata account */
+export const KAMINO_METADATA = "kamino_metadata";
+/** in mockUser.accounts, the obligation for the main market */
+export const KAMINO_OBLIGATION = "kamino_obligation";
 /** in mockUser.accounts, key used to get/set the users's LST ATA for validator 1 */
 export const LST_ATA_v1 = "v1_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 1 */
@@ -288,6 +297,7 @@ export const setupTestUser = async (
       ? getUserMarginfiProgram(options.marginProgram, userWalletKeypair)
       : undefined,
     mrgnBankrunProgram: undefined,
+    klendBankrunProgram: undefined,
     accounts: new Map<string, PublicKey>(),
   };
   return user;
@@ -354,6 +364,13 @@ export const createSimpleMint = async (
   return { ixes, mint };
 };
 
+/**
+ * Information about all the oracles in the world...
+ *
+ * If adding a Pyth Pull oracle with name *, make sure it is EXACTLY NAMED *Pull and
+ * *PullOracleFeed, with price named *Price and *Decimals, the refresh all function searches for
+ * those names exactly.
+ */
 export type Oracles = {
   wsolOracle: Keypair;
   wsolOracleFeed: Keypair;

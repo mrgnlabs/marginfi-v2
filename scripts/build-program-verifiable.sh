@@ -22,6 +22,8 @@ elif [ "$deployment" = "devnet" ]; then
     features="--features devnet --no-default-features"
 elif [ "$deployment" = "staging" ]; then
     features="--features staging --no-default-features"
+elif [ "$deployment" = "stagingalt" ]; then
+    features="--features stagingalt --no-default-features"
 else
     echo "Error: Unknown deployment: $deployment"
     exit 1

@@ -9,7 +9,9 @@ use crate::{
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, validate_asset_tags, validate_bank_state, InstructionKind},
+    utils::{
+        self, is_marginfi_asset_tag, validate_asset_tags, validate_bank_state, InstructionKind,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Clock;
@@ -63,6 +65,7 @@ pub fn lending_account_deposit<'info>(
         MarginfiError::AccountDisabled
     );
 
+    // TODO: this should be in a helper function
     let deposit_amount = if deposit_up_to_limit && bank.config.is_deposit_limit_active() {
         let current_asset_amount = bank.get_asset_amount(bank.total_asset_shares.into())?;
         let deposit_limit = I80F48::from_num(bank.config.deposit_limit);
@@ -167,7 +170,9 @@ pub struct LendingAccountDeposit<'info> {
     #[account(
         mut,
         has_one = group,
-        has_one = liquidity_vault
+        has_one = liquidity_vault,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
     pub bank: AccountLoader<'info, Bank>,
 

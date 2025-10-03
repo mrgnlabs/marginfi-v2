@@ -25,12 +25,16 @@ import {
   repayIx,
   withdrawIx,
 } from "./utils/user-instructions";
+import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 
 describe("Withdraw staked asset", () => {
   let settingsKey: PublicKey;
   let bankKey: PublicKey;
 
   before(async () => {
+    // Refresh oracles to ensure they're up to date
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
+    
     [settingsKey] = deriveStakedSettings(
       bankrunProgram.programId,
       marginfiGroup.publicKey
