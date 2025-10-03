@@ -1,11 +1,5 @@
 use crate::{
-    bank_authority_seed, bank_seed,
-    constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType, WrappedI80F48},
-    },
-    MarginfiError, MarginfiResult,
+    bank_authority_seed, bank_seed, state::bank::BankVaultType, MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -20,13 +14,17 @@ use anchor_spl::{
     token_interface::Mint,
 };
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::{ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED},
+    types::{Bank, BankOperationalState, MarginfiAccount, WrappedI80F48},
+};
 
 pub fn find_bank_vault_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
-    Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), &crate::id())
+    Pubkey::find_program_address(bank_seed!(vault_type, bank_pk), &crate::ID)
 }
 
 pub fn find_bank_vault_authority_pda(bank_pk: &Pubkey, vault_type: BankVaultType) -> (Pubkey, u8) {
-    Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), &crate::id())
+    Pubkey::find_program_address(bank_authority_seed!(vault_type, bank_pk), &crate::ID)
 }
 
 pub trait NumTraitsWithTolerance<T> {
@@ -257,8 +255,76 @@ pub fn validate_bank_asset_tags(bank_a: &Bank, bank_b: &Bank) -> MarginfiResult 
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum InstructionKind {
+    /// Only fails if the bank is in `BankKilledByBankruptcy`, technically doesn't exist (yet)
+    Unrestricted,
+    /// E.g. withdraw, repay
+    FailsInReduceState,
+    /// E.g. liquidation
+    FailsInPausedState,
+    /// E.g. borrow, deposit
+    FailsIfPausedOrReduceState,
+}
+
+// TODO remove redundant checks for these elsewhere in the program (they are nested many laters deep
+// in various value delta functions)
+/// Validate the bank's state does not forbid the execution of an instruction
+pub fn validate_bank_state(bank: &Bank, kind: InstructionKind) -> MarginfiResult {
+    if bank.config.operational_state == BankOperationalState::KilledByBankruptcy {
+        return err!(MarginfiError::BankKilledByBankruptcy);
+    }
+
+    match kind {
+        InstructionKind::FailsInReduceState
+            if bank.config.operational_state == BankOperationalState::ReduceOnly =>
+        {
+            return err!(MarginfiError::BankReduceOnly);
+        }
+
+        InstructionKind::FailsInPausedState
+            if bank.config.operational_state == BankOperationalState::Paused =>
+        {
+            return err!(MarginfiError::BankPaused);
+        }
+
+        InstructionKind::FailsIfPausedOrReduceState
+            if matches!(
+                bank.config.operational_state,
+                BankOperationalState::Paused | BankOperationalState::ReduceOnly
+            ) =>
+        {
+            return match bank.config.operational_state {
+                BankOperationalState::Paused => {
+                    err!(MarginfiError::BankPaused)
+                }
+                BankOperationalState::ReduceOnly => {
+                    err!(MarginfiError::BankReduceOnly)
+                }
+                _ => unreachable!(),
+            };
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
 pub fn wrapped_i80f48_to_f64(n: WrappedI80F48) -> f64 {
     let as_i80: I80F48 = n.into();
     let as_f64: f64 = as_i80.to_num();
     as_f64
+}
+
+#[macro_export]
+macro_rules! assert_eq_with_tolerance {
+    ($test_val:expr, $val:expr, $tolerance:expr) => {
+        assert!(
+            ($test_val - $val).abs() <= $tolerance,
+            "assertion failed: `({} - {}) <= {}`",
+            $test_val,
+            $val,
+            $tolerance
+        );
+    };
 }

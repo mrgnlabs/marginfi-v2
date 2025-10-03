@@ -1,9 +1,9 @@
 // Runs once per program to init the global fee state.
-use crate::constants::FEE_STATE_SEED;
-use crate::state::fee_state;
-use crate::state::marginfi_group::WrappedI80F48;
 use anchor_lang::prelude::*;
-use fee_state::FeeState;
+use marginfi_type_crate::{
+    constants::FEE_STATE_SEED,
+    types::{FeeState, WrappedI80F48},
+};
 
 #[allow(unused_variables)]
 pub fn initialize_fee_state(
@@ -11,8 +11,10 @@ pub fn initialize_fee_state(
     admin_key: Pubkey,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
+    liquidation_flat_sol_fee: u32,
     program_fee_fixed: WrappedI80F48,
     program_fee_rate: WrappedI80F48,
+    liquidation_max_fee: WrappedI80F48,
 ) -> Result<()> {
     let mut fee_state = ctx.accounts.fee_state.load_init()?;
     fee_state.global_fee_admin = admin_key;
@@ -22,6 +24,8 @@ pub fn initialize_fee_state(
     fee_state.bump_seed = ctx.bumps.fee_state;
     fee_state.program_fee_fixed = program_fee_fixed;
     fee_state.program_fee_rate = program_fee_rate;
+    fee_state.liquidation_max_fee = liquidation_max_fee;
+    fee_state.liquidation_flat_sol_fee = liquidation_flat_sol_fee;
 
     Ok(())
 }
@@ -43,6 +47,5 @@ pub struct InitFeeState<'info> {
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 
-    pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
 }

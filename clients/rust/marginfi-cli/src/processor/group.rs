@@ -1,7 +1,8 @@
 use crate::{config::Config, profile::Profile, utils};
 use anyhow::Result;
 use log::{debug, info, warn};
-use marginfi::state::marginfi_group::Bank;
+use marginfi::state::bank::BankVaultType;
+use marginfi_type_crate::types::Bank;
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
 use solana_sdk::address_lookup_table::instruction::{create_lookup_table, extend_lookup_table};
 use solana_sdk::address_lookup_table::state::AddressLookupTable;
@@ -93,11 +94,8 @@ pub fn process_check_lookup_tables(
     for (bank_pk, bank) in banks.iter() {
         keys.push(*bank_pk);
         keys.push(bank.liquidity_vault);
-        let (vault_auth, _) = utils::find_bank_vault_authority_pda(
-            bank_pk,
-            marginfi::state::marginfi_group::BankVaultType::Liquidity,
-            &marginfi::ID,
-        );
+        let (vault_auth, _) =
+            utils::find_bank_vault_authority_pda(bank_pk, BankVaultType::Liquidity, &marginfi::ID);
 
         keys.push(vault_auth);
 
@@ -217,11 +215,8 @@ pub fn process_update_lookup_tables(
     for (bank_pk, bank) in banks.iter() {
         keys.push(*bank_pk);
         keys.push(bank.liquidity_vault);
-        let (vault_auth, _) = utils::find_bank_vault_authority_pda(
-            bank_pk,
-            marginfi::state::marginfi_group::BankVaultType::Liquidity,
-            &marginfi::ID,
-        );
+        let (vault_auth, _) =
+            utils::find_bank_vault_authority_pda(bank_pk, BankVaultType::Liquidity, &marginfi::ID);
 
         keys.push(vault_auth);
 

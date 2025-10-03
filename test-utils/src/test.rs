@@ -5,18 +5,15 @@ use crate::{
 
 use anchor_lang::prelude::*;
 use bincode::deserialize;
+use marginfi_type_crate::{
+    constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED_DEPRECATED},
+    types::{BankConfig, BankOperationalState, InterestRateConfig, OracleSetup, RiskTier},
+};
 use pyth_solana_receiver_sdk::price_update::{PriceUpdateV2, VerificationLevel};
 use solana_sdk::{account::AccountSharedData, entrypoint::ProgramResult};
 
 use fixed_macro::types::I80F48;
 use lazy_static::lazy_static;
-use marginfi::{
-    constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED},
-    state::{
-        marginfi_group::{BankConfig, BankOperationalState, InterestRateConfig, RiskTier},
-        price::OracleSetup,
-    },
-};
 use solana_program::{hash::Hash, sysvar};
 use solana_program_test::*;
 use solana_sdk::{account::Account, pubkey, signature::Keypair, signer::Signer};
@@ -261,7 +258,7 @@ lazy_static! {
 
         operational_state: BankOperationalState::Operational,
         risk_tier: RiskTier::Collateral,
-        config_flags: PYTH_PUSH_MIGRATED,
+        config_flags: PYTH_PUSH_MIGRATED_DEPRECATED,
 
         interest_rate_config: InterestRateConfig {
             insurance_fee_fixed_apr: I80F48!(0).into(),
@@ -399,6 +396,7 @@ impl TestFixture {
         program.prefer_bpf(true);
         program.add_program("marginfi", marginfi::ID, None);
         program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
+        program.add_program("mocks", mocks::ID, None);
 
         let usdc_keypair = Keypair::new();
         let sol_keypair = Keypair::new();

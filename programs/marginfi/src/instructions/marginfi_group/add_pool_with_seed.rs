@@ -1,20 +1,20 @@
 use crate::{
     check,
+    events::{GroupEventHeader, LendingPoolBankCreateEvent},
+    log_pool_info,
+    state::{bank::BankImpl, bank_config::BankConfigImpl, marginfi_group::MarginfiGroupImpl},
+    MarginfiError, MarginfiResult,
+};
+use anchor_lang::prelude::*;
+use anchor_spl::token_interface::*;
+use marginfi_type_crate::{
     constants::{
         ASSET_TAG_STAKED, FEE_STATE_SEED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED,
     },
-    events::{GroupEventHeader, LendingPoolBankCreateEvent},
-    log_pool_info,
-    state::{
-        fee_state::FeeState,
-        marginfi_group::{Bank, BankConfigCompact, MarginfiGroup},
-    },
-    MarginfiError, MarginfiResult,
+    types::{Bank, BankConfigCompact, FeeState, MarginfiGroup},
 };
-use anchor_lang::prelude::*;
-use anchor_spl::token_interface::*;
 
 /// A copy of lending_pool_add_bank but with an additional bank seed provided.
 /// This seed is used by the LendingPoolAddBankWithSeed.bank to generate a
@@ -210,7 +210,6 @@ pub struct LendingPoolAddBankWithSeed<'info> {
     )]
     pub fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    pub rent: Sysvar<'info, Rent>,
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }

@@ -2,10 +2,8 @@ use crate::config::Config;
 use anchor_client::anchor_lang::AnchorDeserialize;
 use chrono::{DateTime, Local, TimeZone};
 use fixed::types::I80F48;
-use marginfi::{
-    constants::EXP_10_I80F48,
-    state::price::{PriceAdapter, PythPushOraclePriceFeed},
-};
+use marginfi::state::price::{PriceAdapter, PythPushOraclePriceFeed};
+use marginfi_type_crate::constants::EXP_10_I80F48;
 use pyth_solana_receiver_sdk::price_update::{FeedId, PriceUpdateV2};
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::rpc_client::RpcClient;

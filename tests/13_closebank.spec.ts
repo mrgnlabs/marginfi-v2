@@ -29,7 +29,6 @@ import { expectFailedTxWithError } from "./utils/genericTests";
 import { closeBank } from "./utils/group-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { dumpAccBalances } from "./utils/tools";
-import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("Close bank", () => {
   const program = workspace.Marginfi as Program<Marginfi>;

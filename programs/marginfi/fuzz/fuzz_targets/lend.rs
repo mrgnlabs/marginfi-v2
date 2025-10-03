@@ -6,10 +6,11 @@ use arbitrary::Arbitrary;
 use fixed::types::I80F48;
 use lazy_static::lazy_static;
 use libfuzzer_sys::fuzz_target;
-use marginfi::{assert_eq_with_tolerance, prelude::MarginfiGroup, state::marginfi_group::Bank};
+use marginfi::{assert_eq_with_tolerance, state::bank::BankImpl};
 use marginfi_fuzz::{
     account_state::AccountsState, arbitrary_helpers::*, metrics::Metrics, MarginfiFuzzContext,
 };
+use marginfi_type_crate::types::{Bank, MarginfiGroup};
 use solana_program::program_pack::Pack;
 use std::sync::{Arc, RwLock};
 

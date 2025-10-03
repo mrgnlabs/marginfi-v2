@@ -1,20 +1,30 @@
 use crate::{
     bank_signer, check,
-    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, PROGRAM_VERSION},
+    constants::PROGRAM_VERSION,
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
+    ix_utils::{get_discrim_hash, Hashable},
     prelude::*,
     state::{
-        health_cache::HealthCache,
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, BankVaultType},
+        bank::{BankImpl, BankVaultType},
+        marginfi_account::{
+            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+        },
+        marginfi_group::MarginfiGroupImpl,
     },
-    utils,
+    utils::{self, validate_bank_state, InstructionKind},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    types::{
+        Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+        ACCOUNT_IN_RECEIVERSHIP,
+    },
+};
 
 /// 1. Accrue interest
 /// 2. Find the user's existing bank account for the asset withdrawn
@@ -56,7 +66,9 @@ pub fn lending_account_withdraw<'info>(
 
     {
         let group = &marginfi_group_loader.load()?;
+
         let mut bank = bank_loader.load_mut()?;
+        validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
         bank.accrue_interest(
             clock.unix_timestamp,
             group,
@@ -89,6 +101,8 @@ pub fn lending_account_withdraw<'info>(
 
             amount_pre_fee
         };
+
+        marginfi_account.last_update = clock.unix_timestamp as u64;
 
         bank.withdraw_spl_transfer(
             amount_pre_fee,
@@ -126,32 +140,47 @@ pub fn lending_account_withdraw<'info>(
 
     marginfi_account.lending_account.sort_balances();
 
-    // Check account health, if below threshold fail transaction
-    // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    let (risk_result, _engine) = RiskEngine::check_account_init_health(
-        &marginfi_account,
-        ctx.remaining_accounts,
-        &mut Some(&mut health_cache),
-    );
-    risk_result?;
-    health_cache.program_version = PROGRAM_VERSION;
-    health_cache.set_engine_ok(true);
-    marginfi_account.health_cache = health_cache;
+    // Note: during liquidating, we skip all health checks until the end of the transaction.
+    if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        // Check account health, if below threshold fail transaction
+        // Assuming `ctx.remaining_accounts` holds only oracle accounts
+        let (risk_result, _engine) = RiskEngine::check_account_init_health(
+            &marginfi_account,
+            ctx.remaining_accounts,
+            &mut Some(&mut health_cache),
+        );
+        risk_result?;
+        health_cache.program_version = PROGRAM_VERSION;
+        health_cache.set_engine_ok(true);
+        marginfi_account.health_cache = health_cache;
+    }
 
     Ok(())
 }
 
 #[derive(Accounts)]
 pub struct LendingAccountWithdraw<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
         has_one = group,
-        has_one = authority
+        constraint = {
+            let a = marginfi_account.load()?;
+            a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+        } @MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
+    /// Must be marginfi_account's authority, unless in liquidation receivership
+    ///
+    /// Note: during liquidation, there are no signer checks whatsoever: any key can repay as
+    /// long as the invariants checked at the end of liquidation are met.
     pub authority: Signer<'info>,
 
     #[account(
@@ -178,4 +207,10 @@ pub struct LendingAccountWithdraw<'info> {
     pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
+}
+
+impl Hashable for LendingAccountWithdraw<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_withdraw")
+    }
 }

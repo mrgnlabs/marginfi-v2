@@ -23,23 +23,25 @@ use {
     fixed::types::I80F48,
     log::info,
     marginfi::{
-        constants::{
-            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, PYTH_SPONSORED_SHARD_ID,
-            ZERO_AMOUNT_THRESHOLD,
-        },
-        prelude::*,
         state::{
-            marginfi_account::{BankAccountWrapper, MarginfiAccount},
-            marginfi_group::{
-                Bank, BankConfigCompact, BankConfigOpt, BankOperationalState, BankVaultType,
-                InterestRateConfig, WrappedI80F48,
-            },
+            bank::{BankImpl, BankVaultType},
+            bank_config::BankConfigImpl,
+            marginfi_account::BankAccountWrapper,
             price::{
                 parse_swb_ignore_alignment, LitePullFeedAccountData, OraclePriceFeedAdapter,
-                OracleSetup, PriceAdapter,
+                PriceAdapter,
             },
         },
         utils::NumTraitsWithTolerance,
+    },
+    marginfi_type_crate::{
+        constants::{
+            EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, ZERO_AMOUNT_THRESHOLD,
+        },
+        types::{
+            BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
+            InterestRateConfig, MarginfiAccount, MarginfiGroup, OracleSetup, WrappedI80F48,
+        },
     },
     pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
     solana_client::{
@@ -59,7 +61,6 @@ use {
         signature::Keypair,
         signer::Signer,
         system_program,
-        sysvar::{self},
         transaction::Transaction,
     },
     spl_associated_token_account::{
@@ -236,7 +237,7 @@ pub fn group_create(
         .accounts(marginfi::accounts::MarginfiGroupInitialize {
             marginfi_group: marginfi_group_keypair.pubkey(),
             admin,
-            fee_state: find_fee_state_pda(&marginfi::id()).0,
+            fee_state: find_fee_state_pda(&marginfi::ID).0,
             system_program: system_program::id(),
         })
         .args(marginfi::instruction::MarginfiGroupInitialize { is_arena_group })
@@ -523,7 +524,6 @@ fn create_bank_ix_with_seed(
                 &config.program_id,
             )
             .0,
-            rent: sysvar::rent::id(),
             token_program,
             system_program: system_program::id(),
             fee_payer: config.authority(),
@@ -615,7 +615,6 @@ fn create_bank_ix(
                 &config.program_id,
             )
             .0,
-            rent: sysvar::rent::id(),
             token_program,
             system_program: system_program::id(),
             fee_payer: config.explicit_fee_payer(),
@@ -964,11 +963,14 @@ pub fn initialize_fee_state(
     admin: Pubkey,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
+    liquidation_flat_sol_fee: u32,
     program_fee_fixed: f64,
     program_fee_rate: f64,
+    liquidation_max_fee: f64,
 ) -> Result<()> {
     let program_fee_fixed: WrappedI80F48 = I80F48::from_num(program_fee_fixed).into();
     let program_fee_rate: WrappedI80F48 = I80F48::from_num(program_fee_rate).into();
+    let liquidation_max_fee: WrappedI80F48 = I80F48::from_num(liquidation_max_fee).into();
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -980,15 +982,16 @@ pub fn initialize_fee_state(
         .accounts(marginfi::accounts::InitFeeState {
             payer: config.authority(),
             fee_state: fee_state_pubkey,
-            rent: sysvar::rent::id(),
             system_program: system_program::id(),
         })
         .args(marginfi::instruction::InitGlobalFeeState {
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         })
         .instructions()?;
 
@@ -1013,11 +1016,14 @@ pub fn edit_fee_state(
     new_admin: Pubkey,
     fee_wallet: Pubkey,
     bank_init_flat_sol_fee: u32,
+    liquidation_flat_sol_fee: u32,
     program_fee_fixed: f64,
     program_fee_rate: f64,
+    liquidation_max_fee: f64,
 ) -> Result<()> {
     let program_fee_fixed: WrappedI80F48 = I80F48::from_num(program_fee_fixed).into();
     let program_fee_rate: WrappedI80F48 = I80F48::from_num(program_fee_rate).into();
+    let liquidation_max_fee: WrappedI80F48 = I80F48::from_num(liquidation_max_fee).into();
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -1034,8 +1040,10 @@ pub fn edit_fee_state(
             admin: new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         })
         .instructions()?;
 
@@ -1931,17 +1939,11 @@ pub fn print_account(
         .get_active_balances_iter()
         .for_each(|balance| {
             let bank = banks.get(&balance.bank_pk).expect("Bank not found");
-            let balance_amount = if balance
-                .is_empty(marginfi::state::marginfi_account::BalanceSide::Assets)
-                .not()
-            {
+            let balance_amount = if balance.is_empty(BalanceSide::Assets).not() {
                 let native_value = bank.get_asset_amount(balance.asset_shares.into()).unwrap();
 
                 native_value / EXP_10_I80F48[bank.mint_decimals as usize]
-            } else if balance
-                .is_empty(marginfi::state::marginfi_account::BalanceSide::Liabilities)
-                .not()
-            {
+            } else if balance.is_empty(BalanceSide::Liabilities).not() {
                 let native_value = bank
                     .get_liability_amount(balance.liability_shares.into())
                     .unwrap();
@@ -2375,14 +2377,14 @@ pub fn marginfi_account_liquidate(
     };
 
     let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
-        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_SPONSORED_SHARD_ID);
+        let oracle_key = bank_to_oracle_key(&bank.config);
         AccountMeta::new_readonly(oracle_key, false)
     });
 
     ix.accounts.extend(oracle_accounts);
 
     let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
-        let oracle_key = bank_to_oracle_key(&bank.config, PYTH_SPONSORED_SHARD_ID);
+        let oracle_key = bank_to_oracle_key(&bank.config);
         AccountMeta::new_readonly(oracle_key, false)
     });
 

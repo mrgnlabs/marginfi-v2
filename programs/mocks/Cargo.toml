@@ -26,6 +26,7 @@ staging = []
 [dependencies]
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }
+marginfi = { path = "../marginfi", features = ["cpi"] }
 
 bytemuck = { workspace = true, features = ["derive"] }
 static_assertions = { workspace = true }

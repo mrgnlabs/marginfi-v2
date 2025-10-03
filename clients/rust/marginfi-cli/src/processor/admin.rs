@@ -5,10 +5,8 @@ use crate::{
 use anchor_client::anchor_lang::{prelude::*, InstructionData};
 use anchor_spl::associated_token;
 use anyhow::Result;
-use marginfi::{
-    bank_authority_seed,
-    state::marginfi_group::{Bank, BankVaultType},
-};
+use marginfi::{bank_authority_seed, state::bank::BankVaultType};
+use marginfi_type_crate::types::Bank;
 use solana_sdk::{
     instruction::Instruction, message::Message, pubkey::Pubkey, transaction::Transaction,
 };
@@ -19,11 +17,11 @@ pub fn process_collect_fees(config: Config, bank_pk: Pubkey, fee_ata: Pubkey) ->
 
     let (liquidity_vault_authority, _) = Pubkey::find_program_address(
         bank_authority_seed!(BankVaultType::Liquidity, bank_pk),
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let mut ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: marginfi::accounts::LendingPoolCollectBankFees {
             group: bank.group,
             bank: bank_pk,
@@ -32,7 +30,7 @@ pub fn process_collect_fees(config: Config, bank_pk: Pubkey, fee_ata: Pubkey) ->
             liquidity_vault_authority,
             liquidity_vault: bank.liquidity_vault,
             insurance_vault: bank.insurance_vault,
-            fee_state: find_fee_state_pda(&marginfi::id()).0,
+            fee_state: find_fee_state_pda(&marginfi::ID).0,
             fee_ata,
         }
         .to_account_metas(Some(true)),
@@ -71,7 +69,7 @@ pub fn process_withdraw_fees(
 
     let (fee_vault_authority, _) = Pubkey::find_program_address(
         bank_authority_seed!(BankVaultType::Fee, bank_pk),
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let create_ata_ix =
@@ -83,7 +81,7 @@ pub fn process_withdraw_fees(
         );
 
     let mut ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: marginfi::accounts::LendingPoolWithdrawFees {
             group: bank.group,
             bank: bank_pk,
@@ -129,7 +127,7 @@ pub fn process_withdraw_insurance(
 
     let (insurance_vault_authority, _) = Pubkey::find_program_address(
         bank_authority_seed!(BankVaultType::Insurance, bank_pk),
-        &marginfi::id(),
+        &marginfi::ID,
     );
 
     let create_ata_ix =
@@ -141,7 +139,7 @@ pub fn process_withdraw_insurance(
         );
 
     let mut ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: marginfi::accounts::LendingPoolWithdrawInsurance {
             group: bank.group,
             bank: bank_pk,

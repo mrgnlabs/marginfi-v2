@@ -1,7 +1,11 @@
+use anchor_lang::prelude::AccountMeta;
 use anchor_lang::solana_program::{instruction::Instruction, pubkey::Pubkey};
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::prelude::*;
+use marginfi_type_crate::constants::{
+    INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
+};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 use solana_sdk::signature::Keypair;
@@ -300,7 +304,7 @@ async fn flashloan_fail_missing_invalid_sysvar_ixs() -> anyhow::Result<()> {
     let mut ixs = vec![borrow_ix, repay_ix];
 
     let start_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: marginfi::accounts::LendingAccountStartFlashloan {
             marginfi_account: borrower_mfi_account_f.key,
             authority: test_f.context.borrow().payer.pubkey(),
@@ -537,7 +541,7 @@ async fn flashloan_fail_account_transfer_during_flashloan() -> anyhow::Result<()
     let account = borrower_mfi_account_f.load().await;
 
     let transfer_account_ix = Instruction {
-        program_id: marginfi::id(),
+        program_id: marginfi::ID,
         accounts: marginfi::accounts::TransferToNewAccount {
             old_marginfi_account: borrower_mfi_account_f.key,
             new_marginfi_account: new_account.pubkey(),
@@ -558,6 +562,109 @@ async fn flashloan_fail_account_transfer_during_flashloan() -> anyhow::Result<()
             vec![],
             vec![sol_bank.key],
             Some(&new_account),
+        )
+        .await;
+
+    assert_custom_error!(
+        flash_loan_result.unwrap_err(),
+        MarginfiError::AccountInFlashloan
+    );
+
+    Ok(())
+}
+
+fn create_handle_bankruptcy_cpi_metas(
+    accounts: &mocks::accounts::HandleBankruptcyViaCpi,
+) -> Vec<AccountMeta> {
+    vec![
+        AccountMeta::new_readonly(accounts.group, false),
+        AccountMeta::new_readonly(accounts.signer, true),
+        AccountMeta::new(accounts.bank, false),
+        AccountMeta::new(accounts.marginfi_account, false),
+        AccountMeta::new(accounts.liquidity_vault, false),
+        AccountMeta::new(accounts.insurance_vault, false),
+        AccountMeta::new_readonly(accounts.insurance_vault_authority, false),
+        AccountMeta::new_readonly(accounts.token_program, false),
+        AccountMeta::new_readonly(accounts.marginfi_program, false),
+    ]
+}
+
+#[tokio::test]
+async fn flashloan_fail_bankruptcy_during_flashloan() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let sol_bank = test_f.get_bank(&BankMint::Sol);
+
+    // Fund SOL lender
+    let lender_mfi_account_f = test_f.create_marginfi_account().await;
+    let lender_token_account_f_sol = test_f
+        .sol_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    lender_mfi_account_f
+        .try_bank_deposit(lender_token_account_f_sol.key, sol_bank, 1_000, None)
+        .await?;
+
+    // Fund SOL borrower
+    let borrower_mfi_account_f = test_f.create_marginfi_account().await;
+
+    let borrower_token_account_f_sol = test_f.sol_mint.create_empty_token_account().await;
+
+    // Borrow SOL
+    let borrow_ix = borrower_mfi_account_f
+        .make_bank_borrow_ix(borrower_token_account_f_sol.key, sol_bank, 1_000)
+        .await;
+
+    let bank_pk = sol_bank.key;
+    let (liquidity_vault, _) = Pubkey::find_program_address(
+        &[LIQUIDITY_VAULT_SEED.as_bytes(), bank_pk.as_ref()],
+        &marginfi::ID,
+    );
+    let (insurance_vault, _) = Pubkey::find_program_address(
+        &[INSURANCE_VAULT_SEED.as_bytes(), bank_pk.as_ref()],
+        &marginfi::ID,
+    );
+    let (insurance_vault_authority, _) = Pubkey::find_program_address(
+        &[INSURANCE_VAULT_AUTHORITY_SEED.as_bytes(), bank_pk.as_ref()],
+        &marginfi::ID,
+    );
+
+    // A sneaky trick attackers might try to pull is to simply bankrupt what they borrowed instead
+    // of returning it...
+    let payer = test_f.payer();
+    let cpi_accounts = mocks::accounts::HandleBankruptcyViaCpi {
+        group: test_f.marginfi_group.key,
+        signer: payer,
+        bank: bank_pk,
+        marginfi_account: borrower_mfi_account_f.key,
+        liquidity_vault,
+        insurance_vault,
+        insurance_vault_authority,
+        token_program: anchor_spl::token::ID,
+        marginfi_program: marginfi::ID,
+    };
+
+    let mut metas = create_handle_bankruptcy_cpi_metas(&cpi_accounts);
+    let remaining = borrower_mfi_account_f
+        .load_observation_account_metas(vec![], vec![])
+        .await;
+
+    metas.extend_from_slice(&remaining);
+
+    let mut bankrupt_via_cpi_ix = Instruction {
+        program_id: mocks::id(),
+        accounts: metas,
+        data: mocks::instruction::HandleBankruptcy {}.data(),
+    };
+
+    bankrupt_via_cpi_ix.accounts.extend_from_slice(&[]);
+
+    let flash_loan_result = borrower_mfi_account_f
+        .try_flashloan(
+            vec![borrow_ix, bankrupt_via_cpi_ix],
+            vec![],
+            vec![sol_bank.key],
+            None,
         )
         .await;
 

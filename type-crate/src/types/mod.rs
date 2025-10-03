@@ -1,9 +1,13 @@
 pub mod bank;
 pub mod bank_cache;
+pub mod bank_config;
 pub mod emode;
 pub mod fee_state;
 pub mod group;
 pub mod health_cache;
+pub mod interest_rate;
+pub mod liquidation_record;
+pub mod panic_state_cache;
 pub mod pubkey;
 pub mod staked_settings;
 pub mod user_account;
@@ -11,10 +15,14 @@ pub mod wrapped_i80f48;
 
 pub use bank::*;
 pub use bank_cache::*;
+pub use bank_config::*;
 pub use emode::*;
 pub use fee_state::*;
 pub use group::*;
 pub use health_cache::*;
+pub use interest_rate::*;
+pub use liquidation_record::*;
+pub use panic_state_cache::*;
 pub use pubkey::*;
 pub use staked_settings::*;
 pub use user_account::*;

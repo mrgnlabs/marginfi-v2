@@ -2,6 +2,7 @@ pub mod constants;
 pub mod errors;
 pub mod events;
 pub mod instructions;
+pub mod ix_utils;
 pub mod macros;
 pub mod prelude;
 pub mod state;
@@ -18,23 +19,13 @@ pub mod utils;
 
 use anchor_lang::prelude::*;
 use instructions::*;
+use marginfi_type_crate::types::{
+    BankConfigCompact, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, WrappedI80F48,
+    MAX_EMODE_ENTRIES,
+};
 use prelude::*;
-use state::emode::{EmodeEntry, MAX_EMODE_ENTRIES};
-use state::marginfi_group::InterestRateConfigOpt;
-use state::marginfi_group::WrappedI80F48;
-use state::marginfi_group::{BankConfigCompact, BankConfigOpt};
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "mainnet-beta")] {
-        declare_id!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
-    } else if #[cfg(feature = "devnet")] {
-        declare_id!("neetcne3Ctrrud7vLdt2ypMm21gZHGN2mCmqWaMVcBQ");
-    } else if #[cfg(feature = "staging")] {
-        declare_id!("stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct");
-    } else {
-        declare_id!("2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr");
-    }
-}
+pub use id_crate::ID;
 
 // #[cfg(target_os = "solana")]
 // /// Custom heap allocator that exposes a move_cursor method. This allows us to manually deallocate
@@ -228,9 +219,33 @@ pub mod marginfi {
 
     // User instructions
 
-    /// Initialize a marginfi account for a given group
+    /// Initialize a marginfi account for a given group. The account is a fresh keypair, and must
+    /// sign. If you are a CPI caller, consider using `marginfi_account_initialize_pda` instead, or
+    /// create the account manually and use `transfer_to_new_account` to gift it to the owner you
+    /// wish.
     pub fn marginfi_account_initialize(ctx: Context<MarginfiAccountInitialize>) -> MarginfiResult {
         marginfi_account::initialize_account(ctx)
+    }
+
+    pub fn marginfi_account_init_liq_record(ctx: Context<InitLiquidationRecord>) -> MarginfiResult {
+        marginfi_account::initialize_liquidation_record(ctx)
+    }
+
+    /// The same as `marginfi_account_initialize`, except the created marginfi account uses a PDA
+    /// (Program Derived Address)
+    ///
+    /// seeds:
+    /// - marginfi_group
+    /// - authority: The account authority (owner)  
+    /// - account_index: A u16 value to allow multiple accounts per authority
+    /// - third_party_id: Optional u16 for third-party tagging. Seeds < PDA_FREE_THRESHOLD can be
+    ///   used freely. For a dedicated seed used by just your program (via CPI), contact us.
+    pub fn marginfi_account_initialize_pda(
+        ctx: Context<MarginfiAccountInitializePda>,
+        account_index: u16,
+        third_party_id: Option<u16>,
+    ) -> MarginfiResult {
+        marginfi_account::initialize_account_pda(ctx, account_index, third_party_id)
     }
 
     pub fn lending_account_deposit<'info>(
@@ -357,6 +372,22 @@ pub mod marginfi {
         marginfi_account::transfer_to_new_account(ctx)
     }
 
+    /// Same as `transfer_to_new_account` except the resulting account is a PDA
+    ///
+    /// seeds:
+    /// - marginfi_group
+    /// - authority: The account authority (owner)  
+    /// - account_index: A u32 value to allow multiple accounts per authority
+    /// - third_party_id: Optional u32 for third-party tagging. Seeds < PDA_FREE_THRESHOLD can be
+    ///   used freely. For a dedicated seed used by just your program (via CPI), contact us.
+    pub fn transfer_to_new_account_pda(
+        ctx: Context<TransferToNewAccountPda>,
+        account_index: u16,
+        third_party_id: Option<u16>,
+    ) -> MarginfiResult {
+        marginfi_account::transfer_to_new_account_pda(ctx, account_index, third_party_id)
+    }
+
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
         marginfi_account::close_account(ctx)
     }
@@ -395,16 +426,20 @@ pub mod marginfi {
         admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
+        liquidation_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
         program_fee_rate: WrappedI80F48,
+        liquidation_max_fee: WrappedI80F48,
     ) -> MarginfiResult {
         marginfi_group::initialize_fee_state(
             ctx,
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         )
     }
 
@@ -414,16 +449,20 @@ pub mod marginfi {
         admin: Pubkey,
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
+        liquidation_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
         program_fee_rate: WrappedI80F48,
+        liquidation_max_fee: WrappedI80F48,
     ) -> MarginfiResult {
         marginfi_group::edit_fee_state(
             ctx,
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         )
     }
 
@@ -464,8 +503,39 @@ pub mod marginfi {
         marginfi_group::propagate_staked_settings(ctx)
     }
 
-    pub fn migrate_pyth_push_oracle(ctx: Context<MigratePythPushOracle>) -> MarginfiResult {
-        marginfi_group::migrate_pyth_push_oracle(ctx)
+    pub fn start_liquidation<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartLiquidation<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::start_liquidation(ctx)
+    }
+
+    pub fn end_liquidation<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EndLiquidation<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::end_liquidation(ctx)
+    }
+
+    pub fn panic_pause(ctx: Context<PanicPause>) -> MarginfiResult {
+        marginfi_group::panic_pause(ctx)
+    }
+
+    pub fn panic_unpause(ctx: Context<PanicUnpause>) -> MarginfiResult {
+        marginfi_group::panic_unpause(ctx)
+    }
+
+    /// (permissionless) Unpause the protocol when pause time has expired
+    pub fn panic_unpause_permissionless(
+        ctx: Context<PanicUnpausePermissionless>,
+    ) -> MarginfiResult {
+        marginfi_group::panic_unpause_permissionless(ctx)
+    }
+
+    /// (Arena admin) used to withdraw funds from arena liquidity pools to sunset them. Only
+    /// hard-coded arena banks can call this function.
+    pub fn admin_super_withdraw<'info>(
+        ctx: Context<'_, '_, 'info, 'info, AdminSuperWithdraw<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::admin_super_withdraw(ctx)
     }
 }
 

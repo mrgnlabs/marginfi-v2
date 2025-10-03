@@ -3,16 +3,16 @@ use anchor_spl::{
     associated_token::get_associated_token_address_with_program_id,
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
+use marginfi_type_crate::{
+    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED},
+    types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
+};
 
 use crate::{
-    check,
-    constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED},
-    debug,
+    check, debug,
+    ix_utils::{get_discrim_hash, Hashable},
     prelude::{MarginfiError, MarginfiResult},
-    state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, MarginfiGroup},
-    },
+    state::marginfi_account::{BankAccountWrapper, MarginfiAccountImpl},
 };
 
 pub fn lending_account_withdraw_emissions<'info>(
@@ -38,6 +38,7 @@ pub fn lending_account_withdraw_emissions<'info>(
 
     if emissions_settle_amount > 0 {
         debug!("Transferring {} emissions to user", emissions_settle_amount);
+        marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
 
         let signer_seeds: &[&[&[u8]]] = &[&[
             EMISSIONS_AUTH_SEED.as_bytes(),
@@ -114,6 +115,12 @@ pub struct LendingAccountWithdrawEmissions<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
+impl Hashable for LendingAccountWithdrawEmissions<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_withdraw_emissions")
+    }
+}
+
 /// Permissionlessly settle unclaimed emissions to a users account.
 pub fn lending_account_settle_emissions(
     ctx: Context<LendingAccountSettleEmissions>,
@@ -127,7 +134,9 @@ pub fn lending_account_settle_emissions(
         &mut marginfi_account.lending_account,
     )?;
 
-    balance.claim_emissions(Clock::get()?.unix_timestamp.try_into().unwrap())?;
+    let current_timestamp = Clock::get()?.unix_timestamp as u64;
+    balance.claim_emissions(current_timestamp)?;
+    marginfi_account.last_update = current_timestamp;
 
     Ok(())
 }
@@ -144,6 +153,12 @@ pub struct LendingAccountSettleEmissions<'info> {
     pub bank: AccountLoader<'info, Bank>,
 }
 
+impl Hashable for LendingAccountSettleEmissions<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_settle_emissions")
+    }
+}
+
 /// emissions rewards will be withdrawn to the emissions_destination_account
 pub fn marginfi_account_update_emissions_destination_account<'info>(
     ctx: Context<'_, '_, 'info, 'info, MarginfiAccountUpdateEmissionsDestinationAccount<'info>>,
@@ -156,6 +171,7 @@ pub fn marginfi_account_update_emissions_destination_account<'info>(
     );
 
     marginfi_account.emissions_destination_account = ctx.accounts.destination_account.key();
+    marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
 
     Ok(())
 }
@@ -221,6 +237,7 @@ pub fn lending_account_withdraw_emissions_permissionless<'info>(
 
     if emissions_settle_amount > 0 {
         debug!("Transferring {} emissions to user", emissions_settle_amount);
+        marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
 
         let signer_seeds: &[&[&[u8]]] = &[&[
             EMISSIONS_AUTH_SEED.as_bytes(),

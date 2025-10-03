@@ -1,24 +1,26 @@
-use crate::constants::{
-    INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
-};
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
+use crate::state::bank::{BankImpl, BankVaultType};
 use crate::state::marginfi_account::{
-    calc_amount, calc_value, get_remaining_accounts_per_bank, RiskEngine,
+    calc_amount, calc_value, get_remaining_accounts_per_bank, LendingAccountImpl,
+    MarginfiAccountImpl, RiskEngine,
 };
-use crate::state::marginfi_group::{Bank, BankVaultType};
+use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
-use crate::utils::{validate_asset_tags, validate_bank_asset_tags};
-use crate::{
-    bank_signer,
-    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
-    state::marginfi_account::{BankAccountWrapper, MarginfiAccount},
+use crate::utils::{
+    validate_asset_tags, validate_bank_asset_tags, validate_bank_state, InstructionKind,
 };
+use crate::{bank_signer, state::marginfi_account::BankAccountWrapper};
 use crate::{check, debug, prelude::*, utils};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Clock;
 use anchor_lang::solana_program::sysvar::Sysvar;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
+use marginfi_type_crate::constants::{
+    INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
+    LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+};
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup};
 
 /// Instruction liquidates a position owned by a margin account that is in a unhealthy state.
 /// The liquidator can purchase discounted collateral from the unhealthy account, in exchange for paying its debt.
@@ -96,6 +98,8 @@ pub fn lending_account_liquidate<'info>(
         let asset_bank = ctx.accounts.asset_bank.load()?;
         let liab_bank = ctx.accounts.liab_bank.load()?;
         validate_bank_asset_tags(&asset_bank, &liab_bank)?;
+        validate_bank_state(&asset_bank, InstructionKind::FailsInPausedState)?;
+        validate_bank_state(&liab_bank, InstructionKind::FailsInPausedState)?;
 
         // Sanity check user/liquidator accounts will not contain positions with mismatching tags
         // after liquidation.
@@ -149,11 +153,12 @@ pub fn lending_account_liquidate<'info>(
 
     liquidatee_marginfi_account.lending_account.sort_balances();
 
-    let pre_liquidation_health: I80F48 =
+    let (pre_liquidation_health, _, _) =
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
             .check_pre_liquidation_condition_and_get_account_health(
                 Some(&ctx.accounts.liab_bank.key()),
                 &mut None,
+                false,
             )?;
 
     // ##Accounting changes##
@@ -238,7 +243,7 @@ pub fn lending_account_liquidate<'info>(
             liab_amount_liquidator, liab_amount_final, asset_amount, insurance_fund_fee, liab_price, asset_price
         );
 
-        // Liquidator pays off liability
+        // Liquidator pays off liability (by gaining the liability on their books)
         let (liquidator_liability_pre_balance, liquidator_liability_post_balance) = {
             let mut bank_account = BankAccountWrapper::find_or_create(
                 &ctx.accounts.liab_bank.key(),
@@ -246,11 +251,14 @@ pub fn lending_account_liquidate<'info>(
                 &mut liquidator_marginfi_account.lending_account,
             )?;
 
+            // TODO: in edge cases, the liquidator starts/ends with ASSETS,
+            // and this value (which will ultimately be emitted in the event) is useless.
             let pre_balance: I80F48 = bank_account
                 .bank
                 .get_liability_amount(bank_account.balance.liability_shares.into())?;
 
-            bank_account.decrease_balance_in_liquidation(liab_amount_liquidator)?;
+            // Liquidator will withdraw the collateral (if any) and then borrow the remainder (if any). Ignores the utilization ratio check.
+            bank_account.withdraw_ignore_borrow_cap(liab_amount_liquidator)?;
 
             let post_balance: I80F48 = bank_account
                 .bank
@@ -271,9 +279,13 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            bank_account
-                .withdraw(asset_amount)
-                .map_err(|_| MarginfiError::OverliquidationAttempt)?;
+            check!(
+                pre_balance >= asset_amount,
+                MarginfiError::OverliquidationAttempt
+            );
+
+            // Liquidatee will withdraw the collateral ignoring the utilization ratio check.
+            bank_account.withdraw_ignore_borrow_cap(asset_amount)?;
 
             let post_balance: I80F48 = bank_account
                 .bank
@@ -294,11 +306,14 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
-            bank_account.increase_balance_in_liquidation(asset_amount)?;
+            // Liquidator will repay the debt (if any) and then deposit the remainder (if any).
+            bank_account.deposit_ignore_deposit_cap(asset_amount)?;
 
             let post_balance: I80F48 = bank_account
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
+
+            liquidator_marginfi_account.last_update = current_timestamp as u64;
 
             (pre_balance, post_balance)
         };
@@ -325,16 +340,18 @@ pub fn lending_account_liquidate<'info>(
                     liquidatee_liab_bank_account.balance.liability_shares.into(),
                 )?;
 
-            liquidatee_liab_bank_account.increase_balance(liab_amount_final)?;
+            liquidatee_liab_bank_account.repay(liab_amount_final)?;
 
             let liquidatee_liability_post_balance: I80F48 =
                 liquidatee_liab_bank_account.bank.get_liability_amount(
                     liquidatee_liab_bank_account.balance.liability_shares.into(),
                 )?;
 
+            liquidatee_marginfi_account.last_update = current_timestamp as u64;
+
             // ## SPL transfer ##
             // Insurance fund receives fee
-            liquidatee_liab_bank_account.withdraw_spl_transfer(
+            liab_bank.withdraw_spl_transfer(
                 insurance_fee_to_transfer,
                 ctx.accounts.bank_liquidity_vault.to_account_info(),
                 ctx.accounts.bank_insurance_vault.to_account_info(),
@@ -440,6 +457,11 @@ pub fn lending_account_liquidate<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountLiquidate<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

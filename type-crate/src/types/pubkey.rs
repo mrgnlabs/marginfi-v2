@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 /// A 32‐byte ed25519 public key, suitable for zero‐copy.
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Pod, Zeroable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Pod, Zeroable, Ord, PartialOrd)]
 pub struct Pubkey([u8; 32]);
 
 impl Pubkey {
@@ -54,4 +54,15 @@ impl AsRef<[u8]> for Pubkey {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub struct AccountMeta {
+    /// An account's public key.
+    pub pubkey: Pubkey,
+    /// True if an `Instruction` requires a `Transaction` signature matching `pubkey`.
+    pub is_signer: bool,
+    /// True if the account data or metadata may be mutated during program execution.
+    pub is_writable: bool,
 }

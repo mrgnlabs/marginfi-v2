@@ -1,24 +1,31 @@
 use crate::{
     bank_signer, check,
-    constants::{
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, PROGRAM_VERSION, ZERO_AMOUNT_THRESHOLD,
-    },
+    constants::PROGRAM_VERSION,
     debug,
     events::{AccountEventHeader, LendingPoolBankHandleBankruptcyEvent},
     math_error,
     prelude::MarginfiError,
     state::{
-        health_cache::HealthCache,
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, BankVaultType, MarginfiGroup},
+        bank::{BankImpl, BankVaultType},
+        marginfi_account::{BankAccountWrapper, MarginfiAccountImpl, RiskEngine},
     },
-    utils, MarginfiResult,
+    utils::{self, validate_bank_state, InstructionKind},
+    MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::{
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_SEED,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, ZERO_AMOUNT_THRESHOLD,
+    },
+    types::{
+        Bank, BankOperationalState, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
+    },
+};
 use std::cmp::{max, min};
 
 /// Handle a bankrupt marginfi account.
@@ -39,6 +46,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         ..
     } = ctx.accounts;
     let bank = bank_loader.load()?;
+    validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
     let maybe_bank_mint =
         utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
@@ -86,7 +94,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 
     let lending_account_balance = lending_account_balance.unwrap();
 
-    let bad_debt = bank.get_liability_amount(lending_account_balance.liability_shares.into())?;
+    let bad_debt: I80F48 =
+        bank.get_liability_amount(lending_account_balance.liability_shares.into())?;
 
     check!(
         bad_debt > ZERO_AMOUNT_THRESHOLD,
@@ -121,7 +130,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         .ok_or_else(math_error!())?;
     debug!(
         "covered_by_insurance_rounded_up: {}; socialized loss {}",
-        covered_by_insurance_rounded_up, socialized_loss
+        covered_by_insurance_rounded_up,
+        socialized_loss.to_num::<f64>()
     );
 
     let insurance_coverage_deposit_pre_fee = maybe_bank_mint
@@ -152,7 +162,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     )?;
 
     // Socialize bad debt among depositors.
-    bank.socialize_loss(socialized_loss)?;
+    let kill_bank = bank.socialize_loss(socialized_loss)?;
 
     // Settle bad debt.
     // The liabilities of this account and global total liabilities are reduced by `bad_debt`
@@ -166,6 +176,10 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     bank.update_bank_cache(group)?;
 
     marginfi_account.set_flag(ACCOUNT_DISABLED);
+    if kill_bank {
+        msg!("bank had debt exceeding liabilities and has been killed");
+        bank.config.operational_state = BankOperationalState::KilledByBankruptcy;
+    }
 
     emit!(LendingPoolBankHandleBankruptcyEvent {
         header: AccountEventHeader {
@@ -200,7 +214,13 @@ pub struct LendingPoolHandleBankruptcy<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        constraint = {
+            !marginfi_account.load()?.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+        } @MarginfiError::UnexpectedLiquidationState,
+        constraint = {
+            !marginfi_account.load()?.get_flag(ACCOUNT_IN_FLASHLOAN)
+        } @MarginfiError::AccountInFlashloan
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

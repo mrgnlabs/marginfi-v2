@@ -4,9 +4,14 @@ use anchor_spl::token_2022::spl_token_2022::extension::{
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, native, prelude::*};
-use marginfi::{assert_eq_with_tolerance, prelude::*, state::marginfi_group::BankVaultType};
+use marginfi::{
+    assert_eq_with_tolerance,
+    prelude::*,
+    state::bank::{BankImpl, BankVaultType},
+};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
+use solana_sdk::clock::Clock;
 use test_case::test_case;
 
 #[test_case(100., 9., BankMint::Usdc, BankMint::Sol)]
@@ -80,6 +85,16 @@ async fn marginfi_account_repay_success(
     // Test
     // -------------------------------------------------------------------------
 
+    // This is just to test that the account's last_update field is properly updated upon modification
+    let pre_last_update = user_mfi_account_f.load().await.last_update;
+    {
+        let ctx = test_f.context.borrow_mut();
+        let mut clock: Clock = ctx.banks_client.get_sysvar().await?;
+        // Advance clock by 1 sec
+        clock.unix_timestamp += 1;
+        ctx.set_sysvar(&clock);
+    }
+
     let debt_bank = test_f.get_bank(&debt_mint);
 
     user_mfi_account_f
@@ -92,6 +107,7 @@ async fn marginfi_account_repay_success(
         .balance()
         .await;
     let marginfi_account = user_mfi_account_f.load().await;
+    assert_eq!(marginfi_account.last_update, pre_last_update + 1);
     let balance = marginfi_account
         .lending_account
         .get_balance(&debt_bank.key)
