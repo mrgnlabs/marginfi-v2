@@ -547,6 +547,7 @@ async fn flashloan_fail_account_transfer_during_flashloan() -> anyhow::Result<()
             new_marginfi_account: new_account.pubkey(),
             group: account.group,
             authority: test_f.payer(),
+            fee_payer: test_f.payer(),
             new_authority: new_authority.pubkey(),
             global_fee_wallet: test_f.marginfi_group.fee_wallet,
             system_program: system_program::ID,
