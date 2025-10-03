@@ -13,7 +13,7 @@ pub trait Hashable {
 }
 
 /// The function of struct discriminator is constructed from these 8 bytes. Typically, the namespace  
-/// is "account" or "state"
+/// is "account" or "state". For instructions it's typically "global".
 ///
 /// e.g. for LiquidateStart:
 /// ```
@@ -201,14 +201,17 @@ pub fn load_and_validate_instructions(
     Ok(ixes)
 }
 
+// TODO eventually compare these against the generated discrim in the IDL to prevent sausage fingers
+// from changing an ix name and thusly the hash.
 #[cfg(test)]
 mod tests {
     use marginfi_type_crate::constants::{discriminators, ix_discriminators};
     use pretty_assertions::assert_eq;
 
     use crate::{
-        EndLiquidation, InitLiquidationRecord, LendingAccountRepay, LendingAccountSettleEmissions,
-        LendingAccountWithdraw, LendingAccountWithdrawEmissions, StartLiquidation,
+        EndLiquidation, InitLiquidationRecord, LendingAccountEndFlashloan, LendingAccountRepay,
+        LendingAccountSettleEmissions, LendingAccountStartFlashloan, LendingAccountWithdraw,
+        LendingAccountWithdrawEmissions, StartLiquidation,
     };
 
     use super::*;
@@ -282,5 +285,15 @@ mod tests {
         let got_repay = LendingAccountSettleEmissions::get_hash();
         let want_repay = ix_discriminators::LENDING_WITHDRAW_EMISSIONS;
         assert_eq!(got_repay, want_repay);
+
+        // ─── LendingAccountStartFlashloan ─────────────────────────────────────────────────
+        let got_flash = LendingAccountStartFlashloan::get_hash();
+        let want_flash = ix_discriminators::START_FLASHLOAN;
+        assert_eq!(got_flash, want_flash);
+
+        // ─── LendingAccountEndFlashloan ─────────────────────────────────────────────────
+        let got_flash = LendingAccountEndFlashloan::get_hash();
+        let want_flash = ix_discriminators::END_FLASHLOAN;
+        assert_eq!(got_flash, want_flash);
     }
 }
