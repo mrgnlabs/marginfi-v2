@@ -3,7 +3,7 @@ use crate::{
     constants::{is_allowed_cpi_for_third_party_id, ACCOUNT_TRANSFER_FEE},
     events::{AccountEventHeader, MarginfiAccountTransferToNewAccount},
     prelude::*,
-    state::marginfi_account::MarginfiAccountImpl,
+    state::{marginfi_account::MarginfiAccountImpl, marginfi_group::MarginfiGroupImpl},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::Sysvar;
@@ -79,6 +79,11 @@ pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiRe
 
 #[derive(Accounts)]
 pub struct TransferToNewAccount<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -200,6 +205,11 @@ pub fn transfer_to_new_account_pda(
 #[derive(Accounts)]
 #[instruction(account_index: u16, third_party_id: Option<u16>)]
 pub struct TransferToNewAccountPda<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
