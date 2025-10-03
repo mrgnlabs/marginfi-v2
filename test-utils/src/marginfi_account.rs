@@ -161,7 +161,6 @@ impl MarginfiAccountFixture {
         withdraw_all: Option<bool>,
         is_liquidate: bool,
     ) -> Instruction {
-        println!("build withdraw");
         let marginfi_account = self.load().await;
 
         let mut accounts = marginfi::accounts::LendingAccountWithdraw {
@@ -191,9 +190,7 @@ impl MarginfiAccountFixture {
 
         let exclude_vec = match withdraw_all.unwrap_or(false) {
             true => {
-                println!("is withdraw all !");
                 if is_liquidate {
-                    println!("is liquidate!");
                     vec![]
                 } else {
                     vec![bank.key]
@@ -896,7 +893,7 @@ impl MarginfiAccountFixture {
         liquidation_receiver: Pubkey,
         fee_state: Pubkey,
         global_fee_wallet: Pubkey,
-        exclude_banks: Vec<Pubkey>
+        exclude_banks: Vec<Pubkey>,
     ) -> Instruction {
         let mut ix = Instruction {
             program_id: marginfi::ID,
@@ -911,8 +908,11 @@ impl MarginfiAccountFixture {
             .to_account_metas(Some(true)),
             data: marginfi::instruction::EndLiquidation {}.data(),
         };
-        ix.accounts
-            .extend_from_slice(&self.load_observation_account_metas(vec![], exclude_banks).await);
+        ix.accounts.extend_from_slice(
+            &self
+                .load_observation_account_metas(vec![], exclude_banks)
+                .await,
+        );
         ix
     }
 
