@@ -45,22 +45,35 @@ export type TransferAccountAuthorityArgs = {
   newAccount: PublicKey;
   newAuthority: PublicKey;
   globalFeeWallet: PublicKey;
+  feePayer?: PublicKey;
+  authority?: PublicKey;
 };
 
 export const transferAccountAuthorityIx = (
   program: Program<Marginfi>,
   args: TransferAccountAuthorityArgs
 ) => {
+  const accounts: any = {
+    oldMarginfiAccount: args.oldAccount,
+    newMarginfiAccount: args.newAccount,
+    // group: args.marginfiGroup,  // implied from oldMarginfiAccount
+    newAuthority: args.newAuthority,
+    globalFeeWallet: args.globalFeeWallet,
+  };
+
+  // Add authority if provided (otherwise implied from oldMarginfiAccount)
+  if (args.authority) {
+    accounts.authority = args.authority;
+  }
+
+  // Add fee payer if provided
+  if (args.feePayer) {
+    accounts.feePayer = args.feePayer;
+  }
+
   const ix = program.methods
     .transferToNewAccount()
-    .accounts({
-      oldMarginfiAccount: args.oldAccount,
-      newMarginfiAccount: args.newAccount,
-      // group: args.marginfiGroup,  // implied from oldMarginfiAccount
-      // authority: args.feePayer, // implied from oldMarginfiAccount
-      newAuthority: args.newAuthority,
-      globalFeeWallet: args.globalFeeWallet,
-    })
+    .accounts(accounts)
     .instruction();
 
   return ix;
