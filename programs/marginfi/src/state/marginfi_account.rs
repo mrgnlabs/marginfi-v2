@@ -836,6 +836,7 @@ impl LendingAccountImpl for LendingAccount {
 }
 
 pub trait BalanceImpl {
+    fn soft_close(&mut self) -> MarginfiResult;
     fn change_asset_shares(&mut self, delta: I80F48) -> MarginfiResult;
     fn change_liability_shares(&mut self, delta: I80F48) -> MarginfiResult;
     fn close(&mut self) -> MarginfiResult;
@@ -867,6 +868,19 @@ impl BalanceImpl for Balance {
         );
 
         *self = Self::empty_deactivated();
+
+        Ok(())
+    }
+
+    /// Sets the asset shares to zero while keeping the balance active.
+    fn soft_close(&mut self) -> MarginfiResult {
+        check!(
+            I80F48::from(self.emissions_outstanding) < I80F48::ONE,
+            MarginfiError::CannotCloseOutstandingEmissions
+        );
+
+        self.asset_shares = I80F48::ZERO.into();
+        self.liability_shares = I80F48::ZERO.into();
 
         Ok(())
     }
@@ -972,7 +986,7 @@ impl<'a> BankAccountWrapper<'a> {
     }
 
     /// Withdraw existing asset in full - will error if there is no asset.
-    pub fn withdraw_all(&mut self) -> MarginfiResult<u64> {
+    pub fn withdraw_all(&mut self, close: bool) -> MarginfiResult<u64> {
         self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
 
         let balance = &mut self.balance;
@@ -995,8 +1009,12 @@ impl<'a> BankAccountWrapper<'a> {
             MarginfiError::NoAssetFound
         );
 
-        balance.close()?;
-        bank.decrement_lending_position_count();
+        if close {
+            balance.close()?;
+            bank.decrement_lending_position_count();
+        } else {
+            balance.soft_close()?;
+        }
         bank.change_asset_shares(-total_asset_shares, false)?;
         bank.check_utilization_ratio()?;
 

@@ -9,7 +9,7 @@ use marginfi_type_crate::{
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDATION_RECORD_SEED,
         LIQUIDITY_VAULT_SEED,
     },
-    types::{BankConfigOpt, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP},
+    types::{BankConfigOpt, ACCOUNT_IN_RECEIVERSHIP},
 };
 use solana_program_test::*;
 use solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
@@ -139,7 +139,7 @@ async fn liquidate_start_then_cpi_start_on_different_accounts_exploit() -> anyho
 
     // withdraw/repay genuine for A
     let withdraw_ix = liquidatee_a
-        .make_bank_withdraw_ix(liq_sol_acc.key, sol_bank, 0.09, None)
+        .make_bank_withdraw_ix(liq_sol_acc.key, sol_bank, 0.09, None, true)
         .await;
     let repay_ix = liquidatee_a
         .make_bank_repay_ix(liq_usdc_acc.key, usdc_bank, 2.0, None)
@@ -152,6 +152,7 @@ async fn liquidate_start_then_cpi_start_on_different_accounts_exploit() -> anyho
             payer,
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![],
         )
         .await;
 
@@ -279,7 +280,7 @@ async fn handle_bankruptcy_via_cpi_fails() -> anyhow::Result<()> {
     // keep the entire borrow, the user does), of course the damage to the protocol is equal in both
     // events.
     let withdraw_ix = attacker_acc
-        .make_bank_withdraw_ix(attacker_sol.key, sol_bank, deposit_amt, Some(true))
+        .make_bank_withdraw_ix(attacker_sol.key, sol_bank, deposit_amt, Some(true), true)
         .await;
     // Note: no repay required! We're going to clear that debt throught bankruptcy instead!
     let end_ix = attacker_acc
@@ -288,6 +289,7 @@ async fn handle_bankruptcy_via_cpi_fails() -> anyhow::Result<()> {
             payer,
             test_f.marginfi_group.fee_state,
             test_f.marginfi_group.fee_wallet,
+            vec![],
         )
         .await;
 
