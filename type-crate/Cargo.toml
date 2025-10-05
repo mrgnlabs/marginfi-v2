@@ -18,7 +18,7 @@ stagingalt = ["id-crate/stagingalt"]
 devnet = ["id-crate/devnet"]
 
 [dependencies]
-id-crate = { path = "../id-crate" }
+id-crate = { workspace = true }
 bytemuck = { workspace = true, features = ["derive"] }
 fixed = { workspace = true }
 fixed-macro = { workspace = true }

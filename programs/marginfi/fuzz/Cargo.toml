@@ -14,7 +14,7 @@ test = false
 doc = false
 
 [dependencies]
-marginfi-type-crate = { path = "../../../type-crate", features = ["anchor"] }
+marginfi-type-crate = { workspace = true, features = ["anchor"] }
 solana-sdk = "=2.1.20"
 solana-program = "=2.1.20"
 solana-program-test = "=2.1.20"
