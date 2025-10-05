@@ -41,6 +41,8 @@ fixtures = { path = "test-utils", package = "test-utilities" }
 marginfi = { path = "programs/marginfi", package = "marginfi" }
 transfer_hook = { path = "programs/test_transfer_hook", package = "test_transfer_hook" }
 mocks = { path = "programs/mocks", package = "mocks" }
+id-crate = { path = "id-crate" }
+marginfi-type-crate = { path = "type-crate" }
 
 pyth-solana-receiver-sdk = "0.6.0"
 # pythnet-sdk = "2.3.1"
