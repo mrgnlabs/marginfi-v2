@@ -25,8 +25,8 @@ stagingalt = ["id-crate/stagingalt", "marginfi-type-crate/stagingalt"]
 devnet = ["id-crate/devnet", "marginfi-type-crate/devnet"]
 
 [dependencies]
-id-crate = { path = "../../id-crate" }
-marginfi-type-crate = { path = "../../type-crate", features = ["anchor"] }
+id-crate = { workspace = true }
+marginfi-type-crate = { workspace = true, features = ["anchor"] }
 # solana-program = { workspace = true }
 spl-transfer-hook-interface = { workspace = true }
 # spl-tlv-account-resolution = { workspace = true }
