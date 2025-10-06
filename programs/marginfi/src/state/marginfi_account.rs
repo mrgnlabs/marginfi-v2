@@ -1012,10 +1012,12 @@ impl<'a> BankAccountWrapper<'a> {
 
         if close {
             balance.close()?;
-            bank.decrement_lending_position_count();
         } else {
             balance.soft_close()?;
         }
+        // Note: we actually decrement the point even before the position is formally closed, once
+        // it has a "zero" value, e.g. even if it's soft closed.
+        bank.decrement_lending_position_count();
         bank.change_asset_shares(-total_asset_shares, false)?;
         bank.check_utilization_ratio()?;
 
