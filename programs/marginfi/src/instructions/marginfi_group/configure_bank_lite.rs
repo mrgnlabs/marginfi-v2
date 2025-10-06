@@ -30,7 +30,6 @@ pub fn lending_pool_configure_bank_interest_only(
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankInterestOnly<'info> {
     #[account(
-        mut,
         has_one = delegate_curve_admin,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
@@ -75,7 +74,6 @@ pub fn lending_pool_configure_bank_limits_only(
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankLimitsOnly<'info> {
     #[account(
-        mut,
         has_one = delegate_limit_admin,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
