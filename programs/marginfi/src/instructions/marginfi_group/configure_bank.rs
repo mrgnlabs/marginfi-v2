@@ -63,7 +63,6 @@ pub fn lending_pool_configure_bank(
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBank<'info> {
     #[account(
-        mut,
         has_one = admin,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
@@ -131,7 +130,6 @@ pub fn lending_pool_setup_emissions(
 #[derive(Accounts)]
 pub struct LendingPoolSetupEmissions<'info> {
     #[account(
-        mut,
         has_one = delegate_emissions_admin,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
@@ -249,7 +247,6 @@ pub fn lending_pool_update_emissions_parameters(
 #[derive(Accounts)]
 pub struct LendingPoolUpdateEmissionsParameters<'info> {
     #[account(
-        mut,
         has_one = delegate_emissions_admin
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,

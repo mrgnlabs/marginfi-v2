@@ -18,8 +18,11 @@ use marginfi_type_crate::{
     },
 };
 
-// TODO more detail
-/// (Permissionless) Ends a liquidation
+/// (Permissionless) Ends a liquidation. Records the liquidation event in the user's record. Debits a
+/// small flat sol fee to the global fee wallet.
+/// * Fails if account is less healthy than it was at start
+/// * Fails if liquidator earned too much profit (took more assets in exchange for repayment of
+///   liabs that they were allowed)
 pub fn end_liquidation<'info>(
     ctx: Context<'_, '_, 'info, 'info, EndLiquidation<'info>>,
 ) -> MarginfiResult {
@@ -58,7 +61,6 @@ pub fn end_liquidation<'info>(
         MarginfiError::WorseHealthPostLiquidation
     );
 
-    // ??? Do we care about this, as long as you improved health maybe you can claim as much as you want?
     // ensure seized asset‐value ≤ N% of repaid liability‐value, where N = 100% + the bonus fee
     let seized: I80F48 = pre_assets_equity - post_assets_equity;
     let repaid: I80F48 = pre_liabs_equity - post_liabilities_equity;
@@ -76,7 +78,6 @@ pub fn end_liquidation<'info>(
         );
     }
 
-    // ??? Is this better/more flexible than debiting the insurance fee in the repaid asset?
     let liquidation_flat_sol_fee = fee_state.liquidation_flat_sol_fee;
     if liquidation_flat_sol_fee > 0 {
         anchor_lang::system_program::transfer(
@@ -162,7 +163,7 @@ impl<'info> EndLiquidation<'info> {
         CpiContext::new(
             self.system_program.to_account_info(),
             anchor_lang::system_program::Transfer {
-                // Eventually, maybe support the fee being paid by a different account
+                // TODO Eventually, maybe support the fee being paid by a different account
                 from: self.liquidation_receiver.to_account_info(),
                 to: self.global_fee_wallet.to_account_info(),
             },

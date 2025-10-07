@@ -7,7 +7,8 @@ use crate::state::marginfi_account::{
 use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::utils::{
-    validate_asset_tags, validate_bank_asset_tags, validate_bank_state, InstructionKind,
+    fetch_asset_price_for_bank, validate_asset_tags, validate_bank_asset_tags, validate_bank_state,
+    InstructionKind,
 };
 use crate::{bank_signer, state::marginfi_account::BankAccountWrapper};
 use crate::{check, debug, prelude::*, utils};
@@ -20,7 +21,7 @@ use marginfi_type_crate::constants::{
     INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
     LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
 };
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup};
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_IN_RECEIVERSHIP};
 
 /// Instruction liquidates a position owned by a margin account that is in a unhealthy state.
 /// The liquidator can purchase discounted collateral from the unhealthy account, in exchange for paying its debt.
@@ -166,23 +167,16 @@ pub fn lending_account_liquidate<'info>(
     let (pre_balances, post_balances) = {
         let asset_amount: I80F48 = I80F48::from_num(asset_amount);
 
+        let asset_bank_key = ctx.accounts.asset_bank.key();
         let mut asset_bank = ctx.accounts.asset_bank.load_mut()?;
         let asset_bank_remaining_accounts_len = get_remaining_accounts_per_bank(&asset_bank)? - 1;
 
-        let asset_price: I80F48 = {
-            let oracle_ais = &ctx.remaining_accounts[0..asset_bank_remaining_accounts_len];
-            let asset_pf = OraclePriceFeedAdapter::try_from_bank_config(
-                &asset_bank.config,
-                oracle_ais,
-                &clock,
-            )?;
-            asset_pf.get_price_of_type(
-                OraclePriceType::RealTime,
-                Some(PriceBias::Low),
-                asset_bank.config.oracle_max_confidence,
-            )?
-        };
-        check!(asset_price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
+        let asset_price: I80F48 = fetch_asset_price_for_bank(
+            &asset_bank_key,
+            &asset_bank,
+            &clock,
+            ctx.remaining_accounts,
+        )?;
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
         let liab_bank_remaining_accounts_len = get_remaining_accounts_per_bank(&liab_bank)? - 1;
@@ -479,7 +473,11 @@ pub struct LendingAccountLiquidate<'info> {
     #[account(
         mut,
         has_one = group,
-        has_one = authority
+        has_one = authority,
+        constraint = {
+            let a = liquidator_marginfi_account.load()?;
+            !a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+        } @MarginfiError::ForbiddenIx
     )]
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -487,13 +485,16 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        constraint = {
+            let a = liquidatee_marginfi_account.load()?;
+            !a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+        } @MarginfiError::ForbiddenIx
     )]
     pub liquidatee_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     /// CHECK: Seed constraint
     #[account(
-        mut,
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             liab_bank.key().as_ref(),
