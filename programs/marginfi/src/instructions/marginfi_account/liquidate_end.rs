@@ -18,7 +18,7 @@ use marginfi_type_crate::{
     },
 };
 
-/// (Permissionless) Ends a liquidation. Records the liquidation even in the user's record. Debits a
+/// (Permissionless) Ends a liquidation. Records the liquidation event in the user's record. Debits a
 /// small flat sol fee to the global fee wallet.
 /// * Fails if account is less healthy than it was at start
 /// * Fails if liquidator earned too much profit (took more assets in exchange for repayment of
