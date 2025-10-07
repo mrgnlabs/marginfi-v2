@@ -841,7 +841,7 @@ async fn liquidate_receiver_closes_out_low_value_acc() -> anyhow::Result<()> {
         .lending_account
         .get_active_balances_iter()
         .count();
-    // The lending position is not actually closed.
+    // The lending position is closed.
     assert_eq!(0, active_balance_count);
 
     Ok(())
