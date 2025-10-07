@@ -1,5 +1,6 @@
 use crate::events::{GroupEventHeader, LendingPoolBankCollectFeesEvent};
 use crate::state::bank::{BankImpl, BankVaultType};
+use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::{bank_signer, math_error, MarginfiResult};
 use crate::{check, utils, MarginfiError};
 use anchor_lang::prelude::*;
@@ -179,6 +180,11 @@ pub fn lending_pool_collect_bank_fees<'info>(
 
 #[derive(Accounts)]
 pub struct LendingPoolCollectBankFees<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -281,7 +287,10 @@ pub fn lending_pool_withdraw_fees<'info>(
 #[derive(Accounts)]
 pub struct LendingPoolWithdrawFees<'info> {
     #[account(
-        has_one = admin
+        has_one = admin,
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -357,7 +366,10 @@ pub fn lending_pool_withdraw_insurance<'info>(
 #[derive(Accounts)]
 pub struct LendingPoolWithdrawInsurance<'info> {
     #[account(
-        has_one = admin
+        has_one = admin,
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -413,7 +425,10 @@ pub fn lending_pool_update_fees_destination_account<'info>(
 #[derive(Accounts)]
 pub struct LendingPoolUpdateFeesDestinationAccount<'info> {
     #[account(
-        has_one = admin
+        has_one = admin,
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -475,6 +490,11 @@ pub fn lending_pool_withdraw_fees_permissionless<'info>(
 
 #[derive(Accounts)]
 pub struct LendingPoolWithdrawFeesPermissionless<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(

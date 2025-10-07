@@ -94,10 +94,8 @@ pub fn lending_account_withdraw<'info>(
             BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
         let amount_pre_fee = if withdraw_all {
-            // Note: In liquidation we can empty a balance, but it stays on the user account until
-            // they close it manually. This is primarily to force the oracle to be passed for
-            // withdraw_all operations.
-            bank_account.withdraw_all(!in_liquidation)?
+            // Note: In liquidation, we still want this passed on the books
+            bank_account.withdraw_all()?
         } else {
             let amount_pre_fee = maybe_bank_mint
                 .as_ref()

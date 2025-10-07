@@ -47,7 +47,6 @@ pub fn edit_fee_state(
 #[derive(Accounts)]
 pub struct EditFeeState<'info> {
     /// Admin of the global FeeState
-    #[account(mut)]
     pub global_fee_admin: Signer<'info>,
 
     // Note: there is just one FeeState per program, so no further check is required.

@@ -801,7 +801,8 @@ async fn liquidate_receiver_closes_out_low_value_acc() -> anyhow::Result<()> {
     let payer = test_f.payer().clone();
     let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
     let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
-    // The entire balance
+    // NOTE: In receivership liquidation, you MUST PASS the oracle for the withdrawn asset even for
+    // a withdraw-all. The entire balance is still withdrawn!
     let withdraw_ix = liquidatee
         .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.4, Some(true), true)
         .await;
@@ -840,16 +841,8 @@ async fn liquidate_receiver_closes_out_low_value_acc() -> anyhow::Result<()> {
         .lending_account
         .get_active_balances_iter()
         .count();
-    let active_bal = marginfi_account
-        .lending_account
-        .get_active_balances_iter()
-        .next()
-        .unwrap();
-    // The lending position is not actually closed, just zeroed out.
-    assert_eq!(1, active_balance_count);
-    let shares: I80F48 = active_bal.asset_shares.into();
-    assert_eq!(shares, I80F48::ZERO);
-    assert_eq!(active_bal.bank_pk, sol_bank.key);
+    // The lending position is closed.
+    assert_eq!(0, active_balance_count);
 
     Ok(())
 }

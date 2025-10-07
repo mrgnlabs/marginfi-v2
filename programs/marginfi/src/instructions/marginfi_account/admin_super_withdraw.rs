@@ -117,6 +117,8 @@ pub fn admin_super_withdraw<'info>(
 
 #[derive(Accounts)]
 pub struct AdminSuperWithdraw<'info> {
+    // Note: Allowed during protocol pauses, this ix is solely to deprecate old arena banks, will
+    // run essentially once after the update is live, and will be removed after they are emptied.
     #[account(
         has_one = admin
     )]

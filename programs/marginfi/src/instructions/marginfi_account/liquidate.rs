@@ -21,7 +21,7 @@ use marginfi_type_crate::constants::{
     INSURANCE_VAULT_SEED, LIQUIDATION_INSURANCE_FEE, LIQUIDATION_LIQUIDATOR_FEE,
     LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
 };
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup};
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_IN_RECEIVERSHIP};
 
 /// Instruction liquidates a position owned by a margin account that is in a unhealthy state.
 /// The liquidator can purchase discounted collateral from the unhealthy account, in exchange for paying its debt.
@@ -473,7 +473,11 @@ pub struct LendingAccountLiquidate<'info> {
     #[account(
         mut,
         has_one = group,
-        has_one = authority
+        has_one = authority,
+        constraint = {
+            let a = liquidator_marginfi_account.load()?;
+            !a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+        } @MarginfiError::ForbiddenIx
     )]
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -481,13 +485,16 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        constraint = {
+            let a = liquidatee_marginfi_account.load()?;
+            !a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+        } @MarginfiError::ForbiddenIx
     )]
     pub liquidatee_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     /// CHECK: Seed constraint
     #[account(
-        mut,
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             liab_bank.key().as_ref(),

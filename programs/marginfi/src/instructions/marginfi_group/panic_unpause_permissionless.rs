@@ -17,17 +17,13 @@ pub fn panic_unpause_permissionless(ctx: Context<PanicUnpausePermissionless>) ->
         crate::errors::MarginfiError::PauseLimitExceeded
     );
 
-    fee_state.panic_state.unpause();
-
     msg!(
-        "Protocol permissionlessly unpaused at: {} (expired after {} seconds)",
+        "Permissionlessly unpaused at: {} (expired {}s)",
         current_timestamp,
         current_timestamp - fee_state.panic_state.pause_start_timestamp
     );
-    msg!(
-        "Consecutive pause count reset to: {}",
-        fee_state.panic_state.consecutive_pause_count
-    );
+
+    fee_state.panic_state.unpause();
 
     Ok(())
 }

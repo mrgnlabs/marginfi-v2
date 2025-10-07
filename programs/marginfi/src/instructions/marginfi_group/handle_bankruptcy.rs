@@ -177,6 +177,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     bank.update_bank_cache(group)?;
 
     marginfi_account.set_flag(ACCOUNT_DISABLED);
+    marginfi_account.last_update = clock.unix_timestamp as u64;
     if kill_bank {
         msg!("bank had debt exceeding liabilities and has been killed");
         bank.config.operational_state = BankOperationalState::KilledByBankruptcy;

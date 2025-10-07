@@ -16,7 +16,7 @@ use marginfi_type_crate::{
     types::{
         reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache,
         LendingAccount, MarginfiAccount, RiskTier, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
-        ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+        ACCOUNT_IN_RECEIVERSHIP, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
     },
 };
 use std::cmp::{max, min};
@@ -59,7 +59,6 @@ impl MarginfiAccountImpl for MarginfiAccount {
         self.migrated_from = Pubkey::default();
         self.last_update = current_timestamp;
         self.migrated_to = Pubkey::default();
-        self.last_update = current_timestamp;
     }
 
     /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
@@ -117,13 +116,15 @@ impl MarginfiAccountImpl for MarginfiAccount {
 
     fn can_be_closed(&self) -> bool {
         let is_disabled = self.get_flag(ACCOUNT_DISABLED);
+        let is_in_flashloan = self.get_flag(ACCOUNT_IN_FLASHLOAN);
+        let is_in_receivership = self.get_flag(ACCOUNT_IN_RECEIVERSHIP);
         let only_has_empty_balances = self
             .lending_account
             .balances
             .iter()
             .all(|balance| balance.get_side().is_none());
 
-        !is_disabled && only_has_empty_balances
+        !is_disabled && only_has_empty_balances && !is_in_flashloan && !is_in_receivership
     }
 }
 
@@ -986,7 +987,7 @@ impl<'a> BankAccountWrapper<'a> {
     }
 
     /// Withdraw existing asset in full - will error if there is no asset.
-    pub fn withdraw_all(&mut self, close: bool) -> MarginfiResult<u64> {
+    pub fn withdraw_all(&mut self) -> MarginfiResult<u64> {
         self.claim_emissions(Clock::get()?.unix_timestamp as u64)?;
 
         let balance = &mut self.balance;
@@ -1009,12 +1010,8 @@ impl<'a> BankAccountWrapper<'a> {
             MarginfiError::NoAssetFound
         );
 
-        if close {
-            balance.close()?;
-            bank.decrement_lending_position_count();
-        } else {
-            balance.soft_close()?;
-        }
+        balance.close()?;
+        bank.decrement_lending_position_count();
         bank.change_asset_shares(-total_asset_shares, false)?;
         bank.check_utilization_ratio()?;
 
