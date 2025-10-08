@@ -212,7 +212,9 @@ pub enum MarginfiError {
     KaminoReserveValidationFailed, // 6210
     #[msg("Invalid oracle setup: only KaminoPythPush and KaminoSwitchboardPull are supported")]
     KaminoInvalidOracleSetup, // 6211
-                              // **************END KAMINO ERRORS
+    #[msg("Maximum Kamino positions limit exceeded (max 8 positions per account)")]
+    KaminoPositionLimitExceeded, // 6212
+                                 // **************END KAMINO ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -342,6 +344,7 @@ impl From<u32> for MarginfiError {
             6209 => MarginfiError::ObligationInitDepositInsufficient,
             6210 => MarginfiError::KaminoReserveValidationFailed,
             6211 => MarginfiError::KaminoInvalidOracleSetup,
+            6212 => MarginfiError::KaminoPositionLimitExceeded,
             _ => MarginfiError::InternalLogicError,
         }
     }

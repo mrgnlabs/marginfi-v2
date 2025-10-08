@@ -234,14 +234,8 @@ async function addGenericBank(
     verboseMessage: string;
   }
 ) {
-  const {
-    assetTag,
-    bankMint,
-    oracle,
-    oracleMeta,
-    seed,
-    verboseMessage,
-  } = options;
+  const { assetTag, bankMint, oracle, oracleMeta, seed, verboseMessage } =
+    options;
 
   const config = defaultBankConfig();
   config.assetWeightInit = bigNumberToWrappedI80F48(0.5);
@@ -343,7 +337,7 @@ export const genericKaminoMultiBankTestSetup = async (
     // Process banks sequentially to avoid "Account in use" error
     for (let i = 0; i < numberOfBanks; i++) {
       const seed = startingSeed + i;
-      
+
       // Execute addGenericKaminoBank sequentially
       await addGenericKaminoBank(
         throwawayGroup,
@@ -372,7 +366,7 @@ export const genericKaminoMultiBankTestSetup = async (
     // Process banks sequentially to avoid "Account in use" error
     for (let i = 0; i < numberOfBanks; i++) {
       const seed = startingSeed + i;
-      
+
       // Execute addGenericBank sequentially
       await addGenericBank(throwawayGroup, {
         bankMint: ecosystem.lstAlphaMint.publicKey,
