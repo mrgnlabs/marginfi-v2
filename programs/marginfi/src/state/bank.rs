@@ -642,21 +642,25 @@ impl BankImpl for Bank {
         let old_asset_share_value: I80F48 = self.asset_share_value.into();
 
         // Compute total "old" value of shares
-        let total_value = total_asset_shares
+        let total_value: I80F48 = total_asset_shares
             .checked_mul(old_asset_share_value)
             .ok_or_else(math_error!())?;
 
         // Subtract loss, clamping at zero (i.e. assets < liabilities, the bank is wiped out)
-        if total_value < loss_amount {
+        if total_value <= loss_amount {
             self.asset_share_value = I80F48::ZERO.into();
             // This state is irrecoverable, the bank is dead.
             kill_bank = true;
         } else {
             // otherwise subtract then redistribute
-            let new_share_value = (total_value - loss_amount)
+            let new_share_value: I80F48 = (total_value - loss_amount)
                 .checked_div(total_asset_shares)
                 .ok_or_else(math_error!())?;
             self.asset_share_value = new_share_value.into();
+            // Sanity check: should be unreachable.
+            if new_share_value == I80F48::ZERO {
+                kill_bank = true;
+            }
         }
 
         Ok(kill_bank)

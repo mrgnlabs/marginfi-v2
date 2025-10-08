@@ -235,7 +235,6 @@ pub struct LendingAccountBorrow<'info> {
 
     /// CHECK: Seed constraint check
     #[account(
-        mut,
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             bank.key().as_ref(),

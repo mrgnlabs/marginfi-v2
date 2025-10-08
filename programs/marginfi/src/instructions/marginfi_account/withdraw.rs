@@ -11,7 +11,7 @@ use crate::{
         },
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, is_marginfi_asset_tag, validate_bank_state, InstructionKind},
+    utils::{self, fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_bank_state, InstructionKind},
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
@@ -53,22 +53,33 @@ pub fn lending_account_withdraw<'info>(
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
+    let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 
-    let maybe_bank_mint = utils::maybe_take_bank_mint(
-        &mut ctx.remaining_accounts,
-        &*bank_loader.load()?,
-        token_program.key,
-    )?;
+    let bank_key = bank_loader.key();
+    let maybe_bank_mint;
+
+    {
+        let bank = bank_loader.load()?;
+
+        maybe_bank_mint =
+            utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+
+        if in_liquidation {
+            // Note: we don't care about the price we are just validating non-zero...
+            fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+        }
+        validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
+    } // release immutable borrow of bank
 
     {
         let group = &marginfi_group_loader.load()?;
 
         let mut bank = bank_loader.load_mut()?;
-        validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
+
         bank.accrue_interest(
             clock.unix_timestamp,
             group,
@@ -83,6 +94,7 @@ pub fn lending_account_withdraw<'info>(
             BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
         let amount_pre_fee = if withdraw_all {
+            // Note: In liquidation, we still want this passed on the books
             bank_account.withdraw_all()?
         } else {
             let amount_pre_fee = maybe_bank_mint
@@ -188,7 +200,16 @@ pub struct LendingAccountWithdraw<'info> {
         has_one = group,
         has_one = liquidity_vault,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
-            @ MarginfiError::WrongAssetTagForStandardInstructions
+            @ MarginfiError::WrongAssetTagForStandardInstructions,
+        // We want to block withdraw of assets with no weight (e.g. isolated) otherwise the
+        // liquidator can just take all of them and the user gets nothing back, which is unfair. For
+        // assets with any nominal weight, e.g. 10%, caveat emptor
+        constraint = {
+            let a = marginfi_account.load()?;
+            let b = bank.load()?;
+            let weight: I80F48 = b.config.asset_weight_init.into();
+            !(a.get_flag(ACCOUNT_IN_RECEIVERSHIP) && weight == I80F48::ZERO)
+        } @MarginfiError::LiquidationPremiumTooHigh
     )]
     pub bank: AccountLoader<'info, Bank>,
 

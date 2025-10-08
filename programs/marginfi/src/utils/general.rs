@@ -1,5 +1,11 @@
 use crate::{
-    bank_authority_seed, bank_seed, state::bank::BankVaultType, MarginfiError, MarginfiResult,
+    bank_authority_seed, bank_seed, check,
+    state::{
+        bank::BankVaultType,
+        marginfi_account::get_remaining_accounts_per_bank,
+        price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
+    },
+    MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -321,6 +327,38 @@ pub fn wrapped_i80f48_to_f64(n: WrappedI80F48) -> f64 {
     let as_i80: I80F48 = n.into();
     let as_f64: f64 = as_i80.to_num();
     as_f64
+}
+
+/// Fetch price for a given bank from a properly structured remaining accounts slice as passed to
+/// any risk check. Errors if the bank is not found or the price is zero
+pub fn fetch_asset_price_for_bank<'info>(
+    bank_key: &Pubkey,
+    bank: &Bank,
+    clock: &Clock,
+    remaining_accounts: &'info [AccountInfo<'info>],
+) -> Result<I80F48> {
+    let accs_needed = get_remaining_accounts_per_bank(bank)? - 1;
+    let bank_idx = remaining_accounts
+        .iter()
+        .position(|ai| ai.key == bank_key)
+        .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
+
+    let start = bank_idx + 1;
+    let end = start + accs_needed;
+    require!(
+        end <= remaining_accounts.len(),
+        MarginfiError::WrongNumberOfOracleAccounts
+    );
+    let oracle_ais = &remaining_accounts[start..end];
+    let pf = OraclePriceFeedAdapter::try_from_bank_config(&bank.config, oracle_ais, clock)?;
+    let price = pf.get_price_of_type(
+        OraclePriceType::RealTime,
+        Some(PriceBias::Low),
+        bank.config.oracle_max_confidence,
+    )?;
+    check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
+
+    Ok(price)
 }
 
 #[macro_export]

@@ -8,6 +8,7 @@ use crate::{
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_account::{BankAccountWrapper, MarginfiAccountImpl, RiskEngine},
+        marginfi_group::MarginfiGroupImpl,
     },
     utils::{self, is_marginfi_asset_tag, validate_bank_state, InstructionKind},
     MarginfiResult,
@@ -176,6 +177,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     bank.update_bank_cache(group)?;
 
     marginfi_account.set_flag(ACCOUNT_DISABLED);
+    marginfi_account.last_update = clock.unix_timestamp as u64;
     if kill_bank {
         msg!("bank had debt exceeding liabilities and has been killed");
         bank.config.operational_state = BankOperationalState::KilledByBankruptcy;
@@ -200,6 +202,11 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 
 #[derive(Accounts)]
 pub struct LendingPoolHandleBankruptcy<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     /// CHECK: The admin signer constraint is only validated (in handler) if bank

@@ -12,7 +12,10 @@ use crate::{
     check, debug,
     ix_utils::{get_discrim_hash, Hashable},
     prelude::{MarginfiError, MarginfiResult},
-    state::marginfi_account::{BankAccountWrapper, MarginfiAccountImpl},
+    state::{
+        marginfi_account::{BankAccountWrapper, MarginfiAccountImpl},
+        marginfi_group::MarginfiGroupImpl,
+    },
     utils::is_marginfi_asset_tag,
 };
 
@@ -69,6 +72,11 @@ pub fn lending_account_withdraw_emissions<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountWithdrawEmissions<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -274,6 +282,11 @@ pub fn lending_account_withdraw_emissions_permissionless<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountWithdrawEmissionsPermissionless<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
