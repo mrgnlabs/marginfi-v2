@@ -11,7 +11,7 @@ use crate::{
         },
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{assert_within_one_token, is_kamino_asset_tag, validate_bank_state, InstructionKind},
+    utils::{assert_within_one_token, fetch_asset_price_for_bank, is_kamino_asset_tag, validate_bank_state, InstructionKind},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -77,10 +77,12 @@ pub fn kamino_withdraw<'info>(
         ctx.accounts.kamino_obligation.load()?.deposits[0].deposited_amount;
 
     let collateral_amount;
+    let bank_key = ctx.accounts.bank.key();
     {
         let mut bank = ctx.accounts.bank.load_mut()?;
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let group = &ctx.accounts.group.load()?;
+        let clock = Clock::get()?;
 
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
 
@@ -88,6 +90,13 @@ pub fn kamino_withdraw<'info>(
             !marginfi_account.get_flag(ACCOUNT_DISABLED),
             MarginfiError::AccountDisabled
         );
+
+        // Validate price is non-zero during liquidation to prevent exploits with stale oracles
+        let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
+        if in_liquidation {
+            // Note: we don't care about the price value, just validating it's non-zero
+            fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+        }
 
         let mut bank_account = BankAccountWrapper::find(
             &ctx.accounts.bank.key(),
@@ -105,7 +114,7 @@ pub fn kamino_withdraw<'info>(
         // Update bank cache after modifying balances (following pattern from regular withdraw)
         bank.update_bank_cache(group)?;
 
-        marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
+        marginfi_account.last_update = clock.unix_timestamp as u64;
     }
 
     let expected_liquidity_amount = ctx
@@ -206,7 +215,14 @@ pub struct KaminoWithdraw<'info> {
         has_one = kamino_reserve,
         has_one = kamino_obligation,
         constraint = is_kamino_asset_tag(bank.load()?.config.asset_tag)
-            @ MarginfiError::WrongAssetTagForKaminoInstructions
+            @ MarginfiError::WrongAssetTagForKaminoInstructions,
+        // Block withdraw of zero-weight assets during receivership - prevents unfair liquidation
+        constraint = {
+            let a = marginfi_account.load()?;
+            let b = bank.load()?;
+            let weight: I80F48 = b.config.asset_weight_init.into();
+            !(a.get_flag(ACCOUNT_IN_RECEIVERSHIP) && weight == I80F48::ZERO)
+        } @MarginfiError::LiquidationPremiumTooHigh
     )]
     pub bank: AccountLoader<'info, Bank>,
 
