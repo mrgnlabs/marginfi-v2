@@ -22,7 +22,7 @@
  * ### Liquidator Position Management
  * | Scenario                          | What We're Testing                        | Expected Result                                          | Status |
  * |-----------------------------------|-------------------------------------------|----------------------------------------------------------|--------|
- * | Liquidator has 8, gets NEW asset  | Can liquidator acquire 9th position?      | ❌ Liquidation fails (liquidator can't receive bank 0)   | ❌ TODO |
+ * | Liquidator has 8, gets NEW asset  | Can liquidator acquire 9th position?      | ❌ Liquidation fails (liquidator can't receive bank 0)   | ✅ k17  |
  */
 
 import { BN } from "@coral-xyz/anchor";
@@ -90,7 +90,8 @@ import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { ComputeBudgetProgram } from "@solana/web3.js";
 import Decimal from "decimal.js";
 
-const MAX_KAMINO_DEPOSITS = 8;
+const MAX_KAMINO_DEPOSITS = 8; // Maximum Kamino positions per account
+const NUM_KAMINO_BANKS_FOR_TESTING = 9; // Create 9 banks to test liquidator limit
 const NUM_REGULAR_TOKEN_A_BANKS = 7;
 const USER_ACCOUNT = "user_account_k17";
 const STARTING_SEED = 17000;
@@ -110,9 +111,9 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
   });
 
-  it("Create 8 markets + 8 reserves + 8 Kamino banks", async () => {
+  it("Create 9 markets + 9 reserves + 9 Kamino banks", async () => {
     // Create all markets/reserves/banks sequentially
-    for (let i = 0; i < MAX_KAMINO_DEPOSITS; i++) {
+    for (let i = 0; i < NUM_KAMINO_BANKS_FOR_TESTING; i++) {
       // Create Kamino market
       const marketKeypair = Keypair.generate();
       const quoteCurrency = Array(32).fill(0); // USD quote currency
@@ -429,8 +430,8 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     // Reduced deposit amount from 20 to 10 to maintain similar total collateral with 15 positions (15*10=150 vs original 8*20=160)
     const depositAmount = new BN(10 * 10 ** ecosystem.tokenADecimals);
 
-    // Deposit into each bank sequentially
-    for (let i = 0; i < MAX_KAMINO_DEPOSITS; i++) {
+    // Deposit into first 8 Kamino banks (0-7), leaving bank 8 unused for liquidator test
+    for (let i = 0; i < 8; i++) {
       const bank = kaminoBanks[i];
       const market = kaminoMarkets[i];
       const reserve = kaminoReserves[i];
@@ -618,8 +619,8 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     // Extend the LUT with all required accounts
     const allAddresses: PublicKey[] = [];
 
-    // Add all 8 Kamino banks, oracles, and reserves
-    for (let i = 0; i < MAX_KAMINO_DEPOSITS; i++) {
+    // Add all 9 Kamino banks, oracles, and reserves (bank 8 will be used by liquidator test)
+    for (let i = 0; i < NUM_KAMINO_BANKS_FOR_TESTING; i++) {
       allAddresses.push(kaminoBanks[i]);
       allAddresses.push(oracles.tokenAOracle.publicKey);
       allAddresses.push(kaminoReserves[i]);
@@ -673,13 +674,13 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     const userAccount = user.accounts.get(USER_ACCOUNT);
     const borrowAmount = new BN(1000 * 10 ** ecosystem.usdcDecimals);
 
-    // Batch refresh all 8 Kamino reserves instruction
+    // Batch refresh first 8 Kamino reserves instruction
     const reserveAccounts: {
       pubkey: PublicKey;
       isSigner: boolean;
       isWritable: boolean;
     }[] = [];
-    for (let i = 0; i < MAX_KAMINO_DEPOSITS; i++) {
+    for (let i = 0; i < 8; i++) {
       reserveAccounts.push({
         pubkey: kaminoReserves[i],
         isSigner: false,
@@ -699,7 +700,7 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
 
     // Build remaining accounts: all active positions (8 Kamino + 7 regular TOKEN_A) + the USDC bank
     const remainingAccounts: PublicKey[][] = [];
-    for (let i = 0; i < MAX_KAMINO_DEPOSITS; i++) {
+    for (let i = 0; i < 8; i++) {
       remainingAccounts.push([
         kaminoBanks[i],
         oracles.tokenAOracle.publicKey,
@@ -775,7 +776,7 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
     const positionAccounts: PublicKey[][] = [];
-    for (let i = 0; i < MAX_KAMINO_DEPOSITS; i++) {
+    for (let i = 0; i < 8; i++) {
       positionAccounts.push([
         kaminoBanks[i],
         oracles.tokenAOracle.publicKey,
@@ -917,7 +918,7 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     const liquidateePositions: PublicKey[][] = [];
 
     // Add 8 Kamino positions
-    for (let i = 0; i < MAX_KAMINO_DEPOSITS; i++) {
+    for (let i = 0; i < 8; i++) {
       liquidateePositions.push([
         kaminoBanks[i],
         oracles.tokenAOracle.publicKey,
@@ -986,5 +987,159 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     if (verbose) {
       dumpBankrunLogs(result);
     }
+  });
+
+  it("(user 2) Liquidator with 8 Kamino positions cannot liquidate into a 9th position", async () => {
+    const { getBankrunBlockhash } = await import("./utils/spl-staking-utils");
+    const { liquidateIx, composeRemainingAccounts, accountInit, depositIx } = await import(
+      "./utils/user-instructions"
+    );
+    const { assertBankrunTxFailed } = await import("./utils/genericTests");
+    const { dumpBankrunLogs } = await import("./utils/tools");
+
+    // Create liquidator account (user 2)
+    const liquidator = users[2];
+    const accountKeypair = Keypair.generate();
+    let tx = new Transaction().add(
+      await accountInit(liquidator.mrgnProgram, {
+        marginfiGroup: kaminoGroup.publicKey,
+        marginfiAccount: accountKeypair.publicKey,
+        authority: liquidator.wallet.publicKey,
+        feePayer: liquidator.wallet.publicKey,
+      })
+    );
+    await processBankrunTransaction(bankrunContext, tx, [
+      liquidator.wallet,
+      accountKeypair,
+    ]);
+    liquidator.accounts.set(USER_ACCOUNT, accountKeypair.publicKey);
+    const liquidatorAccount = accountKeypair.publicKey;
+
+    // Deposit USDC as collateral (liability bank)
+    const depositAmountUsdc = new BN(10_000 * 10 ** ecosystem.usdcDecimals);
+    tx = new Transaction().add(
+      await depositIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidatorAccount,
+        bank: regularBank,
+        tokenAccount: liquidator.usdcAccount,
+        amount: depositAmountUsdc,
+      })
+    );
+    await processBankrunTransaction(bankrunContext, tx, [liquidator.wallet]);
+
+    // Give liquidator 8 Kamino positions: banks 1-8 (skipping bank 0)
+    const smallAmt = new BN(1 * 10 ** ecosystem.tokenADecimals);
+    for (let i = 1; i <= 8; i++) {
+      const bank = kaminoBanks[i];
+      const market = kaminoMarkets[i];
+      const reserve = kaminoReserves[i];
+
+      const [lvAuth] = deriveLiquidityVaultAuthority(
+        liquidator.mrgnBankrunProgram.programId,
+        bank
+      );
+      const [obl] = deriveBaseObligation(lvAuth, market);
+
+      tx = new Transaction().add(
+        await simpleRefreshReserve(
+          klendBankrunProgram,
+          reserve,
+          market,
+          oracles.tokenAOracle.publicKey
+        ),
+        await simpleRefreshObligation(klendBankrunProgram, market, obl, [
+          reserve,
+        ]),
+        await makeKaminoDepositIx(
+          liquidator.mrgnBankrunProgram,
+          {
+            marginfiAccount: liquidatorAccount,
+            bank: bank,
+            signerTokenAccount: liquidator.tokenAAccount,
+            lendingMarket: market,
+            reserveLiquidityMint: ecosystem.tokenAMint.publicKey,
+          },
+          smallAmt
+        )
+      );
+      await processBankrunTransaction(bankrunContext, tx, [liquidator.wallet]);
+    }
+
+    // Now attempt to liquidate bank 0 from user 0 -> should fail with 0x1844
+    const liquidatee = users[0];
+    const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT);
+    const assetBank = kaminoBanks[0];
+    const assetReserve = kaminoReserves[0];
+    const liqAmount = new BN(1 * 10 ** ecosystem.tokenADecimals);
+
+    const remainingForLiq: PublicKey[] = [
+      oracles.tokenAOracle.publicKey,
+      assetReserve,
+      oracles.usdcOracle.publicKey,
+    ];
+
+    // Liquidator positions: banks 1-8 + regularBank
+    const liquidatorPositions: PublicKey[][] = [];
+    for (let i = 1; i <= 8; i++) {
+      liquidatorPositions.push([
+        kaminoBanks[i],
+        oracles.tokenAOracle.publicKey,
+        kaminoReserves[i],
+      ]);
+    }
+    liquidatorPositions.push([regularBank, oracles.usdcOracle.publicKey]);
+
+    // Liquidatee positions: banks 0-7 + 7 regular TOKEN_A + regularBank
+    const liquidateePositions: PublicKey[][] = [];
+    for (let i = 0; i < 8; i++) {
+      liquidateePositions.push([
+        kaminoBanks[i],
+        oracles.tokenAOracle.publicKey,
+        kaminoReserves[i],
+      ]);
+    }
+    for (let i = 0; i < NUM_REGULAR_TOKEN_A_BANKS; i++) {
+      liquidateePositions.push([
+        regularTokenABanks[i],
+        oracles.tokenAOracle.publicKey,
+      ]);
+    }
+    liquidateePositions.push([regularBank, oracles.usdcOracle.publicKey]);
+
+    remainingForLiq.push(...composeRemainingAccounts(liquidatorPositions));
+    remainingForLiq.push(...composeRemainingAccounts(liquidateePositions));
+
+    const liqIx = await liquidateIx(liquidator.mrgnBankrunProgram, {
+      assetBankKey: assetBank,
+      liabilityBankKey: regularBank,
+      liquidatorMarginfiAccount: liquidatorAccount,
+      liquidateeMarginfiAccount: liquidateeAccount,
+      remaining: remainingForLiq,
+      amount: liqAmount,
+    });
+
+    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 });
+
+    // Fetch LUT
+    const lutRaw = await banksClient.getAccount(lutAddress);
+    const lutState = AddressLookupTableAccount.deserialize(lutRaw.data);
+    const lutAcc = new AddressLookupTableAccount({ key: lutAddress, state: lutState });
+
+    const msg = new TransactionMessage({
+      payerKey: liquidator.wallet.publicKey,
+      recentBlockhash: await getBankrunBlockhash(bankrunContext),
+      instructions: [computeIx, liqIx],
+    }).compileToV0Message([lutAcc]);
+
+    const vtx = new VersionedTransaction(msg);
+    vtx.sign([liquidator.wallet]);
+    const res = await banksClient.tryProcessTransaction(vtx);
+
+    if (res.result) {
+      dumpBankrunLogs(res);
+    }
+
+    // Should fail with error 6212 (0x1844)
+    assertBankrunTxFailed(res, 6212);
   });
 });
