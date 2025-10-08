@@ -29,7 +29,15 @@ pub struct Bank {
     // bytes can cross the alignment 8 threshold, but WrappedI80F48 has alignment 8 and cannot
     pub _pad0: [u8; 7], // 1x u8 + 7 = 8
 
+    /// Monotonically increases as interest rate accumulates. For typical banks, a user's asset
+    /// value in token = (number of shares the user has * asset_share_value).
+    /// * A float (arbitrary decimals)
+    /// * Initially 1
     pub asset_share_value: WrappedI80F48,
+    /// Monotonically increases as interest rate accumulates. For typical banks, a user's liabilty
+    /// value in token = (number of shares the user has * liability_share_value)
+    /// * A float (arbitrary decimals)
+    /// * Initially 1
     pub liability_share_value: WrappedI80F48,
 
     pub liquidity_vault: Pubkey,
@@ -54,7 +62,14 @@ pub struct Bank {
     /// Fees collected and pending withdraw for the `fee_vault`
     pub collected_group_fees_outstanding: WrappedI80F48,
 
+    /// Sum of all liability shares held by all borrowers in this bank.
+    /// * Uses `mint_decimals`
     pub total_liability_shares: WrappedI80F48,
+    /// Sum of all asset shares held by all depositors in this bank.
+    /// * Uses `mint_decimals`
+    /// * For Kamino banks, this is the quantity of collateral tokens (NOT liquidity tokens) in the
+    ///   bank, and also uses `mint_decimals`, though the mint itself will always show (6) decimals
+    ///   exactly (i.e Kamino ignores this and treats it as if it was using `mint_decimals`)
     pub total_asset_shares: WrappedI80F48,
 
     pub last_update: i64,
@@ -101,7 +116,13 @@ pub struct Bank {
     ///   the bank may safely be closed if this is zero. Will never go negative.
     pub borrowing_position_count: i32,
     pub _padding_0: [u8; 16],
-    pub _padding_1: [[u64; 2]; 19], // 8 * 2 * 19 = 304B
+
+    /// Kamino banks only, otherwise Pubkey default
+    pub kamino_reserve: Pubkey,
+    /// Kamino banks only, otherwise Pubkey default
+    pub kamino_obligation: Pubkey,
+
+    pub _padding_1: [[u64; 2]; 15], // 8 * 2 * 15 = 240B
 }
 
 impl Bank {
@@ -148,6 +169,8 @@ pub enum OracleSetup {
     PythPushOracle,
     SwitchboardPull,
     StakedWithPythPush,
+    KaminoPythPush,
+    KaminoSwitchboardPull,
 }
 unsafe impl Zeroable for OracleSetup {}
 unsafe impl Pod for OracleSetup {}
@@ -161,6 +184,8 @@ impl OracleSetup {
             3 => Some(Self::PythPushOracle),
             4 => Some(Self::SwitchboardPull),
             5 => Some(Self::StakedWithPythPush),
+            6 => Some(Self::KaminoPythPush),
+            7 => Some(Self::KaminoSwitchboardPull),
             _ => None,
         }
     }

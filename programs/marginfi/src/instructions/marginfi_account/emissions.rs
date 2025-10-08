@@ -16,6 +16,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccountImpl},
         marginfi_group::MarginfiGroupImpl,
     },
+    utils::is_marginfi_asset_tag,
 };
 
 pub fn lending_account_withdraw_emissions<'info>(
@@ -90,7 +91,9 @@ pub struct LendingAccountWithdrawEmissions<'info> {
     #[account(
         mut,
         has_one = group,
-        has_one = emissions_mint
+        has_one = emissions_mint,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -157,7 +160,11 @@ pub struct LendingAccountSettleEmissions<'info> {
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
+    )]
     pub bank: AccountLoader<'info, Bank>,
 }
 
@@ -291,7 +298,9 @@ pub struct LendingAccountWithdrawEmissionsPermissionless<'info> {
     #[account(
         mut,
         has_one = group,
-        has_one = emissions_mint
+        has_one = emissions_mint,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
     pub bank: AccountLoader<'info, Bank>,
 

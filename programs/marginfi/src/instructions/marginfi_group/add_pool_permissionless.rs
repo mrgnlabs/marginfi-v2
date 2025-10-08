@@ -81,6 +81,8 @@ pub fn lending_pool_add_bank_permissionless(
         oracle_max_confidence: 0,
     };
 
+    let now = Clock::get().unwrap().unix_timestamp;
+
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
         default_config.into(),
@@ -89,7 +91,7 @@ pub fn lending_pool_add_bank_permissionless(
         liquidity_vault.key(),
         insurance_vault.key(),
         fee_vault.key(),
-        Clock::get().unwrap().unix_timestamp,
+        now,
         liquidity_vault_bump,
         liquidity_vault_authority_bump,
         insurance_vault_bump,

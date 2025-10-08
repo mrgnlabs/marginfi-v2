@@ -9,9 +9,9 @@ use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{
-        ASSET_TAG_DEFAULT, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
+        ASSET_TAG_DEFAULT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
         EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48,
-        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
+        MAX_KAMINO_POSITIONS, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     types::{
         reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache,
@@ -35,6 +35,7 @@ fn get_remaining_accounts_per_balance(balance: &Balance) -> MarginfiResult<usize
 fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> {
     match asset_tag {
         ASSET_TAG_DEFAULT | ASSET_TAG_SOL => Ok(2),
+        ASSET_TAG_KAMINO => Ok(3),
         ASSET_TAG_STAKED => Ok(4),
         _ => err!(MarginfiError::AssetTagMismatch),
     }
@@ -202,7 +203,13 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
 
                 // Get the oracle, and the LST mint and sol pool if applicable (staked only)
                 let oracle_ai_idx = account_index + 1;
-                let oracle_ais = &remaining_ais[oracle_ai_idx..oracle_ai_idx + num_accounts - 1];
+                let end_idx = oracle_ai_idx + num_accounts - 1;
+                require_gte!(
+                    remaining_ais.len(),
+                    end_idx,
+                    MarginfiError::WrongNumberOfOracleAccounts
+                );
+                let oracle_ais = &remaining_ais[oracle_ai_idx..end_idx];
 
                 let price_adapter = Box::new(OraclePriceFeedAdapter::try_from_bank_config(
                     &bank.config,
@@ -930,6 +937,20 @@ impl<'a> BankAccountWrapper<'a> {
                 Ok(Self { balance, bank })
             }
             None => {
+                // Enforce Kamino position limit before creating a new Kamino position
+                if bank.config.asset_tag == ASSET_TAG_KAMINO {
+                    let kamino_position_count = lending_account
+                        .balances
+                        .iter()
+                        .filter(|b| b.is_active() && b.bank_asset_tag == ASSET_TAG_KAMINO)
+                        .count();
+
+                    check!(
+                        kamino_position_count < MAX_KAMINO_POSITIONS,
+                        MarginfiError::KaminoPositionLimitExceeded
+                    );
+                }
+
                 let empty_index = lending_account
                     .get_first_empty_balance()
                     .ok_or_else(|| error!(MarginfiError::LendingAccountBalanceSlotsFull))?;
@@ -958,6 +979,11 @@ impl<'a> BankAccountWrapper<'a> {
 
     /// Deposit an asset, will error if this repays a liability instead of increasing a asset
     pub fn deposit(&mut self, amount: I80F48) -> MarginfiResult {
+        self.increase_balance_internal(amount, BalanceIncreaseType::DepositOnly)
+    }
+
+    /// Deposit an asset, ignoring repayment of liabilities. Useful only for banks where borrowing is disabled.
+    pub fn deposit_no_repay(&mut self, amount: I80F48) -> MarginfiResult {
         self.increase_balance_internal(amount, BalanceIncreaseType::DepositOnly)
     }
 

@@ -537,6 +537,59 @@ pub mod marginfi {
     ) -> MarginfiResult {
         marginfi_account::admin_super_withdraw(ctx)
     }
+
+    // Kamino integration instructions
+
+    /// (permissionless) Initialize a Kamino obligation for a marginfi bank
+    /// * amount - In token, in native decimals. Must be >10 (i.e. 10 lamports, not 10 tokens). Lost
+    ///   forever. Generally, try to make this the equivalent of around $1, in case Kamino ever
+    ///   rounds small balances down to zero.
+    pub fn kamino_init_obligation(
+        ctx: Context<KaminoInitObligation>,
+        amount: u64,
+    ) -> MarginfiResult {
+        kamino::kamino_init_obligation(ctx, amount)
+    }
+
+    /// (user) Deposit into a Kamino pool through a marginfi account
+    /// * amount - in the liquidity token (e.g. if there is a Kamino USDC bank, pass the amount of
+    ///   USDC desired), in native decimals.
+    pub fn kamino_deposit(ctx: Context<KaminoDeposit>, amount: u64) -> MarginfiResult {
+        kamino::kamino_deposit(ctx, amount)
+    }
+
+    /// (user) Withdraw from a Kamino pool through a marginfi account
+    /// * amount - in the collateral token (NOT liquidity token), in native decimals. Must convert
+    ///     from collateral to liquidity token amounts using the current exchange rate.
+    /// * withdraw_all - if true, withdraw the entire mrgn balance (Note: due to rounding down, a
+    ///   deposit and withdraw back to back may result in several lamports less)
+    pub fn kamino_withdraw<'info>(
+        ctx: Context<'_, '_, 'info, 'info, KaminoWithdraw<'info>>,
+        amount: u64,
+        withdraw_all: Option<bool>,
+    ) -> MarginfiResult {
+        kamino::kamino_withdraw(ctx, amount, withdraw_all)
+    }
+
+    /// (group admin only) Add a Kamino bank to the group. Pass the oracle and reserve in remaining
+    /// accounts 0 and 1 respectively.
+    pub fn lending_pool_add_bank_kamino(
+        ctx: Context<LendingPoolAddBankKamino>,
+        bank_config: state::kamino::KaminoConfigCompact,
+        bank_seed: u64,
+    ) -> MarginfiResult {
+        kamino::lending_pool_add_bank_kamino(ctx, bank_config, bank_seed)
+    }
+
+    /// (fee admin only) Harvest the specified reward index from the Kamino Farm attached to this bank.
+    ///
+    /// * `reward_index` — index of the reward token in the Kamino Farm's reward list
+    pub fn kamino_harvest_reward(
+        ctx: Context<KaminoHarvestReward>,
+        reward_index: u64,
+    ) -> MarginfiResult {
+        kamino::kamino_harvest_reward(ctx, reward_index)
+    }
 }
 
 #[cfg(not(feature = "no-entrypoint"))]

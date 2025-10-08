@@ -21,11 +21,12 @@ client = []
 debug = []
 mainnet-beta = ["id-crate/mainnet-beta", "marginfi-type-crate/mainnet-beta"]
 staging = ["id-crate/staging", "marginfi-type-crate/staging"]
+stagingalt = ["id-crate/stagingalt", "marginfi-type-crate/stagingalt"]
 devnet = ["id-crate/devnet", "marginfi-type-crate/devnet"]
 
 [dependencies]
-id-crate = { path = "../../id-crate" }
-marginfi-type-crate = { path = "../../type-crate", features = ["anchor"] }
+id-crate = { workspace = true }
+marginfi-type-crate = { workspace = true, features = ["anchor"] }
 # solana-program = { workspace = true }
 spl-transfer-hook-interface = { workspace = true }
 # spl-tlv-account-resolution = { workspace = true }
@@ -46,6 +47,8 @@ static_assertions = { workspace = true }
 cfg-if = "1.0.0"
 enum_dispatch = "0.3.13"
 solana-security-txt = "1.1.1"
+
+kamino-mocks = { path = "../kamino-mocks" , features = ["no-entrypoint"]}
 
 [dev-dependencies]
 solana-account-decoder = { workspace = true }

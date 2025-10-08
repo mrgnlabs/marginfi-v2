@@ -20,6 +20,7 @@ import {
 import { LST_ATA, LST_ATA_v1, USER_ACCOUNT } from "./utils/mocks";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { dumpBankrunLogs } from "./utils/tools";
+import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 
 describe("Borrow power grows as v0 Staked SOL gains value from appreciation", () => {
   const provider = getProvider() as AnchorProvider;
@@ -30,6 +31,11 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
   // start the pool, which is non-refundable and doesn't function as collateral)
   /** SOL to add to the validator as pretend-earned epoch rewards */
   const appreciation = 30;
+
+  before(async () => {
+    // Refresh oracles to ensure they're up to date
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
+  });
 
   it("(user 2) tries to borrow 1.1 SOL against 1 v0 STAKED - fails, not enough funds", async () => {
     const user = users[2];

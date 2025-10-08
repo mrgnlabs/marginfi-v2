@@ -7,8 +7,8 @@ use crate::state::marginfi_account::{
 use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::utils::{
-    fetch_asset_price_for_bank, validate_asset_tags, validate_bank_asset_tags, validate_bank_state,
-    InstructionKind,
+    fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_asset_tags,
+    validate_bank_asset_tags, validate_bank_state, InstructionKind,
 };
 use crate::{bank_signer, state::marginfi_account::BankAccountWrapper};
 use crate::{check, debug, prelude::*, utils};
@@ -80,6 +80,13 @@ use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_I
 ///    liquidator_observation_ais...,
 ///    liquidatee_observation_ais...,
 ///  ]
+///
+/// For Kamino positions:
+/// The `q_a` (asset quantity) represents the number of collateral tokens to liquidate,
+/// NOT the underlying dollar value or liquidity tokens. Collateral tokens are Kamino's
+/// representation of a user's share in the pool. Liquidators must understand they are
+/// specifying how many of these position tokens to take, rather than a specific amount
+/// of the underlying asset.
 
 pub fn lending_account_liquidate<'info>(
     mut ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
@@ -466,7 +473,9 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        constraint = is_marginfi_asset_tag(liab_bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
     pub liab_bank: AccountLoader<'info, Bank>,
 

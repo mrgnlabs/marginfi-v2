@@ -56,16 +56,23 @@ import { dumpAccBalances, bytesToF64, dumpBankrunLogs } from "./utils/tools";
 const USER_ACCOUNT_THROWAWAY = "throwaway_account_zb01";
 const ONE_YEAR_IN_SECONDS = 2 * 365 * 24 * 60 * 60;
 
+const startingSeed: number = 699;
+const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_123400000ZB1");
+
 let banks: PublicKey[] = [];
 
 describe("Bank bankruptcy tests", () => {
   it("init group, init banks, and fund banks", async () => {
-    const result = await genericMultiBankTestSetup(2, USER_ACCOUNT_THROWAWAY);
+    const result = await genericMultiBankTestSetup(
+      2,
+      USER_ACCOUNT_THROWAWAY,
+      groupBuff,
+      startingSeed
+    );
     banks = result.banks;
 
     // Crank oracles so that the prices are not stale
     let now = Math.floor(Date.now() / 1000);
-    const targetUnix = BigInt(now + ONE_YEAR_IN_SECONDS);
     let priceAlpha = ecosystem.lstAlphaPrice * 10 ** ecosystem.lstAlphaDecimals;
     let confAlpha = priceAlpha * ORACLE_CONF_INTERVAL;
     await initOrUpdatePriceUpdateV2(
@@ -77,7 +84,9 @@ describe("Bank bankruptcy tests", () => {
       -ecosystem.lstAlphaDecimals,
       oracles.pythPullLst,
       undefined,
-      bankrunContext
+      bankrunContext,
+      false,
+      now + ONE_YEAR_IN_SECONDS
     );
   });
 
@@ -193,7 +202,9 @@ describe("Bank bankruptcy tests", () => {
       -ecosystem.lstAlphaDecimals,
       oracles.pythPullLst,
       undefined,
-      bankrunContext
+      bankrunContext,
+      false,
+      now + ONE_YEAR_IN_SECONDS + ONE_YEAR_IN_SECONDS
     );
   });
 

@@ -11,7 +11,10 @@ use crate::{
         },
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, fetch_asset_price_for_bank, validate_bank_state, InstructionKind},
+    utils::{
+        self, fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_bank_state,
+        InstructionKind,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
@@ -199,6 +202,8 @@ pub struct LendingAccountWithdraw<'info> {
         mut,
         has_one = group,
         has_one = liquidity_vault,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions,
         // We want to block withdraw of assets with no weight (e.g. isolated) otherwise the
         // liquidator can just take all of them and the user gets nothing back, which is unfair. For
         // assets with any nominal weight, e.g. 10%, caveat emptor

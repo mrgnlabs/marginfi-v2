@@ -9,6 +9,7 @@ use anchor_lang::solana_program::{borsh1::try_from_slice_unchecked, stake::state
 use anchor_spl::token::Mint;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
+use kamino_mocks::state::MinimalReserve;
 use marginfi_type_crate::{
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10_I80F48, MAX_CONF_INTERVAL, STD_DEV_MULTIPLE, U32_MAX,
@@ -22,7 +23,6 @@ use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{
     CurrentResult, Discriminator, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID,
 };
-
 #[derive(Copy, Clone, Debug)]
 pub enum PriceBias {
     Low,
@@ -208,6 +208,110 @@ impl OraclePriceFeedAdapter {
                 let price = OraclePriceFeedAdapter::PythPushOracle(feed);
                 Ok(price)
             }
+            OracleSetup::KaminoPythPush => {
+                // (1) Pyth oracle (for price)_and (2) Kamino reserve (for exchange rate)
+                check!(ais.len() == 2, MarginfiError::WrongNumberOfOracleAccounts);
+
+                let account_info = &ais[0];
+                let reserve_info = &ais[1];
+
+                // Validate oracle account matches expected key (new pattern)
+                require_keys_eq!(
+                    *account_info.key,
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+
+                check_eq!(
+                    *reserve_info.key,
+                    bank_config.oracle_keys[1],
+                    MarginfiError::KaminoReserveValidationFailed
+                );
+
+                // Verifies owner + discriminator automatically
+                let reserve_loader: AccountLoader<MinimalReserve> =
+                    AccountLoader::try_from(reserve_info)
+                        .map_err(|_| MarginfiError::KaminoReserveValidationFailed)?;
+                let reserve = reserve_loader.load()?;
+                let is_stale = reserve.is_stale(clock.slot);
+                if is_stale {
+                    // msg!(
+                    //     "stale. slot now: {:?} but has: {:?}, stale flag: {:?}",
+                    //     clock.slot,
+                    //     reserve.slot,
+                    //     reserve.stale
+                    // );
+                    return err!(MarginfiError::ReserveStale);
+                }
+
+                if live!() {
+                    require_keys_eq!(
+                        *account_info.owner,
+                        pyth_solana_receiver_sdk::id(),
+                        MarginfiError::PythPushWrongAccountOwner
+                    );
+                } else {
+                    // Localnet only
+                    // On localnet, allow the mock program ID -OR- the real one
+                    let owner_ok = account_info.owner.eq(&PYTH_ID)
+                        || account_info.owner.eq(&pyth_solana_receiver_sdk::id());
+                    check!(owner_ok, MarginfiError::PythPushWrongAccountOwner);
+                };
+
+                // Use new pattern: no feed_id parameter needed
+                let mut price_feed =
+                    PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
+
+                // Adjust Pyth prices & confidence in place
+                price_feed.price.price = reserve.adjust_i64(price_feed.price.price)?;
+                price_feed.ema_price.price = reserve.adjust_i64(price_feed.ema_price.price)?;
+                price_feed.price.conf = reserve.adjust_u64(price_feed.price.conf)?;
+                price_feed.ema_price.conf = reserve.adjust_u64(price_feed.ema_price.conf)?;
+
+                Ok(OraclePriceFeedAdapter::PythPushOracle(price_feed))
+            }
+            OracleSetup::KaminoSwitchboardPull => {
+                // (1) Switchboard oracle (for price) and (2) Kamino reserve (for exchange rate)
+                check!(ais.len() == 2, MarginfiError::WrongNumberOfOracleAccounts);
+
+                let oracle_info = &ais[0];
+                let reserve_info = &ais[1];
+
+                require_keys_eq!(
+                    *oracle_info.key,
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+
+                require_keys_eq!(
+                    *reserve_info.key,
+                    bank_config.oracle_keys[1],
+                    MarginfiError::KaminoReserveValidationFailed
+                );
+
+                // Verifies owner + discriminator automatically
+                let reserve_loader: AccountLoader<MinimalReserve> =
+                    AccountLoader::try_from(reserve_info)
+                        .map_err(|_| MarginfiError::KaminoReserveValidationFailed)?;
+                let reserve = reserve_loader.load()?;
+                let is_stale = reserve.is_stale(clock.slot);
+                if is_stale {
+                    return err!(MarginfiError::ReserveStale);
+                }
+
+                let mut price_feed = SwitchboardPullPriceFeed::load_checked(
+                    oracle_info,
+                    clock.unix_timestamp,
+                    max_age,
+                )?;
+
+                // Adjust Switchboard value & std_dev (i128 with 1e18 precision)
+                price_feed.feed.result.value = reserve.adjust_i128(price_feed.feed.result.value)?;
+                price_feed.feed.result.std_dev =
+                    reserve.adjust_i128(price_feed.feed.result.std_dev)?;
+
+                Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
+            }
         }
     }
 
@@ -223,6 +327,52 @@ impl OraclePriceFeedAdapter {
     ) -> MarginfiResult {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
+            OracleSetup::KaminoPythPush => {
+                require_eq!(
+                    oracle_ais.len(),
+                    2,
+                    MarginfiError::WrongNumberOfOracleAccounts
+                );
+
+                // Validate oracle account matches expected key (new pattern)
+                require_keys_eq!(
+                    oracle_ais[0].key(),
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+
+                // Validate it's a valid Pyth Push oracle account
+                load_price_update_v2_checked(&oracle_ais[0])?;
+
+                require_keys_eq!(
+                    *oracle_ais[1].key,
+                    bank_config.oracle_keys[1],
+                    MarginfiError::KaminoReserveValidationFailed
+                );
+                Ok(())
+            }
+            OracleSetup::KaminoSwitchboardPull => {
+                require_eq!(
+                    oracle_ais.len(),
+                    2,
+                    MarginfiError::WrongNumberOfOracleAccounts
+                );
+
+                require_keys_eq!(
+                    oracle_ais[0].key(),
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+
+                SwitchboardPullPriceFeed::check_ais(&oracle_ais[0])?;
+
+                require_keys_eq!(
+                    *oracle_ais[1].key,
+                    bank_config.oracle_keys[1],
+                    MarginfiError::KaminoReserveValidationFailed
+                );
+                Ok(())
+            }
             OracleSetup::PythLegacy => {
                 panic!("pyth legacy is deprecated");
             }

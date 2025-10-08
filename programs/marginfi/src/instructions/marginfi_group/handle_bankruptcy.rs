@@ -10,7 +10,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccountImpl, RiskEngine},
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, validate_bank_state, InstructionKind},
+    utils::{self, is_marginfi_asset_tag, validate_bank_state, InstructionKind},
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -215,7 +215,9 @@ pub struct LendingPoolHandleBankruptcy<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
     pub bank: AccountLoader<'info, Bank>,
 

@@ -78,6 +78,7 @@ pub fn start_liquidation<'info>(
                 &ix_discriminators::END_LIQUIDATION,
                 &ix_discriminators::LENDING_ACCOUNT_WITHDRAW,
                 &ix_discriminators::LENDING_ACCOUNT_REPAY,
+                &ix_discriminators::KAMINO_WITHDRAW,
                 // TODO add withdraw/repay from integrator as they are added to the program. Also
                 // remember to add a test to ix_utils to validate you added the correct hash.
 

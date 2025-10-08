@@ -186,6 +186,35 @@ pub enum MarginfiError {
     LiquidationPremiumTooHigh,
     #[msg("Start and end liquidation and flashloan must be top-level instructions")] // 6091
     NotAllowedInCPI,
+
+    // ************** BEGIN KAMINO ERRORS (starting at 6200)
+    #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
+    WrongAssetTagForStandardInstructions = 200, // 6200
+    #[msg("Wrong asset tag for Kamino instructions, expected KAMINO asset tag")]
+    WrongAssetTagForKaminoInstructions, // 6201
+    #[msg("Cannot create a kamino bank with this instruction, use add_bank_kamino")]
+    CantAddPool, // 6202
+    #[msg("Kamino reserve mint address doesn't match the bank mint address")]
+    KaminoReserveMintAddressMismatch, // 6203
+    #[msg("Deposit failed: obligation deposit amount increase did not match the expected increase, left - actual, right - expected")]
+    KaminoDepositFailed, // 6204
+    #[msg("Withdraw failed: token vault increase did not match the expected increase, left - actual, right - expected")]
+    KaminoWithdrawFailed, // 6205
+    #[msg("Kamino Reserve data is stale - run refresh_reserve on kamino program first")]
+    ReserveStale, // 6206
+    #[msg("Kamino obligation must have exactly one active deposit, at index 0")]
+    InvalidObligationDepositCount, // 6207
+    #[msg("Kamino obligation deposit doesn't match the expected reserve")]
+    ObligationDepositReserveMismatch, // 6208
+    #[msg("Failed to meet minimum deposit amount requirement for init obligation")]
+    ObligationInitDepositInsufficient, // 6209
+    #[msg("Kamino reserve validation failed")]
+    KaminoReserveValidationFailed, // 6210
+    #[msg("Invalid oracle setup: only KaminoPythPush and KaminoSwitchboardPull are supported")]
+    KaminoInvalidOracleSetup, // 6211
+    #[msg("Maximum Kamino positions limit exceeded (max 8 positions per account)")]
+    KaminoPositionLimitExceeded, // 6212
+                                 // **************END KAMINO ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -301,6 +330,21 @@ impl From<u32> for MarginfiError {
             6089 => MarginfiError::ForbiddenIx,
             6090 => MarginfiError::LiquidationPremiumTooHigh,
             6091 => MarginfiError::NotAllowedInCPI,
+
+            // Kamino-specific errors (starting at 6200)
+            6200 => MarginfiError::WrongAssetTagForStandardInstructions,
+            6201 => MarginfiError::WrongAssetTagForKaminoInstructions,
+            6202 => MarginfiError::CantAddPool,
+            6203 => MarginfiError::KaminoReserveMintAddressMismatch,
+            6204 => MarginfiError::KaminoDepositFailed,
+            6205 => MarginfiError::KaminoWithdrawFailed,
+            6206 => MarginfiError::ReserveStale,
+            6207 => MarginfiError::InvalidObligationDepositCount,
+            6208 => MarginfiError::ObligationDepositReserveMismatch,
+            6209 => MarginfiError::ObligationInitDepositInsufficient,
+            6210 => MarginfiError::KaminoReserveValidationFailed,
+            6211 => MarginfiError::KaminoInvalidOracleSetup,
+            6212 => MarginfiError::KaminoPositionLimitExceeded,
             _ => MarginfiError::InternalLogicError,
         }
     }
