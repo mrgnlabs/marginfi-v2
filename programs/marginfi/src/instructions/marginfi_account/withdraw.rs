@@ -11,7 +11,10 @@ use crate::{
         },
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_bank_state, InstructionKind},
+    utils::{
+        self, fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_bank_state,
+        InstructionKind,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};

@@ -7,8 +7,8 @@ use crate::state::marginfi_account::{
 use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::utils::{
-    fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_asset_tags, validate_bank_asset_tags, validate_bank_state,
-    InstructionKind,
+    fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_asset_tags,
+    validate_bank_asset_tags, validate_bank_state, InstructionKind,
 };
 use crate::{bank_signer, state::marginfi_account::BankAccountWrapper};
 use crate::{check, debug, prelude::*, utils};

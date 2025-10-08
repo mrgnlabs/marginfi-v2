@@ -11,7 +11,10 @@ use crate::{
         },
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{assert_within_one_token, fetch_asset_price_for_bank, is_kamino_asset_tag, validate_bank_state, InstructionKind},
+    utils::{
+        assert_within_one_token, fetch_asset_price_for_bank, is_kamino_asset_tag,
+        validate_bank_state, InstructionKind,
+    },
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
