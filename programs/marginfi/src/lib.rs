@@ -559,8 +559,8 @@ pub mod marginfi {
     }
 
     /// (user) Withdraw from a Kamino pool through a marginfi account
-    /// * amount - in the liquidity token (e.g. if there is a Kamino USDC bank, pass the amount of
-    ///     USDC desired), in native decimals.
+    /// * amount - in the collateral token (NOT liquidity token), in native decimals. Must convert
+    ///     from collateral to liquidity token amounts using the current exchange rate.
     /// * withdraw_all - if true, withdraw the entire mrgn balance (Note: due to rounding down, a
     ///   deposit and withdraw back to back may result in several lamports less)
     pub fn kamino_withdraw<'info>(

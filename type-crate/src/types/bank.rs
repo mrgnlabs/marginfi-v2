@@ -122,7 +122,7 @@ pub struct Bank {
     /// Kamino banks only, otherwise Pubkey default
     pub kamino_obligation: Pubkey,
 
-    pub _padding_1: [[u64; 2]; 15], // 8 * 2 * 15 = 240B (reduced from 19 to account for 2 Pubkeys = 64 bytes)
+    pub _padding_1: [[u64; 2]; 15], // 8 * 2 * 15 = 240B
 }
 
 impl Bank {

@@ -11,11 +11,11 @@ Are you an administrator, risk manager, developer, or power user of the mrgn pro
 * Farms - A rewards emission mechanism used by Kamino to incentivize reserve deposits/borrows. Built
   as a separate program from klend.
 * Refreshing Reserves - Kamino requires reserves to cache price data from their oracles. This must
-  happen for any tx that changes funds. A refresh is good for one slot or a one tx that changes
+  happen for any tx that changes funds. A refresh is valid for one slot or one tx that changes
   funds where that reserve is involved, whichever comes first.
 * Refreshing Obligations - Kamino requires the user's account to refresh before any tx that changes
-  funds, after and reserves the account uses are refreshed. This syncs the "balances" or "health" of
-  the user's account. Like refreshing reserves, this is good for one slot or one tx changes funds,
+  funds, after any reserves the account uses are refreshed. This syncs the "balances" or "health" of
+  the user's account. Like refreshing reserves, this is valid for one slot or one tx that changes funds,
   whichever comes first. In practice, every Kamino related tx looks like: (refresh reserves, refresh
   obligation, everything else).
 * Mrgn-wrapped or wrapped - We refer to mrgn banks that track Kamino collateral assets as
@@ -113,10 +113,10 @@ amount of CU: it is recommended to do this in a separate tx to the liquidation i
 | Instruction | Token Amount Type | Notes |
 |-------------|------------------|-------|
 | Deposit | Liquidity token amount | Raw underlying token (e.g., USDC, SOL) |
-| Withdraw | Collateral token amount | Must be converted back to liquidity token amount |
-| Liquidate | Collateral token amount | Must be converted back to liquidity token amount |
+| Withdraw | Collateral token amount | Must convert from collateral to liquidity token amount |
+| Liquidate | Collateral token amount | Must convert from collateral to liquidity token amount |
 
-**Important:** Deposit operations accept liquidity token amounts (the underlying asset), while withdraw and liquidate operations work with collateral token amounts. Since collateral tokens appreciate in value relative to the liquidity token as interest accumulates, liquidators and withdrawers must manually convert collateral token amounts back to liquidity token amounts using the current exchange rate.
+**Important:** Deposit operations accept liquidity token amounts (the underlying asset), while withdraw and liquidate operations work with collateral token amounts. Since collateral tokens appreciate in value relative to the liquidity token as interest accumulates, liquidators and withdrawers must manually convert from collateral token amounts to liquidity token amounts using the current exchange rate.
 
 ## Ongoing Considerations
 

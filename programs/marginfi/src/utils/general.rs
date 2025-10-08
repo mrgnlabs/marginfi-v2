@@ -188,6 +188,7 @@ fn ceil_div(numerator: u128, denominator: u128) -> Option<u128> {
 }
 
 /// A minimal tool to convert a hex string like "22f123639" into the byte equivalent.
+#[cfg(test)]
 pub fn hex_to_bytes(hex: &str) -> Vec<u8> {
     if hex.len() % 2 != 0 {
         panic!("hex string odd size");

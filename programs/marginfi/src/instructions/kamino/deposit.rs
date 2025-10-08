@@ -49,9 +49,11 @@ pub fn kamino_deposit(ctx: Context<KaminoDeposit>, amount: u64) -> MarginfiResul
         authority_bump = bank.liquidity_vault_authority_bump;
 
         validate_asset_tags(&bank, &marginfi_account)?;
+        validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
 
         check!(
-            !marginfi_account.get_flag(ACCOUNT_DISABLED),
+            !marginfi_account.get_flag(ACCOUNT_DISABLED)
+                && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
             MarginfiError::AccountDisabled
         );
     }
@@ -84,15 +86,6 @@ pub fn kamino_deposit(ctx: Context<KaminoDeposit>, amount: u64) -> MarginfiResul
         let mut bank = ctx.accounts.bank.load_mut()?;
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let group = &ctx.accounts.group.load()?;
-
-        validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
-
-        check!(
-            !marginfi_account.get_flag(ACCOUNT_DISABLED)
-                // Sanity check: liquidation doesn't allow the deposit ix, but just in case
-                && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
-            MarginfiError::AccountDisabled
-        );
 
         let mut bank_account = BankAccountWrapper::find_or_create(
             &ctx.accounts.bank.key(),
