@@ -8,14 +8,14 @@
  * |-----------------------------------|-------------------------------------------|----------------------------------------------------------|--------|
  * | Deposit into 8 Kamino banks       | Can user create maximum allowed positions?| ✅ All 8 deposits succeed                                | ✅ k14  |
  * | Try to deposit into 9th Kamino    | Does limit enforcement work?              | ❌ Fails with error 6212                                 | ✅ k14  |
-* | Withdraw & reopen position        | Can user close a position and open new?   | ✅ After withdrawing bank X, can deposit into bank Y     | ✅ k14  |
+ * | Withdraw & reopen position        | Can user close a position and open new?   | ✅ After withdrawing bank X, can deposit into bank Y     | ✅ k14  |
  *
  * ### Complex Multi-Asset Scenarios
  * | Scenario                          | What We're Testing                        | Expected Result                                          | Status |
  * |-----------------------------------|-------------------------------------------|----------------------------------------------------------|--------|
  * | 8 Kamino + 7 regular banks        | Do regular banks count against limit?     | ✅ 15 total positions (only Kamino counted for limit)    | ✅ k17  |
  * | Liquidation with 15 positions     | Can we liquidate complex accounts?        | ✅ Liquidation succeeds despite high account count       | ✅ k17  |
-* | 8 Kamino + 8 regular              | How do the two limits interact?           | ✅ Can fill both limits, then can't add 9th of either    | ❌ TODO |
+ * | 8 Kamino + 8 regular              | How do the two limits interact?           | ✅ Can fill both limits, then can't add 9th of either    | ❌ TODO |
  *
  * ## Liquidation Edge Cases
  *
@@ -52,6 +52,7 @@ import {
   TOKEN_A_RESERVE,
   users,
   verbose,
+  bankrunProgram,
 } from "./rootHooks";
 import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 import {
@@ -69,7 +70,7 @@ import {
   deriveLiquidityVaultAuthority,
   deriveBaseObligation,
 } from "./utils/pdas";
-import { processBankrunTransaction } from "./utils/tools";
+import { dumpAccBalances, processBankrunTransaction } from "./utils/tools";
 import {
   lendingMarketAuthPda,
   reserveLiqSupplyPda,
@@ -89,6 +90,9 @@ import {
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { ComputeBudgetProgram } from "@solana/web3.js";
 import Decimal from "decimal.js";
+import { assertBNApproximately } from "./utils/genericTests";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { assert } from "chai";
 
 const MAX_KAMINO_DEPOSITS = 8; // Maximum Kamino positions per account
 const NUM_KAMINO_BANKS_FOR_TESTING = 9; // Create 9 banks to test liquidator limit
@@ -893,8 +897,22 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
 
     const liquidator = users[1];
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT);
+    const liqorAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      liquidatorAccount
+    );
+    dumpAccBalances(liqorAcc);
     const liquidatee = users[0];
     const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT);
+    const liqeeAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      liquidateeAccount
+    );
+    dumpAccBalances(liqeeAcc);
+    const liabIndex = liqeeAcc.lendingAccount.balances.findIndex((balance) =>
+      balance.bankPk.equals(regularBank)
+    );
+    const liabBefore = wrappedI80F48toBigNumber(
+      liqeeAcc.lendingAccount.balances[liabIndex].liabilityShares
+    );
 
     // Pick one Kamino bank to liquidate (bank 0)
     const assetBankKey = kaminoBanks[0];
@@ -968,11 +986,34 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
       units: 2_000_000,
     });
 
+    const reserveAccounts: {
+      pubkey: PublicKey;
+      isSigner: boolean;
+      isWritable: boolean;
+    }[] = [];
+    for (let i = 0; i < 8; i++) {
+      reserveAccounts.push({
+        pubkey: kaminoReserves[i],
+        isSigner: false,
+        isWritable: true,
+      });
+      reserveAccounts.push({
+        pubkey: kaminoMarkets[i],
+        isSigner: false,
+        isWritable: false,
+      });
+    }
+
+    const batchRefreshIx = await klendBankrunProgram.methods
+      .refreshReservesBatch(true) // skip_price_updates = true (oracles already refreshed)
+      .remainingAccounts(reserveAccounts)
+      .instruction();
+
     // Create versioned transaction with LUT
     const messageV0 = new TransactionMessage({
       payerKey: liquidator.wallet.publicKey,
       recentBlockhash: await getBankrunBlockhash(bankrunContext),
-      instructions: [computeBudgetIx, liquidateInstruction],
+      instructions: [computeBudgetIx, batchRefreshIx, liquidateInstruction],
     }).compileToV0Message([lut]);
 
     const versionedTx = new VersionedTransaction(messageV0);
@@ -987,13 +1028,50 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     if (verbose) {
       dumpBankrunLogs(result);
     }
+
+    const liqorAccAfter = await bankrunProgram.account.marginfiAccount.fetch(
+      liquidatorAccount
+    );
+    dumpAccBalances(liqorAccAfter);
+
+    // NOTE: seized $50 token A (5 tokens), repaid $45.5278104191 USDC
+    /*
+     * Liquidator fee = 2.5%
+     * Insurance fee = 2.5%
+     * Confidence interval = 2.12% (1% confidence * 2.12 = 2.12%)
+     *
+     * Token A is worth $10 with conf $0.212 (worth $9.788 low, $10.212 high)
+     * USDC is worth $1 with conf $0.0212 (worth $0.9788 low, $1.0212 high)
+     *
+     * Liquidator must pay
+     *  value of A minus liquidator fee (low bias within the confidence interval): 5 * (1 - 0.025) * 9.788 = $47.71
+     *  USDC equivalent (high bias): 47.71 / 1.0212 = $46.7195456326 (~46.71 * 10^6 native)
+     *
+     * Liquidatee receives
+     *  value of A minus (liquidator fee + insurance) (low bias): 5 * (1 - 0.025 - 0.025) * 9.788 = $46.493
+     *  USDC equivalent (high bias): 46.493 / 1.0212 = $45.5278104191 (~45.52 & 10^6 native)
+     *
+     */
+    const liqeeAccAfter = await bankrunProgram.account.marginfiAccount.fetch(
+      liquidateeAccount
+    );
+    dumpAccBalances(liqeeAccAfter);
+    const liabAfter = wrappedI80F48toBigNumber(
+      liqeeAccAfter.lendingAccount.balances[liabIndex].liabilityShares
+    );
+    // Note: here we are relying on USDC = $1 and shares = tokens (no interest accrued), normally we
+    // have to multiply shares * exchange rate and then by the token price.
+    assert.approximately(
+      Number(liabBefore) - Number(liabAfter),
+      45.5278104191 * 10 ** 6,
+      100
+    );
   });
 
   it("(user 2) Liquidator with 8 Kamino positions cannot liquidate into a 9th position", async () => {
     const { getBankrunBlockhash } = await import("./utils/spl-staking-utils");
-    const { liquidateIx, composeRemainingAccounts, accountInit, depositIx } = await import(
-      "./utils/user-instructions"
-    );
+    const { liquidateIx, composeRemainingAccounts, accountInit, depositIx } =
+      await import("./utils/user-instructions");
     const { assertBankrunTxFailed } = await import("./utils/genericTests");
     const { dumpBankrunLogs } = await import("./utils/tools");
 
@@ -1118,12 +1196,17 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
       amount: liqAmount,
     });
 
-    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 });
+    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+      units: 2_000_000,
+    });
 
     // Fetch LUT
     const lutRaw = await banksClient.getAccount(lutAddress);
     const lutState = AddressLookupTableAccount.deserialize(lutRaw.data);
-    const lutAcc = new AddressLookupTableAccount({ key: lutAddress, state: lutState });
+    const lutAcc = new AddressLookupTableAccount({
+      key: lutAddress,
+      state: lutState,
+    });
 
     const msg = new TransactionMessage({
       payerKey: liquidator.wallet.publicKey,
