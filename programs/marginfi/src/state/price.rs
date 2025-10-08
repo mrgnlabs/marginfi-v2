@@ -3,7 +3,7 @@ use crate::constants::{
     SWITCHBOARD_PULL_ID,
 };
 use crate::state::bank_config::BankConfigImpl;
-use crate::{check, check_eq, debug, live, math_error, prelude::*};
+use crate::{check, check_eq, debug, live, math_error, prelude::*, A};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
 use anchor_spl::token::Mint;
@@ -105,11 +105,30 @@ impl OraclePriceFeedAdapter {
                     MarginfiError::KaminoReserveValidationFailed
                 );
 
+                // busted (too much heap consumption)
+
                 // Verifies owner + discriminator automatically
-                let reserve_loader: AccountLoader<MinimalReserve> =
-                    AccountLoader::try_from(reserve_info)
-                        .map_err(|_| MarginfiError::KaminoReserveValidationFailed)?;
-                let reserve = reserve_loader.load()?;
+                // let reserve_loader: AccountLoader<MinimalReserve> =
+                //     AccountLoader::try_from(reserve_info)
+                //         .map_err(|_| MarginfiError::KaminoReserveValidationFailed)?;
+                // let reserve = reserve_loader.load()?;
+
+                // TODO check discrim in first 8 bytes
+
+                // TODO safety check size instead of yoloing a slice of the correct size
+
+                // TODO copy this implementation to the swb variant of the same
+
+                let mut price_feed =
+                    PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
+
+                let heap_start = unsafe { A.pos() };
+
+                // msg!("attempt to parse key {:?}", &reserve_info.key());
+                let data_ref = reserve_info.try_borrow_data()?;
+                // msg!("data size: {:?}, ", data_ref.len());
+                let reserve: &MinimalReserve = bytemuck::from_bytes(&data_ref[8..8624]);
+
                 let is_stale = reserve.is_stale(clock.slot);
                 if is_stale {
                     // msg!(
@@ -135,15 +154,15 @@ impl OraclePriceFeedAdapter {
                     check!(owner_ok, MarginfiError::PythPushWrongAccountOwner);
                 };
 
-                // Use new pattern: no feed_id parameter needed
-                let mut price_feed =
-                    PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
-
                 // Adjust Pyth prices & confidence in place
                 price_feed.price.price = reserve.adjust_i64(price_feed.price.price)?;
                 price_feed.ema_price.price = reserve.adjust_i64(price_feed.ema_price.price)?;
                 price_feed.price.conf = reserve.adjust_u64(price_feed.price.conf)?;
                 price_feed.ema_price.conf = reserve.adjust_u64(price_feed.ema_price.conf)?;
+
+                unsafe {
+                    A.move_cursor(heap_start);
+                }
 
                 Ok(OraclePriceFeedAdapter::PythPushOracle(price_feed))
             }

@@ -433,6 +433,7 @@ pub fn lending_account_liquidate<'info>(
 
     liquidator_marginfi_account.lending_account.sort_balances();
 
+    msg!("engine start");
     // Verify liquidator account health
     let (risk_result, _engine) = RiskEngine::check_account_init_health(
         &liquidator_marginfi_account,
@@ -440,6 +441,7 @@ pub fn lending_account_liquidate<'info>(
         &mut None,
     );
     risk_result?;
+    msg!("engine done");
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {
