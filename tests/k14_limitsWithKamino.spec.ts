@@ -42,8 +42,9 @@ import {
   dumpBankrunLogs,
   processBankrunTransaction,
 } from "./utils/tools";
+import { assertBankrunTxFailed } from "./utils/genericTests";
 import { genericKaminoMultiBankTestSetup } from "./genericSetups";
-import { makeKaminoDepositIx } from "./utils/kamino-instructions";
+import { makeKaminoDepositIx, makeKaminoWithdrawIx } from "./utils/kamino-instructions";
 import {
   simpleRefreshObligation,
   simpleRefreshReserve,
@@ -286,20 +287,135 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     const result = await banksClient.tryProcessTransaction(depositTx);
 
     // Should fail with error 6212 (0x1844 in hex) - KaminoPositionLimitExceeded
-    if (!result.result) {
-      throw new Error("Expected transaction to fail but it succeeded");
+    assertBankrunTxFailed(result, 6212);
+  });
+
+  it("(admin) Withdraws from one Kamino bank and reopens a new position", async () => {
+    const user = groupAdmin;
+    const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
+    const market = kaminoAccounts.get(MARKET);
+    const tokenAReserve = kaminoAccounts.get(TOKEN_A_RESERVE);
+    const farmState = farmAccounts.get(A_FARM_STATE);
+
+    const withdrawBank = kaminoBanks[0];
+    const replacementBank = kaminoBanks[MAX_KAMINO_POSITIONS];
+
+    // Remaining accounts exclude the bank being closed
+    const remainingPositions = [];
+    for (let i = 1; i < MAX_KAMINO_POSITIONS; i++) {
+      remainingPositions.push([
+        kaminoBanks[i],
+        oracles.tokenAOracle.publicKey,
+        tokenAReserve,
+      ]);
     }
 
-    const logs = result.meta.logMessages;
-    const hasKaminoLimitError = logs.some(
-      (msg) => msg.includes("0x1844") // 6212 in hex
+    const [withdrawLiqAuth] = deriveLiquidityVaultAuthority(
+      bankrunProgram.programId,
+      withdrawBank
+    );
+    const [withdrawObligation] = deriveBaseObligation(
+      withdrawLiqAuth,
+      market
+    );
+    const [withdrawUserState] = deriveUserState(
+      FARMS_PROGRAM_ID,
+      farmState,
+      withdrawObligation
     );
 
-    if (!hasKaminoLimitError) {
-      throw new Error(
-        "Expected KaminoPositionLimitExceeded error (0x1844 / 6212), got different error:\n" +
-          logs.join("\n")
-      );
+    const withdrawTx = new Transaction().add(
+      await simpleRefreshReserve(
+        klendBankrunProgram,
+        tokenAReserve,
+        market,
+        oracles.tokenAOracle.publicKey
+      ),
+      await simpleRefreshObligation(
+        klendBankrunProgram,
+        market,
+        withdrawObligation,
+        [tokenAReserve]
+      ),
+      await makeKaminoWithdrawIx(
+        user.mrgnBankrunProgram,
+        {
+          marginfiAccount: userAccount,
+          authority: user.wallet.publicKey,
+          bank: withdrawBank,
+          destinationTokenAccount: user.tokenAAccount,
+          lendingMarket: market,
+          reserveLiquidityMint: ecosystem.tokenAMint.publicKey,
+          obligationFarmUserState: withdrawUserState,
+          reserveFarmState: farmState,
+        },
+        {
+          amount: new BN(0),
+          isFinalWithdrawal: true,
+          remaining: composeRemainingAccounts(remainingPositions),
+        }
+      )
+    );
+    await processBankrunTransaction(bankrunContext, withdrawTx, [user.wallet]);
+
+    const [replacementLiqAuth] = deriveLiquidityVaultAuthority(
+      bankrunProgram.programId,
+      replacementBank
+    );
+    const [replacementObligation] = deriveBaseObligation(
+      replacementLiqAuth,
+      market
+    );
+    const [replacementUserState] = deriveUserState(
+      FARMS_PROGRAM_ID,
+      farmState,
+      replacementObligation
+    );
+
+    const reopenAmount = new BN(10 * 10 ** ecosystem.tokenADecimals);
+    const reopenTx = new Transaction().add(
+      await simpleRefreshReserve(
+        klendBankrunProgram,
+        tokenAReserve,
+        market,
+        oracles.tokenAOracle.publicKey
+      ),
+      await simpleRefreshObligation(
+        klendBankrunProgram,
+        market,
+        replacementObligation,
+        [tokenAReserve]
+      ),
+      await makeKaminoDepositIx(
+        user.mrgnBankrunProgram,
+        {
+          marginfiAccount: userAccount,
+          bank: replacementBank,
+          signerTokenAccount: user.tokenAAccount,
+          lendingMarket: market,
+          reserveLiquidityMint: ecosystem.tokenAMint.publicKey,
+          obligationFarmUserState: replacementUserState,
+          reserveFarmState: farmState,
+        },
+        reopenAmount
+      )
+    );
+    await processBankrunTransaction(bankrunContext, reopenTx, [user.wallet]);
+
+    const accountAfter =
+      await bankrunProgram.account.marginfiAccount.fetch(userAccount);
+    const hasReplacement = accountAfter.lendingAccount.balances.some(
+      (balance) => balance.active === 1 && balance.bankPk.equals(replacementBank)
+    );
+    if (!hasReplacement) {
+      throw new Error("Expected reopened Kamino position to be active");
+    }
+
+    const stillHasWithdrawBank = accountAfter.lendingAccount.balances.some(
+      (balance) => balance.active === 1 && balance.bankPk.equals(withdrawBank)
+    );
+    if (stillHasWithdrawBank) {
+      throw new Error("Expected original Kamino position to be closed");
     }
   });
 

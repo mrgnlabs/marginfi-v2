@@ -8,14 +8,14 @@
  * |-----------------------------------|-------------------------------------------|----------------------------------------------------------|--------|
  * | Deposit into 8 Kamino banks       | Can user create maximum allowed positions?| ✅ All 8 deposits succeed                                | ✅ k14  |
  * | Try to deposit into 9th Kamino    | Does limit enforcement work?              | ❌ Fails with error 6212                                 | ✅ k14  |
- * | Withdraw & reopen position        | Can user close a position and open new?   | ✅ After withdrawing bank X, can deposit into bank Y     | ❌ TODO |
+* | Withdraw & reopen position        | Can user close a position and open new?   | ✅ After withdrawing bank X, can deposit into bank Y     | ✅ k14  |
  *
  * ### Complex Multi-Asset Scenarios
  * | Scenario                          | What We're Testing                        | Expected Result                                          | Status |
  * |-----------------------------------|-------------------------------------------|----------------------------------------------------------|--------|
  * | 8 Kamino + 7 regular banks        | Do regular banks count against limit?     | ✅ 15 total positions (only Kamino counted for limit)    | ✅ k17  |
  * | Liquidation with 15 positions     | Can we liquidate complex accounts?        | ✅ Liquidation succeeds despite high account count       | ✅ k17  |
- * | 8 Kamino + 8 regular              | How do the two limits interact?           | ✅ Can fill both limits, then can't add 9th of either    | ❌ TODO |
+* | 8 Kamino + 8 regular              | How do the two limits interact?           | ✅ Can fill both limits, then can't add 9th of either    | ❌ TODO |
  *
  * ## Liquidation Edge Cases
  *
@@ -426,7 +426,7 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
   it("(user 0) Deposits into 8 Kamino + 7 regular TOKEN_A banks", async () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT);
-    // Reduced from 20 to 10 to maintain similar total collateral with 15 positions (15*10=150 vs original 8*20=160)
+    // Reduced deposit amount from 20 to 10 to maintain similar total collateral with 15 positions (15*10=150 vs original 8*20=160)
     const depositAmount = new BN(10 * 10 ** ecosystem.tokenADecimals);
 
     // Deposit into each bank sequentially
@@ -435,7 +435,6 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
       const market = kaminoMarkets[i];
       const reserve = kaminoReserves[i];
 
-      // Derive the obligation for this bank
       const [liquidityVaultAuthority] = deriveLiquidityVaultAuthority(
         groupAdmin.mrgnBankrunProgram.programId,
         bank
