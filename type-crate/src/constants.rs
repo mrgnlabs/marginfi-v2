@@ -151,4 +151,6 @@ pub mod discriminators {
     pub const ACCOUNT: [u8; 8] = [67, 178, 130, 109, 126, 114, 28, 42];
     pub const FEE_STATE: [u8; 8] = [63, 224, 16, 85, 193, 36, 235, 220];
     pub const STAKED_SETTINGS: [u8; 8] = [157, 140, 6, 77, 89, 173, 173, 125];
+    pub const MINIMAL_OBLIGATION: [u8; 8] = [168, 206, 141, 106, 88, 76, 172, 167];
+    pub const MINIMAL_RESERVE: [u8; 8] = [43, 242, 204, 202, 26, 247, 59, 127];
 }
