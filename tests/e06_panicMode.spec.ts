@@ -20,6 +20,8 @@ import {
   ecosystem,
   emodeGroup,
   oracles,
+  LIQUIDATION_MAX_FEE,
+  LIQUIDATION_FLAT_FEE,
 } from "./rootHooks";
 import { assert } from "chai";
 import { deriveBankWithSeed, deriveGlobalFeeState } from "./utils/pdas";
@@ -78,8 +80,10 @@ describe("Panic Mode state test (Bankrun)", () => {
           admin: globalProgramAdmin.wallet.publicKey,
           wallet: globalFeeWallet,
           bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
+          liquidationFlatSolFee: LIQUIDATION_FLAT_FEE,
           programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
           programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
+          liquidationMaxFee: bigNumberToWrappedI80F48(LIQUIDATION_MAX_FEE),
         })
       );
 
