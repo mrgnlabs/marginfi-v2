@@ -67,6 +67,7 @@ import {
   updateEntireReserveConfigIx,
 } from "@kamino-finance/klend-sdk";
 import { InitObligationArgs } from "@kamino-finance/klend-sdk/dist/idl_codegen/types";
+import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 
 const NEW_RESERVE_LABEL = "k18_tokenb_reserve";
 const NEW_BANK_LABEL = "k18_tokenb_bank";
@@ -256,10 +257,9 @@ async function ensureKaminoUser(
     PublicKey.default,
     PublicKey.default
   );
-  const obligationInfo = await bankRunProvider.connection.getAccountInfo(
-    obligation
-  );
-  if (!obligationInfo) {
+  try {
+    await bankRunProvider.connection.getAccountInfo(obligation);
+  } catch (e) {
     const obligationTx = new Transaction().add(
       await klendBankrunProgram.methods
         .initObligation(initArgs)
@@ -299,6 +299,10 @@ async function mintToAccount(
 }
 
 describe("k18: Kamino interest after borrow", () => {
+  it("Refresh oracles", async () => {
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
+  });
+
   it("deposits, borrows, and accrues interest correctly", async () => {
     const tokenBMint = ecosystem.tokenBMint.publicKey;
     const tokenBDecimals = ecosystem.tokenBDecimals;
@@ -315,7 +319,6 @@ describe("k18: Kamino interest after borrow", () => {
       tokenBMint,
       groupAdmin.tokenBAccount
     );
-    console.log("A");
 
     const reservePubkey = await createReserve(
       tokenBMint,
@@ -324,7 +327,6 @@ describe("k18: Kamino interest after borrow", () => {
       groupAdmin.tokenBAccount
     );
 
-    console.log("B");
     await processBankrunTransaction(
       bankrunContext,
       new Transaction().add(
@@ -337,7 +339,6 @@ describe("k18: Kamino interest after borrow", () => {
       ),
       [groupAdmin.wallet]
     );
-    console.log("C");
 
     const depositUser = users[2];
     const depositObligation = await ensureKaminoUser(depositUser.wallet, 91);
@@ -346,7 +347,6 @@ describe("k18: Kamino interest after borrow", () => {
       tokenBMint,
       depositUser.tokenBAccount
     );
-    console.log("D");
 
     const reserveBeforeDeposit =
       await klendBankrunProgram.account.reserve.fetch(reservePubkey);
@@ -357,6 +357,11 @@ describe("k18: Kamino interest after borrow", () => {
     const [lendingMarketAuthority] = lendingMarketAuthPda(
       market,
       klendBankrunProgram.programId
+    );
+
+    console.log(
+      "reserve before deposit: " +
+        reserveBeforeDeposit.liquidity.availableAmount.toString()
     );
 
     const depositTx = new Transaction().add(
@@ -394,15 +399,18 @@ describe("k18: Kamino interest after borrow", () => {
     await processBankrunTransaction(bankrunContext, depositTx, [
       depositUser.wallet,
     ]);
-    console.log("E");
 
     const reserveAfterDeposit = await klendBankrunProgram.account.reserve.fetch(
       reservePubkey
     );
+    console.log(
+      "reserve after deposit: " +
+        reserveAfterDeposit.liquidity.availableAmount.toString()
+    );
     assertBNApproximately(
       reserveAfterDeposit.liquidity.availableAmount,
-      reserveDepositAmount,
-      new BN(5)
+      reserveBeforeDeposit.liquidity.availableAmount.add(reserveDepositAmount),
+      new BN(2)
     );
 
     const borrowTx = new Transaction().add(

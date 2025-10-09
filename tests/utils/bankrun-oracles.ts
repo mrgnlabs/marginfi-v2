@@ -176,14 +176,14 @@ export async function refreshPullOraclesBankrun(
     owner
   );
 
-  // await setPythPullOraclePrice(
-  //   bankrunContext,
-  //   banksClient,
-  //   oracles.tokenBOracle.publicKey,
-  //   oracles.tokenBOracleFeed.publicKey,
-  //   oracles.tokenBPrice,
-  //   oracles.tokenBDecimals,
-  //   ORACLE_CONF_INTERVAL,
-  //   owner
-  // );
+  await setPythPullOraclePrice(
+    bankrunContext,
+    banksClient,
+    oracles.tokenBOracle.publicKey,
+    oracles.tokenBOracleFeed.publicKey,
+    oracles.tokenBPrice,
+    oracles.tokenBDecimals,
+    ORACLE_CONF_INTERVAL,
+    owner
+  );
 }
