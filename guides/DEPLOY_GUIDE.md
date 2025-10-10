@@ -53,7 +53,13 @@ anchor idl authority \
 ```
 Note that "staging admin" i.e. `H5U6dy9ch6puEFPY3t8jEaVQnVfYPUDANQkA4XG6peUo` owns the idl authority as of May 2025.
 
-* Verify the build with:
+Put up the verified build with:
+
+```
+solana-verify export-pda-tx https://github.com/mrgnlabs/marginfi-v2 --program-id MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA --uploader J3oBkTkDXU3TcAggJEa3YeBZE5om5yNAdTtLVNXFD47 --encoding base58 --compute-unit-price 0 --library-name marginfi 
+```
+
+* After the vote passes, verify the build with:
 ```
 solana-verify verify-from-repo \
   --remote \
@@ -114,3 +120,4 @@ Here we list recent deployments to staging/mainnet. The hash is always the first
 * 0.1.3: May 27, 2025 ~1:00pm ET -- Hash ae9adb7
 * 0.1.4: July 28, 2025 ~1:00pm ET -- Hash 1229b8
 * 0.1.4 (transfer hotfix): October 2, 2025 ~4:30 ET -- Hash 866e5a
+* 0.1.5 Oct 10, 2025 ~9:00am ET -- Hash 4e7867
